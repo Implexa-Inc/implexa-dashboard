@@ -75,7 +75,7 @@ function SignupPageInner() {
       <div className="w-full max-w-sm">
         <div className="brand-mark text-sm mb-6"><span className="brand-mark-flame">⚡</span> Implexa</div>
         <h1 className="text-3xl font-semibold tracking-tight mb-2 text-ink-50">Create your account</h1>
-        <p className="text-ink-300 text-sm mb-8">Free plan — 500 credits/month. No credit card required.</p>
+        <p className="text-ink-300 text-sm mb-8">Free forever — unlimited skills. No credit card required.</p>
 
         <div className="card space-y-4">
           <button onClick={() => handleOAuth('google')} className="btn-outline w-full">

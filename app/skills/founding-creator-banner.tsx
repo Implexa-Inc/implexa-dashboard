@@ -58,11 +58,11 @@ export default async function FoundingCreatorBanner({ userId }: { userId: string
             <p className="text-sm text-ink-200 leading-relaxed mb-3">
               You captured your first skill <em>and</em> shared it — the killer feature of
               Implexa. You unlocked the Founding Creator badge (visible on every skill you
-              share) and 1,000 bonus credits.
+              share) plus your <strong>first seat on Pro free forever</strong> when we launch the Pro tier.
             </p>
             <div className="flex flex-wrap gap-3 items-baseline">
-              <Link href="/roi" className="text-xs text-brand-600 hover:underline font-medium">
-                See your attribution dashboard →
+              <Link href="/pricing" className="text-xs text-brand-600 hover:underline font-medium">
+                See the Pro plan →
               </Link>
               <span className="text-xs text-ink-400">
                 Capture another skill to grow your library.
@@ -78,14 +78,14 @@ export default async function FoundingCreatorBanner({ userId }: { userId: string
   return (
     <section className="card !bg-brand-50 !border-brand-500/30 mb-8">
       <div className="flex items-start gap-4">
-        <div className="text-3xl shrink-0" aria-hidden="true">🪙</div>
+        <div className="text-3xl shrink-0" aria-hidden="true">🏆</div>
         <div className="flex-1">
           <h2 className="text-lg font-medium text-ink-50 mb-1">
             Become a Founding Creator
           </h2>
           <p className="text-sm text-ink-200 leading-relaxed mb-4">
-            Capture <em>your own</em> workflow once and share it with your team to unlock the
-            badge — visible on every skill you share — and 1,000 bonus credits.
+            Capture <em>your own</em> workflow once and share it with your team to unlock:
+            the Founding Creator badge on every skill you share, <strong>plus your first Pro seat free forever</strong> when we launch the Pro tier.
             One demonstration → one shared skill → done.
           </p>
 
