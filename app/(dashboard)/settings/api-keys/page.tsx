@@ -25,10 +25,8 @@ export default async function ApiKeysPage() {
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-2xl mx-auto">
-        <nav className="text-sm text-ink-500 mb-6">
-          <Link href="/skills" className="hover:underline">Skills</Link> &middot;{' '}
-          <Link href="/settings/billing" className="hover:underline">Billing</Link> &middot;{' '}
-          <span className="text-ink-100">API keys</span>
+        <nav className="text-xs text-ink-500 mb-4">
+          <Link href="/settings" className="hover:underline">← Settings</Link>
         </nav>
 
         <header className="mb-8">

@@ -102,19 +102,11 @@ export default async function IntegrationsPage() {
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-6xl mx-auto">
         {/* Top nav */}
-        <header className="flex items-baseline justify-between mb-10 flex-wrap gap-4">
-          <div>
-            <div className="brand-mark text-xs mb-3"><span className="brand-mark-flame">⚡</span> Implexa</div>
-            <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Integrations</h1>
-            <p className="text-ink-300 text-sm mt-1 max-w-2xl">
-              Connect Implexa to your stack. Every integration unlocks more skills end-to-end and feeds the attribution dashboard with real outcomes.
-            </p>
-          </div>
-          <nav className="text-sm text-ink-300 flex gap-4">
-            <Link href="/skills" className="hover:text-ink-50 hover:underline">Skills</Link>
-            <Link href="/roi"    className="hover:text-ink-50 hover:underline">ROI</Link>
-            <Link href="/settings" className="hover:text-ink-50 hover:underline">Settings</Link>
-          </nav>
+        <header className="mb-10">
+          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Integrations</h1>
+          <p className="text-ink-300 text-sm mt-1 max-w-2xl">
+            Connect Implexa to your stack. Every integration unlocks more skills end-to-end and feeds the attribution dashboard with real outcomes.
+          </p>
         </header>
 
         {/* ── Section 1 — Available now ─────────────────────────────────── */}

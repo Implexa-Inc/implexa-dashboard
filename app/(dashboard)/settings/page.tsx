@@ -34,11 +34,6 @@ export default async function SettingsHubPage() {
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
-        <nav className="text-sm text-ink-500 mb-6">
-          <Link href="/skills" className="hover:underline">Skills</Link> &middot;{' '}
-          <Link href="/settings" className="text-ink-100">Settings</Link>
-        </nav>
-
         <header className="mb-10">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Settings</h1>
           <p className="text-ink-300 text-sm mt-1">
@@ -76,11 +71,6 @@ export default async function SettingsHubPage() {
           />
         </div>
 
-        <footer className="mt-12 text-center text-xs text-ink-400">
-          <form action="/auth/signout" method="POST">
-            <button className="text-ink-500 hover:text-ink-200 hover:underline">Sign out</button>
-          </form>
-        </footer>
       </div>
     </main>
   );

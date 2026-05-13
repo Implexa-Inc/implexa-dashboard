@@ -57,25 +57,13 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
         <WelcomeBanner welcome={searchParams?.welcome} forked={searchParams?.forked} />
         <FoundingCreatorBanner userId={profile.id} />
 
-        <header className="flex items-baseline justify-between mb-8 flex-wrap gap-4">
-          <div>
-            <div className="brand-mark text-xs mb-3"><span className="brand-mark-flame">⚡</span> Implexa</div>
-            <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
-              {profile.display_name ? `Welcome, ${profile.display_name.split(' ')[0]}` : 'Your skills'}
-            </h1>
-            <p className="text-ink-300 text-sm mt-1">{profile.email}</p>
-          </div>
-          <nav className="text-sm flex gap-4 items-center">
-            <Link href="/install" className="text-brand-600 hover:underline font-medium">⚡ Connect Claude</Link>
-            <Link href="/integrations" className="text-ink-200 hover:underline">Integrations</Link>
-            <Link href="/roi" className="text-ink-200 hover:underline">ROI</Link>
-            <Link href="/pricing" className="text-ink-200 hover:underline">Pricing</Link>
-            <Link href="/settings/api-keys" className="text-ink-200 hover:underline">API keys</Link>
-            <Link href="/settings/billing" className="text-ink-200 hover:underline">Billing</Link>
-            <form action="/auth/signout" method="POST">
-              <button className="text-ink-500 hover:underline">Sign out</button>
-            </form>
-          </nav>
+        <header className="mb-8">
+          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
+            {profile.display_name ? `Welcome, ${profile.display_name.split(' ')[0]}` : 'Your skills'}
+          </h1>
+          <p className="text-ink-300 text-sm mt-1">
+            Your library. Fork, run, capture, share — every skill runs in your Claude.
+          </p>
         </header>
 
         {/* First-time install guide */}
