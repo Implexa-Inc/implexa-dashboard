@@ -60,6 +60,7 @@ export default async function SkillsPage({ searchParams }: { searchParams?: { in
           </div>
           <nav className="text-sm flex gap-4 items-center">
             <Link href="/install" className="text-brand-600 hover:underline font-medium">⚡ Connect Claude</Link>
+            <Link href="/integrations" className="text-ink-200 hover:underline">Integrations</Link>
             <Link href="/roi" className="text-ink-200 hover:underline">ROI</Link>
             <Link href="/pricing" className="text-ink-200 hover:underline">Pricing</Link>
             <Link href="/settings/api-keys" className="text-ink-200 hover:underline">API keys</Link>
