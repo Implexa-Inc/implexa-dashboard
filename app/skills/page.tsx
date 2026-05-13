@@ -10,12 +10,17 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import InstallToast from './install-toast';
+import WelcomeBanner from './welcome-banner';
+import FoundingCreatorBanner from './founding-creator-banner';
+import RunInClaudeButton from './run-in-claude-button';
 
 export const dynamic = 'force-dynamic';
 
 const SYSTEM_ORG_ID = '00000000-0000-0000-0000-000000000000';
 
-export default async function SkillsPage({ searchParams }: { searchParams?: { installed?: string } }) {
+type SkillsSearchParams = { installed?: string; welcome?: string; forked?: string };
+
+export default async function SkillsPage({ searchParams }: { searchParams?: SkillsSearchParams }) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
@@ -49,6 +54,8 @@ export default async function SkillsPage({ searchParams }: { searchParams?: { in
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-5xl mx-auto">
         <InstallToast installed={searchParams?.installed} />
+        <WelcomeBanner welcome={searchParams?.welcome} forked={searchParams?.forked} />
+        <FoundingCreatorBanner userId={profile.id} />
 
         <header className="flex items-baseline justify-between mb-8 flex-wrap gap-4">
           <div>
@@ -135,7 +142,7 @@ function SkillRow({ skill }: { skill: any }) {
   const stats = skill.outcome_stats || {};
   return (
     <li>
-      <Link href={`/skills/${skill.slug}`} className="card flex items-baseline gap-4 py-4 hover:shadow-glow hover:border-brand-500/60 transition-all cursor-pointer">
+      <Link href={`/skills/${skill.slug}`} className="card flex items-center gap-4 py-4 hover:shadow-glow hover:border-brand-500/60 transition-all cursor-pointer">
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
             <div className="font-medium text-ink-50">{skill.name}</div>
@@ -144,9 +151,16 @@ function SkillRow({ skill }: { skill: any }) {
           </div>
           <div className="text-sm text-ink-300 mt-1 line-clamp-2">{skill.description}</div>
         </div>
-        <div className="text-xs whitespace-nowrap text-right">
-          {skill.usage_count > 0 && <div className="text-ink-300">{skill.usage_count} run{skill.usage_count === 1 ? '' : 's'}</div>}
-          {stats.attributedOutcomes > 0 && <div className="text-success-400 font-semibold mt-0.5">{stats.attributedOutcomes} outcome{stats.attributedOutcomes === 1 ? '' : 's'}</div>}
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="text-xs whitespace-nowrap text-right">
+            {skill.usage_count > 0 && <div className="text-ink-300">{skill.usage_count} run{skill.usage_count === 1 ? '' : 's'}</div>}
+            {stats.attributedOutcomes > 0 && <div className="text-success-400 font-semibold mt-0.5">{stats.attributedOutcomes} outcome{stats.attributedOutcomes === 1 ? '' : 's'}</div>}
+          </div>
+          <RunInClaudeButton
+            skillSlug={skill.slug}
+            triggerPhrases={skill.trigger_phrases}
+            skillName={skill.name}
+          />
         </div>
       </Link>
     </li>

@@ -25,7 +25,12 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
         jwt, method: 'POST',
         body: { displayName, joinOrgId },
       });
-      router.push(next || '/skills');
+      // If the user is being routed to a specific destination (e.g. share-link
+      // install flow), respect that. Otherwise step them through role selection.
+      // Joining an existing org skips role pick — they inherit the team library.
+      if (next) router.push(next);
+      else if (joinOrgId) router.push('/skills?welcome=joined');
+      else router.push('/onboarding/role');
     } catch (err: any) {
       setError(err.message || 'Provisioning failed');
       setLoading(null);
