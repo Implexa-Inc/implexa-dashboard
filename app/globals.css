@@ -1,0 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ───────────────────────────────────────────────────────────────────────
+ * Implexa dashboard — day/night theme.
+ *
+ * Default (light mode):
+ *   - White body, dark text
+ *   - Warm orange + golden yellow + emerald accents work as-is
+ *
+ * Dark mode (system preference):
+ *   - Near-black warm body, light text
+ *   - Same accents
+ *
+ * The `ink` scale FLIPS via these variables. Components use semantic
+ * names (text-ink-100, bg-ink-900, etc.) and the underlying color
+ * adapts automatically.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Light mode — ink-50 is darkest text, ink-950 is white body bg */
+  --ink-50:  10 8 5;                                                                 /* near-black for headings (#0A0805) */
+  --ink-100: 31 26 20;                                                               /* body text (#1F1A14) */
+  --ink-200: 42 36 30;                                                               /* emphasized body */
+  --ink-300: 110 102 94;                                                             /* muted text */
+  --ink-400: 161 153 146;                                                            /* captions */
+  --ink-500: 191 184 175;                                                            /* subtle UI text */
+  --ink-600: 215 209 200;                                                            /* prominent borders */
+  --ink-700: 233 229 222;                                                            /* subtle dividers */
+  --ink-800: 246 244 238;                                                            /* hover surfaces */
+  --ink-900: 252 251 247;                                                            /* card / surface (warm off-white) */
+  --ink-950: 255 254 251;                                                            /* body bg (warm white) */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark mode — ink-50 is brightest text, ink-950 is near-black body bg */
+    --ink-50:  250 250 248;
+    --ink-100: 229 225 216;
+    --ink-200: 201 194 183;
+    --ink-300: 161 153 146;
+    --ink-400: 124 116 108;
+    --ink-500: 110 102 94;
+    --ink-600: 74 67 57;
+    --ink-700: 42 36 30;
+    --ink-800: 31 26 20;
+    --ink-900: 21 17 12;
+    --ink-950: 10 8 5;
+  }
+}
+
+html, body {
+  background: rgb(var(--ink-950));
+  color:      rgb(var(--ink-50));
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';                             /* Inter stylistic alternates */
+}
+
+/* Subtle warm glow behind the body — only visible in dark mode where it
+ * reads as "campfire light." In light mode the glow is invisible so it
+ * doesn't muddy the white. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% -10%, rgba(255, 138, 60, 0.00) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 90% 100%, rgba(255, 138, 60, 0.00) 0%, transparent 70%);
+  z-index: -1;
+  transition: opacity 200ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  body::before {
+    background:
+      radial-gradient(ellipse 60% 40% at 50% -10%, rgba(255, 138, 60, 0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 30% at 90% 100%, rgba(52, 211, 153, 0.04) 0%, transparent 70%);
+  }
+}
+
+/* highlight.js — code blocks. Always dark (looks great on both modes for code). */
+.hljs              { background: #0A0805 !important; color: #E5E1D8; }
+.hljs-keyword      { color: #FF8A3C !important; }
+.hljs-string       { color: #FFD93D !important; }
+.hljs-comment      { color: #6E665E !important; font-style: italic; }
+.hljs-function     { color: #FFB57E !important; }
+.hljs-number       { color: #34D399 !important; }                                    /* emerald for numbers — money / counts feel "alive" */
+.hljs-title        { color: #FAFAF8 !important; font-weight: 500; }
+.hljs-attr         { color: #FFB57E !important; }
+
+/* Force code blocks to stay dark in both modes — feels more "techy" and matches
+ * the marketing site. Override Tailwind's bg-ink-900 / text-ink-100 etc that
+ * would otherwise flip in light mode. */
+.code-dark {
+  background: #0A0805 !important;
+  color: #E5E1D8 !important;
+  border: 1px solid #2A241E;
+}
+.code-dark code { color: #E5E1D8 !important; background: transparent !important; }
+
+@layer components {
+  /* ── Buttons ────────────────────────────────────────────────────── */
+  .btn          { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all; }
+  .btn-primary  { @apply btn bg-brand-500 text-ink-950 hover:bg-brand-400 hover:shadow-glow active:bg-brand-600; }
+  .btn-success  { @apply btn bg-success-400 text-ink-950 hover:bg-success-300 hover:shadow-glow-emerald active:bg-success-500; }
+  .btn-ghost    { @apply btn text-ink-100 hover:bg-ink-800 active:bg-ink-700; }
+  .btn-outline  { @apply btn border border-ink-600 text-ink-100 hover:bg-ink-800 hover:border-ink-500; }
+
+  /* ── Surfaces ───────────────────────────────────────────────────── */
+  .card         { @apply rounded-xl border border-ink-700 bg-ink-900 shadow-sm p-6; }
+  .card-glow    { @apply card border-brand-500/40 bg-gradient-to-b from-ink-900 to-ink-950; }
+  .card-success { @apply card border-success-400/40 bg-gradient-to-b from-ink-900 to-success-50/10; }
+
+  /* ── Inputs ─────────────────────────────────────────────────────── */
+  .input        { @apply w-full rounded-lg border border-ink-700 bg-ink-900 text-ink-100 placeholder:text-ink-400 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20; }
+
+  /* ── Brand mark ─────────────────────────────────────────────────── */
+  .brand-mark        { @apply inline-flex items-center gap-2 font-medium text-ink-50; }
+  .brand-mark-flame  { @apply text-brand-500; }
+
+  /* ── Semantic value classes (used in ROI / outcome displays) ────── */
+  .value-money       { @apply text-success-400 font-semibold tabular-nums; }
+  .value-attention   { @apply text-accent-400 font-semibold; }
+}
+
+/* Custom scrollbar — adapts to mode via ink vars */
+::-webkit-scrollbar              { width: 10px; height: 10px; }
+::-webkit-scrollbar-track        { background: rgb(var(--ink-950)); }
+::-webkit-scrollbar-thumb        { background: rgb(var(--ink-700)); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover  { background: rgb(var(--ink-600)); }
+
+/* Selection — warm orange tint */
+::selection { background: rgba(255, 138, 60, 0.3); color: rgb(var(--ink-50)); }
