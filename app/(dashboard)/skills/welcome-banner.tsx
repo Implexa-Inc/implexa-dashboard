@@ -54,7 +54,25 @@ export default function WelcomeBanner({ welcome, forked }: Props) {
     );
   }
 
-  // Joined an existing org
+  // Accepted an org invite
+  if (welcome === 'invited') {
+    return (
+      <section className="card !bg-success-400/5 !border-success-400/30 mb-8">
+        <div className="flex items-start gap-4">
+          <div className="text-3xl shrink-0">👥</div>
+          <div className="flex-1">
+            <h2 className="text-lg font-medium text-ink-50 mb-1">You joined your team</h2>
+            <p className="text-sm text-ink-200 leading-relaxed">
+              Welcome! Your team&apos;s saved skills are below. Run any of them in Claude,
+              or capture your own workflows to add to the library.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Joined an existing org (Plan A picker)
   if (welcome === 'joined') {
     return (
       <section className="card !bg-success-400/5 !border-success-400/30 mb-8">

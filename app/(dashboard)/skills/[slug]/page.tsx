@@ -39,6 +39,31 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
 
   if (!actualSkill) notFound();
 
+  // Pull active share tokens for this skill — drives the share UI state
+  // (existing link + copy/revoke vs. "create share" button).
+  const { data: shareRows } = await supabase
+    .from('share_tokens')
+    .select('token, share_mode, status, allowed_email_domain, share_message, expires_at, created_at, view_count, install_count')
+    .eq('skill_id', actualSkill.id)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+
+  const now = Date.now();
+  const activeShares = (shareRows || [])
+    .filter((s) => !s.expires_at || new Date(s.expires_at).getTime() > now)
+    .map((s) => ({
+      token:             s.token,
+      shareMode:         s.share_mode as 'team' | 'public',
+      url:               `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.implexa.ai'}/s/${s.token}`,
+      gateDescription:   s.share_mode === 'team'
+        ? `Only @${s.allowed_email_domain} email addresses can install this skill.`
+        : 'Anyone with this link can preview and install. PII has been removed from the public payload.',
+      allowedEmailDomain: s.allowed_email_domain || null,
+      viewCount:         s.view_count || 0,
+      installCount:      s.install_count || 0,
+      createdAt:         s.created_at,
+    }));
+
   const isSystem = actualSkill.organization_id === SYSTEM_ORG_ID;
   const inputs         = Array.isArray(actualSkill.inputs)          ? actualSkill.inputs          : [];
   const decisionPoints = Array.isArray(actualSkill.decision_points) ? actualSkill.decision_points : [];
@@ -77,6 +102,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
             id={actualSkill.id}
             currentStatus={actualSkill.status}
             isSystem={isSystem}
+            activeShares={activeShares}
           />
         </header>
 

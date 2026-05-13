@@ -18,7 +18,14 @@ export default function SignupPage() {
 function SignupPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams?.get('next') || '';                                          // preserve through OAuth + email-confirm
+  const inviteToken = searchParams?.get('invite') || '';
+  // Preserve `next` through OAuth + email-confirm. If we have an invite token,
+  // route post-auth through /onboarding so the page can call accept-invite
+  // before the workspace picker.
+  const explicitNext = searchParams?.get('next') || '';
+  const next = inviteToken
+    ? `/onboarding?invite=${encodeURIComponent(inviteToken)}`
+    : explicitNext;
 
   const supabase = createClient();
   const [email, setEmail] = useState('');

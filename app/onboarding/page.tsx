@@ -13,12 +13,34 @@ import OnboardingPicker from './picker';
 
 export const dynamic = 'force-dynamic';
 
-export default async function OnboardingPage({ searchParams }: { searchParams?: { next?: string } }) {
+export default async function OnboardingPage({ searchParams }: { searchParams?: { next?: string; invite?: string } }) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
   const email = session.user.email!;
+
+  // ─── Invite acceptance path ────────────────────────────────────────────
+  // If the user signed up via /signup?invite=TOKEN, the token is forwarded
+  // here. Auto-accept it, set the user's org, and skip the workspace picker
+  // entirely. Falls back to normal flow on failure (expired/invalid token).
+  const inviteToken = typeof searchParams?.invite === 'string' ? searchParams.invite : null;
+  if (inviteToken) {
+    try {
+      await callBackend('/api/v2/team/accept-invite', {
+        jwt:    session.access_token,
+        method: 'POST',
+        body:   { inviteToken },
+      });
+      // Invite accepted → org assigned. Skip picker, go straight to skills.
+      redirect('/skills?welcome=invited');
+    } catch (err) {
+      // Invalid / expired / already-used invite — fall through to picker
+      // and let the user proceed normally. The picker will pick up org
+      // suggestions via the email-domain match if applicable.
+    }
+  }
+
   let suggestion: { organizationId: string; organizationName: string; memberCount: number } | null = null;
 
   try {

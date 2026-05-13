@@ -52,6 +52,12 @@ export default async function SettingsHubPage() {
             description="Current plan, seats, capture quota, Stripe portal."
           />
           <SettingsCard
+            href="/settings/team"
+            icon="👥"
+            title="Team"
+            description="Invite teammates, view members, manage pending invites."
+          />
+          <SettingsCard
             href="/settings/api-keys"
             icon="🔑"
             title="API keys"
