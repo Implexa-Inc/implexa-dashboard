@@ -104,7 +104,7 @@ const config: Config = {
             '--tw-prose-quotes':           'rgb(var(--ink-200))',
             '--tw-prose-quote-borders':    theme('colors.brand.500'),
             '--tw-prose-captions':         'rgb(var(--ink-400))',
-            '--tw-prose-code':             theme('colors.accent.400'),
+            '--tw-prose-code':             theme('colors.success.600'),
             '--tw-prose-pre-code':         'rgb(var(--ink-100))',
             '--tw-prose-pre-bg':           'rgb(var(--ink-950))',
             '--tw-prose-th-borders':       'rgb(var(--ink-700))',
