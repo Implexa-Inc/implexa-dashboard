@@ -73,7 +73,9 @@ export default async function BillingPage() {
   const periodEnd = sub.subscriptionPeriodEnd ? new Date(sub.subscriptionPeriodEnd).toLocaleDateString() : null;
 
   const isPaidPlan = plan !== 'free';
-  const seatsLimit = plan === 'free' ? 3 : null;
+  // No seat cap on any plan — Implexa lets you invite the whole company on Free.
+  // Monetization happens via the 3-skill org-shared cap instead.
+  const seatsLimit: number | null = null;
   const isFoundingCreator = !!profile?.founding_creator_unlocked_at;
 
   return (
@@ -124,13 +126,11 @@ export default async function BillingPage() {
               )}
             </div>
             <div>
-              <div className="text-xs text-ink-500 uppercase tracking-wide">Seats</div>
-              <div className="text-xl font-semibold mt-1 tabular-nums text-ink-50">
-                {seatCount}{seatsLimit ? <span className="text-ink-400 text-sm font-normal"> / {seatsLimit}</span> : null}
-              </div>
-              {seatsLimit && seatCount >= seatsLimit && (
-                <div className="text-[10px] text-accent-700 dark:text-accent-400 mt-1">At seat limit — upgrade for unlimited</div>
-              )}
+              <div className="text-xs text-ink-500 uppercase tracking-wide">Team members</div>
+              <div className="text-xl font-semibold mt-1 tabular-nums text-ink-50">{seatCount}</div>
+              <Link href="/settings/team" className="text-[10px] text-brand-600 hover:underline mt-0.5 inline-block">
+                Manage team →
+              </Link>
             </div>
             {periodEnd ? (
               <div>
