@@ -47,12 +47,14 @@ export default async function TeamSettingsPage() {
       .from('organizations').select('plan').eq('id', profile.organization_id).maybeSingle();
     plan = org?.plan || 'free';
 
+    // Count anything that's not archived (active OR draft) — matches the
+    // backend quota check in quota.service.js → checkOrgSharedSkillQuota.
     const { count } = await supabase
       .from('org_skills')
       .select('id', { count: 'exact', head: true })
       .eq('organization_id', profile.organization_id)
       .eq('scope', 'org')
-      .eq('status', 'active');
+      .neq('status', 'archived');
     orgSkillCount = count || 0;
   }
   const orgSkillLimit = plan === 'free' ? 3 : null;
@@ -93,10 +95,15 @@ export default async function TeamSettingsPage() {
                 )}
               </div>
               {orgSkillLimit !== null && orgSkillCount >= orgSkillLimit && (
-                <div className="mt-3 text-xs text-ink-300 leading-relaxed">
-                  You&apos;ve hit the Free-plan limit for org-shared skills.{' '}
-                  <Link href="/pricing" className="text-brand-600 hover:underline font-medium">Upgrade to Pro</Link>
-                  {' '}for unlimited org-shared skills (your team still grows freely either way).
+                <div className="mt-3 text-xs text-red-600 dark:text-red-400 leading-relaxed">
+                  🛑 You&apos;ve hit the Free-plan limit of {orgSkillLimit} org-shared skills. New skills can still be captured as <em>private</em> (visible only to you). Demote one to private, or{' '}
+                  <Link href="/pricing" className="text-brand-600 hover:underline font-medium">upgrade to Pro</Link>
+                  {' '}for unlimited.
+                </div>
+              )}
+              {orgSkillLimit !== null && orgSkillCount === orgSkillLimit - 1 && (
+                <div className="mt-3 text-xs text-accent-700 dark:text-accent-400 leading-relaxed">
+                  ⚠️ Heads up: 1 org-shared skill slot left before the Free cap. Private skills don&apos;t count.
                 </div>
               )}
             </div>

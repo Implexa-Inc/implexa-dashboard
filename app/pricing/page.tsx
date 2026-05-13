@@ -38,6 +38,7 @@ const PLANS: Plan[] = [
     bullets:    [
       '🎯 Create 5 skills / month',
       '✨ Use unlimited skills (run as many as you want)',
+      '🏢 Share up to 3 skills org-wide',
       'Fork any base Playbook into your library',
       'Run in any Claude surface (Code, Desktop, Cursor, Cowork)',
       'Up to 3 seats per org',
@@ -56,6 +57,7 @@ const PLANS: Plan[] = [
     highlight:  true,
     bullets:    [
       '🚀 Unlimited skill creation (no monthly cap)',
+      '🏢 Unlimited org-shared skills',
       'Everything in Free',
       'Unlimited seats',
       '📊 Attribution dashboard — see which skills drive outcomes',
