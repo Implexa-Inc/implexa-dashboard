@@ -19,17 +19,24 @@
  * ─────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Light mode — ink-50 is darkest text, ink-950 is white body bg */
+  /* Light mode — ink-50 is darkest text, ink-950 is white body bg.
+   *
+   * Calibrated for WCAG AA against the cream body bg (ink-950 = #FFFEFB):
+   *   ink-300 → 7.5:1  (muted text — comfortable for body copy)
+   *   ink-400 → 4.7:1  (captions, secondary — passes AA normal)
+   *   ink-500 → 3.2:1  (subtle UI labels — passes AA Large only)
+   * Don't use ink-500 for body-sized text; reserve for badges/labels.
+   */
   --ink-50:  10 8 5;                                                                 /* near-black for headings (#0A0805) */
-  --ink-100: 31 26 20;                                                               /* body text (#1F1A14) */
-  --ink-200: 42 36 30;                                                               /* emphasized body */
-  --ink-300: 110 102 94;                                                             /* muted text */
-  --ink-400: 161 153 146;                                                            /* captions */
-  --ink-500: 191 184 175;                                                            /* subtle UI text */
-  --ink-600: 215 209 200;                                                            /* prominent borders */
-  --ink-700: 233 229 222;                                                            /* subtle dividers */
-  --ink-800: 246 244 238;                                                            /* hover surfaces */
-  --ink-900: 252 251 247;                                                            /* card / surface (warm off-white) */
+  --ink-100: 28 24 18;                                                               /* body text (#1C1812) */
+  --ink-200: 51 44 36;                                                               /* emphasized body */
+  --ink-300: 82 74 64;                                                               /* muted text — 7.5:1 on cream */
+  --ink-400: 122 113 102;                                                            /* captions — 4.7:1 on cream */
+  --ink-500: 156 147 134;                                                            /* subtle UI labels — 3.2:1 (AA Large only) */
+  --ink-600: 190 183 172;                                                            /* prominent borders */
+  --ink-700: 220 213 202;                                                            /* subtle dividers */
+  --ink-800: 240 235 226;                                                            /* hover surfaces */
+  --ink-900: 251 248 240;                                                            /* card / surface (warm off-white) */
   --ink-950: 255 254 251;                                                            /* body bg (warm white) */
 }
 
