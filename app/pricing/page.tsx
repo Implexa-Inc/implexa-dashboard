@@ -34,13 +34,14 @@ const PLANS: Plan[] = [
     name:       'Free',
     priceLabel: '$0',
     priceSub:   'forever',
-    tagline:    'Unlimited skills, no credit card.',
+    tagline:    'Get started, no credit card.',
     bullets:    [
-      '✨ Unlimited skill capture, fork, share',
+      '🎯 Create 5 skills / month',
+      '✨ Use unlimited skills (run as many as you want)',
+      'Fork any base Playbook into your library',
       'Run in any Claude surface (Code, Desktop, Cursor, Cowork)',
       'Up to 3 seats per org',
       'Team-domain share links',
-      '5 public share links / month',
       'Bring your own API keys (Fiber, Coresignal, Apollo)',
     ],
     ctaLabel:   'Default for new accounts',
@@ -51,9 +52,10 @@ const PLANS: Plan[] = [
     name:       'Pro',
     priceLabel: '$20',
     priceSub:   '/ seat / month',
-    tagline:    'Team unlock + attribution.',
+    tagline:    'Unlimited captures + team unlock.',
     highlight:  true,
     bullets:    [
+      '🚀 Unlimited skill creation (no monthly cap)',
       'Everything in Free',
       'Unlimited seats',
       '📊 Attribution dashboard — see which skills drive outcomes',
@@ -119,8 +121,8 @@ export default async function PricingPage() {
           </div>
           <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Pricing</h1>
           <p className="text-ink-300 mt-3 max-w-2xl mx-auto">
-            Bring your own Claude. Bring your own API keys. Implexa is free forever for unlimited skills —
-            you pay for team features, not for using the product.
+            Bring your own Claude. Bring your own API keys. Free to start, with 5 skill captures per month
+            and unlimited usage. Pay for unlimited captures + team features when you outgrow solo.
           </p>
         </header>
 
@@ -202,12 +204,12 @@ export default async function PricingPage() {
         {/* FAQ — bring-your-own ethos */}
         <section className="mt-16 grid md:grid-cols-2 gap-6">
           <FaqItem
-            q="Why is everything unlimited on Free?"
-            a="You bring your own Claude (you already pay Anthropic). You bring your own provider keys (Fiber, Coresignal, Apollo — you pay them direct). Our marginal cost per user is near zero, so unlimited isn't a marketing trick — it's the actual unit economics."
+            q="What's the difference between 'create' and 'use'?"
+            a="Create = capturing a new skill from a demonstration. Use = running an existing skill (yours, your team's, or a base Playbook). Free caps creation at 5/month but lets you USE skills unlimited times. The moat-building work has a cap; the value-receiving work is free."
           />
           <FaqItem
-            q="What do I pay for in Pro?"
-            a="Team features: the attribution dashboard (only Implexa sees both skill invocations AND CRM/ATS outcomes), multi-seat admin controls, unlimited public sharing, and the data that proves which skills drive revenue. Solo users get full functional value on Free."
+            q="What counts toward my 5 captures?"
+            a="Only NEW skills you author via /implexa:record-skill or capture_workflow_as_skill — and only ones not already in your library. Forking a Playbook into your library doesn't count. Running an existing skill doesn't count. So role-pack onboarding (which forks 5-10 Playbooks) leaves your monthly capture quota fully intact."
           />
           <FaqItem
             q="Can I cancel anytime?"

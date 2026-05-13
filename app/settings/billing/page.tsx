@@ -49,6 +49,22 @@ export default async function BillingPage() {
     seatCount = count || 1;
   }
 
+  // Skill creation quota — count NEW (non-fork) skills captured by this user
+  // this calendar month. Drives the "3/5 captured" gauge.
+  const startOfMonth = new Date();
+  startOfMonth.setUTCDate(1);
+  startOfMonth.setUTCHours(0, 0, 0, 0);
+  const { count: capturedThisMonth } = await supabase
+    .from('org_skills')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', profile?.organization_id)
+    .eq('created_by->>userId', profile?.id)
+    .is('forked_from_skill_id', null)
+    .gte('created_at', startOfMonth.toISOString());
+  const captured = capturedThisMonth || 0;
+  const isFoundingCreatorEarly = !!profile?.founding_creator_unlocked_at;
+  const captureLimit = (plan === 'free' && !isFoundingCreatorEarly) ? 5 : null;
+
   // Subscription/Stripe state (only meaningful for paid plans)
   let sub: any = {};
   try {
@@ -95,6 +111,20 @@ export default async function BillingPage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-ink-700">
             <div>
+              <div className="text-xs text-ink-500 uppercase tracking-wide">Skills captured this month</div>
+              <div className="text-xl font-semibold mt-1 tabular-nums text-ink-50">
+                {captureLimit
+                  ? <>{captured}<span className="text-ink-400 text-sm font-normal"> / {captureLimit}</span></>
+                  : <>{captured}<span className="text-ink-400 text-sm font-normal"> (unlimited)</span></>}
+              </div>
+              {captureLimit && captured >= captureLimit && (
+                <div className="text-[10px] text-accent-700 dark:text-accent-400 mt-1">At capture cap — upgrade or wait until next month</div>
+              )}
+              {captureLimit && captured === captureLimit - 1 && (
+                <div className="text-[10px] text-ink-400 mt-1">1 capture left this month</div>
+              )}
+            </div>
+            <div>
               <div className="text-xs text-ink-500 uppercase tracking-wide">Seats</div>
               <div className="text-xl font-semibold mt-1 tabular-nums text-ink-50">
                 {seatCount}{seatsLimit ? <span className="text-ink-400 text-sm font-normal"> / {seatsLimit}</span> : null}
@@ -103,16 +133,17 @@ export default async function BillingPage() {
                 <div className="text-[10px] text-accent-700 dark:text-accent-400 mt-1">At seat limit — upgrade for unlimited</div>
               )}
             </div>
-            {periodEnd && (
+            {periodEnd ? (
               <div>
                 <div className="text-xs text-ink-500 uppercase tracking-wide">Renews</div>
                 <div className="text-lg mt-1 tabular-nums text-ink-100">{periodEnd}</div>
               </div>
+            ) : (
+              <div>
+                <div className="text-xs text-ink-500 uppercase tracking-wide">Skill runs</div>
+                <div className="text-lg mt-1 text-ink-100">Unlimited</div>
+              </div>
             )}
-            <div>
-              <div className="text-xs text-ink-500 uppercase tracking-wide">Plan status</div>
-              <div className="text-lg mt-1 capitalize text-ink-100">{sub.planStatus || 'active'}</div>
-            </div>
           </div>
 
           {sub.hasStripeCustomer && (

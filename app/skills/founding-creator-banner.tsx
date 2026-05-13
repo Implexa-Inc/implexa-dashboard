@@ -57,8 +57,8 @@ export default async function FoundingCreatorBanner({ userId }: { userId: string
             </div>
             <p className="text-sm text-ink-200 leading-relaxed mb-3">
               You captured your first skill <em>and</em> shared it — the killer feature of
-              Implexa. You unlocked the Founding Creator badge (visible on every skill you
-              share) plus your <strong>first seat on Pro free forever</strong> when we launch the Pro tier.
+              Implexa. You unlocked: <strong>unlimited captures (no 5/month cap)</strong>, the
+              Founding Creator badge on every skill you share, and your <strong>first seat on Pro free forever</strong> when we launch the Pro tier.
             </p>
             <div className="flex flex-wrap gap-3 items-baseline">
               <Link href="/pricing" className="text-xs text-brand-600 hover:underline font-medium">
@@ -84,8 +84,8 @@ export default async function FoundingCreatorBanner({ userId }: { userId: string
             Become a Founding Creator
           </h2>
           <p className="text-sm text-ink-200 leading-relaxed mb-4">
-            Capture <em>your own</em> workflow once and share it with your team to unlock:
-            the Founding Creator badge on every skill you share, <strong>plus your first Pro seat free forever</strong> when we launch the Pro tier.
+            Capture <em>your own</em> workflow once and share it to unlock:
+            <strong> unlimited captures right now</strong> (no 5/month Free cap), the Founding Creator badge on every skill you share, and your first Pro seat free forever when Pro launches.
             One demonstration → one shared skill → done.
           </p>
 
