@@ -165,7 +165,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
             <h2 className="text-lg font-medium text-ink-50">What this skill does</h2>
             <div className="text-xs text-ink-400">v{skill.version} · {skill.contentLength} chars</div>
           </div>
-          <div className="prose prose-sm prose-invert max-w-none">
+          <div className="prose prose-sm max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
               {skill.contentPreview}
             </ReactMarkdown>

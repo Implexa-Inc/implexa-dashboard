@@ -103,7 +103,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
         {/* Tabs — content + structure */}
         <div className="card">
           <h2 className="text-lg font-medium mb-4">SKILL.md content</h2>
-          <div className="prose prose-sm prose-invert max-w-none">
+          <div className="prose prose-sm max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
               {actualSkill.content || '(no content)'}
             </ReactMarkdown>
