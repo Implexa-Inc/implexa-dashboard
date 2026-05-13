@@ -1,11 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
+// Next.js 14: useSearchParams requires a Suspense boundary when the page
+// gets statically prerendered. Outer page is a thin wrapper.
 export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupPageInner />
+    </Suspense>
+  );
+}
+
+function SignupPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams?.get('next') || '';                                          // preserve through OAuth + email-confirm
