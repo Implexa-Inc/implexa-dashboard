@@ -46,6 +46,12 @@ export default async function SettingsHubPage() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           <SettingsCard
+            href="/settings/account"
+            icon="👤"
+            title="Account"
+            description="Display name, change email, account deletion."
+          />
+          <SettingsCard
             href="/settings/billing"
             icon="💎"
             title="Billing & plan"
