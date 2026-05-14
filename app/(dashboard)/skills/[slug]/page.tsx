@@ -109,8 +109,11 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
             jwt={session.access_token}
             slug={actualSkill.slug}
             id={actualSkill.id}
+            name={actualSkill.name}
             currentStatus={actualSkill.status}
             isSystem={isSystem}
+            isOwnedByMe={actualSkill.created_by?.userId === session.user.id}
+            usageCount={actualSkill.usage_count || 0}
             activeShares={activeShares}
           />
         </header>

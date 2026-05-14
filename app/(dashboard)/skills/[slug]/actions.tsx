@@ -19,15 +19,25 @@ type Props = {
   jwt:           string;
   slug:          string;
   id:            string;
+  /** Skill display name — used in confirmation prompts so the user
+   * doesn't accidentally nuke the wrong skill. */
+  name:          string;
   currentStatus: 'draft' | 'active' | 'archived';
   isSystem:      boolean;
+  /** True if the viewing user is the skill's creator — only creators
+   * see the Delete button. Org admins can archive but not hard-delete. */
+  isOwnedByMe:   boolean;
+  /** Usage count — surfaced in the delete-confirm modal so users
+   * understand what they're permanently destroying. */
+  usageCount:    number;
   activeShares:  ActiveShare[];
 };
 
-export default function SkillActions({ jwt, id, currentStatus, isSystem, activeShares }: Props) {
+export default function SkillActions({ jwt, id, name, currentStatus, isSystem, isOwnedByMe, usageCount, activeShares }: Props) {
   const router = useRouter();
-  const [busy, setBusy] = useState<null | 'activate' | 'archive' | 'fork' | `share-${'team' | 'public'}` | `revoke-${string}`>(null);
+  const [busy, setBusy] = useState<null | 'activate' | 'archive' | 'delete' | 'fork' | `share-${'team' | 'public'}` | `revoke-${string}`>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Local-state shares (start from SSR-passed list, mutate on create/revoke)
   const [shares, setShares] = useState<ActiveShare[]>(activeShares);
@@ -49,6 +59,27 @@ export default function SkillActions({ jwt, id, currentStatus, isSystem, activeS
       await callBackend(`/api/v2/skills/${id}/archive`, { jwt, method: 'POST' });
       router.refresh();
     } catch (err: any) { setError(err.message); } finally { setBusy(null); }
+  }
+
+  async function deleteSkill() {
+    setBusy('delete'); setError(null);
+    try {
+      await callBackend(`/api/v2/skills/${id}`, { jwt, method: 'DELETE' });
+      // Skill is gone — kick user back to the /skills list. Can't refresh
+      // the current page because the skill no longer exists.
+      router.push('/skills');
+    } catch (err: any) {
+      // FK constraint = soft-fail to archive as a fallback. Tell the user
+      // explicitly so they understand why hard-delete didn't work.
+      if (err.message?.match(/foreign key|fk_constraint|invocations|attribution/i)) {
+        setError(`Couldn't permanently delete because of attached data (invocations or attribution). Try archiving instead — it hides the skill but preserves history.`);
+      } else {
+        setError(err.message);
+      }
+      setDeleteConfirmOpen(false);
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function fork() {
@@ -124,9 +155,23 @@ export default function SkillActions({ jwt, id, currentStatus, isSystem, activeS
               hasActive={!!publicShare}
               onClick={() => createShare('public')}
             />
-            {currentStatus === 'active' && (
-              <button onClick={archive} disabled={!!busy} className="text-xs text-ink-500 hover:text-red-600 whitespace-nowrap">
+            {currentStatus !== 'archived' && (
+              <button onClick={archive} disabled={!!busy} className="text-xs text-ink-500 hover:text-ink-200 whitespace-nowrap">
                 Archive
+              </button>
+            )}
+            {/* Delete — creator-only, irreversible. Subtle styling
+              * so it doesn't compete with the primary actions, but
+              * red on hover to signal danger. Triggers a custom
+              * confirmation modal (not browser confirm) because the
+              * action is permanent. */}
+            {isOwnedByMe && (
+              <button
+                onClick={() => setDeleteConfirmOpen(true)}
+                disabled={!!busy}
+                className="text-xs text-ink-500 hover:text-red-600 whitespace-nowrap"
+              >
+                Delete
               </button>
             )}
           </>
@@ -134,6 +179,56 @@ export default function SkillActions({ jwt, id, currentStatus, isSystem, activeS
       </div>
 
       {error && <p className="text-xs text-red-600 text-right">{error}</p>}
+
+      {/* Delete confirmation modal — overlays the whole page. Custom-built
+        * because window.confirm() is too easy to dismiss accidentally, and
+        * we want to surface the skill name + usage count so the user
+        * knows what they're nuking. */}
+      {deleteConfirmOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setDeleteConfirmOpen(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-confirm-title"
+        >
+          <div className="card max-w-md w-full !border-red-500/40">
+            <h3 id="delete-confirm-title" className="text-base font-medium text-ink-50 mb-2">
+              Permanently delete &ldquo;{name}&rdquo;?
+            </h3>
+            <p className="text-sm text-ink-200 leading-relaxed mb-2">
+              This cannot be undone. The skill, its full version history,
+              recordings, and attribution data will be permanently destroyed.
+            </p>
+            {usageCount > 0 && (
+              <p className="text-xs text-accent-400 mb-3">
+                ⚠ This skill has been invoked {usageCount} time{usageCount === 1 ? '' : 's'} — deleting will sever those analytics records.
+              </p>
+            )}
+            <p className="text-xs text-ink-300 mb-4">
+              <strong>Want to keep the data?</strong> Cancel + click <em>Archive</em> instead — it hides the skill from your library but preserves everything.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(false)}
+                disabled={busy === 'delete'}
+                className="btn-ghost"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={deleteSkill}
+                disabled={busy === 'delete'}
+                className="btn bg-red-600 text-white hover:bg-red-700"
+              >
+                {busy === 'delete' ? 'Deleting…' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Active share cards — one per active mode */}
       {teamShare && (
