@@ -87,7 +87,11 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
 
   return (
     <main className="min-h-screen px-4 py-12">
-      <div className="max-w-5xl mx-auto">
+      {/* Wider container (6xl = 72rem) gives the new 2-column layout
+       * room — left filter sidebar (180px) + skill list content. Was
+       * 5xl before. Still constrained on huge displays so reading
+       * length stays comfortable. */}
+      <div className="max-w-6xl mx-auto">
         <InstallToast installed={searchParams?.installed} />
         <WelcomeBanner welcome={searchParams?.welcome} forked={searchParams?.forked} />
         {/* Platform-wide announcements — controlled by the backend's

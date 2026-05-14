@@ -89,6 +89,62 @@ const HIDDEN_TAGS = new Set([
   'medium', 'short', 'system', 'active', 'hex',
 ]);
 
+/**
+ * Semantic search expansion — a small synonym/cluster map so users can type
+ * vertical names ("real estate") and find skills tagged with related
+ * concepts ("permits", "zoning", "school-research"). When the search query
+ * matches a cluster key OR any cluster member, we expand the match set to
+ * the full cluster.
+ *
+ * Maintained by hand for launch (~10 verticals). Easy to extend. If we
+ * outgrow this, swap for embeddings-based semantic search.
+ *
+ * Keys are normalized lowercase (no hyphens). Members can have hyphens —
+ * they match against tag values directly.
+ */
+const SEMANTIC_CLUSTERS: Record<string, string[]> = {
+  'real estate':       ['real-estate', 'realestate', 'permits', 'zoning', 'property', 'school', 'schools', 'mls', 'listings', 'home', 'house', 'realtor', 'realty'],
+  'sales':             ['gtm', 'sales', 'prospecting', 'outreach', 'cold-email', 'discovery', 'crm', 'deal', 'pipeline', 'leads', 'icp'],
+  'gtm':               ['gtm', 'sales', 'prospecting', 'outreach', 'cold-email', 'discovery', 'crm', 'deal', 'pipeline', 'leads'],
+  'recruiting':        ['talent', 'recruiting', 'hiring', 'candidate', 'candidates', 'ats', 'bullhorn', 'submittals', 'sourcing', 'placement'],
+  'talent':            ['talent', 'recruiting', 'hiring', 'candidate', 'candidates', 'ats', 'submittals', 'sourcing'],
+  'customer success':  ['customer-success', 'cs', 'retention', 'expansion', 'renewal', 'health', 'churn', 'qbr'],
+  'cs':                ['customer-success', 'cs', 'retention', 'expansion', 'renewal', 'health', 'churn'],
+  'engineering':       ['engineering', 'eng', 'dev', 'devops', 'github', 'pr', 'code-review', 'bug', 'triage', 'rfc'],
+  'product':           ['product', 'pm', 'roadmap', 'spec', 'feature', 'launch'],
+  'people ops':        ['people-ops', 'peopleops', 'hr', 'onboarding', 'offboarding', 'review', 'feedback'],
+  'finance':           ['finance', 'accounting', 'budget', 'forecast', 'invoice', 'expense', 'p&l'],
+  'marketing':         ['marketing', 'content', 'social', 'campaign', 'brand', 'seo', 'copy'],
+  'meetings':          ['meetings', 'standup', 'briefing', 'agenda', 'notes', 'recap', 'pre-call', 'prep'],
+  'research':          ['research', 'company-research', 'prospect-research', 'account-plan'],
+};
+
+/**
+ * Given a raw search query, return the array of terms to match against.
+ * If the query matches a cluster key or member, all cluster terms are
+ * returned so the search effectively says "match if ANY of these substrings
+ * appear in the skill haystack."
+ */
+function expandSearchTerms(query: string): string[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+
+  // Match against cluster keys first (most common case — user types vertical name)
+  if (SEMANTIC_CLUSTERS[q]) {
+    return [q, ...SEMANTIC_CLUSTERS[q]];
+  }
+
+  // Then match against cluster members (user types a tag-like term)
+  for (const [key, members] of Object.entries(SEMANTIC_CLUSTERS)) {
+    if (members.includes(q) || members.includes(q.replace(/\s+/g, '-'))) {
+      return [q, key, ...members];
+    }
+  }
+
+  // No semantic match — return just the query (will fall through to plain substring match)
+  return [q];
+}
+
 const TAG_LABELS: Record<string, string> = {
   'gtm':              'GTM',
   'sales':            'Sales',
@@ -182,9 +238,13 @@ export default function SkillsLibrary({
   }, [orgSkills, systemSkills, universalSkills, currentUserId, currentOrgId]);
 
   // ─── Filter universe — search + tag ──────────────────────────────────
+  // Search is semantically expanded via SEMANTIC_CLUSTERS — e.g. typing
+  // "real estate" matches skills tagged with "permits", "zoning",
+  // "school-research", etc. Falls back to plain substring match if the
+  // query doesn't hit any cluster. See `expandSearchTerms` for the map.
+  const expandedTerms = useMemo(() => expandSearchTerms(query), [query]);
   const matchesSearch = (s: Skill): boolean => {
     if (!query.trim()) return true;
-    const q = query.toLowerCase();
     const haystack = [
       s.name,
       s.description || '',
@@ -192,7 +252,8 @@ export default function SkillsLibrary({
       ...(s.trigger_phrases || []),
       ...(s.tags || []),
     ].join(' ').toLowerCase();
-    return haystack.includes(q);
+    // Match if ANY of the expanded terms appears (OR semantics)
+    return expandedTerms.some(term => haystack.includes(term));
   };
   const matchesTag = (s: Skill): boolean => !activeTag || (s.tags || []).includes(activeTag);
   const filtered = (list: Skill[]) => list.filter(s => matchesSearch(s) && matchesTag(s));
@@ -224,13 +285,10 @@ export default function SkillsLibrary({
     return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
   }, [buckets]);
 
-  // Show-all-filters expand: when there are many tags, the pill row can
-  // get tall. Collapse to the top N most-used tags by default; user clicks
-  // "Show all" to see the rest.
-  const COLLAPSED_TAG_COUNT = 10;
-  const [showAllTags, setShowAllTags] = useState(false);
-  const visibleTags = showAllTags ? tagCounts : tagCounts.slice(0, COLLAPSED_TAG_COUNT);
-  const hiddenTagCount = Math.max(0, tagCounts.length - COLLAPSED_TAG_COUNT);
+  // Mobile-only filter drawer state. On md+ viewports the left sidebar
+  // is always visible; on mobile we collapse to a button that toggles
+  // showing/hiding the full vertical filter list.
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   // Active tab content + tab definition lookups
   const activeTabDef     = TABS.find(t => t.id === activeTab)!;
@@ -240,152 +298,164 @@ export default function SkillsLibrary({
 
   return (
     <>
-      {/* ─── Search + tag-filter row (shared across all tabs) ─────────── */}
-      <div className="mb-5 space-y-3">
-        <div className="relative">
-          <input
-            type="search"
-            placeholder="Search skills by name, description, or trigger phrase…"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            className="input w-full pl-9"
-            aria-label="Search skills"
-          />
-          <span
-            aria-hidden="true"
-            className="absolute left-3 top-1/2 -translate-y-1/2 block w-4 h-4 bg-ink-400"
-            style={{
-              maskImage: "url(/icons/search.svg)",
-              WebkitMaskImage: "url(/icons/search.svg)",
-              maskSize: 'contain',
-              WebkitMaskSize: 'contain',
-              maskRepeat: 'no-repeat',
-              WebkitMaskRepeat: 'no-repeat',
-              maskPosition: 'center',
-              WebkitMaskPosition: 'center',
-            }}
-          />
-        </div>
+      {/* ─── Search bar — full width at top ─────────────────────────── */}
+      <div className="mb-5 relative">
+        <input
+          type="search"
+          placeholder="Search skills by name, description, trigger phrase, or vertical — try 'real estate'…"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          className="input w-full pl-9"
+          aria-label="Search skills"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute left-3 top-1/2 -translate-y-1/2 block w-4 h-4 bg-ink-400 pointer-events-none"
+          style={{
+            maskImage: "url(/icons/search.svg)",
+            WebkitMaskImage: "url(/icons/search.svg)",
+            maskSize: 'contain',
+            WebkitMaskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            WebkitMaskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskPosition: 'center',
+          }}
+        />
+      </div>
 
-        {tagCounts.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="text-xs text-ink-500 mr-1">Filter:</span>
-            <button
-              type="button"
-              onClick={() => setActiveTag(null)}
-              className={`text-xs px-2 py-1 rounded-full transition-colors ${
-                !activeTag
-                  ? 'bg-brand-500 text-ink-950 font-medium'
-                  : 'bg-ink-800 text-ink-300 hover:bg-ink-700 hover:text-ink-100'
-              }`}
-            >
-              All
-            </button>
-            {visibleTags.map(([tag, count]) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => setActiveTag(activeTag === tag ? null : tag)}
-                className={`text-xs px-2 py-1 rounded-full transition-colors ${
-                  activeTag === tag
-                    ? 'bg-brand-500 text-ink-950 font-medium'
-                    : 'bg-ink-800 text-ink-300 hover:bg-ink-700 hover:text-ink-100'
-                }`}
-              >
-                {labelFor(tag)} <span className="text-ink-400">{count}</span>
-              </button>
-            ))}
-            {/* Show-all / show-fewer toggle. Hidden when ≤ COLLAPSED_TAG_COUNT
-              * tags exist (no need to collapse). Includes the count of
-              * hidden tags so users know what they're getting. */}
-            {hiddenTagCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowAllTags(!showAllTags)}
-                className="text-xs px-2 py-1 rounded-full bg-ink-800 text-brand-500 hover:bg-ink-700 transition-colors font-medium inline-flex items-center gap-0.5"
-              >
-                {showAllTags ? (
-                  <>Show fewer <span aria-hidden="true">↑</span></>
-                ) : (
-                  <>+{hiddenTagCount} more <span aria-hidden="true">↓</span></>
-                )}
-              </button>
+      {/* ─── Mobile filters toggle button — visible only on narrow ──── */}
+      <div className="md:hidden mb-4">
+        <button
+          type="button"
+          onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-md border border-ink-700 bg-ink-900 text-sm text-ink-200"
+        >
+          <span>
+            Filters {activeTag && <span className="text-brand-500">· {labelFor(activeTag)}</span>}
+          </span>
+          <span aria-hidden="true" className="text-ink-400">{mobileFiltersOpen ? '↑' : '↓'}</span>
+        </button>
+      </div>
+
+      {/* ─── 2-column layout: filters left, content right ────────────── */}
+      <div className="md:grid md:grid-cols-[180px_1fr] md:gap-8">
+        {/* ─── Left column — vertical filter list ───────────────────── */}
+        <aside
+          className={`${mobileFiltersOpen ? 'block' : 'hidden'} md:block mb-6 md:mb-0`}
+          aria-label="Filter skills by category"
+        >
+          {tagCounts.length > 0 ? (
+            <>
+              <div className="text-[10px] uppercase tracking-wider text-ink-500 font-medium mb-2 px-2">Category</div>
+              <ul className="space-y-0.5">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTag(null); setMobileFiltersOpen(false); }}
+                    className={`w-full text-left text-sm px-2.5 py-1.5 rounded transition-colors flex items-center justify-between ${
+                      !activeTag
+                        ? 'bg-brand-500/15 text-brand-500 font-medium'
+                        : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
+                    }`}
+                  >
+                    <span>All</span>
+                    <span className="text-xs text-ink-400">{tagCounts.reduce((s, [, c]) => s + c, 0)}</span>
+                  </button>
+                </li>
+                {tagCounts.map(([tag, count]) => (
+                  <li key={tag}>
+                    <button
+                      type="button"
+                      onClick={() => { setActiveTag(activeTag === tag ? null : tag); setMobileFiltersOpen(false); }}
+                      className={`w-full text-left text-sm px-2.5 py-1.5 rounded transition-colors flex items-center justify-between ${
+                        activeTag === tag
+                          ? 'bg-brand-500/15 text-brand-500 font-medium'
+                          : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
+                      }`}
+                    >
+                      <span className="truncate">{labelFor(tag)}</span>
+                      <span className="text-xs text-ink-400 ml-2 shrink-0">{count}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {hasActiveFilter && (
+                <button
+                  onClick={() => { setQuery(''); setActiveTag(null); }}
+                  className="mt-3 text-xs text-brand-500 hover:underline px-2.5"
+                >
+                  Clear filters
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="text-xs text-ink-500 px-2">No filter categories yet. Tags appear here as you save skills.</div>
+          )}
+        </aside>
+
+        {/* ─── Right column — tabs + description + skills list ─────── */}
+        <div className="min-w-0">
+          {/* ─── Tab navigation (no scrollbar) ─────────────────────── */}
+          <div className="border-b border-ink-700 mb-5" role="tablist">
+            <div className="flex flex-wrap gap-1">
+              {TABS.map((tab) => {
+                const c = counts[tab.id];
+                const isActive = activeTab === tab.id;
+                const countText = hasActiveFilter && c.filtered !== c.total
+                  ? `${c.filtered} of ${c.total}`
+                  : `${c.total}`;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`relative px-3 md:px-4 py-2.5 text-sm transition-colors whitespace-nowrap border-b-2 -mb-px ${
+                      isActive
+                        ? 'border-brand-500 text-ink-50 font-medium'
+                        : 'border-transparent text-ink-400 hover:text-ink-200'
+                    }`}
+                  >
+                    {tab.label}{' '}
+                    <span className={`ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-5 rounded text-xs px-1.5 ${
+                      isActive
+                        ? 'bg-brand-500/20 text-brand-500 font-semibold'
+                        : 'bg-ink-800 text-ink-400'
+                    }`}>
+                      {countText}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ─── Active tab description ───────────────────────────── */}
+          <p className="text-sm text-ink-300 mb-5 leading-relaxed">
+            {activeTabDef.description}
+          </p>
+
+          {/* ─── Active tab content ───────────────────────────────── */}
+          <section role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
+            {activeTabSkills.length === 0 ? (
+              <EmptyState tabId={activeTab} hasFilter={hasActiveFilter} onClearFilters={() => { setQuery(''); setActiveTag(null); }} />
+            ) : (
+              <ul className="space-y-2">
+                {activeTabSkills.map((s, i) => (
+                  <SkillRow
+                    key={s.id}
+                    skill={s}
+                    rank={showRankBadges ? i + 1 : undefined}
+                    showCreator={showCreator}
+                  />
+                ))}
+              </ul>
             )}
-          </div>
-        )}
-
-        {hasActiveFilter && (
-          <div className="text-xs text-ink-400">
-            <button onClick={() => { setQuery(''); setActiveTag(null); }} className="text-brand-500 hover:underline">
-              Clear filters
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ─── Tab navigation ────────────────────────────────────────────
-        * Horizontal scrollable on narrow viewports; sticky-bottom-border
-        * indicates the active tab. Counts update live based on the
-        * search + tag filter — shows "(3 of 5)" when filtered, plain
-        * "(5)" otherwise.
-        */}
-      <div className="border-b border-ink-700 mb-5 overflow-x-auto" role="tablist">
-        <div className="flex gap-1 min-w-max">
-          {TABS.map((tab) => {
-            const c = counts[tab.id];
-            const isActive = activeTab === tab.id;
-            const countText = hasActiveFilter && c.filtered !== c.total
-              ? `${c.filtered} of ${c.total}`
-              : `${c.total}`;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative px-4 py-2.5 text-sm transition-colors whitespace-nowrap border-b-2 -mb-px ${
-                  isActive
-                    ? 'border-brand-500 text-ink-50 font-medium'
-                    : 'border-transparent text-ink-400 hover:text-ink-200'
-                }`}
-              >
-                {tab.label}{' '}
-                <span className={`ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-5 rounded text-xs px-1.5 ${
-                  isActive
-                    ? 'bg-brand-500/20 text-brand-500 font-semibold'
-                    : 'bg-ink-800 text-ink-400'
-                }`}>
-                  {countText}
-                </span>
-              </button>
-            );
-          })}
+          </section>
         </div>
       </div>
-
-      {/* ─── Active tab description ──────────────────────────────────── */}
-      <p className="text-sm text-ink-300 mb-5 leading-relaxed max-w-3xl">
-        {activeTabDef.description}
-      </p>
-
-      {/* ─── Active tab content ──────────────────────────────────────── */}
-      <section role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
-        {activeTabSkills.length === 0 ? (
-          <EmptyState tabId={activeTab} hasFilter={hasActiveFilter} onClearFilters={() => { setQuery(''); setActiveTag(null); }} />
-        ) : (
-          <ul className="space-y-2">
-            {activeTabSkills.map((s, i) => (
-              <SkillRow
-                key={s.id}
-                skill={s}
-                rank={showRankBadges ? i + 1 : undefined}
-                showCreator={showCreator}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
     </>
   );
 }
