@@ -60,7 +60,14 @@ function LoginPageInner() {
     setError(null); setLoading(provider);
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: callbackUrl() },
+      options: {
+        redirectTo: callbackUrl(),
+        // Azure only returns the `email` claim when explicitly requested.
+        // Without these scopes Supabase rejects the sign-in with
+        // "Error getting user email from external provider". Google
+        // returns email by default but being explicit is harmless.
+        scopes: provider === 'azure' ? 'openid email profile' : undefined,
+      },
     });
     if (error) { setError(error.message); setLoading(null); }
   }
