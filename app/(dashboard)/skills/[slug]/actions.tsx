@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { callBackend } from '@/lib/api';
 
@@ -155,25 +155,18 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
               hasActive={!!publicShare}
               onClick={() => createShare('public')}
             />
-            {currentStatus !== 'archived' && (
-              <button onClick={archive} disabled={!!busy} className="text-xs text-ink-500 hover:text-ink-200 whitespace-nowrap">
-                Archive
-              </button>
-            )}
-            {/* Delete — creator-only, irreversible. Subtle styling
-              * so it doesn't compete with the primary actions, but
-              * red on hover to signal danger. Triggers a custom
-              * confirmation modal (not browser confirm) because the
-              * action is permanent. */}
-            {isOwnedByMe && (
-              <button
-                onClick={() => setDeleteConfirmOpen(true)}
-                disabled={!!busy}
-                className="text-xs text-ink-500 hover:text-red-600 whitespace-nowrap"
-              >
-                Delete
-              </button>
-            )}
+            {/* More-actions kebab menu — houses Archive + Delete +
+              * any future less-common actions. Cleaner than dangling
+              * text links to the side of primary buttons, matches the
+              * Linear/GitHub/Notion convention for destructive +
+              * lesser-used actions. */}
+            <MoreActionsMenu
+              canArchive={currentStatus !== 'archived'}
+              canDelete={isOwnedByMe}
+              busy={busy}
+              onArchive={archive}
+              onDelete={() => setDeleteConfirmOpen(true)}
+            />
           </>
         )}
       </div>
@@ -246,6 +239,108 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
           onRevoke={() => revokeShare(publicShare.token)}
           revoking={busy === `revoke-${publicShare.token}`}
         />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Kebab-menu dropdown for less-common skill actions (Archive, Delete,
+ * future things like Duplicate, Export, Transfer ownership).
+ *
+ * Patterns:
+ * - Click the ⋯ button → menu opens
+ * - Click outside (anywhere else) → menu closes (event listener cleanup)
+ * - Click an item → executes the action AND closes the menu
+ * - Escape key → closes the menu
+ *
+ * Why not <details>: <details>/<summary> is simpler but harder to style
+ * to match the rest of the app (custom focus ring, animations, etc.).
+ * Explicit state machine is worth the few extra lines.
+ */
+function MoreActionsMenu({
+  canArchive,
+  canDelete,
+  busy,
+  onArchive,
+  onDelete,
+}: {
+  canArchive: boolean;
+  canDelete:  boolean;
+  busy:       null | string;
+  onArchive:  () => void;
+  onDelete:   () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close on outside click + escape
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    window.addEventListener('mousedown', handleClick);
+    window.addEventListener('keydown',   handleKey);
+    return () => {
+      window.removeEventListener('mousedown', handleClick);
+      window.removeEventListener('keydown',   handleKey);
+    };
+  }, [open]);
+
+  // If neither archive nor delete is available, render nothing (e.g.
+  // archived system Playbook with no owner).
+  if (!canArchive && !canDelete) return null;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        aria-label="More actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={!!busy}
+        onClick={() => setOpen(!open)}
+        className={`btn-ghost border border-ink-700 px-2.5 ${open ? 'bg-ink-800' : ''}`}
+      >
+        <span aria-hidden="true" className="text-lg leading-none tracking-tighter">⋯</span>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-1 min-w-[160px] rounded-lg border border-ink-700 bg-ink-900 shadow-lg shadow-black/40 py-1 z-30"
+        >
+          {canArchive && (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={!!busy}
+              onClick={() => { setOpen(false); onArchive(); }}
+              className="w-full text-left px-3 py-2 text-sm text-ink-200 hover:bg-ink-800 hover:text-ink-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              <span aria-hidden="true" className="text-ink-400 w-4 inline-block">📁</span>
+              <span>Archive</span>
+            </button>
+          )}
+          {canArchive && canDelete && <div className="my-1 border-t border-ink-800" />}
+          {canDelete && (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={!!busy}
+              onClick={() => { setOpen(false); onDelete(); }}
+              className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              <span aria-hidden="true" className="w-4 inline-block">🗑</span>
+              <span>Delete permanently</span>
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
