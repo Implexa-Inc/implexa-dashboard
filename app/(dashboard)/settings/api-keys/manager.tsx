@@ -1,18 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { callBackend } from '@/lib/api';
 
 type KeyRow = { id: string; name: string; key_prefix: string; status: string; created_at: string; last_used_at: string | null };
 
 export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; initial: KeyRow[]; next?: string | null }) {
+  const router = useRouter();
   const [keys, setKeys] = useState<KeyRow[]>(initial);
   const [newName, setNewName] = useState('');
   const [revealedKey, setRevealedKey] = useState<{ rawKey: string; name: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Navigate to /install (or whatever `next` is) but FIRST invalidate the
+  // App Router cache so the destination re-renders with the just-created key.
+  // Without router.refresh() the install page serves the stale (no-key) HTML
+  // from cache, and the user has to F5 to see step 1 marked done.
+  function goToNext() {
+    if (!next) return;
+    router.push(next);
+    router.refresh();
+  }
 
   async function create() {
     if (!newName.trim()) return;
@@ -69,13 +80,14 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
               <p className="text-sm text-ink-200 mb-3">
                 Copied your key? Go back to finish installing Implexa in Claude.
               </p>
-              <Link
-                href={next}
-                className={`btn-primary inline-flex items-center gap-1.5 ${copied ? '!shadow-glow' : 'opacity-60'}`}
+              <button
+                onClick={goToNext}
+                disabled={!copied}
+                className={`btn-primary inline-flex items-center gap-1.5 ${copied ? '!shadow-glow' : 'opacity-60 cursor-not-allowed'}`}
                 title={copied ? '' : 'Copy the key first, then continue'}
               >
                 Continue install →
-              </Link>
+              </button>
               {!copied && <p className="text-xs text-ink-400 mt-2">Tip: copy the key first — you&apos;ll paste it in step 2.</p>}
             </div>
           ) : (
