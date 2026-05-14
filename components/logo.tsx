@@ -4,41 +4,81 @@
  * Brand source: /Users/rabigupta/Downloads/implexa-brand/BRAND.md
  *
  * Design decisions:
- * - Text fills with currentColor so the wordmark adapts to surrounding text
- *   color (ink-50 in dark mode, ink-50 in light mode — both readable on
- *   their respective backgrounds).
+ * - Wordmark uses HTML/CSS (not SVG <text>) so the browser handles text
+ *   layout natively. Hardcoded x-coords in SVG <text> break before the
+ *   custom font loads — characters land at fallback-font positions and
+ *   the wordmark renders with visible gaps ("i mple x a"). Using HTML
+ *   means the dots stay relative to their parent characters regardless
+ *   of font loading state.
+ * - Text uses currentColor so the wordmark adapts to surrounding text
+ *   color (works on both dark and light backgrounds).
  * - The two signature dots are hardcoded brand accents:
  *     i-dot = emerald #34D399 (signal/active — pulses subtly)
  *     x-dot = vermilion #FF5722 (action/energy — matches dashboard brand-500)
- * - Inline SVG (not <img>) so we get currentColor + animation without
- *   any extra HTTP requests on first paint.
  */
 
 /** Horizontal Implexa wordmark — "implexa" with emerald dot on i, flame dot on x. */
 export function Logo({ className = '', height = 24 }: { className?: string; height?: number }) {
-  // viewBox 480x120 → use natural aspect ratio to derive width
-  const width = height * (480 / 120);
+  // Dot diameter scales with font height so the proportions stay correct
+  // at any size from a tiny 16px header to a 64px hero. ~20% of the cap
+  // height matches the SVG version's `r=7` at fontSize=64.
+  const dot = Math.max(4, Math.round(height * 0.2));
+
   return (
-    <svg
-      viewBox="0 0 480 120"
-      width={width}
-      height={height}
-      className={className}
-      fill="currentColor"
+    <span
+      className={`inline-flex items-baseline font-semibold tracking-tight leading-none select-none ${className}`}
+      style={{ fontSize: height, letterSpacing: '-0.03em' }}
       role="img"
       aria-label="Implexa"
     >
-      <g fontFamily="Inter, system-ui, sans-serif" fontWeight={600} fontSize={64} letterSpacing="-2">
-        <text x={40} y={80}>ı</text>
-        <circle cx={55} cy={34} r={7} fill="#34D399">
-          <animate attributeName="opacity" values="1;.6;1" dur="2.4s" repeatCount="indefinite" />
-        </circle>
-        <text x={68} y={80}>mple</text>
-        <text x={220} y={80}>x</text>
-        <circle cx={241} cy={62} r={7} fill="#FF5722" />
-        <text x={258} y={80}>a</text>
-      </g>
-    </svg>
+      {/* Dotless i + emerald accent dot above */}
+      <span className="relative inline-block">
+        {/* U+0131 "LATIN SMALL LETTER DOTLESS I" — keeps the glyph width
+         * the same as a regular i so spacing stays correct. */}
+        {'ı'}
+        <span
+          aria-hidden="true"
+          className="absolute rounded-full animate-implexa-pulse"
+          style={{
+            width: dot,
+            height: dot,
+            backgroundColor: '#34D399',
+            top: `-${dot * 0.15}px`,
+            left: '50%',
+            transform: 'translateX(-50%)',
+          }}
+        />
+      </span>
+      <span>mple</span>
+      {/* x + vermilion accent dot at the bottom-right of the x */}
+      <span className="relative inline-block">
+        x
+        <span
+          aria-hidden="true"
+          className="absolute rounded-full"
+          style={{
+            width: dot,
+            height: dot,
+            backgroundColor: '#FF5722',
+            bottom: `-${dot * 0.1}px`,
+            right: `-${dot * 0.25}px`,
+          }}
+        />
+      </span>
+      <span>a</span>
+      {/* Pulse animation defined inline so we don't depend on global CSS
+       * being loaded. animate-pulse from Tailwind also works but is more
+       * aggressive than the original SVG `1 → .6 → 1 over 2.4s`. */}
+      <style jsx>{`
+        @keyframes implexaPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+        :global(.animate-implexa-pulse) {
+          animation: implexaPulse 2.4s ease-in-out infinite;
+        }
+      `}</style>
+    </span>
   );
 }
 
