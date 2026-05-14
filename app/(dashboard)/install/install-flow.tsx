@@ -34,9 +34,12 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
             <p className="text-sm text-ink-200 mb-3">
               You&apos;ll need an API key (<code className="font-mono text-xs">imp_live_…</code>) so Claude can authenticate to Implexa.
             </p>
-            <Link href="/settings/api-keys" className="btn-primary">
+            <Link href="/settings/api-keys?next=/install" className="btn-primary">
               Generate an API key →
             </Link>
+            <p className="text-xs text-ink-400 mt-2">
+              We&apos;ll bring you right back here after you create the key.
+            </p>
           </div>
         )}
       </Section>

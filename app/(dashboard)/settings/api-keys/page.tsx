@@ -11,7 +11,19 @@ import ApiKeysManager from './manager';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ApiKeysPage() {
+// Whitelist `next` redirect targets so we don't open-redirect.
+function sanitizeNext(next: string | undefined): string | null {
+  if (!next) return null;
+  if (!next.startsWith('/')) return null;
+  if (next.startsWith('//')) return null;
+  return next;
+}
+
+export default async function ApiKeysPage({
+  searchParams,
+}: {
+  searchParams?: { next?: string };
+}) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
@@ -22,11 +34,18 @@ export default async function ApiKeysPage() {
     keys = r.keys || [];
   } catch (_) {}
 
+  const next = sanitizeNext(searchParams?.next);
+  const cameFromInstall = next === '/install';
+
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-2xl mx-auto">
         <nav className="text-xs text-ink-500 mb-4">
-          <Link href="/settings" className="hover:underline">← Settings</Link>
+          {cameFromInstall ? (
+            <Link href="/install" className="hover:underline">← Back to install</Link>
+          ) : (
+            <Link href="/settings" className="hover:underline">← Settings</Link>
+          )}
         </nav>
 
         <header className="mb-8">
@@ -37,7 +56,16 @@ export default async function ApiKeysPage() {
           </p>
         </header>
 
-        <ApiKeysManager jwt={session.access_token} initial={keys} />
+        {cameFromInstall && (
+          <div className="card !p-3 !bg-brand-50 !border-brand-500/30 mb-6 text-sm text-ink-200 flex items-start gap-2">
+            <span>🪜</span>
+            <span>
+              You&apos;re in step 1 of <strong>installing Implexa in Claude</strong>. Create a key below, copy it, then click <strong>← Back to install</strong> to continue.
+            </span>
+          </div>
+        )}
+
+        <ApiKeysManager jwt={session.access_token} initial={keys} next={next} />
 
         <div className="mt-10 card bg-brand-50 border-brand-500/20">
           <h3 className="font-medium mb-3">Plugin setup</h3>

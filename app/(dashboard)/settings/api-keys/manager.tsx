@@ -1,14 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { callBackend } from '@/lib/api';
 
 type KeyRow = { id: string; name: string; key_prefix: string; status: string; created_at: string; last_used_at: string | null };
 
-export default function ApiKeysManager({ jwt, initial }: { jwt: string; initial: KeyRow[] }) {
+export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; initial: KeyRow[]; next?: string | null }) {
   const [keys, setKeys] = useState<KeyRow[]>(initial);
   const [newName, setNewName] = useState('');
   const [revealedKey, setRevealedKey] = useState<{ rawKey: string; name: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -49,13 +51,36 @@ export default function ApiKeysManager({ jwt, initial }: { jwt: string; initial:
       {/* Newly-created key dialog (reveals raw value ONCE) */}
       {revealedKey && (
         <div className="card border-2 border-brand-500 bg-brand-50">
-          <h3 className="font-medium">Key created — copy it now</h3>
-          <p className="text-sm text-ink-200 mt-1">This is the only time the full value will be shown.</p>
+          <h3 className="font-medium text-ink-50">✨ Key created — copy it now</h3>
+          <p className="text-sm text-ink-200 mt-1">This is the only time the full value will be shown. Save it to your password manager too.</p>
           <div className="mt-3 flex items-center gap-2">
             <code className="flex-1 bg-ink-950 border border-ink-700 text-ink-100 rounded px-3 py-2 text-sm font-mono break-all">{revealedKey.rawKey}</code>
-            <button onClick={() => { navigator.clipboard.writeText(revealedKey.rawKey); }} className="btn-primary">Copy</button>
+            <button
+              onClick={() => { navigator.clipboard.writeText(revealedKey.rawKey); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              className={`btn-primary whitespace-nowrap ${copied ? '!bg-success-400' : ''}`}
+            >
+              {copied ? '✓ Copied' : 'Copy'}
+            </button>
           </div>
-          <button onClick={() => setRevealedKey(null)} className="btn-ghost mt-3 text-xs">I've saved it — dismiss</button>
+
+          {/* Continue-with-install CTA when we came from /install */}
+          {next ? (
+            <div className="mt-4 pt-4 border-t border-brand-500/30">
+              <p className="text-sm text-ink-200 mb-3">
+                Copied your key? Go back to finish installing Implexa in Claude.
+              </p>
+              <Link
+                href={next}
+                className={`btn-primary inline-flex items-center gap-1.5 ${copied ? '!shadow-glow' : 'opacity-60'}`}
+                title={copied ? '' : 'Copy the key first, then continue'}
+              >
+                Continue install →
+              </Link>
+              {!copied && <p className="text-xs text-ink-400 mt-2">Tip: copy the key first — you&apos;ll paste it in step 2.</p>}
+            </div>
+          ) : (
+            <button onClick={() => setRevealedKey(null)} className="btn-ghost mt-3 text-xs">I&apos;ve saved it — dismiss</button>
+          )}
         </div>
       )}
 
