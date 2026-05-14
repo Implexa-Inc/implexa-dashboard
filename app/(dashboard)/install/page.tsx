@@ -1,19 +1,19 @@
 /**
- * /install — pick how you connect Claude to Implexa.
+ * /install — connect Claude to Implexa.
  *
- * Three options ranked from easiest to most powerful:
- *   1. Custom Connector — paste a URL into Claude Desktop / Claude.ai. Zero install.
- *   2. Claude Desktop / Cursor stdio — npm package, JSON config.
- *   3. Claude Code plugin — native plugin install, ships all slash commands.
+ * Three steps surfaced cleanly:
+ *   1. Get an API key (auto-flagged if missing)
+ *   2. Install the plugin in your preferred Claude surface
+ *      (tabbed: Claude Code CLI / Claude Desktop / Cowork)
+ *   3. Configure capture hooks (one-time curl one-liner)
  *
- * Order on this page is "easiest first" because most new users are signing up
- * via a share link and want to be using the skill in 30 seconds, not in 5 minutes.
+ * Whichever surface they pick, every command is copy-to-clipboard ready.
  */
 
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import InstallOptions from './options';
+import InstallFlow from './install-flow';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,8 +26,8 @@ export default async function InstallPage() {
     .from('users').select('id, email').eq('id', session.user.id).maybeSingle();
   if (!profile) redirect('/onboarding?next=/install');
 
-  // Find the most-recently-created active API key — surfaces a pre-filled key
-  // in the install commands so the user doesn't have to find their own.
+  // Find the most-recently-created active API key (surface only the prefix —
+  // never expose the full key in HTML).
   const { data: keys } = await supabase
     .from('api_keys')
     .select('id, name, key_prefix, created_at')
@@ -36,42 +36,37 @@ export default async function InstallPage() {
     .order('created_at', { ascending: false })
     .limit(1);
 
-  const hasKey = (keys || []).length > 0;
-  const apiBase = process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai';
+  const hasKey    = (keys || []).length > 0;
+  const keyPrefix = keys?.[0]?.key_prefix || null;
 
   return (
     <main className="min-h-screen px-4 py-12">
-      <div className="max-w-6xl mx-auto">
-        <nav className="text-sm text-ink-300 mb-6">
-          <Link href="/skills" className="hover:underline">← Skills</Link>
-        </nav>
-
-        <header className="mb-10 text-center max-w-2xl mx-auto">
-          <h1 className="text-4xl font-semibold tracking-tight">Connect Claude to Implexa</h1>
-          <p className="text-ink-200 mt-3 leading-relaxed">
-            Three ways to plug in — pick whichever your client supports. All three give you the same 28 tools and your full skill library.
+      <div className="max-w-4xl mx-auto">
+        <header className="mb-10 text-center">
+          <div className="brand-mark text-xs mb-4 justify-center inline-flex">
+            <span className="brand-mark-flame">⚡</span> Implexa
+          </div>
+          <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Connect Claude</h1>
+          <p className="text-ink-300 mt-3 leading-relaxed max-w-xl mx-auto">
+            Three steps, ~2 minutes. Same skill library + capture loop across every Claude surface.
           </p>
         </header>
 
-        {!hasKey && (
-          <div className="card !bg-brand-50 !border-brand-500/30 mb-8 max-w-3xl mx-auto text-center">
-            <p className="text-sm">
-              <strong>One thing first</strong> — you need an API key for any of these options.
-            </p>
-            <Link href="/settings/api-keys" className="btn-primary mt-3 inline-block">Generate an API key →</Link>
-          </div>
-        )}
+        <InstallFlow hasKey={hasKey} keyPrefix={keyPrefix} />
 
-        <InstallOptions apiBase={apiBase} keyPrefix={keys?.[0]?.key_prefix || null} hasKey={hasKey} />
-
-        {/* Footnote */}
-        <footer className="mt-12 text-center text-sm text-ink-500 max-w-2xl mx-auto">
+        <footer className="mt-12 text-center text-xs text-ink-400 max-w-xl mx-auto leading-relaxed">
           <p>
-            Same 28 tools across every surface. Same skill library. Same outcome attribution.
-            Pick whichever you already use, or start with the Custom Connector — it's the fastest path from zero to "watch me do this once."
+            Whichever surface you pick, Implexa captures every prompt + tool call during a recording via host hooks.
+            Want to verify the chain works after install? Visit{' '}
+            <Link href="/skills" className="text-brand-500 hover:underline">/skills</Link>
+            {' '}and run <code className="bg-ink-800 px-1 rounded">/implexa:record-skill</code> for a quick test.
           </p>
         </footer>
       </div>
     </main>
   );
 }
+
+export const metadata = {
+  title: 'Connect Claude — Implexa',
+};
