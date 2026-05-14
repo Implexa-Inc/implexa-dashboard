@@ -2,26 +2,34 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Logo } from '@/components/logo';
+import { LogoMark } from '@/components/logo';
 
 type NavItem = {
   href:    string;
   label:   string;
+  /** Filename in /public/icons/ (without extension). currentColor stroke makes it adapt to active/inactive state. */
   icon:    string;
   /** Match `/skills` AND `/skills/anything`. */
   matchPrefix?: boolean;
 };
 
+// Brand SVG icons replace the previous emoji set. Mapping rationale:
+//   skills        → "skills" (sparkle/skill mark)
+//   integrations  → "link" (connection/chain)
+//   roi           → "analytics" (bar chart)
+//   install       → "flame" (the brand's "action/energy" archetype — matches "connect/ignite")
+//   settings      → "settings" (gear)
+//   pricing       → "spark" (premium tier feel)
 const PRIMARY_NAV: NavItem[] = [
-  { href: '/skills',       label: 'Skills',       icon: '✨', matchPrefix: true },
-  { href: '/integrations', label: 'Integrations', icon: '🔌', matchPrefix: true },
-  { href: '/roi',          label: 'ROI',          icon: '📊', matchPrefix: true },
-  { href: '/install',      label: 'Connect Claude', icon: '⚡', matchPrefix: true },
+  { href: '/skills',       label: 'Skills',         icon: 'skills',    matchPrefix: true },
+  { href: '/integrations', label: 'Integrations',   icon: 'link',      matchPrefix: true },
+  { href: '/roi',          label: 'ROI',            icon: 'analytics', matchPrefix: true },
+  { href: '/install',      label: 'Connect Claude', icon: 'flame',     matchPrefix: true },
 ];
 
 const SECONDARY_NAV: NavItem[] = [
-  { href: '/settings',     label: 'Settings',     icon: '⚙️', matchPrefix: true },
-  { href: '/pricing',      label: 'Pricing',      icon: '💎', matchPrefix: true },
+  { href: '/settings',     label: 'Settings',     icon: 'settings', matchPrefix: true },
+  { href: '/pricing',      label: 'Pricing',      icon: 'spark',    matchPrefix: true },
 ];
 
 type UserCtx = {
@@ -41,10 +49,14 @@ export default function Sidebar({ user }: { user: UserCtx }) {
 
   return (
     <aside className="hidden md:flex md:flex-col md:sticky md:top-0 w-56 shrink-0 border-r border-ink-700 bg-ink-900/50 h-screen overflow-y-auto">
-      {/* Brand */}
+      {/* Brand — LogoMark (square badge) until the wordmark gets its final
+       * polish pass. Per founder's instruction: "Use Implexa favicon
+       * instead of [full] logo. Logo needs finishing touches, will work
+       * on it." Easy to swap back to <Logo /> later. */}
       <div className="px-4 pt-6 pb-8">
-        <Link href="/skills" className="inline-flex items-center text-ink-50">
-          <Logo height={22} />
+        <Link href="/skills" className="inline-flex items-center gap-2 text-ink-50">
+          <LogoMark size={28} />
+          <span className="text-sm font-medium">Implexa</span>
         </Link>
       </div>
 
@@ -104,7 +116,33 @@ function NavLink({ href, icon, label, active }: { href: string; icon: string; la
           : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100 border-l-2 border-transparent'
       }`}
     >
-      <span className="text-base leading-none w-5 text-center" aria-hidden="true">{icon}</span>
+      {/* SVG icon via CSS mask-image — gives us currentColor inheritance.
+       *
+       * Why not <Image src=...>? Next.js Image renders the SVG inside an <img>
+       * tag, which isolates it from the parent's CSS context — so the
+       * `stroke="currentColor"` in our brand SVGs falls back to black and the
+       * icons disappear on the dark sidebar bg.
+       *
+       * Mask-image solves this: the SVG becomes a stencil and bg-current paints
+       * it the parent's text color. Trade-off: any internal `fill=` accents in
+       * the source SVG (e.g. the small flame dot in skills.svg) become part of
+       * the stencil — they don't render as a separate accent color. Acceptable
+       * for tiny 18px nav icons; switch to inline SVGR if we ever need
+       * multi-color icons in nav. */}
+      <span
+        aria-hidden="true"
+        className="block w-[18px] h-[18px] shrink-0 bg-current"
+        style={{
+          maskImage: `url(/icons/${icon}.svg)`,
+          WebkitMaskImage: `url(/icons/${icon}.svg)`,
+          maskSize: 'contain',
+          WebkitMaskSize: 'contain',
+          maskRepeat: 'no-repeat',
+          WebkitMaskRepeat: 'no-repeat',
+          maskPosition: 'center',
+          WebkitMaskPosition: 'center',
+        }}
+      />
       <span>{label}</span>
     </Link>
   );
@@ -116,8 +154,9 @@ function NavLink({ href, icon, label, active }: { href: string; icon: string; la
 export function MobileTopBar({ user }: { user: UserCtx }) {
   return (
     <div className="md:hidden sticky top-0 z-20 bg-ink-900 border-b border-ink-700 px-4 py-3 flex items-center justify-between">
-      <Link href="/skills" className="inline-flex items-center text-ink-50">
-        <Logo height={20} />
+      <Link href="/skills" className="inline-flex items-center gap-2 text-ink-50">
+        <LogoMark size={24} />
+        <span className="text-sm font-medium">Implexa</span>
       </Link>
       <div className="flex items-center gap-2 text-xs">
         <span className="capitalize text-ink-300">{user.plan}</span>
