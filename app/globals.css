@@ -142,3 +142,12 @@ body::before {
 
 /* Selection — warm orange tint */
 ::selection { background: rgba(255, 87, 34, 0.3); color: rgb(var(--ink-50)); }
+
+/* Implexa logo i-dot pulse — defined globally (not via styled-jsx) so the
+ * <Logo /> component stays server-component compatible. Matches the
+ * original SVG animation: opacity 1 → .6 → 1 over 2.4s, indefinite. */
+@keyframes implexaPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+.animate-implexa-pulse { animation: implexaPulse 2.4s ease-in-out infinite; }

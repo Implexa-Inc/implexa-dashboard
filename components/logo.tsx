@@ -66,18 +66,6 @@ export function Logo({ className = '', height = 24 }: { className?: string; heig
         />
       </span>
       <span>a</span>
-      {/* Pulse animation defined inline so we don't depend on global CSS
-       * being loaded. animate-pulse from Tailwind also works but is more
-       * aggressive than the original SVG `1 → .6 → 1 over 2.4s`. */}
-      <style jsx>{`
-        @keyframes implexaPulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.6; }
-        }
-        :global(.animate-implexa-pulse) {
-          animation: implexaPulse 2.4s ease-in-out infinite;
-        }
-      `}</style>
     </span>
   );
 }
