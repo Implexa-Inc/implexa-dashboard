@@ -84,6 +84,12 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
           : 'Required — Claude Desktop / Cowork sandbox plugin hooks. Run this in your terminal once.'}
       >
         <div className="space-y-3">
+          <p className="text-xs text-ink-300 leading-relaxed">
+            Copy the command below, then open <strong>Terminal</strong> and paste (<kbd className="text-[10px] bg-ink-800 border border-ink-700 rounded px-1 py-0.5 font-mono">⌘V</kbd> then <kbd className="text-[10px] bg-ink-800 border border-ink-700 rounded px-1 py-0.5 font-mono">↵</kbd>).
+            <span className="block text-ink-400 mt-1">
+              Don&apos;t have Terminal open? Press <kbd className="text-[10px] bg-ink-800 border border-ink-700 rounded px-1 py-0.5 font-mono">⌘Space</kbd>, type <em>terminal</em>, press <kbd className="text-[10px] bg-ink-800 border border-ink-700 rounded px-1 py-0.5 font-mono">↵</kbd>.
+            </span>
+          </p>
           <CodeBlock code={SETUP_HOOKS_CMD} oneLine />
           <details className="text-xs text-ink-300">
             <summary className="cursor-pointer hover:text-ink-100 select-none">What does this script do?</summary>
