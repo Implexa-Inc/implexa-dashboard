@@ -19,6 +19,11 @@ const SETUP_HOOKS_CMD = `curl -sL https://raw.githubusercontent.com/Implexa-Inc/
 export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; keyPrefix: string | null }) {
   const [surface, setSurface] = useState<Surface>('cli');
 
+  // Step 3 (setup-hooks) is REQUIRED for Claude Desktop and Cowork because their
+  // sandbox silently drops plugin-packaged hooks (`--setting-sources user`).
+  // For Claude Code CLI it's optional — plugin hooks fire natively there.
+  const step3Required = surface !== 'cli';
+
   return (
     <>
       {/* ── Step 1: API key ──────────────────────────────────────────── */}
@@ -73,6 +78,7 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
       <Section
         number={3}
         title="Configure capture hooks"
+        required={step3Required}
         subtitle={surface === 'cli'
           ? 'Optional for CLI users (plugin hooks fire natively here), but recommended for consistency across surfaces.'
           : 'Required — Claude Desktop / Cowork sandbox plugin hooks. Run this in your terminal once.'}
@@ -147,8 +153,8 @@ source ~/.zshrc`}
           Launch Claude Desktop. From within it, open the plugin manager and run:
         </p>
         <CodeBlock code={PLUGIN_INSTALL_CMD} />
-        <p className="text-xs text-ink-400 mt-3 leading-relaxed">
-          <strong>Step 3 is required.</strong> Claude Desktop sandboxes plugin-packaged hooks, so the user-level hooks installer is needed for the killer feature (prompt + response capture). Without it you&apos;ll still get tool-call capture but `conversationTurns: 0`.
+        <p className="text-xs mt-3 leading-relaxed text-red-600 dark:text-red-400">
+          <strong>⚠ Step 3 is required.</strong> Claude Desktop sandboxes plugin-packaged hooks, so the user-level hooks installer is needed for the killer feature (prompt + response capture). Without it you&apos;ll still get tool-call capture but `conversationTurns: 0`.
         </p>
         <details className="text-xs text-ink-300 mt-3">
           <summary className="cursor-pointer hover:text-ink-100 select-none">What about API key setup?</summary>
@@ -167,8 +173,8 @@ source ~/.zshrc`}
         Open Cowork in your browser. Use the plugin marketplace UI to add and install:
       </p>
       <CodeBlock code={`Marketplace URL:  https://github.com/Implexa-Inc/implexa-claude-plugin\nPlugin name:      implexa@implexa`} />
-      <p className="text-xs text-ink-400 mt-3 leading-relaxed">
-        <strong>Step 3 is required for capture.</strong> Cowork&apos;s sandbox runs Claude with <code className="bg-ink-800 px-1 rounded">--setting-sources user</code>, which silently ignores plugin-packaged hooks. You&apos;ll get tool-call capture but no prompt/response capture without user-level hooks.
+      <p className="text-xs mt-3 leading-relaxed text-red-600 dark:text-red-400">
+        <strong>⚠ Step 3 is required for capture.</strong> Cowork&apos;s sandbox runs Claude with <code className="bg-ink-800 px-1 rounded">--setting-sources user</code>, which silently ignores plugin-packaged hooks. You&apos;ll get tool-call capture but no prompt/response capture without user-level hooks.
       </p>
       <details className="text-xs text-ink-300 mt-3">
         <summary className="cursor-pointer hover:text-ink-100 select-none">Wait — do I run the setup script in Cowork?</summary>
@@ -180,19 +186,39 @@ source ~/.zshrc`}
   );
 }
 
-function Section({ number, title, subtitle, children, done }: { number: number; title: string; subtitle?: string; children: React.ReactNode; done?: boolean }) {
+function Section({ number, title, subtitle, children, done, required }: { number: number; title: string; subtitle?: string; children: React.ReactNode; done?: boolean; required?: boolean }) {
+  // Visual priority: done > required > default. A completed step never looks
+  // "required" — green wins. The required state is only meaningful before
+  // it's been actioned, so it should never compete with the done indicator.
+  const cardBorder = done
+    ? '!border-success-400/40'
+    : required
+      ? '!border-red-500/60'
+      : '';
+  const circle = done
+    ? 'border-success-400 text-success-700 dark:text-success-400'
+    : required
+      ? 'border-red-500 text-red-600 dark:text-red-400'
+      : 'border-brand-500 text-brand-500';
+  const subtitleColor = done
+    ? 'text-ink-300'
+    : required
+      ? 'text-red-600 dark:text-red-400 font-medium'
+      : 'text-ink-300';
+
   return (
     <section className="mb-6">
-      <div className={`card relative ${done ? '!border-success-400/40' : ''}`}>
-        <div className={`absolute -top-2.5 -left-2.5 w-7 h-7 rounded-full bg-ink-950 border-2 flex items-center justify-center text-xs font-bold ${done ? 'border-success-400 text-success-700 dark:text-success-400' : 'border-brand-500 text-brand-500'}`}>
+      <div className={`card relative ${cardBorder}`}>
+        <div className={`absolute -top-2.5 -left-2.5 w-7 h-7 rounded-full bg-ink-950 border-2 flex items-center justify-center text-xs font-bold ${circle}`}>
           {done ? '✓' : number}
         </div>
         <div className="pl-2">
           <h2 className="text-base font-medium text-ink-50 mb-1 flex items-center gap-2">
             {title}
             {done && <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">Done</span>}
+            {!done && required && <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-red-500/15 text-red-600 dark:text-red-400">Required</span>}
           </h2>
-          {subtitle && <p className="text-xs text-ink-300 mb-3 leading-relaxed">{subtitle}</p>}
+          {subtitle && <p className={`text-xs mb-3 leading-relaxed ${subtitleColor}`}>{subtitle}</p>}
           {children}
         </div>
       </div>
