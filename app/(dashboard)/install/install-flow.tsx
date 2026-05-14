@@ -164,7 +164,7 @@ source ~/.zshrc`}
         </ol>
         <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
         <ol className="text-sm text-ink-200 mt-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400" start={4}>
-          <li>The <code className="text-xs bg-ink-800 px-1 rounded">implexa</code> plugin should appear — click <strong>Install</strong> on its row</li>
+          <li>You&apos;ll land on the <strong>Directory</strong> page. Under the <strong>Personal</strong> tab, find the <strong>Implexa</strong> plugin tile and click it to install.</li>
         </ol>
         <p className="text-xs text-ink-400 mt-3 leading-relaxed">
           You do <strong>not</strong> need your API key for this step — it&apos;s only used in Step 3.
