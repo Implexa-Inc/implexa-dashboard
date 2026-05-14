@@ -123,8 +123,12 @@ export default async function IntegrationsPage() {
   const onWaitlistSet = new Set((waitlistRows || []).map((r) => r.integration_slug));
 
   // ── 3. Bucket the catalog ──────────────────────────────────────────────
+  // Note: we used to also bucket `available` integrations (Fiber, Coresignal,
+  // etc.) into a "Native data providers" section. Removed during launch prep —
+  // it contradicted the BYOK MCP positioning. Implexa doesn't ship its own
+  // integration platform; users bring their own MCPs (the popular ones are
+  // showcased lower on the page as inspiration, not for click-to-install).
   const recommendedSlugs = new Set(recommendations.map((r) => r.integration.slug));
-  const available = INTEGRATIONS.filter((i) => i.status === 'available' || i.status === 'beta');
   const comingSoon = INTEGRATIONS.filter((i) => i.status === 'coming-soon' && !recommendedSlugs.has(i.slug));
   const comingSoonByCategory = integrationsByCategory(comingSoon);
 
@@ -136,7 +140,7 @@ export default async function IntegrationsPage() {
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Integrations</h1>
           <p className="text-ink-300 text-sm mt-1 max-w-2xl leading-relaxed">
             Implexa captures workflows from <strong>any MCP server you have installed</strong> in Claude — no setup required.
-            Below are the native data providers we ship for users who don&apos;t have their own.
+            Bring your own tools (Salesforce, GitHub, Slack, Apollo, Clay, anything MCP-compatible), and we capture every workflow you run with them.
           </p>
         </header>
 
@@ -164,25 +168,7 @@ export default async function IntegrationsPage() {
           </div>
         </section>
 
-        {/* ── Section 1 — Native data providers ─────────────────────────── */}
-        <section className="mb-12">
-          <SectionHeader
-            badge="🟢"
-            title="Native data providers"
-            subtitle="The few categories where Implexa ships its own MCP. Useful if you don't have a prospect data MCP of your own."
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {available.map((integ) => (
-              <IntegrationCard
-                key={integ.slug}
-                integration={integ}
-                alreadyOnWaitlist={onWaitlistSet.has(integ.slug)}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* ── Section 2 — Recommended for you ─────────────────────────── */}
+        {/* ── Section 1 — Recommended for you ─────────────────────────── */}
         {recommendations.length > 0 && (
           <section className="mb-12">
             <SectionHeader
@@ -205,7 +191,7 @@ export default async function IntegrationsPage() {
           </section>
         )}
 
-        {/* ── Section 3 — Popular MCPs users capture ──────────────────── */}
+        {/* ── Section 2 — Popular MCPs users capture ──────────────────── */}
         <section className="mb-12">
           <SectionHeader
             badge="📡"
@@ -229,7 +215,7 @@ export default async function IntegrationsPage() {
           </p>
         </section>
 
-        {/* ── Section 4 — Future attribution sinks ─────────────────────── */}
+        {/* ── Section 3 — Future attribution sinks ─────────────────────── */}
         <section>
           <SectionHeader
             badge="📊"
