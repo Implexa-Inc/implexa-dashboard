@@ -122,9 +122,12 @@ body::before {
   /* ── Inputs ─────────────────────────────────────────────────────── */
   .input        { @apply w-full rounded-lg border border-ink-700 bg-ink-900 text-ink-100 placeholder:text-ink-400 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20; }
 
-  /* ── Brand mark ─────────────────────────────────────────────────── */
-  .brand-mark        { @apply inline-flex items-center gap-2 font-medium text-ink-50; }
-  .brand-mark-flame  { @apply text-brand-500; }
+  /* ── Brand mark — DEPRECATED ──────────────────────────────────────
+   * Replaced by <Logo /> component (components/logo.tsx) which uses
+   * the proper Implexa wordmark SVG with emerald + vermilion accent
+   * dots, animated subtly per brand spec. Keep these CSS classes only
+   * for backwards compat in any external embeds; remove on next pass.
+   * ─────────────────────────────────────────────────────────────── */
 
   /* ── Semantic value classes (used in ROI / outcome displays) ────── */
   .value-money       { @apply text-success-400 font-semibold tabular-nums; }

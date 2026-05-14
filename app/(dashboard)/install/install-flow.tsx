@@ -6,9 +6,9 @@ import Link from 'next/link';
 type Surface = 'cli' | 'desktop' | 'cowork';
 
 const SURFACES: Array<{ id: Surface; label: string; subtitle: string }> = [
-  { id: 'cli',     label: 'Claude Code (CLI)', subtitle: 'Terminal — full features, native hooks' },
-  { id: 'desktop', label: 'Claude Desktop',    subtitle: 'macOS app — needs setup-hooks step' },
-  { id: 'cowork',  label: 'Cowork (web)',      subtitle: 'Browser — needs setup-hooks step' },
+  { id: 'cli',     label: 'Claude Code (CLI)',    subtitle: 'Terminal — full capture (tool calls + conversation turns)' },
+  { id: 'cowork',  label: 'Cowork (web)',         subtitle: 'Plugin install — also auto-enables Desktop Chat' },
+  { id: 'desktop', label: 'Claude Desktop chat',  subtitle: 'Just paste a Connector URL — 30 sec' },
 ];
 
 const PLUGIN_INSTALL_CMD = `/plugin marketplace add https://github.com/Implexa-Inc/implexa-claude-plugin.git
@@ -19,10 +19,12 @@ const SETUP_HOOKS_CMD = `curl -sL https://raw.githubusercontent.com/Implexa-Inc/
 export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; keyPrefix: string | null }) {
   const [surface, setSurface] = useState<Surface>('cli');
 
-  // Step 3 (setup-hooks) is REQUIRED for Claude Desktop and Cowork because their
-  // sandbox silently drops plugin-packaged hooks (`--setting-sources user`).
-  // For Claude Code CLI it's optional — plugin hooks fire natively there.
-  const step3Required = surface !== 'cli';
+  // Hooks (Step 3) only fire reliably in Claude Code CLI. Confirmed via
+  // fresh-Mac testing (2 machines): Cowork doesn't invoke ~/.claude/settings.json
+  // hooks at all, and Desktop Chat has no plugin/hook system either.
+  // For non-CLI surfaces, MCP tools handle capture (degraded — tool calls but
+  // no conversation turns), and there's no reason to run the hooks installer.
+  const showHooksStep = surface === 'cli';
 
   return (
     <>
@@ -74,48 +76,82 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
         <SurfaceContent surface={surface} hasKey={hasKey} />
       </Section>
 
-      {/* ── Step 3: Setup hooks ──────────────────────────────────────── */}
-      <Section
-        number={3}
-        title="Configure capture hooks"
-        required={step3Required}
-        subtitle={surface === 'cli'
-          ? 'Optional for CLI users (plugin hooks fire natively here), but recommended for consistency across surfaces.'
-          : 'Required — Claude Desktop / Cowork sandbox plugin hooks. Run this in your terminal once.'}
-      >
-        <div className="space-y-3">
-          <p className="text-xs text-ink-300 leading-relaxed">
-            Copy the command below, then open <strong>Terminal</strong>, paste it, and press Enter.
-            <span className="block text-ink-400 mt-1">
-              Don&apos;t have Terminal open? Press <strong>Cmd + Space</strong>, type <em>terminal</em>, press Enter.
-            </span>
-          </p>
-          <CodeBlock code={SETUP_HOOKS_CMD} oneLine />
-          <details className="text-xs text-ink-300">
-            <summary className="cursor-pointer hover:text-ink-100 select-none">What does this script do?</summary>
-            <div className="mt-2 pl-4 space-y-1 leading-relaxed">
-              <p>• Installs <code className="text-[11px] bg-ink-800 px-1 rounded">jq</code> if missing (one-time, via Homebrew)</p>
-              <p>• <strong>Prompts you to paste your API key</strong>, then stores it in <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/implexa.env</code> (chmod 600). Have your key ready.</p>
-              <p>• Writes a launcher at <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/implexa-hook.sh</code></p>
-              <p>• Patches <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/settings.json</code> to register hooks (backs up the original)</p>
-              <p>• Runs a smoke test to verify the chain works</p>
-              <p>• Idempotent — safe to re-run anytime</p>
+      {/* ── Step 3 (CLI only): Setup hooks ───────────────────────────── */}
+      {showHooksStep && (
+        <Section
+          number={3}
+          title="Enable full capture (one-time)"
+          subtitle="Optional but recommended — installs hooks that capture every prompt + assistant response into your demos. Without these, you still get tool-call capture via MCP, but conversation turns are skipped."
+        >
+          <div className="space-y-3">
+            {/* Non-coder reassurance — most users on this page aren't developers */}
+            <div className="rounded-lg border border-ink-700 bg-ink-800/40 p-3 text-xs text-ink-200 leading-relaxed">
+              <p className="font-medium text-ink-100 mb-1.5">Not a developer? You&apos;re fine.</p>
+              <p className="mb-2">
+                This is one safe command. The script handles everything — just answer{' '}
+                <code className="bg-ink-900 px-1 rounded">y</code> when prompted and paste your API key when it asks. It will:
+              </p>
+              <ol className="pl-4 list-decimal space-y-0.5 marker:text-ink-500">
+                <li>Install <strong>Homebrew</strong> if missing (Mac&apos;s standard package manager — common dev tool)</li>
+                <li>Install <strong>Node.js</strong> (common dev tool — needed by Implexa&apos;s MCP server)</li>
+                <li>Ask you to paste your API key (the one you copied above)</li>
+                <li>Configure Claude to capture skills</li>
+              </ol>
+              <p className="mt-2 text-ink-400">
+                Takes ~3–5 min the first time (mostly downloads), instant on re-runs. You may be asked for your Mac password once — that&apos;s normal for installing system tools.
+              </p>
             </div>
-          </details>
-        </div>
-      </Section>
+            <p className="text-xs text-ink-300 leading-relaxed">
+              Copy the command below, then open <strong>Terminal</strong>, paste it, and press Enter.
+              <span className="block text-ink-400 mt-1">
+                Don&apos;t have Terminal open? Press <strong>Cmd + Space</strong>, type <em>terminal</em>, press Enter.
+              </span>
+            </p>
+            <CodeBlock code={SETUP_HOOKS_CMD} oneLine />
+            <details className="text-xs text-ink-300">
+              <summary className="cursor-pointer hover:text-ink-100 select-none">What exactly does this script do? (details)</summary>
+              <div className="mt-2 pl-4 space-y-1 leading-relaxed">
+                <p>• Installs <code className="text-[11px] bg-ink-800 px-1 rounded">jq</code> + <code className="text-[11px] bg-ink-800 px-1 rounded">Node.js</code> if missing (via Homebrew)</p>
+                <p>• <strong>Prompts you to paste your API key</strong>, then stores it in <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/implexa.env</code> (chmod 600)</p>
+                <p>• Writes a launcher at <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/implexa-hook.sh</code></p>
+                <p>• Patches <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/settings.json</code> to register hooks (backs up the original)</p>
+                <p>• Registers MCP server in <code className="text-[11px] bg-ink-800 px-1 rounded">claude_desktop_config.json</code> as a fallback path</p>
+                <p>• Runs a smoke test to verify the chain works</p>
+                <p>• Idempotent — safe to re-run anytime</p>
+              </div>
+            </details>
+          </div>
+        </Section>
+      )}
 
-      {/* ── Step 4: Restart + test ───────────────────────────────────── */}
-      <Section number={4} title="Restart Claude + record your first skill">
+      {/* ── Final step: Verify + record ──────────────────────────────── */}
+      {/* Step number renumbers to 3 when the hooks step (Step 3, CLI-only)
+       * is hidden, so non-CLI users see steps 1 → 2 → 3 sequentially. */}
+      <Section number={showHooksStep ? 4 : 3} title="Verify + record your first skill">
         <div className="space-y-3">
           <p className="text-sm text-ink-200 leading-relaxed">
             {surface === 'cli'
-              ? <>Type <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/exit</code> to leave Claude Code, then run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> in your terminal.</>
-              : <>Fully quit Claude with <strong>Cmd+Q</strong> (not just close the window — settings.json hooks need a fresh session), then relaunch.</>}
+              ? <>Type <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/exit</code> to leave Claude Code, then run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> in your terminal again so it picks up the new config.</>
+              : surface === 'cowork'
+              ? <>Fully quit Claude with <strong>Cmd+Q</strong> (not just close the window), then relaunch and open Cowork.</>
+              : <>You don&apos;t need to restart for the Connector to work — but if it doesn&apos;t appear right away, try opening a new Desktop chat.</>}
           </p>
-          <p className="text-sm text-ink-200 leading-relaxed">
-            Then run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:record-skill</code> to capture your first workflow. Implexa will record every prompt + response + tool call, then walk you through an interview to extract decision points + output contract + outcome signal.
-          </p>
+          {surface === 'desktop' ? (
+            <p className="text-sm text-ink-200 leading-relaxed">
+              Plugin slash commands like <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> don&apos;t exist on Desktop Chat (plugins are only available in Cowork and Code). Instead, ask Claude in natural language:{' '}
+              <em>&ldquo;Show me my Implexa plan&rdquo;</em> — Claude will call the <code className="text-xs">get_credits</code> MCP tool and confirm you&apos;re connected.
+            </p>
+          ) : (
+            <p className="text-sm text-ink-200 leading-relaxed">
+              Run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> to verify you&apos;re connected, then{' '}
+              <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:record-skill</code> to capture your first workflow.
+            </p>
+          )}
+          {surface !== 'cli' && (
+            <p className="text-xs text-ink-400 leading-relaxed">
+              Note: on {surface === 'cowork' ? 'Cowork' : 'Desktop Chat'}, conversation-turn capture isn&apos;t available yet (Anthropic limitation — hooks don&apos;t fire here). You still get tool-call capture via MCP, which is the bulk of what&apos;s useful. For full conversation capture, use Claude Code (CLI).
+            </p>
+          )}
           <div className="flex flex-wrap gap-3 pt-2">
             <Link href="/skills" className="btn-primary">Browse your skills →</Link>
             <Link href="/integrations" className="btn-outline">See what works with Implexa →</Link>
@@ -146,48 +182,48 @@ source ~/.zshrc`}
         </p>
         <CodeBlock code={`claude\n\n${PLUGIN_INSTALL_CMD}`} />
         <p className="text-xs text-ink-400 mt-3 leading-relaxed">
-          <strong>Plugin hooks fire natively in Claude Code CLI.</strong> Step 3 (setup-hooks) is technically optional here — but recommended for parity if you also use Desktop/Cowork.
+          <strong>Plugin hooks fire natively in Claude Code CLI</strong> — this is the only surface today with full conversation-turn capture (the killer feature). Step 3 below installs them.
         </p>
       </>
     );
   }
 
   if (surface === 'desktop') {
+    // The Connector URL template — user replaces YOUR_KEY with their actual key.
+    // Anthropic's Custom Connector UI in Desktop accepts MCP-over-HTTPS endpoints,
+    // and our backend already speaks the protocol at /api/v2/mcp.
+    const connectorUrl = 'https://core.implexa.ai/api/v2/mcp?api_key=imp_live_YOUR_KEY';
     return (
       <>
+        <div className="rounded-lg border border-success-400/40 bg-success-400/5 p-3 mb-3 text-xs text-ink-200 leading-relaxed">
+          <p className="font-medium text-ink-100 mb-1">⚡ Fastest install — 30 seconds.</p>
+          <p>
+            Desktop Chat doesn&apos;t use plugins (those are Cowork/Code only). Instead, you add Implexa as a <strong>Custom Connector</strong> — a remote MCP server. Just paste one URL with your API key in it.
+          </p>
+        </div>
         <p className="text-sm text-ink-200 mb-3 leading-relaxed">
-          Launch Claude Desktop, then in the menu bar click <strong>Customize</strong>:
+          Copy this URL and <strong>replace <code className="bg-ink-800 px-1 rounded text-xs">imp_live_YOUR_KEY</code> with your actual API key</strong> from Step 1:
         </p>
+        <CodeBlock code={connectorUrl} oneLine />
+        <p className="text-sm text-ink-200 mt-4 mb-3 leading-relaxed">Then in Claude Desktop:</p>
         <ol className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400">
-          <li>Scroll to the <strong>Personal plugins</strong> section</li>
-          <li>
-            Click <strong>+ Create plugin</strong>, then choose <strong>Add marketplace</strong>
-            <span className="block text-xs text-ink-400 mt-0.5">
-              ⚠ Don&apos;t click <em>&ldquo;Create with Claude&rdquo;</em> — that opens a chat to build a new plugin from scratch.
-            </span>
-          </li>
-          <li>Paste this URL:</li>
+          <li>Open a <strong>regular chat</strong> (not Cowork)</li>
+          <li>Click <strong>+</strong> in the chat input area</li>
+          <li>Hover <strong>Connectors</strong> → click <strong>Add connector</strong></li>
+          <li>Paste your edited URL, hit <strong>Save</strong></li>
+          <li>Toggle <strong>Implexa</strong> ON in the connector list</li>
         </ol>
-        <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
-        <ol className="text-sm text-ink-200 mt-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400" start={4}>
-          <li>You&apos;ll land on the <strong>Directory</strong> page. Under the <strong>Personal</strong> tab, find the <strong>Implexa</strong> plugin tile and click it to install.</li>
-        </ol>
-        <p className="text-xs text-ink-400 mt-3 leading-relaxed">
-          You do <strong>not</strong> need your API key for this step — it&apos;s only used in Step 3.
-        </p>
-        <p className="text-xs mt-3 leading-relaxed text-red-600 dark:text-red-400">
-          <strong>⚠ Step 3 is required.</strong> Claude Desktop sandboxes plugin-packaged hooks, so the user-level hooks installer is needed for the killer feature (prompt + response capture). Without it you&apos;ll still get tool-call capture but `conversationTurns: 0`.
-        </p>
         <details className="text-xs text-ink-300 mt-3">
-          <summary className="cursor-pointer hover:text-ink-100 select-none">Can&apos;t find &ldquo;Customize&rdquo;?</summary>
-          <div className="mt-2 pl-4 leading-relaxed space-y-1">
-            <p>In Claude Desktop, look in the left sidebar (the one with Skills, Connectors, etc.). If hidden, toggle the sidebar from the View menu.</p>
+          <summary className="cursor-pointer hover:text-ink-100 select-none">Already use Cowork? You probably don&apos;t need this step.</summary>
+          <div className="mt-2 pl-4 leading-relaxed">
+            <p>Installing the Implexa plugin via Cowork automatically registers the Custom Connector in Desktop Chat too. So if you&apos;ve already done the Cowork install (the previous tab), Implexa should already appear in your Desktop Connectors list as <em>Implexa CUSTOM</em>.</p>
           </div>
         </details>
         <details className="text-xs text-ink-300 mt-2">
-          <summary className="cursor-pointer hover:text-ink-100 select-none">What about API key setup?</summary>
-          <div className="mt-2 pl-4 leading-relaxed">
-            <p>Claude Desktop is a GUI app and doesn&apos;t inherit your shell&apos;s <code className="text-[11px] bg-ink-800 px-1 rounded">IMPLEXA_API_KEY</code>. {apiKeyHint} The setup script (Step 3) will prompt you to paste your key, then stores it in a config file the launcher loads.</p>
+          <summary className="cursor-pointer hover:text-ink-100 select-none">What does this connector give me?</summary>
+          <div className="mt-2 pl-4 leading-relaxed space-y-1">
+            <p>All 28 Implexa MCP tools — record-skill, list-org-skills, share-this, find-accounts, etc. — available via natural language in Desktop Chat.</p>
+            <p>Slash commands like <code className="bg-ink-800 px-1 rounded text-[11px]">/implexa:setup</code> don&apos;t exist on Desktop (those require the plugin system). Instead, just ask Claude things like <em>&ldquo;Implexa, show my plan&rdquo;</em> or <em>&ldquo;Implexa, record this workflow&rdquo;</em>.</p>
           </div>
         </details>
       </>
@@ -197,6 +233,12 @@ source ~/.zshrc`}
   // cowork
   return (
     <>
+      <div className="rounded-lg border border-brand-500/40 bg-brand-500/5 p-3 mb-3 text-xs text-ink-200 leading-relaxed">
+        <p className="font-medium text-ink-100 mb-1">✨ Bonus: this also enables Desktop Chat.</p>
+        <p>
+          Installing the Implexa plugin in Cowork automatically registers the Custom Connector in your Desktop Chat too — one install, both surfaces. No extra step for Desktop.
+        </p>
+      </div>
       <p className="text-sm text-ink-200 mb-3 leading-relaxed">
         Open Cowork in your browser, then in the left sidebar click <strong>Customize</strong>:
       </p>
@@ -212,18 +254,15 @@ source ~/.zshrc`}
       </ol>
       <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
       <ol className="text-sm text-ink-200 mt-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400" start={4}>
-        <li>The <code className="text-xs bg-ink-800 px-1 rounded">implexa</code> plugin should appear — click <strong>Install</strong> on its row</li>
+        <li>You&apos;ll land on the <strong>Directory</strong> page. Under the <strong>Personal</strong> tab, find the <strong>Implexa</strong> plugin tile and click it to install.</li>
       </ol>
       <p className="text-xs text-ink-400 mt-3 leading-relaxed">
-        You do <strong>not</strong> need your API key for this step — it&apos;s only used in Step 3.
-      </p>
-      <p className="text-xs mt-3 leading-relaxed text-red-600 dark:text-red-400">
-        <strong>⚠ Step 3 is required for capture.</strong> Cowork&apos;s sandbox runs Claude with <code className="bg-ink-800 px-1 rounded">--setting-sources user</code>, which silently ignores plugin-packaged hooks. You&apos;ll get tool-call capture but no prompt/response capture without user-level hooks.
+        You do <strong>not</strong> need your API key for this step. The plugin pulls it from your account.
       </p>
       <details className="text-xs text-ink-300 mt-3">
-        <summary className="cursor-pointer hover:text-ink-100 select-none">Wait — do I run the setup script in Cowork?</summary>
+        <summary className="cursor-pointer hover:text-ink-100 select-none">Why no hooks step for Cowork?</summary>
         <div className="mt-2 pl-4 leading-relaxed">
-          <p>No. Run it on your <strong>local Mac</strong> (Terminal.app), even if you primarily use Cowork. The hooks need to be installed at the <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/settings.json</code> level on your machine — Cowork reads from your local config.</p>
+          <p>Anthropic&apos;s Cowork sandbox doesn&apos;t fire user-level hooks despite registering them. Tested on multiple fresh Macs — confirmed. So we&apos;ve removed the hooks installer step for Cowork to avoid wasting your time. You still get tool-call capture via MCP — just not conversation-turn capture. For full capture, use Claude Code CLI.</p>
         </div>
       </details>
     </>

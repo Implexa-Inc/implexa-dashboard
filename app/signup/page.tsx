@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { Logo } from '@/components/logo';
 
 // Next.js 14: useSearchParams requires a Suspense boundary when the page
 // gets statically prerendered. Outer page is a thin wrapper.
@@ -80,7 +81,7 @@ function SignupPageInner() {
   return (
     <main className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="brand-mark text-sm mb-6"><span className="brand-mark-flame">⚡</span> Implexa</div>
+        <div className="mb-6"><Logo height={18} /></div>
         <h1 className="text-3xl font-semibold tracking-tight mb-2 text-ink-50">Create your account</h1>
         <p className="text-ink-300 text-sm mb-8">Free forever — unlimited skills. No credit card required.</p>
 

@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import InstallFlow from './install-flow';
+import { Logo } from '@/components/logo';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,9 +44,7 @@ export default async function InstallPage() {
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-4xl mx-auto">
         <header className="mb-10 text-center">
-          <div className="brand-mark text-xs mb-4 justify-center inline-flex">
-            <span className="brand-mark-flame">⚡</span> Implexa
-          </div>
+          <div className="mb-4 flex justify-center"><Logo height={18} /></div>
           <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Connect Claude</h1>
           <p className="text-ink-300 mt-3 leading-relaxed max-w-xl mx-auto">
             Three steps, ~2 minutes. Same skill library + capture loop across every Claude surface.

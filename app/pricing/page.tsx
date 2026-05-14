@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import ProWaitlistButton from './pro-waitlist-button';
+import { Logo } from '@/components/logo';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,9 +118,7 @@ export default async function PricingPage() {
     <main className="min-h-screen px-4 py-16">
       <div className="max-w-6xl mx-auto">
         <header className="text-center mb-4">
-          <div className="brand-mark text-xs mb-4 justify-center inline-flex">
-            <span className="brand-mark-flame">⚡</span> Implexa
-          </div>
+          <div className="mb-4 flex justify-center"><Logo height={18} /></div>
           <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Pricing</h1>
           <p className="text-ink-300 mt-3 max-w-2xl mx-auto">
             Bring your own Claude. Bring your own API keys. Free to start, with 5 skill captures per month

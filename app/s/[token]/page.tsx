@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/server';
 import InstallCta from './install-cta';
 
 import 'highlight.js/styles/github-dark.css';
+import { Logo } from '@/components/logo';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,9 +115,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
     <main className="min-h-screen px-4 py-10">
       {/* Top nav */}
       <header className="max-w-3xl mx-auto flex items-center justify-between mb-10">
-        <Link href="/" className="brand-mark text-base">
-          <span className="brand-mark-flame">⚡</span> Implexa
-        </Link>
+        <Link href="/" className="inline-flex items-center text-ink-50"><Logo height={20} /></Link>
         {isAuthed
           ? <Link href="/skills" className="text-sm text-ink-200 hover:underline">Your skills →</Link>
           : <Link href="/signup" className="text-sm text-brand-500 hover:underline">Sign in / Sign up</Link>}

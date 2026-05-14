@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { Logo } from '@/components/logo';
 
 /**
  * /reset-password — the user lands here AFTER clicking the email's reset link.
@@ -105,7 +106,7 @@ function ResetPasswordInner() {
   return (
     <main className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="brand-mark text-sm mb-6"><span className="brand-mark-flame">⚡</span> Implexa</div>
+        <div className="mb-6"><Logo height={18} /></div>
         <h1 className="text-3xl font-semibold tracking-tight mb-2 text-ink-50">Set a new password</h1>
         <p className="text-ink-300 text-sm mb-8">
           Choose something memorable. We&apos;ll sign you in automatically when you save.

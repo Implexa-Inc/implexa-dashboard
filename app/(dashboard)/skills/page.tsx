@@ -31,10 +31,17 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
   if (!profile?.organization_id) redirect('/onboarding');
 
   // Org skills + system Playbooks. RLS gates org_id scope.
+  //
+  // Sort by created_at desc as the PRIMARY signal — "I just made this, where
+  // is it?" — most users' mental model. Brand-new skills land at the top
+  // (vs. the old `.order('last_used_at')` which buried never-used skills at
+  // the bottom because last_used_at was NULL). Secondary sort by last_used_at
+  // tightens ordering between equally-recent creations.
   const { data: skills } = await supabase
     .from('org_skills')
     .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats')
     .in('status', ['active', 'draft'])
+    .order('created_at',   { ascending: false })
     .order('last_used_at', { ascending: false, nullsFirst: false })
     .limit(100);
 

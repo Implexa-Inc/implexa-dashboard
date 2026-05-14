@@ -14,6 +14,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { ROLE_PACKS } from '@/lib/role-packs';
 import RolePickerClient from './picker-client';
+import { Logo } from '@/components/logo';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,9 +33,7 @@ export default async function RolePickerPage() {
     <main className="min-h-screen flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-3xl">
         <header className="text-center mb-10">
-          <div className="brand-mark text-sm mb-4 justify-center inline-flex">
-            <span className="brand-mark-flame">⚡</span> Implexa
-          </div>
+          <div className="mb-4 flex justify-center"><Logo height={18} /></div>
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
             {profile.display_name ? `One quick thing, ${profile.display_name.split(' ')[0]}` : 'One quick thing'}
           </h1>

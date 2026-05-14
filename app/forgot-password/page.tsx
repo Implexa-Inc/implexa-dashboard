@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { Logo } from '@/components/logo';
 
 export default function ForgotPasswordPage() {
   return (
@@ -51,7 +52,7 @@ function ForgotPasswordInner() {
   return (
     <main className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="brand-mark text-sm mb-6"><span className="brand-mark-flame">⚡</span> Implexa</div>
+        <div className="mb-6"><Logo height={18} /></div>
         <h1 className="text-3xl font-semibold tracking-tight mb-2 text-ink-50">Reset your password</h1>
         <p className="text-ink-300 text-sm mb-8">
           Enter your email and we&apos;ll send you a link to set a new password.

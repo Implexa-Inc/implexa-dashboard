@@ -4,6 +4,10 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title:       'Implexa — Skill recording for any AI session',
   description: 'Demonstrate any workflow once. Implexa captures it as a reusable, structured, measurable skill.',
+  icons: {
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+    apple: '/logo-mark.svg',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
