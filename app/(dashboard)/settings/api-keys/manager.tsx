@@ -63,7 +63,12 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
       {revealedKey && (
         <div className="card border-2 border-brand-500 bg-brand-50">
           <h3 className="font-medium text-ink-50">✨ Key created — copy it now</h3>
-          <p className="text-sm text-ink-200 mt-1">This is the only time the full value will be shown. Save it to your password manager too.</p>
+          <p className="text-sm text-ink-200 mt-1">
+            This is the only time the full value will be shown.{' '}
+            {next === '/install'
+              ? <><strong>Save it in your password manager</strong> — Step 3 of the install will prompt you to paste it.</>
+              : <>Save it in your password manager.</>}
+          </p>
           <div className="mt-3 flex items-center gap-2">
             <code className="flex-1 bg-ink-950 border border-ink-700 text-ink-100 rounded px-3 py-2 text-sm font-mono break-all">{revealedKey.rawKey}</code>
             <button

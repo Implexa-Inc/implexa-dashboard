@@ -89,7 +89,7 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
             <summary className="cursor-pointer hover:text-ink-100 select-none">What does this script do?</summary>
             <div className="mt-2 pl-4 space-y-1 leading-relaxed">
               <p>• Installs <code className="text-[11px] bg-ink-800 px-1 rounded">jq</code> if missing (one-time, via Homebrew)</p>
-              <p>• Asks for / reads your API key, stores it in <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/implexa.env</code> (chmod 600)</p>
+              <p>• <strong>Prompts you to paste your API key</strong>, then stores it in <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/implexa.env</code> (chmod 600). Have your key ready.</p>
               <p>• Writes a launcher at <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/implexa-hook.sh</code></p>
               <p>• Patches <code className="text-[11px] bg-ink-800 px-1 rounded">~/.claude/settings.json</code> to register hooks (backs up the original)</p>
               <p>• Runs a smoke test to verify the chain works</p>
@@ -150,16 +150,33 @@ source ~/.zshrc`}
     return (
       <>
         <p className="text-sm text-ink-200 mb-3 leading-relaxed">
-          Launch Claude Desktop. From within it, open the plugin manager and run:
+          Launch Claude Desktop, then in the menu bar click <strong>Customize</strong>:
         </p>
-        <CodeBlock code={PLUGIN_INSTALL_CMD} />
+        <ol className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400">
+          <li>Scroll to the <strong>Personal plugins</strong> section</li>
+          <li>Click <strong>+ Create plugin</strong> → <strong>Add marketplace</strong></li>
+          <li>Paste this URL:</li>
+        </ol>
+        <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
+        <ol className="text-sm text-ink-200 mt-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400" start={4}>
+          <li>The <code className="text-xs bg-ink-800 px-1 rounded">implexa</code> plugin should appear — click <strong>Install</strong> on its row</li>
+        </ol>
+        <p className="text-xs text-ink-400 mt-3 leading-relaxed">
+          You do <strong>not</strong> need your API key for this step — it&apos;s only used in Step 3.
+        </p>
         <p className="text-xs mt-3 leading-relaxed text-red-600 dark:text-red-400">
           <strong>⚠ Step 3 is required.</strong> Claude Desktop sandboxes plugin-packaged hooks, so the user-level hooks installer is needed for the killer feature (prompt + response capture). Without it you&apos;ll still get tool-call capture but `conversationTurns: 0`.
         </p>
         <details className="text-xs text-ink-300 mt-3">
+          <summary className="cursor-pointer hover:text-ink-100 select-none">Can&apos;t find &ldquo;Customize&rdquo;?</summary>
+          <div className="mt-2 pl-4 leading-relaxed space-y-1">
+            <p>In Claude Desktop, look in the left sidebar (the one with Skills, Connectors, etc.). If hidden, toggle the sidebar from the View menu.</p>
+          </div>
+        </details>
+        <details className="text-xs text-ink-300 mt-2">
           <summary className="cursor-pointer hover:text-ink-100 select-none">What about API key setup?</summary>
           <div className="mt-2 pl-4 leading-relaxed">
-            <p>Claude Desktop is a GUI app and doesn&apos;t inherit your shell&apos;s <code className="text-[11px] bg-ink-800 px-1 rounded">IMPLEXA_API_KEY</code>. {apiKeyHint} The setup script (Step 3) stores it in a config file the launcher loads.</p>
+            <p>Claude Desktop is a GUI app and doesn&apos;t inherit your shell&apos;s <code className="text-[11px] bg-ink-800 px-1 rounded">IMPLEXA_API_KEY</code>. {apiKeyHint} The setup script (Step 3) will prompt you to paste your key, then stores it in a config file the launcher loads.</p>
           </div>
         </details>
       </>
@@ -170,9 +187,20 @@ source ~/.zshrc`}
   return (
     <>
       <p className="text-sm text-ink-200 mb-3 leading-relaxed">
-        Open Cowork in your browser. Use the plugin marketplace UI to add and install:
+        Open Cowork in your browser, then in the left sidebar click <strong>Customize</strong>:
       </p>
-      <CodeBlock code={`Marketplace URL:  https://github.com/Implexa-Inc/implexa-claude-plugin\nPlugin name:      implexa@implexa`} />
+      <ol className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400">
+        <li>Scroll to the <strong>Personal plugins</strong> section</li>
+        <li>Click <strong>+ Create plugin</strong> → <strong>Add marketplace</strong></li>
+        <li>Paste this URL:</li>
+      </ol>
+      <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
+      <ol className="text-sm text-ink-200 mt-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400" start={4}>
+        <li>The <code className="text-xs bg-ink-800 px-1 rounded">implexa</code> plugin should appear — click <strong>Install</strong> on its row</li>
+      </ol>
+      <p className="text-xs text-ink-400 mt-3 leading-relaxed">
+        You do <strong>not</strong> need your API key for this step — it&apos;s only used in Step 3.
+      </p>
       <p className="text-xs mt-3 leading-relaxed text-red-600 dark:text-red-400">
         <strong>⚠ Step 3 is required for capture.</strong> Cowork&apos;s sandbox runs Claude with <code className="bg-ink-800 px-1 rounded">--setting-sources user</code>, which silently ignores plugin-packaged hooks. You&apos;ll get tool-call capture but no prompt/response capture without user-level hooks.
       </p>
