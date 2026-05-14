@@ -1,19 +1,32 @@
 'use client';
 
 /**
- * Tabbed skills library — replaces the stacked vertical sections with a
- * horizontal tab navigation. Four user-centric buckets:
+ * Tabbed skills library — horizontal tab navigation with four LENSES on
+ * the user's visible skill universe. NOT mutually exclusive: a single
+ * skill can appear in multiple tabs because each tab answers a different
+ * question.
  *
- *   1. Your skills          — skills WHERE created_by.userId === me
- *   2. Org-wide skills      — scope='org' AND someone else in my org created it
- *   3. Trending Globally    — scope='universal' AND someone else created it
- *   4. Implexa Base Skills  — scope='system' (the 30 horizontal Playbooks)
+ *   1. Your skills          — "what did I author?"
+ *                            created_by.userId === me (ANY scope)
+ *   2. Org-wide skills      — "what's available to my team?"
+ *                            scope IN ('org', 'universal') AND
+ *                            organization_id === my org. Includes my own
+ *                            org-scoped and public-shared skills since my
+ *                            team has access to those too.
+ *   3. Trending Globally    — "what's the public leaderboard?"
+ *                            scope='universal' (all of them — including
+ *                            mine so I can see my own rank).
+ *   4. Implexa Base Skills  — "what ships with Implexa?"
+ *                            scope='system' (the 30 horizontal Playbooks).
  *
- * Why mutually-exclusive (vs the previous "stacked sections" model)?
- * A skill you created with scope='org' should appear in "Your skills"
- * (your library, your work), NOT in "Org-wide skills" (your colleagues'
- * shared work). Same for universal skills you authored — you know it's
- * yours, no need to also show it under the community-discovery surface.
+ * Example overlap: a skill I authored with scope='universal' appears in
+ *   - Your skills (I authored it)
+ *   - Org-wide skills (my team has access)
+ *   - Trending Globally (it's public)
+ *
+ * That matches the user mental model "I shared this — show me where it's
+ * visible." Previous mutually-exclusive design surprised users by hiding
+ * their own shared work from Org-wide / Trending.
  *
  * Tab counts react LIVE to the search query + tag filter — `(3 of 5)`
  * format when filtered, just `(5)` otherwise.
@@ -35,6 +48,7 @@ type Skill = {
   outcome_stats:   Record<string, number> | null;
   tags:            string[] | null;
   created_by?:     { userId?: string; displayName?: string } | null;
+  organization_id?: string;
 };
 
 type TabId = 'yours' | 'org' | 'trending' | 'base';
@@ -49,17 +63,17 @@ const TABS: TabDef[] = [
   {
     id:          'yours',
     label:       'Your skills',
-    description: 'Skills you\'ve personally authored. Edit, share, or invoke them anytime — your originals plus any forks you\'ve customized.',
+    description: 'Skills you\'ve personally authored. Edit, share, or invoke them anytime — your originals plus any forks you\'ve customized. (Your shared skills also appear in Org-wide and Trending Globally below.)',
   },
   {
     id:          'org',
     label:       'Org-wide skills',
-    description: 'Skills your teammates have shared across your organization. Visible to anyone with an @yourdomain.com email.',
+    description: 'Everything available to your team — org-shared skills + anything anyone in your org has shared publicly. Visible to anyone with your work email.',
   },
   {
     id:          'trending',
     label:       'Trending Globally',
-    description: 'The community\'s most-installed public skills. Fork any of them into your library and customize for your context — first edit counts as your own capture.',
+    description: 'Public skills from every org, ranked by usage. Fork any of them into your library and customize for your context — first edit counts as your own capture. Your own public skills appear here too with your global rank.',
   },
   {
     id:          'base',
@@ -106,53 +120,66 @@ export default function SkillsLibrary({
   systemSkills,
   universalSkills = [],
   currentUserId,
+  currentOrgId,
 }: {
   orgSkills:        Skill[];
   systemSkills:     Skill[];
   universalSkills?: Skill[];
   currentUserId:    string;
+  /** Used to determine if a universal skill belongs to the user's own
+   * org — those show up in "Org-wide" because the team has access to
+   * them via Implexa regardless of whether they were also shared publicly. */
+  currentOrgId:     string;
 }) {
   const [query,     setQuery]     = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('yours');
 
-  // ─── Bucket logic ────────────────────────────────────────────────────
-  // Split every visible skill into ONE of the four buckets based on
-  // (scope, creator). Mutually exclusive — a single skill never appears
-  // in multiple tabs. See the file header for why this model is right.
+  // ─── Bucket logic — LENSES with overlap ─────────────────────────────
+  // Each tab answers a different question. A single skill can appear in
+  // multiple tabs because the questions are independent. See file header
+  // for the design rationale + examples.
   const buckets = useMemo(() => {
+    // Dedupe: org/private/system come from one query, universal from
+    // another. A skill should never appear in both result sets, but
+    // collect into a Map for safety (and to allow client-side merging if
+    // we ever consolidate the queries).
+    const all = new Map<string, Skill>();
+    for (const s of orgSkills)       all.set(s.id, s);
+    for (const s of systemSkills)    all.set(s.id, s);
+    for (const s of universalSkills) all.set(s.id, s);
+
     const yours:    Skill[] = [];
     const org:      Skill[] = [];
     const trending: Skill[] = [];
     const base:     Skill[] = [];
 
-    // From the org/private/system query
-    for (const s of orgSkills) {
-      const isMine = s.created_by?.userId === currentUserId;
-      if (isMine) {
-        yours.push(s);
-      } else if (s.scope === 'org') {
-        org.push(s);
-      }
-      // Private skills NOT created by me would have been filtered by RLS,
-      // so we don't expect to see them here. Defensive: skip.
-    }
+    for (const s of all.values()) {
+      const isMine    = s.created_by?.userId === currentUserId;
+      const isMyOrg   = s.organization_id === currentOrgId;
+      const isOrgScope       = s.scope === 'org';
+      const isUniversalScope = s.scope === 'universal';
+      const isSystemScope    = s.scope === 'system';
 
-    for (const s of systemSkills) {
-      base.push(s);  // System skills always go in base — they're Implexa-shipped
-    }
+      // Your skills: anything you authored, regardless of scope
+      if (isMine) yours.push(s);
 
-    for (const s of universalSkills) {
-      const isMine = s.created_by?.userId === currentUserId;
-      if (isMine) {
-        yours.push(s);  // Your own universal skill — surface in "Your skills"
-      } else {
-        trending.push(s);  // Someone else's public skill — community discovery
-      }
+      // Org-wide: scope=org OR scope=universal, in your own org. This
+      // is "what your team has access to" — includes both your shared
+      // work and your teammates' shared work + anything your org
+      // published publicly (still accessible to the team).
+      if (isMyOrg && (isOrgScope || isUniversalScope)) org.push(s);
+
+      // Trending Globally: all universal skills, including your own.
+      // Shows your rank on the public leaderboard.
+      if (isUniversalScope) trending.push(s);
+
+      // Base Playbooks
+      if (isSystemScope) base.push(s);
     }
 
     return { yours, org, trending, base };
-  }, [orgSkills, systemSkills, universalSkills, currentUserId]);
+  }, [orgSkills, systemSkills, universalSkills, currentUserId, currentOrgId]);
 
   // ─── Filter universe — search + tag ──────────────────────────────────
   const matchesSearch = (s: Skill): boolean => {

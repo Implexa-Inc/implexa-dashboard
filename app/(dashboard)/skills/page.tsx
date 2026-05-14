@@ -46,9 +46,13 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
   // well (RLS evaluation happens once per request, not per row).
 
   // Pass 1 — own org skills + base Playbooks, sorted by recency.
+  // Include organization_id so the client can determine which universal
+  // skills belong to the user's own org (those show up in "Org-wide skills"
+  // even if they're scope='universal' — the team has access to anything
+  // anyone in the org has shared, regardless of public-or-team scope).
   const { data: skills } = await supabase
     .from('org_skills')
-    .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags, created_by')
+    .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags, created_by, organization_id')
     .in('status', ['active', 'draft'])
     .in('scope', ['org', 'private', 'system'])
     .order('created_at',   { ascending: false })
@@ -61,7 +65,7 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
   // visible to every user. Capped at 50 to keep the page tight.
   const { data: universalSkillsRaw } = await supabase
     .from('org_skills')
-    .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags, created_by')
+    .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags, created_by, organization_id')
     .in('status', ['active'])  // only active universals (no drafts in public listing)
     .eq('scope', 'universal')
     .order('usage_count', { ascending: false, nullsFirst: false })
@@ -138,6 +142,7 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
           systemSkills={systemSkills}
           universalSkills={universalSkills}
           currentUserId={profile.id}
+          currentOrgId={profile.organization_id}
         />
       </div>
     </main>
