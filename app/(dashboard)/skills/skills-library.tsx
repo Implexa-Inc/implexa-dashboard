@@ -206,14 +206,16 @@ export default function SkillsLibrary({
   };
   const hasActiveFilter = !!query.trim() || !!activeTag;
 
-  // ─── Tag pill universe — from system + universal + org (everything
-  //     visible to this user) so filtering still feels comprehensive
-  //     across tabs. The buckets are mutually exclusive but the pill
-  //     vocabulary is shared.
+  // ─── Tag pill universe — deduped across overlapping buckets ─────────
+  // The buckets now overlap (a skill can be in multiple tabs — see file
+  // header), so naively iterating each bucket would double-count tags on
+  // shared skills. Build a unique-skill set first, then count tags.
   const tagCounts = useMemo(() => {
     const m = new Map<string, number>();
-    const allVisible = [...buckets.yours, ...buckets.org, ...buckets.trending, ...buckets.base];
-    for (const s of allVisible) {
+    const seen = new Set<string>();
+    for (const s of [...buckets.yours, ...buckets.org, ...buckets.trending, ...buckets.base]) {
+      if (seen.has(s.id)) continue;
+      seen.add(s.id);
       for (const t of s.tags || []) {
         if (HIDDEN_TAGS.has(t)) continue;
         m.set(t, (m.get(t) || 0) + 1);
@@ -221,6 +223,14 @@ export default function SkillsLibrary({
     }
     return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
   }, [buckets]);
+
+  // Show-all-filters expand: when there are many tags, the pill row can
+  // get tall. Collapse to the top N most-used tags by default; user clicks
+  // "Show all" to see the rest.
+  const COLLAPSED_TAG_COUNT = 10;
+  const [showAllTags, setShowAllTags] = useState(false);
+  const visibleTags = showAllTags ? tagCounts : tagCounts.slice(0, COLLAPSED_TAG_COUNT);
+  const hiddenTagCount = Math.max(0, tagCounts.length - COLLAPSED_TAG_COUNT);
 
   // Active tab content + tab definition lookups
   const activeTabDef     = TABS.find(t => t.id === activeTab)!;
@@ -271,7 +281,7 @@ export default function SkillsLibrary({
             >
               All
             </button>
-            {tagCounts.map(([tag, count]) => (
+            {visibleTags.map(([tag, count]) => (
               <button
                 key={tag}
                 type="button"
@@ -285,6 +295,22 @@ export default function SkillsLibrary({
                 {labelFor(tag)} <span className="text-ink-400">{count}</span>
               </button>
             ))}
+            {/* Show-all / show-fewer toggle. Hidden when ≤ COLLAPSED_TAG_COUNT
+              * tags exist (no need to collapse). Includes the count of
+              * hidden tags so users know what they're getting. */}
+            {hiddenTagCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAllTags(!showAllTags)}
+                className="text-xs px-2 py-1 rounded-full bg-ink-800 text-brand-500 hover:bg-ink-700 transition-colors font-medium inline-flex items-center gap-0.5"
+              >
+                {showAllTags ? (
+                  <>Show fewer <span aria-hidden="true">↑</span></>
+                ) : (
+                  <>+{hiddenTagCount} more <span aria-hidden="true">↓</span></>
+                )}
+              </button>
+            )}
           </div>
         )}
 
