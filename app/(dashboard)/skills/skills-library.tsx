@@ -347,7 +347,7 @@ export default function SkillsLibrary({
         >
           {tagCounts.length > 0 ? (
             <>
-              <div className="text-[10px] uppercase tracking-wider text-ink-500 font-medium mb-2 px-2">Category</div>
+              <div className="text-[10px] uppercase tracking-wider text-ink-500 font-medium mb-2 px-2">Filters</div>
               <ul className="space-y-0.5">
                 <li>
                   <button
@@ -440,7 +440,19 @@ export default function SkillsLibrary({
           {/* ─── Active tab content ───────────────────────────────── */}
           <section role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
             {activeTabSkills.length === 0 ? (
-              <EmptyState tabId={activeTab} hasFilter={hasActiveFilter} onClearFilters={() => { setQuery(''); setActiveTag(null); }} />
+              <EmptyState
+                tabId={activeTab}
+                hasFilter={hasActiveFilter}
+                onClearFilters={() => { setQuery(''); setActiveTag(null); }}
+                filteredCountsByTab={{
+                  yours:    counts.yours.filtered,
+                  org:      counts.org.filtered,
+                  trending: counts.trending.filtered,
+                  base:     counts.base.filtered,
+                }}
+                onSwitchTab={setActiveTab}
+                activeTagLabel={activeTag ? labelFor(activeTag) : null}
+              />
             ) : (
               <ul className="space-y-2">
                 {activeTabSkills.map((s, i) => (
@@ -460,17 +472,80 @@ export default function SkillsLibrary({
   );
 }
 
-// ─── Empty state per tab — different copy for each bucket ───────────────
-function EmptyState({ tabId, hasFilter, onClearFilters }: { tabId: TabId; hasFilter: boolean; onClearFilters: () => void }) {
-  if (hasFilter) {
+// ─── Empty state per tab — different copy for each bucket ──────────────
+// When a filter is active and the current tab has 0 matches, we want to
+// help users find their results without forcing them to manually try
+// every tab. Show match counts for OTHER tabs and let them switch with
+// one click. This respects the user's primary navigation choice (the
+// active tab) while making the filtered universe discoverable.
+function EmptyState({
+  tabId,
+  hasFilter,
+  onClearFilters,
+  filteredCountsByTab,
+  onSwitchTab,
+  activeTagLabel,
+}: {
+  tabId:              TabId;
+  hasFilter:          boolean;
+  onClearFilters:     () => void;
+  /** Map of tab id → number of matches IN THAT TAB with current filter
+   * applied. Used to suggest tabs that DO have matches. */
+  filteredCountsByTab?: Record<TabId, number>;
+  onSwitchTab?:       (id: TabId) => void;
+  /** Human-readable label of the active tag (if any) — used in copy
+   * like "Found 3 Real Estate skills in Implexa Base Skills". */
+  activeTagLabel?:    string | null;
+}) {
+  if (hasFilter && filteredCountsByTab && onSwitchTab) {
+    // Find OTHER tabs (not the current one) that have matches
+    const otherTabsWithMatches = TABS
+      .filter(t => t.id !== tabId)
+      .map(t => ({ tab: t, count: filteredCountsByTab[t.id] || 0 }))
+      .filter(({ count }) => count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    if (otherTabsWithMatches.length === 0) {
+      // No matches anywhere — filter is too narrow for any tab
+      return (
+        <div className="card text-sm text-ink-400">
+          No matches for {activeTagLabel ? <strong className="text-ink-200">{activeTagLabel}</strong> : 'your filter'} in any tab.{' '}
+          <button onClick={onClearFilters} className="text-brand-500 hover:underline">Clear filters</button> to see everything.
+        </div>
+      );
+    }
+
+    // Found matches in other tabs — render as actionable suggestion
     return (
-      <div className="card text-sm text-ink-400">
-        No matches in this tab. <button onClick={onClearFilters} className="text-brand-500 hover:underline">Clear filters</button> or try a different tab.
+      <div className="card text-sm text-ink-300 space-y-3">
+        <div>
+          No matches in <strong className="text-ink-200">{TABS.find(t => t.id === tabId)?.label}</strong> for{' '}
+          {activeTagLabel ? <strong className="text-ink-200">{activeTagLabel}</strong> : 'your filter'}.
+          Found {otherTabsWithMatches.reduce((s, t) => s + t.count, 0)} {otherTabsWithMatches.reduce((s, t) => s + t.count, 0) === 1 ? 'match' : 'matches'} in other tabs:
+        </div>
+        <ul className="space-y-1.5">
+          {otherTabsWithMatches.map(({ tab, count }) => (
+            <li key={tab.id}>
+              <button
+                type="button"
+                onClick={() => onSwitchTab(tab.id)}
+                className="inline-flex items-center gap-2 text-brand-500 hover:underline font-medium"
+              >
+                <span aria-hidden="true">→</span>
+                {tab.label}
+                <span className="text-xs px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-500">{count}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="text-xs text-ink-500 pt-1 border-t border-ink-700">
+          Or <button onClick={onClearFilters} className="text-brand-500 hover:underline">clear filters</button> to see all skills.
+        </div>
       </div>
     );
   }
 
-  // Tab-specific empty copy
+  // No filter active — tab is genuinely empty. Tab-specific empty copy.
   const messages: Record<TabId, React.ReactNode> = {
     yours: (
       <>
