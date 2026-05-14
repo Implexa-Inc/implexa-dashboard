@@ -94,6 +94,15 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
             <h1 className="text-3xl font-semibold tracking-tight">{actualSkill.name}</h1>
             <code className="text-xs text-ink-500 font-mono">{actualSkill.slug}</code>
             <p className="text-ink-200 mt-3">{actualSkill.description}</p>
+            {/* Raw capture link — creator-only */}
+            {actualSkill.created_by?.userId === session.user.id && !isSystem && (
+              <Link
+                href={`/skills/${actualSkill.slug}/raw-capture`}
+                className="inline-flex items-center gap-1.5 mt-3 text-xs text-brand-600 hover:underline font-medium"
+              >
+                🔍 View raw capture (only you can see this)
+              </Link>
+            )}
           </div>
 
           <SkillActions
