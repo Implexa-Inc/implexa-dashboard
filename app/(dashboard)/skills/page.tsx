@@ -120,15 +120,17 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
           </section>
         )}
 
-        {/* Search + tag-filtered skills library — handles all three buckets:
-         * org skills, trending universal skills (cross-org public, sorted by
-         * popularity), and base Playbooks. See skills-library.tsx for the
-         * categorization model: tags from the org_skills table drive the
-         * filter pills, search matches across name/description/triggers/tags. */}
+        {/* Tabbed skills library — splits skills into 4 user-centric buckets
+         * (your authored skills, your org-mates' org-shared, community
+         * Trending Globally, Implexa base Playbooks). Each tab shows live
+         * counts that reflect the active search + tag filter. Per-tab
+         * descriptions explain what that bucket is + invite the right action
+         * (fork, customize, run). See skills-library.tsx for the bucket logic. */}
         <SkillsLibrary
           orgSkills={orgSkills}
           systemSkills={systemSkills}
           universalSkills={universalSkills}
+          currentUserId={profile.id}
         />
       </div>
     </main>

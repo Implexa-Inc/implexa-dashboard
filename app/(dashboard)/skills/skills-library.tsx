@@ -1,19 +1,22 @@
 'use client';
 
 /**
- * Interactive skills library — search + tag-based category filtering.
+ * Tabbed skills library — replaces the stacked vertical sections with a
+ * horizontal tab navigation. Four user-centric buckets:
  *
- * Server fetches all visible skills (RLS gates per user); this client
- * component handles the in-memory filter UX. Why client-side filter?
- * - List is capped at 100 skills total, filtering is sub-millisecond.
- * - No round-trips per keystroke / pill click — feels instant.
- * - Server cost is one query regardless of how the user explores.
+ *   1. Your skills          — skills WHERE created_by.userId === me
+ *   2. Org-wide skills      — scope='org' AND someone else in my org created it
+ *   3. Trending Globally    — scope='universal' AND someone else created it
+ *   4. Implexa Base Skills  — scope='system' (the 30 horizontal Playbooks)
  *
- * Categorization model:
- *   System Playbooks carry tags like ['gtm','sales','base-playbook'] etc.
- *   Instead of hardcoding a tag→category map (which goes stale as we add
- *   verticals), we surface the tag taxonomy directly as filter pills.
- *   The user clicks pills to narrow; the URL stays clean (no params).
+ * Why mutually-exclusive (vs the previous "stacked sections" model)?
+ * A skill you created with scope='org' should appear in "Your skills"
+ * (your library, your work), NOT in "Org-wide skills" (your colleagues'
+ * shared work). Same for universal skills you authored — you know it's
+ * yours, no need to also show it under the community-discovery surface.
+ *
+ * Tab counts react LIVE to the search query + tag filter — `(3 of 5)`
+ * format when filtered, just `(5)` otherwise.
  */
 
 import { useMemo, useState } from 'react';
@@ -34,6 +37,37 @@ type Skill = {
   created_by?:     { userId?: string; displayName?: string } | null;
 };
 
+type TabId = 'yours' | 'org' | 'trending' | 'base';
+
+type TabDef = {
+  id:          TabId;
+  label:       string;
+  description: string;
+};
+
+const TABS: TabDef[] = [
+  {
+    id:          'yours',
+    label:       'Your skills',
+    description: 'Skills you\'ve personally authored. Edit, share, or invoke them anytime — your originals plus any forks you\'ve customized.',
+  },
+  {
+    id:          'org',
+    label:       'Org-wide skills',
+    description: 'Skills your teammates have shared across your organization. Visible to anyone with an @yourdomain.com email.',
+  },
+  {
+    id:          'trending',
+    label:       'Trending Globally',
+    description: 'The community\'s most-installed public skills. Fork any of them into your library and customize for your context — first edit counts as your own capture.',
+  },
+  {
+    id:          'base',
+    label:       'Implexa Base Skills',
+    description: '30+ horizontal Playbooks shipped with every Implexa install. Fork them to make them yours, or run directly without forking. Free to fork unlimited times.',
+  },
+];
+
 // Tags we hide from the filter pill bar — internal metadata, not user-facing
 // categories. Keeps the pill list focused on actual verticals/uses.
 const HIDDEN_TAGS = new Set([
@@ -41,8 +75,6 @@ const HIDDEN_TAGS = new Set([
   'medium', 'short', 'system', 'active', 'hex',
 ]);
 
-// Friendly labels for known vertical tags. Anything not in this map renders
-// with its raw tag (lowercase) — graceful for new tags we haven't pre-labeled.
 const TAG_LABELS: Record<string, string> = {
   'gtm':              'GTM',
   'sales':            'Sales',
@@ -73,33 +105,56 @@ export default function SkillsLibrary({
   orgSkills,
   systemSkills,
   universalSkills = [],
+  currentUserId,
 }: {
   orgSkills:        Skill[];
   systemSkills:     Skill[];
-  /** Cross-org public skills — the "Trending globally" Founding Creator surface.
-   * Sorted by usage_count desc upstream so most-popular floats to top. */
   universalSkills?: Skill[];
+  currentUserId:    string;
 }) {
-  const [query,      setQuery]     = useState('');
-  const [activeTag,  setActiveTag] = useState<string | null>(null);
+  const [query,     setQuery]     = useState('');
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>('yours');
 
-  // Build the tag universe from system + universal skills (those carry the
-  // richest taxonomy). Counts let us order pills by popularity — most-used
-  // categories first. Org skills excluded — they often have user-specific
-  // tags that aren't useful for cross-skill browsing.
-  const tagCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const s of [...systemSkills, ...universalSkills]) {
-      for (const t of s.tags || []) {
-        if (HIDDEN_TAGS.has(t)) continue;
-        counts.set(t, (counts.get(t) || 0) + 1);
+  // ─── Bucket logic ────────────────────────────────────────────────────
+  // Split every visible skill into ONE of the four buckets based on
+  // (scope, creator). Mutually exclusive — a single skill never appears
+  // in multiple tabs. See the file header for why this model is right.
+  const buckets = useMemo(() => {
+    const yours:    Skill[] = [];
+    const org:      Skill[] = [];
+    const trending: Skill[] = [];
+    const base:     Skill[] = [];
+
+    // From the org/private/system query
+    for (const s of orgSkills) {
+      const isMine = s.created_by?.userId === currentUserId;
+      if (isMine) {
+        yours.push(s);
+      } else if (s.scope === 'org') {
+        org.push(s);
+      }
+      // Private skills NOT created by me would have been filtered by RLS,
+      // so we don't expect to see them here. Defensive: skip.
+    }
+
+    for (const s of systemSkills) {
+      base.push(s);  // System skills always go in base — they're Implexa-shipped
+    }
+
+    for (const s of universalSkills) {
+      const isMine = s.created_by?.userId === currentUserId;
+      if (isMine) {
+        yours.push(s);  // Your own universal skill — surface in "Your skills"
+      } else {
+        trending.push(s);  // Someone else's public skill — community discovery
       }
     }
-    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-  }, [systemSkills, universalSkills]);
 
-  // Search filter: matches name, description, slug, trigger phrases, or tags.
-  // Case-insensitive substring match — simple but effective at this scale.
+    return { yours, org, trending, base };
+  }, [orgSkills, systemSkills, universalSkills, currentUserId]);
+
+  // ─── Filter universe — search + tag ──────────────────────────────────
   const matchesSearch = (s: Skill): boolean => {
     if (!query.trim()) return true;
     const q = query.toLowerCase();
@@ -112,19 +167,44 @@ export default function SkillsLibrary({
     ].join(' ').toLowerCase();
     return haystack.includes(q);
   };
-
   const matchesTag = (s: Skill): boolean => !activeTag || (s.tags || []).includes(activeTag);
+  const filtered = (list: Skill[]) => list.filter(s => matchesSearch(s) && matchesTag(s));
 
-  const filteredOrg       = orgSkills.filter(s => matchesSearch(s) && matchesTag(s));
-  const filteredSystem    = systemSkills.filter(s => matchesSearch(s) && matchesTag(s));
-  const filteredUniversal = universalSkills.filter(s => matchesSearch(s) && matchesTag(s));
-  const totalMatches      = filteredOrg.length + filteredSystem.length + filteredUniversal.length;
-  const hasActiveFilter   = !!query.trim() || !!activeTag;
+  // Build counts: total per bucket + filtered per bucket
+  const counts = {
+    yours:    { total: buckets.yours.length,    filtered: filtered(buckets.yours).length },
+    org:      { total: buckets.org.length,      filtered: filtered(buckets.org).length },
+    trending: { total: buckets.trending.length, filtered: filtered(buckets.trending).length },
+    base:     { total: buckets.base.length,     filtered: filtered(buckets.base).length },
+  };
+  const hasActiveFilter = !!query.trim() || !!activeTag;
+
+  // ─── Tag pill universe — from system + universal + org (everything
+  //     visible to this user) so filtering still feels comprehensive
+  //     across tabs. The buckets are mutually exclusive but the pill
+  //     vocabulary is shared.
+  const tagCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    const allVisible = [...buckets.yours, ...buckets.org, ...buckets.trending, ...buckets.base];
+    for (const s of allVisible) {
+      for (const t of s.tags || []) {
+        if (HIDDEN_TAGS.has(t)) continue;
+        m.set(t, (m.get(t) || 0) + 1);
+      }
+    }
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+  }, [buckets]);
+
+  // Active tab content + tab definition lookups
+  const activeTabDef     = TABS.find(t => t.id === activeTab)!;
+  const activeTabSkills  = filtered(buckets[activeTab]);
+  const showRankBadges   = activeTab === 'trending';
+  const showCreator      = activeTab === 'trending';
 
   return (
     <>
-      {/* Search + tag filter row */}
-      <div className="mb-6 space-y-3">
+      {/* ─── Search + tag-filter row (shared across all tabs) ─────────── */}
+      <div className="mb-5 space-y-3">
         <div className="relative">
           <input
             type="search"
@@ -134,7 +214,6 @@ export default function SkillsLibrary({
             className="input w-full pl-9"
             aria-label="Search skills"
           />
-          {/* Search icon — uses brand SVG via mask-image for currentColor support */}
           <span
             aria-hidden="true"
             className="absolute left-3 top-1/2 -translate-y-1/2 block w-4 h-4 bg-ink-400"
@@ -184,79 +263,125 @@ export default function SkillsLibrary({
 
         {hasActiveFilter && (
           <div className="text-xs text-ink-400">
-            {totalMatches === 0 ? (
-              <>No skills match — try a different search or clear filters.</>
-            ) : (
-              <>{totalMatches} skill{totalMatches === 1 ? '' : 's'} match. <button onClick={() => { setQuery(''); setActiveTag(null); }} className="text-brand-500 hover:underline">Clear filters</button></>
-            )}
+            <button onClick={() => { setQuery(''); setActiveTag(null); }} className="text-brand-500 hover:underline">
+              Clear filters
+            </button>
           </div>
         )}
       </div>
 
-      {/* Your org's skills — hidden during filter if empty post-filter */}
-      {(filteredOrg.length > 0 || (!hasActiveFilter && orgSkills.length === 0)) && (
-        <section className="mb-10">
-          <h2 className="text-lg font-medium mb-3 flex items-baseline gap-2">
-            Your org&apos;s skills
-            <span className="text-xs text-ink-500 font-normal">({filteredOrg.length}{hasActiveFilter ? ` of ${orgSkills.length}` : ''})</span>
-          </h2>
-          {filteredOrg.length === 0 ? (
-            <div className="card text-sm text-ink-500">
-              No skills saved yet. In Claude Code, run <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded text-ink-100">/implexa:record-skill</code> to capture your first workflow.
-            </div>
-          ) : (
-            <ul className="space-y-2">{filteredOrg.map(s => <SkillRow key={s.id} skill={s} />)}</ul>
-          )}
-        </section>
-      )}
+      {/* ─── Tab navigation ────────────────────────────────────────────
+        * Horizontal scrollable on narrow viewports; sticky-bottom-border
+        * indicates the active tab. Counts update live based on the
+        * search + tag filter — shows "(3 of 5)" when filtered, plain
+        * "(5)" otherwise.
+        */}
+      <div className="border-b border-ink-700 mb-5 overflow-x-auto" role="tablist">
+        <div className="flex gap-1 min-w-max">
+          {TABS.map((tab) => {
+            const c = counts[tab.id];
+            const isActive = activeTab === tab.id;
+            const countText = hasActiveFilter && c.filtered !== c.total
+              ? `${c.filtered} of ${c.total}`
+              : `${c.total}`;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative px-4 py-2.5 text-sm transition-colors whitespace-nowrap border-b-2 -mb-px ${
+                  isActive
+                    ? 'border-brand-500 text-ink-50 font-medium'
+                    : 'border-transparent text-ink-400 hover:text-ink-200'
+                }`}
+              >
+                {tab.label}{' '}
+                <span className={`ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-5 rounded text-xs px-1.5 ${
+                  isActive
+                    ? 'bg-brand-500/20 text-brand-500 font-semibold'
+                    : 'bg-ink-800 text-ink-400'
+                }`}>
+                  {countText}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      {/* Trending globally — universal (public, cross-org, PII-scrubbed) skills.
-       * Only render if at least one exists, or if a filter is active (to avoid
-       * a confusing empty section on a fresh account before anyone has shared). */}
-      {(filteredUniversal.length > 0 || (hasActiveFilter && universalSkills.length > 0)) && (
-        <section className="mb-10">
-          <h2 className="text-lg font-medium mb-3 flex items-baseline gap-2">
-            <span aria-hidden="true">🔥</span> Trending globally
-            <span className="text-xs text-ink-500 font-normal">
-              ({filteredUniversal.length}{hasActiveFilter ? ` of ${universalSkills.length}` : ''}) — community-shared skills, fork &amp; customize
-            </span>
-          </h2>
-          {filteredUniversal.length === 0 ? (
-            <div className="card text-sm text-ink-500">
-              No matches in trending. Try the <button onClick={() => { setQuery(''); setActiveTag(null); }} className="text-brand-500 hover:underline">All</button> filter.
-            </div>
-          ) : (
-            <ul className="space-y-2">
-              {filteredUniversal.map((s, i) => (
-                <SkillRow key={s.id} skill={s} rank={i + 1} showCreator />
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
+      {/* ─── Active tab description ──────────────────────────────────── */}
+      <p className="text-sm text-ink-300 mb-5 leading-relaxed max-w-3xl">
+        {activeTabDef.description}
+      </p>
 
-      {/* Base Playbooks */}
-      <section>
-        <h2 className="text-lg font-medium mb-3 flex items-baseline gap-2">
-          Base Playbooks
-          <span className="text-xs text-ink-500 font-normal">
-            ({filteredSystem.length}{hasActiveFilter ? ` of ${systemSkills.length}` : ''}) — horizontal library, fork &amp; customize
-          </span>
-        </h2>
-        {filteredSystem.length === 0 ? (
-          <div className="card text-sm text-ink-500">
-            {hasActiveFilter
-              ? <>No Playbooks match. Try the <button onClick={() => { setQuery(''); setActiveTag(null); }} className="text-brand-500 hover:underline">All</button> filter.</>
-              : <>Playbooks not yet seeded. If you&apos;re seeing this, run migrations 0006 + 0007 in Supabase Studio against your prod database.</>}
-          </div>
+      {/* ─── Active tab content ──────────────────────────────────────── */}
+      <section role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
+        {activeTabSkills.length === 0 ? (
+          <EmptyState tabId={activeTab} hasFilter={hasActiveFilter} onClearFilters={() => { setQuery(''); setActiveTag(null); }} />
         ) : (
-          <ul className="space-y-2">{filteredSystem.map(s => <SkillRow key={s.id} skill={s} />)}</ul>
+          <ul className="space-y-2">
+            {activeTabSkills.map((s, i) => (
+              <SkillRow
+                key={s.id}
+                skill={s}
+                rank={showRankBadges ? i + 1 : undefined}
+                showCreator={showCreator}
+              />
+            ))}
+          </ul>
         )}
       </section>
     </>
   );
 }
 
+// ─── Empty state per tab — different copy for each bucket ───────────────
+function EmptyState({ tabId, hasFilter, onClearFilters }: { tabId: TabId; hasFilter: boolean; onClearFilters: () => void }) {
+  if (hasFilter) {
+    return (
+      <div className="card text-sm text-ink-400">
+        No matches in this tab. <button onClick={onClearFilters} className="text-brand-500 hover:underline">Clear filters</button> or try a different tab.
+      </div>
+    );
+  }
+
+  // Tab-specific empty copy
+  const messages: Record<TabId, React.ReactNode> = {
+    yours: (
+      <>
+        You haven&apos;t saved any skills yet. In Claude, run{' '}
+        <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded text-ink-100">/implexa:record-skill</code>{' '}
+        to capture your first workflow — or fork a base Playbook below to get started fast.
+      </>
+    ),
+    org: (
+      <>
+        No org-wide skills yet. When you or a teammate runs{' '}
+        <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded text-ink-100">/implexa:share-this</code>{' '}
+        with team scope, the skill lands here for everyone with your domain.
+      </>
+    ),
+    trending: (
+      <>
+        Trending is still loading. Be the first to share a public skill via{' '}
+        <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded text-ink-100">/implexa:share-this</code>{' '}
+        publicly — you&apos;ll unlock the Founding Creator perk and instantly appear here.
+      </>
+    ),
+    base: (
+      <>
+        Base Playbooks aren&apos;t seeded yet. If you&apos;re running self-hosted, run migrations{' '}
+        <code className="text-xs">0006</code> and <code className="text-xs">0007</code> in Supabase Studio.
+      </>
+    ),
+  };
+
+  return <div className="card text-sm text-ink-400">{messages[tabId]}</div>;
+}
+
+// ─── Skill row — same component used across all tabs ────────────────────
 function SkillRow({
   skill,
   rank,
@@ -264,24 +389,21 @@ function SkillRow({
 }: {
   skill:        Skill;
   /** When provided, render a rank badge (top-3 get medal styling).
-   * Used by the Trending Globally section to add gamification. */
+   * Used by the Trending Globally tab to add gamification. */
   rank?:        number;
-  /** Show creator attribution — used for universal skills to highlight
-   * who shared them publicly (the Founding Creator). Hidden by default
-   * for org skills (already-known author) and system skills (Implexa). */
+  /** Show "Shared by [name]" attribution. Used for Trending Globally
+   * to surface community creators. */
   showCreator?: boolean;
 }) {
   const stats = skill.outcome_stats || {};
   const visibleTags = (skill.tags || []).filter(t => !HIDDEN_TAGS.has(t)).slice(0, 3);
   const creatorName = skill.created_by?.displayName?.split(' ')[0] || null;
 
-  // Top-3 rank badges get medal styling. The brand color reinforces "this is
-  // a noticeable position" without making it screaming-loud.
   const rankBadgeClass =
-    rank === 1 ? 'bg-accent-400/20 text-accent-400 border border-accent-400/40'  // gold
-    : rank === 2 ? 'bg-ink-700 text-ink-100 border border-ink-600'                 // silver
-    : rank === 3 ? 'bg-brand-500/15 text-brand-500 border border-brand-500/30'    // bronze
-    : 'bg-ink-800 text-ink-400';                                                  // numerical
+    rank === 1 ? 'bg-accent-400/20 text-accent-400 border border-accent-400/40'
+    : rank === 2 ? 'bg-ink-700 text-ink-100 border border-ink-600'
+    : rank === 3 ? 'bg-brand-500/15 text-brand-500 border border-brand-500/30'
+    : 'bg-ink-800 text-ink-400';
 
   return (
     <li>
