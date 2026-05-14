@@ -31,6 +31,7 @@ type Skill = {
   trigger_phrases: string[] | null;
   outcome_stats:   Record<string, number> | null;
   tags:            string[] | null;
+  created_by?:     { userId?: string; displayName?: string } | null;
 };
 
 // Tags we hide from the filter pill bar — internal metadata, not user-facing
@@ -68,22 +69,34 @@ function labelFor(tag: string): string {
   return TAG_LABELS[tag] ?? tag.replace(/-/g, ' ');
 }
 
-export default function SkillsLibrary({ orgSkills, systemSkills }: { orgSkills: Skill[]; systemSkills: Skill[] }) {
+export default function SkillsLibrary({
+  orgSkills,
+  systemSkills,
+  universalSkills = [],
+}: {
+  orgSkills:        Skill[];
+  systemSkills:     Skill[];
+  /** Cross-org public skills — the "Trending globally" Founding Creator surface.
+   * Sorted by usage_count desc upstream so most-popular floats to top. */
+  universalSkills?: Skill[];
+}) {
   const [query,      setQuery]     = useState('');
   const [activeTag,  setActiveTag] = useState<string | null>(null);
 
-  // Build the tag universe from system skills (those carry meaningful taxonomy).
-  // Counts let us order pills by popularity — most-used categories first.
+  // Build the tag universe from system + universal skills (those carry the
+  // richest taxonomy). Counts let us order pills by popularity — most-used
+  // categories first. Org skills excluded — they often have user-specific
+  // tags that aren't useful for cross-skill browsing.
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const s of systemSkills) {
+    for (const s of [...systemSkills, ...universalSkills]) {
       for (const t of s.tags || []) {
         if (HIDDEN_TAGS.has(t)) continue;
         counts.set(t, (counts.get(t) || 0) + 1);
       }
     }
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-  }, [systemSkills]);
+  }, [systemSkills, universalSkills]);
 
   // Search filter: matches name, description, slug, trigger phrases, or tags.
   // Case-insensitive substring match — simple but effective at this scale.
@@ -102,10 +115,11 @@ export default function SkillsLibrary({ orgSkills, systemSkills }: { orgSkills: 
 
   const matchesTag = (s: Skill): boolean => !activeTag || (s.tags || []).includes(activeTag);
 
-  const filteredOrg     = orgSkills.filter(s => matchesSearch(s) && matchesTag(s));
-  const filteredSystem  = systemSkills.filter(s => matchesSearch(s) && matchesTag(s));
-  const totalMatches    = filteredOrg.length + filteredSystem.length;
-  const hasActiveFilter = !!query.trim() || !!activeTag;
+  const filteredOrg       = orgSkills.filter(s => matchesSearch(s) && matchesTag(s));
+  const filteredSystem    = systemSkills.filter(s => matchesSearch(s) && matchesTag(s));
+  const filteredUniversal = universalSkills.filter(s => matchesSearch(s) && matchesTag(s));
+  const totalMatches      = filteredOrg.length + filteredSystem.length + filteredUniversal.length;
+  const hasActiveFilter   = !!query.trim() || !!activeTag;
 
   return (
     <>
@@ -196,6 +210,31 @@ export default function SkillsLibrary({ orgSkills, systemSkills }: { orgSkills: 
         </section>
       )}
 
+      {/* Trending globally — universal (public, cross-org, PII-scrubbed) skills.
+       * Only render if at least one exists, or if a filter is active (to avoid
+       * a confusing empty section on a fresh account before anyone has shared). */}
+      {(filteredUniversal.length > 0 || (hasActiveFilter && universalSkills.length > 0)) && (
+        <section className="mb-10">
+          <h2 className="text-lg font-medium mb-3 flex items-baseline gap-2">
+            <span aria-hidden="true">🔥</span> Trending globally
+            <span className="text-xs text-ink-500 font-normal">
+              ({filteredUniversal.length}{hasActiveFilter ? ` of ${universalSkills.length}` : ''}) — community-shared skills, fork &amp; customize
+            </span>
+          </h2>
+          {filteredUniversal.length === 0 ? (
+            <div className="card text-sm text-ink-500">
+              No matches in trending. Try the <button onClick={() => { setQuery(''); setActiveTag(null); }} className="text-brand-500 hover:underline">All</button> filter.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {filteredUniversal.map((s, i) => (
+                <SkillRow key={s.id} skill={s} rank={i + 1} showCreator />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       {/* Base Playbooks */}
       <section>
         <h2 className="text-lg font-medium mb-3 flex items-baseline gap-2">
@@ -218,14 +257,43 @@ export default function SkillsLibrary({ orgSkills, systemSkills }: { orgSkills: 
   );
 }
 
-function SkillRow({ skill }: { skill: Skill }) {
+function SkillRow({
+  skill,
+  rank,
+  showCreator = false,
+}: {
+  skill:        Skill;
+  /** When provided, render a rank badge (top-3 get medal styling).
+   * Used by the Trending Globally section to add gamification. */
+  rank?:        number;
+  /** Show creator attribution — used for universal skills to highlight
+   * who shared them publicly (the Founding Creator). Hidden by default
+   * for org skills (already-known author) and system skills (Implexa). */
+  showCreator?: boolean;
+}) {
   const stats = skill.outcome_stats || {};
-  // Show up to 3 user-facing tags inline on the row (helps category browsing).
   const visibleTags = (skill.tags || []).filter(t => !HIDDEN_TAGS.has(t)).slice(0, 3);
+  const creatorName = skill.created_by?.displayName?.split(' ')[0] || null;
+
+  // Top-3 rank badges get medal styling. The brand color reinforces "this is
+  // a noticeable position" without making it screaming-loud.
+  const rankBadgeClass =
+    rank === 1 ? 'bg-accent-400/20 text-accent-400 border border-accent-400/40'  // gold
+    : rank === 2 ? 'bg-ink-700 text-ink-100 border border-ink-600'                 // silver
+    : rank === 3 ? 'bg-brand-500/15 text-brand-500 border border-brand-500/30'    // bronze
+    : 'bg-ink-800 text-ink-400';                                                  // numerical
 
   return (
     <li>
       <Link href={`/skills/${skill.slug}`} className="card flex items-center gap-4 py-4 hover:shadow-glow hover:border-brand-500/60 transition-all cursor-pointer">
+        {rank !== undefined && (
+          <div
+            className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${rankBadgeClass}`}
+            aria-label={`Rank ${rank}`}
+          >
+            {rank}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
             <div className="font-medium text-ink-50">{skill.name}</div>
@@ -240,6 +308,11 @@ function SkillRow({ skill }: { skill: Skill }) {
             )}
           </div>
           <div className="text-sm text-ink-300 mt-1 line-clamp-2">{skill.description}</div>
+          {showCreator && creatorName && (
+            <div className="text-[11px] text-ink-400 mt-1.5">
+              Shared by <span className="text-ink-300 font-medium">{creatorName}</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <div className="text-xs whitespace-nowrap text-right">

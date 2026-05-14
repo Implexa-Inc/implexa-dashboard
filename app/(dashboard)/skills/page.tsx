@@ -37,16 +37,39 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
   // (vs. the old `.order('last_used_at')` which buried never-used skills at
   // the bottom because last_used_at was NULL). Secondary sort by last_used_at
   // tightens ordering between equally-recent creations.
+  // Two-step query intentionally. The "trending globally" universal skills
+  // section needs a different sort (by usage_count desc — popularity proxy)
+  // than the org/system sections (which sort by recency). Could do this in
+  // one query with custom sort logic in the client, but two queries with
+  // explicit semantics is cleaner and Supabase handles the additional RTT
+  // well (RLS evaluation happens once per request, not per row).
+
+  // Pass 1 — own org skills + base Playbooks, sorted by recency.
   const { data: skills } = await supabase
     .from('org_skills')
-    .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags')
+    .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags, created_by')
     .in('status', ['active', 'draft'])
+    .in('scope', ['org', 'private', 'system'])
     .order('created_at',   { ascending: false })
     .order('last_used_at', { ascending: false, nullsFirst: false })
     .limit(100);
 
-  const orgSkills    = (skills || []).filter((s) => s.scope === 'org' || s.scope === 'private');
-  const systemSkills = (skills || []).filter((s) => s.scope === 'system');
+  // Pass 2 — universal (public, cross-org, PII-scrubbed) skills. Sorted by
+  // usage_count desc so the most-installed/most-used skills surface first.
+  // This is the "Trending globally" section — the Founding Creator flywheel
+  // visible to every user. Capped at 50 to keep the page tight.
+  const { data: universalSkillsRaw } = await supabase
+    .from('org_skills')
+    .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags, created_by')
+    .in('status', ['active'])  // only active universals (no drafts in public listing)
+    .eq('scope', 'universal')
+    .order('usage_count', { ascending: false, nullsFirst: false })
+    .order('created_at',  { ascending: false })
+    .limit(50);
+
+  const orgSkills       = (skills || []).filter((s) => s.scope === 'org' || s.scope === 'private');
+  const systemSkills    = (skills || []).filter((s) => s.scope === 'system');
+  const universalSkills = universalSkillsRaw || [];
 
   // Has the user generated an API key yet? Used to gate the install banner.
   const { data: keys } = await supabase
@@ -97,11 +120,16 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
           </section>
         )}
 
-        {/* Search + tag-filtered skills library — handles both org skills
-         * and system Playbooks with in-memory filter UX (sub-millisecond at
-         * 100-skill cap). See skills-library.tsx for the categorization
-         * model: tags from the org_skills table drive the filter pills. */}
-        <SkillsLibrary orgSkills={orgSkills} systemSkills={systemSkills} />
+        {/* Search + tag-filtered skills library — handles all three buckets:
+         * org skills, trending universal skills (cross-org public, sorted by
+         * popularity), and base Playbooks. See skills-library.tsx for the
+         * categorization model: tags from the org_skills table drive the
+         * filter pills, search matches across name/description/triggers/tags. */}
+        <SkillsLibrary
+          orgSkills={orgSkills}
+          systemSkills={systemSkills}
+          universalSkills={universalSkills}
+        />
       </div>
     </main>
   );
