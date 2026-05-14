@@ -154,7 +154,12 @@ source ~/.zshrc`}
         </p>
         <ol className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400">
           <li>Scroll to the <strong>Personal plugins</strong> section</li>
-          <li>Click <strong>+ Create plugin</strong> → <strong>Add marketplace</strong></li>
+          <li>
+            Click <strong>+ Create plugin</strong>, then choose <strong>Add marketplace</strong>
+            <span className="block text-xs text-ink-400 mt-0.5">
+              ⚠ Don&apos;t click <em>&ldquo;Create with Claude&rdquo;</em> — that opens a chat to build a new plugin from scratch.
+            </span>
+          </li>
           <li>Paste this URL:</li>
         </ol>
         <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
@@ -191,7 +196,12 @@ source ~/.zshrc`}
       </p>
       <ol className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400">
         <li>Scroll to the <strong>Personal plugins</strong> section</li>
-        <li>Click <strong>+ Create plugin</strong> → <strong>Add marketplace</strong></li>
+        <li>
+          Click <strong>+ Create plugin</strong>, then choose <strong>Add marketplace</strong>
+          <span className="block text-xs text-ink-400 mt-0.5">
+            ⚠ Don&apos;t click <em>&ldquo;Create with Claude&rdquo;</em> — that opens a chat to build a new plugin from scratch.
+          </span>
+        </li>
         <li>Paste this URL:</li>
       </ol>
       <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
