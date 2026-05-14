@@ -39,7 +39,7 @@ export default function Sidebar({ user }: { user: UserCtx }) {
       : pathname === item.href;
 
   return (
-    <aside className="hidden md:flex md:flex-col w-56 shrink-0 border-r border-ink-700 bg-ink-900/50 min-h-screen sticky top-0">
+    <aside className="hidden md:flex md:flex-col md:sticky md:top-0 w-56 shrink-0 border-r border-ink-700 bg-ink-900/50 h-screen overflow-y-auto">
       {/* Brand */}
       <div className="px-4 pt-6 pb-8">
         <Link href="/skills" className="brand-mark text-sm">

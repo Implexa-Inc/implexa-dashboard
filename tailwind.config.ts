@@ -49,16 +49,16 @@ const config: Config = {
           950: 'rgb(var(--ink-950) / <alpha-value>)',
         },
         brand: {
-          50:  '#FFF1E5',
-          100: '#FFE0C7',
-          200: '#FFC4A0',
-          300: '#FFA876',
-          400: '#FFB57E',
-          500: '#FF8A3C',                                                              // PRIMARY — warm orange CTA
-          600: '#D9663D',
-          700: '#A04A28',
-          800: '#5A2E13',
-          900: '#3A1E0B',
+          50:  '#FFF2EC',
+          100: '#FFDCCB',
+          200: '#FFB594',
+          300: '#FF8E5D',
+          400: '#FF6F33',
+          500: '#FF5722',                                                              // PRIMARY — vermilion / flame red-orange. Distinct from Claude's amber.
+          600: '#E64A19',
+          700: '#BF360C',
+          800: '#8C2700',
+          900: '#4D1500',
         },
         accent: {
           50:  '#FFFAE5',
@@ -125,8 +125,8 @@ const config: Config = {
         },
       }),
       boxShadow: {
-        glow:           '0 0 24px rgba(255, 138, 60, 0.25)',
-        'glow-strong':  '0 0 36px rgba(255, 138, 60, 0.4)',
+        glow:           '0 0 24px rgba(255, 87, 34, 0.25)',
+        'glow-strong':  '0 0 36px rgba(255, 87, 34, 0.4)',
         'glow-emerald': '0 0 24px rgba(52, 211, 153, 0.25)',
       },
     },
