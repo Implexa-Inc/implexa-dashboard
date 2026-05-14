@@ -13,6 +13,7 @@ import InstallToast from './install-toast';
 import WelcomeBanner from './welcome-banner';
 import FoundingCreatorBanner from './founding-creator-banner';
 import SkillsLibrary from './skills-library';
+import AnnouncementsBanner from '@/components/announcements-banner';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,6 +86,12 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
       <div className="max-w-5xl mx-auto">
         <InstallToast installed={searchParams?.installed} />
         <WelcomeBanner welcome={searchParams?.welcome} forked={searchParams?.forked} />
+        {/* Platform-wide announcements — controlled by the backend's
+         * src/config/announcements.js. Update messaging by editing that
+         * file and pushing — no dashboard deploy, no plugin reinstall.
+         * Users dismiss individual announcements via the ✕ button
+         * (state stored in localStorage). */}
+        <AnnouncementsBanner />
         <FoundingCreatorBanner userId={profile.id} />
 
         <header className="mb-8">
