@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type Surface = 'cli' | 'desktop' | 'cowork';
+type OS = 'mac' | 'windows' | 'linux' | 'unknown';
 
 const SURFACES: Array<{ id: Surface; label: string; subtitle: string }> = [
   { id: 'cli',     label: 'Claude Code (CLI)',    subtitle: 'Terminal — full capture (tool calls + conversation turns)' },
@@ -18,16 +19,65 @@ const SETUP_HOOKS_CMD = `curl -sL https://raw.githubusercontent.com/Implexa-Inc/
 
 export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; keyPrefix: string | null }) {
   const [surface, setSurface] = useState<Surface>('cli');
+  // Default to 'unknown' so SSR + first client render match; the effect upgrades it.
+  const [os, setOs] = useState<OS>('unknown');
 
-  // Hooks (Step 3) only fire reliably in Claude Code CLI. Confirmed via
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    const ua = navigator.userAgent || '';
+    const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || '';
+    const hay = `${ua} ${platform}`.toLowerCase();
+    if (hay.includes('win')) {
+      setOs('windows');
+      // On Windows the bash hooks installer is broken — Desktop Connector works fully,
+      // Cowork mostly works, CLI capture is degraded (no hooks). Default to Desktop.
+      setSurface('desktop');
+    } else if (hay.includes('mac') || hay.includes('darwin')) {
+      setOs('mac');
+    } else if (hay.includes('linux')) {
+      setOs('linux');
+    }
+  }, []);
+
+  // Hooks (Step 3) only fire reliably in Claude Code CLI on macOS. Confirmed via
   // fresh-Mac testing (2 machines): Cowork doesn't invoke ~/.claude/settings.json
   // hooks at all, and Desktop Chat has no plugin/hook system either.
-  // For non-CLI surfaces, MCP tools handle capture (degraded — tool calls but
-  // no conversation turns), and there's no reason to run the hooks installer.
-  const showHooksStep = surface === 'cli';
+  // The bash installer is also Mac-only (uses launchctl, brew, ~/Library paths),
+  // so on Windows we hide the hooks step entirely.
+  const showHooksStep = surface === 'cli' && os !== 'windows';
+  const isWindows = os === 'windows';
 
   return (
     <>
+      {/* ── Windows gate ─────────────────────────────────────────────── */}
+      {/* Detected after mount, so SSR doesn't ship a Windows-specific banner
+       * to all users. The banner is informational, not a hard block — Desktop
+       * Connector + Cowork plugin both work on Windows. Only the CLI hooks
+       * installer is Mac-only (bash + launchctl + brew). */}
+      {isWindows && (
+        <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl leading-none mt-0.5">⚠️</span>
+            <div className="flex-1 text-sm">
+              <p className="font-semibold text-ink-50 mb-1">Windows support is in beta</p>
+              <p className="text-ink-200 leading-relaxed mb-2">
+                Full Windows install support is coming soon. In the meantime, here&apos;s what works on Windows today:
+              </p>
+              <ul className="text-ink-200 space-y-1 list-disc pl-5 marker:text-amber-400/70">
+                <li><strong>✅ Claude Desktop chat</strong> (Custom Connector URL) — works fully, 30-second setup.</li>
+                <li><strong>✅ Cowork (web)</strong> — plugin install works; MCP tool capture works. Hook-based conversation-turn capture not available (same limitation as Mac).</li>
+                <li><strong>⚠️ Claude Code (CLI)</strong> — plugin install works, but the hooks installer is currently bash-only (Mac/Linux). You can still use Implexa via MCP tools — just no automatic hook capture.</li>
+              </ul>
+              <p className="text-ink-300 text-xs mt-3 leading-relaxed">
+                Want to be notified when the Windows installer ships?{' '}
+                <a href="mailto:hello@implexa.ai?subject=Windows%20installer%20waitlist" className="text-brand-500 hover:underline">Email us</a>{' '}
+                and we&apos;ll ping you.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Step 1: API key ──────────────────────────────────────────── */}
       <Section number={1} title="Get your API key" done={hasKey}>
         {hasKey ? (
@@ -55,21 +105,34 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
       <Section number={2} title="Install the plugin in Claude">
         {/* Surface tabs */}
         <div className="flex flex-wrap gap-2 mb-4">
-          {SURFACES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setSurface(s.id)}
-              className={`px-3 py-2 rounded-md text-sm transition-colors text-left ${
-                surface === s.id
-                  ? 'bg-brand-500 text-ink-950 font-medium shadow-glow'
-                  : 'bg-ink-800 text-ink-200 hover:bg-ink-700 border border-ink-700'
-              }`}
-            >
-              <div className="font-medium">{s.label}</div>
-              <div className={`text-[10px] mt-0.5 ${surface === s.id ? 'text-ink-950/70' : 'text-ink-400'}`}>{s.subtitle}</div>
-            </button>
-          ))}
+          {SURFACES.map((s) => {
+            // CLI surface still selectable on Windows (plugin install + MCP work),
+            // but we mark it as degraded so users see what's actually supported.
+            const isDegradedOnWindows = isWindows && s.id === 'cli';
+            const subtitle = isDegradedOnWindows
+              ? 'Plugin + MCP work; hook capture not yet on Windows'
+              : s.subtitle;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setSurface(s.id)}
+                className={`px-3 py-2 rounded-md text-sm transition-colors text-left ${
+                  surface === s.id
+                    ? 'bg-brand-500 text-ink-950 font-medium shadow-glow'
+                    : 'bg-ink-800 text-ink-200 hover:bg-ink-700 border border-ink-700'
+                } ${isDegradedOnWindows ? 'opacity-70' : ''}`}
+              >
+                <div className="font-medium flex items-center gap-1.5">
+                  {s.label}
+                  {isDegradedOnWindows && (
+                    <span className="text-[9px] uppercase tracking-wider rounded px-1 py-0.5 bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold">Beta</span>
+                  )}
+                </div>
+                <div className={`text-[10px] mt-0.5 ${surface === s.id ? 'text-ink-950/70' : 'text-ink-400'}`}>{subtitle}</div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Surface-specific content */}
