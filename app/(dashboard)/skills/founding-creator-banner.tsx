@@ -74,9 +74,16 @@ export default async function FoundingCreatorBanner({ userId }: { userId: string
     );
   }
 
-  // Encouragement state — show the 2-step progress
+  // Encouragement state — show the 2-step progress.
+  // Use a translucent accent (golden) + brand (vermilion) gradient layered
+  // ON TOP of the dark card surface, so it works in dark mode. Previous
+  // `!bg-brand-50` was a hardcoded light cream tint that left text-ink-50
+  // (light foreground) on a near-white background → unreadable in dark
+  // mode. The translucent approach matches the "unlocked" state's pattern
+  // above (success-green gradient) while keeping the trophy/golden tone
+  // distinct for the encouragement state.
   return (
-    <section className="card !bg-brand-50 !border-brand-500/30 mb-8">
+    <section className="card !bg-gradient-to-r !from-accent-400/10 !to-brand-500/10 !border-accent-400/40 mb-8">
       <div className="flex items-start gap-4">
         <div className="text-3xl shrink-0" aria-hidden="true">🏆</div>
         <div className="flex-1">
