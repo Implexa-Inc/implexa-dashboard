@@ -17,7 +17,23 @@ const PLUGIN_INSTALL_CMD = `/plugin marketplace add https://github.com/Implexa-I
 
 const SETUP_HOOKS_CMD = `curl -sL https://raw.githubusercontent.com/Implexa-Inc/implexa-claude-plugin/main/scripts/install-user-hooks.sh | bash`;
 
-export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; keyPrefix: string | null }) {
+export default function InstallFlow({
+  hasKey,
+  keyPrefix,
+  coworkHooksLive = false,
+}: {
+  hasKey:           boolean;
+  keyPrefix:        string | null;
+  /**
+   * Set to true once we've observed at least one hook event arrive from a
+   * Cowork user-agent — i.e. Anthropic shipped the Cowork hooks fix.
+   * Flips the install-flow UX:
+   *   - Cowork tab no longer shows "hooks don't fire" warnings
+   *   - Hooks installer Step 3 is offered for Cowork too (currently CLI-only)
+   *   - Verify step drops the "conversation-turn capture not available" caveat
+   */
+  coworkHooksLive?: boolean;
+}) {
   const [surface, setSurface] = useState<Surface>('cli');
   // Default to 'unknown' so SSR + first client render match; the effect upgrades it.
   const [os, setOs] = useState<OS>('unknown');
@@ -39,12 +55,18 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
     }
   }, []);
 
-  // Hooks (Step 3) only fire reliably in Claude Code CLI on macOS. Confirmed via
-  // fresh-Mac testing (2 machines): Cowork doesn't invoke ~/.claude/settings.json
-  // hooks at all, and Desktop Chat has no plugin/hook system either.
-  // The bash installer is also Mac-only (uses launchctl, brew, ~/Library paths),
-  // so on Windows we hide the hooks step entirely.
-  const showHooksStep = surface === 'cli' && os !== 'windows';
+  // Hooks (Step 3) fires reliably in Claude Code CLI on macOS. Confirmed via
+  // fresh-Mac testing (2 machines): Cowork didn't historically invoke
+  // ~/.claude/settings.json hooks at all, and Desktop Chat has no plugin/hook
+  // system either. The bash installer is also Mac-only (uses launchctl, brew,
+  // ~/Library paths), so on Windows we hide the hooks step entirely.
+  //
+  // Conditional: if `coworkHooksLive` is true (we've observed at least one
+  // hook event arrive from a Cowork user-agent — meaning Anthropic shipped
+  // the fix), we ALSO show the hooks step on the Cowork surface. The hooks
+  // installer is the same script regardless of surface — it writes to
+  // ~/.claude/settings.json which Cowork would then honor.
+  const showHooksStep = (surface === 'cli' || (surface === 'cowork' && coworkHooksLive)) && os !== 'windows';
   const isWindows = os === 'windows';
 
   return (
@@ -143,7 +165,7 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
         </div>
 
         {/* Surface-specific content */}
-        <SurfaceContent surface={surface} hasKey={hasKey} />
+        <SurfaceContent surface={surface} hasKey={hasKey} coworkHooksLive={coworkHooksLive} />
       </Section>
 
       {/* ── Step 3 (CLI only): Setup hooks ───────────────────────────── */}
@@ -246,7 +268,7 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
               <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:record-skill</code> to capture your first workflow.
             </p>
           )}
-          {surface !== 'cli' && (
+          {surface !== 'cli' && !(surface === 'cowork' && coworkHooksLive) && (
             <p className="text-xs text-ink-400 leading-relaxed">
               Note: on {surface === 'cowork' ? 'Cowork' : 'Desktop Chat'}, conversation-turn capture isn&apos;t available yet (Anthropic limitation — hooks don&apos;t fire here). You still get tool-call capture via MCP, which is the bulk of what&apos;s useful. For full conversation capture, use Claude Code (CLI).
             </p>
@@ -261,7 +283,7 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
   );
 }
 
-function SurfaceContent({ surface, hasKey }: { surface: Surface; hasKey: boolean }) {
+function SurfaceContent({ surface, hasKey, coworkHooksLive }: { surface: Surface; hasKey: boolean; coworkHooksLive: boolean }) {
   const apiKeyHint = hasKey
     ? 'Your API key is in ~/.zshrc — the install script picks it up automatically.'
     : 'Generate an API key in Step 1 first.';
@@ -380,12 +402,26 @@ source ~/.zshrc`}
       <p className="text-xs text-ink-400 mt-3 leading-relaxed">
         You do <strong>not</strong> need your API key for this step. The plugin pulls it from your account.
       </p>
-      <details className="text-xs text-ink-300 mt-3">
-        <summary className="cursor-pointer hover:text-ink-100 select-none">Why no hooks step for Cowork?</summary>
-        <div className="mt-2 pl-4 leading-relaxed">
-          <p>Anthropic&apos;s Cowork sandbox doesn&apos;t fire user-level hooks despite registering them. Tested on multiple fresh Macs — confirmed. So we&apos;ve removed the hooks installer step for Cowork to avoid wasting your time. You still get tool-call capture via MCP — just not conversation-turn capture. For full capture, use Claude Code CLI.</p>
+      {coworkHooksLive ? (
+        // Anthropic shipped the Cowork hooks fix — we've now observed at
+        // least one hook event arrive from a Cowork user-agent. Surface
+        // a celebratory note + tell users to run Step 3 below to enable
+        // full capture on Cowork too.
+        <div className="rounded-lg border border-success-400/40 bg-success-400/5 p-3 mt-3 text-xs text-ink-200 leading-relaxed">
+          <p className="font-medium text-success-700 dark:text-success-400 mb-1">🎉 Cowork now supports hooks.</p>
+          <p>
+            Anthropic shipped the fix — conversation-turn capture now works on Cowork too. Run Step 3 below to install the hooks (or skip if you&apos;ve already done it for CLI; same script).
+          </p>
         </div>
-      </details>
+      ) : (
+        <details className="text-xs text-ink-300 mt-3">
+          <summary className="cursor-pointer hover:text-ink-100 select-none">Why no hooks step for Cowork?</summary>
+          <div className="mt-2 pl-4 leading-relaxed">
+            <p>Anthropic&apos;s Cowork sandbox doesn&apos;t fire user-level hooks despite registering them. Tested on multiple fresh Macs — confirmed. So we&apos;ve removed the hooks installer step for Cowork to avoid wasting your time. You still get tool-call capture via MCP — just not conversation-turn capture. For full capture, use Claude Code CLI.</p>
+            <p className="mt-2 text-ink-400">We&apos;ll detect the moment Anthropic ships the fix and update this page automatically.</p>
+          </div>
+        </details>
+      )}
     </>
   );
 }

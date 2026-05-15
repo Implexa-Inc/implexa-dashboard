@@ -40,6 +40,20 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
   const hasKey    = (keys || []).length > 0;
   const keyPrefix = keys?.[0]?.key_prefix || null;
 
+  // Platform-fix detection: has Anthropic shipped the Cowork hooks fix?
+  // Backed by the platform_signals table — populated server-side the
+  // instant we see a hook event from a Cowork user-agent. When this is
+  // truthy, the install-flow component drops the "Cowork doesn't fire
+  // hooks" warnings AND surfaces the hooks installer step for Cowork
+  // too. RLS allows anon read on platform_signals (it's product state,
+  // not PII).
+  const { data: coworkHooksSignal } = await supabase
+    .from('platform_signals')
+    .select('signal, first_seen_at')
+    .eq('signal', 'cowork_hooks_active')
+    .maybeSingle();
+  const coworkHooksLive = !!coworkHooksSignal;
+
   // Welcome banner for users who landed here from a share-link install
   // gate (Level 1). They just acquired their first skill but haven't set
   // up Implexa in Claude yet — they need to finish this page before the
@@ -83,7 +97,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           </p>
         </header>
 
-        <InstallFlow hasKey={hasKey} keyPrefix={keyPrefix} />
+        <InstallFlow hasKey={hasKey} keyPrefix={keyPrefix} coworkHooksLive={coworkHooksLive} />
 
         <footer className="mt-12 text-center text-xs text-ink-400 max-w-xl mx-auto leading-relaxed">
           <p>
