@@ -1,96 +1,94 @@
 /**
- * Implexa logo component — wordmark and mark variants.
+ * Implexa logo component — wordmark + mark variants.
  *
- * Brand source: /Users/rabigupta/Downloads/implexa-brand/BRAND.md
+ * Brand source: founder-provided SVG assets (May 2026 refresh).
+ *   - implexa-favicon.svg       → square mark, dark-bg with emerald-glow tittle
+ *   - implexa-logo-light.svg    → wordmark for LIGHT backgrounds (black text)
+ *   - implexa-logo.svg          → wordmark for DARK backgrounds (off-white text)
  *
- * Design decisions:
- * - Wordmark uses HTML/CSS (not SVG <text>) so the browser handles text
- *   layout natively. Hardcoded x-coords in SVG <text> break before the
- *   custom font loads — characters land at fallback-font positions and
- *   the wordmark renders with visible gaps ("i mple x a"). Using HTML
- *   means the dots stay relative to their parent characters regardless
- *   of font loading state.
- * - Text uses currentColor so the wordmark adapts to surrounding text
- *   color (works on both dark and light backgrounds).
- * - The two signature dots are hardcoded brand accents:
- *     i-dot = emerald #34D399 (signal/active — pulses subtly)
- *     x-dot = vermilion #FF5722 (action/energy — matches dashboard brand-500)
+ * Implementation notes:
+ *   - The SVGs are inlined as JSX (NOT loaded via <img src=…/>) so the
+ *     <text> element renders against the document's loaded Inter font.
+ *     Loading the SVG via <img> isolates it from the page's font context
+ *     and the wordmark would render in a fallback font (positions of the
+ *     emerald i-dot and flame x-dot would drift).
+ *   - Both wordmark color variants share the same geometry — the brand
+ *     dots are at fixed coordinates that match Inter Bold-700's glyph
+ *     layout. The only thing that changes between dark/light is the
+ *     text fill color.
+ *   - <Logo> takes an optional `theme` prop (default 'dark') for callers
+ *     that render on light surfaces.
  */
 
-/** Horizontal Implexa wordmark — "implexa" with emerald dot on i, flame dot on x. */
-export function Logo({ className = '', height = 24 }: { className?: string; height?: number }) {
-  // Dot diameter scales with font height so the proportions stay correct
-  // at any size from a tiny 16px header to a 64px hero. ~20% of the cap
-  // height matches the SVG version's `r=7` at fontSize=64.
-  const dot = Math.max(4, Math.round(height * 0.2));
+/** Horizontal Implexa wordmark — "implexa" with emerald i-dot + flame x-dot. */
+export function Logo({
+  className = '',
+  height   = 24,
+  theme    = 'dark',
+}: {
+  className?: string;
+  /** Pixel height of the wordmark. Width follows from the 600:160 viewBox ratio. */
+  height?:    number;
+  /** Background tone of the surrounding surface. `dark` → off-white text. `light` → near-black text. */
+  theme?:     'dark' | 'light';
+}) {
+  const width     = height * (600 / 160);
+  const textColor = theme === 'dark' ? '#fafafa' : '#0a0a0a';
 
   return (
-    <span
-      className={`inline-flex items-baseline font-semibold tracking-tight leading-none select-none ${className}`}
-      style={{ fontSize: height, letterSpacing: '-0.03em' }}
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 600 160"
+      width={width}
+      height={height}
+      className={className}
       role="img"
       aria-label="Implexa"
     >
-      {/* Dotless i + emerald accent dot above */}
-      <span className="relative inline-block">
-        {/* U+0131 "LATIN SMALL LETTER DOTLESS I" — keeps the glyph width
-         * the same as a regular i so spacing stays correct. */}
-        {'ı'}
-        <span
-          aria-hidden="true"
-          className="absolute rounded-full animate-implexa-pulse"
-          style={{
-            width: dot,
-            height: dot,
-            backgroundColor: '#34D399',
-            top: `-${dot * 0.15}px`,
-            left: '50%',
-            transform: 'translateX(-50%)',
-          }}
-        />
-      </span>
-      <span>mple</span>
-      {/* x + vermilion accent dot at the bottom-right of the x */}
-      <span className="relative inline-block">
-        x
-        <span
-          aria-hidden="true"
-          className="absolute rounded-full"
-          style={{
-            width: dot,
-            height: dot,
-            backgroundColor: '#FF5722',
-            bottom: `-${dot * 0.1}px`,
-            right: `-${dot * 0.25}px`,
-          }}
-        />
-      </span>
-      <span>a</span>
-    </span>
+      {/* dotless i (U+0131) so we can place the emerald tittle ourselves */}
+      <text
+        x={40}
+        y={125}
+        fill={textColor}
+        style={{
+          fontFamily:    "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
+          fontWeight:    700,
+          fontSize:      '120px',
+          letterSpacing: '-4px',
+        }}
+      >
+        ımplexa
+      </text>
+      {/* emerald tittle above the i */}
+      <circle cx={54}  cy={40} r={11} fill="#34d399" />
+      {/* flame node centered on the x */}
+      <circle cx={350} cy={92} r={11} fill="#ff8a3c" />
+    </svg>
   );
 }
 
-/** Square Implexa mark — used for app icons, social avatars, anywhere a badge is needed. */
+/**
+ * Square Implexa mark — favicon shape, also used as the app-icon glyph
+ * in the dashboard sidebar header. Self-contained dark surface (works
+ * on any background) with the emerald-glow i-tittle as the signature.
+ */
 export function LogoMark({ className = '', size = 32 }: { className?: string; size?: number }) {
   return (
     <svg
-      viewBox="0 0 128 128"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 64 64"
       width={size}
       height={size}
       className={className}
       role="img"
       aria-label="Implexa"
     >
-      <rect width={128} height={128} rx={28} fill="#0A0805" />
-      <rect x={0.5} y={0.5} width={127} height={127} rx={27.5} fill="none" stroke="#2A241E" />
-      <path d="M36 36 L36 76 L92 76" fill="none" stroke="#10B981" strokeWidth={3} strokeLinecap="round" opacity={0.55} />
-      <path d="M92 36 L92 92" fill="none" stroke="#FF5722" strokeWidth={3} strokeLinecap="round" opacity={0.55} />
-      <circle cx={36} cy={36} r={8} fill="#34D399" />
-      <circle cx={36} cy={36} r={14} fill="none" stroke="#10B981" strokeWidth={1} opacity={0.4} />
-      <circle cx={92} cy={92} r={8} fill="#FF5722" />
-      <circle cx={92} cy={92} r={14} fill="none" stroke="#FF5722" strokeWidth={1} opacity={0.4} />
-      <circle cx={92} cy={76} r={2.5} fill="#F5F0E8" opacity={0.5} />
-      <circle cx={36} cy={76} r={2.5} fill="#F5F0E8" opacity={0.5} />
+      <rect width={64} height={64} rx={12} fill="#0a0a0a" />
+      {/* stem of 'i' */}
+      <rect x={26} y={24} width={12} height={28} rx={2} fill="#fafafa" />
+      {/* emerald tittle (solid + blurred halo for the glow signature) */}
+      <circle cx={32} cy={15} r={6} fill="#34d399" />
+      <circle cx={32} cy={15} r={6} fill="#34d399" opacity={0.35} style={{ filter: 'blur(2px)' }} />
     </svg>
   );
 }
