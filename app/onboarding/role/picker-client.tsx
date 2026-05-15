@@ -22,17 +22,22 @@ export default function RolePickerClient({ jwt, roles }: { jwt: string; roles: R
           scope: 'private',
         },
       });
-      // Persist role pick into user metadata via supabase auth update would be nice,
-      // but for now we just navigate. Welcome banner picks up `?welcome=role-<slug>`.
-      router.push(`/skills?welcome=role-${role.slug}&forked=${res.succeeded || 0}`);
-    } catch (err: any) {
-      setError(err.message || 'Failed to set up starter pack');
+      // Route through /install BEFORE /skills — a brand-new user has zero
+      // plugin/connector wired to Claude, so dropping them on the library
+      // first is hostile. /install reads ?welcome= to render the right
+      // banner (mentioning the forked starter pack), then they navigate
+      // to /skills themselves after completing connect-Claude.
+      router.push(`/install?welcome=role-${role.slug}&forked=${res.succeeded || 0}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to set up starter pack';
+      setError(message);
       setSelecting(null);
     }
   }
 
   function skip() {
-    router.push('/skills?welcome=skipped');
+    // Same routing reason as above — /install first, /skills after connect.
+    router.push('/install?welcome=skipped');
   }
 
   return (

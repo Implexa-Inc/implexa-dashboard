@@ -26,12 +26,16 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
         body: { displayName, joinOrgId },
       });
       // If the user is being routed to a specific destination (e.g. share-link
-      // install flow), respect that. Otherwise step them through role selection.
-      // Joining an existing org skips role pick — they inherit the team library.
+      // install flow), respect that. Otherwise prime them via /install first
+      // — a brand-new user has zero plugin/connector wired to Claude, so
+      // dropping them on /skills (the library) before /install is hostile
+      // (they'd see skills they can't run). The /install page reads the
+      // ?welcome= flag to render a context-appropriate banner. Joining an
+      // existing org also skips role pick — they inherit the team library.
       const destination = next
         ? next
         : joinOrgId
-          ? '/skills?welcome=joined'
+          ? '/install?welcome=joined'
           : '/onboarding/role';
       router.push(destination);
       // Safety net: if router.push silently fails to navigate (network blip,

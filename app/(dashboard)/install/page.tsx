@@ -18,7 +18,7 @@ import { Logo } from '@/components/logo';
 
 export const dynamic = 'force-dynamic';
 
-export default async function InstallPage({ searchParams }: { searchParams: { welcome?: string; from_skill?: string; token?: string } }) {
+export default async function InstallPage({ searchParams }: { searchParams: { welcome?: string; from_skill?: string; token?: string; forked?: string } }) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login?next=/install');
@@ -54,40 +54,35 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
     .maybeSingle();
   const coworkHooksLive = !!coworkHooksSignal;
 
-  // Welcome banner for users who landed here from a share-link install
-  // gate (Level 1). They just acquired their first skill but haven't set
-  // up Implexa in Claude yet — they need to finish this page before the
-  // skill is actually usable.
-  const fromWelcome     = searchParams?.welcome === '1';
+  // Welcome banner — context-aware. The ?welcome= query param tells us
+  // which onboarding path brought the user here, and we render an
+  // appropriately-framed priming message. All paths share the same core
+  // ask ("connect Claude to actually use Implexa") but the noun is
+  // different ("your first skill" vs "your team's library" vs "your role
+  // pack"). Variants:
+  //
+  //   welcome=1                       → from share-link install (one skill in library)
+  //   welcome=joined                  → joined an existing team
+  //   welcome=invited                 → accepted an invite link
+  //   welcome=role-<slug>&forked=N    → fresh signup + role pack picked
+  //   welcome=skipped                 → fresh signup, role pack skipped
+  const welcomeRaw = searchParams?.welcome || '';
+  const showWelcome = welcomeRaw === '1' || welcomeRaw === 'joined' || welcomeRaw === 'invited' || welcomeRaw === 'skipped' || welcomeRaw.startsWith('role-');
   const fromSkillSlug   = (searchParams?.from_skill || '').slice(0, 80);
+  const forkedCount     = Math.max(0, parseInt(searchParams?.forked || '0', 10) || 0);
   let fromSkillName: string | null = null;
-  if (fromWelcome && fromSkillSlug) {
+  if (welcomeRaw === '1' && fromSkillSlug) {
     const { data: skill } = await supabase
       .from('org_skills').select('name').eq('slug', fromSkillSlug).maybeSingle();
     fromSkillName = skill?.name || null;
   }
 
+  const welcomeBanner = renderWelcomeBanner({ welcomeRaw, fromSkillName, fromSkillSlug, forkedCount });
+
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-4xl mx-auto">
-        {fromWelcome && (
-          <div className="mb-8 rounded-lg border border-success-400/40 bg-gradient-to-r from-success-400/10 to-brand-500/5 p-4">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl leading-none mt-0.5" aria-hidden="true">🎉</span>
-              <div className="flex-1 text-sm">
-                <p className="font-semibold text-ink-50 mb-1">
-                  {fromSkillName
-                    ? <>&ldquo;{fromSkillName}&rdquo; is in your library.</>
-                    : <>Your first skill is in your library.</>}
-                </p>
-                <p className="text-ink-200 leading-relaxed">
-                  One more step to actually use it: connect Implexa to Claude below. Takes about 2 minutes. Once done, just say{' '}
-                  <em className="text-ink-100">&ldquo;Implexa, run {fromSkillSlug || 'this skill'}&rdquo;</em> inside Claude and you&apos;re off.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        {showWelcome && welcomeBanner}
 
         <header className="mb-10 text-center">
           <div className="mb-4 flex justify-center"><Logo height={18} /></div>
@@ -204,6 +199,84 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
         </footer>
       </div>
     </main>
+  );
+}
+
+/**
+ * Render the context-appropriate welcome banner based on which onboarding
+ * path brought the user here. All variants share a common structure
+ * (🎉 emoji, headline, body) but the copy is tailored to what just
+ * happened (joined a team / accepted invite / picked role pack / etc).
+ */
+function renderWelcomeBanner({
+  welcomeRaw,
+  fromSkillName,
+  fromSkillSlug,
+  forkedCount,
+}: {
+  welcomeRaw:     string;
+  fromSkillName:  string | null;
+  fromSkillSlug:  string;
+  forkedCount:    number;
+}) {
+  let headline: React.ReactNode = 'Welcome to Implexa.';
+  let body: React.ReactNode = (
+    <>One more step to use it: connect Implexa to Claude below.</>
+  );
+
+  if (welcomeRaw === '1') {
+    // From share-link install — they just acquired their first skill
+    headline = fromSkillName
+      ? <>&ldquo;{fromSkillName}&rdquo; is in your library.</>
+      : <>Your first skill is in your library.</>;
+    body = (
+      <>
+        One more step to actually use it: connect Implexa to Claude below. Takes about 2 minutes. Once done, just say{' '}
+        <em className="text-ink-100">&ldquo;Implexa, run {fromSkillSlug || 'this skill'}&rdquo;</em> inside Claude and you&apos;re off.
+      </>
+    );
+  } else if (welcomeRaw === 'joined') {
+    headline = <>You joined your team on Implexa.</>;
+    body = (
+      <>
+        Your team&apos;s shared skill library is below — but you can&apos;t run them yet. Connect Implexa to Claude (below) so the saved workflows actually fire in your sessions. Takes about 2 minutes.
+      </>
+    );
+  } else if (welcomeRaw === 'invited') {
+    headline = <>You accepted the invite.</>;
+    body = (
+      <>
+        Welcome to the team. One more step before you can run your teammates&apos; saved skills: connect Implexa to Claude below. Takes about 2 minutes.
+      </>
+    );
+  } else if (welcomeRaw.startsWith('role-')) {
+    headline = forkedCount > 0
+      ? <>{forkedCount} starter Playbook{forkedCount === 1 ? '' : 's'} forked into your library.</>
+      : <>Your role pack is ready.</>;
+    body = (
+      <>
+        Connect Implexa to Claude below so those Playbooks actually run when you invoke them. Takes about 2 minutes — same surface every Implexa user goes through.
+      </>
+    );
+  } else if (welcomeRaw === 'skipped') {
+    headline = <>Welcome to Implexa.</>;
+    body = (
+      <>
+        One step before you can capture your first skill: connect Implexa to Claude below. Takes about 2 minutes. After that, you can record any workflow with <code className="bg-ink-800 px-1 rounded text-xs">/implexa:record-skill</code>.
+      </>
+    );
+  }
+
+  return (
+    <div className="mb-8 rounded-lg border border-success-400/40 bg-gradient-to-r from-success-400/10 to-brand-500/5 p-4">
+      <div className="flex items-start gap-3">
+        <span className="text-2xl leading-none mt-0.5" aria-hidden="true">🎉</span>
+        <div className="flex-1 text-sm">
+          <p className="font-semibold text-ink-50 mb-1">{headline}</p>
+          <p className="text-ink-200 leading-relaxed">{body}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
