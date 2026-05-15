@@ -6,8 +6,8 @@ import Link from 'next/link';
 type Surface = 'cli' | 'desktop' | 'cowork';
 type OS = 'mac' | 'windows' | 'linux' | 'unknown';
 
-const SURFACES: Array<{ id: Surface; label: string; subtitle: string }> = [
-  { id: 'cli',     label: 'Claude Code (CLI)',    subtitle: 'Terminal — full capture (tool calls + conversation turns)' },
+const SURFACES: Array<{ id: Surface; label: string; subtitle: string; recommended?: boolean }> = [
+  { id: 'cli',     label: 'Claude Code (CLI)',    subtitle: 'Terminal — full capture (tool calls + conversation turns)', recommended: true },
   { id: 'cowork',  label: 'Cowork (web)',         subtitle: 'Plugin install — also auto-enables Desktop Chat' },
   { id: 'desktop', label: 'Claude Desktop chat',  subtitle: 'Just paste a Connector URL — 30 sec' },
 ];
@@ -125,6 +125,13 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
               >
                 <div className="font-medium flex items-center gap-1.5">
                   {s.label}
+                  {s.recommended && !isDegradedOnWindows && (
+                    <span className={`text-[9px] uppercase tracking-wider rounded px-1 py-0.5 font-bold ${
+                      surface === s.id
+                        ? 'bg-ink-950/15 text-ink-950'
+                        : 'bg-success-400/20 text-success-700 dark:text-success-400'
+                    }`}>★ Recommended</span>
+                  )}
                   {isDegradedOnWindows && (
                     <span className="text-[9px] uppercase tracking-wider rounded px-1 py-0.5 bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold">Beta</span>
                   )}
@@ -143,8 +150,8 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
       {showHooksStep && (
         <Section
           number={3}
-          title="Enable full capture (one-time)"
-          subtitle="Optional but recommended — installs hooks that capture every prompt + assistant response into your demos. Without these, you still get tool-call capture via MCP, but conversation turns are skipped."
+          title="Enable full capture (one more command)"
+          subtitle="Do this — it's the difference between Implexa capturing tool calls only vs. tool calls + every prompt and assistant response. The latter is what makes the recorded skill actually replayable. You're already in a terminal — paste one command."
         >
           <div className="space-y-3">
             {/* Non-coder reassurance — most users on this page aren't developers */}
@@ -165,9 +172,9 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
               </p>
             </div>
             <p className="text-xs text-ink-300 leading-relaxed">
-              Copy the command below, then open <strong>Terminal</strong>, paste it, and press Enter.
+              <strong className="text-ink-100">Run this in a regular terminal</strong> (not inside Claude Code). If Claude Code is still running from Step 2, type <code className="bg-ink-800 px-1 rounded">/exit</code> to leave it first, OR just open a new Terminal tab (<strong>Cmd + T</strong>).
               <span className="block text-ink-400 mt-1">
-                Don&apos;t have Terminal open? Press <strong>Cmd + Space</strong>, type <em>terminal</em>, press Enter.
+                Then paste the command below and press Enter.
               </span>
             </p>
             <CodeBlock code={SETUP_HOOKS_CMD} oneLine />
@@ -200,10 +207,32 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
               : <>You don&apos;t need to restart for the Connector to work — but if it doesn&apos;t appear right away, try opening a new Desktop chat.</>}
           </p>
           {surface === 'desktop' ? (
-            <p className="text-sm text-ink-200 leading-relaxed">
-              Plugin slash commands like <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> don&apos;t exist on Desktop Chat (plugins are only available in Cowork and Code). Instead, ask Claude in natural language:{' '}
-              <em>&ldquo;Show me my Implexa plan&rdquo;</em> — Claude will call the <code className="text-xs">get_credits</code> MCP tool and confirm you&apos;re connected.
-            </p>
+            <div className="text-sm text-ink-200 leading-relaxed space-y-3">
+              <p>
+                Plugin slash commands like <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> don&apos;t exist on Desktop Chat (plugins are only available in Cowork and Code). Instead, you talk to Implexa in natural language — Claude will call the right MCP tool behind the scenes.
+              </p>
+              <div className="bg-ink-800/40 border border-ink-700 rounded-md p-3 space-y-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-ink-400 mb-1">1. Verify the connection</p>
+                  <p className="text-sm">Paste this into a new Desktop chat:</p>
+                  <div className="mt-2 bg-ink-950 border border-ink-700 rounded px-3 py-2 text-xs font-mono text-ink-100">
+                    Implexa, what plan am I on?
+                  </div>
+                  <p className="text-[11px] text-ink-400 mt-1.5">Claude will call <code className="text-[11px]">get_credits</code> and reply with your plan + remaining quota.</p>
+                </div>
+                <div className="border-t border-ink-800 pt-3">
+                  <p className="text-xs uppercase tracking-wide text-ink-400 mb-1">2. Record your first workflow</p>
+                  <p className="text-sm">When you&apos;re ready to capture a workflow, say:</p>
+                  <div className="mt-2 bg-ink-950 border border-ink-700 rounded px-3 py-2 text-xs font-mono text-ink-100">
+                    Implexa, start recording. I want to capture how I research a company before a sales call.
+                  </div>
+                  <p className="text-[11px] text-ink-400 mt-1.5">Claude calls <code className="text-[11px]">start_demonstration</code>, then runs your workflow alongside you, and finally synthesizes a SKILL.md when you say &ldquo;Implexa, stop recording.&rdquo;</p>
+                </div>
+              </div>
+              <p className="text-xs text-ink-400">
+                If &ldquo;Implexa&rdquo; doesn&apos;t respond, the Connector toggle isn&apos;t ON. Click <strong>+</strong> in the chat input → Connectors → toggle <strong>Implexa</strong> ON.
+              </p>
+            </div>
           ) : (
             <p className="text-sm text-ink-200 leading-relaxed">
               Run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> to verify you&apos;re connected, then{' '}
@@ -233,19 +262,41 @@ function SurfaceContent({ surface, hasKey }: { surface: Surface; hasKey: boolean
   if (surface === 'cli') {
     return (
       <>
-        <p className="text-sm text-ink-200 mb-3 leading-relaxed">
-          In your terminal, set your API key once, then install the plugin:
+        {/* Disambiguation callout — users frequently confuse Claude Code (CLI)
+         * with the Claude Desktop chat app. These are different products and
+         * the slash commands below ONLY work in the CLI. */}
+        <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3 mb-4 text-xs text-ink-200 leading-relaxed">
+          <p className="font-medium text-ink-100 mb-1">💡 Quick clarification</p>
+          <p>
+            <strong>Claude Code (CLI)</strong> is a separate app from <strong>Claude Desktop chat</strong> (the Mac app). It runs in your <strong>terminal</strong>, not in a chat window. The <code className="bg-ink-900 px-1 rounded">/plugin</code> commands below only work inside Claude Code CLI — they won&apos;t work if you paste them into Claude Desktop.
+          </p>
+        </div>
+
+        {/* Step A — set API key in terminal */}
+        <p className="text-sm text-ink-200 mb-2 leading-relaxed">
+          <strong className="text-ink-50">A.</strong> Open <strong>Terminal</strong> on your Mac (<em>Cmd+Space</em>, type <em>terminal</em>, Enter). Then paste this to save your API key:
         </p>
         <CodeBlock
           code={`echo 'export IMPLEXA_API_KEY="<paste your imp_live_... key>"' >> ~/.zshrc
 source ~/.zshrc`}
         />
-        <p className="text-xs text-ink-400 mt-3 mb-3">
-          Then launch Claude Code + install the plugin (run inside Claude Code):
+
+        {/* Step B — launch Claude Code */}
+        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+          <strong className="text-ink-50">B.</strong> In the same terminal, launch Claude Code by typing <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> and pressing Enter. You&apos;ll see Claude Code start up — this is its own interactive session (you&apos;ll see a prompt like <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">{'>'}</code>).
         </p>
-        <CodeBlock code={`claude\n\n${PLUGIN_INSTALL_CMD}`} />
-        <p className="text-xs text-ink-400 mt-3 leading-relaxed">
-          <strong>Plugin hooks fire natively in Claude Code CLI</strong> — this is the only surface today with full conversation-turn capture (the killer feature). Step 3 below installs them.
+
+        {/* Step C — install plugin inside Claude Code */}
+        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+          <strong className="text-ink-50">C.</strong> Now you&apos;re <em>inside Claude Code</em>. Type these two commands (one at a time, hit Enter after each):
+        </p>
+        <CodeBlock code={PLUGIN_INSTALL_CMD} />
+        <p className="text-[11px] text-ink-400 mt-2 leading-relaxed">
+          You&apos;ll see Claude Code confirm each command (<em>&ldquo;Added marketplace…&rdquo;</em>, <em>&ldquo;Installed implexa…&rdquo;</em>). If you get a permission prompt, choose <strong>Allow</strong>.
+        </p>
+
+        <p className="text-xs text-ink-400 mt-4 leading-relaxed border-t border-ink-800 pt-3">
+          <strong className="text-ink-200">Why Claude Code CLI is the best surface:</strong> plugin hooks fire natively here — this is the only surface today with full conversation-turn capture (the killer feature). Step 3 below installs those hooks.
         </p>
       </>
     );
