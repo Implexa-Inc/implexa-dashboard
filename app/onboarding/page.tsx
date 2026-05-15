@@ -24,7 +24,14 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
   // If the user signed up via /signup?invite=TOKEN, the token is forwarded
   // here. Auto-accept it, set the user's org, and skip the workspace picker
   // entirely. Falls back to normal flow on failure (expired/invalid token).
+  // CRITICAL — do NOT wrap `redirect()` in a try/catch. Next.js implements
+  // redirects by throwing NEXT_REDIRECT, and catching it would swallow the
+  // redirect — falling through to the workspace picker, which then
+  // provisions a NEW org for the user, overwriting the just-accepted
+  // invite assignment. The pattern is: call the backend INSIDE try/catch,
+  // store the outcome as a local flag, redirect OUTSIDE the try/catch.
   const inviteToken = typeof searchParams?.invite === 'string' ? searchParams.invite : null;
+  let acceptedInvite = false;
   if (inviteToken) {
     try {
       await callBackend('/api/v2/team/accept-invite', {
@@ -32,13 +39,16 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
         method: 'POST',
         body:   { inviteToken },
       });
-      // Invite accepted → org assigned. Skip picker, go straight to skills.
-      redirect('/skills?welcome=invited');
+      acceptedInvite = true;
     } catch (err) {
       // Invalid / expired / already-used invite — fall through to picker
       // and let the user proceed normally. The picker will pick up org
       // suggestions via the email-domain match if applicable.
     }
+  }
+  // Redirect OUTSIDE the try/catch so NEXT_REDIRECT propagates correctly.
+  if (acceptedInvite) {
+    redirect('/skills?welcome=invited');
   }
 
   let suggestion: { organizationId: string; organizationName: string; memberCount: number } | null = null;
