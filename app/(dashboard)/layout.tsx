@@ -19,6 +19,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { computeSetupStatus } from '@/lib/setup-status';
 import Sidebar, { MobileTopBar } from './_components/sidebar';
 
 export const dynamic = 'force-dynamic';
@@ -28,9 +29,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
+  // Pulling the new activity timestamps in the same query the layout
+  // already runs — zero extra round-trips. Drives the setup-status chip
+  // in the sidebar (Level 2 of the post-share-install gate work).
   const { data: profile } = await supabase
     .from('users')
-    .select('id, organization_id, display_name, email, founding_creator_unlocked_at')
+    .select('id, organization_id, display_name, email, founding_creator_unlocked_at, last_mcp_call_at, last_hook_event_at')
     .eq('id', session.user.id)
     .maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
@@ -39,11 +43,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .from('organizations').select('plan')
     .eq('id', profile.organization_id).maybeSingle();
 
+  const setup = computeSetupStatus(profile.last_mcp_call_at, profile.last_hook_event_at);
+
   const userCtx = {
     displayName:       profile.display_name,
     email:             profile.email,
     plan:              org?.plan || 'free',
     isFoundingCreator: !!profile.founding_creator_unlocked_at,
+    setupStatus:       setup.status,
+    lastSeenAt:        setup.lastSeenAt,
   };
 
   return (

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogoMark } from '@/components/logo';
+import { STATUS_PRESENTATION, relativeFromNow, type SetupStatus } from '@/lib/setup-status';
 
 type NavItem = {
   href:    string;
@@ -37,6 +38,10 @@ type UserCtx = {
   email:       string;
   plan:        'free' | 'pro' | 'enterprise' | string;
   isFoundingCreator: boolean;
+  /** Derived setup status — drives the chip below the user block. */
+  setupStatus?: SetupStatus;
+  /** ISO timestamp of last MCP/hook activity (for "last seen 3 min ago" tooltip). */
+  lastSeenAt?:  string | null;
 };
 
 export default function Sidebar({ user }: { user: UserCtx }) {
@@ -86,7 +91,7 @@ export default function Sidebar({ user }: { user: UserCtx }) {
           {user.displayName || user.email.split('@')[0]}
         </div>
         <div className="text-[11px] text-ink-400 truncate" title={user.email}>{user.email}</div>
-        <div className="flex items-center gap-1.5 mt-2">
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
           <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-ink-800 text-ink-300 font-medium capitalize">
             {user.plan} plan
           </span>
@@ -96,6 +101,10 @@ export default function Sidebar({ user }: { user: UserCtx }) {
             </span>
           )}
         </div>
+        {/* Setup-status chip — tells users at a glance whether their Claude
+         * is actually wired up to Implexa. 'never' is clickable → /install
+         * because that's the failure mode that needs action. */}
+        <SetupChip status={user.setupStatus} lastSeenAt={user.lastSeenAt} />
         <form action="/auth/signout" method="POST" className="mt-3">
           <button className="text-[11px] text-ink-500 hover:text-ink-200 hover:underline">
             Sign out
@@ -103,6 +112,32 @@ export default function Sidebar({ user }: { user: UserCtx }) {
         </form>
       </div>
     </aside>
+  );
+}
+
+function SetupChip({ status, lastSeenAt }: { status?: SetupStatus; lastSeenAt?: string | null }) {
+  const effective = status || 'never';
+  const spec = STATUS_PRESENTATION[effective];
+  const seen = lastSeenAt ? `Last seen ${relativeFromNow(lastSeenAt)}` : null;
+  const tooltip = seen ? `${spec.tooltip} (${seen})` : spec.tooltip;
+
+  // Only the "not connected" state is a CTA — others are passive indicators.
+  const isCta = effective === 'never';
+  const inner = (
+    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-ink-300">
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${spec.dot} animate-pulse`} aria-hidden="true" />
+      <span>{spec.label}</span>
+    </span>
+  );
+
+  return (
+    <div className="mt-2" title={tooltip}>
+      {isCta ? (
+        <Link href="/install" className="inline-flex items-center hover:underline">
+          {inner}
+        </Link>
+      ) : inner}
+    </div>
   );
 }
 
