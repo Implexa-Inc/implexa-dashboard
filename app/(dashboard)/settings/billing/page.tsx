@@ -24,6 +24,11 @@ const PLAN_LABEL: Record<string, string> = {
   scale:      'Scale (legacy)',
 };
 
+const BILLING_CYCLE_LABEL: Record<string, string> = {
+  monthly: 'billed monthly',
+  annual:  'billed annually (2 months free)',
+};
+
 export default async function BillingPage() {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
@@ -66,11 +71,12 @@ export default async function BillingPage() {
   const captureLimit = (plan === 'free' && !isFoundingCreatorEarly) ? 5 : null;
 
   // Subscription/Stripe state (only meaningful for paid plans)
-  let sub: any = {};
+  let sub: { subscriptionPeriodEnd?: string | null; billingCycle?: string | null; hasStripeCustomer?: boolean; hasActiveSubscription?: boolean; planStatus?: string } = {};
   try {
     sub = await callBackend('/api/v2/billing/subscription', { jwt: session.access_token });
   } catch (_) {}
-  const periodEnd = sub.subscriptionPeriodEnd ? new Date(sub.subscriptionPeriodEnd).toLocaleDateString() : null;
+  const periodEnd    = sub.subscriptionPeriodEnd ? new Date(sub.subscriptionPeriodEnd).toLocaleDateString() : null;
+  const billingCycle = sub.billingCycle || null;
 
   const isPaidPlan = plan !== 'free';
   // No seat cap on any plan — Implexa lets you invite the whole company on Free.
@@ -95,16 +101,21 @@ export default async function BillingPage() {
           <div className="flex justify-between items-baseline gap-4 flex-wrap">
             <div>
               <div className="text-xs text-ink-500 uppercase tracking-wide">Current plan</div>
-              <div className="flex items-baseline gap-2 mt-1">
+              <div className="flex items-baseline gap-2 mt-1 flex-wrap">
                 <div className="text-2xl font-semibold text-ink-50">{PLAN_LABEL[plan] || plan}</div>
                 {isFoundingCreator && (
                   <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">
                     🏆 Founding Creator
                   </span>
                 )}
+                {billingCycle && plan === 'pro' && (
+                  <span className="text-xs text-ink-400">— {BILLING_CYCLE_LABEL[billingCycle] || billingCycle}</span>
+                )}
               </div>
               <div className="text-sm text-ink-400 mt-1">
-                ✨ Unlimited skills — capture, share, fork, run
+                {plan === 'pro' || isFoundingCreator
+                  ? '🚀 Unlimited captures, ROI dashboard, team library, priority support'
+                  : '✨ 5 captures/month, unlimited use, fork any base Playbook'}
               </div>
             </div>
             <Link href="/pricing" className="btn-outline">Compare plans</Link>
@@ -157,38 +168,58 @@ export default async function BillingPage() {
 
         {/* Founding Creator card (only on free plan, only once unlocked) */}
         {isFoundingCreator && !isPaidPlan && (
-          <div className="card !bg-gradient-to-r !from-success-400/10 !to-brand-500/10 !border-success-400/30">
+          <div className="card !bg-gradient-to-r !from-success-400/12 !to-brand-500/10 !border-success-400/40">
             <div className="flex items-start gap-3">
               <div className="text-2xl shrink-0">🏆</div>
               <div className="flex-1">
                 <h2 className="text-sm font-medium text-ink-50 mb-1">
-                  Founding Creator perk applies to your account
+                  Pro is unlocked free for life on your account
                 </h2>
-                <p className="text-xs text-ink-300 leading-relaxed">
-                  When the Pro tier launches, your first seat is <strong>free forever</strong>.
-                  You&apos;ll see this reflected automatically — no action needed.
+                <p className="text-xs text-ink-200 leading-relaxed">
+                  You&apos;re a Founding Creator. Everything in Pro (unlimited captures, ROI dashboard,
+                  team library, priority support) is permanently included — no checkout needed.
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Free-plan encouragement to capture + share */}
+        {/* Free-plan upgrade CTA + Founding Creator path */}
         {plan === 'free' && !isFoundingCreator && (
-          <div className="card !bg-brand-50 !border-brand-500/30">
-            <div className="flex items-start gap-3">
-              <div className="text-2xl shrink-0">🪙</div>
-              <div className="flex-1">
-                <h2 className="text-sm font-medium text-ink-50 mb-1">
-                  Become a Founding Creator
-                </h2>
-                <p className="text-xs text-ink-300 leading-relaxed mb-2">
-                  Capture and share your first new skill to unlock the Founding Creator badge
-                  and your first Pro seat free forever (when Pro launches).
-                </p>
-                <Link href="/skills" className="text-xs text-brand-600 hover:underline font-medium">
-                  Start on /skills →
-                </Link>
+          <div className="space-y-3">
+            <div className="card !bg-gradient-to-r !from-brand-500/10 !to-brand-500/5 !border-brand-500/40">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl shrink-0">💎</div>
+                <div className="flex-1">
+                  <h2 className="text-sm font-medium text-ink-50 mb-1">
+                    Upgrade to Pro
+                  </h2>
+                  <p className="text-xs text-ink-200 leading-relaxed mb-3">
+                    Unlimited skill captures + ROI dashboard + team-wide library + priority support.
+                    $19/month or $190/year (2 months free).
+                  </p>
+                  <Link href="/pricing" className="btn-primary inline-flex items-center justify-center text-sm py-1.5 px-4">
+                    See plans →
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <div className="card !bg-gradient-to-r !from-accent-400/10 !to-brand-500/8 !border-accent-400/40">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl shrink-0">🏆</div>
+                <div className="flex-1">
+                  <h2 className="text-sm font-medium text-ink-50 mb-1">
+                    Or earn Pro free for life — become a Founding Creator
+                  </h2>
+                  <p className="text-xs text-ink-200 leading-relaxed mb-2">
+                    Capture a new skill <em>and</em> share it publicly. Your seat on Pro becomes
+                    free forever — no card, no checkout. The earliest creators get permanent perks.
+                  </p>
+                  <Link href="/skills" className="text-xs text-brand-500 hover:underline font-medium">
+                    Start on /skills →
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

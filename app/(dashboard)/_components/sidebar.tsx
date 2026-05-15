@@ -92,12 +92,24 @@ export default function Sidebar({ user }: { user: UserCtx }) {
         </div>
         <div className="text-[11px] text-ink-400 truncate" title={user.email}>{user.email}</div>
         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-          <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-ink-800 text-ink-300 font-medium capitalize">
-            {user.plan} plan
-          </span>
-          {user.isFoundingCreator && (
-            <span title="Founding Creator — unlimited captures, free Pro seat for life" className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400">
-              🏆
+          {/* Plan badge — for Free we say "Free plan", for paid plans we just
+           * say the name (no redundant "Pro plan"). Founding Creators get a
+           * special green badge instead of the plain plan label since their
+           * status is more meaningful than their org's plan. */}
+          {user.isFoundingCreator ? (
+            <span
+              title="Founding Creator — Pro is free for life on your account"
+              className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-success-400/20 text-success-700 dark:text-success-400"
+            >
+              🏆 Founding Creator
+            </span>
+          ) : (
+            <span className={`text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 font-medium ${
+              user.plan === 'pro' || user.plan === 'enterprise'
+                ? 'bg-brand-500/20 text-brand-600 dark:text-brand-500'
+                : 'bg-ink-800 text-ink-300'
+            }`}>
+              {user.plan === 'pro' ? 'Pro' : user.plan === 'enterprise' ? 'Enterprise' : 'Free plan'}
             </span>
           )}
         </div>

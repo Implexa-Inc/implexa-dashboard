@@ -1,94 +1,24 @@
 /**
- * Pricing page — clean 3-tier model (May 2026 rewrite).
+ * Pricing page — public-facing.
  *
- *   🆓 Free        — unlimited skills, capture + share. Default for everyone.
- *   💎 Pro         — multi-seat, attribution, admin. "Coming soon" with waitlist.
- *   🏢 Enterprise  — SSO, audit, custom integrations. "Contact us."
+ *   🆓 Free        — 5 skills/month capture, unlimited use. Default.
+ *   💎 Pro         — $19/mo or $190/yr (2 months free). Unlimited captures
+ *                     + ROI dashboard + team library + priority support.
+ *   🏢 Enterprise  — Custom. Talk to sales.
  *
- * Bring your own Claude. Bring your own API keys (Fiber, Coresignal, etc.).
- * Implexa's marginal cost per user ≈ $0 — that's why unlimited free is real.
+ * Founding Creators (users with `founding_creator_unlocked_at`) see a
+ * banner above the cards: "Pro is free for you." Their Upgrade button
+ * is disabled and labeled "Included".
+ *
+ * Server component fetches user/plan state once, hands to client component
+ * for interactive billing-cycle toggle + upgrade flow.
  */
 
-import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import ProWaitlistButton from './pro-waitlist-button';
 import { Logo } from '@/components/logo';
+import PricingClient from './pricing-client';
 
 export const dynamic = 'force-dynamic';
-
-type Plan = {
-  slug:       'free' | 'pro' | 'enterprise';
-  name:       string;
-  priceLabel: string;
-  priceSub:   string;
-  tagline:    string;
-  highlight?: boolean;
-  bullets:    string[];
-  ctaLabel:   string;
-  ctaType:    'current' | 'waitlist' | 'contact' | 'signin';
-};
-
-const PLANS: Plan[] = [
-  {
-    slug:       'free',
-    name:       'Free',
-    priceLabel: '$0',
-    priceSub:   'forever',
-    tagline:    'Get started, no credit card.',
-    bullets:    [
-      '🎯 Create 5 skills / month',
-      '✨ Use unlimited skills (run as many as you want)',
-      '🏢 Share up to 3 skills org-wide',
-      '👥 Unlimited team members — invite your whole team',
-      'Fork any base Playbook into your library',
-      'Run in any Claude surface (Code, Desktop, Cursor, Cowork)',
-      'Team-domain share links',
-      'Bring your own API keys (Fiber, Coresignal, Apollo)',
-    ],
-    ctaLabel:   'Default for new accounts',
-    ctaType:    'current',
-  },
-  {
-    slug:       'pro',
-    name:       'Pro',
-    priceLabel: '$20',
-    priceSub:   '/ seat / month',
-    tagline:    'Unlimited captures + team unlock.',
-    highlight:  true,
-    bullets:    [
-      '🚀 Unlimited skill creation (no monthly cap)',
-      '🏢 Unlimited org-shared skills',
-      'Everything in Free',
-      '📊 Attribution dashboard — see which skills drive outcomes',
-      'Skill ROI tracking',
-      'Admin controls — promote/lock org skills',
-      'Unlimited public share links',
-      'Custom skill triggers',
-      'Slack integration (coming soon)',
-    ],
-    ctaLabel:   'Join the waitlist',
-    ctaType:    'waitlist',
-  },
-  {
-    slug:       'enterprise',
-    name:       'Enterprise',
-    priceLabel: 'Custom',
-    priceSub:   'contact us',
-    tagline:    'For teams that need security + scale.',
-    bullets:    [
-      'Everything in Pro',
-      'SSO / SAML',
-      'Audit logs + compliance docs',
-      'Custom integrations (Salesforce write, Bullhorn, etc.)',
-      'Dedicated success manager',
-      'Security review documentation',
-      'White-label share pages',
-    ],
-    ctaLabel:   'Contact sales',
-    ctaType:    'contact',
-  },
-];
 
 export default async function PricingPage() {
   const supabase = createClient();
@@ -96,128 +26,88 @@ export default async function PricingPage() {
   const isAuthed = !!session?.user;
 
   let currentPlan = 'free';
-  let onWaitlist = false;
-  let userId: string | null = null;
+  let isFoundingCreator = false;
   if (isAuthed) {
-    userId = session!.user.id;
     const { data: profile } = await supabase
-      .from('users').select('id, organization_id')
-      .eq('id', userId).maybeSingle();
+      .from('users')
+      .select('organization_id, founding_creator_unlocked_at')
+      .eq('id', session!.user.id)
+      .maybeSingle();
+
+    isFoundingCreator = !!profile?.founding_creator_unlocked_at;
+
     if (profile?.organization_id) {
       const { data: org } = await supabase
         .from('organizations').select('plan')
         .eq('id', profile.organization_id).maybeSingle();
       currentPlan = org?.plan || 'free';
     }
-    const { data: w } = await supabase
-      .from('pro_waitlist').select('id').eq('user_id', userId).maybeSingle();
-    onWaitlist = !!w;
   }
 
   return (
     <main className="min-h-screen px-4 py-16">
       <div className="max-w-6xl mx-auto">
-        <header className="text-center mb-4">
+        <header className="text-center mb-8">
           <div className="mb-4 flex justify-center"><Logo height={18} /></div>
           <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Pricing</h1>
-          <p className="text-ink-300 mt-3 max-w-2xl mx-auto">
-            Bring your own Claude. Bring your own API keys. Free to start, with 5 skill captures per month
-            and unlimited usage. Pay for unlimited captures + team features when you outgrow solo.
+          <p className="text-ink-300 mt-3 max-w-2xl mx-auto leading-relaxed">
+            Bring your own Claude. Bring your own API keys. Free to start with 5 skill captures per
+            month and unlimited usage. Upgrade to Pro when you outgrow solo.
           </p>
         </header>
 
         {/* Trust strip */}
-        <div className="text-center mb-12 text-xs text-ink-400">
-          ✓ No metered usage  &nbsp;&middot;&nbsp;  ✓ No surprise bills  &nbsp;&middot;&nbsp;  ✓ Cancel anytime  &nbsp;&middot;&nbsp;  ✓ Your data, your control
+        <div className="text-center mb-10 text-xs text-ink-400">
+          ✓ No metered usage  &nbsp;·&nbsp;  ✓ No surprise bills  &nbsp;·&nbsp;  ✓ Cancel anytime  &nbsp;·&nbsp;  ✓ Your data, your control
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4">
-          {PLANS.map((p) => {
-            const isCurrent = currentPlan === p.slug;
-            return (
-              <div
-                key={p.slug}
-                className={`card flex flex-col ${isCurrent ? 'ring-2 ring-brand-500' : ''} ${
-                  p.highlight ? '!border-brand-500/40 bg-gradient-to-b from-brand-50/5 to-transparent' : ''
-                }`}
-              >
-                {p.highlight && (
-                  <div className="text-[10px] uppercase tracking-wider font-bold text-brand-500 mb-2">
-                    Most popular when teams join
-                  </div>
+        <PricingClient
+          isAuthed={isAuthed}
+          currentPlan={currentPlan}
+          isFoundingCreator={isFoundingCreator}
+        />
+
+        {/* Founding Creator promo strip — only for non-FC visitors (don't double-show) */}
+        {!isFoundingCreator && (
+          <section className="mt-16 card !bg-gradient-to-r !from-accent-400/10 !to-brand-500/8 !border-accent-400/40">
+            <div className="flex items-start gap-4">
+              <div className="text-3xl shrink-0" aria-hidden="true">🏆</div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-ink-50 mb-1">
+                  Skip Pro entirely — become a Founding Creator.
+                </h2>
+                <p className="text-sm text-ink-200 leading-relaxed">
+                  Capture a new skill <em>and</em> share it publicly. Your seat on Pro becomes
+                  <strong> free for life</strong> — no checkout, no card. Plus a Founding Creator badge on every skill
+                  you share. The earliest people who help compound the skill graph get permanent perks.
+                </p>
+                {isAuthed && (
+                  <a href="/skills" className="text-xs text-brand-500 hover:underline font-medium mt-3 inline-block">
+                    See your library and start →
+                  </a>
                 )}
-                <h3 className="text-xl font-semibold text-ink-50">{p.name}</h3>
-                <div className="mt-2 flex items-baseline gap-1">
-                  <div className="text-3xl font-semibold text-ink-50">{p.priceLabel}</div>
-                  <div className="text-xs text-ink-400">{p.priceSub}</div>
-                </div>
-                <p className="text-xs text-ink-300 mt-2 leading-relaxed">{p.tagline}</p>
-
-                <ul className="mt-6 space-y-2 text-sm text-ink-200 flex-1">
-                  {p.bullets.map((b) => (
-                    <li key={b} className="flex gap-2 leading-snug">
-                      <span className="text-brand-500 mt-0.5 shrink-0">✓</span>
-                      <span>{b}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-6">
-                  {isCurrent
-                    ? <button disabled className="btn w-full border border-ink-700 text-ink-500">Current plan</button>
-                    : p.ctaType === 'current'
-                      ? <span className="block text-xs text-ink-500 text-center py-2">{p.ctaLabel}</span>
-                      : p.ctaType === 'waitlist'
-                        ? (isAuthed
-                            ? <ProWaitlistButton jwt={session!.access_token} alreadyOnWaitlist={onWaitlist} />
-                            : <Link href="/signup" className="btn-primary w-full inline-flex items-center justify-center">Sign up to join waitlist</Link>)
-                        : p.ctaType === 'contact'
-                          ? <a href="mailto:sales@implexa.ai?subject=Implexa%20Enterprise%20inquiry" className="btn-outline w-full inline-flex items-center justify-center">{p.ctaLabel}</a>
-                          : null}
-                </div>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Founding Creator strip */}
-        <section className="mt-16 card !bg-gradient-to-r !from-success-400/10 !to-brand-500/10 !border-success-400/30">
-          <div className="flex items-start gap-4">
-            <div className="text-3xl shrink-0" aria-hidden="true">🏆</div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-ink-50 mb-1">
-                Founding Creator perk
-              </h2>
-              <p className="text-sm text-ink-200 leading-relaxed">
-                Capture a new skill <em>and</em> share it before we launch Pro publicly — and your first seat on Pro is <strong>free forever</strong>.
-                Plus a Founding Creator badge on every skill you share. The earlier you ship, the more your library compounds.
-              </p>
-              {isAuthed && (
-                <Link href="/skills" className="text-xs text-brand-600 hover:underline font-medium mt-3 inline-block">
-                  See your library and start →
-                </Link>
-              )}
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
-        {/* FAQ — bring-your-own ethos */}
+        {/* FAQ */}
         <section className="mt-16 grid md:grid-cols-2 gap-6">
           <FaqItem
-            q="What's the difference between 'create' and 'use'?"
-            a="Create = capturing a new skill from a demonstration. Use = running an existing skill (yours, your team's, or a base Playbook). Free caps creation at 5/month but lets you USE skills unlimited times. The moat-building work has a cap; the value-receiving work is free."
+            q="What's the difference between 'capture' and 'use'?"
+            a="Capture = recording a new skill from a demonstration. Use = running an existing skill (yours, your team's, or a base Playbook). Free caps capture at 5/month but lets you USE skills unlimited times — the moat-building work has a cap, the value-receiving work is free."
           />
           <FaqItem
             q="What counts toward my 5 captures?"
-            a="Only NEW skills you author via /implexa:record-skill or capture_workflow_as_skill — and only ones not already in your library. Forking a Playbook into your library doesn't count. Running an existing skill doesn't count. So role-pack onboarding (which forks 5-10 Playbooks) leaves your monthly capture quota fully intact."
+            a="Only NEW skills you author via /implexa:record-skill (or save_workflow_as_skill). Forking a Playbook doesn't count. Running an existing skill doesn't count. Editing a fork into your own version counts once. So onboarding (which forks 5–10 Playbooks) leaves your capture quota fully intact."
+          />
+          <FaqItem
+            q="Monthly or annual?"
+            a="Annual saves you 2 full months — same Pro, ~17% cheaper. Switch anytime via the Stripe Customer Portal in Settings → Billing. We don't lock you in."
           />
           <FaqItem
             q="Can I cancel anytime?"
-            a="Yes — and your skill library stays. We won't hold your data hostage. Export your captured skills as Markdown anytime, or stay on Free and keep using them indefinitely."
-          />
-          <FaqItem
-            q="What about old credit-based plans?"
-            a="If you're on a legacy Starter / Growth / Scale plan, your subscription continues as-is via Stripe — but the credit model is going away. We'll migrate you to the equivalent Pro tier before any change affects your access."
+            a="Yes. Cancellations take effect at the end of your current billing period — you keep Pro features until then. After that you revert to Free. Your skill library always stays with you."
           />
         </section>
       </div>
@@ -236,5 +126,5 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 export const metadata = {
   title:       'Pricing — Implexa',
-  description: 'Free forever — unlimited skills, no credit card. Pay only for team features when you outgrow solo.',
+  description: 'Free forever — 5 skill captures per month, unlimited use. Pro at $19/month or $190/year (2 months free).',
 };
