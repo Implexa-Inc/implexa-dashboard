@@ -422,39 +422,80 @@ source ~/.zshrc`}
 
   // ── Claude chat (Desktop) ─────────────────────────────────────────
   // No plugin system. Custom Connector URL is the install. MCP-only capture.
+  // Actual flow (confirmed via launch testing):
+  //   1. Chat tab → Customize (sidebar)
+  //   2. Customize panel → Connectors (left rail) → + → Add custom connector
+  //   3. Modal: Name = "Implexa", Remote MCP server URL = our endpoint
+  // The previous copy referenced "+ in chat input → Connectors → Add connector"
+  // which is wrong — that flyout only shows already-installed connectors.
   if (surface === 'chat-desktop') {
     const connectorUrl = 'https://core.implexa.ai/api/v2/mcp?api_key=imp_live_YOUR_KEY';
     return (
       <>
         <div className="rounded-lg border border-success-400/40 bg-success-400/5 p-3 mb-3 text-xs text-ink-200 leading-relaxed">
-          <p className="font-medium text-ink-100 mb-1">⚡ Fastest install — 30 seconds.</p>
+          <p className="font-medium text-ink-100 mb-1">⚡ Fastest install — under a minute.</p>
           <p>
             Claude chat (Desktop) doesn&apos;t use plugins (those are Cowork + Claude Code only). Instead, you add Implexa as a <strong>Custom Connector</strong> — a remote MCP server. Just paste one URL with your API key in it.
           </p>
         </div>
-        <p className="text-sm text-ink-200 mb-3 leading-relaxed">
-          Copy this URL and <strong>replace <code className="bg-ink-800 px-1 rounded text-xs">imp_live_YOUR_KEY</code> with your actual API key</strong> from Step 1:
+
+        <p className="text-sm text-ink-200 mb-2 leading-relaxed">
+          Copy this URL first and <strong>replace <code className="bg-ink-800 px-1 rounded text-xs">imp_live_YOUR_KEY</code> with your actual API key</strong> from Step 1 — you&apos;ll paste it in Step C below:
         </p>
         <CodeBlock code={connectorUrl} oneLine />
-        <p className="text-sm text-ink-200 mt-4 mb-3 leading-relaxed">Then in Claude Desktop:</p>
-        <ol className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400">
-          <li>Open a <strong>regular chat</strong> (not Cowork)</li>
-          <li>Click <strong>+</strong> in the chat input area</li>
-          <li>Hover <strong>Connectors</strong> → click <strong>Add connector</strong></li>
-          <li>Paste your edited URL, hit <strong>Save</strong></li>
-          <li>Toggle <strong>Implexa</strong> ON in the connector list</li>
-        </ol>
-        <details className="text-xs text-ink-300 mt-3">
-          <summary className="cursor-pointer hover:text-ink-100 select-none">Already use Cowork? You probably don&apos;t need this step.</summary>
+
+        <p className="text-sm text-ink-200 mt-5 mb-2 leading-relaxed">
+          <strong className="text-ink-50">A.</strong> Open <strong>Claude Desktop</strong>, switch to the <strong>Chat</strong> tab, then click{' '}
+          <HoverImageHint src="/img/install/chat-customize.png" alt="The Customize button in the Chat sidebar">
+            <strong>Customize</strong>
+          </HoverImageHint>
+          {' '}in the sidebar.
+        </p>
+
+        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+          <strong className="text-ink-50">B.</strong> In the Customize panel, click <strong>Connectors</strong> in the left rail, then click the{' '}
+          <HoverImageHint
+            src="/img/install/chat-connectors.png"
+            alt="Connectors panel — the + button at the top right opens the Add custom connector menu"
+            width="w-[520px]"
+          >
+            <strong>+</strong> button (top right) → <strong>Add custom connector</strong>
+          </HoverImageHint>.
+        </p>
+
+        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+          <strong className="text-ink-50">C.</strong> In the{' '}
+          <HoverImageHint
+            src="/img/install/chat-custom-connector.png"
+            alt="Add custom connector modal — Name field + Remote MCP server URL field"
+            width="w-[520px]"
+          >
+            <strong>Add custom connector</strong> dialog
+          </HoverImageHint>:
+        </p>
+        <ul className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-disc marker:text-ink-500">
+          <li><strong>Name:</strong> type <code className="bg-ink-800 px-1 rounded text-xs">Implexa</code></li>
+          <li><strong>Remote MCP server URL:</strong> paste the URL you edited above</li>
+          <li>Click <strong>Add</strong>.</li>
+        </ul>
+
+        <p className="text-xs text-ink-400 mt-4 leading-relaxed">
+          Done — Implexa is now available across all your Claude chats. Try it with{' '}
+          <em className="text-ink-200">&ldquo;Implexa, show my plan&rdquo;</em> or{' '}
+          <em className="text-ink-200">&ldquo;Implexa, record this workflow&rdquo;</em>.
+        </p>
+
+        <details className="text-xs text-ink-300 mt-4">
+          <summary className="cursor-pointer hover:text-ink-100 select-none">Already use Cowork? You probably don&apos;t need this.</summary>
           <div className="mt-2 pl-4 leading-relaxed">
-            <p>Installing the Implexa plugin via Cowork automatically registers the Custom Connector in Claude chat too. So if you&apos;ve already done the Cowork install, Implexa should already appear in your Desktop Connectors list as <em>Implexa CUSTOM</em>.</p>
+            <p>Installing the Implexa plugin via Cowork automatically registers a matching Custom Connector in Claude chat. Check Customize → Connectors first — Implexa may already be there as <em>Implexa</em>.</p>
           </div>
         </details>
         <details className="text-xs text-ink-300 mt-2">
           <summary className="cursor-pointer hover:text-ink-100 select-none">What does this connector give me?</summary>
           <div className="mt-2 pl-4 leading-relaxed space-y-1">
-            <p>All 28 Implexa MCP tools — record-skill, list-org-skills, share-this, find-accounts, etc. — available via natural language in Claude chat.</p>
-            <p>Slash commands like <code className="bg-ink-800 px-1 rounded text-[11px]">/implexa:setup</code> don&apos;t exist here (those require the plugin system). Instead, just ask Claude things like <em>&ldquo;Implexa, show my plan&rdquo;</em> or <em>&ldquo;Implexa, record this workflow&rdquo;</em>.</p>
+            <p>All Implexa MCP tools — record-skill, list-org-skills, share-this, find-accounts, etc. — available via natural language in Claude chat.</p>
+            <p>Slash commands like <code className="bg-ink-800 px-1 rounded text-[11px]">/implexa:run</code> don&apos;t exist here (those require the plugin system). Instead, just ask Claude things like <em>&ldquo;Implexa, run my triage skill&rdquo;</em> or <em>&ldquo;Implexa, record this workflow&rdquo;</em>.</p>
           </div>
         </details>
       </>
