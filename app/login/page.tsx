@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/logo';
+import PasswordInput from '@/components/password-input';
 
 // Next.js 14: useSearchParams requires a Suspense boundary when the page
 // gets statically prerendered. Outer page is a thin wrapper.
@@ -114,7 +115,7 @@ function LoginPageInner() {
           <form onSubmit={handleEmailLogin} className="space-y-3">
             <input type="email" required placeholder="you@work.com" value={email}
                    onChange={(e) => setEmail(e.target.value)} className="input" />
-            <input type="password" required placeholder="password" value={password}
+            <PasswordInput required placeholder="password" value={password}
                    onChange={(e) => setPassword(e.target.value)} className="input" />
             <button type="submit" disabled={!!loading} className="btn-primary w-full">
               {loading === 'password' ? 'Signing in…' : 'Sign in with password'}
