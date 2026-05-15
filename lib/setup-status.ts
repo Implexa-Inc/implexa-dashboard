@@ -92,7 +92,7 @@ export const STATUS_PRESENTATION: Record<SetupStatus, { dot: string; label: stri
   },
   never: {
     dot:     'bg-red-400',
-    label:   'Not connected',
+    label:   'Claude not connected',
     tooltip: "We haven't seen your Claude talk to Implexa yet. Click to set up.",
   },
 };
