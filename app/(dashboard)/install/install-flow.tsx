@@ -6,11 +6,13 @@ import Link from 'next/link';
 type Surface = 'code-desktop' | 'code-cli' | 'cowork' | 'chat-desktop';
 type OS = 'mac' | 'windows' | 'linux' | 'unknown';
 
+// Labels are kept short — section header already says "Install the plugin
+// in Claude", so we drop the redundant "Claude" prefix on the tabs.
 const SURFACES: Array<{ id: Surface; label: string; subtitle: string; recommended?: boolean }> = [
-  { id: 'code-desktop', label: 'Claude Code (Desktop)', subtitle: 'Plugin install via Customize — full capture, visual setup', recommended: true },
-  { id: 'code-cli',     label: 'Claude Code (CLI)',     subtitle: 'Terminal install — full capture for power users' },
-  { id: 'cowork',       label: 'Cowork (Desktop)',      subtitle: 'Plugin install via Customize — MCP capture (hooks gap until Anthropic ships fix)' },
-  { id: 'chat-desktop', label: 'Claude chat (Desktop)', subtitle: 'Just paste a Connector URL — 30 sec, no plugin install' },
+  { id: 'code-desktop', label: 'Code (Desktop)', subtitle: 'Plugin install via Customize — full capture with a visual install', recommended: true },
+  { id: 'code-cli',     label: 'Code (CLI)',     subtitle: 'Terminal install — full capture for power users' },
+  { id: 'cowork',       label: 'Cowork',         subtitle: 'Plugin install via Customize — MCP capture (hooks gap until Anthropic ships fix)' },
+  { id: 'chat-desktop', label: 'Chat (Desktop)', subtitle: 'Custom Connector URL — 30 sec, no plugin install' },
 ];
 
 const PLUGIN_INSTALL_CMD = `/plugin marketplace add https://github.com/Implexa-Inc/implexa-claude-plugin.git
@@ -137,46 +139,55 @@ export default function InstallFlow({
 
       {/* ── Step 2: Pick surface + install plugin ────────────────────── */}
       <Section number={2} title="Install the plugin in Claude">
-        {/* Surface tabs */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {SURFACES.map((s) => {
-            // Claude Code surfaces (Desktop + CLI) and Cowork still install on
-            // Windows — plugin + MCP work. But the bash hooks installer fails,
-            // so we mark these as degraded so users see what's actually
-            // supported on their OS.
-            const isDegradedOnWindows = isWindows && (s.id === 'code-desktop' || s.id === 'code-cli' || s.id === 'cowork');
-            const subtitle = isDegradedOnWindows
-              ? 'Plugin + MCP work; hook capture not yet on Windows'
-              : s.subtitle;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setSurface(s.id)}
-                className={`px-3 py-2 rounded-md text-sm transition-colors text-left ${
-                  surface === s.id
-                    ? 'bg-brand-500 text-ink-950 font-medium shadow-glow'
-                    : 'bg-ink-800 text-ink-200 hover:bg-ink-700 border border-ink-700'
-                } ${isDegradedOnWindows ? 'opacity-70' : ''}`}
-              >
-                <div className="font-medium flex items-center gap-1.5">
-                  {s.label}
+        {/* Surface tabs — compact underline pattern.
+         *
+         * Why not the previous 2x2 card grid: at 4 surfaces it became
+         * visually heavy + the per-tab subtitle duplicated the surface
+         * content callout that follows. Underline tabs are lightweight,
+         * still convey active state clearly, and let the selected
+         * surface's longer description live in a single line below. */}
+        <div className="border-b border-ink-700 mb-3">
+          <div className="flex flex-wrap gap-x-6 gap-y-2 -mb-px">
+            {SURFACES.map((s) => {
+              // Claude Code surfaces (Desktop + CLI) and Cowork still install
+              // on Windows — plugin + MCP work. But the bash hooks installer
+              // fails, so we mark these as Beta on Windows so users see what's
+              // actually supported on their OS.
+              const isDegradedOnWindows = isWindows && (s.id === 'code-desktop' || s.id === 'code-cli' || s.id === 'cowork');
+              const isActive = surface === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSurface(s.id)}
+                  className={`pb-3 px-1 -mb-px border-b-2 text-sm transition-colors whitespace-nowrap inline-flex items-center gap-1.5 ${
+                    isActive
+                      ? 'border-brand-500 text-ink-50 font-medium'
+                      : 'border-transparent text-ink-400 hover:text-ink-200'
+                  } ${isDegradedOnWindows ? 'opacity-70' : ''}`}
+                >
+                  <span>{s.label}</span>
                   {s.recommended && !isDegradedOnWindows && (
-                    <span className={`text-[9px] uppercase tracking-wider rounded px-1 py-0.5 font-bold ${
-                      surface === s.id
-                        ? 'bg-ink-950/15 text-ink-950'
-                        : 'bg-success-400/20 text-success-700 dark:text-success-400'
-                    }`}>★ Recommended</span>
+                    <span className="text-[10px] text-success-700 dark:text-success-400 font-medium">★ Recommended</span>
                   )}
                   {isDegradedOnWindows && (
                     <span className="text-[9px] uppercase tracking-wider rounded px-1 py-0.5 bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold">Beta</span>
                   )}
-                </div>
-                <div className={`text-[10px] mt-0.5 ${surface === s.id ? 'text-ink-950/70' : 'text-ink-400'}`}>{subtitle}</div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
+          </div>
         </div>
+
+        {/* Single subtitle below tab strip — describes the selected surface.
+         * Replaces the per-tab subtitle that lived inside each card. */}
+        <p className="text-xs text-ink-400 mb-5 leading-relaxed">
+          {(() => {
+            const selected = SURFACES.find((s) => s.id === surface);
+            const isDegraded = isWindows && (surface === 'code-desktop' || surface === 'code-cli' || surface === 'cowork');
+            return isDegraded ? 'Plugin + MCP work; hook capture not yet on Windows.' : selected?.subtitle;
+          })()}
+        </p>
 
         {/* Surface-specific content */}
         <SurfaceContent surface={surface} hasKey={hasKey} coworkHooksLive={coworkHooksLive} />
