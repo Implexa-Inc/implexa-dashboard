@@ -28,11 +28,25 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
       // If the user is being routed to a specific destination (e.g. share-link
       // install flow), respect that. Otherwise step them through role selection.
       // Joining an existing org skips role pick — they inherit the team library.
-      if (next) router.push(next);
-      else if (joinOrgId) router.push('/skills?welcome=joined');
-      else router.push('/onboarding/role');
-    } catch (err: any) {
-      setError(err.message || 'Provisioning failed');
+      const destination = next
+        ? next
+        : joinOrgId
+          ? '/skills?welcome=joined'
+          : '/onboarding/role';
+      router.push(destination);
+      // Safety net: if router.push silently fails to navigate (network blip,
+      // race with auth-cookie refresh, etc.), force a hard navigation after
+      // 2s so the user isn't stuck staring at a "Joining…" button forever.
+      // The provision call already succeeded — they just need to GET to the
+      // destination.
+      setTimeout(() => {
+        if (typeof window !== 'undefined' && window.location.pathname === '/onboarding') {
+          window.location.href = destination;
+        }
+      }, 2000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Provisioning failed';
+      setError(message);
       setLoading(null);
     }
   }
