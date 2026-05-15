@@ -24,16 +24,36 @@
 export function Logo({
   className = '',
   height   = 24,
-  theme    = 'dark',
+  theme,
 }: {
   className?: string;
   /** Pixel height of the wordmark. Width follows from the 600:160 viewBox ratio. */
   height?:    number;
-  /** Background tone of the surrounding surface. `dark` → off-white text. `light` → near-black text. */
+  /**
+   * Background tone of the surrounding surface.
+   *   - undefined  → AUTO. Text color follows the OS theme via the ink-50
+   *                  CSS variable (near-black in light mode, off-white in
+   *                  dark mode). This is what you want 99% of the time —
+   *                  the wordmark stays readable regardless of which mode
+   *                  the user's OS reports.
+   *   - 'dark'     → Force off-white text. Use when the wordmark sits on a
+   *                  card with a hardcoded dark surface (e.g., a Lovable-
+   *                  rendered marketing card that doesn't follow OS theme).
+   *   - 'light'    → Force near-black text. Same idea, opposite direction.
+   */
   theme?:     'dark' | 'light';
 }) {
-  const width     = height * (600 / 160);
-  const textColor = theme === 'dark' ? '#fafafa' : '#0a0a0a';
+  const width = height * (600 / 160);
+
+  // Auto-adapt by default, force-color when theme is explicitly set.
+  // Tailwind's `fill-ink-50` translates to `rgb(var(--ink-50) / 1)` and
+  // ink-50 is the high-contrast-text role in both modes (dark in light
+  // theme, off-white in dark theme).
+  const textFillProps = theme === 'dark'
+    ? { fill: '#fafafa' }
+    : theme === 'light'
+      ? { fill: '#0a0a0a' }
+      : { className: 'fill-ink-50' };
 
   return (
     <svg
@@ -49,7 +69,7 @@ export function Logo({
       <text
         x={40}
         y={125}
-        fill={textColor}
+        {...textFillProps}
         style={{
           fontFamily:    "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
           fontWeight:    700,
