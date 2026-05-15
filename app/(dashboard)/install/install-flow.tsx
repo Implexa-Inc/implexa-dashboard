@@ -154,23 +154,30 @@ export default function InstallFlow({ hasKey, keyPrefix }: { hasKey: boolean; ke
           subtitle="Do this — it's the difference between Implexa capturing tool calls only vs. tool calls + every prompt and assistant response. The latter is what makes the recorded skill actually replayable. You're already in a terminal — paste one command."
         >
           <div className="space-y-3">
-            {/* Non-coder reassurance — most users on this page aren't developers */}
-            <div className="rounded-lg border border-ink-700 bg-ink-800/40 p-3 text-xs text-ink-200 leading-relaxed">
-              <p className="font-medium text-ink-100 mb-1.5">Not a developer? You&apos;re fine.</p>
-              <p className="mb-2">
-                This is one safe command. The script handles everything — just answer{' '}
-                <code className="bg-ink-900 px-1 rounded">y</code> when prompted and paste your API key when it asks. It will:
-              </p>
-              <ol className="pl-4 list-decimal space-y-0.5 marker:text-ink-500">
-                <li>Install <strong>Homebrew</strong> if missing (Mac&apos;s standard package manager — common dev tool)</li>
-                <li>Install <strong>Node.js</strong> (common dev tool — needed by Implexa&apos;s MCP server)</li>
-                <li>Ask you to paste your API key (the one you copied above)</li>
-                <li>Configure Claude to capture skills</li>
-              </ol>
-              <p className="mt-2 text-ink-400">
-                Takes ~3–5 min the first time (mostly downloads), instant on re-runs. You may be asked for your Mac password once — that&apos;s normal for installing system tools.
-              </p>
-            </div>
+            {/* Non-coder reassurance — collapsed by default so the step stays
+             * clean for confident users. Same <details> pattern as the
+             * "What does this script do?" block below for visual consistency. */}
+            <details className="rounded-lg border border-ink-700 bg-ink-800/40 text-xs text-ink-200 leading-relaxed group">
+              <summary className="cursor-pointer hover:bg-ink-800/60 transition-colors px-3 py-2 select-none flex items-center gap-1.5">
+                <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
+                <span className="font-medium text-ink-100">Not a developer? You&apos;re fine — read this first.</span>
+              </summary>
+              <div className="px-3 pb-3 pt-1 border-t border-ink-700/60">
+                <p className="mb-2 mt-2">
+                  This is one safe command. The script handles everything — just answer{' '}
+                  <code className="bg-ink-900 px-1 rounded">y</code> when prompted and paste your API key when it asks. It will:
+                </p>
+                <ol className="pl-4 list-decimal space-y-0.5 marker:text-ink-500">
+                  <li>Install <strong>Homebrew</strong> if missing (Mac&apos;s standard package manager — common dev tool)</li>
+                  <li>Install <strong>Node.js</strong> (common dev tool — needed by Implexa&apos;s MCP server)</li>
+                  <li>Ask you to paste your API key (the one you copied above)</li>
+                  <li>Configure Claude to capture skills</li>
+                </ol>
+                <p className="mt-2 text-ink-400">
+                  Takes ~3–5 min the first time (mostly downloads), instant on re-runs. You may be asked for your Mac password once — that&apos;s normal for installing system tools.
+                </p>
+              </div>
+            </details>
             <p className="text-xs text-ink-300 leading-relaxed">
               <strong className="text-ink-100">Run this in a regular terminal</strong> (not inside Claude Code). If Claude Code is still running from Step 2, type <code className="bg-ink-800 px-1 rounded">/exit</code> to leave it first, OR just open a new Terminal tab (<strong>Cmd + T</strong>).
               <span className="block text-ink-400 mt-1">
