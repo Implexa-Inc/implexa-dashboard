@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
-type Surface = 'cli' | 'desktop' | 'cowork';
+type Surface = 'code-desktop' | 'code-cli' | 'cowork' | 'chat-desktop';
 type OS = 'mac' | 'windows' | 'linux' | 'unknown';
 
 const SURFACES: Array<{ id: Surface; label: string; subtitle: string; recommended?: boolean }> = [
-  { id: 'cli',     label: 'Claude Code (CLI)',    subtitle: 'Terminal — full capture (tool calls + conversation turns)', recommended: true },
-  { id: 'cowork',  label: 'Cowork (web)',         subtitle: 'Plugin install — also auto-enables Desktop Chat' },
-  { id: 'desktop', label: 'Claude Desktop chat',  subtitle: 'Just paste a Connector URL — 30 sec' },
+  { id: 'code-desktop', label: 'Claude Code (Desktop)', subtitle: 'Plugin install via Customize — full capture, visual setup', recommended: true },
+  { id: 'code-cli',     label: 'Claude Code (CLI)',     subtitle: 'Terminal install — full capture for power users' },
+  { id: 'cowork',       label: 'Cowork (Desktop)',      subtitle: 'Plugin install via Customize — MCP capture (hooks gap until Anthropic ships fix)' },
+  { id: 'chat-desktop', label: 'Claude chat (Desktop)', subtitle: 'Just paste a Connector URL — 30 sec, no plugin install' },
 ];
 
 const PLUGIN_INSTALL_CMD = `/plugin marketplace add https://github.com/Implexa-Inc/implexa-claude-plugin.git
@@ -34,7 +35,11 @@ export default function InstallFlow({
    */
   coworkHooksLive?: boolean;
 }) {
-  const [surface, setSurface] = useState<Surface>('cli');
+  // Default to Claude Code (Desktop): plugin install via Customize is the
+  // most accessible path AND it supports full capture (hooks fire there).
+  // CLI matches the same capability but is for power users; we let visitors
+  // discover it via the second tab.
+  const [surface, setSurface] = useState<Surface>('code-desktop');
   // Default to 'unknown' so SSR + first client render match; the effect upgrades it.
   const [os, setOs] = useState<OS>('unknown');
 
@@ -45,9 +50,10 @@ export default function InstallFlow({
     const hay = `${ua} ${platform}`.toLowerCase();
     if (hay.includes('win')) {
       setOs('windows');
-      // On Windows the bash hooks installer is broken — Desktop Connector works fully,
-      // Cowork mostly works, CLI capture is degraded (no hooks). Default to Desktop.
-      setSurface('desktop');
+      // On Windows the bash hooks installer doesn't work — so the only
+      // path that fully works is Claude chat (Desktop) via Connector URL.
+      // Claude Code (Desktop/CLI) install works but hook capture is broken.
+      setSurface('chat-desktop');
     } else if (hay.includes('mac') || hay.includes('darwin')) {
       setOs('mac');
     } else if (hay.includes('linux')) {
@@ -55,18 +61,24 @@ export default function InstallFlow({
     }
   }, []);
 
-  // Hooks (Step 3) fires reliably in Claude Code CLI on macOS. Confirmed via
-  // fresh-Mac testing (2 machines): Cowork didn't historically invoke
-  // ~/.claude/settings.json hooks at all, and Desktop Chat has no plugin/hook
-  // system either. The bash installer is also Mac-only (uses launchctl, brew,
-  // ~/Library paths), so on Windows we hide the hooks step entirely.
+  // Hooks (Step 3) fires reliably wherever Claude Code runs — both the
+  // Desktop UI version and the CLI version. The user-level hooks installer
+  // writes to ~/.claude/settings.json which both honor.
   //
-  // Conditional: if `coworkHooksLive` is true (we've observed at least one
-  // hook event arrive from a Cowork user-agent — meaning Anthropic shipped
-  // the fix), we ALSO show the hooks step on the Cowork surface. The hooks
-  // installer is the same script regardless of surface — it writes to
-  // ~/.claude/settings.json which Cowork would then honor.
-  const showHooksStep = (surface === 'cli' || (surface === 'cowork' && coworkHooksLive)) && os !== 'windows';
+  // Cowork (Desktop): Cowork historically did NOT invoke user-level hooks
+  // (Anthropic platform issue). The platform_signals table flips this
+  // automatically the moment we observe a hook event from a Cowork
+  // user-agent (= Anthropic shipped the fix).
+  //
+  // Claude chat (Desktop): no plugin system at all (uses Custom Connector URL).
+  //
+  // Windows: the bash hooks installer doesn't work (launchctl + brew + macOS
+  // paths). Hide the hooks step entirely until we ship a PowerShell installer.
+  const showHooksStep = (
+    surface === 'code-desktop' ||
+    surface === 'code-cli' ||
+    (surface === 'cowork' && coworkHooksLive)
+  ) && os !== 'windows';
   const isWindows = os === 'windows';
 
   return (
@@ -128,9 +140,11 @@ export default function InstallFlow({
         {/* Surface tabs */}
         <div className="flex flex-wrap gap-2 mb-4">
           {SURFACES.map((s) => {
-            // CLI surface still selectable on Windows (plugin install + MCP work),
-            // but we mark it as degraded so users see what's actually supported.
-            const isDegradedOnWindows = isWindows && s.id === 'cli';
+            // Claude Code surfaces (Desktop + CLI) and Cowork still install on
+            // Windows — plugin + MCP work. But the bash hooks installer fails,
+            // so we mark these as degraded so users see what's actually
+            // supported on their OS.
+            const isDegradedOnWindows = isWindows && (s.id === 'code-desktop' || s.id === 'code-cli' || s.id === 'cowork');
             const subtitle = isDegradedOnWindows
               ? 'Plugin + MCP work; hook capture not yet on Windows'
               : s.subtitle;
@@ -229,13 +243,15 @@ export default function InstallFlow({
       <Section number={showHooksStep ? 4 : 3} title="Verify + record your first skill">
         <div className="space-y-3">
           <p className="text-sm text-ink-200 leading-relaxed">
-            {surface === 'cli'
+            {surface === 'code-cli'
               ? <>Type <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/exit</code> to leave Claude Code, then run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> in your terminal again so it picks up the new config.</>
+              : surface === 'code-desktop'
+              ? <>Fully quit Claude Code with <strong>Cmd+Q</strong> (not just close the window), then relaunch.</>
               : surface === 'cowork'
               ? <>Fully quit Claude with <strong>Cmd+Q</strong> (not just close the window), then relaunch and open Cowork.</>
               : <>You don&apos;t need to restart for the Connector to work — but if it doesn&apos;t appear right away, try opening a new Desktop chat.</>}
           </p>
-          {surface === 'desktop' ? (
+          {surface === 'chat-desktop' ? (
             <div className="text-sm text-ink-200 leading-relaxed space-y-3">
               <p>
                 Plugin slash commands like <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> don&apos;t exist on Desktop Chat (plugins are only available in Cowork and Code). Instead, you talk to Implexa in natural language — Claude will call the right MCP tool behind the scenes.
@@ -268,9 +284,17 @@ export default function InstallFlow({
               <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:record-skill</code> to capture your first workflow.
             </p>
           )}
-          {surface !== 'cli' && !(surface === 'cowork' && coworkHooksLive) && (
+          {/* Capture-degraded warning: only fires for Cowork (until Anthropic
+           * fixes hooks) and Claude chat (no hook system). Claude Code (Desktop)
+           * and CLI both get full capture. */}
+          {(surface === 'cowork' && !coworkHooksLive) && (
             <p className="text-xs text-ink-400 leading-relaxed">
-              Note: on {surface === 'cowork' ? 'Cowork' : 'Desktop Chat'}, conversation-turn capture isn&apos;t available yet (Anthropic limitation — hooks don&apos;t fire here). You still get tool-call capture via MCP, which is the bulk of what&apos;s useful. For full conversation capture, use Claude Code (CLI).
+              Note: on Cowork, conversation-turn capture isn&apos;t available yet (Anthropic limitation — hooks don&apos;t fire here). You still get tool-call capture via MCP, which is the bulk of what&apos;s useful. For full conversation capture, switch to Claude Code (Desktop or CLI).
+            </p>
+          )}
+          {surface === 'chat-desktop' && (
+            <p className="text-xs text-ink-400 leading-relaxed">
+              Note: Claude chat (Desktop) has no plugin/hook system — only MCP tool calls are captured (not your prompts or Claude&apos;s replies). For full conversation capture, switch to Claude Code (Desktop or CLI).
             </p>
           )}
           <div className="flex flex-wrap gap-3 pt-2">
@@ -288,16 +312,58 @@ function SurfaceContent({ surface, hasKey, coworkHooksLive }: { surface: Surface
     ? 'Your API key is in ~/.zshrc — the install script picks it up automatically.'
     : 'Generate an API key in Step 1 first.';
 
-  if (surface === 'cli') {
+  // ── Claude Code (Desktop) ─────────────────────────────────────────
+  // Visual install via Customize → Personal plugins. Same full-capture
+  // capability as the CLI version, but easier for non-terminal users.
+  if (surface === 'code-desktop') {
+    return (
+      <>
+        <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3 mb-4 text-xs text-ink-200 leading-relaxed">
+          <p className="font-medium text-ink-100 mb-1">⭐ Easiest path — full capture with a visual install.</p>
+          <p>
+            Plugin install via the Customize panel inside Claude Code (Desktop). Same hook-based capture as the CLI version, but with a UI you click through instead of terminal commands.
+          </p>
+        </div>
+
+        <p className="text-sm text-ink-200 mb-2 leading-relaxed">
+          <strong className="text-ink-50">A.</strong> Open <strong>Claude Code</strong> on your Mac (the visual app, not the terminal command).
+        </p>
+
+        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+          <strong className="text-ink-50">B.</strong> Click <strong>Customize</strong> in the sidebar → scroll to <strong>Personal plugins</strong>.
+        </p>
+
+        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+          <strong className="text-ink-50">C.</strong> Click <strong>+ Create plugin</strong> → choose <strong>Add marketplace</strong> (not &ldquo;Create with Claude&rdquo; — that opens a chat to build a new plugin from scratch).
+        </p>
+        <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
+
+        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+          <strong className="text-ink-50">D.</strong> You land on the <strong>Directory</strong> page. Under the <strong>Personal</strong> tab, find the <strong>Implexa</strong> tile and click to install.
+        </p>
+
+        <p className="text-xs text-ink-400 mt-4 leading-relaxed">
+          You don&apos;t need to paste your API key for this step — the plugin pulls it from your account when Claude Code talks to Implexa.
+        </p>
+
+        <p className="text-xs text-ink-400 mt-4 leading-relaxed border-t border-ink-800 pt-3">
+          <strong className="text-ink-200">Why this gets full capture:</strong> the Customize panel writes the plugin to your local config which Claude Code Desktop honors for both MCP tool calls AND user-level hooks (the conversation-turn capture path). Step 3 below installs those hooks.
+        </p>
+      </>
+    );
+  }
+
+  // ── Claude Code (CLI) ─────────────────────────────────────────────
+  if (surface === 'code-cli') {
     return (
       <>
         {/* Disambiguation callout — users frequently confuse Claude Code (CLI)
-         * with the Claude Desktop chat app. These are different products and
-         * the slash commands below ONLY work in the CLI. */}
+         * with the Claude chat app. These are different products and the slash
+         * commands below ONLY work in the CLI. */}
         <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3 mb-4 text-xs text-ink-200 leading-relaxed">
           <p className="font-medium text-ink-100 mb-1">💡 Quick clarification</p>
           <p>
-            <strong>Claude Code (CLI)</strong> is a separate app from <strong>Claude Desktop chat</strong> (the Mac app). It runs in your <strong>terminal</strong>, not in a chat window. The <code className="bg-ink-900 px-1 rounded">/plugin</code> commands below only work inside Claude Code CLI — they won&apos;t work if you paste them into Claude Desktop.
+            <strong>Claude Code (CLI)</strong> is the terminal version of Claude Code (you also have the visual Desktop app — see the previous tab). It runs in your <strong>terminal</strong>, not in a chat window. The <code className="bg-ink-900 px-1 rounded">/plugin</code> commands below only work inside Claude Code CLI — they won&apos;t work if you paste them into Claude chat (Desktop).
           </p>
         </div>
 
@@ -331,17 +397,16 @@ source ~/.zshrc`}
     );
   }
 
-  if (surface === 'desktop') {
-    // The Connector URL template — user replaces YOUR_KEY with their actual key.
-    // Anthropic's Custom Connector UI in Desktop accepts MCP-over-HTTPS endpoints,
-    // and our backend already speaks the protocol at /api/v2/mcp.
+  // ── Claude chat (Desktop) ─────────────────────────────────────────
+  // No plugin system. Custom Connector URL is the install. MCP-only capture.
+  if (surface === 'chat-desktop') {
     const connectorUrl = 'https://core.implexa.ai/api/v2/mcp?api_key=imp_live_YOUR_KEY';
     return (
       <>
         <div className="rounded-lg border border-success-400/40 bg-success-400/5 p-3 mb-3 text-xs text-ink-200 leading-relaxed">
           <p className="font-medium text-ink-100 mb-1">⚡ Fastest install — 30 seconds.</p>
           <p>
-            Desktop Chat doesn&apos;t use plugins (those are Cowork/Code only). Instead, you add Implexa as a <strong>Custom Connector</strong> — a remote MCP server. Just paste one URL with your API key in it.
+            Claude chat (Desktop) doesn&apos;t use plugins (those are Cowork + Claude Code only). Instead, you add Implexa as a <strong>Custom Connector</strong> — a remote MCP server. Just paste one URL with your API key in it.
           </p>
         </div>
         <p className="text-sm text-ink-200 mb-3 leading-relaxed">
@@ -359,31 +424,34 @@ source ~/.zshrc`}
         <details className="text-xs text-ink-300 mt-3">
           <summary className="cursor-pointer hover:text-ink-100 select-none">Already use Cowork? You probably don&apos;t need this step.</summary>
           <div className="mt-2 pl-4 leading-relaxed">
-            <p>Installing the Implexa plugin via Cowork automatically registers the Custom Connector in Desktop Chat too. So if you&apos;ve already done the Cowork install (the previous tab), Implexa should already appear in your Desktop Connectors list as <em>Implexa CUSTOM</em>.</p>
+            <p>Installing the Implexa plugin via Cowork automatically registers the Custom Connector in Claude chat too. So if you&apos;ve already done the Cowork install, Implexa should already appear in your Desktop Connectors list as <em>Implexa CUSTOM</em>.</p>
           </div>
         </details>
         <details className="text-xs text-ink-300 mt-2">
           <summary className="cursor-pointer hover:text-ink-100 select-none">What does this connector give me?</summary>
           <div className="mt-2 pl-4 leading-relaxed space-y-1">
-            <p>All 28 Implexa MCP tools — record-skill, list-org-skills, share-this, find-accounts, etc. — available via natural language in Desktop Chat.</p>
-            <p>Slash commands like <code className="bg-ink-800 px-1 rounded text-[11px]">/implexa:setup</code> don&apos;t exist on Desktop (those require the plugin system). Instead, just ask Claude things like <em>&ldquo;Implexa, show my plan&rdquo;</em> or <em>&ldquo;Implexa, record this workflow&rdquo;</em>.</p>
+            <p>All 28 Implexa MCP tools — record-skill, list-org-skills, share-this, find-accounts, etc. — available via natural language in Claude chat.</p>
+            <p>Slash commands like <code className="bg-ink-800 px-1 rounded text-[11px]">/implexa:setup</code> don&apos;t exist here (those require the plugin system). Instead, just ask Claude things like <em>&ldquo;Implexa, show my plan&rdquo;</em> or <em>&ldquo;Implexa, record this workflow&rdquo;</em>.</p>
           </div>
         </details>
       </>
     );
   }
 
-  // cowork
+  // ── Cowork (Desktop) ──────────────────────────────────────────────
+  // Plugin install via Customize panel. Hooks gap is conditional on the
+  // platform_signals.cowork_hooks_active flag (auto-flips when Anthropic
+  // ships the fix and we observe a Cowork-sourced hook event).
   return (
     <>
       <div className="rounded-lg border border-brand-500/40 bg-brand-500/5 p-3 mb-3 text-xs text-ink-200 leading-relaxed">
-        <p className="font-medium text-ink-100 mb-1">✨ Bonus: this also enables Desktop Chat.</p>
+        <p className="font-medium text-ink-100 mb-1">✨ Bonus: this also enables Claude chat.</p>
         <p>
-          Installing the Implexa plugin in Cowork automatically registers the Custom Connector in your Desktop Chat too — one install, both surfaces. No extra step for Desktop.
+          Installing the Implexa plugin in Cowork automatically registers the Custom Connector in your Claude chat (Desktop) too — one install, both surfaces. No extra step for Claude chat.
         </p>
       </div>
       <p className="text-sm text-ink-200 mb-3 leading-relaxed">
-        Open Cowork in your browser, then in the left sidebar click <strong>Customize</strong>:
+        Open the Claude Desktop app and switch to <strong>Cowork</strong>, then in the left sidebar click <strong>Customize</strong>:
       </p>
       <ol className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400">
         <li>Scroll to the <strong>Personal plugins</strong> section</li>

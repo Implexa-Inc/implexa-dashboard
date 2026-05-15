@@ -99,6 +99,101 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
 
         <InstallFlow hasKey={hasKey} keyPrefix={keyPrefix} coworkHooksLive={coworkHooksLive} />
 
+        {/* ── FAQ ─────────────────────────────────────────────────────
+         * Things that come up in real installs. Keep entries short and
+         * action-oriented — link to /settings or external repos as needed.
+         * Adding entries: prepend new ones (most recent friction first).
+         * ────────────────────────────────────────────────────────── */}
+        <section className="mt-16 max-w-3xl mx-auto">
+          <h2 className="text-xs uppercase tracking-wider text-ink-400 font-bold mb-3">Frequently asked</h2>
+          <div className="space-y-2">
+
+            <details className="card !p-0 group">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+                <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
+                I uninstalled + reinstalled the plugin but I&apos;m still on the old version. What gives?
+              </summary>
+              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-3 border-t border-ink-700/60">
+                <p>
+                  Claude Code keeps a local clone of the Implexa marketplace at <code className="text-xs bg-ink-800 px-1 rounded">~/.claude/plugins/marketplaces/implexa/</code>. It doesn&apos;t auto-pull on reinstall — so you get whatever version that local clone was last synced to.
+                </p>
+                <p>
+                  <strong className="text-ink-100">Quick fix</strong>, in your terminal:
+                </p>
+                <pre className="bg-ink-950 border border-ink-700 rounded-md p-3 text-xs text-ink-100 font-mono overflow-x-auto">cd ~/.claude/plugins/marketplaces/implexa && git pull origin main</pre>
+                <p>
+                  Then reinstall the plugin (Customize → Personal plugins → uninstall + reinstall, OR CLI <code className="text-xs bg-ink-800 px-1 rounded">/plugin install implexa@implexa</code>). You&apos;ll get the latest version.
+                </p>
+                <p className="text-xs text-ink-400">
+                  Alternative: <code className="text-xs bg-ink-800 px-1 rounded">rm -rf ~/.claude/plugins/marketplaces/implexa</code> then re-add the marketplace from scratch.
+                </p>
+                <p className="text-xs text-ink-400">
+                  This is a Claude Code plugin-manager quirk — Anthropic should auto-pull on reinstall. We&apos;re tracking the fix.
+                </p>
+              </div>
+            </details>
+
+            <details className="card !p-0 group">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+                <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
+                Which surface should I pick if I&apos;m new to Claude Code?
+              </summary>
+              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
+                <p><strong className="text-ink-100">Claude Code (Desktop)</strong> if you want a visual install with full capture. Click through the Customize panel, no terminal commands.</p>
+                <p><strong className="text-ink-100">Claude Code (CLI)</strong> if you live in a terminal and prefer slash-command installs.</p>
+                <p>Both give you identical capability: plugin slash commands like <code className="text-xs bg-ink-800 px-1 rounded">/implexa:record-skill</code>, full hook capture (prompts + tool calls + responses), and the complete 30+ MCP tool surface.</p>
+                <p className="text-xs text-ink-400">Cowork and Claude chat are for non-coding workflows. Skills you save in any surface are available across all of them.</p>
+              </div>
+            </details>
+
+            <details className="card !p-0 group">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+                <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
+                Do I need to install Implexa on every Claude surface?
+              </summary>
+              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
+                <p>
+                  No. Pick whichever surface you actually use day-to-day. Your skill library lives in our cloud — it&apos;s shared across all surfaces you install on, and surfaces you don&apos;t install on simply don&apos;t have local plugin commands.
+                </p>
+                <p className="text-xs text-ink-400">
+                  Tip: Cowork install also auto-registers Implexa as a Connector in Claude chat (Desktop). One install, two surfaces.
+                </p>
+              </div>
+            </details>
+
+            <details className="card !p-0 group">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+                <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
+                Why doesn&apos;t Cowork get full capture?
+              </summary>
+              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
+                <p>
+                  Anthropic&apos;s Cowork sandbox currently doesn&apos;t invoke user-level hooks the way Claude Code does. We&apos;ve reported the issue. Until they ship the fix, Cowork captures MCP tool calls (the bulk of useful data) but not conversation turns.
+                </p>
+                <p>
+                  We&apos;ll detect the moment the fix lands automatically — the install page will flip itself to show hooks installation for Cowork too.
+                </p>
+                <p className="text-xs text-ink-400">
+                  Want full capture today? Use Claude Code (Desktop or CLI).
+                </p>
+              </div>
+            </details>
+
+            <details className="card !p-0 group">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+                <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
+                Where do I find / regenerate my API key?
+              </summary>
+              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed border-t border-ink-700/60">
+                <p>
+                  <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Settings → API keys</Link>. You can list, copy, rotate, or revoke from there.
+                </p>
+              </div>
+            </details>
+
+          </div>
+        </section>
+
         <footer className="mt-12 text-center text-xs text-ink-400 max-w-xl mx-auto leading-relaxed">
           <p>
             Whichever surface you pick, Implexa captures every prompt + tool call during a recording via host hooks.
