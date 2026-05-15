@@ -20,39 +20,61 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
   async function provision(joinOrgId: string | null) {
     setError(null);
     setLoading(joinOrgId ? 'join' : 'fresh');
-    try {
-      await callBackend('/api/v2/auth/provision', {
-        jwt, method: 'POST',
-        body: { displayName, joinOrgId },
-      });
-      // If the user is being routed to a specific destination (e.g. share-link
-      // install flow), respect that. Otherwise prime them via /install first
-      // — a brand-new user has zero plugin/connector wired to Claude, so
-      // dropping them on /skills (the library) before /install is hostile
-      // (they'd see skills they can't run). The /install page reads the
-      // ?welcome= flag to render a context-appropriate banner. Joining an
-      // existing org also skips role pick — they inherit the team library.
-      const destination = next
-        ? next
-        : joinOrgId
-          ? '/install?welcome=joined'
-          : '/onboarding/role';
-      router.push(destination);
-      // Safety net: if router.push silently fails to navigate (network blip,
-      // race with auth-cookie refresh, etc.), force a hard navigation after
-      // 2s so the user isn't stuck staring at a "Joining…" button forever.
-      // The provision call already succeeded — they just need to GET to the
-      // destination.
-      setTimeout(() => {
-        if (typeof window !== 'undefined' && window.location.pathname === '/onboarding') {
-          window.location.href = destination;
+
+    // The provision call is idempotent on the backend (joining an org with
+    // an already-assigned user is a no-op; provisioning a fresh workspace
+    // for someone who already has one returns their existing org). So we
+    // can safely auto-retry once on transient errors (network blip, ECS
+    // cold-start timeout) without risking double-provisioning state.
+    const MAX_ATTEMPTS = 2;
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        await callBackend('/api/v2/auth/provision', {
+          jwt, method: 'POST',
+          body: { displayName, joinOrgId },
+        });
+        lastError = null;
+        break;
+      } catch (err) {
+        lastError = err;
+        if (attempt < MAX_ATTEMPTS) {
+          // Brief delay before retry — gives the backend / network time to
+          // settle. 500ms is small enough that users don't perceive it as
+          // a freeze.
+          await new Promise((r) => setTimeout(r, 500));
         }
-      }, 2000);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Provisioning failed';
+      }
+    }
+
+    if (lastError) {
+      const message = lastError instanceof Error ? lastError.message : 'Provisioning failed';
       setError(message);
       setLoading(null);
+      return;
     }
+
+    // Success path: route through /install first (a brand-new user has zero
+    // plugin/connector wired to Claude, so /skills before /install would
+    // show skills they can't run). The /install page reads ?welcome= to
+    // render the right banner. Joining an existing org skips role pick —
+    // they inherit the team library.
+    const destination = next
+      ? next
+      : joinOrgId
+        ? '/install?welcome=joined'
+        : '/onboarding/role';
+    router.push(destination);
+    // Safety net: if router.push silently fails to navigate (network blip,
+    // race with auth-cookie refresh, etc.), force a hard navigation after
+    // 2s so the user isn't stuck staring at a "Joining…" button forever.
+    // The provision call already succeeded — they just need to GET to the
+    // destination.
+    setTimeout(() => {
+      if (typeof window !== 'undefined' && window.location.pathname === '/onboarding') {
+        window.location.href = destination;
+      }
+    }, 2000);
   }
 
   if (!suggestion) {
@@ -62,7 +84,13 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
         <p className="text-sm text-ink-500">
           We'll set up a fresh workspace for <strong>{email}</strong>. You can invite teammates anytime.
         </p>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <div className="rounded-lg border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-700 dark:text-red-400 leading-relaxed">
+            <p className="font-medium mb-0.5">Setup didn&apos;t go through</p>
+            <p className="text-xs opacity-90">{error}</p>
+            <p className="text-xs mt-1.5 opacity-70">Try again — most setup hiccups are transient and clear on retry.</p>
+          </div>
+        )}
         <button onClick={() => provision(null)} disabled={loading === 'fresh'} className="btn-primary w-full">
           {loading === 'fresh' ? 'Setting up…' : 'Continue to my workspace'}
         </button>
