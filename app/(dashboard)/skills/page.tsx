@@ -52,7 +52,7 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
   // anyone in the org has shared, regardless of public-or-team scope).
   const { data: skills } = await supabase
     .from('org_skills')
-    .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags, created_by, organization_id')
+    .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags, created_by, organization_id, forked_from_skill_id')
     .in('status', ['active', 'draft'])
     .in('scope', ['org', 'private', 'system'])
     .order('created_at',   { ascending: false })
@@ -65,7 +65,7 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
   // visible to every user. Capped at 50 to keep the page tight.
   const { data: universalSkillsRaw } = await supabase
     .from('org_skills')
-    .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags, created_by, organization_id')
+    .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags, created_by, organization_id, forked_from_skill_id')
     .in('status', ['active'])  // only active universals (no drafts in public listing)
     .eq('scope', 'universal')
     .order('usage_count', { ascending: false, nullsFirst: false })

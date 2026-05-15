@@ -49,6 +49,15 @@ type Skill = {
   tags:            string[] | null;
   created_by?:     { userId?: string; displayName?: string } | null;
   organization_id?: string;
+  /**
+   * If non-null, this skill is a fork of another skill. When a user edits a
+   * fork for the first time, `promoteFromFork` clears this column (the fork
+   * becomes a freshly-authored skill, stamped under the editor). So a
+   * non-null value here means "the user has the skill in their library but
+   * hasn't yet customized it — it's still a pristine copy of the source."
+   * Excluded from the "Your skills" bucket below.
+   */
+  forked_from_skill_id?: string | null;
 };
 
 type TabId = 'yours' | 'org' | 'trending' | 'base';
@@ -212,13 +221,19 @@ export default function SkillsLibrary({
 
     for (const s of all.values()) {
       const isMine    = s.created_by?.userId === currentUserId;
+      const isPristineFork = !!s.forked_from_skill_id;                                       // forked_from cleared on first edit
       const isMyOrg   = s.organization_id === currentOrgId;
       const isOrgScope       = s.scope === 'org';
       const isUniversalScope = s.scope === 'universal';
       const isSystemScope    = s.scope === 'system';
 
-      // Your skills: anything you authored, regardless of scope
-      if (isMine) yours.push(s);
+      // Your skills: skills you actually authored — either from scratch
+      // (record-skill / save-this) OR forks you've customized. Pristine
+      // role-pack forks are excluded — they technically have `created_by`
+      // set to the forker but represent "borrowed copies," not your work.
+      // The forked_from_skill_id column is cleared on first edit via
+      // `promoteFromFork`, so edited forks correctly land here.
+      if (isMine && !isPristineFork) yours.push(s);
 
       // Org-wide: scope=org OR scope=universal, in your own org. This
       // is "what your team has access to" — includes both your shared
