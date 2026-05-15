@@ -350,7 +350,11 @@ function SurfaceContent({ surface, hasKey, coworkHooksLive }: { surface: Surface
 
         <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
           <strong className="text-ink-50">C.</strong> Click{' '}
-          <HoverImageHint src="/img/install/create-plugin.png" alt="The + Create plugin → Add marketplace menu in Personal plugins">
+          <HoverImageHint
+            src="/img/install/create-plugin.png"
+            alt="The + Create plugin → Add marketplace menu in Personal plugins"
+            width="w-[520px]"
+          >
             <strong>+ Create plugin</strong>
           </HoverImageHint>
           {' '}→ choose <strong>Add marketplace</strong> (not &ldquo;Create with Claude&rdquo; — that opens a chat to build a new plugin from scratch).
@@ -470,12 +474,23 @@ source ~/.zshrc`}
         </p>
       </div>
       <p className="text-sm text-ink-200 mb-3 leading-relaxed">
-        Open the Claude Desktop app and switch to <strong>Cowork</strong>, then in the left sidebar click <strong>Customize</strong>:
+        Open the Claude Desktop app and switch to <strong>Cowork</strong>, then in the left sidebar click{' '}
+        <HoverImageHint src="/img/install/customize.png" alt="The Customize button in the Claude Code sidebar — same UI in Cowork">
+          <strong>Customize</strong>
+        </HoverImageHint>:
       </p>
       <ol className="text-sm text-ink-200 mb-3 pl-5 space-y-1.5 list-decimal marker:text-ink-400">
         <li>Scroll to the <strong>Personal plugins</strong> section</li>
         <li>
-          Click <strong>+ Create plugin</strong>, then choose <strong>Add marketplace</strong>
+          Click{' '}
+          <HoverImageHint
+            src="/img/install/create-plugin.png"
+            alt="The + Create plugin → Add marketplace menu — same UI as Code (Desktop)"
+            width="w-[520px]"
+          >
+            <strong>+ Create plugin</strong>
+          </HoverImageHint>
+          , then choose <strong>Add marketplace</strong>
           <span className="block text-xs text-ink-400 mt-0.5">
             ⚠ Don&apos;t click <em>&ldquo;Create with Claude&rdquo;</em> — that opens a chat to build a new plugin from scratch.
           </span>
@@ -567,19 +582,35 @@ function Section({ number, title, subtitle, children, done, required }: { number
  * Image files live in /public/img/install/ — see footnote at the
  * bottom of this file for the expected paths.
  */
-function HoverImageHint({ children, src, alt }: { children: React.ReactNode; src: string; alt: string }) {
+function HoverImageHint({
+  children,
+  src,
+  alt,
+  width = 'w-96',
+}: {
+  children: React.ReactNode;
+  src: string;
+  alt: string;
+  /**
+   * Tailwind width class for the popover. Default w-96 (384px) reads well
+   * for typical 2:1-ish screenshots. Override to w-[480px] or larger when
+   * the image is text-heavy or has nested panels — making the source pixels
+   * crisp at the display size is what kills graininess.
+   */
+  width?: string;
+}) {
   return (
     <span className="group relative inline cursor-help underline decoration-dotted decoration-ink-500 underline-offset-2">
       {children}
       <span className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 pointer-events-none">
         {/* Plain <img> not <Image> — these are static UI screenshots and we
-         * want zero loader chrome / overhead. Constrain max width so the
-         * popover doesn't blow past the viewport on narrow screens. */}
+         * want zero loader chrome / overhead. max-w-[90vw] keeps the popover
+         * inside the viewport on narrow screens. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt={alt}
-          className="w-72 max-w-[80vw] rounded-md shadow-2xl border border-ink-700 bg-ink-950"
+          className={`${width} max-w-[90vw] rounded-md shadow-2xl border border-ink-700 bg-ink-950`}
         />
       </span>
     </span>
