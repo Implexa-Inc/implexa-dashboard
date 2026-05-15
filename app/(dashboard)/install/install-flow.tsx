@@ -146,7 +146,7 @@ export default function InstallFlow({
          * content callout that follows. Underline tabs are lightweight,
          * still convey active state clearly, and let the selected
          * surface's longer description live in a single line below. */}
-        <div className="border-b border-ink-700 mb-3">
+        <div className="border-b border-ink-700 mt-6 mb-3">
           <div className="flex flex-wrap gap-x-6 gap-y-2 -mb-px">
             {SURFACES.map((s) => {
               // Claude Code surfaces (Desktop + CLI) and Cowork still install
@@ -341,11 +341,19 @@ function SurfaceContent({ surface, hasKey, coworkHooksLive }: { surface: Surface
         </p>
 
         <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
-          <strong className="text-ink-50">B.</strong> Click <strong>Customize</strong> in the sidebar → scroll to <strong>Personal plugins</strong>.
+          <strong className="text-ink-50">B.</strong> Click{' '}
+          <HoverImageHint src="/img/install/customize.png" alt="The Customize button in the Claude Code sidebar">
+            <strong>Customize</strong>
+          </HoverImageHint>
+          {' '}in the sidebar → scroll to <strong>Personal plugins</strong>.
         </p>
 
         <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
-          <strong className="text-ink-50">C.</strong> Click <strong>+ Create plugin</strong> → choose <strong>Add marketplace</strong> (not &ldquo;Create with Claude&rdquo; — that opens a chat to build a new plugin from scratch).
+          <strong className="text-ink-50">C.</strong> Click{' '}
+          <HoverImageHint src="/img/install/create-plugin.png" alt="The + Create plugin → Add marketplace menu in Personal plugins">
+            <strong>+ Create plugin</strong>
+          </HoverImageHint>
+          {' '}→ choose <strong>Add marketplace</strong> (not &ldquo;Create with Claude&rdquo; — that opens a chat to build a new plugin from scratch).
         </p>
         <CodeBlock code="https://github.com/Implexa-Inc/implexa-claude-plugin" oneLine />
 
@@ -542,6 +550,39 @@ function Section({ number, title, subtitle, children, done, required }: { number
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * Inline word/phrase with a screenshot popover on hover — used in the
+ * Code (Desktop) install steps to show users exactly where each button
+ * lives in the Claude Code UI. The trigger word gets a dotted underline
+ * + help cursor so people know to hover.
+ *
+ * On touch devices (no hover), the underline still hints at additional
+ * context. We could add a click-to-toggle behaviour later if needed,
+ * but for launch the hover-only pattern is enough — most users on the
+ * install page are on a Mac with a pointer.
+ *
+ * Image files live in /public/img/install/ — see footnote at the
+ * bottom of this file for the expected paths.
+ */
+function HoverImageHint({ children, src, alt }: { children: React.ReactNode; src: string; alt: string }) {
+  return (
+    <span className="group relative inline cursor-help underline decoration-dotted decoration-ink-500 underline-offset-2">
+      {children}
+      <span className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 pointer-events-none">
+        {/* Plain <img> not <Image> — these are static UI screenshots and we
+         * want zero loader chrome / overhead. Constrain max width so the
+         * popover doesn't blow past the viewport on narrow screens. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt}
+          className="w-72 max-w-[80vw] rounded-md shadow-2xl border border-ink-700 bg-ink-950"
+        />
+      </span>
+    </span>
   );
 }
 
