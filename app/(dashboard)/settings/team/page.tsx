@@ -74,7 +74,7 @@ export default async function TeamSettingsPage() {
         </header>
 
         {/* Plan strip — shows current usage of the 3-skill org-share cap */}
-        <div className="card mb-6 !bg-brand-50 !border-brand-500/30">
+        <div className="card mb-6 !bg-gradient-to-r !from-brand-500/10 !to-brand-500/5 !border-brand-500/40">
           <div className="flex items-start gap-3">
             <div className="text-xl shrink-0" aria-hidden="true">👥</div>
             <div className="flex-1">
