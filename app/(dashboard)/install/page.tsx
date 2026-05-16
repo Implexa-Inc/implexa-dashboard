@@ -13,6 +13,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { callBackend } from '@/lib/api';
 import InstallFlow from './install-flow';
 import { Logo } from '@/components/logo';
 
@@ -39,6 +40,29 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
 
   const hasKey    = (keys || []).length > 0;
   const keyPrefix = keys?.[0]?.key_prefix || null;
+
+  // Mint a fresh install token for the pre-baked curl command. Each visit
+  // gets its own 10-min one-time-use token. The script redeems it for a
+  // fresh API key — zero manual key handling for the user.
+  //
+  // Failure mode is non-fatal: if the mint fails (backend down, etc.),
+  // we render the install flow without the pre-baked curl, falling back
+  // to the manual-key path. The InstallFlow component handles either.
+  let installToken: string | null = null;
+  let installCurl:  string | null = null;
+  try {
+    const tokenResp = await callBackend('/api/v2/install-tokens', {
+      jwt:    session.access_token,
+      method: 'POST',
+    });
+    if (tokenResp?.token) {
+      installToken = tokenResp.token;
+      const apiBase = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai').replace(/\/$/, '');
+      installCurl = `curl -fsSL "${apiBase}/install.sh?t=${tokenResp.token}" | bash`;
+    }
+  } catch (_) {
+    // Silent fallback — install page still works without the token.
+  }
 
   // Platform-fix detection: has Anthropic shipped the Cowork hooks fix?
   // Backed by the platform_signals table — populated server-side the
@@ -92,7 +116,12 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           </p>
         </header>
 
-        <InstallFlow hasKey={hasKey} keyPrefix={keyPrefix} coworkHooksLive={coworkHooksLive} />
+        <InstallFlow
+          hasKey={hasKey}
+          keyPrefix={keyPrefix}
+          coworkHooksLive={coworkHooksLive}
+          installCurl={installCurl}
+        />
 
         {/* ── FAQ ─────────────────────────────────────────────────────
          * Things that come up in real installs. Keep entries short and

@@ -30,6 +30,7 @@ export default function InstallFlow({
   hasKey,
   keyPrefix,
   coworkHooksLive = false,
+  installCurl    = null,
 }: {
   hasKey:           boolean;
   keyPrefix:        string | null;
@@ -42,6 +43,13 @@ export default function InstallFlow({
    *   - Verify step drops the "conversation-turn capture not available" caveat
    */
   coworkHooksLive?: boolean;
+  /**
+   * Pre-baked curl command containing a one-time-use install token. The
+   * install script the curl downloads redeems the token for a fresh API
+   * key — zero manual key handling. When null (token mint failed, rare),
+   * the CLI section falls back to the manual API-key prompt flow.
+   */
+  installCurl?:    string | null;
 }) {
   // Default to Claude Code (Desktop): plugin install via Customize is the
   // most accessible path AND it supports full capture (hooks fire there).
@@ -196,7 +204,7 @@ export default function InstallFlow({
         </p>
 
         {/* Surface-specific content */}
-        <SurfaceContent surface={surface} hasKey={hasKey} coworkHooksLive={coworkHooksLive} />
+        <SurfaceContent surface={surface} hasKey={hasKey} coworkHooksLive={coworkHooksLive} installCurl={installCurl} />
       </Section>
 
       {/* ── Step 3 (CLI only): Setup hooks ───────────────────────────── */}
@@ -324,7 +332,7 @@ export default function InstallFlow({
   );
 }
 
-function SurfaceContent({ surface, hasKey, coworkHooksLive }: { surface: Surface; hasKey: boolean; coworkHooksLive: boolean }) {
+function SurfaceContent({ surface, hasKey, coworkHooksLive, installCurl }: { surface: Surface; hasKey: boolean; coworkHooksLive: boolean; installCurl: string | null }) {
   const apiKeyHint = hasKey
     ? 'Your API key is in ~/.zshrc — the install script picks it up automatically.'
     : 'Generate an API key in Step 1 first.';
@@ -396,25 +404,63 @@ function SurfaceContent({ surface, hasKey, coworkHooksLive }: { surface: Surface
           </p>
         </div>
 
-        {/* Step A — set API key in terminal */}
-        <p className="text-sm text-ink-200 mb-2 leading-relaxed">
-          <strong className="text-ink-50">A.</strong> Open <strong>Terminal</strong> on your Mac (<em>Cmd+Space</em>, type <em>terminal</em>, Enter). Then paste this to save your API key:
-        </p>
-        <CodeBlock
-          code={`echo 'export IMPLEXA_API_KEY="<paste your imp_live_... key>"' >> ~/.zshrc
+        {installCurl ? (
+          // ── Pre-baked curl path (passwordless install) ────────────────
+          <>
+            <p className="text-sm text-ink-200 mb-2 leading-relaxed">
+              <strong className="text-ink-50">A.</strong> Open <strong>Terminal</strong> on your Mac (<em>Cmd+Space</em>, type <em>terminal</em>, Enter). Then paste this <strong>one command</strong> — it installs everything (API key, dependencies, hooks):
+            </p>
+            <CodeBlock code={installCurl} oneLine />
+            <p className="text-[11px] text-ink-400 mt-2 leading-relaxed">
+              The token in the URL is single-use and expires in 10 minutes — refresh this page if you wait too long.
+            </p>
+            <details className="text-[11px] text-ink-400 mt-2">
+              <summary className="cursor-pointer hover:text-ink-200 select-none">What does this script do? (details)</summary>
+              <ul className="mt-2 pl-4 list-disc space-y-1 leading-relaxed">
+                <li>Redeems the install token → mints a fresh API key for your account</li>
+                <li>Saves it to <code className="text-[10px] bg-ink-800 px-1 rounded">~/.claude/implexa.env</code> (chmod 600)</li>
+                <li>Installs <strong>jq</strong> + <strong>Node.js</strong> via Homebrew if missing</li>
+                <li>Patches <code className="text-[10px] bg-ink-800 px-1 rounded">~/.claude/settings.json</code> to register hooks</li>
+                <li>Registers the MCP server in <code className="text-[10px] bg-ink-800 px-1 rounded">claude_desktop_config.json</code></li>
+                <li>Runs a smoke test to verify the chain works</li>
+              </ul>
+            </details>
+            <details className="text-[11px] text-ink-400 mt-2">
+              <summary className="cursor-pointer hover:text-ink-200 select-none">Prefer manual setup with your own API key?</summary>
+              <div className="mt-2 pl-4 space-y-2 leading-relaxed">
+                <p>Set your API key in <code className="text-[10px] bg-ink-800 px-1 rounded">~/.zshrc</code> and run the install script directly:</p>
+                <CodeBlock
+                  code={`echo 'export IMPLEXA_API_KEY="<paste your imp_live_... key>"' >> ~/.zshrc
+source ~/.zshrc
+curl -fsSL https://raw.githubusercontent.com/Implexa-Inc/implexa-claude-plugin/main/scripts/install-user-hooks.sh | bash`}
+                />
+                <p className="text-ink-500">Generate keys at <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Settings → API keys</Link>.</p>
+              </div>
+            </details>
+          </>
+        ) : (
+          // ── Fallback: token mint failed, manual API-key flow ──────────
+          <>
+            <p className="text-sm text-ink-200 mb-2 leading-relaxed">
+              <strong className="text-ink-50">A.</strong> Open <strong>Terminal</strong> on your Mac (<em>Cmd+Space</em>, type <em>terminal</em>, Enter). Then paste this to save your API key:
+            </p>
+            <CodeBlock
+              code={`echo 'export IMPLEXA_API_KEY="<paste your imp_live_... key>"' >> ~/.zshrc
 source ~/.zshrc`}
-        />
+            />
+          </>
+        )}
 
         {/* Step B — launch Claude Code */}
-        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
+        <p className="text-sm text-ink-200 mt-5 mb-2 leading-relaxed">
           <strong className="text-ink-50">B.</strong> In the same terminal, launch Claude Code by typing <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> and pressing Enter. You&apos;ll see Claude Code start up — this is its own interactive session (you&apos;ll see a prompt like <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">{'>'}</code>).
         </p>
 
-        {/* Step C — install plugin inside Claude Code.
-         * Two SEPARATE CodeBlocks so users have to click Copy twice.
-         * Pasting both commands at once previously caused a "Malformed
-         * URL" error in some terminal/Claude Code setups — the newline
-         * got eaten and the two commands concatenated into one URL. */}
+        {/* Step C — install plugin inside Claude Code. Two separate
+         * CodeBlocks so users have to click Copy twice. Pasting both
+         * commands at once caused a "Malformed URL" error in some
+         * terminal/Claude Code setups — the newline got eaten and the
+         * two commands concatenated into one URL. */}
         <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
           <strong className="text-ink-50">C.</strong> Now you&apos;re <em>inside Claude Code</em>. Run these two commands <strong>one at a time</strong> — paste the first, hit Enter, wait for the confirmation, then paste the second:
         </p>
@@ -437,7 +483,7 @@ source ~/.zshrc`}
         </p>
 
         <p className="text-xs text-ink-400 mt-4 leading-relaxed border-t border-ink-800 pt-3">
-          <strong className="text-ink-200">Why Claude Code CLI is the best surface:</strong> plugin hooks fire natively here — this is the only surface today with full conversation-turn capture (the killer feature). Step 3 below installs those hooks.
+          <strong className="text-ink-200">Why Claude Code CLI is the best surface:</strong> plugin hooks fire natively here — this is the only surface today with full conversation-turn capture (the killer feature). The Step A script installs those hooks automatically.
         </p>
       </>
     );
