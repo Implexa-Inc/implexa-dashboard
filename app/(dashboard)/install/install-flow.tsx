@@ -77,22 +77,28 @@ export default function InstallFlow({
     }
   }, []);
 
-  // Hooks (Step 3) fires reliably wherever Claude Code runs — both the
-  // Desktop UI version and the CLI version. The user-level hooks installer
-  // writes to ~/.claude/settings.json which both honor.
+  // Hooks (Step 3) fires reliably wherever Claude Code runs. The hooks
+  // installer writes to ~/.claude/settings.json which both Desktop and CLI
+  // honor.
   //
-  // Cowork (Desktop): Cowork historically did NOT invoke user-level hooks
-  // (Anthropic platform issue). The platform_signals table flips this
-  // automatically the moment we observe a hook event from a Cowork
-  // user-agent (= Anthropic shipped the fix).
+  // For code-cli specifically: Step A's pre-baked curl IS the hooks installer
+  // (it ALSO installs hooks + the plugin in one go). So we hide the separate
+  // Step 3 for CLI users — it would just re-run the same script redundantly.
   //
-  // Claude chat (Desktop): no plugin system at all (uses Custom Connector URL).
+  // For code-desktop: the user installs the plugin via Customize UI which
+  // doesn't touch ~/.claude/settings.json, so Step 3 still does the hooks
+  // work separately.
+  //
+  // Cowork (Desktop): historically didn't invoke user-level hooks
+  // (Anthropic platform issue). platform_signals.cowork_hooks_active flips
+  // this automatically when we observe a hook event from a Cowork user-agent.
+  //
+  // Claude chat (Desktop): no plugin system (uses Custom Connector URL).
   //
   // Windows: the bash hooks installer doesn't work (launchctl + brew + macOS
-  // paths). Hide the hooks step entirely until we ship a PowerShell installer.
+  // paths). Hide entirely until we ship a PowerShell installer.
   const showHooksStep = (
     surface === 'code-desktop' ||
-    surface === 'code-cli' ||
     (surface === 'cowork' && coworkHooksLive)
   ) && os !== 'windows';
   const isWindows = os === 'windows';
@@ -269,7 +275,7 @@ export default function InstallFlow({
         <div className="space-y-3">
           <p className="text-sm text-ink-200 leading-relaxed">
             {surface === 'code-cli'
-              ? <>Type <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/exit</code> to leave Claude Code, then run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> in your terminal again so it picks up the new config.</>
+              ? <>If you launched <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> in Step B, you&apos;re already there — skip ahead. If Claude Code was already running before the curl, type <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/exit</code> and relaunch <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> so it picks up the new plugin.</>
               : surface === 'code-desktop'
               ? <>Fully quit Claude Code with <strong>Cmd+Q</strong> (not just close the window), then relaunch.</>
               : surface === 'cowork'
@@ -405,10 +411,10 @@ function SurfaceContent({ surface, hasKey, coworkHooksLive, installCurl }: { sur
         </div>
 
         {installCurl ? (
-          // ── Pre-baked curl path (passwordless install) ────────────────
+          // ── Pre-baked curl path (passwordless one-paste install) ──────
           <>
             <p className="text-sm text-ink-200 mb-2 leading-relaxed">
-              <strong className="text-ink-50">A.</strong> Open <strong>Terminal</strong> on your Mac (<em>Cmd+Space</em>, type <em>terminal</em>, Enter). Then paste this <strong>one command</strong> — it installs everything (API key, dependencies, hooks):
+              <strong className="text-ink-50">A.</strong> Open <strong>Terminal</strong> on your Mac (<em>Cmd+Space</em>, type <em>terminal</em>, Enter). Then paste this <strong>one command</strong> — it does everything: API key, dependencies, hooks, <em>and</em> the plugin itself.
             </p>
             <CodeBlock code={installCurl} oneLine />
             <p className="text-[11px] text-ink-400 mt-2 leading-relaxed">
@@ -422,6 +428,7 @@ function SurfaceContent({ surface, hasKey, coworkHooksLive, installCurl }: { sur
                 <li>Installs <strong>jq</strong> + <strong>Node.js</strong> via Homebrew if missing</li>
                 <li>Patches <code className="text-[10px] bg-ink-800 px-1 rounded">~/.claude/settings.json</code> to register hooks</li>
                 <li>Registers the MCP server in <code className="text-[10px] bg-ink-800 px-1 rounded">claude_desktop_config.json</code></li>
+                <li>Installs the <strong>Implexa plugin</strong> into Claude Code (skills + slash commands)</li>
                 <li>Runs a smoke test to verify the chain works</li>
               </ul>
             </details>
@@ -451,39 +458,39 @@ source ~/.zshrc`}
           </>
         )}
 
-        {/* Step B — launch Claude Code */}
+        {/* Step B — launch Claude Code. Plugin is already installed by Step A's
+         * script so there's no third step inside Claude Code anymore. */}
         <p className="text-sm text-ink-200 mt-5 mb-2 leading-relaxed">
-          <strong className="text-ink-50">B.</strong> In the same terminal, launch Claude Code by typing <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> and pressing Enter. You&apos;ll see Claude Code start up — this is its own interactive session (you&apos;ll see a prompt like <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">{'>'}</code>).
+          <strong className="text-ink-50">B.</strong> Launch Claude Code by typing <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> in the same terminal and pressing Enter. The Implexa plugin is already installed — run <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">/implexa:setup</code> to verify, and you&apos;re ready.
+        </p>
+        <p className="text-[11px] text-ink-400 mt-1 leading-relaxed">
+          Already had Claude Code open? Fully quit it (Cmd+Q) and relaunch — plugins load on startup.
         </p>
 
-        {/* Step C — install plugin inside Claude Code. Two separate
-         * CodeBlocks so users have to click Copy twice. Pasting both
-         * commands at once caused a "Malformed URL" error in some
-         * terminal/Claude Code setups — the newline got eaten and the
-         * two commands concatenated into one URL. */}
-        <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
-          <strong className="text-ink-50">C.</strong> Now you&apos;re <em>inside Claude Code</em>. Run these two commands <strong>one at a time</strong> — paste the first, hit Enter, wait for the confirmation, then paste the second:
-        </p>
-
-        <p className="text-[11px] text-ink-400 mt-3 mb-1 leading-relaxed">
-          <strong className="text-ink-200">1.</strong> Add the marketplace:
-        </p>
-        <CodeBlock code={PLUGIN_MARKETPLACE_CMD} oneLine />
-
-        <p className="text-[11px] text-ink-400 mt-3 mb-1 leading-relaxed">
-          <strong className="text-ink-200">2.</strong> Install the plugin (only after step 1 confirms):
-        </p>
-        <CodeBlock code={PLUGIN_INSTALL_CMD} oneLine />
-
-        <p className="text-[11px] text-ink-400 mt-3 leading-relaxed">
-          You&apos;ll see Claude Code confirm each command (<em>&ldquo;Added marketplace…&rdquo;</em>, then <em>&ldquo;Installed implexa…&rdquo;</em>). If you get a permission prompt, choose <strong>Allow</strong>.
-        </p>
-        <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-2 leading-relaxed">
-          ⚠ Don&apos;t paste both commands at once — some terminals eat the newline between them and you&apos;ll see a &ldquo;Malformed URL&rdquo; error. Copy + paste each one separately.
-        </p>
+        {/* Manual fallback — collapsed by default. The Step A script installs
+         * the plugin automatically; this is the escape hatch if that step
+         * fails for any reason (e.g. older Claude Code that changes the
+         * internal plugin storage format). */}
+        <details className="text-[11px] text-ink-400 mt-4">
+          <summary className="cursor-pointer hover:text-ink-200 select-none">
+            Script didn&apos;t install the plugin? Run these two commands inside Claude Code.
+          </summary>
+          <div className="mt-2 pl-4 leading-relaxed space-y-2">
+            <p>
+              Type each command one at a time inside Claude Code (paste, Enter, wait for the confirmation, then paste the next):
+            </p>
+            <p className="text-ink-300"><strong>1.</strong> Add the marketplace:</p>
+            <CodeBlock code={PLUGIN_MARKETPLACE_CMD} oneLine />
+            <p className="text-ink-300"><strong>2.</strong> Install the plugin (only after step 1 confirms):</p>
+            <CodeBlock code={PLUGIN_INSTALL_CMD} oneLine />
+            <p className="text-amber-700 dark:text-amber-400">
+              ⚠ Run them one at a time — pasting both at once concatenates them into a malformed URL.
+            </p>
+          </div>
+        </details>
 
         <p className="text-xs text-ink-400 mt-4 leading-relaxed border-t border-ink-800 pt-3">
-          <strong className="text-ink-200">Why Claude Code CLI is the best surface:</strong> plugin hooks fire natively here — this is the only surface today with full conversation-turn capture (the killer feature). The Step A script installs those hooks automatically.
+          <strong className="text-ink-200">Why Claude Code CLI is the best surface:</strong> plugin hooks fire natively here — this is the only surface today with full conversation-turn capture (the killer feature). The Step A script installs everything you need in one paste.
         </p>
       </>
     );
