@@ -45,6 +45,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const setup = computeSetupStatus(profile.last_mcp_call_at, profile.last_hook_event_at);
 
+  // Admin check — drives the conditional Admin nav link in the sidebar.
+  // NEXT_PUBLIC_ ENV exposes the allowlist to the client (the value is non-
+  // sensitive — it's just emails). The actual admin endpoints are gated on
+  // the backend independently against ADMIN_EMAILS (no NEXT_PUBLIC prefix).
+  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
+    .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const isAdmin = adminEmails.includes((profile.email || '').toLowerCase());
+
   const userCtx = {
     displayName:       profile.display_name,
     email:             profile.email,
@@ -52,6 +60,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     isFoundingCreator: !!profile.founding_creator_unlocked_at,
     setupStatus:       setup.status,
     lastSeenAt:        setup.lastSeenAt,
+    isAdmin,
   };
 
   return (

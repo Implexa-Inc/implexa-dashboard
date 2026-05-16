@@ -42,6 +42,8 @@ type UserCtx = {
   setupStatus?: SetupStatus;
   /** ISO timestamp of last MCP/hook activity (for "last seen 3 min ago" tooltip). */
   lastSeenAt?:  string | null;
+  /** True when caller email is in NEXT_PUBLIC_ADMIN_EMAILS — shows the /admin nav link. */
+  isAdmin?:     boolean;
 };
 
 export default function Sidebar({ user }: { user: UserCtx }) {
@@ -83,6 +85,24 @@ export default function Sidebar({ user }: { user: UserCtx }) {
             </li>
           ))}
         </ul>
+
+        {/* Admin section — only shown for users in ADMIN_EMAILS env var.
+         * Internal use only (founder dashboard for launch monitoring). */}
+        {user.isAdmin && (
+          <>
+            <div className="mt-8 px-3 mb-2 text-[10px] uppercase tracking-wider text-ink-500 font-medium">Internal</div>
+            <ul className="space-y-0.5">
+              <li>
+                <NavLink
+                  href="/admin"
+                  icon="analytics"
+                  label="Admin"
+                  active={isActive({ href: '/admin', label: 'Admin', icon: 'analytics', matchPrefix: true })}
+                />
+              </li>
+            </ul>
+          </>
+        )}
       </nav>
 
       {/* User block at bottom */}
