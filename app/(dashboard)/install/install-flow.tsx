@@ -15,8 +15,14 @@ const SURFACES: Array<{ id: Surface; label: string; subtitle: string; recommende
   { id: 'chat-desktop', label: 'Chat (Desktop)', subtitle: 'Custom Connector URL — 30 sec, no plugin install' },
 ];
 
-const PLUGIN_INSTALL_CMD = `/plugin marketplace add https://github.com/Implexa-Inc/implexa-claude-plugin.git
-/plugin install implexa@implexa`;
+// Split into two commands shown as separate CodeBlocks. Pasting both at once
+// caused a "Malformed URL" error in some terminals (zsh / iTerm configs) —
+// they ate the newline and concatenated everything into one URL. Forcing
+// two separate Copy buttons makes users run them sequentially. We also use
+// the GitHub shorthand form (`Implexa-Inc/implexa-claude-plugin`) instead
+// of the full https URL — fewer characters, no .git suffix to fight with.
+const PLUGIN_MARKETPLACE_CMD = '/plugin marketplace add Implexa-Inc/implexa-claude-plugin';
+const PLUGIN_INSTALL_CMD     = '/plugin install implexa@implexa';
 
 const SETUP_HOOKS_CMD = `curl -sL https://raw.githubusercontent.com/Implexa-Inc/implexa-claude-plugin/main/scripts/install-user-hooks.sh | bash`;
 
@@ -404,13 +410,30 @@ source ~/.zshrc`}
           <strong className="text-ink-50">B.</strong> In the same terminal, launch Claude Code by typing <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">claude</code> and pressing Enter. You&apos;ll see Claude Code start up — this is its own interactive session (you&apos;ll see a prompt like <code className="bg-ink-800 px-1.5 py-0.5 rounded text-xs">{'>'}</code>).
         </p>
 
-        {/* Step C — install plugin inside Claude Code */}
+        {/* Step C — install plugin inside Claude Code.
+         * Two SEPARATE CodeBlocks so users have to click Copy twice.
+         * Pasting both commands at once previously caused a "Malformed
+         * URL" error in some terminal/Claude Code setups — the newline
+         * got eaten and the two commands concatenated into one URL. */}
         <p className="text-sm text-ink-200 mt-4 mb-2 leading-relaxed">
-          <strong className="text-ink-50">C.</strong> Now you&apos;re <em>inside Claude Code</em>. Type these two commands (one at a time, hit Enter after each):
+          <strong className="text-ink-50">C.</strong> Now you&apos;re <em>inside Claude Code</em>. Run these two commands <strong>one at a time</strong> — paste the first, hit Enter, wait for the confirmation, then paste the second:
         </p>
-        <CodeBlock code={PLUGIN_INSTALL_CMD} />
-        <p className="text-[11px] text-ink-400 mt-2 leading-relaxed">
-          You&apos;ll see Claude Code confirm each command (<em>&ldquo;Added marketplace…&rdquo;</em>, <em>&ldquo;Installed implexa…&rdquo;</em>). If you get a permission prompt, choose <strong>Allow</strong>.
+
+        <p className="text-[11px] text-ink-400 mt-3 mb-1 leading-relaxed">
+          <strong className="text-ink-200">1.</strong> Add the marketplace:
+        </p>
+        <CodeBlock code={PLUGIN_MARKETPLACE_CMD} oneLine />
+
+        <p className="text-[11px] text-ink-400 mt-3 mb-1 leading-relaxed">
+          <strong className="text-ink-200">2.</strong> Install the plugin (only after step 1 confirms):
+        </p>
+        <CodeBlock code={PLUGIN_INSTALL_CMD} oneLine />
+
+        <p className="text-[11px] text-ink-400 mt-3 leading-relaxed">
+          You&apos;ll see Claude Code confirm each command (<em>&ldquo;Added marketplace…&rdquo;</em>, then <em>&ldquo;Installed implexa…&rdquo;</em>). If you get a permission prompt, choose <strong>Allow</strong>.
+        </p>
+        <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-2 leading-relaxed">
+          ⚠ Don&apos;t paste both commands at once — some terminals eat the newline between them and you&apos;ll see a &ldquo;Malformed URL&rdquo; error. Copy + paste each one separately.
         </p>
 
         <p className="text-xs text-ink-400 mt-4 leading-relaxed border-t border-ink-800 pt-3">
