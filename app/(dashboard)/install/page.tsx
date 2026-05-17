@@ -17,7 +17,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { callBackend } from '@/lib/api';
 import InstallFlow from './install-flow';
 import HeroInstall from './hero-install';
 import { Logo } from '@/components/logo';
@@ -46,28 +45,20 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
   const hasKey    = (keys || []).length > 0;
   const keyPrefix = keys?.[0]?.key_prefix || null;
 
-  // Mint a fresh install token for the pre-baked curl command. Each visit
-  // gets its own 10-min one-time-use token. The script redeems it for a
-  // fresh API key — zero manual key handling for the user.
+  // NOTE on the install-token mint:
+  //   The /install page used to mint a 10-min single-use install token
+  //   and pre-bake it into a tokenized curl URL ("...install.sh?t=tok_..."),
+  //   so logged-in users could skip the browser Approve roundtrip on first
+  //   install. We deliberately removed that — the hero now shows the
+  //   universal `curl -fsSL https://core.implexa.ai/install.sh | bash` on
+  //   every surface (marketing site, dashboard, READMEs, share links). One
+  //   command, fully memorable + shareable, like Stripe CLI / fly.io /
+  //   entire.io. The one extra "Approve" click for logged-in users is
+  //   worth the consistency win.
   //
-  // Failure mode is non-fatal: if the mint fails (backend down, etc.),
-  // we render the install flow without the pre-baked curl, falling back
-  // to the manual-key path. The InstallFlow component handles either.
-  let installToken: string | null = null;
-  let installCurl:  string | null = null;
-  try {
-    const tokenResp = await callBackend('/api/v2/install-tokens', {
-      jwt:    session.access_token,
-      method: 'POST',
-    });
-    if (tokenResp?.token) {
-      installToken = tokenResp.token;
-      const apiBase = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai').replace(/\/$/, '');
-      installCurl = `curl -fsSL "${apiBase}/install.sh?t=${tokenResp.token}" | bash`;
-    }
-  } catch (_) {
-    // Silent fallback — install page still works without the token.
-  }
+  //   The install-token backend (POST /api/v2/install-tokens) still exists
+  //   and works — we just no longer surface it on the dashboard. Kept in
+  //   case we want it for embedded install widgets or other surfaces later.
 
   // Platform-fix detection: has Anthropic shipped the Cowork hooks fix?
   // Backed by the platform_signals table — populated server-side the
@@ -121,8 +112,8 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           </p>
         </header>
 
-        {/* HERO — the primary install path. Single curl, copy button, after-install commands. */}
-        <HeroInstall installCurl={installCurl} />
+        {/* HERO — the primary install path. Single universal curl, copy button, after-install commands. */}
+        <HeroInstall />
 
         {/* ALT SURFACES — power-user fallback. Collapsed by default so the primary flow
          * stays visually clean. Inside: full InstallFlow component with the surface tabs
@@ -142,7 +133,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
               hasKey={hasKey}
               keyPrefix={keyPrefix}
               coworkHooksLive={coworkHooksLive}
-              installCurl={installCurl}
+              installCurl={null}
             />
           </div>
         </details>

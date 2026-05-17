@@ -3,23 +3,25 @@
 import { useState } from 'react';
 
 /**
- * Hero install card — the primary CTA on /install. One curl command,
- * three follow-up commands ("after install"), and a small note about what
- * the script does. Mirrors the visual language of entire.io / fly.io install
- * pages: focused, monospace-forward, copy-buttons-everywhere.
+ * Hero install card — the primary CTA on /install.
  *
- * If installCurl is null (token mint failed for a logged-in user), we fall
- * back to the universal curl — same script, just kicks off device-auth in
- * the browser instead of redeeming the pre-baked token.
+ * Design philosophy (matches entire.io / fly.io / Stripe CLI):
+ *   - ONE universal command shown everywhere — marketing site, dashboard,
+ *     onboarding emails, README. Same line, fully memorable, shareable.
+ *   - The device-auth flow inside the script handles auth via a browser
+ *     hop. The user clicks Approve in their browser; the terminal picks
+ *     up the freshly-minted API key and continues installing.
+ *   - No tokens in the URL. No "this URL expires in 10 min." No "for
+ *     logged-in users we show a different command." Just one curl.
+ *
+ * We deliberately do NOT show the install-token curl variant (even
+ * though logged-in users could skip the Approve roundtrip with it) —
+ * the consistency win across surfaces is worth the one extra click.
  */
-export default function HeroInstall({
-  installCurl,
-}: {
-  installCurl: string | null;
-}) {
-  const heroCmd =
-    installCurl ||
-    'curl -fsSL https://core.implexa.ai/install.sh | bash';
+export default function HeroInstall() {
+  // The one and only install command. Identical on /install, marketing
+  // pages, READMEs, share links — anywhere we promote installation.
+  const HERO_CMD = 'curl -fsSL https://core.implexa.ai/install.sh | bash';
 
   return (
     <section className="mb-10">
@@ -38,17 +40,15 @@ export default function HeroInstall({
             <span className="text-ink-500">▾</span>
           </span>
           <code className="flex-1 text-sm text-ink-100 font-mono overflow-x-auto whitespace-nowrap">
-            {heroCmd}
+            {HERO_CMD}
           </code>
-          <CopyButton text={heroCmd} />
+          <CopyButton text={HERO_CMD} />
         </div>
 
         <p className="text-sm text-ink-200 leading-relaxed">
           Paste in your terminal. The script auto-installs everything:{' '}
           <strong className="text-ink-100">API key, hooks, the Implexa plugin, MCP wiring.</strong>{' '}
-          {installCurl
-            ? <>The link contains a single-use token tied to your account — expires in 10 min.</>
-            : <>Browser opens for sign-in or sign-up; approve the install and you&apos;re done.</>}
+          Your browser opens to approve the install; once you click Approve, the terminal finishes the rest.
         </p>
         <p className="text-xs text-ink-400 mt-2">Works on macOS, Linux, and Windows (WSL).</p>
       </div>
