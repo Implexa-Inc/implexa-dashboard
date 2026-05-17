@@ -66,8 +66,8 @@ export default async function SettingsHubPage() {
           <SettingsCard
             href="/settings/api-keys"
             icon="🔑"
-            title="API keys"
-            description="Generate and revoke imp_live_ keys for MCP installs."
+            title="Connected installs"
+            description="See every device/session connected to your Implexa account — revoke any you don't recognize."
           />
           <SettingsCard
             href="/integrations"

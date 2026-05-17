@@ -1,13 +1,17 @@
 /**
  * /install — connect Claude to Implexa.
  *
- * Three steps surfaced cleanly:
- *   1. Get an API key (auto-flagged if missing)
- *   2. Install the plugin in your preferred Claude surface
- *      (tabbed: Claude Code CLI / Claude Desktop / Cowork)
- *   3. Configure capture hooks (one-time curl one-liner)
+ * Hero-first design (entire.io-style power-user vibe):
+ *   - Primary: universal `curl install.sh | bash` command (one paste).
+ *     Installs API key, hooks, plugin, MCP wiring — works on macOS/Linux/WSL.
+ *   - After-install commands shown inline (`claude`, `/implexa:setup`,
+ *     `/implexa:record-skill`).
+ *   - Alt surfaces (Cowork, Desktop UI install, Chat connector) live behind
+ *     a single collapsed disclosure for users who don't run Claude Code.
  *
- * Whichever surface they pick, every command is copy-to-clipboard ready.
+ * Logged-in users get a pre-baked install-token curl (zero browser hop —
+ * fastest UX). Fallback to the universal `curl install.sh | bash` when
+ * token mint fails. Both ultimately produce a working install.
  */
 
 import Link from 'next/link';
@@ -15,6 +19,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { callBackend } from '@/lib/api';
 import InstallFlow from './install-flow';
+import HeroInstall from './hero-install';
 import { Logo } from '@/components/logo';
 
 export const dynamic = 'force-dynamic';
@@ -105,23 +110,42 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
 
   return (
     <main className="min-h-screen px-4 py-12">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         {showWelcome && welcomeBanner}
 
-        <header className="mb-10 text-center">
+        <header className="mb-8 text-center">
           <div className="mb-4 flex justify-center"><Logo height={18} /></div>
           <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Connect Claude</h1>
           <p className="text-ink-300 mt-3 leading-relaxed max-w-xl mx-auto">
-            Three steps, ~2 minutes. Same skill library + capture loop across every Claude surface.
+            One command. Installs the API key, hooks, the Implexa plugin, and MCP wiring — all in ~30 seconds.
           </p>
         </header>
 
-        <InstallFlow
-          hasKey={hasKey}
-          keyPrefix={keyPrefix}
-          coworkHooksLive={coworkHooksLive}
-          installCurl={installCurl}
-        />
+        {/* HERO — the primary install path. Single curl, copy button, after-install commands. */}
+        <HeroInstall installCurl={installCurl} />
+
+        {/* ALT SURFACES — power-user fallback. Collapsed by default so the primary flow
+         * stays visually clean. Inside: full InstallFlow component with the surface tabs
+         * (Code Desktop UI / Cowork / Chat) for users who don't run Claude Code in a
+         * terminal. The CLI tab also lives here for users who want the detailed walkthrough.
+         */}
+        <details className="card !p-0 group mt-2">
+          <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+            <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
+            <span>Don&apos;t use Claude Code? Install for <strong>Cowork</strong>, <strong>Chat</strong>, or via the visual <strong>Desktop UI</strong></span>
+          </summary>
+          <div className="px-4 pb-4 pt-2 border-t border-ink-700/60">
+            <p className="text-xs text-ink-400 mb-4 leading-relaxed">
+              Same skill library + capture loop across every Claude surface. Pick whichever you actually use day-to-day.
+            </p>
+            <InstallFlow
+              hasKey={hasKey}
+              keyPrefix={keyPrefix}
+              coworkHooksLive={coworkHooksLive}
+              installCurl={installCurl}
+            />
+          </div>
+        </details>
 
         {/* ── FAQ ─────────────────────────────────────────────────────
          * Things that come up in real installs. Keep entries short and
