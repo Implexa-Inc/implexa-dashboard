@@ -17,6 +17,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { callBackend } from '@/lib/api';
 import InstallFlow from './install-flow';
 import HeroInstall from './hero-install';
 import { Logo } from '@/components/logo';
@@ -33,32 +34,43 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
   if (!profile) redirect('/onboarding?next=/install');
 
   // Find the most-recently-created active API key (surface only the prefix —
-  // never expose the full key in HTML).
+  // never expose the full key in HTML). Last-used timestamp powers the
+  // "Connection is active" hero state when the user has an existing install.
   const { data: keys } = await supabase
     .from('api_keys')
-    .select('id, name, key_prefix, created_at')
+    .select('id, name, key_prefix, created_at, last_used_at')
     .eq('user_id', profile.id)
     .eq('status', 'active')
-    .order('created_at', { ascending: false })
+    .order('last_used_at', { ascending: false, nullsFirst: false })
     .limit(1);
 
-  const hasKey    = (keys || []).length > 0;
-  const keyPrefix = keys?.[0]?.key_prefix || null;
+  const hasKey         = (keys || []).length > 0;
+  const keyPrefix      = keys?.[0]?.key_prefix || null;
+  const lastConnected  = keys?.[0]?.last_used_at || keys?.[0]?.created_at || null;
+  const installName    = keys?.[0]?.name || null;
 
-  // NOTE on the install-token mint:
-  //   The /install page used to mint a 10-min single-use install token
-  //   and pre-bake it into a tokenized curl URL ("...install.sh?t=tok_..."),
-  //   so logged-in users could skip the browser Approve roundtrip on first
-  //   install. We deliberately removed that — the hero now shows the
-  //   universal `curl -fsSL https://core.implexa.ai/install.sh | bash` on
-  //   every surface (marketing site, dashboard, READMEs, share links). One
-  //   command, fully memorable + shareable, like Stripe CLI / fly.io /
-  //   entire.io. The one extra "Approve" click for logged-in users is
-  //   worth the consistency win.
+  // Mint a fresh install token for the tokenized curl shown on the hero —
+  // this lets logged-in dashboard users skip the browser Approve roundtrip
+  // (the script redeems the token directly for an API key). The HeroInstall
+  // client component refreshes the token on every Copy click so it never
+  // goes stale, even if the tab has been open for hours.
   //
-  //   The install-token backend (POST /api/v2/install-tokens) still exists
-  //   and works — we just no longer surface it on the dashboard. Kept in
-  //   case we want it for embedded install widgets or other surfaces later.
+  // Failure mode is non-fatal: when mint fails (backend down, etc.), the
+  // hero falls back to the universal `curl install.sh | bash` line — same
+  // outcome, just with the browser Approve hop.
+  let installCurl: string | null = null;
+  try {
+    const tokenResp = await callBackend('/api/v2/install-tokens', {
+      jwt:    session.access_token,
+      method: 'POST',
+    });
+    if (tokenResp?.token) {
+      const apiBase = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai').replace(/\/$/, '');
+      installCurl = `curl -fsSL "${apiBase}/install.sh?t=${tokenResp.token}" | bash`;
+    }
+  } catch (_) {
+    // Silent fallback to universal curl.
+  }
 
   // Platform-fix detection: has Anthropic shipped the Cowork hooks fix?
   // Backed by the platform_signals table — populated server-side the
@@ -112,8 +124,17 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           </p>
         </header>
 
-        {/* HERO — the primary install path. Single universal curl, copy button, after-install commands. */}
-        <HeroInstall />
+        {/* HERO — the primary install path. Tokenized curl when available,
+         * universal curl as the fallback. Refreshes on copy to never go stale.
+         * Shows a "Connection active" banner above the curl when the user
+         * already has an install. */}
+        <HeroInstall
+          initialInstallCurl={installCurl}
+          hasKey={hasKey}
+          keyPrefix={keyPrefix}
+          installName={installName}
+          lastConnected={lastConnected}
+        />
 
         {/* ALT SURFACES — power-user fallback. Collapsed by default so the primary flow
          * stays visually clean. Inside: full InstallFlow component with the surface tabs
@@ -133,7 +154,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
               hasKey={hasKey}
               keyPrefix={keyPrefix}
               coworkHooksLive={coworkHooksLive}
-              installCurl={null}
+              installCurl={installCurl}
             />
           </div>
         </details>
