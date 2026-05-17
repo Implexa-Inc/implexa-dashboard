@@ -119,7 +119,12 @@ function SignupPageInner() {
           </form>
 
           <p className="text-center text-sm text-ink-500 pt-2">
-            Already have an account? <Link href="/login" className="text-brand-600 hover:underline">Sign in</Link>
+            {/* Preserve `next` so device-auth + other deep links survive
+             * the signup → login pivot. Mirrors the login → signup link. */}
+            Already have an account? <Link
+              href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'}
+              className="text-brand-600 hover:underline"
+            >Sign in</Link>
           </p>
         </div>
 

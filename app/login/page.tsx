@@ -137,7 +137,15 @@ function LoginPageInner() {
           </div>
 
           <p className="text-center text-sm text-ink-500 pt-2 border-t border-ink-700">
-            New here? <Link href="/signup" className="text-brand-600 hover:underline">Create an account</Link>
+            {/* CRITICAL: preserve `next` so the device-auth chain (and any
+             * other deep link) survives the login → signup pivot. Without
+             * this, a user landing at /login?next=/cli-auth?code=... who
+             * clicks "Create an account" lands at /signup with no next= and
+             * the entire flow goes to /skills instead of completing auth. */}
+            New here? <Link
+              href={next ? `/signup?next=${encodeURIComponent(next)}` : '/signup'}
+              className="text-brand-600 hover:underline"
+            >Create an account</Link>
           </p>
         </div>
       </div>
