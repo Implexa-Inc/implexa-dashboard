@@ -6,6 +6,12 @@ import { callBackend } from '@/lib/api';
 
 type KeyRow = { id: string; name: string; key_prefix: string; status: string; created_at: string; last_used_at: string | null };
 
+/**
+ * "Connected installs" manager — primary action is revoke. Manual key
+ * generation is folded into a collapsed Advanced disclosure for the
+ * rare user who needs a raw key (Chat Custom Connector URL is the
+ * remaining surface that requires one).
+ */
 export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; initial: KeyRow[]; next?: string | null }) {
   const router = useRouter();
   const [keys, setKeys] = useState<KeyRow[]>(initial);
@@ -15,10 +21,6 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Navigate to /install (or whatever `next` is) but FIRST invalidate the
-  // App Router cache so the destination re-renders with the just-created key.
-  // Without router.refresh() the install page serves the stale (no-key) HTML
-  // from cache, and the user has to F5 to see step 1 marked done.
   function goToNext() {
     if (!next) return;
     router.push(next);
@@ -34,7 +36,6 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
       });
       setRevealedKey({ rawKey: r.rawKey, name: r.name });
       setNewName('');
-      // Append to list (without the raw)
       setKeys([
         { id: r.id, name: r.name, key_prefix: r.keyPrefix, status: 'active', created_at: r.createdAt, last_used_at: null },
         ...keys,
@@ -47,7 +48,7 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
   }
 
   async function revoke(id: string) {
-    if (!confirm('Revoke this key? Anything currently using it will lose access.')) return;
+    if (!confirm('Revoke this install? The connected device will lose access immediately — you\'ll need to re-run the install script on it.')) return;
     setError(null);
     try {
       await callBackend(`/api/v2/api-keys/${id}`, { jwt, method: 'DELETE' });
@@ -57,17 +58,21 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
     }
   }
 
+  const activeInstalls = keys.filter(k => k.status === 'active');
+  const revokedInstalls = keys.filter(k => k.status === 'revoked');
+
   return (
     <div className="space-y-6">
-      {/* Newly-created key dialog (reveals raw value ONCE) */}
+      {/* ── Newly-created key dialog (reveals raw value ONCE) ──
+        * Only shown right after the Advanced → Generate path. Most users
+        * never hit this path because the install script auto-mints keys
+        * without exposing them.
+        */}
       {revealedKey && (
-        <div className="card border-2 border-brand-500 bg-brand-50">
+        <div className="card !border-2 !border-brand-500 !bg-gradient-to-r !from-brand-500/10 !to-brand-500/5">
           <h3 className="font-medium text-ink-50">✨ Key created — copy it now</h3>
           <p className="text-sm text-ink-200 mt-1">
-            This is the only time the full value will be shown.{' '}
-            {next === '/install'
-              ? <><strong>Save it in your password manager</strong> — Step 3 of the install will prompt you to paste it.</>
-              : <>Save it in your password manager.</>}
+            This is the only time the full value will be shown. Save it in your password manager.
           </p>
           <div className="mt-3 flex items-center gap-2">
             <code className="flex-1 bg-ink-950 border border-ink-700 text-ink-100 rounded px-3 py-2 text-sm font-mono break-all">{revealedKey.rawKey}</code>
@@ -79,11 +84,10 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
             </button>
           </div>
 
-          {/* Continue-with-install CTA when we came from /install */}
           {next ? (
             <div className="mt-4 pt-4 border-t border-brand-500/30">
               <p className="text-sm text-ink-200 mb-3">
-                Copied your key? Go back to finish installing Implexa in Claude.
+                Copied your key? Go back to finish installing.
               </p>
               <button
                 onClick={goToNext}
@@ -93,7 +97,6 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
               >
                 Continue install →
               </button>
-              {!copied && <p className="text-xs text-ink-400 mt-2">Tip: copy the key first — you&apos;ll paste it in step 2.</p>}
             </div>
           ) : (
             <button onClick={() => setRevealedKey(null)} className="btn-ghost mt-3 text-xs">I&apos;ve saved it — dismiss</button>
@@ -101,49 +104,120 @@ export default function ApiKeysManager({ jwt, initial, next }: { jwt: string; in
         </div>
       )}
 
-      {/* Create new key */}
+      {/* ── Active installs — the primary section ── */}
       <div className="card">
-        <h3 className="font-medium mb-3">Create a key</h3>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Name (e.g. Claude Code, My Mac)"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            className="input flex-1"
-          />
-          <button onClick={create} disabled={busy || !newName.trim()} className="btn-primary">
-            {busy ? 'Creating…' : 'Create'}
-          </button>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="font-medium text-ink-50">Active installs</h2>
+          <span className="text-xs text-ink-400">{activeInstalls.length} connected</span>
         </div>
-        {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+        {activeInstalls.length === 0 ? (
+          <div className="text-sm text-ink-300 leading-relaxed">
+            <p className="mb-2">No active installs.</p>
+            <p className="text-xs text-ink-400">
+              Run <code className="bg-ink-800 px-1 rounded">curl -fsSL https://core.implexa.ai/install.sh | bash</code> to install Implexa — it creates the connection automatically.
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-ink-800 -mx-6">
+            {activeInstalls.map(k => (
+              <InstallRow key={k.id} k={k} onRevoke={revoke} />
+            ))}
+          </ul>
+        )}
       </div>
 
-      {/* Existing keys */}
-      <div className="card">
-        <h3 className="font-medium mb-3">Your keys</h3>
-        {keys.length === 0
-          ? <p className="text-sm text-ink-500">No keys yet. Create one above.</p>
-          : (
-            <ul className="divide-y divide-ink-100 -mx-6">
-              {keys.map(k => (
-                <li key={k.id} className="px-6 py-3 flex items-center gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{k.name}</div>
-                    <div className="text-xs text-ink-500 font-mono">imp_live_{k.key_prefix}…</div>
-                    <div className="text-xs text-ink-500 mt-0.5">
-                      Created {new Date(k.created_at).toLocaleDateString()}
-                      {k.last_used_at && ` · last used ${new Date(k.last_used_at).toLocaleDateString()}`}
-                    </div>
-                  </div>
-                  {k.status === 'active'
-                    ? <button onClick={() => revoke(k.id)} className="text-xs text-red-600 hover:underline">Revoke</button>
-                    : <span className="text-xs text-ink-500 italic">revoked</span>}
-                </li>
-              ))}
-            </ul>
-          )}
-      </div>
+      {/* ── Revoked installs (collapsed, audit-only) ── */}
+      {revokedInstalls.length > 0 && (
+        <details className="card !p-0 group">
+          <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-6 py-3 select-none flex items-center gap-2 text-sm text-ink-300">
+            <span className="text-ink-500 group-open:rotate-90 transition-transform inline-block">▸</span>
+            <span>Revoked installs ({revokedInstalls.length})</span>
+          </summary>
+          <ul className="divide-y divide-ink-800 border-t border-ink-700/60">
+            {revokedInstalls.map(k => (
+              <InstallRow key={k.id} k={k} onRevoke={revoke} />
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {/* ── Advanced: manual key generation ──
+        * Almost no one needs this. Kept here for:
+        *   - Users wiring the Chat (Desktop) Custom Connector URL — that
+        *     surface still has the API key embedded in the URL
+        *   - Power users / scripted integrations
+        */}
+      <details className="card !p-0 group">
+        <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-6 py-3 select-none flex items-center gap-2 text-sm text-ink-300">
+          <span className="text-ink-500 group-open:rotate-90 transition-transform inline-block">▸</span>
+          <span>Advanced — generate a key manually</span>
+        </summary>
+        <div className="px-6 pb-5 pt-2 border-t border-ink-700/60">
+          <p className="text-xs text-ink-400 mb-3 leading-relaxed">
+            Most users don&apos;t need this — the install script creates keys automatically.
+            Generate one manually only if you&apos;re wiring the Chat (Desktop) Custom
+            Connector URL, or running a scripted integration.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Install name (e.g. Personal laptop, CI agent)"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="input flex-1"
+            />
+            <button onClick={create} disabled={busy || !newName.trim()} className="btn-primary">
+              {busy ? 'Creating…' : 'Generate'}
+            </button>
+          </div>
+          {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+        </div>
+      </details>
     </div>
   );
+}
+
+/**
+ * Single row in the installs list. Emphasizes the install name + when
+ * it was created / last used. Key prefix shown small + monospace as
+ * an "id" reference, not as a credential to copy.
+ */
+function InstallRow({ k, onRevoke }: { k: KeyRow; onRevoke: (id: string) => void }) {
+  const created = new Date(k.created_at);
+  const lastUsed = k.last_used_at ? new Date(k.last_used_at) : null;
+
+  return (
+    <li className="px-6 py-3.5 flex items-center gap-4">
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-ink-50 truncate">{k.name}</div>
+        <div className="text-xs text-ink-400 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          <span>Created {created.toLocaleDateString()}</span>
+          {lastUsed && <span>Last active {timeSince(lastUsed)}</span>}
+          <span className="font-mono text-ink-500">imp_live_{k.key_prefix}…</span>
+        </div>
+      </div>
+      {k.status === 'active' ? (
+        <button
+          onClick={() => onRevoke(k.id)}
+          className="text-xs text-red-600 dark:text-red-400 hover:underline whitespace-nowrap"
+        >
+          Revoke
+        </button>
+      ) : (
+        <span className="text-xs text-ink-500 italic">revoked</span>
+      )}
+    </li>
+  );
+}
+
+function timeSince(d: Date) {
+  const ms = Date.now() - d.getTime();
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const days = Math.floor(hr / 24);
+  if (days < 30) return `${days}d ago`;
+  return d.toLocaleDateString();
 }

@@ -1,6 +1,18 @@
 /**
- * API keys settings — list + create + revoke. Where users get the value
- * they paste into IMPLEXA_API_KEY for the Claude Code plugin.
+ * /settings/api-keys — "Connected installs" view.
+ *
+ * Reframed from raw API-key management to a device-audit lens: each row
+ * is an install (your laptop, your team's CI machine, an old laptop you
+ * sold) tied to a key minted automatically when you ran the install. The
+ * primary user action here is to revoke installs you don't recognize.
+ *
+ * Manual key creation still works but lives in a collapsed Advanced
+ * section — users who need a raw key for the Chat Connector URL (the
+ * one surface that exposes it) can still generate one. New users via
+ * the universal curl never need to touch this page.
+ *
+ * Route still lives at /settings/api-keys for backwards compatibility
+ * with bookmarks, deep links, and the `?next=/install` flow.
  */
 
 import Link from 'next/link';
@@ -49,32 +61,28 @@ export default async function ApiKeysPage({
         </nav>
 
         <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight">API keys</h1>
-          <p className="text-ink-500 text-sm mt-2">
-            Generate a key to authenticate the Implexa Claude Code plugin or any MCP client.
-            Each key is shown only once at creation — store it securely.
+          <h1 className="text-3xl font-semibold tracking-tight">Connected installs</h1>
+          <p className="text-ink-300 text-sm mt-2 leading-relaxed">
+            Every device or session connected to your Implexa account.
+            Revoke any you don&apos;t recognize. New installs created automatically
+            when you run the install script — you don&apos;t need to generate
+            keys manually anymore.
           </p>
         </header>
 
         {cameFromInstall && (
-          <div className="card !p-3 !bg-brand-50 !border-brand-500/30 mb-6 text-sm text-ink-200 flex items-start gap-2">
+          <div className="card !p-3 !bg-gradient-to-r !from-brand-500/10 !to-brand-500/5 !border-brand-500/40 mb-6 text-sm text-ink-200 flex items-start gap-2">
             <span>🪜</span>
             <span>
-              You&apos;re in step 1 of <strong>installing Implexa in Claude</strong>. Create a key below, copy it, then click <strong>← Back to install</strong> to continue.
+              You probably don&apos;t need to be here. Go back to{' '}
+              <Link href="/install" className="text-brand-500 hover:underline">/install</Link>{' '}
+              and paste the one-line install command — it auto-creates a key for you.
+              This page is for revoking old installs or generating keys manually (advanced).
             </span>
           </div>
         )}
 
         <ApiKeysManager jwt={session.access_token} initial={keys} next={next} />
-
-        <div className="mt-10 card bg-brand-50 border-brand-500/20">
-          <h3 className="font-medium mb-3">Plugin setup</h3>
-          <p className="text-sm text-ink-200 mb-3">After creating a key, install the plugin and configure your shell:</p>
-          <pre className="text-xs bg-ink-950 text-ink-100 rounded p-3 code-dark overflow-x-auto">{`claude plugin install implexa
-echo 'export IMPLEXA_API_KEY="imp_live_..."' >> ~/.zshrc
-source ~/.zshrc
-claude`}</pre>
-        </div>
       </div>
     </main>
   );
