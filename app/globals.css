@@ -140,6 +140,13 @@ body::before {
 ::-webkit-scrollbar-thumb        { background: rgb(var(--ink-700)); border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover  { background: rgb(var(--ink-600)); }
 
+/* Hide scrollbar visually while keeping scroll behavior. Used on inline
+ * code blocks (e.g. the /install hero curl) where the visible track
+ * creates visual noise that competes with the command text. The content
+ * still scrolls horizontally on touch / wheel — just no track shown. */
+.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
 /* Selection — warm orange tint */
 ::selection { background: rgba(255, 87, 34, 0.3); color: rgb(var(--ink-50)); }
 

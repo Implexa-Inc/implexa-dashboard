@@ -100,11 +100,16 @@ export default function HeroInstall({
         </div>
 
         <div className="rounded-md border border-ink-700 bg-ink-950 px-4 py-3 mb-3 flex items-center gap-3">
-          <span className="hidden sm:flex items-center gap-1 text-[11px] text-ink-400 px-2 py-1 rounded bg-ink-800 border border-ink-700 font-mono shrink-0">
+          {/* Shell pill — visual cue this is a terminal command. No chevron
+           * (we don't offer brew yet — adding ▾ implies a dropdown that
+           * doesn't exist). Just a label. */}
+          <span className="hidden sm:inline text-[11px] text-ink-400 px-2 py-1 rounded bg-ink-800 border border-ink-700 font-mono shrink-0">
             curl
-            <span className="text-ink-500">▾</span>
           </span>
-          <code className="flex-1 text-sm text-ink-100 font-mono overflow-x-auto whitespace-nowrap">
+          {/* hide-scrollbar — hides the scrollbar track visually while keeping
+           * the horizontal-scroll behavior so long URLs are still reachable.
+           * Defined in app/globals.css. */}
+          <code className="flex-1 text-sm text-ink-100 font-mono overflow-x-auto whitespace-nowrap hide-scrollbar">
             {heroCmd}
           </code>
           <HeroCopyButton refreshFn={refreshInstallCurl} fallback={UNIVERSAL_CURL} />
