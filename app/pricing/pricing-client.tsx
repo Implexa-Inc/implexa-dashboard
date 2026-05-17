@@ -17,29 +17,31 @@ type Props = {
 
 const PRO_FEATURES = [
   '🚀 Unlimited skill captures (Free is 5/month)',
-  '📊 Skill ROI dashboard — see which skills drive outcomes',
-  '🏢 Team-wide skill library — share skills org-wide',
-  '⭐ Priority support + private Slack channel',
+  '🏢 Org-wide skill library — every teammate sees what the team has saved',
+  '📊 Skill ROI dashboard — see which skills drive real outcomes (deals, hires, meetings)',
+  '🔗 Outcome attribution — last-touch within a 30-day window from CRM / ATS / calendar',
+  '🔐 SSO (Google / Microsoft) for team workspaces',
+  '👥 Unlimited team members on the same workspace',
   'Everything in Free, naturally',
 ] as const;
 
 const FREE_FEATURES = [
   '🎯 5 skill captures / month',
-  '✨ Unlimited skill use — run any skill as many times as you want',
-  'Fork any base Playbook into your library',
-  'Run in any Claude surface (Code, Desktop, Cowork)',
-  'Team-domain share links',
-  'Bring your own API keys (Fiber, Coresignal, Apollo, your custom MCP)',
+  '✨ Unlimited skill runs — invoke any skill as many times as you want',
+  '🌐 Public sharing — appear in Trending Globally + earn Founding Creator status',
+  '🌳 Fork any base Playbook into your library',
+  '🖥️  Works on every Claude surface — CLI, Desktop, Cowork, Chat',
+  '🔌 Plug any MCP integration into your skills (HubSpot, Linear, Apollo, Coresignal, etc.)',
 ] as const;
 
 const ENTERPRISE_FEATURES = [
   'Everything in Pro',
-  'SSO / SAML',
-  'Audit logs + compliance docs',
-  'Custom integrations',
-  'Dedicated success manager',
-  'Security review documentation',
-  'White-label share pages',
+  '🛡️  SAML SSO + custom identity providers',
+  '📋 Full audit log (every skill recorded, edited, shared, invoked)',
+  '🚦 Compliance + security review documentation',
+  '🎨 White-label share pages with your branding',
+  '🔧 Custom integrations + dedicated MCP server hosting',
+  '👤 Dedicated success manager + private support channel',
 ] as const;
 
 export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator }: Props) {
