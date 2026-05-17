@@ -273,6 +273,25 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           </div>
         </section>
 
+        {/* ── Uninstall / reset section ──
+          * Quiet placement at the bottom — not competing with the install
+          * hero up top. Surfaces the one-line reset command for users who
+          * want to clean up their machine (test fresh installs, swap accounts,
+          * remove the tool entirely). The detailed explanation lives in the
+          * FAQ above; this section is just the command + one-line context.
+          */}
+        <section className="mt-16 max-w-3xl mx-auto pt-8 border-t border-ink-800">
+          <div className="flex items-baseline justify-between gap-4 mb-2">
+            <h2 className="text-xs uppercase tracking-wider text-ink-400 font-bold">Uninstall / reset</h2>
+            <span className="text-[11px] text-ink-500">macOS · Linux · WSL</span>
+          </div>
+          <p className="text-xs text-ink-300 leading-relaxed mb-3">
+            One command — reverses everything the install set up (API key file, hooks, MCP wiring, plugin, launchctl env). Doesn&apos;t revoke your cloud API keys; that&apos;s a separate action at{' '}
+            <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Connected installs</Link>.
+          </p>
+          <pre className="bg-ink-950 border border-ink-700 rounded-md p-3 text-xs text-ink-100 font-mono overflow-x-auto hide-scrollbar">curl -fsSL https://core.implexa.ai/uninstall.sh | bash</pre>
+        </section>
+
         <footer className="mt-12 text-center text-xs text-ink-400 max-w-xl mx-auto leading-relaxed">
           <p>
             Whichever surface you pick, Implexa captures every prompt + tool call during a recording via host hooks.
