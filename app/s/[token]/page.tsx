@@ -9,7 +9,7 @@
  */
 
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -110,6 +110,26 @@ export default async function SharePreviewPage({ params }: { params: { token: st
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const isAuthed = !!user;
+
+  // Author / same-org bypass — if a logged-in user is in the same org as the
+  // skill's owner, route them to the full /skills/[slug] view inside the
+  // dashboard instead of showing the public preview (which truncates content
+  // and shows "Install" CTAs aimed at outsiders). The skill is already in
+  // their library; the public preview UX is wrong for them.
+  //
+  // Failure mode is non-fatal: if the profile lookup errors we just fall
+  // through to the public preview (no harm done — they can still navigate
+  // to /skills manually).
+  if (isAuthed) {
+    const { data: profile } = await supabase
+      .from('users')
+      .select('organization_id')
+      .eq('id', user!.id)
+      .maybeSingle();
+    if (profile?.organization_id && profile.organization_id === sharedBy.orgId) {
+      redirect(`/skills/${skill.slug}`);
+    }
+  }
 
   return (
     <main className="min-h-screen px-4 py-10">
