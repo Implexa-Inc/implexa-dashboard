@@ -8,9 +8,18 @@ type OS = 'mac' | 'windows' | 'linux' | 'unknown';
 
 // Labels are kept short — section header already says "Install the plugin
 // in Claude", so we drop the redundant "Claude" prefix on the tabs.
+//
+// Note: Code (CLI) is intentionally NOT listed here as an alt-surface tab.
+// The universal curl in the page-level hero IS the CLI install — duplicating
+// it inside the alt-surfaces disclosure would just confuse users. The
+// `Surface` type still includes 'code-cli' to keep the rendering branch
+// intact for any deep links or migrated state.
+//
+// No tab is marked `recommended` here either — the hero at the top of the
+// page is the recommended path. These tabs are explicitly "I'm not using
+// Claude Code" alternatives.
 const SURFACES: Array<{ id: Surface; label: string; subtitle: string; recommended?: boolean }> = [
-  { id: 'code-desktop', label: 'Code (Desktop)', subtitle: 'Plugin install via Customize — full capture with a visual install', recommended: true },
-  { id: 'code-cli',     label: 'Code (CLI)',     subtitle: 'Terminal install — full capture for power users' },
+  { id: 'code-desktop', label: 'Code (Desktop)', subtitle: 'Plugin install via Customize — full capture with a visual install' },
   { id: 'cowork',       label: 'Cowork',         subtitle: 'Plugin install via Customize — MCP capture (hooks gap until Anthropic ships fix)' },
   { id: 'chat-desktop', label: 'Chat (Desktop)', subtitle: 'Custom Connector URL — 30 sec, no plugin install' },
 ];
@@ -104,15 +113,13 @@ export default function InstallFlow({
   const isWindows = os === 'windows';
 
   // ── Dynamic step numbering ──
-  // Step 1 (API key) only shows for Chat Custom Connector URL — every other
-  // surface mints / fetches keys automatically. We compute the step number
-  // for each downstream section based on which earlier steps actually render,
-  // so the user always sees 1 → 2 → 3 with no gaps.
-  const showApiKeyStep = surface === 'chat-desktop';
+  // Step counts vary by surface — hooks step is only relevant for surfaces
+  // that fire user-level hooks (Code Desktop, and Cowork once Anthropic ships
+  // the fix). We compute downstream numbers so the user always sees 1 → 2 → 3
+  // with no gaps.
   let _n = 1;
-  const apiKeyStepNum  = showApiKeyStep ? _n++ : null;
   const surfaceStepNum = _n++;
-  const hooksStepNum   = showHooksStep  ? _n++ : null;
+  const hooksStepNum   = showHooksStep ? _n++ : null;
   const verifyStepNum  = _n++;
 
   return (
@@ -146,39 +153,13 @@ export default function InstallFlow({
         </div>
       )}
 
-      {/* ── Step 1: API key (Chat Connector URL ONLY) ──
-        * Other surfaces don't need a manually-copied key:
-        *   - Code (Desktop) UI + Cowork plugin: install via Customize, plugin
-        *     pulls the key from the user's account automatically
-        *   - Code (CLI): the install script handles key minting via device-auth
-        *     or token-redeem — user never sees it
-        *   - Chat (Desktop): Custom Connector URL has the API key embedded
-        *     in the URL — this is the only surface where the user needs to
-        *     paste a key value, so Step 1 still has work to do here
+      {/* ── Step 1 (API key) — REMOVED as a top-level step ──
+        * The universal curl hero auto-mints keys. The only surface that
+        * still needs a visible key is Chat (Custom Connector URL) — for
+        * that one, we show a small inline "Get your API key first →" note
+        * directly under the URL CodeBlock in the chat surface card. No
+        * top-level section needed.
         */}
-      {surface === 'chat-desktop' && apiKeyStepNum !== null && (
-        <Section number={apiKeyStepNum} title="Get your API key" done={hasKey}>
-          {hasKey ? (
-            <div className="text-sm text-ink-200">
-              ✓ You have an active API key (<code className="font-mono text-xs bg-ink-800 px-1.5 py-0.5 rounded">{keyPrefix}…</code>).
-              Find the full key at{' '}
-              <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Connected installs</Link>.
-            </div>
-          ) : (
-            <div>
-              <p className="text-sm text-ink-200 mb-3">
-                The Chat Custom Connector URL embeds an API key — you&apos;ll need to generate one to paste in below.
-              </p>
-              <Link href="/settings/api-keys?next=/install" className="btn-primary">
-                Generate an API key →
-              </Link>
-              <p className="text-xs text-ink-400 mt-2">
-                We&apos;ll bring you right back here after you create the key.
-              </p>
-            </div>
-          )}
-        </Section>
-      )}
 
       {/* ── Step 2: Pick surface + install plugin ────────────────────── */}
       <Section number={surfaceStepNum} title="Install the plugin in Claude">
@@ -233,7 +214,7 @@ export default function InstallFlow({
         </p>
 
         {/* Surface-specific content */}
-        <SurfaceContent surface={surface} hasKey={hasKey} coworkHooksLive={coworkHooksLive} installCurl={installCurl} />
+        <SurfaceContent surface={surface} hasKey={hasKey} keyPrefix={keyPrefix} coworkHooksLive={coworkHooksLive} installCurl={installCurl} />
       </Section>
 
       {/* ── Step (CLI / Code-Desktop / Cowork-when-live only): Setup hooks ─ */}
@@ -361,7 +342,7 @@ export default function InstallFlow({
   );
 }
 
-function SurfaceContent({ surface, hasKey, coworkHooksLive, installCurl }: { surface: Surface; hasKey: boolean; coworkHooksLive: boolean; installCurl: string | null }) {
+function SurfaceContent({ surface, hasKey, keyPrefix, coworkHooksLive, installCurl }: { surface: Surface; hasKey: boolean; keyPrefix: string | null; coworkHooksLive: boolean; installCurl: string | null }) {
   const apiKeyHint = hasKey
     ? 'Your API key is in ~/.zshrc — the install script picks it up automatically.'
     : 'Generate an API key in Step 1 first.';
@@ -539,9 +520,25 @@ source ~/.zshrc`}
         </div>
 
         <p className="text-sm text-ink-200 mb-2 leading-relaxed">
-          Copy this URL first and <strong>replace <code className="bg-ink-800 px-1 rounded text-xs">imp_live_YOUR_KEY</code> with your actual API key</strong> from Step 1 — you&apos;ll paste it in Step C below:
+          Copy this URL first and <strong>replace <code className="bg-ink-800 px-1 rounded text-xs">imp_live_YOUR_KEY</code> with your actual API key</strong> — you&apos;ll paste the edited URL in Step C below:
         </p>
         <CodeBlock code={connectorUrl} oneLine />
+
+        {/* Inline API-key prompt — Chat Connector URL is the only surface
+         * that exposes the raw key, so we surface the link here instead of
+         * having a top-level Step 1 that's irrelevant to every other tab. */}
+        <p className="text-xs mt-2 leading-relaxed">
+          {hasKey ? (
+            <span className="text-ink-400">
+              ✓ You have an active key (<code className="font-mono text-[11px] bg-ink-800 px-1 rounded">imp_live_{keyPrefix}…</code>) — find the full value at{' '}
+              <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Connected installs →</Link>
+            </span>
+          ) : (
+            <strong className="text-amber-700 dark:text-amber-400">
+              ⚠ <Link href="/settings/api-keys?next=/install" className="hover:underline">Get your API key here first →</Link>
+            </strong>
+          )}
+        </p>
 
         <p className="text-sm text-ink-200 mt-5 mb-2 leading-relaxed">
           <strong className="text-ink-50">A.</strong> Open <strong>Claude Desktop</strong>, switch to the <strong>Chat</strong> tab, then click{' '}
