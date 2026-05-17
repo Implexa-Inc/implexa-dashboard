@@ -103,6 +103,18 @@ export default function InstallFlow({
   ) && os !== 'windows';
   const isWindows = os === 'windows';
 
+  // ── Dynamic step numbering ──
+  // Step 1 (API key) only shows for Chat Custom Connector URL — every other
+  // surface mints / fetches keys automatically. We compute the step number
+  // for each downstream section based on which earlier steps actually render,
+  // so the user always sees 1 → 2 → 3 with no gaps.
+  const showApiKeyStep = surface === 'chat-desktop';
+  let _n = 1;
+  const apiKeyStepNum  = showApiKeyStep ? _n++ : null;
+  const surfaceStepNum = _n++;
+  const hooksStepNum   = showHooksStep  ? _n++ : null;
+  const verifyStepNum  = _n++;
+
   return (
     <>
       {/* ── Windows gate ─────────────────────────────────────────────── */}
@@ -134,31 +146,42 @@ export default function InstallFlow({
         </div>
       )}
 
-      {/* ── Step 1: API key ──────────────────────────────────────────── */}
-      <Section number={1} title="Get your API key" done={hasKey}>
-        {hasKey ? (
-          <div className="text-sm text-ink-200">
-            ✓ You have an active API key (<code className="font-mono text-xs bg-ink-800 px-1.5 py-0.5 rounded">{keyPrefix}…</code>).
-            Find the full key at{' '}
-            <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Settings → API keys</Link>.
-          </div>
-        ) : (
-          <div>
-            <p className="text-sm text-ink-200 mb-3">
-              You&apos;ll need an API key (<code className="font-mono text-xs">imp_live_…</code>) so Claude can authenticate to Implexa.
-            </p>
-            <Link href="/settings/api-keys?next=/install" className="btn-primary">
-              Generate an API key →
-            </Link>
-            <p className="text-xs text-ink-400 mt-2">
-              We&apos;ll bring you right back here after you create the key.
-            </p>
-          </div>
-        )}
-      </Section>
+      {/* ── Step 1: API key (Chat Connector URL ONLY) ──
+        * Other surfaces don't need a manually-copied key:
+        *   - Code (Desktop) UI + Cowork plugin: install via Customize, plugin
+        *     pulls the key from the user's account automatically
+        *   - Code (CLI): the install script handles key minting via device-auth
+        *     or token-redeem — user never sees it
+        *   - Chat (Desktop): Custom Connector URL has the API key embedded
+        *     in the URL — this is the only surface where the user needs to
+        *     paste a key value, so Step 1 still has work to do here
+        */}
+      {surface === 'chat-desktop' && apiKeyStepNum !== null && (
+        <Section number={apiKeyStepNum} title="Get your API key" done={hasKey}>
+          {hasKey ? (
+            <div className="text-sm text-ink-200">
+              ✓ You have an active API key (<code className="font-mono text-xs bg-ink-800 px-1.5 py-0.5 rounded">{keyPrefix}…</code>).
+              Find the full key at{' '}
+              <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Connected installs</Link>.
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-ink-200 mb-3">
+                The Chat Custom Connector URL embeds an API key — you&apos;ll need to generate one to paste in below.
+              </p>
+              <Link href="/settings/api-keys?next=/install" className="btn-primary">
+                Generate an API key →
+              </Link>
+              <p className="text-xs text-ink-400 mt-2">
+                We&apos;ll bring you right back here after you create the key.
+              </p>
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* ── Step 2: Pick surface + install plugin ────────────────────── */}
-      <Section number={2} title="Install the plugin in Claude">
+      <Section number={surfaceStepNum} title="Install the plugin in Claude">
         {/* Surface tabs — compact underline pattern.
          *
          * Why not the previous 2x2 card grid: at 4 surfaces it became
@@ -213,10 +236,10 @@ export default function InstallFlow({
         <SurfaceContent surface={surface} hasKey={hasKey} coworkHooksLive={coworkHooksLive} installCurl={installCurl} />
       </Section>
 
-      {/* ── Step 3 (CLI only): Setup hooks ───────────────────────────── */}
-      {showHooksStep && (
+      {/* ── Step (CLI / Code-Desktop / Cowork-when-live only): Setup hooks ─ */}
+      {showHooksStep && hooksStepNum !== null && (
         <Section
-          number={3}
+          number={hooksStepNum}
           title="Enable full capture (one more command)"
           subtitle="Do this — it's the difference between Implexa capturing tool calls only vs. tool calls + every prompt and assistant response. The latter is what makes the recorded skill actually replayable. You're already in a terminal — paste one command."
         >
@@ -271,7 +294,7 @@ export default function InstallFlow({
       {/* ── Final step: Verify + record ──────────────────────────────── */}
       {/* Step number renumbers to 3 when the hooks step (Step 3, CLI-only)
        * is hidden, so non-CLI users see steps 1 → 2 → 3 sequentially. */}
-      <Section number={showHooksStep ? 4 : 3} title="Verify + record your first skill">
+      <Section number={verifyStepNum} title="Verify + record your first skill">
         <div className="space-y-3">
           <p className="text-sm text-ink-200 leading-relaxed">
             {surface === 'code-cli'
@@ -686,18 +709,22 @@ function Section({ number, title, subtitle, children, done, required }: { number
 }
 
 /**
- * Inline word/phrase with a screenshot popover on hover — used in the
- * Code (Desktop) install steps to show users exactly where each button
- * lives in the Claude Code UI. The trigger word gets a dotted underline
- * + help cursor so people know to hover.
+ * Inline word/phrase that opens a click-to-toggle screenshot disclosure —
+ * used in the Code (Desktop) install steps to show users exactly where
+ * each button lives in the Claude Code UI.
  *
- * On touch devices (no hover), the underline still hints at additional
- * context. We could add a click-to-toggle behaviour later if needed,
- * but for launch the hover-only pattern is enough — most users on the
- * install page are on a Mac with a pointer.
+ * Originally a :hover-only popover, but that pattern was fragile: it
+ * triggered on accidental mouse-over, persisted on touch devices, and
+ * the absolute-positioned overlay floated over adjacent content (e.g.
+ * a user reading the install steps would have the screenshot pop over
+ * the next paragraph they were trying to read). Click-to-toggle via
+ * native <details>/<summary> is deliberate, accessible, and the image
+ * pushes content down instead of floating over it.
  *
- * Image files live in /public/img/install/ — see footnote at the
- * bottom of this file for the expected paths.
+ * The trigger word still gets a dotted underline so it reads as
+ * interactive; the open/close state lives in the browser (no JS state).
+ *
+ * Image files live in /public/img/install/.
  */
 function HoverImageHint({
   children,
@@ -708,29 +735,28 @@ function HoverImageHint({
   children: React.ReactNode;
   src: string;
   alt: string;
-  /**
-   * Tailwind width class for the popover. Default w-96 (384px) reads well
-   * for typical 2:1-ish screenshots. Override to w-[480px] or larger when
-   * the image is text-heavy or has nested panels — making the source pixels
-   * crisp at the display size is what kills graininess.
-   */
+  /** Tailwind width class for the image when expanded. Default w-96 (384px). */
   width?: string;
 }) {
   return (
-    <span className="group relative inline cursor-help underline decoration-dotted decoration-ink-500 underline-offset-2">
-      {children}
-      <span className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 pointer-events-none">
-        {/* Plain <img> not <Image> — these are static UI screenshots and we
-         * want zero loader chrome / overhead. max-w-[90vw] keeps the popover
-         * inside the viewport on narrow screens. */}
+    <details className="inline-block group/imghint">
+      <summary
+        className="inline cursor-pointer list-none underline decoration-dotted decoration-ink-500 underline-offset-2 hover:decoration-ink-300"
+        aria-label="Show screenshot"
+      >
+        {children}
+        <span className="ml-0.5 text-[10px] text-ink-500 group-open/imghint:rotate-90 transition-transform inline-block align-middle">▸</span>
+      </summary>
+      <span className="block mt-2 mb-2">
+        {/* Plain <img> — static UI screenshot, no loader chrome needed. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt={alt}
-          className={`${width} max-w-[90vw] rounded-md shadow-2xl border border-ink-700 bg-ink-950`}
+          className={`${width} max-w-full rounded-md shadow-lg border border-ink-700 bg-ink-950`}
         />
       </span>
-    </span>
+    </details>
   );
 }
 
