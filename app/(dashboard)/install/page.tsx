@@ -171,6 +171,25 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
             <details className="card !p-0 group">
               <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
                 <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
+                How do I fully uninstall or reset Implexa on this machine?
+              </summary>
+              <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-3 border-t border-ink-700/60">
+                <p>
+                  One command. Reverses everything the install script set up: API key file, hooks, MCP wiring, Claude Code plugin, AND the launchctl-set env vars (those survive shell <code className="text-xs bg-ink-800 px-1 rounded">unset</code> and re-leak into new Terminal tabs on macOS — biggest source of &ldquo;why does my fresh install still pick up the old account?&rdquo;).
+                </p>
+                <pre className="bg-ink-950 border border-ink-700 rounded-md p-3 text-xs text-ink-100 font-mono overflow-x-auto">curl -fsSL https://core.implexa.ai/uninstall.sh | bash</pre>
+                <p className="text-xs text-ink-400">
+                  Idempotent — safe to re-run anytime. After it finishes, opening a fresh Terminal and running the install command gives you a true fresh-install experience (browser auth runs, no env vars leak through).
+                </p>
+                <p className="text-xs text-ink-400">
+                  <strong className="text-ink-200">What&apos;s NOT removed:</strong> your API keys in the cloud (revoke at <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Connected installs</Link> if you want a fully clean slate), your Implexa account, and your skill library.
+                </p>
+              </div>
+            </details>
+
+            <details className="card !p-0 group">
+              <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+                <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
                 I uninstalled + reinstalled the plugin but I&apos;m still on the old version. What gives?
               </summary>
               <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-3 border-t border-ink-700/60">
