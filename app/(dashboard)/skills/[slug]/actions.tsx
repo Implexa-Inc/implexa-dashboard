@@ -115,13 +115,34 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
   }
 
   async function revokeShare(token: string) {
-    if (!confirm('Revoke this share link? The URL will stop working immediately.')) return;
+    // Different confirm message based on share mode — public revokes
+    // ALSO undo the universal-scope promotion, removing the skill from
+    // Trending Globally. Surface that side effect explicitly so the user
+    // isn't surprised. Team revokes are simpler — just the link stops.
+    const share = shares.find((s) => s.token === token);
+    const isPublic = share?.shareMode === 'public';
+    const confirmMsg = isPublic
+      ? 'Undo public share? Three effects:\n' +
+        '  1. The share URL stops working immediately\n' +
+        '  2. The skill is removed from Trending Globally / the public library\n' +
+        '  3. The skill\'s scope reverts to its previous state (org or private)\n' +
+        '\n' +
+        'Anyone who already forked the skill keeps their copy. Continue?'
+      : 'Revoke this share link? The URL will stop working immediately. Teammates who already installed keep their copies.';
+
+    if (!confirm(confirmMsg)) return;
     setBusy(`revoke-${token}`); setError(null);
     try {
       await callBackend(`/api/v2/skills/${id}/revoke-share`, {
         jwt, method: 'POST', body: { token },
       });
       setShares((prev) => prev.filter((s) => s.token !== token));
+      // For public revokes, refresh the page so the scope badge + Trending
+      // section reflect the revert. Cheap UX win — without it the user
+      // sees the "Public" badge persist until manual reload.
+      if (isPublic) {
+        if (typeof window !== 'undefined') window.location.reload();
+      }
     } catch (err: any) { setError(err.message); } finally { setBusy(null); }
   }
 
@@ -414,9 +435,16 @@ function SharePanel({
         <button
           onClick={onRevoke}
           disabled={revoking}
-          className="text-[11px] text-ink-500 hover:text-red-600 whitespace-nowrap disabled:opacity-50"
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 px-2 py-1 rounded transition-colors whitespace-nowrap disabled:opacity-50"
+          aria-label={share.shareMode === 'public' ? 'Undo public share' : 'Revoke team share'}
         >
-          {revoking ? 'Revoking…' : 'Revoke'}
+          {/* Trash icon — inline SVG, no external dep. 12px to sit balanced with the 11px text. */}
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0" aria-hidden="true">
+            <path d="M2.5 4h11M6.5 4V2.5a1 1 0 011-1h1a1 1 0 011 1V4M4 4l.5 9a1 1 0 001 1h5a1 1 0 001-1L12 4M6.5 7v4M9.5 7v4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          {revoking
+            ? (share.shareMode === 'public' ? 'Undoing…' : 'Revoking…')
+            : (share.shareMode === 'public' ? 'Undo public' : 'Revoke')}
         </button>
       </div>
     </div>
