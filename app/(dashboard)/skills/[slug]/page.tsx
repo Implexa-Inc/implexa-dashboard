@@ -22,17 +22,32 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  // RLS ensures we only see our own org's skills (+ system Playbooks)
+  // Look up the user's actual organization_id (NOT their user_id — that was the
+  // previous bug: this query used session.user.id, which is a user UUID, in a
+  // filter against organization_id, which is an org UUID. They never match,
+  // so the primary query always returned null and we fell back to a no-org
+  // query that depended on RLS. RLS turned out to be stricter than expected
+  // for private skills (created_by check requires extracting the userId from
+  // the jsonb column, which the policy may not do reliably), so the fallback
+  // also missed the row when scope=private.
+  //
+  // Fix: query users to get the real org_id, then filter org_skills by it.
+  const { data: profile } = await supabase
+    .from('users').select('organization_id')
+    .eq('id', session.user.id).maybeSingle();
+  const userOrgId = profile?.organization_id;
+
+  // Primary lookup: own org + system Playbooks
   const { data: skill } = await supabase
     .from('org_skills')
     .select('*')
     .eq('slug', params.slug)
-    .in('organization_id', [session.user.id, SYSTEM_ORG_ID])           // RLS-equivalent filter
+    .in('organization_id', userOrgId ? [userOrgId, SYSTEM_ORG_ID] : [SYSTEM_ORG_ID])
     .maybeSingle();
 
-  // Above filter is a sanity check; RLS does the real gating. Re-query without org filter
-  // if the above returns nothing — covers the case where the user is part of an org_id
-  // different from their user_id.
+  // Fallback: cross-org search (e.g. universal-scope skills the user can see
+  // but doesn't own). RLS handles the gating — we don't need to over-constrain
+  // here. This covers Trending Globally entries and shared skills.
   const { data: actualSkill } = skill
     ? { data: skill }
     : await supabase.from('org_skills').select('*').eq('slug', params.slug).maybeSingle();
