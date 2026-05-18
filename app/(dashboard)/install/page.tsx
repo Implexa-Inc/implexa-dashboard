@@ -136,6 +136,26 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           lastConnected={lastConnected}
         />
 
+        {/* agentskills.io ecosystem badge — signals that skills authored here
+         * aren't locked to Claude Code. Drives both trust (this isn't a walled
+         * garden) and curiosity (what else does this work in?). */}
+        <div className="mt-4 flex justify-center">
+          <a
+            href="https://agentskills.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-xs text-ink-400 hover:text-ink-200 transition-colors border border-ink-700 hover:border-ink-500 rounded-full px-3 py-1.5 group"
+          >
+            <svg className="w-3 h-3 text-success-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+            </svg>
+            <span>
+              Built on the <strong className="text-ink-200 group-hover:text-ink-50">agentskills.io</strong> open standard ·
+              runs in Claude Code, Cursor, Gemini CLI &amp; 30+ more
+            </span>
+          </a>
+        </div>
+
         {/* ALT SURFACES — power-user fallback. Collapsed by default so the primary flow
          * stays visually clean. Inside: full InstallFlow component with the surface tabs
          * (Code Desktop UI / Cowork / Chat) for users who don't run Claude Code in a
