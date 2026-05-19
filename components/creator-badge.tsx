@@ -4,6 +4,8 @@
  * /s/[token] public share preview. Email is NEVER passed in.
  */
 
+import { pickAvatarColor, handleFallback } from '@/lib/avatar';
+
 type CreatorBadgeProps = {
   displayName: string | null;
   /** ISO string — falls back gracefully when missing. */
@@ -15,27 +17,6 @@ type CreatorBadgeProps = {
   /** Creator karma total. Renders an ✨ pill next to the name when > 0. Hidden at 0 / null so brand-new creators don't see a goose-egg. */
   karma?: number | null;
 };
-
-const AVATAR_PALETTE = [
-  'bg-brand-500',
-  'bg-success-400',
-  'bg-amber-500',
-  'bg-rose-500',
-  'bg-violet-500',
-  'bg-sky-500',
-  'bg-teal-500',
-  'bg-fuchsia-500',
-];
-
-function pickAvatarColor(seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
-}
-
-function handleFallback(userId: string): string {
-  return `user-${userId.replace(/-/g, '').slice(0, 8)}`;
-}
 
 function formatMemberSince(iso: string): string {
   const d = new Date(iso);
