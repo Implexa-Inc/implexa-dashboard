@@ -100,15 +100,16 @@ export default async function KarmaPanelPage() {
         {isEmpty ? (
           <div className="card">
             <div className="text-sm text-ink-100 leading-relaxed">
-              You haven&apos;t earned any karma yet — share a skill publicly to
-              start earning when others install or fork it.
+              You haven&apos;t earned any karma yet — share a skill with your
+              team or publicly to start earning when others install or fork it.
             </div>
             <div className="mt-4 text-sm text-ink-300 leading-relaxed">
               In Claude Code, run{' '}
               <code className="font-mono bg-ink-800 px-1.5 py-0.5 rounded text-ink-100">/implexa:share-this</code>{' '}
-              on any active skill in your library, choose <strong>public</strong>{' '}
-              mode, and you&apos;ll start earning karma the moment someone
-              installs it. You can also pick a skill from your{' '}
+              on any active skill in your library. Both team-domain shares and
+              public shares fire karma to you when someone installs or forks
+              your skill — public shares just reach more people. You can also
+              pick a skill from your{' '}
               <Link href="/skills" className="text-brand-500 hover:underline">library</Link>{' '}
               and use the <strong>Share</strong> action there.
             </div>
@@ -147,7 +148,11 @@ export default async function KarmaPanelPage() {
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="text-lg font-semibold tabular-nums text-amber-300">
+                    {/* Match the karma-pill contrast pattern from CreatorBadge —
+                      * dark-amber text in light mode, light-amber in dark mode.
+                      * Previously was text-amber-300 unconditionally, which
+                      * rendered as near-invisible ghost-text on light bg. */}
+                    <div className="text-lg font-semibold tabular-nums text-amber-700 dark:text-amber-400">
                       +{row.earned.toLocaleString()}
                     </div>
                     <div className="text-[10px] uppercase tracking-wide text-ink-500">
