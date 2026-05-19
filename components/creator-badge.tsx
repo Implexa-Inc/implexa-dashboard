@@ -71,8 +71,14 @@ export function CreatorBadge({ displayName, memberSince, userId, size = 'lg', ka
             <span className="font-medium text-ink-100">{name}</span>
           </span>
           {showKarma && (
+            // Karma pill — matches the Founding Creator badge pattern from
+            // settings/page.tsx so the visual rhythm stays consistent:
+            // translucent amber background, dark amber text in light mode,
+            // light amber text in dark mode. Previous styling used
+            // text-amber-300 unconditionally, which rendered as ghost-text
+            // on light backgrounds.
             <span
-              className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium tabular-nums leading-none"
+              className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-700 dark:text-amber-400 font-semibold tabular-nums leading-none"
               title={`${karma} creator karma earned from installs, forks, and public-share promotions`}
             >
               <span aria-hidden="true">✨ </span>{karma!.toLocaleString()} karma
