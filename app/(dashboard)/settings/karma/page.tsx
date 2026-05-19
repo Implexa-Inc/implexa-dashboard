@@ -84,16 +84,31 @@ export default async function KarmaPanelPage() {
             Zero is shown intentionally; the empty-state CTA below explains
             how to start earning. */}
         <div className="card mb-6">
-          <div className="text-xs uppercase tracking-wide text-ink-500 mb-1">
-            Total karma
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-5xl font-semibold tabular-nums text-ink-50">
-              {breakdown.totalKarma.toLocaleString()}
-            </span>
-            {breakdown.totalKarma > 0 && (
-              <span className="text-amber-400 text-2xl" aria-hidden="true">✨</span>
-            )}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-ink-500 mb-1">
+                Total karma
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-5xl font-semibold tabular-nums text-ink-50">
+                  {breakdown.totalKarma.toLocaleString()}
+                </span>
+                {breakdown.totalKarma > 0 && (
+                  <span className="text-amber-400 text-2xl" aria-hidden="true">✨</span>
+                )}
+              </div>
+            </div>
+            {/* Cross-link to the public leaderboard — surfaces the social
+              * context for what this number means. Worth showing even at
+              * 0 karma, since a brand-new creator wants to see "what does
+              * the top of the board look like?" before they commit to
+              * sharing their first skill. */}
+            <Link
+              href="/leaderboard"
+              className="shrink-0 text-xs text-brand-500 hover:underline whitespace-nowrap mt-2"
+            >
+              See leaderboard →
+            </Link>
           </div>
         </div>
 
