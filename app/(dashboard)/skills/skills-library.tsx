@@ -58,6 +58,14 @@ type Skill = {
    * Excluded from the "Your skills" bucket below.
    */
   forked_from_skill_id?: string | null;
+  /**
+   * Bucket-membership tag for the "Your skills" view, attached during
+   * bucket-building (not loaded from the database). Mirrors the
+   * source: 'authored' | 'installed' field that listOrgSkills surfaces in
+   * the backend so the row renderer can show an "Installed" pill on
+   * library-reference rows without an extra join.
+   */
+  _source?: 'authored' | 'installed';
 };
 
 type TabId = 'yours' | 'org' | 'trending' | 'base';
@@ -184,12 +192,20 @@ export default function SkillsLibrary({
   orgSkills,
   systemSkills,
   universalSkills = [],
+  installedSkills = [],
   currentUserId,
   currentOrgId,
 }: {
   orgSkills:        Skill[];
   systemSkills:     Skill[];
   universalSkills?: Skill[];
+  /** Canonical skill rows the caller has an active library reference to
+   * (via user_skill_installs from migration 0021). Sourced from a
+   * dedicated supabase query in the parent page because installs are
+   * frequently cross-org and would be excluded by the org-scope filter
+   * that governs `orgSkills`. Used to route rows into the "Your skills"
+   * bucket alongside authored skills. */
+  installedSkills?: Skill[];
   currentUserId:    string;
   /** Used to determine if a universal skill belongs to the user's own
    * org — those show up in "Org-wide" because the team has access to
@@ -206,13 +222,24 @@ export default function SkillsLibrary({
   // for the design rationale + examples.
   const buckets = useMemo(() => {
     // Dedupe: org/private/system come from one query, universal from
-    // another. A skill should never appear in both result sets, but
-    // collect into a Map for safety (and to allow client-side merging if
-    // we ever consolidate the queries).
+    // another, installed (cross-org library references via migration
+    // 0021) from a third. A skill could appear in multiple result sets
+    // (e.g. a universal skill the user installed shows up in BOTH
+    // universalSkills and installedSkills). The Map collapses on id so
+    // every skill is iterated once below.
     const all = new Map<string, Skill>();
     for (const s of orgSkills)       all.set(s.id, s);
     for (const s of systemSkills)    all.set(s.id, s);
     for (const s of universalSkills) all.set(s.id, s);
+    for (const s of installedSkills) all.set(s.id, s);
+
+    // Membership lookup: post-migration-0021, "is this in my library?" is
+    // answered by user_skill_installs (an explicit row, not an authorship
+    // check). The installed-cross-org case is what the union query above
+    // adds — universal-scope installed skills are already in the Map via
+    // universalSkills, but this Set lets us tag them as installed even
+    // when they also showed up in the universal query.
+    const installedIdSet = new Set(installedSkills.map((s) => s.id));
 
     const yours:    Skill[] = [];
     const org:      Skill[] = [];
@@ -220,27 +247,31 @@ export default function SkillsLibrary({
     const base:     Skill[] = [];
 
     for (const s of all.values()) {
-      const isMine    = s.created_by?.userId === currentUserId;
-      const isPristineFork = !!s.forked_from_skill_id;                                       // forked_from cleared on first edit
-      const isMyOrg   = s.organization_id === currentOrgId;
+      const isMine          = s.created_by?.userId === currentUserId;
+      const isInstalled     = installedIdSet.has(s.id);
+      const isMyOrg         = s.organization_id === currentOrgId;
       const isOrgScope       = s.scope === 'org';
       const isUniversalScope = s.scope === 'universal';
       const isSystemScope    = s.scope === 'system';
 
-      // Your skills: anything in your personal library that you control.
-      // This includes:
-      //   • Skills you authored from scratch (record-skill / save-this)
-      //   • Forks you've customized (forked_from_skill_id cleared via promoteFromFork)
-      //   • Pristine forks you actively installed (share-link "Install in 1 click",
-      //     role-pack onboarding picks, manual /implexa:fork from public library)
+      // Your skills: skills the user controls OR explicitly added to their
+      // library. Two distinct routes in:
+      //   • Authored — skills they created (record-skill / save-this) or
+      //     forks they've customized (forked_from_skill_id cleared via
+      //     promoteFromFork). They own the canonical row.
+      //   • Installed — a user_skill_installs reference to a canonical
+      //     row in someone else's org. No copy, no edit rights — they
+      //     can run it and they can fork to customize.
       //
-      // The previous logic excluded pristine forks under a "borrowed copies"
-      // mental model — but users (rightly) expect anything they actively
-      // installed to appear in their library. A share-link install was hidden
-      // from Your skills until they edited it, which made it look like the
-      // install never happened. Fix: trust `created_by.userId`; if you own
-      // the row, it's yours.
-      if (isMine) yours.push(s);
+      // Dedup precedence matches the backend's _listMyLibrary: authored
+      // wins on the rare double-membership case (a user authored a skill
+      // AND somehow has an install row for it). The _source tag drives
+      // the row renderer's "Installed" pill below.
+      if (isMine) {
+        yours.push({ ...s, _source: 'authored' });
+      } else if (isInstalled) {
+        yours.push({ ...s, _source: 'installed' });
+      }
 
       // Org-wide: scope=org OR scope=universal, in your own org. This
       // is "what your team has access to" — includes both your shared
@@ -257,7 +288,7 @@ export default function SkillsLibrary({
     }
 
     return { yours, org, trending, base };
-  }, [orgSkills, systemSkills, universalSkills, currentUserId, currentOrgId]);
+  }, [orgSkills, systemSkills, universalSkills, installedSkills, currentUserId, currentOrgId]);
 
   // ─── Filter universe — search + tag ──────────────────────────────────
   // Search is semantically expanded via SEMANTIC_CLUSTERS — e.g. typing
@@ -640,6 +671,11 @@ function SkillRow({
           <div className="flex items-baseline gap-2 flex-wrap">
             <div className="font-medium text-ink-50">{skill.name}</div>
             {skill.status === 'draft' && <span className="text-xs px-1.5 py-0.5 rounded bg-accent-400/20 text-accent-400">draft</span>}
+            {skill._source === 'installed' && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-500 uppercase tracking-wide font-medium">
+                Installed
+              </span>
+            )}
             <code className="text-xs text-ink-400 font-mono">{skill.slug}</code>
             {visibleTags.length > 0 && (
               <span className="flex gap-1 ml-1">

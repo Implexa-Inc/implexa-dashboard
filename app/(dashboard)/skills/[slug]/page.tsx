@@ -10,6 +10,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/server';
 import SkillActions from './actions';
+import { InstallStatusBadge, ForkToCustomizeButton } from './install-controls';
 import { CreatorBadge } from '@/components/creator-badge';
 import { ShareButtons } from '@/components/share-buttons';
 import { StarButton }   from '@/components/star-button';
@@ -101,6 +102,29 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
     .maybeSingle();
   const isStarredByMe = !!myStar;
 
+  // Has this viewer installed the skill (as a library reference via
+  // migration 0021)? Same RLS-own-rows pattern as skill_stars: zero-or-one
+  // row, drives the "Installed" badge + archive/restore link. Includes
+  // archived rows so the detail page can offer "Restore to library" rather
+  // than treating archived as fully gone.
+  const { data: myInstall } = await supabase
+    .from('user_skill_installs')
+    .select('status')
+    .eq('skill_id', actualSkill.id)
+    .eq('user_id', session.user.id)
+    .maybeSingle();
+  const installState = myInstall ? { status: myInstall.status as 'active' | 'archived' } : null;
+
+  // Fork-to-customize gating. Show ONLY when the viewer can plausibly want
+  // a private copy: they didn't author it, and it doesn't already live in
+  // their org (where they could edit directly without forking). System
+  // Playbooks fall under "not in my org" and already have a dedicated "Fork
+  // to my org" path through SkillActions — exclude here to avoid two
+  // competing fork buttons on the same page.
+  const isOwnedByMe   = actualSkill.created_by?.userId === session.user.id;
+  const isInMyOrg     = !!userOrgId && actualSkill.organization_id === userOrgId;
+  const showForkToCustomize = !isOwnedByMe && !isInMyOrg && !isSystem;
+
   const now = Date.now();
   const activeShares = (shareRows || [])
     .filter((s) => !s.expires_at || new Date(s.expires_at).getTime() > now)
@@ -155,13 +179,26 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
               </div>
             )}
             <code className="text-xs text-ink-500 font-mono block mt-2">{actualSkill.slug}</code>
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap items-center gap-3">
               <StarButton
                 skillId={actualSkill.id}
                 initialStarred={isStarredByMe}
                 initialCount={actualSkill.star_count || 0}
                 jwt={session.access_token}
               />
+              {showForkToCustomize && (
+                <ForkToCustomizeButton
+                  skillId={actualSkill.id}
+                  skillName={actualSkill.name}
+                  jwt={session.access_token}
+                />
+              )}
+              {installState && (
+                <InstallStatusBadge
+                  skillId={actualSkill.id}
+                  installState={installState}
+                />
+              )}
             </div>
             <p className="text-ink-200 mt-3">{actualSkill.description}</p>
 

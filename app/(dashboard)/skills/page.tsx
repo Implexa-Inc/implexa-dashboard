@@ -72,9 +72,32 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
     .order('created_at',  { ascending: false })
     .limit(50);
 
+  // Pass 3 — active library references (user_skill_installs from migration
+  // 0021). The user's "Your skills" tab now merges authored skills with
+  // installed canonical references; installed rows live in OTHER orgs (the
+  // whole point of install-as-reference is no copy in the caller's org),
+  // so we need a dedicated query that bypasses the org-scope filters above.
+  // RLS scopes user_skill_installs reads to the caller's own rows so a
+  // simple status='active' filter is enough.
+  const { data: installRefs } = await supabase
+    .from('user_skill_installs')
+    .select('skill_id')
+    .eq('user_id', profile.id)
+    .eq('status', 'active');
+  const installedSkillIds = (installRefs || []).map((r) => r.skill_id);
+
+  const { data: installedSkillsRaw } = installedSkillIds.length > 0
+    ? await supabase
+        .from('org_skills')
+        .select('id, slug, name, description, scope, status, usage_count, trigger_phrases, outcome_stats, tags, created_by, organization_id, forked_from_skill_id')
+        .in('status', ['active', 'draft'])
+        .in('id', installedSkillIds)
+    : { data: [] };
+
   const orgSkills       = (skills || []).filter((s) => s.scope === 'org' || s.scope === 'private');
   const systemSkills    = (skills || []).filter((s) => s.scope === 'system');
   const universalSkills = universalSkillsRaw || [];
+  const installedSkills = installedSkillsRaw || [];
 
   // Has the user generated an API key yet? Used to gate the install banner.
   const { data: keys } = await supabase
@@ -145,6 +168,7 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
           orgSkills={orgSkills}
           systemSkills={systemSkills}
           universalSkills={universalSkills}
+          installedSkills={installedSkills}
           currentUserId={profile.id}
           currentOrgId={profile.organization_id}
         />
