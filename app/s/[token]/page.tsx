@@ -42,6 +42,7 @@ type SharePreview = {
     userId: string;
     displayName: string | null;
     memberSince: string | null;
+    karma: number;
   } | null;
   sharedBy: {
     orgId: string;
@@ -161,6 +162,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
                 displayName={creator.displayName}
                 memberSince={creator.memberSince}
                 userId={creator.userId}
+                karma={creator.karma}
               />
             </div>
           )}

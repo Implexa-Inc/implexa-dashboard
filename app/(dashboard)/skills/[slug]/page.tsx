@@ -61,15 +61,21 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
   // We never expose email — only the display_name + signup date.
   const isSystem = actualSkill.organization_id === SYSTEM_ORG_ID;
   const creatorUserId: string | null = actualSkill.created_by?.userId || null;
-  let creator: { displayName: string | null; memberSince: string | null; userId: string } | null = null;
+  let creator: { displayName: string | null; memberSince: string | null; userId: string; karma: number } | null = null;
   if (creatorUserId && !isSystem) {
+    // creator_karma is added to the same SELECT — one column, no extra query.
+    // Drives the ✨ pill on CreatorBadge. Falls back to 0 for legacy rows
+    // (creator_karma NOT NULL DEFAULT 0 from migration 0018 means this should
+    // never actually be null, but the ?? guards against type mismatches if
+    // the column is missing pre-migration).
     const { data: creatorRow } = await supabase
-      .from('users').select('display_name, created_at')
+      .from('users').select('display_name, created_at, creator_karma')
       .eq('id', creatorUserId).maybeSingle();
     creator = {
       userId:      creatorUserId,
       displayName: creatorRow?.display_name || actualSkill.created_by?.displayName || null,
       memberSince: creatorRow?.created_at || null,
+      karma:       creatorRow?.creator_karma ?? 0,
     };
   }
 
@@ -131,6 +137,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
                   displayName={creator.displayName}
                   memberSince={creator.memberSince}
                   userId={creator.userId}
+                  karma={creator.karma}
                 />
               </div>
             )}
