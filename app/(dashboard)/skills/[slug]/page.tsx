@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/server';
 import SkillActions from './actions';
 import { CreatorBadge } from '@/components/creator-badge';
 import { ShareButtons } from '@/components/share-buttons';
+import { StarButton }   from '@/components/star-button';
 
 import 'highlight.js/styles/github-dark.css';
 
@@ -88,6 +89,18 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
     .eq('status', 'active')
     .order('created_at', { ascending: false });
 
+  // Has this viewer starred the skill? RLS scopes skill_stars to own-rows
+  // for the authenticated user, so this query naturally returns 0 or 1 row
+  // regardless of how many total stars the skill has. The aggregate count
+  // comes from org_skills.star_count (already on actualSkill).
+  const { data: myStar } = await supabase
+    .from('skill_stars')
+    .select('skill_id')
+    .eq('skill_id', actualSkill.id)
+    .eq('user_id', session.user.id)
+    .maybeSingle();
+  const isStarredByMe = !!myStar;
+
   const now = Date.now();
   const activeShares = (shareRows || [])
     .filter((s) => !s.expires_at || new Date(s.expires_at).getTime() > now)
@@ -142,6 +155,14 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
               </div>
             )}
             <code className="text-xs text-ink-500 font-mono block mt-2">{actualSkill.slug}</code>
+            <div className="mt-3">
+              <StarButton
+                skillId={actualSkill.id}
+                initialStarred={isStarredByMe}
+                initialCount={actualSkill.star_count || 0}
+                jwt={session.access_token}
+              />
+            </div>
             <p className="text-ink-200 mt-3">{actualSkill.description}</p>
 
             {/* Social share row — visible for any skill the user might want to

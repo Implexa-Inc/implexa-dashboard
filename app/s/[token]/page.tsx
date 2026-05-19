@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/server';
 import InstallCta from './install-cta';
 import { CreatorBadge } from '@/components/creator-badge';
 import { ShareButtons } from '@/components/share-buttons';
+import { StarButton }   from '@/components/star-button';
 
 import 'highlight.js/styles/github-dark.css';
 import { Logo } from '@/components/logo';
@@ -26,6 +27,8 @@ export const dynamic = 'force-dynamic';
 type SharePreview = {
   token: string;
   skill: {
+    /** Skill UUID — needed by StarButton, which posts to /skills/:id/star. */
+    id: string;
     slug: string;
     name: string;
     description: string;
@@ -37,6 +40,8 @@ type SharePreview = {
     uniqueUsers: number;
     attributedOutcomes: number;
     attributedValueUsd: number;
+    /** Live aggregate from org_skills.star_count (migration 0020). */
+    starCount: number;
   };
   creator: {
     userId: string;
@@ -117,7 +122,23 @@ export default async function SharePreviewPage({ params }: { params: { token: st
   const { skill, creator, sharedBy, gate, stats } = data;
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
   const isAuthed = !!user;
+
+  // Authed viewers: check if they've starred this skill so the StarButton
+  // paints filled on first render. Unauthed viewers always get starred=false
+  // (and the button itself renders non-interactive via the missing jwt).
+  // RLS on skill_stars scopes the SELECT to own-rows only.
+  let isStarredByMe = false;
+  if (isAuthed) {
+    const { data: myStar } = await supabase
+      .from('skill_stars')
+      .select('skill_id')
+      .eq('skill_id', skill.id)
+      .eq('user_id', user!.id)
+      .maybeSingle();
+    isStarredByMe = !!myStar;
+  }
 
   // Author / same-org bypass — if a logged-in user is in the same org as the
   // skill's owner, route them to the full /skills/[slug] view inside the
@@ -178,6 +199,18 @@ export default async function SharePreviewPage({ params }: { params: { token: st
               />
             </div>
           )}
+          {/* StarButton — pre-install social signal. Unauthed viewers see
+            * the count + "Sign in to star" tooltip; authed viewers can
+            * toggle. Lives above the description so the visible count
+            * frames the skill BEFORE the description does. */}
+          <div className="mt-3">
+            <StarButton
+              skillId={skill.id}
+              initialStarred={isStarredByMe}
+              initialCount={skill.starCount || 0}
+              jwt={session?.access_token || null}
+            />
+          </div>
           <p className="text-ink-200 mt-3 leading-relaxed">{skill.description}</p>
 
           {sharedBy.message && (
