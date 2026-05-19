@@ -146,7 +146,19 @@ export default async function SharePreviewPage({ params }: { params: { token: st
         <Link href="/" className="inline-flex items-center text-ink-50"><Logo height={20} /></Link>
         {isAuthed
           ? <Link href="/skills" className="text-sm text-ink-200 hover:underline">Your skills →</Link>
-          : <Link href="/signup" className="text-sm text-brand-500 hover:underline">Sign in / Sign up</Link>}
+          : (
+            // Preserve the share token in `next=` so the user lands BACK on
+            // the share-preview-install flow after signing in/up — not the
+            // generic /skills library. Same target as install-cta.tsx so
+            // both auth entry points (header + install button) converge on
+            // /s/[token]/install which auto-fires the install endpoint.
+            <Link
+              href={`/signup?next=${encodeURIComponent(`/s/${params.token}/install`)}`}
+              className="text-sm text-brand-500 hover:underline"
+            >
+              Sign in / Sign up
+            </Link>
+          )}
       </header>
 
       <div className="max-w-3xl mx-auto">
