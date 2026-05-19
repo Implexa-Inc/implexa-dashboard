@@ -66,6 +66,15 @@ type Skill = {
    * library-reference rows without an extra join.
    */
   _source?: 'authored' | 'installed';
+  /**
+   * Skill creation timestamp. Loaded from org_skills.created_at by the
+   * parent page query. Drives the "Your skills" recency sort so freshly-
+   * authored skills land at the TOP of the list — previously the bucket
+   * just inherited Map insertion order, which put universal-scope new
+   * captures at the bottom (universalSkills query sorts by usage_count
+   * DESC; a brand-new skill with usage_count=0 ranks low in that query).
+   */
+  created_at?: string | null;
 };
 
 type TabId = 'yours' | 'org' | 'trending' | 'base';
@@ -286,6 +295,27 @@ export default function SkillsLibrary({
       // Base Playbooks
       if (isSystemScope) base.push(s);
     }
+
+    // Sort "Your skills" by creation recency, most-recent first.
+    // Without this, the bucket inherits Map insertion order, which is:
+    //   1. orgSkills (sorted by created_at DESC at the parent query level)
+    //   2. systemSkills (filtered subset of the same query)
+    //   3. universalSkills (sorted by usage_count DESC — a freshly-captured
+    //      universal-scope skill with usage_count=0 ends up LAST in this set)
+    //   4. installedSkills (no parent sort)
+    //
+    // The universal-skill subsort is what caused the bug: a brand-new
+    // capture you just made via /implexa:record-skill or /implexa:update-skill
+    // lands as scope='universal' and gets sorted to the bottom of the
+    // universal bucket by usage_count, then appears at the bottom of
+    // "Your skills" via Map insertion order. Re-sorting by created_at
+    // here fixes the recency expectation. created_at is loaded into the
+    // Skill type via the parent page's SELECT (see /skills/page.tsx).
+    yours.sort((a, b) => {
+      const aTs = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTs = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return bTs - aTs;
+    });
 
     return { yours, org, trending, base };
   }, [orgSkills, systemSkills, universalSkills, installedSkills, currentUserId, currentOrgId]);
