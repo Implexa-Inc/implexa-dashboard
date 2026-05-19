@@ -72,7 +72,7 @@ const TABS: TabDef[] = [
   {
     id:          'yours',
     label:       'Your skills',
-    description: 'Skills you\'ve personally authored. Edit, share, or invoke them anytime — your originals plus any forks you\'ve customized. (Your shared skills also appear in Org-wide and Trending Globally below.)',
+    description: 'Your personal library — skills you authored from scratch plus any you\'ve installed or forked (from a share link, Trending Globally, or a Base Playbook). Edit, share, or invoke them anytime. (Your shared skills also appear in Org-wide and Trending Globally below.)',
   },
   {
     id:          'org',
@@ -227,13 +227,20 @@ export default function SkillsLibrary({
       const isUniversalScope = s.scope === 'universal';
       const isSystemScope    = s.scope === 'system';
 
-      // Your skills: skills you actually authored — either from scratch
-      // (record-skill / save-this) OR forks you've customized. Pristine
-      // role-pack forks are excluded — they technically have `created_by`
-      // set to the forker but represent "borrowed copies," not your work.
-      // The forked_from_skill_id column is cleared on first edit via
-      // `promoteFromFork`, so edited forks correctly land here.
-      if (isMine && !isPristineFork) yours.push(s);
+      // Your skills: anything in your personal library that you control.
+      // This includes:
+      //   • Skills you authored from scratch (record-skill / save-this)
+      //   • Forks you've customized (forked_from_skill_id cleared via promoteFromFork)
+      //   • Pristine forks you actively installed (share-link "Install in 1 click",
+      //     role-pack onboarding picks, manual /implexa:fork from public library)
+      //
+      // The previous logic excluded pristine forks under a "borrowed copies"
+      // mental model — but users (rightly) expect anything they actively
+      // installed to appear in their library. A share-link install was hidden
+      // from Your skills until they edited it, which made it look like the
+      // install never happened. Fix: trust `created_by.userId`; if you own
+      // the row, it's yours.
+      if (isMine) yours.push(s);
 
       // Org-wide: scope=org OR scope=universal, in your own org. This
       // is "what your team has access to" — includes both your shared

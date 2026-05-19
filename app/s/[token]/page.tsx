@@ -16,6 +16,7 @@ import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/server';
 import InstallCta from './install-cta';
 import { CreatorBadge } from '@/components/creator-badge';
+import { ShareButtons } from '@/components/share-buttons';
 
 import 'highlight.js/styles/github-dark.css';
 import { Logo } from '@/components/logo';
@@ -169,6 +170,22 @@ export default async function SharePreviewPage({ params }: { params: { token: st
             <blockquote className="mt-4 border-l-4 border-brand-500 pl-4 italic text-ink-200">
               "{sharedBy.message}"
             </blockquote>
+          )}
+
+          {/* Social share row — viewers landing here are the highest-intent
+            * amplifiers (they clicked into a skill from somewhere, so they're
+            * already interested). Placed BELOW the description and ABOVE the
+            * outcome stats so the install CTA (which lives in the gate
+            * banner just below) stays the primary action. */}
+          {gate.shareMode === 'public' && (
+            <div className="mt-5">
+              <ShareButtons
+                url={`${process.env.NEXT_PUBLIC_APP_URL || 'https://app.implexa.ai'}/s/${data.token}`}
+                title={skill.name}
+                description={skill.description || ''}
+                variant="full"
+              />
+            </div>
           )}
         </div>
 

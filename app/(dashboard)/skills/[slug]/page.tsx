@@ -11,6 +11,7 @@ import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/server';
 import SkillActions from './actions';
 import { CreatorBadge } from '@/components/creator-badge';
+import { ShareButtons } from '@/components/share-buttons';
 
 import 'highlight.js/styles/github-dark.css';
 
@@ -135,6 +136,23 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
             )}
             <code className="text-xs text-ink-500 font-mono block mt-2">{actualSkill.slug}</code>
             <p className="text-ink-200 mt-3">{actualSkill.description}</p>
+
+            {/* Social share row — visible for any skill the user might want to
+              * push out. Lives below the description so the install / share
+              * actions on the right stay primary; sharing here is a secondary
+              * "push this externally" action. Shows on system Playbooks too —
+              * a power user might want to spread the word about a base skill. */}
+            {actualSkill.scope !== 'private' && (
+              <div className="mt-4">
+                <ShareButtons
+                  url={`${process.env.NEXT_PUBLIC_APP_URL || 'https://app.implexa.ai'}/skills/${actualSkill.slug}`}
+                  title={actualSkill.name}
+                  description={actualSkill.description || ''}
+                  variant="full"
+                />
+              </div>
+            )}
+
             {/* Raw capture link — creator-only */}
             {actualSkill.created_by?.userId === session.user.id && !isSystem && (
               <Link

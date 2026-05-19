@@ -107,11 +107,16 @@ export default function InstallCta({ token, isAuthed, gate }: Props) {
       <div className="flex flex-col items-end gap-3 max-w-md">
         <div className="text-right">
           <div className="text-sm font-medium text-brand-600">✓ Installed</div>
+          {/* Jump straight to the forked skill's detail page (NOT the
+            * library index). Lands the user on the actual skill they just
+            * installed — they don't need to scroll-find it under "Your skills".
+            * Previously this was router.push('/skills'), which dumped them
+            * on the library with no clue where to look. */}
           <button
-            onClick={() => router.push('/skills')}
+            onClick={() => router.push(`/skills/${installed.slug}`)}
             className="mt-1 text-xs text-ink-200 hover:underline"
           >
-            View &quot;{installed.name}&quot; in your library →
+            Open &quot;{installed.name}&quot; →
           </button>
         </div>
         <TryItCard
