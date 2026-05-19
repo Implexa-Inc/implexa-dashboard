@@ -10,6 +10,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/server';
 import SkillActions from './actions';
+import { CreatorBadge } from '@/components/creator-badge';
 
 import 'highlight.js/styles/github-dark.css';
 
@@ -54,6 +55,23 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
 
   if (!actualSkill) notFound();
 
+  // Resolve creator attribution. Skip for system Playbooks (no human author)
+  // and for any skill whose created_by jsonb is missing a userId (legacy rows).
+  // We never expose email — only the display_name + signup date.
+  const isSystem = actualSkill.organization_id === SYSTEM_ORG_ID;
+  const creatorUserId: string | null = actualSkill.created_by?.userId || null;
+  let creator: { displayName: string | null; memberSince: string | null; userId: string } | null = null;
+  if (creatorUserId && !isSystem) {
+    const { data: creatorRow } = await supabase
+      .from('users').select('display_name, created_at')
+      .eq('id', creatorUserId).maybeSingle();
+    creator = {
+      userId:      creatorUserId,
+      displayName: creatorRow?.display_name || actualSkill.created_by?.displayName || null,
+      memberSince: creatorRow?.created_at || null,
+    };
+  }
+
   // Pull active share tokens for this skill — drives the share UI state
   // (existing link + copy/revoke vs. "create share" button).
   const { data: shareRows } = await supabase
@@ -79,7 +97,6 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
       createdAt:         s.created_at,
     }));
 
-  const isSystem = actualSkill.organization_id === SYSTEM_ORG_ID;
   const inputs         = Array.isArray(actualSkill.inputs)          ? actualSkill.inputs          : [];
   const decisionPoints = Array.isArray(actualSkill.decision_points) ? actualSkill.decision_points : [];
   const outputContract = actualSkill.output_contract || {};
@@ -107,7 +124,16 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
               <span className="text-xs text-ink-500 uppercase tracking-wide">{actualSkill.scope} · v{actualSkill.version}</span>
             </div>
             <h1 className="text-3xl font-semibold tracking-tight">{actualSkill.name}</h1>
-            <code className="text-xs text-ink-500 font-mono">{actualSkill.slug}</code>
+            {creator && (
+              <div className="mt-2">
+                <CreatorBadge
+                  displayName={creator.displayName}
+                  memberSince={creator.memberSince}
+                  userId={creator.userId}
+                />
+              </div>
+            )}
+            <code className="text-xs text-ink-500 font-mono block mt-2">{actualSkill.slug}</code>
             <p className="text-ink-200 mt-3">{actualSkill.description}</p>
             {/* Raw capture link — creator-only */}
             {actualSkill.created_by?.userId === session.user.id && !isSystem && (

@@ -15,6 +15,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/server';
 import InstallCta from './install-cta';
+import { CreatorBadge } from '@/components/creator-badge';
 
 import 'highlight.js/styles/github-dark.css';
 import { Logo } from '@/components/logo';
@@ -36,6 +37,11 @@ type SharePreview = {
     attributedOutcomes: number;
     attributedValueUsd: number;
   };
+  creator: {
+    userId: string;
+    displayName: string | null;
+    memberSince: string | null;
+  } | null;
   sharedBy: {
     orgId: string;
     userName: string | null;
@@ -106,7 +112,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
     );
   }
 
-  const { skill, sharedBy, gate, stats } = data;
+  const { skill, creator, sharedBy, gate, stats } = data;
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const isAuthed = !!user;
@@ -148,6 +154,15 @@ export default async function SharePreviewPage({ params }: { params: { token: st
             {sharedBy.userName || 'Someone'} shared a skill {timeAgo(sharedBy.sharedAt)}
           </div>
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight leading-tight text-ink-50">{skill.name}</h1>
+          {creator && (
+            <div className="mt-3">
+              <CreatorBadge
+                displayName={creator.displayName}
+                memberSince={creator.memberSince}
+                userId={creator.userId}
+              />
+            </div>
+          )}
           <p className="text-ink-200 mt-3 leading-relaxed">{skill.description}</p>
 
           {sharedBy.message && (
