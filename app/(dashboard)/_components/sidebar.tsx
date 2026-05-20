@@ -23,6 +23,8 @@ type NavItem = {
 //   pricing       → "spark" (premium tier feel)
 const PRIMARY_NAV: NavItem[] = [
   { href: '/skills',       label: 'Skills',         icon: 'skills',    matchPrefix: true },
+  { href: '/scheduled',    label: 'Scheduled',      icon: 'replay',    matchPrefix: true },
+  { href: '/runs',         label: 'Runs',           icon: 'activity',  matchPrefix: true },
   { href: '/integrations', label: 'Integrations',   icon: 'link',      matchPrefix: true },
   { href: '/roi',          label: 'ROI',            icon: 'analytics', matchPrefix: true },
   { href: '/leaderboard',  label: 'Leaderboard',    icon: 'trending',  matchPrefix: true },
