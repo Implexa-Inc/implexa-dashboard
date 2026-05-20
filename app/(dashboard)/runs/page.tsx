@@ -58,9 +58,16 @@ function sourceBadge(source: SkillRun['source']) {
 function deliverySummary(d: Record<string, unknown>): string {
   const parts: string[] = [];
   if (d?.dashboard) parts.push('dashboard');
-  const slack = (d as { slack?: { delivered?: boolean; error?: string } }).slack;
+  const slack = (d as { slack?: { via?: 'webhook' | 'plugin'; delivered?: boolean; channel?: string; error?: string } }).slack;
   if (slack) {
-    parts.push(slack.delivered ? 'slack ok' : `slack failed${slack.error ? ` (${slack.error.slice(0, 30)})` : ''}`);
+    // Show how Slack was delivered (plugin vs webhook) + status. Plugin
+    // delivery includes the channel for clarity ("slack #standup ok").
+    const label = slack.via === 'plugin'
+      ? `slack-plugin${slack.channel ? ` ${slack.channel}` : ''}`
+      : 'slack-webhook';
+    parts.push(slack.delivered
+      ? `${label} ok`
+      : `${label} failed${slack.error ? ` (${slack.error.slice(0, 40)})` : ''}`);
   }
   return parts.length ? parts.join(' · ') : '—';
 }

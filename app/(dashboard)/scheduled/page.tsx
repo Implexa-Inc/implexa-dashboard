@@ -23,7 +23,7 @@ type ScheduledSkill = {
   schedule_nl:      string;
   cron_expression:  string;
   timezone:         string;
-  destination:      { type: 'dashboard' | 'slack'; target?: string };
+  destination:      { type: 'dashboard' | 'slack-webhook' | 'slack-plugin'; target?: string };
   status:           'active' | 'paused' | 'failed';
   last_run_at:      string | null;
   next_run_at:      string | null;

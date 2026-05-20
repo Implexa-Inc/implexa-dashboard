@@ -27,7 +27,7 @@ type ScheduledSkill = {
   schedule_nl:      string;
   cron_expression:  string;
   timezone:         string;
-  destination:      { type: 'dashboard' | 'slack'; target?: string };
+  destination:      { type: 'dashboard' | 'slack-webhook' | 'slack-plugin'; target?: string };
   status:           'active' | 'paused' | 'failed';
   last_run_at:      string | null;
   run_count:        number;
@@ -51,7 +51,8 @@ function statusBadge(status: ScheduledSkill['status']) {
 }
 
 function destinationLabel(d: ScheduledSkill['destination']): string {
-  if (d.type === 'slack') return 'Slack + dashboard';
+  if (d.type === 'slack-plugin')  return `Slack ${d.target || '(channel)'} + dashboard`;
+  if (d.type === 'slack-webhook') return 'Slack (via webhook) + dashboard';
   return 'Dashboard only';
 }
 
