@@ -85,6 +85,30 @@ export async function GET(request: Request) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // For GitHub sessions, refresh github_username / avatar_url / github_id
+  // on the users row. First-time signups will get these written again by
+  // /provision (from /onboarding/picker); this call covers the repeat-signin
+  // case where /provision is never invoked. Fire-and-await — the redirect
+  // is cheap and we'd rather the user land with their avatar populated.
+  if (user.app_metadata?.provider === 'github') {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      const backend = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'http://localhost:8001').replace(/\/$/, '');
+      if (accessToken) {
+        await fetch(`${backend}/api/v2/auth/sync-profile`, {
+          method:  'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          cache:   'no-store',
+        });
+      }
+    } catch (e) {
+      // Sync is best-effort — never block signin on it. Logged so we can
+      // diagnose if avatars stop updating.
+      console.warn('[auth/callback] github sync-profile failed:', (e as Error).message);
+    }
+  }
+
   const { data: profile } = await supabase
     .from('users').select('id, organization_id').eq('id', user.id).maybeSingle();
 
