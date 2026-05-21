@@ -14,6 +14,8 @@ import { InstallStatusBadge, ForkToCustomizeButton } from './install-controls';
 import { CreatorBadge } from '@/components/creator-badge';
 import { ShareButtons } from '@/components/share-buttons';
 import { StarButton }   from '@/components/star-button';
+import { DownloadSkillButton } from '@/components/download-skill-button';
+import { RecommendationsRail } from './recommendations-rail';
 
 import 'highlight.js/styles/github-dark.css';
 
@@ -193,6 +195,10 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
                   jwt={session.access_token}
                 />
               )}
+              <DownloadSkillButton
+                slug={actualSkill.slug}
+                jwt={session.access_token}
+              />
               {installState && (
                 <InstallStatusBadge
                   skillId={actualSkill.id}
@@ -339,6 +345,8 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
             ) : <p className="text-sm text-ink-500 italic">No outcome signal — attribution not configured.</p>}
           </div>
         </div>
+
+        <RecommendationsRail focusSkillId={actualSkill.id} jwt={session.access_token} limit={5} />
       </div>
     </main>
   );

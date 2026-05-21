@@ -18,6 +18,7 @@ import InstallCta from './install-cta';
 import { CreatorBadge } from '@/components/creator-badge';
 import { ShareButtons } from '@/components/share-buttons';
 import { StarButton }   from '@/components/star-button';
+import { DownloadSkillButton } from '@/components/download-skill-button';
 
 import 'highlight.js/styles/github-dark.css';
 import { Logo } from '@/components/logo';
@@ -203,11 +204,15 @@ export default async function SharePreviewPage({ params }: { params: { token: st
             * the count + "Sign in to star" tooltip; authed viewers can
             * toggle. Lives above the description so the visible count
             * frames the skill BEFORE the description does. */}
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <StarButton
               skillId={skill.id}
               initialStarred={isStarredByMe}
               initialCount={skill.starCount || 0}
+              jwt={session?.access_token || null}
+            />
+            <DownloadSkillButton
+              slug={skill.slug}
               jwt={session?.access_token || null}
             />
           </div>
