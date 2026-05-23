@@ -43,10 +43,17 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
     .eq('id', session.user.id).maybeSingle();
   const userOrgId = profile?.organization_id;
 
+  // Detail-view columns. Excludes history (audit log, not rendered here) and
+  // the heavy `source` jsonb + author_model/version. content stays — this is
+  // the page that renders SKILL.md. Column list MUST stay on one line / no
+  // internal whitespace — supabase-js's TS column inference treats spaces
+  // as invalid column names and falls back to GenericStringError.
+  const skillDetailCols = 'id,slug,name,description,scope,status,version,content,created_by,organization_id,usage_count,unique_users,star_count,outcome_stats,trigger_phrases,tags,inputs,decision_points,output_contract,outcome_signal,forked_from_skill_id,created_at';
+
   // Primary lookup: own org + system Playbooks
   const { data: skill } = await supabase
     .from('org_skills')
-    .select('*')
+    .select(skillDetailCols)
     .eq('slug', params.slug)
     .in('organization_id', userOrgId ? [userOrgId, SYSTEM_ORG_ID] : [SYSTEM_ORG_ID])
     .maybeSingle();
@@ -56,7 +63,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
   // here. This covers Trending Globally entries and shared skills.
   const { data: actualSkill } = skill
     ? { data: skill }
-    : await supabase.from('org_skills').select('*').eq('slug', params.slug).maybeSingle();
+    : await supabase.from('org_skills').select(skillDetailCols).eq('slug', params.slug).maybeSingle();
 
   if (!actualSkill) notFound();
 
