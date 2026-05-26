@@ -15,33 +15,38 @@ type Props = {
   isFoundingCreator: boolean;
 };
 
-const PRO_FEATURES = [
-  '🚀 Unlimited skill captures (Free is 5/month)',
-  '🏢 Org-wide skill library — every teammate sees what the team has saved',
-  '📊 Skill ROI dashboard — see which skills drive real outcomes (deals, hires, meetings)',
-  '🔗 Outcome attribution — last-touch within a 30-day window from CRM / ATS / calendar',
-  '🔐 SSO (Google / Microsoft) for team workspaces',
-  '👥 Unlimited team members on the same workspace',
-  'Everything in Free, naturally',
+const FREE_FEATURES = [
+  '🔍 Unlimited search across 19,300+ skills (Anthropic, Smithery, ClawHub, Skills.sh)',
+  '⚡ Unlimited inline-apply: no download, runs in your chat',
+  '🎯 Ambient recommender: watches your work, surfaces skills mid-task',
+  '🌐 Works in Claude Code, Codex, Cursor, Gemini CLI',
+  '🔒 Privacy-by-discard: prompts that don\'t match a skill are never logged',
+  '📚 5 personal skill captures / month + unlimited runs',
+  '🌳 Fork any base Playbook into your library',
+  '✨ Public sharing for Founding Creator status (free Pro for life)',
 ] as const;
 
-const FREE_FEATURES = [
-  '🎯 5 skill captures / month',
-  '✨ Unlimited skill runs — invoke any skill as many times as you want',
-  '🌐 Public sharing — appear in Trending Globally + earn Founding Creator status',
-  '🌳 Fork any base Playbook into your library',
-  '🖥️  Works on every Claude surface — CLI, Desktop, Cowork, Chat',
-  '🔌 Plug any MCP integration into your skills (HubSpot, Linear, Apollo, Coresignal, etc.)',
+const PRO_FEATURES = [
+  'Everything in Free, plus:',
+  '🧠 Work-signature opt-in for 3x better recommendations (SkillRank cohort matching)',
+  '🚀 Unlimited skill captures (Free is 5/month)',
+  '🏢 Org-wide skill library: every teammate sees what the team has saved',
+  '📊 Skill ROI dashboard: which skills drive real outcomes (deals, hires, meetings)',
+  '🔗 Outcome attribution: last-touch within a 30-day window from CRM / ATS / calendar',
+  '🔐 SSO (Google / Microsoft) for team workspaces',
+  '👥 Unlimited team members on the same workspace',
+  '📧 Priority email support',
 ] as const;
 
 const ENTERPRISE_FEATURES = [
-  'Everything in Pro',
+  'Everything in Pro, plus:',
   '🛡️  SAML SSO + custom identity providers',
   '📋 Full audit log (every skill recorded, edited, shared, invoked)',
   '🚦 Compliance + security review documentation',
   '🎨 White-label share pages with your branding',
   '🔧 Custom integrations + dedicated MCP server hosting',
   '👤 Dedicated success manager + private support channel',
+  '🏢 On-prem deployment option',
 ] as const;
 
 export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator }: Props) {
