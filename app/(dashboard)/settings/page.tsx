@@ -76,6 +76,12 @@ export default async function SettingsHubPage() {
             description="Your total karma + per-skill breakdown of what's earning. Karma comes from installs, forks, and public-share promotions."
           />
           <SettingsCard
+            href="/settings/data"
+            icon="🧠"
+            title="Data & SkillRank preferences"
+            description="What Implexa stores about you, the three opt-in flags for the recommender, and the delete-all-my-data button."
+          />
+          <SettingsCard
             href="/integrations"
             icon="🔌"
             title="Integrations"
