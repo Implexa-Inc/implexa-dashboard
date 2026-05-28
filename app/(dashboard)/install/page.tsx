@@ -58,7 +58,11 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
   // Failure mode is non-fatal: when mint fails (backend down, etc.), the
   // hero falls back to the universal `curl install.sh | bash` line — same
   // outcome, just with the browser Approve hop.
+  // Same install token works for both Claude Code AND Codex — different
+  // script URL, identical token-redemption flow server-side. So we mint
+  // once and construct two curls.
   let installCurl: string | null = null;
+  let installCurlCodex: string | null = null;
   try {
     const tokenResp = await callBackend('/api/v2/install-tokens', {
       jwt:    session.access_token,
@@ -66,7 +70,8 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
     });
     if (tokenResp?.token) {
       const apiBase = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai').replace(/\/$/, '');
-      installCurl = `curl -fsSL "${apiBase}/install.sh?t=${tokenResp.token}" | bash`;
+      installCurl      = `curl -fsSL "${apiBase}/install.sh?t=${tokenResp.token}" | bash`;
+      installCurlCodex = `curl -fsSL "${apiBase}/install-for-codex.sh?t=${tokenResp.token}" | bash`;
     }
   } catch (_) {
     // Silent fallback to universal curl.
@@ -118,9 +123,9 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
 
         <header className="mb-8 text-center">
           <div className="mb-4 flex justify-center"><Logo height={18} /></div>
-          <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Connect Claude</h1>
+          <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Install Implexa</h1>
           <p className="text-ink-300 mt-3 leading-relaxed max-w-xl mx-auto">
-            One command. Installs the API key, hooks, the Implexa plugin, and MCP wiring — all in ~30 seconds.
+            One command per runtime. Installs the API key, hooks, the Implexa plugin, and MCP wiring in ~30 seconds. Claude Code and Codex both supported.
           </p>
         </header>
 
@@ -130,6 +135,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
          * already has an install. */}
         <HeroInstall
           initialInstallCurl={installCurl}
+          initialInstallCurlCodex={installCurlCodex}
           hasKey={hasKey}
           keyPrefix={keyPrefix}
           installName={installName}
@@ -164,7 +170,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
         <details className="card !p-0 group mt-2">
           <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
             <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
-            <span>Don&apos;t use Claude Code? Install for <strong>Cowork</strong>, <strong>Chat</strong>, or via the visual <strong>Desktop UI</strong></span>
+            <span>Other runtimes: <strong>Cursor</strong>, <strong>Gemini CLI</strong>, <strong>Cowork</strong>, <strong>Chat</strong>, or visual <strong>Desktop UI</strong></span>
           </summary>
           <div className="px-4 pb-4 pt-2 border-t border-ink-700/60">
             <p className="text-xs text-ink-400 mb-4 leading-relaxed">
@@ -235,13 +241,14 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
             <details className="card !p-0 group">
               <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
                 <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
-                Which surface should I pick if I&apos;m new to Claude Code?
+                Which runtime should I pick?
               </summary>
               <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
-                <p><strong className="text-ink-100">Claude Code (Desktop)</strong> if you want a visual install with full capture. Click through the Customize panel, no terminal commands.</p>
-                <p><strong className="text-ink-100">Claude Code (CLI)</strong> if you live in a terminal and prefer slash-command installs.</p>
-                <p>Both give you identical capability: plugin slash commands like <code className="text-xs bg-ink-800 px-1 rounded">/implexa:record-skill</code>, full hook capture (prompts + tool calls + responses), and the complete 30+ MCP tool surface.</p>
-                <p className="text-xs text-ink-400">Cowork and Claude chat are for non-coding workflows. Skills you save in any surface are available across all of them.</p>
+                <p><strong className="text-ink-100">Claude Code (CLI)</strong> is the most-tested install. Best capture, full plugin support, and what we run end-to-end QA against.</p>
+                <p><strong className="text-ink-100">Codex (CLI)</strong> is fully supported as of v0.16. Same skill library, same SkillRank ranking, same <code className="text-xs bg-ink-800 px-1 rounded">/implexa:run</code> wedge. Use the second curl above.</p>
+                <p><strong className="text-ink-100">Claude Code (Desktop)</strong> if you prefer a visual install — same capture as the CLI version, just clicked-through.</p>
+                <p>All three give you the full 7 slash commands and 30+ MCP tools. Your library is cloud-hosted and shared across whichever runtimes you install on.</p>
+                <p className="text-xs text-ink-400">Cursor, Gemini CLI, Cowork, and Claude chat work for read-only browsing but don&apos;t support full capture yet — pick Claude Code or Codex if you want to record skills.</p>
               </div>
             </details>
 
@@ -314,10 +321,9 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
 
         <footer className="mt-12 text-center text-xs text-ink-400 max-w-xl mx-auto leading-relaxed">
           <p>
-            Whichever surface you pick, Implexa captures every prompt + tool call during a recording via host hooks.
-            Want to verify the chain works after install? Visit{' '}
-            <Link href="/skills" className="text-brand-500 hover:underline">/skills</Link>
-            {' '}and run <code className="bg-ink-800 px-1 rounded">/implexa:record-skill</code> for a quick test.
+            Once connected, try the wedge first: <code className="bg-ink-800 px-1 rounded">/implexa:run draft a cold outreach email</code>{' '}
+            searches the cross-vendor skill graph, ranks the matches with SkillRank, and runs the best one inline in your current session.{' '}
+            No install per skill, no SKILL.md copying.
           </p>
         </footer>
       </div>
@@ -385,7 +391,7 @@ function renderWelcomeBanner({
     headline = <>Welcome to Implexa.</>;
     body = (
       <>
-        One step before you can capture your first skill: connect Implexa to Claude below. Takes about 2 minutes. After that, you can record any workflow with <code className="bg-ink-800 px-1 rounded text-xs">/implexa:record-skill</code>.
+        One step before you can run any of 40,000+ vetted AI skills: connect Implexa to Claude Code or Codex below. Takes about 2 minutes. After that, try <code className="bg-ink-800 px-1 rounded text-xs">/implexa:run draft a cold outreach email</code> to feel the wedge.
       </>
     );
   }

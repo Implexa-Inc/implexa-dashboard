@@ -27,32 +27,44 @@ import { callBackend } from '@/lib/api';
  *   If the refresh fails (network blip, backend down), we fall back to the
  *   universal `curl install.sh | bash` line. Same outcome, just with an
  *   extra Approve hop in the browser.
+ *
+ * Codex support (added 2026-05-27):
+ *   The same install token works for both runtimes — only the script URL
+ *   differs. We show Claude Code as the primary path (★ Recommended) and
+ *   Codex as a parallel install card right below. Both use the same token
+ *   refresh logic. Either install gives the user the same skill library +
+ *   slash commands + MCP tool surface.
  */
 export default function HeroInstall({
   initialInstallCurl,
+  initialInstallCurlCodex,
   hasKey,
   keyPrefix,
   installName,
   lastConnected,
 }: {
-  initialInstallCurl: string | null;
-  hasKey:             boolean;
-  keyPrefix:          string | null;
-  installName:        string | null;
-  lastConnected:      string | null;
+  initialInstallCurl:      string | null;
+  initialInstallCurlCodex: string | null;
+  hasKey:                  boolean;
+  keyPrefix:               string | null;
+  installName:             string | null;
+  lastConnected:           string | null;
 }) {
   // Fallback used when the tokenized variant isn't available (mint failed
   // server-side, or refresh-on-copy failed). The install script handles
   // both — when run without a token, it kicks off the device-auth flow.
-  const UNIVERSAL_CURL = 'curl -fsSL https://core.implexa.ai/install.sh | bash';
+  const UNIVERSAL_CURL       = 'curl -fsSL https://core.implexa.ai/install.sh | bash';
+  const UNIVERSAL_CURL_CODEX = 'curl -fsSL https://core.implexa.ai/install-for-codex.sh | bash';
 
-  const [installCurl, setInstallCurl] = useState<string | null>(initialInstallCurl);
+  const [installCurl, setInstallCurl]           = useState<string | null>(initialInstallCurl);
+  const [installCurlCodex, setInstallCurlCodex] = useState<string | null>(initialInstallCurlCodex);
 
   /**
-   * Mint a fresh install token + update local state. Returns the new curl
-   * string, or null on failure (caller falls back to the universal command).
+   * Mint a fresh install token + update BOTH curl variants. Returns the
+   * runtime-specific curl, or null on failure (caller falls back to the
+   * universal command). One token, two URLs — same auth, different scripts.
    */
-  async function refreshInstallCurl(): Promise<string | null> {
+  async function refreshInstallCurls(runtime: 'claude' | 'codex'): Promise<string | null> {
     try {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
@@ -63,9 +75,11 @@ export default function HeroInstall({
       });
       if (!resp?.token) return null;
       const apiBase = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai').replace(/\/$/, '');
-      const fresh = `curl -fsSL "${apiBase}/install.sh?t=${resp.token}" | bash`;
-      setInstallCurl(fresh);
-      return fresh;
+      const freshClaude = `curl -fsSL "${apiBase}/install.sh?t=${resp.token}" | bash`;
+      const freshCodex  = `curl -fsSL "${apiBase}/install-for-codex.sh?t=${resp.token}" | bash`;
+      setInstallCurl(freshClaude);
+      setInstallCurlCodex(freshCodex);
+      return runtime === 'codex' ? freshCodex : freshClaude;
     } catch (_) {
       return null;
     }
@@ -73,8 +87,9 @@ export default function HeroInstall({
 
   // The hero command we display + copy. Always the freshest tokenized one
   // when available, falls back to the universal command.
-  const heroCmd = installCurl || UNIVERSAL_CURL;
-  const isTokenized = !!installCurl;
+  const heroCmd      = installCurl || UNIVERSAL_CURL;
+  const heroCmdCodex = installCurlCodex || UNIVERSAL_CURL_CODEX;
+  const isTokenized  = !!installCurl;
 
   return (
     <section className="mb-10">
@@ -112,7 +127,7 @@ export default function HeroInstall({
           <code className="flex-1 text-sm text-ink-100 font-mono overflow-x-auto whitespace-nowrap hide-scrollbar">
             {heroCmd}
           </code>
-          <HeroCopyButton refreshFn={refreshInstallCurl} fallback={UNIVERSAL_CURL} />
+          <HeroCopyButton refreshFn={() => refreshInstallCurls('claude')} fallback={UNIVERSAL_CURL} />
         </div>
 
         <p className="text-sm text-ink-200 leading-relaxed">
@@ -125,12 +140,47 @@ export default function HeroInstall({
         <p className="text-xs text-ink-400 mt-2">Works on macOS, Linux, and Windows (WSL).</p>
       </div>
 
-      {/* After-install commands */}
+      {/* ── Codex parallel install card ────────────────────────────────
+       * Same token system, different script URL. Sized smaller than the
+       * Claude Code card to signal "parallel option, not afterthought."
+       * Added 2026-05-27 after homepage pivoted to runtime-agnostic
+       * "find + run inline" positioning and the welcome flow needed
+       * to advertise both runtimes equally. */}
+      <div className="card !p-5 mt-4">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-ink-700 text-ink-200">
+            also supported
+          </span>
+          <span className="text-xs text-ink-400">
+            Codex (CLI) — same library, same wedge, same one command
+          </span>
+        </div>
+
+        <div className="rounded-md border border-ink-700 bg-ink-950 px-4 py-3 mb-3 flex items-center gap-3">
+          <span className="hidden sm:inline text-[11px] text-ink-400 px-2 py-1 rounded bg-ink-800 border border-ink-700 font-mono shrink-0">
+            curl
+          </span>
+          <code className="flex-1 text-sm text-ink-100 font-mono overflow-x-auto whitespace-nowrap hide-scrollbar">
+            {heroCmdCodex}
+          </code>
+          <HeroCopyButton refreshFn={() => refreshInstallCurls('codex')} fallback={UNIVERSAL_CURL_CODEX} />
+        </div>
+
+        <p className="text-xs text-ink-400 leading-relaxed">
+          Writes to <code className="bg-ink-800 px-1 rounded">~/.codex/config.toml</code> instead of Claude Code's dotfiles.{' '}
+          Same install token works for both — install once on each runtime you use.
+        </p>
+      </div>
+
+      {/* After-install commands — runtime-agnostic where possible. The
+       * wedge command (/implexa:run) is the single most important first
+       * action; it sells the entire product in one keystroke. Keep it
+       * literally as the third line so the user sees it on every visit. */}
       <div className="mt-5 pl-1 space-y-2">
         <p className="text-[11px] uppercase tracking-wider text-ink-400 font-medium">After install</p>
-        <NextStepLine prefix="Launch Claude Code"      cmd="claude" />
+        <NextStepLine prefix="Launch your runtime"     cmd="claude   (or: codex)" />
         <NextStepLine prefix="Verify you're connected" cmd="/implexa:setup" />
-        <NextStepLine prefix="Record your first skill" cmd="/implexa:record-skill" />
+        <NextStepLine prefix="Try your first skill"    cmd='/implexa:run "draft a cold outreach email"' />
       </div>
     </section>
   );
@@ -161,7 +211,7 @@ function ConnectionActiveBanner({
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-semibold text-ink-50 leading-tight">
-            Your connection is active on Claude Code
+            Your connection is active
           </h2>
           <div className="text-xs text-ink-300 mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
             {installName && <span>Install: <strong className="text-ink-100">{installName}</strong></span>}
@@ -169,8 +219,7 @@ function ConnectionActiveBanner({
             {keyPrefix && <span className="font-mono text-ink-400">imp_live_{keyPrefix}…</span>}
           </div>
           <p className="text-xs text-ink-300 mt-3 leading-relaxed">
-            See more installation options below — install on another device, re-install on this one,
-            or wire up Cowork / Chat / the Desktop UI.
+            See more installation options below — install on another device, install on Codex, or wire up Cowork / Chat / the Desktop UI.
           </p>
         </div>
       </div>
