@@ -27,7 +27,8 @@ type ScheduledSkill = {
   schedule_nl:      string;
   cron_expression:  string;
   timezone:         string;
-  destination:      { type: 'dashboard' | 'slack-webhook' | 'slack-plugin'; target?: string };
+  destination:      { type: 'dashboard' | 'slack-webhook' | 'slack-plugin' | 'email'; target?: string };
+  post_run_action:  { type: string; repo?: string; script?: string } | null;
   status:           'active' | 'paused' | 'failed';
   last_run_at:      string | null;
   run_count:        number;
@@ -157,6 +158,14 @@ export default function ScheduleRow({ schedule }: { schedule: ScheduledSkill }) 
             <span className="text-ink-500"> · </span>
             last: {formatRelative(schedule.last_run_at)}
           </div>
+          {schedule.post_run_action?.type === 'publish-content' && (
+            <div className="text-xs text-brand-400 mt-1" title={schedule.post_run_action.repo}>
+              ↳ publishes to{' '}
+              <code className="bg-ink-900 px-1 py-0.5 rounded">
+                {(schedule.post_run_action.repo || '').split('/').filter(Boolean).pop() || 'repo'}
+              </code>
+            </div>
+          )}
           {error && (
             <div className="text-xs text-rose-400 mt-2">Action failed: {error}</div>
           )}

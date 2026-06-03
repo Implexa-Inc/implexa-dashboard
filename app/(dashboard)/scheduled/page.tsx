@@ -23,7 +23,8 @@ type ScheduledSkill = {
   schedule_nl:      string;
   cron_expression:  string;
   timezone:         string;
-  destination:      { type: 'dashboard' | 'slack-webhook' | 'slack-plugin'; target?: string };
+  destination:      { type: 'dashboard' | 'slack-webhook' | 'slack-plugin' | 'email'; target?: string };
+  post_run_action:  { type: string; repo?: string; script?: string } | null;
   status:           'active' | 'paused' | 'failed';
   last_run_at:      string | null;
   next_run_at:      string | null;
@@ -44,7 +45,7 @@ export default async function ScheduledPage() {
   // RLS scopes to caller. include all statuses so user can resume paused ones.
   const { data: schedules } = await supabase
     .from('scheduled_skills')
-    .select('id, skill_id, skill_slug, schedule_nl, cron_expression, timezone, destination, status, last_run_at, next_run_at, run_count, created_at')
+    .select('id, skill_id, skill_slug, schedule_nl, cron_expression, timezone, destination, post_run_action, status, last_run_at, next_run_at, run_count, created_at')
     .order('created_at', { ascending: false })
     .limit(100);
 
