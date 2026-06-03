@@ -197,10 +197,10 @@ export default async function OverviewPage() {
           <section>
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider">Skills implexa noticed</h2>
-              <Link href="/skills" className="text-xs text-brand-500 hover:underline">your skills</Link>
+              <a href={`${SITE_URL}/workflows`} target="_blank" rel="noreferrer" className="text-xs text-brand-500 hover:underline">browse workflows →</a>
             </div>
             <p className="text-xs text-ink-400 mb-3">
-              Skills Implexa surfaced for your recent work in Claude. Open one to see what it does, or copy a command to run it in Claude Code or Codex.
+              Skill-level matches for your recent work (the ingredients). Whole-job <strong className="text-ink-300">workflows</strong> are the lead, they stitch these into a complete job you can schedule, and show up in Recent runs, Scheduled, and your daily email. Open a skill, or copy a command to run it in Claude Code or Codex.
             </p>
             {noticed.length === 0 ? (
               <div className="card text-sm text-ink-400">
