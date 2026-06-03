@@ -19,6 +19,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { looksOverdue } from '@/lib/routine-status';
 
 type ScheduledSkill = {
   id:               string;
@@ -49,31 +50,6 @@ function statusBadge(status: ScheduledSkill['status']) {
   if (status === 'active') return <span className={`${base} bg-emerald-500/15 text-emerald-400`}>active</span>;
   if (status === 'paused') return <span className={`${base} bg-amber-500/15  text-amber-400`}>paused</span>;
   return <span className={`${base} bg-rose-500/15 text-rose-400`}>failed</span>;
-}
-
-// Coarse "hasn't run as expected" hint for the dashboard badge (the daily
-// email is the authoritative, precise alert). Derives a generous max interval
-// from the cron cadence and flags when the last run is older than that plus a
-// 6h grace. Returns false for cron shapes we do not recognize (no false badge).
-function looksOverdue(cron: string, lastRunAt: string | null): boolean {
-  const p = (cron || '').trim().split(/\s+/);
-  if (p.length !== 5) return false;
-  const [m, h, , , dow] = p;
-  let maxH: number | null = null;
-  let mm: RegExpMatchArray | null;
-  let hm: RegExpMatchArray | null;
-  if ((mm = m.match(/^\*\/(\d+)$/)) && h === '*') maxH = Math.max(1, +mm[1] / 60);
-  else if (m === '0' && (hm = h.match(/^\*\/(\d+)$/))) maxH = +hm[1];
-  else if (m === '0' && h === '*') maxH = 1;
-  else if (/^\d+$/.test(m) && /^\d+$/.test(h)) {
-    if (dow === '*') maxH = 24;          // daily
-    else if (dow === '1-5') maxH = 72;   // weekday (covers the weekend gap)
-    else if (/^\d+$/.test(dow)) maxH = 168; // weekly
-  }
-  if (maxH == null) return false;
-  if (!lastRunAt) return false; // never-ran handled by the email watchdog
-  const ageH = (Date.now() - new Date(lastRunAt).getTime()) / 3_600_000;
-  return ageH > maxH + 6;
 }
 
 function overdueBadge() {

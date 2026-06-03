@@ -22,6 +22,7 @@ type NavItem = {
 //   settings      → "settings" (gear)
 //   pricing       → "spark" (premium tier feel)
 const PRIMARY_NAV: NavItem[] = [
+  { href: '/overview',     label: 'Overview',       icon: 'dashboard', matchPrefix: true },
   { href: '/skills',       label: 'Skills',         icon: 'skills',    matchPrefix: true },
   { href: '/scheduled',    label: 'Scheduled',      icon: 'replay',    matchPrefix: true },
   { href: '/runs',         label: 'Runs',           icon: 'activity',  matchPrefix: true },
