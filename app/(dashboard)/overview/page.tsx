@@ -14,8 +14,12 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { looksOverdue } from '@/lib/routine-status';
+import CopyRunCommand from '../_components/copy-run-command';
 
 export const dynamic = 'force-dynamic';
+
+// public skill-detail pages live on the marketing site.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://implexa.ai';
 
 type Scheduled = {
   id: string;
@@ -47,7 +51,7 @@ function rel(iso: string | null): string {
 }
 
 function StatCard({ label, value, tone }: { label: string; value: string | number; tone?: 'ok' | 'warn' }) {
-  const valueColor = tone === 'warn' ? 'text-amber-400' : tone === 'ok' ? 'text-emerald-400' : 'text-ink-50';
+  const valueColor = tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : tone === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-50';
   return (
     <div className="card">
       <div className="text-xs uppercase tracking-wider text-ink-400">{label}</div>
@@ -139,21 +143,21 @@ export default async function OverviewPage() {
         {/* needs attention */}
         {overdue.length + failedSchedules.length > 0 && (
           <section className="mb-8">
-            <div className="rounded-lg border border-amber-900/50 bg-amber-950/20 p-5">
-              <h2 className="text-sm font-medium text-amber-200 uppercase tracking-wider mb-3">Needs attention</h2>
+            <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20 p-5">
+              <h2 className="text-sm font-semibold text-amber-800 dark:text-amber-200 uppercase tracking-wider mb-3">Needs attention</h2>
               <ul className="space-y-2">
                 {[...overdue, ...failedSchedules].map((s) => (
                   <li key={s.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="font-mono text-amber-100">{s.skill_slug}</span>
-                    <span className="text-xs text-amber-300/80">
+                    <span className="font-mono text-amber-900 dark:text-amber-100">{s.skill_slug}</span>
+                    <span className="text-xs text-amber-700 dark:text-amber-300/80">
                       {s.status === 'failed' ? 'failed' : `did not run (last ${rel(s.last_run_at)})`}
                     </span>
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 text-xs text-amber-200/70">
+              <p className="mt-3 text-xs text-amber-700 dark:text-amber-200/70">
                 A local routine only fires while your machine is awake. Move it to a remote routine so it runs even when you are offline.{' '}
-                <Link href="/scheduled" className="underline">Manage routines</Link>
+                <Link href="/scheduled" className="underline font-medium">Manage routines</Link>
               </p>
             </div>
           </section>
@@ -175,11 +179,14 @@ export default async function OverviewPage() {
               <ul className="space-y-2">
                 {recentRuns.map((r) => (
                   <li key={r.id} className="card flex items-center justify-between gap-3 py-3">
-                    <span className="flex items-center gap-2 min-w-0">
+                    <Link href="/runs" className="flex items-center gap-2 min-w-0 group">
                       {statusDot(r.status)}
-                      <span className="font-mono text-sm text-ink-100 truncate">{r.skill_slug}</span>
+                      <span className="font-mono text-sm text-ink-100 truncate group-hover:underline">{r.skill_slug}</span>
+                    </Link>
+                    <span className="flex items-center gap-2 flex-none">
+                      <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
+                      <CopyRunCommand slug={r.skill_slug} kind="workflow" />
                     </span>
-                    <span className="text-xs text-ink-500 flex-none">{rel(r.ran_at)}</span>
                   </li>
                 ))}
               </ul>
@@ -188,10 +195,13 @@ export default async function OverviewPage() {
 
           {/* what implexa noticed */}
           <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider">What implexa noticed</h2>
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider">Skills implexa noticed</h2>
               <Link href="/skills" className="text-xs text-brand-500 hover:underline">your skills</Link>
             </div>
+            <p className="text-xs text-ink-400 mb-3">
+              Skills Implexa surfaced for your recent work in Claude. Open one to see what it does, or copy a command to run it in Claude Code or Codex.
+            </p>
             {noticed.length === 0 ? (
               <div className="card text-sm text-ink-400">
                 Nothing yet. As you work in Claude, Implexa surfaces skills for what you are doing here and in your daily email.
@@ -200,11 +210,23 @@ export default async function OverviewPage() {
               <ul className="space-y-2">
                 {noticed.map((s) => (
                   <li key={`${s.source}/${s.slug}`} className="card py-3">
-                    <div className="text-sm text-ink-100 font-medium">{s.name || s.slug}</div>
-                    {s.description ? (
-                      <div className="text-xs text-ink-400 mt-0.5 line-clamp-2">{s.description}</div>
-                    ) : null}
-                    <div className="text-[11px] text-ink-500 mt-1">{s.source}</div>
+                    <div className="flex items-start justify-between gap-3">
+                      <a
+                        href={`${SITE_URL}/s/${encodeURIComponent(s.source)}/${encodeURIComponent(s.slug)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="min-w-0 group"
+                      >
+                        <div className="text-sm text-ink-100 font-medium group-hover:underline">{s.name || s.slug}</div>
+                        {s.description ? (
+                          <div className="text-xs text-ink-400 mt-0.5 line-clamp-2">{s.description}</div>
+                        ) : null}
+                        <div className="text-[11px] text-ink-500 mt-1">skill · {s.source}</div>
+                      </a>
+                      <div className="flex-none">
+                        <CopyRunCommand slug={s.slug} kind="skill" />
+                      </div>
+                    </div>
                   </li>
                 ))}
               </ul>
