@@ -55,11 +55,12 @@ export default async function ScheduledPage() {
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-5xl mx-auto">
         <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Scheduled skills</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Routines</h1>
           <p className="text-ink-300 text-sm mt-1">
-            Recurring runs registered via{' '}
-            <code className="bg-ink-900 px-1.5 py-0.5 rounded text-brand-400">/implexa:schedule</code>.
-            Output lands in <Link href="/runs" className="text-brand-500 hover:underline">/runs</Link>{' '}
+            Your autopilot. Each routine runs a workflow on a schedule, then delivers the result.
+            Registered via{' '}
+            <code className="bg-ink-900 px-1.5 py-0.5 rounded text-brand-400">/implexa:schedule</code>;
+            output lands in <Link href="/runs" className="text-brand-500 hover:underline">Runs</Link>{' '}
             and (optionally) Slack.
           </p>
         </header>

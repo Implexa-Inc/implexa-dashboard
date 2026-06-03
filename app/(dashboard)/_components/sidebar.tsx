@@ -21,13 +21,18 @@ type NavItem = {
 //   install       → "flame" (the brand's "action/energy" archetype — matches "connect/ignite")
 //   settings      → "settings" (gear)
 //   pricing       → "spark" (premium tier feel)
+// Order reflects the autopilot loop: mission control first, then the routines
+// that run/deliver (Routines, Runs), then outcomes (ROI), then the ingredient
+// shelf (Skills) those routines are composed from. "Routines" matches the
+// product's own language on /overview and in the watchdog (the table is still
+// scheduled_skills; only the label changed).
 const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Overview',       icon: 'dashboard', matchPrefix: true },
-  { href: '/skills',       label: 'Skills',         icon: 'skills',    matchPrefix: true },
-  { href: '/scheduled',    label: 'Scheduled',      icon: 'replay',    matchPrefix: true },
+  { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true },
   { href: '/runs',         label: 'Runs',           icon: 'activity',  matchPrefix: true },
-  { href: '/integrations', label: 'Integrations',   icon: 'link',      matchPrefix: true },
   { href: '/roi',          label: 'ROI',            icon: 'analytics', matchPrefix: true },
+  { href: '/skills',       label: 'Skills',         icon: 'skills',    matchPrefix: true },
+  { href: '/integrations', label: 'Integrations',   icon: 'link',      matchPrefix: true },
   { href: '/leaderboard',  label: 'Leaderboard',    icon: 'trending',  matchPrefix: true },
   { href: '/install',      label: 'Connect Claude', icon: 'flame',     matchPrefix: true },
 ];
@@ -65,7 +70,7 @@ export default function Sidebar({ user }: { user: UserCtx }) {
        * instead of [full] logo. Logo needs finishing touches, will work
        * on it." Easy to swap back to <Logo /> later. */}
       <div className="px-4 pt-6 pb-8">
-        <Link href="/skills" className="inline-flex items-center gap-2 text-ink-50">
+        <Link href="/overview" className="inline-flex items-center gap-2 text-ink-50">
           <LogoMark size={28} />
           <span className="text-sm font-medium">Implexa</span>
         </Link>
@@ -225,7 +230,7 @@ function NavLink({ href, icon, label, active }: { href: string; icon: string; la
 export function MobileTopBar({ user }: { user: UserCtx }) {
   return (
     <div className="md:hidden sticky top-0 z-20 bg-ink-900 border-b border-ink-700 px-4 py-3 flex items-center justify-between">
-      <Link href="/skills" className="inline-flex items-center gap-2 text-ink-50">
+      <Link href="/overview" className="inline-flex items-center gap-2 text-ink-50">
         <LogoMark size={24} />
         <span className="text-sm font-medium">Implexa</span>
       </Link>

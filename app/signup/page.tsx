@@ -43,7 +43,7 @@ export default async function SignupPage({
     if (inviteToken) {
       redirect(`/onboarding?invite=${encodeURIComponent(inviteToken)}`);
     }
-    redirect(next || '/skills');
+    redirect(next || '/overview');
   }
 
   return <SignupForm initialNext={next} initialInvite={inviteToken} />;

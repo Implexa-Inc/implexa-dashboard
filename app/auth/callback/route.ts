@@ -118,5 +118,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(onboardingUrl);
   }
 
-  return NextResponse.redirect(`${url.origin}${next || '/skills'}`);
+  // Default post-auth landing is /overview (mission control), matching the
+  // root redirect in app/page.tsx. `next` still wins for deep links.
+  return NextResponse.redirect(`${url.origin}${next || '/overview'}`);
 }

@@ -40,8 +40,10 @@ export default async function LoginPage({
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.user) {
     // Already authenticated — skip the login UI entirely. Honor `next` so deep
-    // links (cli-auth, install, etc.) land where the user expected.
-    redirect(next || '/skills');
+    // links (cli-auth, install, etc.) land where the user expected. Default
+    // home is /overview (mission control) so returning users see what their
+    // autopilot did, not the ingredient shelf.
+    redirect(next || '/overview');
   }
 
   return <LoginForm initialError={error} initialNext={next} />;
