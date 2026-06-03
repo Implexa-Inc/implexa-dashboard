@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * <CopyRunCommand /> — copies a ready-to-paste command that runs a skill or
+ * <CopyRunCommand />: copies a ready-to-paste command that runs a skill or
  * workflow inside Claude Code or Codex. Bridges the dashboard (web) to the
  * agent: the user clicks, pastes "implexa run <slug>" into their session, and
  * Implexa's recommender resolves + applies it.
