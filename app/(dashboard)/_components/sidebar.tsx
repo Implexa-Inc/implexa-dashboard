@@ -14,6 +14,10 @@ type NavItem = {
   matchPrefix?: boolean;
   /** Key into the badge counts map — renders a glanceable count chip when > 0. */
   badgeKey?: 'inbox';
+  /** Hidden from nav to keep the surface focused on the autopilot loop. The
+   *  route + page stay live (deep links + future work); only the nav item is
+   *  suppressed. Flip back to surface it again. */
+  hidden?: boolean;
 };
 
 // Brand SVG icons replace the previous emoji set. Mapping rationale:
@@ -23,24 +27,23 @@ type NavItem = {
 //   install       → "flame" (the brand's "action/energy" archetype — matches "connect/ignite")
 //   settings      → "settings" (gear)
 //   pricing       → "spark" (premium tier feel)
-// Order reflects the autopilot loop: mission control first, then the routines
-// that run/deliver (Routines, Workflows, Runs), then outcomes (ROI), then the
-// ingredient shelf (Skills) those workflows are composed from. Workflows is the
-// lead product (the whole job); a routine runs a workflow on a schedule, so it
-// sits right after Routines. "Routines" matches the product's own language on
-// /overview and in the watchdog (the table is still scheduled_skills; only the
-// label changed).
+// The nav is the autopilot loop, nothing else: mission control, the work that
+// needs you, the jobs (workflows), the schedule (routines), and the track record
+// (runs). Everything off that loop (ROI, the skill shelf, integrations,
+// leaderboard, the web connect flow) is HIDDEN, not deleted: the routes + pages
+// stay live for deep links and future work, but they do not clutter the surface.
+// Flip `hidden` to bring any of them back.
 const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Overview',       icon: 'dashboard', matchPrefix: true },
   { href: '/inbox',        label: 'Needs you',      icon: 'activity',  matchPrefix: true, badgeKey: 'inbox' },
-  { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true },
   { href: '/workflows',    label: 'Workflows',      icon: 'workflows', matchPrefix: true },
+  { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true },
   { href: '/runs',         label: 'Runs',           icon: 'activity',  matchPrefix: true },
-  { href: '/roi',          label: 'ROI',            icon: 'analytics', matchPrefix: true },
-  { href: '/skills',       label: 'Skills',         icon: 'skills',    matchPrefix: true },
-  { href: '/integrations', label: 'Integrations',   icon: 'link',      matchPrefix: true },
-  { href: '/leaderboard',  label: 'Leaderboard',    icon: 'trending',  matchPrefix: true },
-  { href: '/install',      label: 'Connect Claude', icon: 'flame',     matchPrefix: true },
+  { href: '/roi',          label: 'ROI',            icon: 'analytics', matchPrefix: true, hidden: true },
+  { href: '/skills',       label: 'Skills',         icon: 'skills',    matchPrefix: true, hidden: true },
+  { href: '/integrations', label: 'Integrations',   icon: 'link',      matchPrefix: true, hidden: true },
+  { href: '/leaderboard',  label: 'Leaderboard',    icon: 'trending',  matchPrefix: true, hidden: true },
+  { href: '/install',      label: 'Connect Claude', icon: 'flame',     matchPrefix: true, hidden: true },
 ];
 
 const SECONDARY_NAV: NavItem[] = [
@@ -88,7 +91,7 @@ export default function Sidebar({ user, pendingCount = 0 }: { user: UserCtx; pen
       {/* Primary nav */}
       <nav className="px-2 flex-1">
         <ul className="space-y-0.5">
-          {PRIMARY_NAV.map((item) => (
+          {PRIMARY_NAV.filter((item) => !item.hidden).map((item) => (
             <li key={item.href}>
               <NavLink href={item.href} icon={item.icon} label={item.label} active={isActive(item)} badge={badgeFor(item)} />
             </li>
