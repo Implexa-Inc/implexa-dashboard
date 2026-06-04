@@ -1,5 +1,5 @@
 /**
- * /inbox — the approval inbox ("Needs you").
+ * /inbox , the approval inbox ("Needs you").
  *
  * Where the autopilot loop ends. Workflows that run on a schedule produce
  * deliverables held for the user's review (HN comment drafts, IG reel briefs,

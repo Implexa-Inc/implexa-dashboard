@@ -12,7 +12,7 @@ type NavItem = {
   icon:    string;
   /** Match `/skills` AND `/skills/anything`. */
   matchPrefix?: boolean;
-  /** Key into the badge counts map — renders a glanceable count chip when > 0. */
+  /** Key into the badge counts map, renders a glanceable count chip when > 0. */
   badgeKey?: 'inbox';
   /** Hidden from nav to keep the surface focused on the autopilot loop. The
    *  route + page stay live (deep links + future work); only the nav item is

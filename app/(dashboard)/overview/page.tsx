@@ -144,7 +144,7 @@ export default async function OverviewPage() {
           <StatCard label="Last run" value={rel(lastRunAt)} />
         </div>
 
-        {/* deliverables waiting for approval — the inbox cross-link */}
+        {/* deliverables waiting for approval, the inbox cross-link */}
         {(pendingCount ?? 0) > 0 && (
           <section className="mb-8">
             <Link
