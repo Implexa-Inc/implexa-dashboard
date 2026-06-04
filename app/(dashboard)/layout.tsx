@@ -43,6 +43,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .from('organizations').select('plan')
     .eq('id', profile.organization_id).maybeSingle();
 
+  // Pending-review count drives the "Needs you" badge in the sidebar. RLS-scoped
+  // to the caller; head:true returns the count with no rows over the wire.
+  const { count: pendingCount } = await supabase
+    .from('skill_runs')
+    .select('id', { count: 'exact', head: true })
+    .eq('review_status', 'pending');
+
   const setup = computeSetupStatus(profile.last_mcp_call_at, profile.last_hook_event_at);
 
   // Admin check — drives the conditional Admin nav link in the sidebar.
@@ -65,7 +72,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar user={userCtx} />
+      <Sidebar user={userCtx} pendingCount={pendingCount ?? 0} />
       <div className="flex-1 flex flex-col min-w-0">
         <MobileTopBar user={userCtx} />
         <main className="flex-1">

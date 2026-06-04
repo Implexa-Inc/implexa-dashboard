@@ -12,6 +12,8 @@ type NavItem = {
   icon:    string;
   /** Match `/skills` AND `/skills/anything`. */
   matchPrefix?: boolean;
+  /** Key into the badge counts map — renders a glanceable count chip when > 0. */
+  badgeKey?: 'inbox';
 };
 
 // Brand SVG icons replace the previous emoji set. Mapping rationale:
@@ -30,6 +32,7 @@ type NavItem = {
 // label changed).
 const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Overview',       icon: 'dashboard', matchPrefix: true },
+  { href: '/inbox',        label: 'Needs you',      icon: 'activity',  matchPrefix: true, badgeKey: 'inbox' },
   { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true },
   { href: '/workflows',    label: 'Workflows',      icon: 'workflows', matchPrefix: true },
   { href: '/runs',         label: 'Runs',           icon: 'activity',  matchPrefix: true },
@@ -58,13 +61,16 @@ type UserCtx = {
   isAdmin?:     boolean;
 };
 
-export default function Sidebar({ user }: { user: UserCtx }) {
+export default function Sidebar({ user, pendingCount = 0 }: { user: UserCtx; pendingCount?: number }) {
   const pathname = usePathname() || '';
 
   const isActive = (item: NavItem) =>
     item.matchPrefix
       ? pathname === item.href || pathname.startsWith(`${item.href}/`)
       : pathname === item.href;
+
+  const badgeFor = (item: NavItem) =>
+    item.badgeKey === 'inbox' ? pendingCount : 0;
 
   return (
     <aside className="hidden md:flex md:flex-col md:sticky md:top-0 w-56 shrink-0 border-r border-ink-700 bg-ink-900/50 h-screen overflow-y-auto">
@@ -84,7 +90,7 @@ export default function Sidebar({ user }: { user: UserCtx }) {
         <ul className="space-y-0.5">
           {PRIMARY_NAV.map((item) => (
             <li key={item.href}>
-              <NavLink href={item.href} icon={item.icon} label={item.label} active={isActive(item)} />
+              <NavLink href={item.href} icon={item.icon} label={item.label} active={isActive(item)} badge={badgeFor(item)} />
             </li>
           ))}
         </ul>
@@ -185,7 +191,7 @@ function SetupChip({ status, lastSeenAt }: { status?: SetupStatus; lastSeenAt?: 
   );
 }
 
-function NavLink({ href, icon, label, active }: { href: string; icon: string; label: string; active: boolean }) {
+function NavLink({ href, icon, label, active, badge = 0 }: { href: string; icon: string; label: string; active: boolean; badge?: number }) {
   return (
     <Link
       href={href}
@@ -223,6 +229,14 @@ function NavLink({ href, icon, label, active }: { href: string; icon: string; la
         }}
       />
       <span>{label}</span>
+      {badge > 0 && (
+        <span
+          className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold bg-brand-500 text-ink-950"
+          aria-label={`${badge} waiting for you`}
+        >
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </Link>
   );
 }

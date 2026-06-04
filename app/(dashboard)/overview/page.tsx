@@ -76,7 +76,7 @@ export default async function OverviewPage() {
 
   const weekAgo = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
 
-  const [{ data: schedules }, { data: runs }, { data: recEvents }] = await Promise.all([
+  const [{ data: schedules }, { data: runs }, { data: recEvents }, { count: pendingCount }] = await Promise.all([
     supabase
       .from('scheduled_skills')
       .select('id, skill_slug, cron_expression, status, last_run_at, post_run_action')
@@ -94,6 +94,10 @@ export default async function OverviewPage() {
       .gte('created_at', weekAgo)
       .order('created_at', { ascending: false })
       .limit(40),
+    supabase
+      .from('skill_runs')
+      .select('id', { count: 'exact', head: true })
+      .eq('review_status', 'pending'),
   ]);
 
   const sched: Scheduled[] = (schedules as Scheduled[]) || [];
@@ -139,6 +143,26 @@ export default async function OverviewPage() {
           <StatCard label="Runs this week" value={runsThisWeek} tone={runsThisWeek > 0 ? 'ok' : undefined} />
           <StatCard label="Last run" value={rel(lastRunAt)} />
         </div>
+
+        {/* deliverables waiting for approval — the inbox cross-link */}
+        {(pendingCount ?? 0) > 0 && (
+          <section className="mb-8">
+            <Link
+              href="/inbox"
+              className="flex items-center justify-between gap-3 rounded-lg border border-brand-500/40 bg-brand-500/10 p-5 hover:bg-brand-500/15 transition-colors"
+            >
+              <div>
+                <div className="text-sm font-semibold text-ink-50">
+                  {pendingCount} deliverable{pendingCount === 1 ? '' : 's'} waiting for you
+                </div>
+                <div className="text-xs text-ink-300 mt-0.5">
+                  Routines produced these and held them for your review. Approve what you shipped.
+                </div>
+              </div>
+              <span className="text-sm text-brand-500 font-medium whitespace-nowrap">Open inbox →</span>
+            </Link>
+          </section>
+        )}
 
         {/* needs attention */}
         {overdue.length + failedSchedules.length > 0 && (

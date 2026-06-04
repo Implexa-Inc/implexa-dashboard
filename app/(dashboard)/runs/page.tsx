@@ -28,6 +28,7 @@ type SkillRun = {
   status:              'completed' | 'failed' | 'partial';
   duration_ms:         number | null;
   delivery:            Record<string, unknown>;
+  review_status:       'none' | 'pending' | 'approved' | 'dismissed' | null;
   ran_at:              string;
 };
 
@@ -89,7 +90,7 @@ export default async function RunsPage() {
   const [{ data: runs }, catalog] = await Promise.all([
     supabase
       .from('skill_runs')
-      .select('id, scheduled_skill_id, orchestration_id, skill_slug, source, output_markdown, status, duration_ms, delivery, ran_at')
+      .select('id, scheduled_skill_id, orchestration_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at')
       .order('ran_at', { ascending: false })
       .limit(50),
     listWorkflows(),
@@ -129,6 +130,14 @@ export default async function RunsPage() {
                     <span className="font-mono text-sm text-ink-100">{r.skill_slug}</span>
                     {statusBadge(r.status)}
                     {sourceBadge(r.source)}
+                    {r.review_status === 'pending' && (
+                      <Link
+                        href="/inbox"
+                        className="inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-brand-500/15 text-brand-600 dark:text-brand-400 hover:underline"
+                      >
+                        needs review
+                      </Link>
+                    )}
                     <span className="text-xs text-ink-400 ml-auto">
                       {formatRelative(r.ran_at)}
                       {r.duration_ms != null && ` · ${r.duration_ms}ms`}
