@@ -5,13 +5,15 @@
 /* ───────────────────────────────────────────────────────────────────────
  * Implexa dashboard — day/night theme.
  *
- * Default (light mode):
- *   - White body, dark text
- *   - Warm orange + golden yellow + emerald accents work as-is
+ * Dark mode is the enforced default (the root layout puts `.dark` on <html>),
+ * so the `.dark` token block below is what every user actually sees.
  *
- * Dark mode (system preference):
- *   - Near-black warm body, light text
- *   - Same accents
+ * Dark mode:
+ *   - Near-black warm body, light text, warm + emerald accents
+ *
+ * Light mode (reachable only when the `.dark` class is removed, e.g. a future
+ * toggle) is tuned to a Vercel / Wispr Flow / Linear grade: a soft off-white
+ * page, raised white cards, hairline borders, and crisp near-black text.
  *
  * The `ink` scale FLIPS via these variables. Components use semantic
  * names (text-ink-100, bg-ink-900, etc.) and the underlying color
@@ -19,42 +21,48 @@
  * ─────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Light mode — ink-50 is darkest text, ink-950 is white body bg.
+  /* Light mode: ink-50 is darkest text, ink-950 is the off-white body bg.
    *
-   * Calibrated for WCAG AA against the cream body bg (ink-950 = #FFFEFB):
-   *   ink-300 → 7.5:1  (muted text — comfortable for body copy)
-   *   ink-400 → 4.7:1  (captions, secondary — passes AA normal)
-   *   ink-500 → 3.2:1  (subtle UI labels — passes AA Large only)
-   * Don't use ink-500 for body-sized text; reserve for badges/labels.
+   * Warm-neutral (stone) scale, calibrated for a calm, professional light UI:
+   *   - Page (ink-950) is a soft off-white (#FAFAF9), NOT pure white, so it
+   *     never reads harsh. Cards (ink-900) are pure white and sit RAISED above
+   *     the page with a hairline border plus subtle shadow (the Vercel look).
+   *   - Borders (ink-700/600) are low-contrast hairlines, not heavy grays.
+   *   - Text runs near-black (ink-50) down to muted stone (ink-300/400).
+   *
+   * WCAG AA against the white card / off-white page:
+   *   ink-300 -> ~7.4:1  (muted text, comfortable for body copy)
+   *   ink-400 -> ~4.8:1  (captions / secondary, passes AA normal)
+   *   ink-500 -> ~2.9:1  (subtle UI labels, AA Large / non-text only)
+   * Don't use ink-500 for body-sized text; reserve for badges/labels/borders.
    */
-  --ink-50:  10 8 5;                                                                 /* near-black for headings (#0A0805) */
-  --ink-100: 28 24 18;                                                               /* body text (#1C1812) */
-  --ink-200: 51 44 36;                                                               /* emphasized body */
-  --ink-300: 82 74 64;                                                               /* muted text — 7.5:1 on cream */
-  --ink-400: 122 113 102;                                                            /* captions — 4.7:1 on cream */
-  --ink-500: 156 147 134;                                                            /* subtle UI labels — 3.2:1 (AA Large only) */
-  --ink-600: 190 183 172;                                                            /* prominent borders */
-  --ink-700: 220 213 202;                                                            /* subtle dividers */
-  --ink-800: 240 235 226;                                                            /* hover surfaces */
-  --ink-900: 251 248 240;                                                            /* card / surface (warm off-white) */
-  --ink-950: 255 254 251;                                                            /* body bg (warm white) */
+  --ink-50:  28 25 23;                                                               /* near-black headings (#1C1917) */
+  --ink-100: 41 37 36;                                                               /* body text (#292524) */
+  --ink-200: 68 64 60;                                                               /* emphasized body (#44403C) */
+  --ink-300: 87 83 78;                                                               /* muted text, ~7.4:1 (#57534E) */
+  --ink-400: 120 113 108;                                                            /* captions, ~4.8:1 (#78716C) */
+  --ink-500: 168 162 158;                                                            /* subtle UI labels, AA Large only (#A8A29E) */
+  --ink-600: 214 211 209;                                                            /* prominent borders (#D6D3D1) */
+  --ink-700: 231 229 228;                                                            /* hairline dividers / card borders (#E7E5E4) */
+  --ink-800: 245 245 244;                                                            /* hover surfaces (#F5F5F4) */
+  --ink-900: 255 255 255;                                                            /* card / surface, raised white (#FFFFFF) */
+  --ink-950: 250 250 249;                                                            /* body bg, soft off-white (#FAFAF9) */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Dark mode — ink-50 is brightest text, ink-950 is near-black body bg */
-    --ink-50:  250 250 248;
-    --ink-100: 229 225 216;
-    --ink-200: 201 194 183;
-    --ink-300: 161 153 146;
-    --ink-400: 124 116 108;
-    --ink-500: 110 102 94;
-    --ink-600: 74 67 57;
-    --ink-700: 42 36 30;
-    --ink-800: 31 26 20;
-    --ink-900: 21 17 12;
-    --ink-950: 10 8 5;
-  }
+.dark {
+  /* Dark mode: ink-50 is brightest text, ink-950 is near-black body bg.
+   * Forced on by the root layout; this is the default experience. */
+  --ink-50:  250 250 248;
+  --ink-100: 229 225 216;
+  --ink-200: 201 194 183;
+  --ink-300: 161 153 146;
+  --ink-400: 124 116 108;
+  --ink-500: 110 102 94;
+  --ink-600: 74 67 57;
+  --ink-700: 42 36 30;
+  --ink-800: 31 26 20;
+  --ink-900: 21 17 12;
+  --ink-950: 10 8 5;
 }
 
 html, body {
@@ -78,12 +86,10 @@ body::before {
   transition: opacity 200ms;
 }
 
-@media (prefers-color-scheme: dark) {
-  body::before {
-    background:
-      radial-gradient(ellipse 60% 40% at 50% -10%, rgba(255, 87, 34, 0.06) 0%, transparent 70%),
-      radial-gradient(ellipse 40% 30% at 90% 100%, rgba(52, 211, 153, 0.04) 0%, transparent 70%);
-  }
+.dark body::before {
+  background:
+    radial-gradient(ellipse 60% 40% at 50% -10%, rgba(255, 87, 34, 0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 90% 100%, rgba(52, 211, 153, 0.04) 0%, transparent 70%);
 }
 
 /* highlight.js — code blocks. Always dark (looks great on both modes for code). */
@@ -129,9 +135,12 @@ body::before {
    * for backwards compat in any external embeds; remove on next pass.
    * ─────────────────────────────────────────────────────────────── */
 
-  /* ── Semantic value classes (used in ROI / outcome displays) ────── */
-  .value-money       { @apply text-success-400 font-semibold tabular-nums; }
-  .value-attention   { @apply text-accent-400 font-semibold; }
+  /* ── Semantic value classes (used in ROI / outcome displays) ──────
+   * The saturated 400 shades glow on the dark body but wash out on light
+   * surfaces, so light mode steps down to a deeper, higher-contrast shade
+   * while dark keeps the lively 400. */
+  .value-money       { @apply text-success-600 dark:text-success-400 font-semibold tabular-nums; }
+  .value-attention   { @apply text-accent-700 dark:text-accent-400 font-semibold; }
 }
 
 /* Custom scrollbar — adapts to mode via ink vars */

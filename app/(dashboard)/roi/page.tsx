@@ -59,7 +59,7 @@ export default async function RoiPage() {
             <div className="text-3xl font-semibold tabular-nums text-ink-50">{totalOutcomes.toLocaleString()}</div>
           </div>
           <div className="card-success">
-            <div className="text-xs uppercase tracking-wide text-success-400 mb-1">Attributed value</div>
+            <div className="text-xs uppercase tracking-wide text-success-600 dark:text-success-400 mb-1">Attributed value</div>
             <div className="value-money text-3xl">{formatUsd(totalValueUsd)}</div>
           </div>
         </div>
@@ -98,7 +98,7 @@ export default async function RoiPage() {
                         <td className="px-4 py-3 text-right tabular-nums">{s.usage_count || 0}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{s.unique_users || 0}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{stats.attributedOutcomes || 0}</td>
-                        <td className={`px-4 py-3 text-right tabular-nums ${stats.attributedValueUsd ? 'text-success-400 font-semibold' : 'text-ink-400'}`}>
+                        <td className={`px-4 py-3 text-right tabular-nums ${stats.attributedValueUsd ? 'text-success-600 dark:text-success-400 font-semibold' : 'text-ink-400'}`}>
                           {formatUsd(stats.attributedValueUsd || 0)}
                         </td>
                       </tr>

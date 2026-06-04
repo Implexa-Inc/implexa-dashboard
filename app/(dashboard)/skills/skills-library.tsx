@@ -681,7 +681,7 @@ function SkillRow({
   const creatorName = skill.created_by?.displayName?.split(' ')[0] || null;
 
   const rankBadgeClass =
-    rank === 1 ? 'bg-accent-400/20 text-accent-400 border border-accent-400/40'
+    rank === 1 ? 'bg-accent-400/20 text-accent-700 dark:text-accent-400 border border-accent-400/40'
     : rank === 2 ? 'bg-ink-700 text-ink-100 border border-ink-600'
     : rank === 3 ? 'bg-brand-500/15 text-brand-500 border border-brand-500/30'
     : 'bg-ink-800 text-ink-400';
@@ -700,7 +700,7 @@ function SkillRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
             <div className="font-medium text-ink-50">{skill.name}</div>
-            {skill.status === 'draft' && <span className="text-xs px-1.5 py-0.5 rounded bg-accent-400/20 text-accent-400">draft</span>}
+            {skill.status === 'draft' && <span className="text-xs px-1.5 py-0.5 rounded bg-accent-400/20 text-accent-700 dark:text-accent-400">draft</span>}
             {skill._source === 'installed' && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-500 uppercase tracking-wide font-medium">
                 Installed
@@ -725,7 +725,7 @@ function SkillRow({
         <div className="flex items-center gap-3 shrink-0">
           <div className="text-xs whitespace-nowrap text-right">
             {(skill.usage_count || 0) > 0 && <div className="text-ink-300">{skill.usage_count} run{skill.usage_count === 1 ? '' : 's'}</div>}
-            {(stats.attributedOutcomes || 0) > 0 && <div className="text-success-400 font-semibold mt-0.5">{stats.attributedOutcomes} outcome{stats.attributedOutcomes === 1 ? '' : 's'}</div>}
+            {(stats.attributedOutcomes || 0) > 0 && <div className="text-success-600 dark:text-success-400 font-semibold mt-0.5">{stats.attributedOutcomes} outcome{stats.attributedOutcomes === 1 ? '' : 's'}</div>}
           </div>
           <RunInClaudeButton
             skillSlug={skill.slug}

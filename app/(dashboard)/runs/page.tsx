@@ -44,9 +44,9 @@ function formatRelative(iso: string): string {
 
 function statusBadge(status: SkillRun['status']) {
   const base = 'inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded';
-  if (status === 'completed') return <span className={`${base} bg-emerald-500/15 text-emerald-400`}>ok</span>;
-  if (status === 'partial')   return <span className={`${base} bg-amber-500/15  text-amber-400`}>partial</span>;
-  return <span className={`${base} bg-rose-500/15 text-rose-400`}>failed</span>;
+  if (status === 'completed') return <span className={`${base} bg-emerald-500/15 text-emerald-700 dark:text-emerald-400`}>ok</span>;
+  if (status === 'partial')   return <span className={`${base} bg-amber-500/15  text-amber-700 dark:text-amber-400`}>partial</span>;
+  return <span className={`${base} bg-rose-500/15 text-rose-700 dark:text-rose-400`}>failed</span>;
 }
 
 function sourceBadge(source: SkillRun['source']) {

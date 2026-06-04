@@ -215,7 +215,7 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
               recordings, and attribution data will be permanently destroyed.
             </p>
             {usageCount > 0 && (
-              <p className="text-xs text-accent-400 mb-3">
+              <p className="text-xs text-accent-700 dark:text-accent-400 mb-3">
                 ⚠ This skill has been invoked {usageCount} time{usageCount === 1 ? '' : 's'} — deleting will sever those analytics records.
               </p>
             )}

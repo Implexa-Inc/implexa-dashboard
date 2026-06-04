@@ -61,7 +61,7 @@ function StatCard({ label, value, tone }: { label: string; value: string | numbe
 }
 
 function statusDot(status: Run['status']) {
-  const c = status === 'completed' ? 'bg-emerald-400' : status === 'partial' ? 'bg-amber-400' : 'bg-rose-400';
+  const c = status === 'completed' ? 'bg-emerald-500 dark:bg-emerald-400' : status === 'partial' ? 'bg-amber-500 dark:bg-amber-400' : 'bg-rose-500 dark:bg-rose-400';
   return <span className={`inline-block size-2 rounded-full ${c}`} aria-hidden="true" />;
 }
 

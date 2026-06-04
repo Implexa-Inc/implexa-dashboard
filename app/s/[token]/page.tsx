@@ -297,7 +297,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
 function Stat({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div className={`card !p-3 text-center ${highlight ? '!border-success-400/40' : ''}`}>
-      <div className={`text-xl font-semibold tabular-nums ${highlight ? 'text-success-400' : 'text-ink-50'}`}>{value}</div>
+      <div className={`text-xl font-semibold tabular-nums ${highlight ? 'text-success-600 dark:text-success-400' : 'text-ink-50'}`}>{value}</div>
       <div className="text-xs text-ink-400 uppercase tracking-wide mt-0.5">{label}</div>
     </div>
   );

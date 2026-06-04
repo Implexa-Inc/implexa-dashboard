@@ -31,7 +31,11 @@ import type { Config } from 'tailwindcss';
 
 const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}', './lib/**/*.{ts,tsx}'],
-  darkMode: 'media',
+  // Class-based dark mode. The root layout forces a `dark` class on <html> so
+  // every user lands in the (good) dark theme regardless of OS preference.
+  // Light mode is reachable only when that class is absent (e.g. a future
+  // theme toggle); the `:root` tokens below keep it professional for that case.
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
@@ -86,8 +90,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
-        mono: ['JetBrains Mono', 'ui-monospace', 'Menlo', 'Monaco', 'monospace'],
+        sans: ['var(--font-inter)', 'Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['var(--font-mono)', 'JetBrains Mono', 'ui-monospace', 'Menlo', 'Monaco', 'monospace'],
       },
       typography: ({ theme }: any) => ({
         DEFAULT: {

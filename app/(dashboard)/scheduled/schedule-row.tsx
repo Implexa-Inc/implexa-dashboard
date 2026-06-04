@@ -54,15 +54,15 @@ function formatRelative(iso: string | null): string {
 
 function statusBadge(status: ScheduledSkill['status']) {
   const base = 'inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded';
-  if (status === 'active') return <span className={`${base} bg-emerald-500/15 text-emerald-400`}>active</span>;
-  if (status === 'paused') return <span className={`${base} bg-amber-500/15  text-amber-400`}>paused</span>;
-  return <span className={`${base} bg-rose-500/15 text-rose-400`}>failed</span>;
+  if (status === 'active') return <span className={`${base} bg-emerald-500/15 text-emerald-700 dark:text-emerald-400`}>active</span>;
+  if (status === 'paused') return <span className={`${base} bg-amber-500/15  text-amber-700 dark:text-amber-400`}>paused</span>;
+  return <span className={`${base} bg-rose-500/15 text-rose-700 dark:text-rose-400`}>failed</span>;
 }
 
 function overdueBadge() {
   return (
     <span
-      className="inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-amber-400"
+      className="inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400"
       title="This routine has not run as expected. A local routine only fires while your machine is awake; consider a remote routine."
     >
       overdue
@@ -161,7 +161,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             </div>
           )}
           {error && (
-            <div className="text-xs text-rose-400 mt-2">Action failed: {error}</div>
+            <div className="text-xs text-rose-700 dark:text-rose-400 mt-2">Action failed: {error}</div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -178,7 +178,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             <button
               onClick={() => patch('active')}
               disabled={pending !== null}
-              className="text-xs px-3 py-1.5 rounded border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
+              className="text-xs px-3 py-1.5 rounded border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
             >
               {pending === 'resume' ? 'Resuming…' : 'Resume'}
             </button>
@@ -186,7 +186,7 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
           <button
             onClick={del}
             disabled={pending !== null}
-            className="text-xs px-3 py-1.5 rounded border border-rose-500/40 text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
+            className="text-xs px-3 py-1.5 rounded border border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
           >
             {pending === 'delete' ? 'Deleting…' : 'Delete'}
           </button>
