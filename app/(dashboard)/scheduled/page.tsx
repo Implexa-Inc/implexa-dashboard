@@ -12,9 +12,17 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { listWorkflows } from '@/lib/workflow-catalog';
+import { remoteSafetyFromCard, type RemoteSafety } from '@/lib/remote-safety';
 import ScheduleRow from './schedule-row';
 
 export const dynamic = 'force-dynamic';
+
+// What a routine row needs to know about the workflow it runs (when its slug
+// matches the catalog): which catalog source to deep-link, and the coarse
+// remote-safe verdict for the row badge. The precise verdict lives on the
+// workflow detail page.
+type RoutineWorkflow = { source: string; safety: RemoteSafety };
 
 type ScheduledSkill = {
   id:               string;
@@ -43,13 +51,22 @@ export default async function ScheduledPage() {
   if (!profile?.organization_id) redirect('/onboarding');
 
   // RLS scopes to caller. include all statuses so user can resume paused ones.
-  const { data: schedules } = await supabase
-    .from('scheduled_skills')
-    .select('id, skill_id, skill_slug, schedule_nl, cron_expression, timezone, destination, post_run_action, status, last_run_at, next_run_at, run_count, created_at')
-    .order('created_at', { ascending: false })
-    .limit(100);
+  // The workflow catalog read is the public path (the catalog is service-role
+  // RLS); it tells us which routines run a workflow and lets the row deep-link
+  // to /workflows + show the remote-safe verdict.
+  const [{ data: schedules }, catalog] = await Promise.all([
+    supabase
+      .from('scheduled_skills')
+      .select('id, skill_id, skill_slug, schedule_nl, cron_expression, timezone, destination, post_run_action, status, last_run_at, next_run_at, run_count, created_at')
+      .order('created_at', { ascending: false })
+      .limit(100),
+    listWorkflows(),
+  ]);
 
   const items: ScheduledSkill[] = (schedules as ScheduledSkill[]) || [];
+  const workflowBySlug = new Map<string, RoutineWorkflow>(
+    catalog.map((c) => [c.slug, { source: c.source, safety: remoteSafetyFromCard(c) }]),
+  );
 
   return (
     <main className="min-h-screen px-4 py-12">
@@ -83,7 +100,7 @@ export default async function ScheduledPage() {
         {items.length > 0 && (
           <ul className="space-y-3">
             {items.map((s) => (
-              <ScheduleRow key={s.id} schedule={s} />
+              <ScheduleRow key={s.id} schedule={s} workflow={workflowBySlug.get(s.skill_slug) || null} />
             ))}
           </ul>
         )}

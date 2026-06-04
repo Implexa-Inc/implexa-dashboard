@@ -22,13 +22,16 @@ type NavItem = {
 //   settings      → "settings" (gear)
 //   pricing       → "spark" (premium tier feel)
 // Order reflects the autopilot loop: mission control first, then the routines
-// that run/deliver (Routines, Runs), then outcomes (ROI), then the ingredient
-// shelf (Skills) those routines are composed from. "Routines" matches the
-// product's own language on /overview and in the watchdog (the table is still
-// scheduled_skills; only the label changed).
+// that run/deliver (Routines, Workflows, Runs), then outcomes (ROI), then the
+// ingredient shelf (Skills) those workflows are composed from. Workflows is the
+// lead product (the whole job); a routine runs a workflow on a schedule, so it
+// sits right after Routines. "Routines" matches the product's own language on
+// /overview and in the watchdog (the table is still scheduled_skills; only the
+// label changed).
 const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Overview',       icon: 'dashboard', matchPrefix: true },
   { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true },
+  { href: '/workflows',    label: 'Workflows',      icon: 'workflows', matchPrefix: true },
   { href: '/runs',         label: 'Runs',           icon: 'activity',  matchPrefix: true },
   { href: '/roi',          label: 'ROI',            icon: 'analytics', matchPrefix: true },
   { href: '/skills',       label: 'Skills',         icon: 'skills',    matchPrefix: true },

@@ -14,6 +14,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { listWorkflows } from '@/lib/workflow-catalog';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,14 +84,19 @@ export default async function RunsPage() {
   if (!profile?.organization_id) redirect('/onboarding');
 
   // RLS-scoped to caller. Output included inline; native <details> avoids
-  // a client component for the toggle.
-  const { data: runs } = await supabase
-    .from('skill_runs')
-    .select('id, scheduled_skill_id, orchestration_id, skill_slug, source, output_markdown, status, duration_ms, delivery, ran_at')
-    .order('ran_at', { ascending: false })
-    .limit(50);
+  // a client component for the toggle. The workflow catalog (public read path)
+  // lets each run link back to the workflow that produced it.
+  const [{ data: runs }, catalog] = await Promise.all([
+    supabase
+      .from('skill_runs')
+      .select('id, scheduled_skill_id, orchestration_id, skill_slug, source, output_markdown, status, duration_ms, delivery, ran_at')
+      .order('ran_at', { ascending: false })
+      .limit(50),
+    listWorkflows(),
+  ]);
 
   const items: SkillRun[] = (runs as SkillRun[]) || [];
+  const workflowSourceBySlug = new Map<string, string>(catalog.map((c) => [c.slug, c.source]));
 
   return (
     <main className="min-h-screen px-4 py-12">
@@ -98,7 +104,7 @@ export default async function RunsPage() {
         <header className="mb-8">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Runs</h1>
           <p className="text-ink-300 text-sm mt-1">
-            Output log for scheduled + orchestrated skill runs. Latest 50 across all sources.
+            What your autopilot delivered. Every scheduled and orchestrated run, latest 50 across all sources.
           </p>
         </header>
 
@@ -132,6 +138,17 @@ export default async function RunsPage() {
                     delivery: {deliverySummary(r.delivery)}
                     {' · '}
                     {new Date(r.ran_at).toLocaleString()}
+                    {workflowSourceBySlug.has(r.skill_slug) && (
+                      <>
+                        {' · '}
+                        <Link
+                          href={`/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(workflowSourceBySlug.get(r.skill_slug)!)}`}
+                          className="text-brand-500 hover:underline"
+                        >
+                          view workflow
+                        </Link>
+                      </>
+                    )}
                   </div>
                   {r.output_markdown ? (
                     <pre className="mt-4 whitespace-pre-wrap text-sm text-ink-200 bg-ink-900 border border-ink-800 rounded-lg p-4 overflow-x-auto">

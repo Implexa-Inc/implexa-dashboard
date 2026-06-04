@@ -18,8 +18,15 @@
  */
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { looksOverdue } from '@/lib/routine-status';
+import { RemoteSafetyBadge } from '../_components/remote-safety-badge';
+import type { RemoteSafety } from '@/lib/remote-safety';
+
+// When this routine's slug matches a workflow in the catalog, the parent passes
+// the catalog source (to deep-link /workflows) and the coarse remote verdict.
+type RoutineWorkflow = { source: string; safety: RemoteSafety };
 
 type ScheduledSkill = {
   id:               string;
@@ -69,7 +76,7 @@ function destinationLabel(d: ScheduledSkill['destination']): string {
   return 'Dashboard only';
 }
 
-export default function ScheduleRow({ schedule }: { schedule: ScheduledSkill }) {
+export default function ScheduleRow({ schedule, workflow }: { schedule: ScheduledSkill; workflow?: RoutineWorkflow | null }) {
   const supabase = createClient();
   const [status,  setStatus]  = useState(schedule.status);
   const [pending, setPending] = useState<'pause' | 'resume' | 'delete' | null>(null);
@@ -119,7 +126,18 @@ export default function ScheduleRow({ schedule }: { schedule: ScheduledSkill }) 
             <span className="font-mono text-sm text-ink-100">{schedule.skill_slug}</span>
             {statusBadge(status)}
             {status === 'active' && looksOverdue(schedule.cron_expression, schedule.last_run_at) && overdueBadge()}
+            {workflow && <RemoteSafetyBadge safety={workflow.safety} size="xs" />}
           </div>
+          {workflow && (
+            <div className="text-xs text-brand-500 mt-1">
+              <Link
+                href={`/workflows/${encodeURIComponent(schedule.skill_slug)}?source=${encodeURIComponent(workflow.source)}`}
+                className="hover:underline"
+              >
+                runs the {schedule.skill_slug} workflow →
+              </Link>
+            </div>
+          )}
           <div className="text-sm text-ink-300 mt-1">
             {schedule.schedule_nl}
             <span className="text-ink-500"> · </span>
