@@ -83,55 +83,70 @@ export default function UpdateBanner({ surfaces }: { surfaces: BehindSurface[] }
 
   return (
     <div className="relative border-b border-amber-400/30 bg-amber-400/10">
-      <div className="px-4 py-2.5 pr-10">
-        {surfaces.map((s) => (
-          <div key={s.surface} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span aria-hidden="true">⬆️</span>
-            <span className="text-amber-700 dark:text-amber-200">
-              Your <strong>{s.label}</strong> plugin is out of date
-              <span className="font-mono text-xs text-amber-600/80 dark:text-amber-300/70"> (v{s.installed} → v{s.latest})</span>.
-            </span>
-            {/* In the desktop app: one-click direct update (runs the installer). */}
-            {inDesktop && DESKTOP_UPDATABLE.has(s.surface) && (
-              result[s.surface] === 'ok' ? (
-                <span className="font-medium text-emerald-600 dark:text-emerald-300">✓ Updated — restart {s.label} to load it</span>
-              ) : (
-                <button
-                  type="button"
-                  disabled={running === s.surface}
-                  onClick={() => runUpdate(s.surface)}
-                  className="font-semibold rounded px-2.5 py-1 bg-amber-400 text-[#1c1410] hover:bg-amber-300 disabled:opacity-60 disabled:cursor-wait"
-                >
-                  {running === s.surface ? 'Updating…' : 'Update now'}
-                </button>
-              )
-            )}
-            {inDesktop && result[s.surface] === 'err' && (
-              <span className="text-rose-600 dark:text-rose-300 text-xs">Update failed — try the command below</span>
-            )}
-            <button
-              type="button"
-              onClick={() => setOpen((o) => (o === s.surface ? null : s.surface))}
-              className="font-medium text-amber-800 dark:text-amber-100 underline underline-offset-2 hover:no-underline"
-            >
-              {open === s.surface ? 'Hide' : (inDesktop && DESKTOP_UPDATABLE.has(s.surface) ? 'or copy command' : 'Update here')}
-            </button>
-            {open === s.surface && (
-              <span className="flex items-center gap-2 basis-full sm:basis-auto mt-1 sm:mt-0">
-                <code className="text-[11px] font-mono text-ink-100 bg-ink-900/50 border border-ink-700 rounded px-2 py-1 truncate max-w-[60ch]">
-                  {s.command}
-                </code>
-                <button
-                  type="button"
-                  onClick={() => copy(s.command, s.surface)}
-                  className="text-[11px] font-medium px-2 py-1 rounded border border-amber-400/40 text-amber-800 dark:text-amber-100 hover:bg-amber-400/15 whitespace-nowrap"
-                >
-                  {copied === s.surface ? '✓ copied' : 'copy'}
-                </button>
-              </span>
-            )}
-          </div>
-        ))}
+      <div className="px-4 py-2 pr-10 space-y-1">
+        {surfaces.map((s) => {
+          const canRun = inDesktop && DESKTOP_UPDATABLE.has(s.surface);
+          const done = result[s.surface] === 'ok';
+          const failed = result[s.surface] === 'err';
+          return (
+            <div key={s.surface}>
+              <div className="flex items-center gap-3 text-sm">
+                <span className="flex-1 min-w-0 truncate text-amber-700 dark:text-amber-200">
+                  <span aria-hidden="true" className="mr-1.5">⬆️</span>
+                  Your <strong>{s.label}</strong> plugin is out of date
+                  <span className="font-mono text-xs text-amber-600/80 dark:text-amber-300/70"> (v{s.installed} → v{s.latest})</span>
+                </span>
+
+                <span className="flex flex-none items-center gap-3">
+                  {done ? (
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-300 whitespace-nowrap">
+                      ✓ Updated · restart {s.label}
+                    </span>
+                  ) : (
+                    <>
+                      {canRun && (
+                        <button
+                          type="button"
+                          disabled={running === s.surface}
+                          onClick={() => runUpdate(s.surface)}
+                          className="text-xs font-semibold rounded-md px-2.5 py-1 bg-amber-400 text-[#1c1410] hover:bg-amber-300 disabled:opacity-60 disabled:cursor-wait whitespace-nowrap"
+                        >
+                          {running === s.surface ? 'Updating…' : 'Update now'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setOpen((o) => (o === s.surface ? null : s.surface))}
+                        className="text-xs text-amber-700/90 dark:text-amber-200/80 underline underline-offset-2 hover:no-underline whitespace-nowrap"
+                      >
+                        {open === s.surface ? 'Hide' : canRun ? 'copy command' : 'Update here'}
+                      </button>
+                    </>
+                  )}
+                </span>
+              </div>
+
+              {failed && (
+                <div className="mt-0.5 text-xs text-rose-600 dark:text-rose-300">Update failed — try the command instead.</div>
+              )}
+
+              {open === s.surface && (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <code className="flex-1 min-w-0 text-[11px] font-mono text-ink-100 bg-ink-900/50 border border-ink-700 rounded px-2 py-1 truncate">
+                    {s.command}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => copy(s.command, s.surface)}
+                    className="flex-none text-[11px] font-medium px-2 py-1 rounded border border-amber-400/40 text-amber-800 dark:text-amber-100 hover:bg-amber-400/15 whitespace-nowrap"
+                  >
+                    {copied === s.surface ? '✓ copied' : 'copy'}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       <button
         type="button"
