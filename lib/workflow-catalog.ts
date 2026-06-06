@@ -48,6 +48,11 @@ export type WorkflowCard = {
   step_count: number;
   bound_step_count: number;
   capabilities: WorkflowCapability[];
+  // catalog signals (activity proof + ranking for the first-run shelf)
+  run_count: number;
+  scheduled_count: number;
+  curated: boolean;
+  unproven: boolean;
   last_seen_at: string | null;
 };
 
@@ -188,6 +193,10 @@ export async function listWorkflows(): Promise<WorkflowCard[]> {
     bound_step_count:
       typeof w.bound_step_count === 'number' ? w.bound_step_count : 0,
     capabilities: mapCapabilities(w.capabilities),
+    run_count: typeof w.run_count === 'number' ? w.run_count : 0,
+    scheduled_count: typeof w.scheduled_count === 'number' ? w.scheduled_count : 0,
+    curated: w.curated === true,
+    unproven: w.unproven === true,
     last_seen_at: w.last_seen_at ?? null,
   }));
 }

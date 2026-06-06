@@ -15,6 +15,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { looksOverdue } from '@/lib/routine-status';
 import CopyRunCommand from '../_components/copy-run-command';
+import FirstRunMagic from '../_components/first-run-magic';
+import { listWorkflows } from '@/lib/workflow-catalog';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,6 +112,11 @@ export default async function OverviewPage() {
   const lastRunAt = allRuns[0]?.ran_at || null;
   const recentRuns = allRuns.slice(0, 6);
 
+  // First-run magic: a brand-new user (no routines, no runs) gets THE OFFER
+  // instead of an empty mission control. Fetch the featured catalog only then.
+  const isFirstRun = active.length === 0 && allRuns.length === 0;
+  const featured = isFirstRun ? await listWorkflows() : [];
+
   // What implexa noticed: flatten + dedupe recent recommended skills.
   const seen = new Map<string, RecSkill>();
   for (const ev of (recEvents as { recommended?: RecSkill[] }[]) || []) {
@@ -127,14 +134,21 @@ export default async function OverviewPage() {
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-5xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
-            {firstName ? `Welcome back, ${firstName}` : 'Mission control'}
-          </h1>
-          <p className="text-ink-300 text-sm mt-1">
-            What your Implexa autopilot is doing for you. Routines run, deliver, and improve on their own.
-          </p>
-        </header>
+        {!isFirstRun && (
+          <header className="mb-8">
+            <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
+              {firstName ? `Welcome back, ${firstName}` : 'Mission control'}
+            </h1>
+            <p className="text-ink-300 text-sm mt-1">
+              What your Implexa autopilot is doing for you. Routines run, deliver, and improve on their own.
+            </p>
+          </header>
+        )}
+
+        {isFirstRun ? (
+          <FirstRunMagic workflows={featured} connected={false} firstName={firstName} />
+        ) : (
+        <>
 
         {/* stat cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
@@ -257,6 +271,8 @@ export default async function OverviewPage() {
             )}
           </section>
         </div>
+        </>
+        )}
       </div>
     </main>
   );
