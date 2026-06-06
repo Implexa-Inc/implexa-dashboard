@@ -93,6 +93,12 @@ export default async function SettingsHubPage() {
             title="Connect Claude"
             description="Install the Implexa plugin in Claude Code / Desktop / Cursor / Cowork."
           />
+          <SettingsCard
+            href="/settings/updates"
+            icon="⬆️"
+            title="Updates"
+            description="Latest plugin + desktop versions and a one-click update command. Keep Implexa current for new workflows and fixes."
+          />
         </div>
 
       </div>
