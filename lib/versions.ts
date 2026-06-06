@@ -13,6 +13,9 @@ const BACKEND = (
 
 export type PluginVersion = {
   latest: string;
+  // Per-surface latest (claude/codex/cursor). Each surface installs from its own
+  // repo and can sit at a different version. Falls back to `latest` when absent.
+  surfaces?: Record<string, string>;
   update_command: string;
   notes: string | null;
   changelog_url: string | null;
@@ -42,6 +45,10 @@ export async function getLatestVersions(): Promise<LatestVersions | null> {
     return {
       plugin: {
         latest: String(body.plugin.latest ?? ''),
+        surfaces:
+          body.plugin.surfaces && typeof body.plugin.surfaces === 'object'
+            ? (body.plugin.surfaces as Record<string, string>)
+            : undefined,
         update_command: String(body.plugin.update_command ?? ''),
         notes: body.plugin.notes ?? null,
         changelog_url: body.plugin.changelog_url ?? null,

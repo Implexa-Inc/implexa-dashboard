@@ -42,18 +42,22 @@ function cmpVersion(a: string, b: string): number {
   return 0;
 }
 
-// Compare each reported surface version to the latest; return the behind ones.
+// Compare each reported surface version to ITS latest; return the behind ones.
+// Each surface has its own latest (claude/cursor track the claude repo, codex
+// the codex repo), falling back to the global latest when not specified.
 function computeBehind(
   pluginVersions: Record<string, string> | null | undefined,
   latest: string | null,
+  perSurfaceLatest: Record<string, string> | undefined,
 ): BehindSurface[] {
   if (!pluginVersions || !latest) return [];
   const out: BehindSurface[] = [];
   for (const [surface, installed] of Object.entries(pluginVersions)) {
     const meta = SURFACE_META[surface];
     if (!meta || typeof installed !== 'string') continue;
-    if (cmpVersion(installed, latest) < 0) {
-      out.push({ surface, label: meta.label, installed, latest, command: meta.command });
+    const surfaceLatest = perSurfaceLatest?.[surface] ?? latest;
+    if (cmpVersion(installed, surfaceLatest) < 0) {
+      out.push({ surface, label: meta.label, installed, latest: surfaceLatest, command: meta.command });
     }
   }
   return out;
@@ -95,6 +99,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const behind = computeBehind(
     profile.plugin_versions as Record<string, string> | null,
     latestVersions?.plugin?.latest ?? null,
+    latestVersions?.plugin?.surfaces,
   );
 
   // Admin check — drives the conditional Admin nav link in the sidebar.
