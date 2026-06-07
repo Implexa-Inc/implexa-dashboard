@@ -16,7 +16,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { listWorkflows, getWorkflow, type WorkflowCard } from '@/lib/workflow-catalog';
+import { listWorkflows, listMyWorkflows, getWorkflow, type WorkflowCard, type MyWorkflowCard } from '@/lib/workflow-catalog';
 import { remoteSafety, remoteSafetyFromCard } from '@/lib/remote-safety';
 import { RemoteSafetyBadge } from '../_components/remote-safety-badge';
 import CopyRunCommand from '../_components/copy-run-command';
@@ -52,13 +52,14 @@ export default async function WorkflowsPage() {
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const [{ data: schedules }, catalog] = await Promise.all([
+  const [{ data: schedules }, catalog, mine] = await Promise.all([
     supabase
       .from('scheduled_skills')
       .select('id, skill_slug, schedule_nl, cron_expression, status, last_run_at, run_count')
       .order('created_at', { ascending: false })
       .limit(100),
     listWorkflows(),
+    listMyWorkflows(),  // the user's OWN workflows (incl. private), owner-scoped
   ]);
 
   const routines: Routine[] = (schedules as Routine[]) || [];
@@ -114,21 +115,70 @@ export default async function WorkflowsPage() {
           </p>
         </header>
 
-        {items.length === 0 ? (
+        {/* Yours: the user's OWN workflows (captured + generated), incl. private
+            ones not on a schedule and not in the public catalog. */}
+        {mine.length > 0 && (
+          <section className="mb-10">
+            <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">Yours</h2>
+            <ul className="space-y-3">
+              {mine.map((w) => {
+                const href = `/workflows/${encodeURIComponent(w.slug)}?source=${encodeURIComponent(w.source)}`;
+                return (
+                  <li key={w.workflow_id} className="card">
+                    <div className="flex items-start gap-4 flex-wrap">
+                      <div className="flex-1 min-w-[220px]">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <Link href={href} className="text-base font-medium text-ink-50 hover:underline">{w.name}</Link>
+                          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-ink-800 text-ink-300">{w.origin}</span>
+                          {w.is_scheduled && <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">on autopilot</span>}
+                          {w.shared && <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-brand-500/15 text-brand-600 dark:text-brand-400">shared</span>}
+                          {w.unproven && <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300">unproven</span>}
+                        </div>
+                        {(w.primary_outcome || w.description) && (
+                          <p className="text-sm text-ink-300 line-clamp-2">{w.primary_outcome || w.description}</p>
+                        )}
+                        <div className="text-xs text-ink-400 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {w.cadence && <><span className="capitalize">{w.cadence}</span><span className="text-ink-600">·</span></>}
+                          <span>{w.step_count} step{w.step_count === 1 ? '' : 's'}</span>
+                          <span className="text-ink-600">·</span>
+                          <span>{w.run_count} run{w.run_count === 1 ? '' : 's'}</span>
+                          {w.last_run_at && <><span className="text-ink-600">·</span><span>last {rel(w.last_run_at)}</span></>}
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                          <Link href={href} className="text-brand-500 hover:underline font-medium">View workflow</Link>
+                          {!w.is_scheduled && <span className="text-ink-500">not scheduled yet</span>}
+                        </div>
+                      </div>
+                      <div className="flex-none">
+                        <CopyRunCommand slug={w.slug} kind="workflow" />
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
+        {items.length === 0 && mine.length === 0 && (
           <section className="card text-sm text-ink-300">
             <p className="mb-3">No workflows yet.</p>
             <p className="mb-3">
-              A workflow runs as a routine on a schedule. From Claude Code, ask Implexa to set one up, e.g.{' '}
-              <code className="bg-ink-900 px-1.5 py-0.5 rounded text-brand-400">run the morning build brief workflow</code>{' '}
-              then approve the schedule. It will show up here, in{' '}
-              <Link href="/scheduled" className="text-brand-500 hover:underline">Routines</Link>, and in{' '}
-              <Link href="/runs" className="text-brand-500 hover:underline">Runs</Link>.
+              A workflow is a whole job. From Claude Code, ask Implexa to build one, e.g.{' '}
+              <code className="bg-ink-900 px-1.5 py-0.5 rounded text-brand-400">build me a daily growth-brief workflow</code>{' '}
+              or save a multi-step job you just did with{' '}
+              <code className="bg-ink-900 px-1.5 py-0.5 rounded text-brand-400">save this as a workflow</code>.
+              It shows up here, and you can run or schedule it.
             </p>
             <p className="text-xs text-ink-500">
               Browse the full catalog any time and pick one to run.
             </p>
           </section>
-        ) : (
+        )}
+
+        {items.length > 0 && (
+          <section>
+            <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">Running on a routine</h2>
           <ul className="space-y-3">
             {items.map((g, i) => {
               const detail = details[i];
@@ -177,6 +227,7 @@ export default async function WorkflowsPage() {
               );
             })}
           </ul>
+          </section>
         )}
       </div>
     </main>

@@ -89,7 +89,7 @@ export default async function InboxPage() {
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
         <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Needs you</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Inbox</h1>
           <p className="text-ink-300 text-sm mt-1">
             Deliverables your routines produced and held for your review. Approve what you
             shipped, dismiss the rest.

@@ -35,7 +35,7 @@ type NavItem = {
 // Flip `hidden` to bring any of them back.
 const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Overview',       icon: 'dashboard', matchPrefix: true },
-  { href: '/inbox',        label: 'Needs you',      icon: 'activity',  matchPrefix: true, badgeKey: 'inbox' },
+  { href: '/inbox',        label: 'Inbox',          icon: 'activity',  matchPrefix: true, badgeKey: 'inbox' },
   { href: '/workflows',    label: 'Workflows',      icon: 'workflows', matchPrefix: true },
   { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true },
   { href: '/runs',         label: 'Runs',           icon: 'activity',  matchPrefix: true },

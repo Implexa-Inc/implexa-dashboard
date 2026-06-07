@@ -201,6 +201,50 @@ export async function listWorkflows(): Promise<WorkflowCard[]> {
   }));
 }
 
+export type MyWorkflowCard = {
+  workflow_id: string;
+  source: string;
+  slug: string;
+  name: string;
+  description: string;
+  vertical: string | null;
+  cadence: string | null;
+  primary_outcome: string | null;
+  step_count: number;
+  origin: 'captured' | 'generated';
+  run_count: number;
+  scheduled_count: number;
+  is_scheduled: boolean;
+  last_run_at: string | null;
+  shared: boolean;
+  unproven: boolean;
+};
+
+/**
+ * listMyWorkflows() - the signed-in user's OWN workflows (captured + generated),
+ * INCLUDING private ones the public catalog hides. Calls the authed backend
+ * route GET /api/v2/me/workflows with the caller's Supabase session JWT (so it's
+ * owner-scoped, never anyone else's). Degrades to [] on any failure.
+ */
+export async function listMyWorkflows(): Promise<MyWorkflowCard[]> {
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return [];
+  try {
+    const res = await fetch(`${BACKEND}/api/v2/me/workflows`, {
+      headers: { authorization: `Bearer ${session.access_token}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { workflows?: MyWorkflowCard[] };
+    return Array.isArray(body.workflows) ? body.workflows : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * getWorkflow(slug, source) - full detail for one workflow. Cached 10m. source
  * defaults to 'web-seed' (the seeded catalog); 'generated' for user-generated
