@@ -257,7 +257,38 @@ export async function getWorkflow(
   type Resp = { ok: boolean; workflow?: any };
   const resp = await callMcpTool<Resp>('get_workflow', { slug, source }, 600);
   if (!resp?.ok || !resp.workflow) return null;
-  const w = resp.workflow;
+  return mapWorkflowDetail(resp.workflow, slug, source);
+}
+
+/**
+ * getMyWorkflow(slug, source) - full detail for ONE of the caller's OWN
+ * workflows, including a PRIVATE (unshared) one the public get_workflow 404s.
+ * Calls the authed backend route GET /api/v2/me/workflows/:slug with the
+ * session JWT (owner-scoped). The dashboard detail page falls back to this when
+ * the public read returns null.
+ */
+export async function getMyWorkflow(slug: string, source = 'generated'): Promise<WorkflowDetail | null> {
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return null;
+  try {
+    const res = await fetch(
+      `${BACKEND}/api/v2/me/workflows/${encodeURIComponent(slug)}?source=${encodeURIComponent(source)}`,
+      { headers: { authorization: `Bearer ${session.access_token}` }, cache: 'no-store', signal: AbortSignal.timeout(8000) },
+    );
+    if (!res.ok) return null;
+    const body = (await res.json()) as { workflow?: any };
+    if (!body?.workflow) return null;
+    return mapWorkflowDetail(body.workflow, slug, source);
+  } catch {
+    return null;
+  }
+}
+
+// Shared mapper: raw workflow-detail object (from get_workflow or me/workflows)
+// -> the dashboard WorkflowDetail shape.
+function mapWorkflowDetail(w: any, slug: string, source: string): WorkflowDetail {
   const num = (v: unknown) => (typeof v === 'number' && v >= 0 ? v : 0);
   return {
     source: String(w.source ?? source),

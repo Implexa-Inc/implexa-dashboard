@@ -16,7 +16,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { getWorkflow, type WorkflowStep } from '@/lib/workflow-catalog';
+import { getWorkflow, getMyWorkflow, type WorkflowStep } from '@/lib/workflow-catalog';
 import { remoteSafety } from '@/lib/remote-safety';
 import { RemoteSafetyBadge } from '../../_components/remote-safety-badge';
 import CopyRunCommand from '../../_components/copy-run-command';
@@ -147,7 +147,12 @@ export default async function WorkflowDetailPage({
   const w = await getWorkflow(params.slug, source);
   // Fall back to the other known source before giving up (a generated workflow
   // reached without ?source, or vice versa).
-  const workflow = w || (await getWorkflow(params.slug, source === 'web-seed' ? 'generated' : 'web-seed'));
+  const wPublic = w || (await getWorkflow(params.slug, source === 'web-seed' ? 'generated' : 'web-seed'));
+  // Last resort: the caller's OWN private (unshared) workflow, which the public
+  // read 404s by design. Owner-scoped authed read so users can view their own.
+  const workflow = wPublic
+    || (await getMyWorkflow(params.slug, source === 'web-seed' ? 'generated' : source))
+    || (await getMyWorkflow(params.slug, 'community'));
   if (!workflow) notFound();
 
   // Schedule + runs for this workflow - both RLS-scoped to the caller. This is
