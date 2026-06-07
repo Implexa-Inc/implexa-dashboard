@@ -29,7 +29,9 @@ type ScheduledSkill = {
   skill_id:         string;
   skill_slug:       string;
   schedule_nl:      string;
-  cron_expression:  string;
+  cron_expression:  string | null;
+  trigger_type?:    'cron' | 'watch' | 'until';
+  watch_condition?: { watch?: string; until?: string } | null;
   timezone:         string;
   destination:      { type: 'dashboard' | 'slack-webhook' | 'slack-plugin' | 'email'; target?: string };
   post_run_action:  { type: string; repo?: string; script?: string } | null;
@@ -57,7 +59,7 @@ export default async function ScheduledPage() {
   const [{ data: schedules }, catalog] = await Promise.all([
     supabase
       .from('scheduled_skills')
-      .select('id, skill_id, skill_slug, schedule_nl, cron_expression, timezone, destination, post_run_action, status, last_run_at, next_run_at, run_count, created_at')
+      .select('id, skill_id, skill_slug, schedule_nl, cron_expression, trigger_type, watch_condition, timezone, destination, post_run_action, status, last_run_at, next_run_at, run_count, created_at')
       .order('created_at', { ascending: false })
       .limit(100),
     listWorkflows(),

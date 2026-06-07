@@ -33,7 +33,9 @@ type ScheduledSkill = {
   skill_id:         string;
   skill_slug:       string;
   schedule_nl:      string;
-  cron_expression:  string;
+  cron_expression:  string | null;
+  trigger_type?:    'cron' | 'watch' | 'until';
+  watch_condition?: { watch?: string; until?: string } | null;
   timezone:         string;
   destination:      { type: 'dashboard' | 'slack-webhook' | 'slack-plugin' | 'email'; target?: string };
   post_run_action:  { type: string; repo?: string; script?: string } | null;
@@ -66,6 +68,17 @@ function overdueBadge() {
       title="This routine has not run as expected. A local routine only fires while your machine is awake; consider a remote routine."
     >
       overdue
+    </span>
+  );
+}
+
+// Loop-powered routines (watch/until) fire reactively in a /loop session, not
+// on a clock. They get a "live" badge instead of overdue tracking.
+function liveBadge(kind: 'watch' | 'until') {
+  const base = 'inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-violet-500/15 text-violet-700 dark:text-violet-300';
+  return (
+    <span className={base} title={kind === 'watch' ? 'Reactive: runs when its event fires, via a Claude /loop session.' : 'Converging: re-runs until its condition is met, via a Claude /loop session.'}>
+      ⚡ live · {kind}
     </span>
   );
 }
@@ -125,7 +138,9 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
           <div className="flex items-center gap-3 flex-wrap">
             <span className="font-mono text-sm text-ink-100">{schedule.skill_slug}</span>
             {statusBadge(status)}
-            {status === 'active' && looksOverdue(schedule.cron_expression, schedule.last_run_at) && overdueBadge()}
+            {(schedule.trigger_type === 'watch' || schedule.trigger_type === 'until')
+              ? liveBadge(schedule.trigger_type)
+              : (status === 'active' && schedule.cron_expression && looksOverdue(schedule.cron_expression, schedule.last_run_at) && overdueBadge())}
             {workflow && <RemoteSafetyBadge safety={workflow.safety} size="xs" />}
           </div>
           {workflow && (
@@ -139,11 +154,22 @@ export default function ScheduleRow({ schedule, workflow }: { schedule: Schedule
             </div>
           )}
           <div className="text-sm text-ink-300 mt-1">
-            {schedule.schedule_nl}
-            <span className="text-ink-500"> · </span>
-            <span className="text-xs font-mono text-ink-500">{schedule.cron_expression}</span>
-            <span className="text-ink-500"> · </span>
-            <span className="text-xs text-ink-500">{schedule.timezone}</span>
+            {(schedule.trigger_type === 'watch' || schedule.trigger_type === 'until') ? (
+              <>
+                {schedule.trigger_type === 'watch' ? 'Watches for: ' : 'Runs until: '}
+                <span className="text-ink-200">{schedule.watch_condition?.watch || schedule.watch_condition?.until || 'its condition'}</span>
+                <span className="text-ink-500"> · </span>
+                <span className="text-xs text-ink-500">fires in a Claude /loop session</span>
+              </>
+            ) : (
+              <>
+                {schedule.schedule_nl}
+                <span className="text-ink-500"> · </span>
+                <span className="text-xs font-mono text-ink-500">{schedule.cron_expression}</span>
+                <span className="text-ink-500"> · </span>
+                <span className="text-xs text-ink-500">{schedule.timezone}</span>
+              </>
+            )}
           </div>
           <div className="text-xs text-ink-400 mt-1">
             {destinationLabel(schedule.destination)}
