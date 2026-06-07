@@ -33,12 +33,18 @@ type NavItem = {
 // leaderboard, the web connect flow) is HIDDEN, not deleted: the routes + pages
 // stay live for deep links and future work, but they do not clutter the surface.
 // Flip `hidden` to bring any of them back.
+// CONSUMER_PRODUCT_SPEC rail: three items only. Home (the manager's desk),
+// Agents (your workers), Results (what they produced, with the feedback reply).
+// Everything else is HIDDEN, not deleted: routes + pages stay live for deep
+// links and admin, they just do not clutter the consumer surface. Skills /
+// karma / scores / leaderboard leave the surface entirely (engine on, storefront
+// off). Flip `hidden` to bring any back.
 const PRIMARY_NAV: NavItem[] = [
-  { href: '/overview',     label: 'Overview',       icon: 'dashboard', matchPrefix: true },
-  { href: '/inbox',        label: 'Inbox',          icon: 'activity',  matchPrefix: true, badgeKey: 'inbox' },
-  { href: '/workflows',    label: 'Workflows',      icon: 'workflows', matchPrefix: true },
-  { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true },
-  { href: '/runs',         label: 'Runs',           icon: 'activity',  matchPrefix: true },
+  { href: '/overview',     label: 'Home',           icon: 'dashboard', matchPrefix: true },
+  { href: '/workflows',    label: 'Agents',         icon: 'workflows', matchPrefix: true },
+  { href: '/runs',         label: 'Results',        icon: 'activity',  matchPrefix: true, badgeKey: 'inbox' },
+  { href: '/inbox',        label: 'Inbox',          icon: 'activity',  matchPrefix: true, hidden: true },
+  { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true, hidden: true },
   { href: '/roi',          label: 'ROI',            icon: 'analytics', matchPrefix: true, hidden: true },
   { href: '/skills',       label: 'Skills',         icon: 'skills',    matchPrefix: true, hidden: true },
   { href: '/integrations', label: 'Integrations',   icon: 'link',      matchPrefix: true, hidden: true },

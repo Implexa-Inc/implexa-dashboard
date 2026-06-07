@@ -16,12 +16,10 @@ import { createClient } from '@/lib/supabase/server';
 import { looksOverdue } from '@/lib/routine-status';
 import CopyRunCommand from '../_components/copy-run-command';
 import FirstRunMagic from '../_components/first-run-magic';
-import { listWorkflows } from '@/lib/workflow-catalog';
+import TalkToImplexa from '../_components/talk-to-implexa';
+import { listWorkflows, listMyWorkflows, listSuggestedAgents, type MyWorkflowCard, type SuggestedAgent } from '@/lib/workflow-catalog';
 
 export const dynamic = 'force-dynamic';
-
-// public skill-detail pages live on the marketing site.
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://implexa.ai';
 
 type Scheduled = {
   id: string;
@@ -40,7 +38,6 @@ type Run = {
   source: string;
 };
 
-type RecSkill = { source: string; slug: string; name: string; description?: string };
 
 function rel(iso: string | null): string {
   if (!iso) return 'never';
@@ -78,7 +75,7 @@ export default async function OverviewPage() {
 
   const weekAgo = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
 
-  const [{ data: schedules }, { data: runs }, { data: recEvents }, { count: pendingCount }] = await Promise.all([
+  const [{ data: schedules }, { data: runs }, { count: pendingCount }] = await Promise.all([
     supabase
       .from('scheduled_skills')
       .select('id, skill_slug, cron_expression, status, last_run_at, post_run_action')
@@ -90,12 +87,6 @@ export default async function OverviewPage() {
       .select('id, skill_slug, status, ran_at, source')
       .order('ran_at', { ascending: false })
       .limit(50),
-    supabase
-      .from('recommendation_events')
-      .select('recommended, created_at')
-      .gte('created_at', weekAgo)
-      .order('created_at', { ascending: false })
-      .limit(40),
     supabase
       .from('skill_runs')
       .select('id', { count: 'exact', head: true })
@@ -112,22 +103,16 @@ export default async function OverviewPage() {
   const lastRunAt = allRuns[0]?.ran_at || null;
   const recentRuns = allRuns.slice(0, 6);
 
+  // Manager's-desk data: the user's own agents + the learning-driven shelf.
+  const [myAgents, suggested] = await Promise.all([
+    listMyWorkflows(),
+    listSuggestedAgents(6),
+  ]);
+
   // First-run magic: a brand-new user (no routines, no runs) gets THE OFFER
   // instead of an empty mission control. Fetch the featured catalog only then.
   const isFirstRun = active.length === 0 && allRuns.length === 0;
   const featured = isFirstRun ? await listWorkflows() : [];
-
-  // What implexa noticed: flatten + dedupe recent recommended skills.
-  const seen = new Map<string, RecSkill>();
-  for (const ev of (recEvents as { recommended?: RecSkill[] }[]) || []) {
-    for (const r of Array.isArray(ev.recommended) ? ev.recommended : []) {
-      const key = `${r.source || ''}/${r.slug || ''}`;
-      if (r.slug && !seen.has(key)) seen.set(key, r);
-      if (seen.size >= 6) break;
-    }
-    if (seen.size >= 6) break;
-  }
-  const noticed = [...seen.values()];
 
   const firstName = (profile.display_name || '').split(' ')[0] || '';
 
@@ -137,10 +122,10 @@ export default async function OverviewPage() {
         {!isFirstRun && (
           <header className="mb-8">
             <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
-              {firstName ? `Welcome back, ${firstName}` : 'Mission control'}
+              {firstName ? `Welcome back, ${firstName}` : 'Home'}
             </h1>
             <p className="text-ink-300 text-sm mt-1">
-              What your Implexa autopilot is doing for you. Routines run, deliver, and improve on their own.
+              Your agents and what they produced. They run in your Claude or Codex, on a schedule, and get sharper from your feedback.
             </p>
           </header>
         )}
@@ -150,9 +135,11 @@ export default async function OverviewPage() {
         ) : (
         <>
 
+        <TalkToImplexa />
+
         {/* stat cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-          <StatCard label="Active routines" value={active.length} />
+          <StatCard label="Your agents" value={myAgents.length} />
           <StatCard label="Need attention" value={overdue.length + failedSchedules.length} tone={overdue.length + failedSchedules.length > 0 ? 'warn' : undefined} />
           <StatCard label="Runs this week" value={runsThisWeek} tone={runsThisWeek > 0 ? 'ok' : undefined} />
           <StatCard label="Last run" value={rel(lastRunAt)} />
@@ -201,11 +188,38 @@ export default async function OverviewPage() {
           </section>
         )}
 
+        {/* your agents */}
+        <section className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider">Your agents</h2>
+            <Link href="/workflows" className="text-xs text-brand-500 hover:underline">all agents →</Link>
+          </div>
+          {myAgents.length === 0 ? (
+            <div className="card text-sm text-ink-400">
+              No agents yet. Tell Implexa what to do above, and it builds your first one.
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {myAgents.slice(0, 6).map((a) => (
+                <Link key={a.workflow_id} href={`/workflows/${a.slug}`} className="card p-4 hover:border-brand-500/40 transition-colors block">
+                  <div className="text-sm font-medium text-ink-50 truncate">{a.name}</div>
+                  <div className="text-xs text-ink-400 mt-1 line-clamp-2">{a.description || a.primary_outcome || `${a.step_count} steps`}</div>
+                  <div className="text-[11px] text-ink-500 mt-2 flex items-center gap-2">
+                    <span>{a.is_scheduled ? 'scheduled' : 'manual'}</span>
+                    <span aria-hidden>·</span>
+                    <span>last run {rel(a.last_run_at)}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* recent runs */}
+          {/* recent results */}
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider">Recent runs</h2>
+              <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider">Recent results</h2>
               <Link href="/runs" className="text-xs text-brand-500 hover:underline">all runs</Link>
             </div>
             {recentRuns.length === 0 ? (
@@ -231,40 +245,26 @@ export default async function OverviewPage() {
             )}
           </section>
 
-          {/* what implexa noticed */}
+          {/* suggested for you (always learning) */}
           <section>
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider">Skills implexa noticed</h2>
-              <Link href="/workflows" className="text-xs text-brand-500 hover:underline">your workflows →</Link>
+              <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider">Suggested for you</h2>
+              <span className="text-[11px] text-ink-500">always learning</span>
             </div>
             <p className="text-xs text-ink-400 mb-3">
-              Skill-level matches for your recent work (the ingredients). Whole-job <strong className="text-ink-300">workflows</strong> are the lead, they stitch these into a complete job you can schedule, and show up in Recent runs, Scheduled, and your daily email. Open a skill, or copy a command to run it in Claude Code or Codex.
+              Agents to add, from what you and others keep doing by hand. Describe one above and Implexa builds it.
             </p>
-            {noticed.length === 0 ? (
+            {suggested.length === 0 ? (
               <div className="card text-sm text-ink-400">
-                Nothing yet. As you work in Claude, Implexa surfaces skills for what you are doing here and in your daily email.
+                Nothing yet. As you work, Implexa learns what to suggest here.
               </div>
             ) : (
               <ul className="space-y-2">
-                {noticed.map((s) => (
-                  <li key={`${s.source}/${s.slug}`} className="card py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <a
-                        href={`${SITE_URL}/s/${encodeURIComponent(s.source)}/${encodeURIComponent(s.slug)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="min-w-0 group"
-                      >
-                        <div className="text-sm text-ink-100 font-medium group-hover:underline">{s.name || s.slug}</div>
-                        {s.description ? (
-                          <div className="text-xs text-ink-400 mt-0.5 line-clamp-2">{s.description}</div>
-                        ) : null}
-                        <div className="text-[11px] text-ink-500 mt-1">skill · {s.source}</div>
-                      </a>
-                      <div className="flex-none">
-                        <CopyRunCommand slug={s.slug} kind="skill" />
-                      </div>
-                    </div>
+                {suggested.map((s, i) => (
+                  <li key={`${s.kind}-${s.workflow_slug || s.skill_slug || i}`} className="card py-3">
+                    <div className="text-sm text-ink-100 font-medium truncate">{s.title}</div>
+                    <div className="text-xs text-ink-400 mt-0.5 line-clamp-2">{s.reason}</div>
+                    <div className="text-[11px] text-ink-500 mt-1">{s.kind === 'popular' ? 'popular agent' : 'suggested for you'}</div>
                   </li>
                 ))}
               </ul>

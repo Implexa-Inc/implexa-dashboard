@@ -245,6 +245,41 @@ export async function listMyWorkflows(): Promise<MyWorkflowCard[]> {
   }
 }
 
+export type SuggestedAgent = {
+  kind: 'recommended' | 'popular';
+  title: string;
+  reason: string;
+  skill_slug: string | null;
+  workflow_slug: string | null;
+  suggested_intent: string | null;
+  score: number | null;
+};
+
+/**
+ * listSuggestedAgents() - the always-on "Suggested for you" shelf. Calls the
+ * authed backend GET /api/v2/me/suggested-agents, which blends personalized
+ * recommendations with popular-workflow cold-start padding and excludes agents
+ * the user already has. Owner-scoped via the session JWT. Degrades to [].
+ */
+export async function listSuggestedAgents(limit = 6): Promise<SuggestedAgent[]> {
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return [];
+  try {
+    const res = await fetch(`${BACKEND}/api/v2/me/suggested-agents?limit=${limit}`, {
+      headers: { authorization: `Bearer ${session.access_token}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { suggestions?: SuggestedAgent[] };
+    return Array.isArray(body.suggestions) ? body.suggestions : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * getWorkflow(slug, source) - full detail for one workflow. Cached 10m. source
  * defaults to 'web-seed' (the seeded catalog); 'generated' for user-generated
