@@ -3,28 +3,69 @@
 import { useState } from 'react';
 
 /**
- * The conversation box: "you talk to Implexa". Per the two-surface model, the
- * web dashboard captures the intent and hands off to the user's AI app (the
- * worker) to actually build the agent, rather than pretending to build it
- * server-side. v1 copies a ready-to-paste instruction; the full intent router
- * (create / tune / review / schedule) and a build-request handoff land next.
+ * The conversation box: "you talk to Implexa". One codebase, two contexts.
+ *
+ * On submit it enqueues a build-request via the user's session (POST
+ * /api/agents/build), which works in a plain browser AND inside the desktop
+ * shell. Then, if the native desktop bridge is present (window.implexaDesktop),
+ * it opens the user's Claude/Codex so the SessionStart hook builds the agent
+ * right away. In a plain browser it tells the user to open their agent. The
+ * model work always stays on the user's agent: presence, never runtime.
  */
+
+declare global {
+  interface Window {
+    implexaDesktop?: {
+      openAgent?: (surface?: string) => Promise<{ ok: boolean; surface?: string }>;
+    };
+  }
+}
+
+type State = 'idle' | 'sending' | 'queued' | 'opening' | 'error';
+
 export default function TalkToImplexa() {
   const [intent, setIntent] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState<State>('idle');
+  const [msg, setMsg] = useState('');
 
   const submit = async () => {
     const t = intent.trim();
-    if (!t) return;
-    const instruction = `implexa, build an agent that ${t}`;
+    if (!t || state === 'sending' || state === 'opening') return;
+    setState('sending');
+    setMsg('');
     try {
-      await navigator.clipboard.writeText(instruction);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 5000);
+      const res = await fetch('/api/agents/create', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ intent: t }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        setState('error');
+        setMsg(data?.error === 'not signed in' ? 'Please sign in first.' : 'Could not queue that. Try again.');
+        return;
+      }
+      setIntent('');
+      const bridge = typeof window !== 'undefined' ? window.implexaDesktop : undefined;
+      if (bridge?.openAgent) {
+        setState('opening');
+        const r = await bridge.openAgent().catch(() => ({ ok: false }));
+        setState('queued');
+        setMsg(r?.ok
+          ? 'Opening your agent to build it. It will appear under Your agents below.'
+          : 'Queued. Open your Claude or Codex and Implexa will build it.');
+      } else {
+        setState('queued');
+        setMsg('Queued. Open your Claude or Codex and Implexa builds it, then it appears under Your agents below.');
+      }
     } catch {
-      /* clipboard blocked; the button still reflects intent */
+      setState('error');
+      setMsg('Could not queue that. Try again.');
     }
   };
+
+  const busy = state === 'sending' || state === 'opening';
+  const label = state === 'sending' ? 'Queuing' : state === 'opening' ? 'Opening' : 'Build it';
 
   return (
     <section className="mb-8">
@@ -42,19 +83,19 @@ export default function TalkToImplexa() {
             onChange={(e) => setIntent(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
             placeholder="e.g. every morning, send me my key numbers"
-            className="flex-1 rounded-md bg-ink-900 border border-ink-700 px-3 py-2 text-sm text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-brand-500"
+            disabled={busy}
+            className="flex-1 rounded-md bg-ink-900 border border-ink-700 px-3 py-2 text-sm text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-brand-500 disabled:opacity-60"
           />
           <button
             onClick={submit}
-            className="rounded-md bg-brand-500 text-ink-950 px-4 py-2 text-sm font-medium hover:bg-brand-400 whitespace-nowrap transition-colors"
+            disabled={busy || !intent.trim()}
+            className="rounded-md bg-brand-500 text-ink-950 px-4 py-2 text-sm font-medium hover:bg-brand-400 whitespace-nowrap transition-colors disabled:opacity-50"
           >
-            {copied ? 'Copied' : 'Build it'}
+            {label}
           </button>
         </div>
-        {copied && (
-          <p className="text-xs text-ink-300 mt-2">
-            Copied. Paste it into your Claude or Codex to build the agent, then it shows up under Your agents below.
-          </p>
+        {msg && (
+          <p className={`text-xs mt-2 ${state === 'error' ? 'text-rose-400' : 'text-ink-300'}`}>{msg}</p>
         )}
       </div>
     </section>
