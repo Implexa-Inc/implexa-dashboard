@@ -15,22 +15,10 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { listWorkflows } from '@/lib/workflow-catalog';
+import { selectRuns, deriveRunState, type RunRow } from '@/lib/run-state';
+import { RunStateBadge } from '../_components/run-state-badge';
 
 export const dynamic = 'force-dynamic';
-
-type SkillRun = {
-  id:                  string;
-  scheduled_skill_id:  string | null;
-  orchestration_id:    string | null;
-  skill_slug:          string;
-  source:              'scheduled' | 'adhoc' | 'orchestration';
-  output_markdown:     string | null;
-  status:              'completed' | 'failed' | 'partial';
-  duration_ms:         number | null;
-  delivery:            Record<string, unknown>;
-  review_status:       'none' | 'pending' | 'approved' | 'dismissed' | null;
-  ran_at:              string;
-};
 
 function formatRelative(iso: string): string {
   const then = new Date(iso).getTime();
@@ -43,21 +31,15 @@ function formatRelative(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-function statusBadge(status: SkillRun['status']) {
-  const base = 'inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded';
-  if (status === 'completed') return <span className={`${base} bg-emerald-500/15 text-emerald-700 dark:text-emerald-400`}>ok</span>;
-  if (status === 'partial')   return <span className={`${base} bg-amber-500/15  text-amber-700 dark:text-amber-400`}>partial</span>;
-  return <span className={`${base} bg-rose-500/15 text-rose-700 dark:text-rose-400`}>failed</span>;
-}
-
-function sourceBadge(source: SkillRun['source']) {
+function sourceBadge(source: string | undefined) {
   const base = 'inline-block text-[10px] font-medium px-2 py-0.5 rounded text-ink-300 bg-ink-800';
   if (source === 'scheduled')     return <span className={base}>scheduled</span>;
   if (source === 'orchestration') return <span className={base}>chain</span>;
   return <span className={base}>ad-hoc</span>;
 }
 
-function deliverySummary(d: Record<string, unknown>): string {
+function deliverySummary(d: Record<string, unknown> | null | undefined): string {
+  if (!d) return '—';
   const parts: string[] = [];
   if (d?.dashboard) parts.push('dashboard');
   const slack = (d as { slack?: { via?: 'webhook' | 'plugin'; delivered?: boolean; channel?: string; error?: string } }).slack;
@@ -87,16 +69,11 @@ export default async function RunsPage() {
   // RLS-scoped to caller. Output included inline; native <details> avoids
   // a client component for the toggle. The workflow catalog (public read path)
   // lets each run link back to the workflow that produced it.
-  const [{ data: runs }, catalog] = await Promise.all([
-    supabase
-      .from('skill_runs')
-      .select('id, scheduled_skill_id, orchestration_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at')
-      .order('ran_at', { ascending: false })
-      .limit(50),
+  const [items, catalog] = await Promise.all([
+    // Live run state + the /runs-specific columns (delivery, duration, links).
+    selectRuns(supabase, { limit: 50, extraColumns: 'scheduled_skill_id, orchestration_id, duration_ms, delivery' }),
     listWorkflows(),
   ]);
-
-  const items: SkillRun[] = (runs as SkillRun[]) || [];
   const workflowSourceBySlug = new Map<string, string>(catalog.map((c) => [c.slug, c.source]));
 
   return (
@@ -128,7 +105,7 @@ export default async function RunsPage() {
                 <details>
                   <summary className="cursor-pointer list-none flex items-center gap-3 flex-wrap">
                     <span className="font-mono text-sm text-ink-100">{r.skill_slug}</span>
-                    {statusBadge(r.status)}
+                    <RunStateBadge info={deriveRunState(r)} size="xs" />
                     {sourceBadge(r.source)}
                     {r.review_status === 'pending' && (
                       <Link

@@ -14,6 +14,9 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { looksOverdue } from '@/lib/routine-status';
+import { selectRuns, deriveRunState, type RunRow } from '@/lib/run-state';
+import { RunStateBadge } from '../_components/run-state-badge';
+import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
 import CopyRunCommand from '../_components/copy-run-command';
 import FirstRunMagic from '../_components/first-run-magic';
 import TalkToImplexa from '../_components/talk-to-implexa';
@@ -29,15 +32,6 @@ type Scheduled = {
   last_run_at: string | null;
   post_run_action: { type: string; repo?: string } | null;
 };
-
-type Run = {
-  id: string;
-  skill_slug: string;
-  status: 'completed' | 'failed' | 'partial';
-  ran_at: string;
-  source: string;
-};
-
 
 function rel(iso: string | null): string {
   if (!iso) return 'never';
@@ -65,11 +59,6 @@ function StatCard({ label, value, tone }: { label: string; value: string | numbe
   );
 }
 
-function statusDot(status: Run['status']) {
-  const c = status === 'completed' ? 'bg-emerald-500 dark:bg-emerald-400' : status === 'partial' ? 'bg-amber-500 dark:bg-amber-400' : 'bg-rose-500 dark:bg-rose-400';
-  return <span className={`inline-block size-2 rounded-full ${c}`} aria-hidden="true" />;
-}
-
 export default async function OverviewPage() {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
@@ -81,18 +70,16 @@ export default async function OverviewPage() {
 
   const weekAgo = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
 
-  const [{ data: schedules }, { data: runs }, { count: pendingCount }] = await Promise.all([
+  const [{ data: schedules }, allRuns, { count: pendingCount }] = await Promise.all([
     supabase
       .from('scheduled_skills')
       .select('id, skill_slug, cron_expression, status, last_run_at, post_run_action')
       .in('status', ['active', 'paused', 'failed'])
       .order('created_at', { ascending: false })
       .limit(100),
-    supabase
-      .from('skill_runs')
-      .select('id, skill_slug, status, ran_at, source')
-      .order('ran_at', { ascending: false })
-      .limit(50),
+    // Live run state (running / stalled / done / failed). Reads the 0065
+    // run_state columns when present, degrades to the terminal status otherwise.
+    selectRuns(supabase, { limit: 50 }),
     supabase
       .from('skill_runs')
       .select('id', { count: 'exact', head: true })
@@ -100,7 +87,6 @@ export default async function OverviewPage() {
   ]);
 
   const sched: Scheduled[] = (schedules as Scheduled[]) || [];
-  const allRuns: Run[] = (runs as Run[]) || [];
 
   const active = sched.filter((s) => s.status === 'active');
   const overdue = active.filter((s) => s.status === 'active' && looksOverdue(s.cron_expression, s.last_run_at));
@@ -118,6 +104,16 @@ export default async function OverviewPage() {
     listWorkflows(),
   ]);
   const nameBySlug = new Map(catalog.map((c) => [c.slug, c.name]));
+
+  // Live run state for the recent feed + the attention banner. The banner shows
+  // only the ones that need a look (stalled, or a permission-blocked failure);
+  // it renders nothing in the calm common case.
+  const attentionItems: AttentionItem[] = allRuns.map((r) => ({
+    id: r.id,
+    name: nameBySlug.get(r.skill_slug) || humanize(r.skill_slug),
+    info: deriveRunState(r),
+    ran_at: r.ran_at,
+  }));
 
   // First-run magic: a brand-new user (no agents, no runs) gets THE OFFER
   // instead of an empty mission control.
@@ -138,6 +134,11 @@ export default async function OverviewPage() {
         <>
 
         <TalkToImplexa hasAgents={myAgents.length > 0} />
+
+        {/* a stalled or permission-blocked run, loud and at the top - silence is never success */}
+        <div className="mt-8">
+          <RunAttentionBanner items={attentionItems} />
+        </div>
 
         {/* your agents */}
         <section className="mt-12">
@@ -178,11 +179,13 @@ export default async function OverviewPage() {
             <ul>
               {recentRuns.map((r) => (
                 <li key={r.id} className="flex items-center justify-between gap-3 py-3 border-b border-ink-800/60 last:border-0">
-                  <Link href="/inbox" className="flex items-center gap-2.5 min-w-0 group">
-                    {statusDot(r.status)}
+                  <Link href="/inbox" className="min-w-0 group">
                     <span className="text-sm text-ink-200 truncate group-hover:text-ink-50">{nameBySlug.get(r.skill_slug) || humanize(r.skill_slug)}</span>
                   </Link>
-                  <span className="text-xs text-ink-500 flex-none">{rel(r.ran_at)}</span>
+                  <div className="flex items-center gap-2.5 flex-none">
+                    <RunStateBadge info={deriveRunState(r)} size="xs" />
+                    <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
+                  </div>
                 </li>
               ))}
             </ul>
