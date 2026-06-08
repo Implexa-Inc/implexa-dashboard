@@ -137,14 +137,6 @@ export default async function OverviewPage() {
 
         <TalkToImplexa />
 
-        {/* stat cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-          <StatCard label="Your agents" value={myAgents.length} />
-          <StatCard label="Need attention" value={overdue.length + failedSchedules.length} tone={overdue.length + failedSchedules.length > 0 ? 'warn' : undefined} />
-          <StatCard label="Runs this week" value={runsThisWeek} tone={runsThisWeek > 0 ? 'ok' : undefined} />
-          <StatCard label="Last run" value={rel(lastRunAt)} />
-        </div>
-
         {/* deliverables waiting for approval, the inbox cross-link */}
         {(pendingCount ?? 0) > 0 && (
           <section className="mb-8">
@@ -270,6 +262,14 @@ export default async function OverviewPage() {
               </ul>
             )}
           </section>
+        </div>
+
+        {/* at-a-glance status, kept quietly below the core surface */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-8">
+          <StatCard label="Your agents" value={myAgents.length} />
+          <StatCard label="Need attention" value={overdue.length + failedSchedules.length} tone={overdue.length + failedSchedules.length > 0 ? 'warn' : undefined} />
+          <StatCard label="Runs this week" value={runsThisWeek} tone={runsThisWeek > 0 ? 'ok' : undefined} />
+          <StatCard label="Last run" value={rel(lastRunAt)} />
         </div>
         </>
         )}
