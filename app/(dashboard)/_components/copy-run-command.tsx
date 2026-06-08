@@ -11,7 +11,7 @@ import { useState } from 'react';
 
 export default function CopyRunCommand({ slug, kind = 'skill' }: { slug: string; kind?: 'skill' | 'workflow' }) {
   const [copied, setCopied] = useState(false);
-  const command = kind === 'workflow' ? `implexa run the ${slug} workflow` : `implexa run ${slug}`;
+  const command = kind === 'workflow' ? `implexa run the ${slug} agent` : `implexa run ${slug}`;
 
   async function copy(e: React.MouseEvent) {
     e.preventDefault();

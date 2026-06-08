@@ -186,7 +186,7 @@ export default async function WorkflowDetailPage({
     <main className="min-h-screen px-4 py-10">
       <div className="max-w-4xl mx-auto">
         <nav className="text-sm text-ink-500 mb-6">
-          <Link href="/workflows" className="hover:underline">← All workflows</Link>
+          <Link href="/workflows" className="hover:underline">← All agents</Link>
         </nav>
 
         {/* Header */}
@@ -240,7 +240,7 @@ export default async function WorkflowDetailPage({
           <p className="text-sm text-ink-200">{safety.reason}</p>
           {safety.estimated && (
             <p className="text-xs text-ink-500 mt-2">
-              Estimated from the step chain. The authoritative verdict comes from the routine watchdog once this workflow runs on a schedule.
+              Estimated from the step chain. The authoritative verdict comes from the watchdog once this agent runs on a schedule.
             </p>
           )}
         </div>
@@ -309,12 +309,12 @@ export default async function WorkflowDetailPage({
         <div className="grid md:grid-cols-2 gap-4 mb-6">
           <div className="card">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Routine</h2>
+              <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Schedule</h2>
               <Link href="/scheduled" className="text-xs text-brand-500 hover:underline">manage</Link>
             </div>
             {routines.length === 0 ? (
               <p className="text-sm text-ink-500">
-                Not on a schedule yet. Copy the run command above and approve a schedule in Claude to make it a routine.
+                Not on a schedule yet. Copy the run command above and approve a schedule in your Claude or Codex to run it automatically.
               </p>
             ) : (
               <ul className="space-y-3 text-sm">

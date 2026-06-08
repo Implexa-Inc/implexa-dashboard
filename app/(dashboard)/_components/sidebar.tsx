@@ -42,8 +42,8 @@ type NavItem = {
 const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Home',           icon: 'dashboard', matchPrefix: true },
   { href: '/workflows',    label: 'Agents',         icon: 'workflows', matchPrefix: true },
-  { href: '/runs',         label: 'Results',        icon: 'activity',  matchPrefix: true, badgeKey: 'inbox' },
-  { href: '/inbox',        label: 'Inbox',          icon: 'activity',  matchPrefix: true, hidden: true },
+  { href: '/inbox',        label: 'Results',        icon: 'activity',  matchPrefix: true, badgeKey: 'inbox' },
+  { href: '/runs',         label: 'Runs log',       icon: 'activity',  matchPrefix: true, hidden: true },
   { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true, hidden: true },
   { href: '/roi',          label: 'ROI',            icon: 'analytics', matchPrefix: true, hidden: true },
   { href: '/skills',       label: 'Skills',         icon: 'skills',    matchPrefix: true, hidden: true },

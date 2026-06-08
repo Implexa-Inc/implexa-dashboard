@@ -31,6 +31,7 @@ export type InboxItem = {
   why:             string | null;
   output_markdown: string | null;
   ran_at:          string;
+  pending:         boolean;
 };
 
 function rel(iso: string): string {
@@ -61,13 +62,14 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
       const jwt = session?.access_token;
       await callBackend(`/api/v2/runs/${id}/review`, { jwt, method: 'POST', body: { status } });
 
-      // Optimistically confirm, then drop the card from the list. The sidebar
-      // badge is server-rendered, so refresh it (cheap, force-dynamic) once the
-      // card is gone to keep the count honest.
+      // Results is the full recent feed, not a queue: keep the card in place and
+      // flip it to reviewed (which drops its action row) rather than removing it.
+      // The sidebar badge is server-rendered, so refresh it (cheap, force-dynamic)
+      // once the state settles to keep the pending count honest.
       setDone((d) => ({ ...d, [id]: status }));
       setBusy((b) => ({ ...b, [id]: false }));
       setTimeout(() => {
-        setItems((list) => list.filter((it) => it.id !== id));
+        setItems((list) => list.map((it) => (it.id === id ? { ...it, pending: false } : it)));
         startTransition(() => router.refresh());
       }, 900);
     } catch (err) {
@@ -110,9 +112,9 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
             <div className="mt-4 flex items-center gap-3">
               {confirmed ? (
                 <span className="text-sm text-success-700 dark:text-success-400">
-                  {confirmed === 'approved' ? '✓ Marked as posted' : '✓ Dismissed'}
+                  {confirmed === 'approved' ? '✓ Approved' : '✓ Dismissed'}
                 </span>
-              ) : (
+              ) : item.pending ? (
                 <>
                   <button
                     type="button"
@@ -120,7 +122,7 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
                     disabled={busy[item.id]}
                     className="btn-success"
                   >
-                    {busy[item.id] ? 'Saving…' : 'I posted this'}
+                    {busy[item.id] ? 'Saving…' : 'Approve'}
                   </button>
                   <button
                     type="button"
@@ -134,6 +136,8 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
                     <span className="text-xs text-rose-600 dark:text-rose-400">{error[item.id]}</span>
                   )}
                 </>
+              ) : (
+                <span className="text-xs text-ink-500">reviewed</span>
               )}
             </div>
           </li>

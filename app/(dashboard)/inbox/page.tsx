@@ -1,15 +1,17 @@
 /**
- * /inbox , the approval inbox ("Needs you").
+ * /inbox , the Results feed (the rendered work your agents produced).
  *
- * Where the autopilot loop ends. Workflows that run on a schedule produce
- * deliverables held for the user's review (HN comment drafts, IG reel briefs,
- * realtor packs). Instead of scattering across email + /runs + the agent log,
- * everything that needs the user lands here.
+ * Where the autopilot loop surfaces its output. Agents that run on a schedule
+ * produce deliverables (HN comment drafts, IG reel briefs, realtor packs);
+ * Results renders each one beautifully (markdown) newest-first, so you see the
+ * actual work, not a log of slugs.
  *
- * READ is a direct RLS query on skill_runs WHERE review_status = 'pending'
- * (migration 0057), newest first. We enrich each row with the producing
- * workflow's name + a one-line "why" from the public workflow catalog
- * (lib/workflow-catalog, the same MCP read path /workflows and /runs use) so we
+ * READ is a direct RLS query on skill_runs that have an output_markdown
+ * deliverable, newest first (a bounded recent window). Items still awaiting
+ * review (review_status = 'pending', migration 0057) keep an Approve/Dismiss
+ * action; everything else just renders as a reviewed result. We enrich each row
+ * with the producing agent's name + a one-line "why" from the public catalog
+ * (lib/workflow-catalog, the same MCP read path the agents pages use) so we
  * never show a bare slug. ACTION (approve/dismiss) is a JWT-authed POST to the
  * backend, done client-side in inbox-list.tsx where the Supabase session lives.
  */
@@ -22,7 +24,7 @@ import InboxList, { type InboxItem } from './inbox-list';
 
 export const dynamic = 'force-dynamic';
 
-type PendingRun = {
+type ResultRun = {
   id:              string;
   skill_slug:      string;
   source:          string;
@@ -65,14 +67,15 @@ export default async function InboxPage() {
     supabase
       .from('skill_runs')
       .select('id, skill_slug, source, output_markdown, ran_at, review_status')
-      .eq('review_status', 'pending')
-      .order('ran_at', { ascending: false }),
+      .not('output_markdown', 'is', null)
+      .order('ran_at', { ascending: false })
+      .limit(40),
     listWorkflows(),
   ]);
 
   const bySlug = new Map(catalog.map((c) => [c.slug, c]));
 
-  const items: InboxItem[] = ((runs as PendingRun[]) || []).map((r) => {
+  const items: InboxItem[] = ((runs as ResultRun[]) || []).map((r) => {
     const wf = bySlug.get(r.skill_slug);
     return {
       id:              r.id,
@@ -82,27 +85,28 @@ export default async function InboxPage() {
       why:             oneLine(wf?.primary_outcome) || oneLine(wf?.description),
       output_markdown: r.output_markdown,
       ran_at:          r.ran_at,
+      pending:         r.review_status === 'pending',
     };
   });
 
   return (
-    <main className="min-h-screen px-4 py-12">
+    <main className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-3xl mx-auto">
         <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Inbox</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Results</h1>
           <p className="text-ink-300 text-sm mt-1">
-            Deliverables your routines produced and held for your review. Approve what you
-            shipped, dismiss the rest.
+            The work your agents produced, newest first. Approve anything held for your
+            review; the rest is here whenever you want to look back.
           </p>
         </header>
 
         {items.length === 0 ? (
           <section className="card text-center py-12">
             <div className="text-2xl mb-2" aria-hidden="true">✓</div>
-            <p className="text-ink-100 font-medium">You are all caught up.</p>
+            <p className="text-ink-100 font-medium">No results yet.</p>
             <p className="text-ink-400 text-sm mt-1">
-              Routines that need your approval will show up here.{' '}
-              <Link href="/runs" className="text-brand-500 hover:underline">See all runs</Link>.
+              When your agents run, the work they produce shows up here.{' '}
+              <Link href="/workflows" className="text-brand-500 hover:underline">Build an agent</Link>.
             </p>
           </section>
         ) : (

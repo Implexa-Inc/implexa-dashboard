@@ -160,12 +160,12 @@ export default async function OverviewPage() {
           <section className="mt-12">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider">Recent results</h2>
-              <Link href="/runs" className="text-xs text-ink-400 hover:text-ink-200">all results</Link>
+              <Link href="/inbox" className="text-xs text-ink-400 hover:text-ink-200">all results</Link>
             </div>
             <ul>
               {recentRuns.map((r) => (
                 <li key={r.id} className="flex items-center justify-between gap-3 py-3 border-b border-ink-800/60 last:border-0">
-                  <Link href="/runs" className="flex items-center gap-2.5 min-w-0 group">
+                  <Link href="/inbox" className="flex items-center gap-2.5 min-w-0 group">
                     {statusDot(r.status)}
                     <span className="text-sm text-ink-200 truncate group-hover:text-ink-50">{r.skill_slug}</span>
                   </Link>

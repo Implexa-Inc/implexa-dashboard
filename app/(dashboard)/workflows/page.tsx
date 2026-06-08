@@ -106,12 +106,11 @@ export default async function WorkflowsPage() {
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-5xl mx-auto">
         <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Workflows</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Agents</h1>
           <p className="text-ink-300 text-sm mt-1">
-            The jobs you run. A workflow is a whole job: an ordered chain of steps with a verify gate and an outcome.{' '}
-            <Link href="/skills" className="text-brand-500 hover:underline">Skills</Link>{' '}
-            are the ingredients; a workflow stitches them into the complete job and runs on a{' '}
-            <Link href="/scheduled" className="text-brand-500 hover:underline">routine</Link>.
+            The workers you build. Each agent does a whole job: an ordered chain of steps
+            with a verify gate and an outcome. It runs in your Claude or Codex, on a schedule,
+            as you, and drops its work in <Link href="/inbox" className="text-brand-500 hover:underline">Results</Link>.
           </p>
         </header>
 
@@ -119,7 +118,7 @@ export default async function WorkflowsPage() {
             ones not on a schedule and not in the public catalog. */}
         {mine.length > 0 && (
           <section className="mb-10">
-            <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">Yours</h2>
+            <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">Your agents</h2>
             <ul className="space-y-3">
               {mine.map((w) => {
                 const href = `/workflows/${encodeURIComponent(w.slug)}?source=${encodeURIComponent(w.source)}`;
@@ -145,7 +144,7 @@ export default async function WorkflowsPage() {
                           {w.last_run_at && <><span className="text-ink-600">·</span><span>last {rel(w.last_run_at)}</span></>}
                         </div>
                         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-                          <Link href={href} className="text-brand-500 hover:underline font-medium">View workflow</Link>
+                          <Link href={href} className="text-brand-500 hover:underline font-medium">Open agent</Link>
                           {!w.is_scheduled && <span className="text-ink-500">not scheduled yet</span>}
                         </div>
                       </div>
@@ -162,23 +161,22 @@ export default async function WorkflowsPage() {
 
         {items.length === 0 && mine.length === 0 && (
           <section className="card text-sm text-ink-300">
-            <p className="mb-3">No workflows yet.</p>
+            <p className="mb-3">No agents yet.</p>
             <p className="mb-3">
-              A workflow is a whole job. From Claude Code, ask Implexa to build one, e.g.{' '}
-              <code className="bg-ink-900 px-1.5 py-0.5 rounded text-brand-400">build me a daily growth-brief workflow</code>{' '}
-              or save a multi-step job you just did with{' '}
-              <code className="bg-ink-900 px-1.5 py-0.5 rounded text-brand-400">save this as a workflow</code>.
+              An agent is a whole job. Describe one on{' '}
+              <Link href="/overview" className="text-brand-500 hover:underline">Home</Link>{' '}
+              and Implexa builds it, e.g.{' '}
+              <code className="bg-ink-900 px-1.5 py-0.5 rounded text-brand-400">build me a daily growth-brief agent</code>{' '}
+              or, from your Claude or Codex, save a multi-step job you just did with{' '}
+              <code className="bg-ink-900 px-1.5 py-0.5 rounded text-brand-400">save this as an agent</code>.
               It shows up here, and you can run or schedule it.
-            </p>
-            <p className="text-xs text-ink-500">
-              Browse the full catalog any time and pick one to run.
             </p>
           </section>
         )}
 
         {items.length > 0 && (
           <section>
-            <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">Running on a routine</h2>
+            <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">On a schedule</h2>
           <ul className="space-y-3">
             {items.map((g, i) => {
               const detail = details[i];
