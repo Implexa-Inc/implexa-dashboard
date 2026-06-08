@@ -24,7 +24,7 @@ declare global {
 
 type State = 'idle' | 'sending' | 'queued' | 'opening' | 'error';
 
-export default function TalkToImplexa() {
+export default function TalkToImplexa({ hasAgents = false }: { hasAgents?: boolean }) {
   const [intent, setIntent] = useState('');
   const [state, setState] = useState<State>('idle');
   const [msg, setMsg] = useState('');
@@ -73,15 +73,15 @@ export default function TalkToImplexa() {
   const label = state === 'sending' ? 'Queuing' : state === 'opening' ? 'Opening' : 'Build it';
 
   return (
-    <section className="mb-8">
-      <div className="card p-4">
-        <label htmlFor="talk" className="text-sm font-medium text-ink-100">
-          Tell Implexa what to do
-        </label>
-        <p className="text-xs text-ink-400 mt-0.5 mb-3">
-          Describe a recurring job. Implexa builds the agent; it runs in your connected Claude or Codex, as you.
+    <section>
+      <div className="card p-6 sm:p-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+          {hasAgents ? 'Build an agent' : 'Build your first agent'}
+        </h1>
+        <p className="text-sm text-ink-400 mt-1.5 mb-5">
+          Describe a recurring job in a sentence. Implexa builds the agent; it runs in your Claude or Codex, on a schedule, as you.
         </p>
-        <div className="flex gap-2">
+        <div className="flex gap-2.5">
           <input
             id="talk"
             value={intent}
@@ -89,18 +89,18 @@ export default function TalkToImplexa() {
             onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
             placeholder="e.g. every morning, send me my key numbers"
             disabled={busy}
-            className="flex-1 rounded-md bg-ink-900 border border-ink-700 px-3 py-2 text-sm text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-brand-500 disabled:opacity-60"
+            className="flex-1 rounded-lg bg-ink-900 border border-ink-700 px-4 py-3 text-[15px] text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-ink-500 disabled:opacity-60"
           />
           <button
             onClick={submit}
             disabled={busy || !intent.trim()}
-            className="rounded-md bg-brand-500 text-ink-950 px-4 py-2 text-sm font-medium hover:bg-brand-400 whitespace-nowrap transition-colors disabled:opacity-50"
+            className="rounded-lg bg-brand-500 text-ink-950 px-6 py-3 text-sm font-medium hover:bg-brand-400 whitespace-nowrap transition-colors disabled:opacity-50"
           >
             {label}
           </button>
         </div>
         {msg && (
-          <p className={`text-xs mt-2 ${state === 'error' ? 'text-rose-400' : 'text-ink-300'}`}>{msg}</p>
+          <p className={`text-xs mt-3 ${state === 'error' ? 'text-rose-400' : 'text-ink-300'}`}>{msg}</p>
         )}
       </div>
     </section>

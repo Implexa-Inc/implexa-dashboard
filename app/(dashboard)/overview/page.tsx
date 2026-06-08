@@ -119,84 +119,32 @@ export default async function OverviewPage() {
   return (
     <main className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-6xl mx-auto">
-        {!isFirstRun && (
-          <header className="mb-8">
-            <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
-              {firstName ? `Welcome back, ${firstName}` : 'Home'}
-            </h1>
-            <p className="text-ink-300 text-sm mt-1">
-              Your agents and what they produced. They run in your Claude or Codex, on a schedule, and get sharper from your feedback.
-            </p>
-          </header>
-        )}
-
         {isFirstRun ? (
           <FirstRunMagic workflows={featured} connected={false} firstName={firstName} />
         ) : (
         <>
 
-        <TalkToImplexa />
-
-        {/* deliverables waiting for approval, the inbox cross-link */}
-        {(pendingCount ?? 0) > 0 && (
-          <section className="mb-8">
-            <Link
-              href="/inbox"
-              className="flex items-center justify-between gap-3 rounded-lg border border-brand-500/40 bg-brand-500/10 p-5 hover:bg-brand-500/15 transition-colors"
-            >
-              <div>
-                <div className="text-sm font-semibold text-ink-50">
-                  {pendingCount} deliverable{pendingCount === 1 ? '' : 's'} waiting for you
-                </div>
-                <div className="text-xs text-ink-300 mt-0.5">
-                  Routines produced these and held them for your review. Approve what you shipped.
-                </div>
-              </div>
-              <span className="text-sm text-brand-500 font-medium whitespace-nowrap">Open inbox →</span>
-            </Link>
-          </section>
-        )}
-
-        {/* needs attention */}
-        {overdue.length + failedSchedules.length > 0 && (
-          <section className="mb-8">
-            <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20 p-5">
-              <h2 className="text-sm font-semibold text-amber-800 dark:text-amber-200 uppercase tracking-wider mb-3">Needs attention</h2>
-              <ul className="space-y-2">
-                {[...overdue, ...failedSchedules].map((s) => (
-                  <li key={s.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="font-mono text-amber-900 dark:text-amber-100">{s.skill_slug}</span>
-                    <span className="text-xs text-amber-700 dark:text-amber-300/80">
-                      {s.status === 'failed' ? 'failed' : `did not run (last ${rel(s.last_run_at)})`}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-3 text-xs text-amber-700 dark:text-amber-200/70">
-                A local routine only fires while your machine is awake. Move it to a remote routine so it runs even when you are offline.{' '}
-                <Link href="/scheduled" className="underline font-medium">Manage routines</Link>
-              </p>
-            </div>
-          </section>
-        )}
+        <TalkToImplexa hasAgents={myAgents.length > 0} />
 
         {/* your agents */}
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider">Your agents</h2>
-            <Link href="/workflows" className="text-xs text-brand-500 hover:underline">all agents →</Link>
+        <section className="mt-12">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider">Your agents</h2>
+            {myAgents.length > 0 && (
+              <Link href="/workflows" className="text-xs text-ink-400 hover:text-ink-200">all agents</Link>
+            )}
           </div>
           {myAgents.length === 0 ? (
-            <div className="card text-sm text-ink-400">
-              No agents yet. Tell Implexa what to do above, and it builds your first one.
+            <div className="card p-5 text-sm text-ink-400">
+              No agents yet. Describe one above and Implexa builds your first.
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {myAgents.slice(0, 6).map((a) => (
-                <Link key={a.workflow_id} href={`/workflows/${a.slug}`} className="card p-4 hover:border-brand-500/40 transition-colors block">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {myAgents.slice(0, 9).map((a) => (
+                <Link key={a.workflow_id} href={`/workflows/${a.slug}`} className="card p-5 hover:border-ink-600 transition-colors block">
                   <div className="text-sm font-medium text-ink-50 truncate">{a.name}</div>
-                  <div className="text-xs text-ink-400 mt-1 line-clamp-2">{a.description || a.primary_outcome || `${a.step_count} steps`}</div>
-                  <div className="text-[11px] text-ink-500 mt-2 flex items-center gap-2">
+                  <div className="text-xs text-ink-400 mt-1.5 line-clamp-2">{a.description || a.primary_outcome || `${a.step_count} steps`}</div>
+                  <div className="text-[11px] text-ink-500 mt-3 flex items-center gap-2">
                     <span>{a.is_scheduled ? 'scheduled' : 'manual'}</span>
                     <span aria-hidden>·</span>
                     <span>last run {rel(a.last_run_at)}</span>
@@ -207,70 +155,38 @@ export default async function OverviewPage() {
           )}
         </section>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* recent results */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider">Recent results</h2>
-              <Link href="/runs" className="text-xs text-brand-500 hover:underline">all runs</Link>
+        {/* recent results */}
+        {recentRuns.length > 0 && (
+          <section className="mt-12">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider">Recent results</h2>
+              <Link href="/runs" className="text-xs text-ink-400 hover:text-ink-200">all results</Link>
             </div>
-            {recentRuns.length === 0 ? (
-              <div className="card text-sm text-ink-400">
-                No runs yet. Schedule a workflow and it will run on its own.{' '}
-                <Link href="/scheduled" className="text-brand-500 hover:underline">Set one up</Link>.
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {recentRuns.map((r) => (
-                  <li key={r.id} className="card flex items-center justify-between gap-3 py-3">
-                    <Link href="/runs" className="flex items-center gap-2 min-w-0 group">
-                      {statusDot(r.status)}
-                      <span className="font-mono text-sm text-ink-100 truncate group-hover:underline">{r.skill_slug}</span>
-                    </Link>
-                    <span className="flex items-center gap-2 flex-none">
-                      <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
-                      <CopyRunCommand slug={r.skill_slug} kind="workflow" />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ul>
+              {recentRuns.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-3 py-3 border-b border-ink-800/60 last:border-0">
+                  <Link href="/runs" className="flex items-center gap-2.5 min-w-0 group">
+                    {statusDot(r.status)}
+                    <span className="text-sm text-ink-200 truncate group-hover:text-ink-50">{r.skill_slug}</span>
+                  </Link>
+                  <span className="text-xs text-ink-500 flex-none">{rel(r.ran_at)}</span>
+                </li>
+              ))}
+            </ul>
           </section>
+        )}
 
-          {/* suggested for you (always learning) */}
-          <section>
-            <div className="flex items-center justify-between mb-1">
-              <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider">Suggested for you</h2>
-              <span className="text-[11px] text-ink-500">always learning</span>
-            </div>
-            <p className="text-xs text-ink-400 mb-3">
-              Agents to add, from what you and others keep doing by hand. Describe one above and Implexa builds it.
-            </p>
-            {suggested.length === 0 ? (
-              <div className="card text-sm text-ink-400">
-                Nothing yet. As you work, Implexa learns what to suggest here.
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {suggested.map((s, i) => (
-                  <li key={`${s.kind}-${s.workflow_slug || s.skill_slug || i}`} className="card py-3">
-                    <div className="text-sm text-ink-100 font-medium truncate">{s.title}</div>
-                    <div className="text-xs text-ink-400 mt-0.5 line-clamp-2">{s.reason}</div>
-                    <div className="text-[11px] text-ink-500 mt-1">{s.kind === 'popular' ? 'popular agent' : 'suggested for you'}</div>
-                  </li>
-                ))}
-              </ul>
+        {/* quiet status footer: review queue + attention, muted (no loud banners) */}
+        {((pendingCount ?? 0) > 0 || overdue.length + failedSchedules.length > 0) && (
+          <div className="mt-12 pt-6 border-t border-ink-800 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-ink-500">
+            {(pendingCount ?? 0) > 0 && (
+              <Link href="/inbox" className="hover:text-ink-300">{pendingCount} result{pendingCount === 1 ? '' : 's'} to review</Link>
             )}
-          </section>
-        </div>
-
-        {/* at-a-glance status, kept quietly below the core surface */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-8">
-          <StatCard label="Your agents" value={myAgents.length} />
-          <StatCard label="Need attention" value={overdue.length + failedSchedules.length} tone={overdue.length + failedSchedules.length > 0 ? 'warn' : undefined} />
-          <StatCard label="Runs this week" value={runsThisWeek} tone={runsThisWeek > 0 ? 'ok' : undefined} />
-          <StatCard label="Last run" value={rel(lastRunAt)} />
-        </div>
+            {overdue.length + failedSchedules.length > 0 && (
+              <Link href="/scheduled" className="hover:text-ink-300">{overdue.length + failedSchedules.length} routine{overdue.length + failedSchedules.length === 1 ? '' : 's'} need attention</Link>
+            )}
+          </div>
+        )}
         </>
         )}
       </div>
