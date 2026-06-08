@@ -117,8 +117,8 @@ export default async function OverviewPage() {
   const firstName = (profile.display_name || '').split(' ')[0] || '';
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-5xl mx-auto">
+    <main className="min-h-screen px-6 lg:px-12 py-14">
+      <div className="max-w-6xl mx-auto">
         {!isFirstRun && (
           <header className="mb-8">
             <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
