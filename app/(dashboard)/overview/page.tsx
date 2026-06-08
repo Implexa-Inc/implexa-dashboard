@@ -49,6 +49,12 @@ function rel(iso: string | null): string {
   return new Date(iso).toLocaleDateString();
 }
 
+// Last-resort label so a recent result never renders as a bare slug when the
+// public catalog has no matching card (e.g. a private, generated agent).
+function humanize(slug: string): string {
+  return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function StatCard({ label, value, tone }: { label: string; value: string | number; tone?: 'ok' | 'warn' }) {
   const valueColor = tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : tone === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-50';
   return (
@@ -103,16 +109,20 @@ export default async function OverviewPage() {
   const lastRunAt = allRuns[0]?.ran_at || null;
   const recentRuns = allRuns.slice(0, 6);
 
-  // Manager's-desk data: the user's own agents + the learning-driven shelf.
-  const [myAgents, suggested] = await Promise.all([
+  // Manager's-desk data: the user's own agents + the learning-driven shelf +
+  // the public catalog (used both for first-run featured cards and to give
+  // recent results a friendly agent name instead of a raw slug).
+  const [myAgents, suggested, catalog] = await Promise.all([
     listMyWorkflows(),
     listSuggestedAgents(6),
+    listWorkflows(),
   ]);
+  const nameBySlug = new Map(catalog.map((c) => [c.slug, c.name]));
 
-  // First-run magic: a brand-new user (no routines, no runs) gets THE OFFER
-  // instead of an empty mission control. Fetch the featured catalog only then.
+  // First-run magic: a brand-new user (no agents, no runs) gets THE OFFER
+  // instead of an empty mission control.
   const isFirstRun = active.length === 0 && allRuns.length === 0;
-  const featured = isFirstRun ? await listWorkflows() : [];
+  const featured = isFirstRun ? catalog : [];
 
   const firstName = (profile.display_name || '').split(' ')[0] || '';
 
@@ -120,7 +130,10 @@ export default async function OverviewPage() {
     <main className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-6xl mx-auto">
         {isFirstRun ? (
-          <FirstRunMagic workflows={featured} connected={false} firstName={firstName} />
+          <>
+            <TalkToImplexa hasAgents={false} />
+            <FirstRunMagic workflows={featured} />
+          </>
         ) : (
         <>
 
@@ -167,7 +180,7 @@ export default async function OverviewPage() {
                 <li key={r.id} className="flex items-center justify-between gap-3 py-3 border-b border-ink-800/60 last:border-0">
                   <Link href="/inbox" className="flex items-center gap-2.5 min-w-0 group">
                     {statusDot(r.status)}
-                    <span className="text-sm text-ink-200 truncate group-hover:text-ink-50">{r.skill_slug}</span>
+                    <span className="text-sm text-ink-200 truncate group-hover:text-ink-50">{nameBySlug.get(r.skill_slug) || humanize(r.skill_slug)}</span>
                   </Link>
                   <span className="text-xs text-ink-500 flex-none">{rel(r.ran_at)}</span>
                 </li>
@@ -183,7 +196,7 @@ export default async function OverviewPage() {
               <Link href="/inbox" className="hover:text-ink-300">{pendingCount} result{pendingCount === 1 ? '' : 's'} to review</Link>
             )}
             {overdue.length + failedSchedules.length > 0 && (
-              <Link href="/scheduled" className="hover:text-ink-300">{overdue.length + failedSchedules.length} routine{overdue.length + failedSchedules.length === 1 ? '' : 's'} need attention</Link>
+              <Link href="/scheduled" className="hover:text-ink-300">{overdue.length + failedSchedules.length} agent{overdue.length + failedSchedules.length === 1 ? '' : 's'} need attention</Link>
             )}
           </div>
         )}
