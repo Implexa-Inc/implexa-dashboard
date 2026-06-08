@@ -20,18 +20,11 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { listWorkflows } from '@/lib/workflow-catalog';
+import { selectRuns, deriveRunState } from '@/lib/run-state';
+import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
 import InboxList, { type InboxItem } from './inbox-list';
 
 export const dynamic = 'force-dynamic';
-
-type ResultRun = {
-  id:              string;
-  skill_slug:      string;
-  source:          string;
-  output_markdown: string | null;
-  ran_at:          string;
-  review_status:   string;
-};
 
 // Tighten a workflow description into a single plain-english line. Catalog
 // descriptions can be a few sentences; the inbox only needs the lead clause.
@@ -62,32 +55,36 @@ export default async function InboxPage() {
   if (!profile?.organization_id) redirect('/onboarding');
 
   // RLS-scoped to the caller. Catalog read degrades to [] on failure, so a
-  // missing public token just means we fall back to humanized slugs.
-  const [{ data: runs }, catalog] = await Promise.all([
-    supabase
-      .from('skill_runs')
-      .select('id, skill_slug, source, output_markdown, ran_at, review_status')
-      .not('output_markdown', 'is', null)
-      .order('ran_at', { ascending: false })
-      .limit(40),
+  // missing public token just means we fall back to humanized slugs. selectRuns
+  // reads live run-state columns when present (migration 0065), else degrades.
+  const [runs, catalog] = await Promise.all([
+    selectRuns(supabase, { limit: 40, onlyWithOutput: true }),
     listWorkflows(),
   ]);
 
   const bySlug = new Map(catalog.map((c) => [c.slug, c]));
 
-  const items: InboxItem[] = ((runs as ResultRun[]) || []).map((r) => {
+  const items: InboxItem[] = runs.map((r) => {
     const wf = bySlug.get(r.skill_slug);
     return {
       id:              r.id,
       slug:            r.skill_slug,
-      source:          r.source,
+      source:          r.source || 'scheduled',
       name:            wf?.name || humanize(r.skill_slug),
       why:             oneLine(wf?.primary_outcome) || oneLine(wf?.description),
-      output_markdown: r.output_markdown,
+      output_markdown: r.output_markdown ?? null,
       ran_at:          r.ran_at,
       pending:         r.review_status === 'pending',
+      state:           deriveRunState(r),
     };
   });
+
+  // The loud surface: any result that did not finish cleanly (stalled, or a
+  // permission-blocked failure) gets a banner at the top of Results too, so a
+  // stuck run is impossible to miss from either entry point.
+  const attentionItems: AttentionItem[] = items.map((it) => ({
+    id: it.id, name: it.name, info: it.state, ran_at: it.ran_at,
+  }));
 
   return (
     <main className="min-h-screen px-6 lg:px-12 py-14">
@@ -99,6 +96,8 @@ export default async function InboxPage() {
             review; the rest is here whenever you want to look back.
           </p>
         </header>
+
+        <RunAttentionBanner items={attentionItems} />
 
         {items.length === 0 ? (
           <section className="card text-center py-12">
