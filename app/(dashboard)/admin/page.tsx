@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { callBackend } from '@/lib/api';
+import AutoRefresh from './auto-refresh';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,8 +107,9 @@ export default async function AdminPage() {
 
   return (
     <main className="min-h-screen px-4 py-10">
-      {/* Auto-refresh every 60 seconds — good enough for launch-week monitoring */}
-      <meta httpEquiv="refresh" content="60" />
+      {/* Refresh the data every 60s in place; cleaned up on navigate-away so it
+          never reloads you back to /admin from another tab. */}
+      <AutoRefresh seconds={60} />
 
       <div className="max-w-6xl mx-auto">
         <header className="mb-8 flex items-baseline justify-between gap-4 flex-wrap">
