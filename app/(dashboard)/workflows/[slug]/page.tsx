@@ -99,7 +99,13 @@ function StepRow({ step }: { step: WorkflowStep }) {
             {step.ref_summary.preview}
           </p>
         ) : null}
-        {bound && step.ref ? (
+        {bound && step.ref && step.ref.source === 'org' ? (
+          // Org skills are the user's OWN captured skills: private, no public
+          // page. Show the name plainly instead of a public link that 404s.
+          <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+            {step.ref_summary?.name ? `your skill: ${step.ref_summary.name}` : `your skill: ${step.ref.slug}`}
+          </span>
+        ) : bound && step.ref ? (
           <a
             href={`${SITE_URL}/s/${encodeURIComponent(step.ref.source)}/${encodeURIComponent(step.ref.slug)}`}
             target="_blank"
