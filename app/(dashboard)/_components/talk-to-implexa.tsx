@@ -17,6 +17,7 @@ declare global {
   interface Window {
     implexaDesktop?: {
       openAgent?: (surface?: string) => Promise<{ ok: boolean; surface?: string }>;
+      handoffAgent?: (prompt: string, surface?: string) => Promise<{ ok: boolean; surface?: string; mode?: string }>;
     };
   }
 }
@@ -47,12 +48,16 @@ export default function TalkToImplexa() {
       }
       setIntent('');
       const bridge = typeof window !== 'undefined' ? window.implexaDesktop : undefined;
-      if (bridge?.openAgent) {
+      // Desktop shell: open the agent with the build PREFILLED for review (GUI
+      // path, no terminal). For Claude this is a new-chat deep link; the user
+      // reviews and sends, and Claude builds it via the Implexa connector.
+      if (bridge?.handoffAgent) {
         setState('opening');
-        const r = await bridge.openAgent().catch(() => ({ ok: false }));
+        const handoff = `Build my new Implexa agent. Use Implexa's get_pending_run_requests tool to find the request I just queued ("${t}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.`;
+        const r = await bridge.handoffAgent(handoff).catch(() => ({ ok: false }));
         setState('queued');
         setMsg(r?.ok
-          ? 'Opening your agent to build it. It will appear under Your agents below.'
+          ? 'Opening your agent with the build ready. Review it and hit send, then it appears under Your agents below.'
           : 'Queued. Open your Claude or Codex and Implexa will build it.');
       } else {
         setState('queued');
