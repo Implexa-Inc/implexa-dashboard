@@ -18,7 +18,9 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getWorkflow, getMyWorkflow, type WorkflowStep } from '@/lib/workflow-catalog';
 import { remoteSafety } from '@/lib/remote-safety';
+import { getConnectionStatus, warningsForAgent } from '@/lib/connections';
 import { RemoteSafetyBadge } from '../../_components/remote-safety-badge';
+import { ConnectionAttentionBanner } from '../../_components/connection-attention-banner';
 import CopyRunCommand from '../../_components/copy-run-command';
 
 export const dynamic = 'force-dynamic';
@@ -179,6 +181,10 @@ export default async function WorkflowDetailPage({
 
   const routines: Routine[] = (routineRows as Routine[]) || [];
   const runs: Run[] = (runRows as Run[]) || [];
+  // Connection health for THIS agent: warn loudly if it needs an account that is
+  // not reachable in the Implexa browser. Degrades to no banner when the read is
+  // not live yet (getConnectionStatus returns null).
+  const connWarnings = warningsForAgent(await getConnectionStatus(), workflow.slug);
   const safety = remoteSafety(workflow);
   const boundCount = workflow.steps.filter((s) => s.ref && !s.gap).length;
 
@@ -222,6 +228,12 @@ export default async function WorkflowDetailPage({
             </div>
           </div>
         </header>
+
+        {/* Connection warning - an account this agent needs is signed out. Loud,
+         * above the fold, with a one-tap sign-in. Renders nothing when healthy. */}
+        {connWarnings.length > 0 && (
+          <ConnectionAttentionBanner warnings={connWarnings} scope="agent" className="mb-6" />
+        )}
 
         {/* Stat strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
