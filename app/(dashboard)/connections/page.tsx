@@ -83,9 +83,10 @@ function AccountRow({ conn }: { conn: ConnectionAccount }) {
         {broken && (
           <Link
             href={RECONNECT_HREF}
+            title="Connect this account in the Implexa desktop app — you sign in once in the Implexa browser, no API keys."
             className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-rose-700 dark:text-rose-200 hover:bg-rose-500/30 transition-colors whitespace-nowrap"
           >
-            Sign in
+            Set up
           </Link>
         )}
       </div>
