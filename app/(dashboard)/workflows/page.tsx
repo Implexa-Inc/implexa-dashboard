@@ -20,6 +20,7 @@ import { listWorkflows, listMyWorkflows, getWorkflow, type WorkflowCard, type My
 import { remoteSafety, remoteSafetyFromCard } from '@/lib/remote-safety';
 import { RemoteSafetyBadge } from '../_components/remote-safety-badge';
 import CopyRunCommand from '../_components/copy-run-command';
+import { AgentsHome } from '../_components/agents-home';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,6 +114,11 @@ export default async function WorkflowsPage() {
             as you, and drops its work in <Link href="/inbox" className="text-brand-500 hover:underline">Results</Link>.
           </p>
         </header>
+
+        {/* The 2-group activation home (Needs activation / Active) leads; it
+            renders nothing until the user has agents, so the catalog below shows
+            through for new users. */}
+        <AgentsHome />
 
         {/* Yours: the user's OWN workflows (captured + generated), incl. private
             ones not on a schedule and not in the public catalog. */}
