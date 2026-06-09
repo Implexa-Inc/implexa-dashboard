@@ -10,7 +10,7 @@
  * 0065). Once that column is populated, the marker drops on its own.
  */
 
-import { RUN_STATE_PRESENTATION, type RunStateInfo } from '@/lib/run-state';
+import { presentationFor, type RunStateInfo } from '@/lib/run-state';
 
 export function RunStateBadge({
   info,
@@ -19,7 +19,7 @@ export function RunStateBadge({
   info: RunStateInfo;
   size?: 'sm' | 'xs';
 }) {
-  const spec = RUN_STATE_PRESENTATION[info.state];
+  const spec = presentationFor(info);
   const pad = size === 'xs' ? 'text-[10px] px-2 py-0.5' : 'text-xs px-2.5 py-1';
   const tip = info.estimated ? `${info.reason} (estimated - pending the backend run state)` : info.reason;
   return (

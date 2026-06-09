@@ -180,6 +180,23 @@ export const RUN_STATE_PRESENTATION: Record<
   },
 };
 
+// A `partial` run derives state='completed' but must NOT read as a clean success
+// (it skipped a step). The run-detail (/runs/[id]) and workflow-detail surfaces
+// already render partial in AMBER; this gives the badge the matching treatment so
+// every surface agrees. Keyed off the derived label since 'partial' is not a
+// RunState. (Silence/degradation must never read as success.)
+const PARTIAL_PRESENTATION = {
+  label: 'Partial',
+  classes: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  dot: 'bg-amber-500 dark:bg-amber-400',
+  pulse: false,
+};
+
+/** Visual treatment for a run-state badge: amber for a degraded `partial`, else the per-state spec. */
+export function presentationFor(info: RunStateInfo) {
+  return info.label === 'Partial' ? PARTIAL_PRESENTATION : RUN_STATE_PRESENTATION[info.state];
+}
+
 // ── defensive read of skill_runs (the integration slot) ─────────────────────
 // The base columns are always present; the 0065 live-state columns may not be
 // in the schema yet. We try the rich select first and fall back to the base set
