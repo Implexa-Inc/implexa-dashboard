@@ -118,7 +118,7 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
             <div className="mt-4 flex items-center gap-3">
               {confirmed ? (
                 <span className="text-sm text-success-700 dark:text-success-400">
-                  {confirmed === 'approved' ? '✓ Approved' : '✓ Dismissed'}
+                  {confirmed === 'approved' ? '✓ Marked reviewed' : '✓ Dismissed'}
                 </span>
               ) : item.pending ? (
                 <>
@@ -128,7 +128,7 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
                     disabled={busy[item.id]}
                     className="btn-success"
                   >
-                    {busy[item.id] ? 'Saving…' : 'Approve'}
+                    {busy[item.id] ? 'Saving…' : 'Mark reviewed'}
                   </button>
                   <button
                     type="button"
@@ -146,6 +146,13 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
                 <span className="text-xs text-ink-500">reviewed</span>
               )}
             </div>
+
+            {item.pending && !confirmed && (
+              <p className="mt-2 text-xs text-ink-500">
+                Marking only records this run as reviewed. It will not re-run the
+                agent or post anything.
+              </p>
+            )}
           </li>
         );
       })}
