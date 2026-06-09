@@ -94,18 +94,50 @@ function to12h(hhmm: string): string {
 }
 
 type Freq = 'day' | 'weekday' | 'week' | 'hour';
+type Mode = 'recurring' | 'once';
+
+// <input type="datetime-local"> emits "2026-06-15T09:00" in the browser's LOCAL
+// time. Parse it as local and emit an absolute ISO instant (UTC Z) for fireAt —
+// the backend stores the absolute moment and the plugin hands it to
+// create_scheduled_task's fireAt verbatim.
+function localDatetimeToIso(local: string): string | null {
+  if (!local) return null;
+  const d = new Date(local);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+// "now" as a datetime-local string, for the input's min (no past one-time runs).
+function nowLocalDatetime(): string {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
+// Friendly readback of a chosen one-time instant.
+function humanizeLocal(local: string): string {
+  const d = new Date(local);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
 
 /**
- * Inline recurring-schedule picker — the fix for "Set schedule navigates away".
- * Pick frequency + time right here; POST to /agents/:slug/schedule; refresh.
- * Recurring (cron) only for now — one-time and condition triggers need the
- * execution plane (a plugin change), so they're flagged as coming, not faked.
+ * Inline schedule picker — the fix for "Set schedule navigates away". Pick a
+ * cadence right here; POST to /agents/:slug/schedule; refresh.
+ *
+ * Two trigger shapes ship in the UI: RECURRING (cron) and ONE-TIME (fireAt, runs
+ * once then auto-disables). CONDITION triggers ("only when X") are deliberately
+ * NOT a UI input yet: the gate is enforced in the plugin's /implexa:run-scheduled
+ * wrapper, which ships on a plugin release, not this dashboard deploy. Exposing
+ * the input before every user's plugin enforces it would let an unmet condition
+ * run every time — worse than not offering it. So it stays a "coming next" note.
  */
 function SchedulePicker({ slug, onSaved }: { slug: string; onSaved: () => void }) {
   const supabase = createClient();
+  const [mode, setMode] = useState<Mode>('recurring');
   const [freq, setFreq] = useState<Freq>('day');
   const [time, setTime] = useState('09:00');
   const [weekday, setWeekday] = useState(1); // Monday
+  const [fireAtLocal, setFireAtLocal] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -119,13 +151,22 @@ function SchedulePicker({ slug, onSaved }: { slug: string; onSaved: () => void }
 
   async function save() {
     setErr(null);
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    let body: Record<string, unknown>;
+    if (mode === 'once') {
+      const iso = localDatetimeToIso(fireAtLocal);
+      if (!iso) { setErr('Pick a date and time for the one-time run.'); return; }
+      if (new Date(iso).getTime() <= Date.now()) { setErr('Pick a time in the future.'); return; }
+      body = { trigger: 'once', fireAt: iso, timezone };
+    } else {
+      body = { trigger: 'cron', scheduleNl: buildNl(), timezone };
+    }
     setSaving(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const jwt = session?.access_token;
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/schedule`, {
-        jwt, method: 'POST', body: { scheduleNl: buildNl(), timezone },
+        jwt, method: 'POST', body,
       });
       onSaved();
     } catch (e) {
@@ -136,36 +177,63 @@ function SchedulePicker({ slug, onSaved }: { slug: string; onSaved: () => void }
   }
 
   const selectCls = 'bg-ink-900 border border-ink-700 rounded-md text-sm px-2 py-1 text-ink-100';
+  const tabCls = (on: boolean) =>
+    `text-xs font-medium rounded-md px-2.5 py-1 transition-colors ${
+      on ? 'bg-ink-100 text-ink-900' : 'border border-ink-700 text-ink-400 hover:text-ink-200'
+    }`;
 
   return (
     <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/40 p-3 space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <select value={freq} onChange={(e) => setFreq(e.target.value as Freq)} className={selectCls}>
-          <option value="day">Every day</option>
-          <option value="weekday">Every weekday</option>
-          <option value="week">Weekly</option>
-          <option value="hour">Every hour</option>
-        </select>
-        {freq === 'week' && (
-          <select value={weekday} onChange={(e) => setWeekday(parseInt(e.target.value, 10))} className={selectCls}>
-            {WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
-          </select>
-        )}
-        {freq !== 'hour' && (
-          <>
-            <span className="text-sm text-ink-500">at</span>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={selectCls} />
-          </>
-        )}
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => { setMode('recurring'); setErr(null); }} className={tabCls(mode === 'recurring')}>Recurring</button>
+        <button type="button" onClick={() => { setMode('once'); setErr(null); }} className={tabCls(mode === 'once')}>One-time</button>
       </div>
+
+      {mode === 'recurring' ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={freq} onChange={(e) => setFreq(e.target.value as Freq)} className={selectCls}>
+            <option value="day">Every day</option>
+            <option value="weekday">Every weekday</option>
+            <option value="week">Weekly</option>
+            <option value="hour">Every hour</option>
+          </select>
+          {freq === 'week' && (
+            <select value={weekday} onChange={(e) => setWeekday(parseInt(e.target.value, 10))} className={selectCls}>
+              {WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+            </select>
+          )}
+          {freq !== 'hour' && (
+            <>
+              <span className="text-sm text-ink-500">at</span>
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={selectCls} />
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-ink-500">Run once on</span>
+          <input
+            type="datetime-local"
+            value={fireAtLocal}
+            min={nowLocalDatetime()}
+            onChange={(e) => setFireAtLocal(e.target.value)}
+            className={selectCls}
+          />
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <button type="button" onClick={save} disabled={saving} className={saving ? 'btn-outline text-xs px-3 py-1.5 opacity-50' : 'btn-success text-xs px-3 py-1.5'}>
           {saving ? 'Saving…' : 'Save schedule'}
         </button>
-        <span className="text-xs text-ink-500">Runs {buildNl()}.</span>
+        <span className="text-xs text-ink-500">
+          {mode === 'once'
+            ? (fireAtLocal ? `Runs once on ${humanizeLocal(fireAtLocal)}, then turns off.` : 'Pick when it should run once.')
+            : `Runs ${buildNl()}.`}
+        </span>
         {err && <span className="text-xs text-rose-600 dark:text-rose-400">{err}</span>}
       </div>
-      <p className="text-[11px] text-ink-600 leading-snug">One-time runs and condition triggers (“only when a new file appears”) are coming next.</p>
+      <p className="text-[11px] text-ink-600 leading-snug">Condition triggers (“only when a new file appears”) are coming next.</p>
     </div>
   );
 }
