@@ -79,23 +79,119 @@ function PermissionList({ items, optIns, onToggle }: {
   );
 }
 
-function StepRow({ step, optIns, onToggleOptIn }: {
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// "09:30" (24h, from <input type=time>) -> "9:30am" for the schedule NL the
+// backend cron parser understands ("every day at 9:30am").
+function to12h(hhmm: string): string {
+  const [hStr, mStr] = (hhmm || '09:00').split(':');
+  let h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10) || 0;
+  const ampm = h < 12 ? 'am' : 'pm';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return m === 0 ? `${h}${ampm}` : `${h}:${String(m).padStart(2, '0')}${ampm}`;
+}
+
+type Freq = 'day' | 'weekday' | 'week' | 'hour';
+
+/**
+ * Inline recurring-schedule picker — the fix for "Set schedule navigates away".
+ * Pick frequency + time right here; POST to /agents/:slug/schedule; refresh.
+ * Recurring (cron) only for now — one-time and condition triggers need the
+ * execution plane (a plugin change), so they're flagged as coming, not faked.
+ */
+function SchedulePicker({ slug, onSaved }: { slug: string; onSaved: () => void }) {
+  const supabase = createClient();
+  const [freq, setFreq] = useState<Freq>('day');
+  const [time, setTime] = useState('09:00');
+  const [weekday, setWeekday] = useState(1); // Monday
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  function buildNl(): string {
+    const t = to12h(time);
+    if (freq === 'hour') return 'every hour';
+    if (freq === 'weekday') return `every weekday at ${t}`;
+    if (freq === 'week') return `every ${WEEKDAYS[weekday].toLowerCase()} at ${t}`;
+    return `every day at ${t}`;
+  }
+
+  async function save() {
+    setErr(null);
+    setSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const jwt = session?.access_token;
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/schedule`, {
+        jwt, method: 'POST', body: { scheduleNl: buildNl(), timezone },
+      });
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not set the schedule. Try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const selectCls = 'bg-ink-900 border border-ink-700 rounded-md text-sm px-2 py-1 text-ink-100';
+
+  return (
+    <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/40 p-3 space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={freq} onChange={(e) => setFreq(e.target.value as Freq)} className={selectCls}>
+          <option value="day">Every day</option>
+          <option value="weekday">Every weekday</option>
+          <option value="week">Weekly</option>
+          <option value="hour">Every hour</option>
+        </select>
+        {freq === 'week' && (
+          <select value={weekday} onChange={(e) => setWeekday(parseInt(e.target.value, 10))} className={selectCls}>
+            {WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+          </select>
+        )}
+        {freq !== 'hour' && (
+          <>
+            <span className="text-sm text-ink-500">at</span>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={selectCls} />
+          </>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={save} disabled={saving} className={saving ? 'btn-outline text-xs px-3 py-1.5 opacity-50' : 'btn-success text-xs px-3 py-1.5'}>
+          {saving ? 'Saving…' : 'Save schedule'}
+        </button>
+        <span className="text-xs text-ink-500">Runs {buildNl()}.</span>
+        {err && <span className="text-xs text-rose-600 dark:text-rose-400">{err}</span>}
+      </div>
+      <p className="text-[11px] text-ink-600 leading-snug">One-time runs and condition triggers (“only when a new file appears”) are coming next.</p>
+    </div>
+  );
+}
+
+function StepRow({ step, slug, optIns, onToggleOptIn, onChanged }: {
   step: ActivationStep;
+  slug: string;
   optIns: Record<string, boolean>;
   onToggleOptIn: (group: string, on: boolean) => void;
+  onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const isTodo = step.status === 'todo';
 
   // Resolve the CTA target/behavior per step.
   let cta: React.ReactNode = null;
-  if (isTodo && step.cta) {
+  if (step.id === 'schedule') {
+    // Inline picker (the fix): toggle a panel, never navigate away. Available
+    // when todo ("Set schedule") and when done ("Change").
+    const label = step.status === 'done' ? 'Change' : (step.cta || 'Set schedule');
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : label}</button>;
+  } else if (isTodo && step.cta) {
     if (step.id === 'permissions') {
       cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : step.cta}</button>;
     } else if (step.id === 'connections') {
       cta = <Link href="/connections" className="btn-outline text-xs px-2.5 py-1">{step.cta}</Link>;
-    } else if (step.id === 'schedule') {
-      cta = <Link href="/scheduled" className="btn-outline text-xs px-2.5 py-1">{step.cta}</Link>;
     } else {
       cta = <button type="button" className="btn-outline text-xs px-2.5 py-1">{step.cta}</button>;
     }
@@ -120,6 +216,9 @@ function StepRow({ step, optIns, onToggleOptIn }: {
       </div>
       {step.id === 'permissions' && open && items.length > 0 && (
         <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} />
+      )}
+      {step.id === 'schedule' && open && (
+        <SchedulePicker slug={slug} onSaved={() => { setOpen(false); onChanged(); }} />
       )}
     </li>
   );
@@ -186,7 +285,7 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
 
       <ul className="divide-y divide-ink-800">
         {checklist.steps.map((s) => (
-          <StepRow key={s.id} step={s} optIns={optIns} onToggleOptIn={toggleOptIn} />
+          <StepRow key={s.id} step={s} slug={checklist.slug} optIns={optIns} onToggleOptIn={toggleOptIn} onChanged={() => router.refresh()} />
         ))}
       </ul>
 
