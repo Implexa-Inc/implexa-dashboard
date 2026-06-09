@@ -32,6 +32,26 @@ function NeedsRow({ a }: { a: MyAgent }) {
 }
 
 function ActiveRow({ a }: { a: MyAgent }) {
+  // "Needs you" takes priority over the run status: the agent is scheduled but a
+  // manual action (grant Bash, connect an account) is what's actually blocking it
+  // from running. Say WHAT to do, with a one-tap Fix. That's the whole promise.
+  if (a.needsIntervention) {
+    return (
+      <li className="flex items-center justify-between gap-3 py-3 px-1">
+        <div className="min-w-0 flex items-center gap-2.5">
+          <span className="inline-block w-1.5 h-1.5 rounded-full flex-none bg-amber-500" aria-hidden />
+          <div className="min-w-0">
+            <span className="text-sm font-medium text-ink-100 truncate">{a.name}</span>
+            <p className="text-xs mt-0.5">
+              <span className="text-amber-600 dark:text-amber-400">Needs you</span>
+              <span className="text-ink-500"> · {a.interventionReason || 'one quick step'}</span>
+            </p>
+          </div>
+        </div>
+        <Link href={`/workflows/${a.slug}/activate`} className="flex-none btn-success text-xs px-3 py-1.5">Fix</Link>
+      </li>
+    );
+  }
   const s = activeRunStatus(a);
   return (
     <li className="flex items-center justify-between gap-3 py-3 px-1">

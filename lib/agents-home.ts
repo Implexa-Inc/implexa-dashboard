@@ -13,6 +13,10 @@ export type MyAgent = {
   name: string;
   state: MyAgentState;
   stepsLeft: number;
+  /** A manual action blocks this agent from really running (e.g. an ungranted Bash perm). */
+  needsIntervention?: boolean;
+  /** Plain-language "what to do", e.g. Allow "Run commands on your computer". */
+  interventionReason?: string | null;
   scheduleNl: string | null;
   lastRun: { status: string; runState: string | null; ranAt: string } | null;
 };
