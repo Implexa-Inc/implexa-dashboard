@@ -15,6 +15,8 @@ export type PermissionItem = {
   label: string;
   detail: string;
   domains?: string[];
+  /** Tier 0/1 are always granted; a Tier-2 is granted once the user opts in. */
+  granted?: boolean;
 };
 export type StepStatus = 'done' | 'todo' | 'auto';
 export type ActivationStep = {

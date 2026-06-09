@@ -238,14 +238,15 @@ function SchedulePicker({ slug, onSaved }: { slug: string; onSaved: () => void }
   );
 }
 
-function StepRow({ step, slug, optIns, onToggleOptIn, onChanged }: {
+function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen }: {
   step: ActivationStep;
   slug: string;
   optIns: Record<string, boolean>;
   onToggleOptIn: (group: string, on: boolean) => void;
   onChanged: () => void;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen ?? false);
   const isTodo = step.status === 'todo';
 
   // Resolve the CTA target/behavior per step.
@@ -300,14 +301,24 @@ const STATE_BADGE: Record<ActivationChecklist['state'], { label: string; classes
 };
 
 export function ActivationCard({ checklist }: { checklist: ActivationChecklist }) {
-  // Tier-2 opt-ins start off; the user must deliberately allow each one.
-  const [optIns, setOptIns] = useState<Record<string, boolean>>({});
+  const permStep = checklist.steps.find((s) => s.id === 'permissions');
+  const tier2 = ((permStep?.data?.items ?? []) as PermissionItem[]).filter((i) => i.tier === 2);
+
+  // Seed local opt-ins from what's ALREADY granted server-side (item.granted), so
+  // granted Tier-2 show "Allowed" and only the ungranted ones need a tap. Without
+  // this seed, an already-active agent that needs a new grant looked un-grantable.
+  const [optIns, setOptIns] = useState<Record<string, boolean>>(() => {
+    const seed: Record<string, boolean> = {};
+    for (const i of tier2) if ((i as PermissionItem & { granted?: boolean }).granted) seed[i.group] = true;
+    return seed;
+  });
   const toggleOptIn = (group: string, on: boolean) => setOptIns((s) => ({ ...s, [group]: on }));
 
   const router = useRouter();
   const supabase = createClient();
   const [activating, setActivating] = useState(false);
   const [activated, setActivated] = useState(checklist.state === 'active');
+  const [savedLocally, setSavedLocally] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function activate() {
@@ -320,19 +331,21 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
         jwt, method: 'POST', body: { optIns },
       });
       setActivated(true);
+      setSavedLocally(true);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Activation failed. Try again.');
+      setError(e instanceof Error ? e.message : 'Could not save. Try again.');
     } finally {
       setActivating(false);
     }
   }
 
-  // Any unresolved Tier-2 opt-in blocks activation (on top of the backend's canActivate).
-  const permStep = checklist.steps.find((s) => s.id === 'permissions');
-  const tier2 = ((permStep?.data?.items ?? []) as PermissionItem[]).filter((i) => i.tier === 2);
-  const allOptInsResolved = tier2.every((i) => optIns[i.group]);
-  const ready = checklist.canActivate && allOptInsResolved && checklist.state !== 'active';
+  const allSavedGranted = tier2.every((i) => (i as PermissionItem & { granted?: boolean }).granted) || savedLocally;
+  const allLocalGranted = tier2.every((i) => optIns[i.group]); // saved + just-toggled
+  const isActive = checklist.state === 'active' || activated;
+  // Active, but a Tier-2 grant is still missing -> the wedged "Fix"/needs-you case.
+  const needsGrant = isActive && !allSavedGranted;
+  const ready = checklist.canActivate && allLocalGranted && !isActive; // initial activation
   const badge = STATE_BADGE[checklist.state];
 
   return (
@@ -353,13 +366,39 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
 
       <ul className="divide-y divide-ink-800">
         {checklist.steps.map((s) => (
-          <StepRow key={s.id} step={s} slug={checklist.slug} optIns={optIns} onToggleOptIn={toggleOptIn} onChanged={() => router.refresh()} />
+          <StepRow
+            key={s.id}
+            step={s}
+            slug={checklist.slug}
+            optIns={optIns}
+            onToggleOptIn={toggleOptIn}
+            onChanged={() => router.refresh()}
+            defaultOpen={needsGrant && s.id === 'permissions'}
+          />
         ))}
       </ul>
 
       <div className="mt-5 flex items-center gap-3">
-        {checklist.state === 'active' || activated ? (
-          <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Active — running on its schedule.</span>
+        {isActive && allSavedGranted ? (
+          <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Active.</span>
+        ) : needsGrant ? (
+          // Already active, but a Tier-2 capability still needs your deliberate OK.
+          <>
+            <button
+              type="button"
+              onClick={activate}
+              disabled={!allLocalGranted || activating}
+              className={allLocalGranted && !activating ? 'btn-success' : 'btn-outline opacity-50 cursor-not-allowed'}
+              title={allLocalGranted ? 'Save this grant' : 'Allow the permission above first'}
+            >
+              {activating ? 'Granting…' : 'Grant access'}
+            </button>
+            {error ? (
+              <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>
+            ) : !allLocalGranted ? (
+              <span className="text-xs text-ink-500">Allow the highlighted permission above, then grant.</span>
+            ) : null}
+          </>
         ) : (
           <>
             <button
@@ -373,7 +412,7 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
             </button>
             {error ? (
               <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>
-            ) : !ready && tier2.length > 0 && !allOptInsResolved ? (
+            ) : !ready && tier2.length > 0 && !allLocalGranted ? (
               <span className="text-xs text-ink-500">Allow the highlighted permission first.</span>
             ) : null}
           </>
