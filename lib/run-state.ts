@@ -1,0 +1,234 @@
+// run-state.ts - the LIVE state of a run (running / stalled / done / failed),
+// so silence on the dashboard never reads as success.
+//
+// The trap this exists to close (observed live 2026-06-08): a scheduled SEO
+// agent stalled on an interactive permission prompt, produced no output, and
+// never completed. Today skill_runs is written only AFTER a run finishes, so a
+// run that started and hung leaves no trace and the founder assumed success for
+// an hour. (DATA_AND_LEARNING_MODEL.md: "Silence must never mean success.")
+//
+// THE STATE (vocabulary matches the backend migration 0065 skill_runs.run_state):
+//   'running'   - in flight right now (started, not yet complete).
+//   'stalled'   - started, ran past its expected window with no progress; the
+//                 watchdog flags it. The exact silent-stall class.
+//   'completed' - finished and delivered a result.
+//   'failed'    - finished in error. With the permission pre-grant in place, a
+//                 missing-permission case now surfaces HERE (a clear failed run
+//                 with a "blocked on a permission" reason) instead of as a
+//                 silent stall.
+//   'queued'    - registered, not yet started.
+//
+// INTEGRATION SLOT: the authoritative state is skill_runs.run_state, added by
+// the parallel backend stream (migration 0065) along with started_at /
+// last_progress_at / expected_duration_ms / stalled_at. The moment those columns
+// land and the run-scheduled write path sets them, this surface shows true live
+// state with zero UI change. Until then we DERIVE a best-effort state from the
+// existing terminal columns (every pre-0065 row is finished), and selectRuns()
+// degrades cleanly if the new columns are not in the schema yet.
+
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+export type RunState = 'queued' | 'running' | 'stalled' | 'completed' | 'failed';
+
+// A run row covering the base skill_runs columns plus the (possibly absent until
+// 0065 lands) live-state columns. The optional ones are read defensively.
+export type RunRow = {
+  id: string;
+  skill_slug: string;
+  status: 'completed' | 'failed' | 'partial';
+  ran_at: string;
+  source?: string;
+  output_markdown?: string | null;
+  review_status?: string | null;
+  // optional base columns some surfaces request via extraColumns (e.g. /runs):
+  scheduled_skill_id?: string | null;
+  orchestration_id?: string | null;
+  duration_ms?: number | null;
+  delivery?: Record<string, unknown> | null;
+  // ── 0065 live-state columns (the integration slot) ──
+  run_state?: RunState | null;
+  started_at?: string | null;
+  last_progress_at?: string | null;
+  completed_at?: string | null;
+  expected_duration_ms?: number | null;
+  stalled_at?: string | null;
+};
+
+export type RunStateInfo = {
+  state: RunState;
+  /** Short badge label. */
+  label: string;
+  /** One-line plain-english reason (hover/expanded). */
+  reason: string;
+  /** True when this run needs the user's attention (stalled, or a permission-blocked failure). */
+  attention: boolean;
+  /** True when the failure is a missing permission the user can re-grant in one tap. */
+  permissionBlocked: boolean;
+  /** True when derived locally, not read from the authoritative backend run_state. */
+  estimated: boolean;
+};
+
+const VALID: ReadonlySet<RunState> = new Set(['queued', 'running', 'stalled', 'completed', 'failed']);
+
+// A failed run whose output names a missing permission. The run-scheduled wrapper
+// writes "Blocked on a permission not pre-approved: <tool>" when a tool is denied
+// under the scheduled-run dontAsk scope, so the silent-stall becomes a visible,
+// one-tap-fixable failure. Match that and the older raw prompt wording.
+const PERMISSION_BLOCK = /blocked on a permission|permission not pre-approved|allow .* to (fetch|access)|waiting on a permission|permission approval|not permitted/i;
+
+function isPermissionBlocked(row: RunRow): boolean {
+  return !!row.output_markdown && PERMISSION_BLOCK.test(row.output_markdown);
+}
+
+/**
+ * deriveRunState - the live state of one run. Prefers the authoritative
+ * skill_runs.run_state; falls back to the terminal status when it is absent.
+ */
+export function deriveRunState(row: RunRow): RunStateInfo {
+  const authoritative = row.run_state && VALID.has(row.run_state) ? row.run_state : null;
+  const permissionBlocked = isPermissionBlocked(row);
+
+  // Authoritative live state from the backend (post-0065 write path).
+  if (authoritative) {
+    switch (authoritative) {
+      case 'running':
+        return mk('running', 'Running', 'This run is in flight right now.', false, false, false);
+      case 'stalled':
+        return mk(
+          'stalled', 'Stalled',
+          permissionBlocked
+            ? 'Stalled waiting on a permission approval. Re-run /implexa:schedule for this agent to pre-approve it.'
+            : 'Started but ran past its expected window with no progress. It may be waiting on a prompt or stuck on a step.',
+          true, permissionBlocked, false,
+        );
+      case 'failed':
+        return mk(
+          'failed', 'Failed',
+          permissionBlocked
+            ? 'Blocked on a permission that was not pre-approved. Re-run /implexa:schedule for this agent to grant it.'
+            : 'This run finished in error. Open it to see what went wrong.',
+          permissionBlocked, permissionBlocked, false,
+        );
+      case 'queued':
+        return mk('queued', 'Queued', 'Registered and waiting to start.', false, false, false);
+      case 'completed':
+      default:
+        return mk('completed', 'Done', 'Finished and delivered a result.', false, false, false);
+    }
+  }
+
+  // Derived fallback (pre-0065, or a row the write path has not stamped). Every
+  // such row is terminal, so it maps to done / failed only; running / stalled
+  // appear once the backend write path lands.
+  if (row.status === 'failed') {
+    return mk(
+      'failed', 'Failed',
+      permissionBlocked
+        ? 'Blocked on a permission that was not pre-approved. Re-run /implexa:schedule for this agent to grant it.'
+        : 'This run finished in error. Open it to see what went wrong.',
+      permissionBlocked, permissionBlocked, true,
+    );
+  }
+  if (row.status === 'partial') {
+    return mk('completed', 'Partial', 'Finished, but skipped a step. Open it to see what was left out.', false, false, true);
+  }
+  return mk('completed', 'Done', 'Finished and delivered a result.', false, false, true);
+}
+
+function mk(
+  state: RunState, label: string, reason: string,
+  attention: boolean, permissionBlocked: boolean, estimated: boolean,
+): RunStateInfo {
+  return { state, label, reason, attention, permissionBlocked, estimated };
+}
+
+export const RUN_STATE_PRESENTATION: Record<
+  RunState,
+  { label: string; classes: string; dot: string; pulse: boolean }
+> = {
+  // Follows the /overview + remote-safety pattern: raw tailwind color with an
+  // explicit dark: variant so it flips correctly under forced dark mode.
+  running: {
+    label: 'Running',
+    classes: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+    dot: 'bg-sky-500 dark:bg-sky-400',
+    pulse: true,
+  },
+  stalled: {
+    label: 'Stalled',
+    classes: 'bg-amber-500/20 text-amber-700 dark:text-amber-300',
+    dot: 'bg-amber-500 dark:bg-amber-400',
+    pulse: true,
+  },
+  completed: {
+    label: 'Done',
+    classes: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    dot: 'bg-emerald-500 dark:bg-emerald-400',
+    pulse: false,
+  },
+  failed: {
+    label: 'Failed',
+    classes: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
+    dot: 'bg-rose-500 dark:bg-rose-400',
+    pulse: false,
+  },
+  queued: {
+    label: 'Queued',
+    classes: 'bg-ink-800 text-ink-300',
+    dot: 'bg-ink-500',
+    pulse: false,
+  },
+};
+
+// ── defensive read of skill_runs (the integration slot) ─────────────────────
+// The base columns are always present; the 0065 live-state columns may not be
+// in the schema yet. We try the rich select first and fall back to the base set
+// on a "column does not exist" error, so this works both before and after the
+// parallel migration lands, with no code change.
+
+const BASE_COLUMNS = 'id, skill_slug, source, status, ran_at, output_markdown, review_status';
+const STATE_COLUMNS = 'run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at';
+
+// PostgREST raises 42703 (undefined_column) when we ask for a column that does
+// not exist yet. That, and only that, triggers the fallback.
+function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === '42703' || /column .* does not exist/i.test(error.message || '');
+}
+
+export type SelectRunsOpts = {
+  limit?: number;
+  /** Only rows that produced a deliverable (output_markdown IS NOT NULL). */
+  onlyWithOutput?: boolean;
+  /** Extra base columns to fetch (e.g. '/runs' needs delivery, duration_ms). */
+  extraColumns?: string;
+};
+
+/**
+ * selectRuns - recent skill_runs for the caller (RLS-scoped), newest first,
+ * including live-state columns when the schema has them. Falls back cleanly to
+ * the base columns (state columns dropped) until migration 0065 lands.
+ */
+export async function selectRuns(
+  supabase: SupabaseClient,
+  opts: SelectRunsOpts = {},
+): Promise<RunRow[]> {
+  const limit = opts.limit ?? 50;
+  const base = opts.extraColumns ? `${BASE_COLUMNS}, ${opts.extraColumns}` : BASE_COLUMNS;
+  const rich = `${base}, ${STATE_COLUMNS}`;
+  const build = (cols: string) => {
+    let q = supabase.from('skill_runs').select(cols).order('ran_at', { ascending: false }).limit(limit);
+    if (opts.onlyWithOutput) q = q.not('output_markdown', 'is', null);
+    return q;
+  };
+
+  const richRes = await build(rich);
+  if (!richRes.error) return (richRes.data as unknown as RunRow[]) || [];
+  if (!isMissingColumn(richRes.error)) {
+    // A real error (auth, RLS, network): surface nothing rather than throwing,
+    // matching the rest of the dashboard's degrade-to-empty server reads.
+    return [];
+  }
+  const baseRes = await build(base);
+  return baseRes.error ? [] : ((baseRes.data as unknown as RunRow[]) || []);
+}

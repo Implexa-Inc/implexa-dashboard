@@ -33,8 +33,11 @@ type NavItem = {
 // leaderboard, the web connect flow) is HIDDEN, not deleted: the routes + pages
 // stay live for deep links and future work, but they do not clutter the surface.
 // Flip `hidden` to bring any of them back.
-// CONSUMER_PRODUCT_SPEC rail: three items only. Home (the manager's desk),
-// Agents (your workers), Results (what they produced, with the feedback reply).
+// CONSUMER_PRODUCT_SPEC rail: Home (the manager's desk), Agents (your workers),
+// Results (what they produced, with the feedback reply), and Connections (the
+// health panel for your agents' account access, promoted to a first-class
+// surface by CONNECTIONS_ONBOARDING.md since a signed-out account silently
+// breaks an agent and silence must never read as success).
 // Everything else is HIDDEN, not deleted: routes + pages stay live for deep
 // links and admin, they just do not clutter the consumer surface. Skills /
 // karma / scores / leaderboard leave the surface entirely (engine on, storefront
@@ -43,6 +46,7 @@ const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Home',           icon: 'dashboard', matchPrefix: true },
   { href: '/workflows',    label: 'Agents',         icon: 'workflows', matchPrefix: true },
   { href: '/inbox',        label: 'Results',        icon: 'activity',  matchPrefix: true, badgeKey: 'inbox' },
+  { href: '/connections',  label: 'Connections',    icon: 'link',      matchPrefix: true },
   { href: '/runs',         label: 'Runs log',       icon: 'activity',  matchPrefix: true, hidden: true },
   { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true, hidden: true },
   { href: '/roi',          label: 'ROI',            icon: 'analytics', matchPrefix: true, hidden: true },

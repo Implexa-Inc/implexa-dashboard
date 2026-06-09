@@ -22,6 +22,8 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { RunStateBadge } from '../_components/run-state-badge';
+import type { RunStateInfo } from '@/lib/run-state';
 
 export type InboxItem = {
   id:              string;
@@ -32,6 +34,7 @@ export type InboxItem = {
   output_markdown: string | null;
   ran_at:          string;
   pending:         boolean;
+  state:           RunStateInfo;
 };
 
 function rel(iso: string): string {
@@ -96,7 +99,10 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
                   <p className="text-xs text-ink-500 mt-0.5 font-mono">{item.slug}</p>
                 )}
               </div>
-              <span className="text-xs text-ink-500 flex-none whitespace-nowrap mt-1">{rel(item.ran_at)}</span>
+              <div className="flex items-center gap-2.5 flex-none mt-0.5">
+                <RunStateBadge info={item.state} size="xs" />
+                <span className="text-xs text-ink-500 whitespace-nowrap">{rel(item.ran_at)}</span>
+              </div>
             </div>
 
             {item.output_markdown ? (
