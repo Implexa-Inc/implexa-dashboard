@@ -13,7 +13,10 @@
  */
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+import { callBackend } from '@/lib/api';
 import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier } from '@/lib/activation';
 
 // Defined here (not imported) because lib/activation.ts is server-only; a client
@@ -134,6 +137,30 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
   const [optIns, setOptIns] = useState<Record<string, boolean>>({});
   const toggleOptIn = (group: string, on: boolean) => setOptIns((s) => ({ ...s, [group]: on }));
 
+  const router = useRouter();
+  const supabase = createClient();
+  const [activating, setActivating] = useState(false);
+  const [activated, setActivated] = useState(checklist.state === 'active');
+  const [error, setError] = useState<string | null>(null);
+
+  async function activate() {
+    setError(null);
+    setActivating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const jwt = session?.access_token;
+      await callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/activate`, {
+        jwt, method: 'POST', body: { optIns },
+      });
+      setActivated(true);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Activation failed. Try again.');
+    } finally {
+      setActivating(false);
+    }
+  }
+
   // Any unresolved Tier-2 opt-in blocks activation (on top of the backend's canActivate).
   const permStep = checklist.steps.find((s) => s.id === 'permissions');
   const tier2 = ((permStep?.data?.items ?? []) as PermissionItem[]).filter((i) => i.tier === 2);
@@ -164,21 +191,24 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
       </ul>
 
       <div className="mt-5 flex items-center gap-3">
-        {checklist.state === 'active' ? (
-          <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ This agent is running on its schedule.</span>
+        {checklist.state === 'active' || activated ? (
+          <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Active — running on its schedule.</span>
         ) : (
           <>
             <button
               type="button"
-              disabled={!ready}
-              className={ready ? 'btn-success' : 'btn-outline opacity-50 cursor-not-allowed'}
+              onClick={activate}
+              disabled={!ready || activating}
+              className={ready && !activating ? 'btn-success' : 'btn-outline opacity-50 cursor-not-allowed'}
               title={ready ? 'Switch this agent on' : 'Finish the steps above first'}
             >
-              Activate
+              {activating ? 'Activating…' : 'Activate'}
             </button>
-            {!ready && tier2.length > 0 && !allOptInsResolved && (
+            {error ? (
+              <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>
+            ) : !ready && tier2.length > 0 && !allOptInsResolved ? (
               <span className="text-xs text-ink-500">Allow the highlighted permission first.</span>
-            )}
+            ) : null}
           </>
         )}
       </div>
