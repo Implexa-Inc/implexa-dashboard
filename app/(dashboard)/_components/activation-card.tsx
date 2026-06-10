@@ -89,6 +89,7 @@ type DesktopBridge = {
   verifyAccount?: (domain: string) => Promise<{ ok: boolean; reachable?: boolean; identity?: string | null; message?: string }>;
   checkTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean }>;
   installTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean; alreadyInstalled?: boolean; message?: string }>;
+  grantLocalPermissions?: (tools: string[]) => Promise<{ ok: boolean; added?: string[]; error?: string }>;
 };
 function desktopBridge(): DesktopBridge | null {
   if (typeof window === 'undefined') return null;
@@ -500,6 +501,29 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
   const [activated, setActivated] = useState(checklist.state === 'active');
   const [savedLocally, setSavedLocally] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [localGrantNote, setLocalGrantNote] = useState<string | null>(null);
+
+  // A backend opt-in records INTENT, but a scheduled run executes in Claude Code
+  // on this machine and still PROMPTS for the tool — which, unattended, kills the
+  // run ("permission stream closed"). So when shell is granted, write the tool to
+  // the local Claude Code allowlist via the desktop bridge, so scheduled runs
+  // stop prompting. Map: the 'shell' permission group -> the Bash tool.
+  async function writeLocalAllowlist() {
+    const bridge = desktopBridge();
+    if (!bridge?.grantLocalPermissions) return; // web (no app) — nothing local to write
+    const tools: string[] = [];
+    for (const i of tier2) {
+      if (!optIns[i.group]) continue;
+      if (i.group === 'shell') tools.push('Bash');
+    }
+    if (!tools.length) return;
+    try {
+      const r = await bridge.grantLocalPermissions(tools);
+      if (r?.ok && r.added && r.added.length) {
+        setLocalGrantNote(`Added ${r.added.join(', ')} to your Claude Code allowlist, so scheduled runs won’t stall on a permission prompt.`);
+      }
+    } catch { /* best effort: the run still works if the user clicks Always allow once */ }
+  }
 
   async function activate() {
     setError(null);
@@ -510,6 +534,7 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
       await callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/activate`, {
         jwt, method: 'POST', body: { optIns },
       });
+      await writeLocalAllowlist();
       setActivated(true);
       setSavedLocally(true);
       router.refresh();
@@ -616,6 +641,9 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
           </>
         )}
       </div>
+      {localGrantNote && (
+        <p className="mt-2 text-[11px] text-emerald-600 dark:text-emerald-400 leading-snug">{localGrantNote}</p>
+      )}
     </div>
   );
 }
