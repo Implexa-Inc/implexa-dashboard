@@ -88,13 +88,16 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, alig
       const bridge = typeof window !== 'undefined'
         ? (window as Window & { implexaDesktop?: {
             openAgent?: () => Promise<{ ok: boolean }>;
-            handoffAgent?: (prompt: string) => Promise<{ ok: boolean; mode?: string }>;
+            handoffAgent?: (prompt: string, surface?: string, target?: string) => Promise<{ ok: boolean; mode?: string }>;
           } }).implexaDesktop
         : undefined;
       if (bridge?.handoffAgent) {
-        const h = await bridge.handoffAgent(runCommand).catch(() => null);
+        // target 'code': the run must land in Claude CODE (Bash, Remotion, local
+        // files), never the chat tab — chat cannot execute a local agent. Older
+        // desktop builds ignore the third arg and fall back to chat.
+        const h = await bridge.handoffAgent(runCommand, undefined, 'code').catch(() => null);
         setMsg(h && h.ok && h.mode === 'deeplink'
-          ? 'Opening Claude with the run command prefilled — review it and hit enter.'
+          ? 'Opening Claude Code with the run command prefilled — review it and hit enter.'
           : `Opening Claude. Paste the command we copied (${runCommand}) and hit enter.`);
       } else if (bridge?.openAgent) {
         await bridge.openAgent().catch(() => null);
