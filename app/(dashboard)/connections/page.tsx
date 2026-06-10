@@ -17,6 +17,8 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getMyAgents } from '@/lib/agents-home';
+import { looksOverdue } from '@/lib/routine-status';
 import {
   getConnectionStatus,
   REACH_PRESENTATION,
@@ -169,7 +171,33 @@ export default async function ConnectionsPage() {
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const status = await getConnectionStatus();
+  // ── Needs-you data: everything waiting on the user, assembled in parallel ──
+  // (founder: "show all alerts/pending tasks here since Activate does the
+  // connections bit too"). Connections health demotes to a section below.
+  const [status, myAgents, { data: schedules }, { count: pendingCount }] = await Promise.all([
+    getConnectionStatus(),
+    getMyAgents(),
+    supabase
+      .from('scheduled_skills')
+      .select('id, skill_slug, cron_expression, schedule_nl, status, last_run_at')
+      .in('status', ['active', 'failed'])
+      .order('created_at', { ascending: false })
+      .limit(100),
+    supabase
+      .from('skill_runs')
+      .select('id', { count: 'exact', head: true })
+      .eq('review_status', 'pending'),
+  ]);
+
+  type SchedRow = { id: string; skill_slug: string; cron_expression: string | null; schedule_nl: string | null; status: string; last_run_at: string | null };
+  const sched = ((schedules as SchedRow[]) || []).filter((r) => r.cron_expression);
+  const missed = sched.filter((r) =>
+    r.status === 'failed' || (r.status === 'active' && looksOverdue(r.cron_expression || '', r.last_run_at)));
+  const allMyAgents = myAgents ? [...myAgents.active, ...myAgents.needsActivation] : [];
+  const nameBySlug = new Map(allMyAgents.map((a) => [a.slug, a.name]));
+  const needGrant = allMyAgents.filter((a) => a.needsIntervention);
+  const attentionCount = needGrant.length + missed.length + ((pendingCount ?? 0) > 0 ? 1 : 0) + (status?.warnings.length ? 1 : 0);
+
   const hasData = !!status && (status.connections.length > 0 || status.agents.length > 0);
   const reachable = status?.connections.filter((c) => c.status === 'reachable').length ?? 0;
   const broken = status?.connections.filter((c) => c.status === 'unreachable').length ?? 0;
@@ -178,11 +206,56 @@ export default async function ConnectionsPage() {
     <main className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-5xl mx-auto">
         <header className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">Connections</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">Needs you</h1>
           <p className="text-sm text-ink-400 mt-2 max-w-2xl">
-            The health panel for your agents' access. Each account they drive in your Implexa browser, whether it is reachable right now, and which agents need what.
+            Everything waiting on you, in one place: permissions to grant, runs to review, schedules that missed, and accounts that need a sign-in.
           </p>
         </header>
+
+        {/* ── Waiting on you ─────────────────────────────────────────────── */}
+        {attentionCount === 0 ? (
+          <div className="card mb-12 text-center py-8">
+            <div className="text-xl mb-1" aria-hidden>✓</div>
+            <p className="text-ink-100 font-medium text-sm">Nothing needs you right now.</p>
+            <p className="text-xs text-ink-500 mt-1">Grants, reviews, missed schedules, and sign-ins will show up here.</p>
+          </div>
+        ) : (
+          <section className="mb-12 space-y-3">
+            {needGrant.map((a) => (
+              <div key={a.slug} className="card flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink-100 truncate">{a.name}</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{a.interventionReason || 'A permission needs your OK before it can really run.'}</p>
+                </div>
+                <Link href={`/workflows/${a.slug}/activate`} className="btn-outline text-xs px-3 py-1.5 flex-none">Grant</Link>
+              </div>
+            ))}
+            {(pendingCount ?? 0) > 0 && (
+              <div className="card flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink-100">{pendingCount} result{pendingCount === 1 ? '' : 's'} held for your review</p>
+                  <p className="text-xs text-ink-500 mt-0.5">Approve or dismiss; nothing posts without you.</p>
+                </div>
+                <Link href="/inbox" className="btn-outline text-xs px-3 py-1.5 flex-none">Review</Link>
+              </div>
+            )}
+            {missed.map((m) => (
+              <div key={m.id} className="card flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink-100 truncate">{nameBySlug.get(m.skill_slug) || m.skill_slug}</p>
+                  <p className="text-xs text-ink-500 mt-0.5">
+                    {m.status === 'failed'
+                      ? 'Its schedule is marked failed.'
+                      : `Missed its schedule (${m.schedule_nl || m.cron_expression}). It runs when your machine is awake; it will catch up, or run it now.`}
+                  </p>
+                </div>
+                <Link href={`/workflows/${m.skill_slug}`} className="btn-outline text-xs px-3 py-1.5 flex-none">Open agent</Link>
+              </div>
+            ))}
+          </section>
+        )}
+
+        <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider mb-4">Connection health</h2>
 
         {/* loud first: anything an agent needs that is signed out - silence is never success */}
         {status && status.warnings.length > 0 && (

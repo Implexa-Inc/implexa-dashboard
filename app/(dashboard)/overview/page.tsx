@@ -184,7 +184,7 @@ export default async function OverviewPage() {
             <ul>
               {recentRuns.map((r) => (
                 <li key={r.id} className="flex items-center justify-between gap-3 py-3 border-b border-ink-800/60 last:border-0">
-                  <Link href="/inbox" className="min-w-0 group">
+                  <Link href={`/inbox?run=${r.id}`} className="min-w-0 group">
                     <span className="text-sm text-ink-200 truncate group-hover:text-ink-50">{nameBySlug.get(r.skill_slug) || humanize(r.skill_slug)}</span>
                   </Link>
                   <div className="flex items-center gap-2.5 flex-none">
@@ -204,7 +204,7 @@ export default async function OverviewPage() {
               <Link href="/inbox" className="hover:text-ink-300">{pendingCount} result{pendingCount === 1 ? '' : 's'} to review</Link>
             )}
             {overdue.length + failedSchedules.length > 0 && (
-              <Link href="/scheduled" className="hover:text-ink-300">{overdue.length + failedSchedules.length} agent{overdue.length + failedSchedules.length === 1 ? '' : 's'} need attention</Link>
+              <Link href="/connections" className="hover:text-ink-300">{overdue.length + failedSchedules.length} agent{overdue.length + failedSchedules.length === 1 ? '' : 's'} need attention</Link>
             )}
           </div>
         )}

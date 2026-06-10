@@ -50,9 +50,9 @@ export async function getMyAgents(): Promise<MyAgents | null> {
 export function activeRunStatus(a: MyAgent): { label: string; tone: 'good' | 'warn' | 'bad' | 'idle'; cta: string; href: string } {
   const rs = a.lastRun?.runState;
   const st = a.lastRun?.status;
-  if (rs === 'stalled') return { label: 'Stalled', tone: 'warn', cta: 'Fix in Routines', href: '/scheduled' };
-  if (st === 'failed' || rs === 'failed') return { label: 'Failed', tone: 'bad', cta: 'Fix', href: '/scheduled' };
+  if (rs === 'stalled') return { label: 'Stalled', tone: 'warn', cta: 'Fix', href: `/workflows/${a.slug}` };
+  if (st === 'failed' || rs === 'failed') return { label: 'Failed', tone: 'bad', cta: 'Fix', href: `/workflows/${a.slug}` };
   if (st === 'partial') return { label: 'Partial', tone: 'warn', cta: 'View output', href: '/inbox' };
   if (st === 'completed' || rs === 'completed') return { label: 'Done', tone: 'good', cta: 'View output', href: '/inbox' };
-  return { label: 'Scheduled', tone: 'idle', cta: 'View', href: '/scheduled' };
+  return { label: 'Scheduled', tone: 'idle', cta: 'View', href: `/workflows/${a.slug}` };
 }
