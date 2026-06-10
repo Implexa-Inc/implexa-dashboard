@@ -125,7 +125,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <Sidebar user={userCtx} pendingCount={pendingCount ?? 0} />
       <div className="flex-1 flex flex-col min-w-0">
         <MobileTopBar user={userCtx} />
-        <UpdateBanner surfaces={behind} />
+        <UpdateBanner surfaces={behind} installed={profile.plugin_versions as Record<string, string> | null} />
         <main className="flex-1">
           {children}
         </main>

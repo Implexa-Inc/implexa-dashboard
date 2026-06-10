@@ -6,12 +6,43 @@
  * per-surface versions the recommend hook reports (users.plugin_versions)
  * compared to the latest from the backend versions feed.
  *
+ * SELF-REFRESHING: the server renders the layout once, but the embedded desktop
+ * window stays open for hours — so a banner computed at first paint went stale
+ * the moment a new plugin shipped (the founder hit this: on Claude 0.34.0 with
+ * 0.35.0 live, no banner, because the long-lived page still thought latest was
+ * 0.34.0). We now re-fetch the PUBLIC /versions feed on mount, on window focus,
+ * and on an interval, recomputing "behind" from the (rarely-changing) installed
+ * map against the fresh latest. The server-computed list seeds the first paint.
+ *
  * "Update" expands the exact command for that surface (copyable). Dismissible
  * per version-set (localStorage) so it stops nagging once seen, but returns when
  * a new version ships or the user is still behind after dismissing elsewhere.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+
+const BACKEND = (
+  process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai'
+).replace(/\/$/, '');
+
+// Per-surface labels + the update command. Kept here (not only in the server
+// layout) so the client recompute can rebuild a BehindSurface from the raw
+// installed map + the freshly-fetched latest.
+const SURFACE_META: Record<string, { label: string; command: string }> = {
+  claude: { label: 'Claude', command: '/plugin marketplace update implexa && /plugin update implexa@implexa' },
+  cursor: { label: 'Cursor', command: '/plugin marketplace update implexa && /plugin update implexa@implexa' },
+  codex:  { label: 'Codex',  command: 'curl -fsSL https://core.implexa.ai/install-for-codex.sh | bash' },
+};
+
+function cmpVersion(a: string, b: string): number {
+  const pa = String(a).split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d < 0 ? -1 : 1;
+  }
+  return 0;
+}
 
 // Injected by the desktop app's dashboard-preload.js. Present only when the
 // banner renders inside the Implexa desktop window — lets us run the update
@@ -37,20 +68,75 @@ function dismissKey(surfaces: BehindSurface[]): string {
   return 'implexa.updbanner.' + surfaces.map((s) => `${s.surface}@${s.installed}->${s.latest}`).join(',');
 }
 
-export default function UpdateBanner({ surfaces }: { surfaces: BehindSurface[] }) {
+// Recompute the behind-surfaces from the installed map + a fresh versions feed.
+function deriveBehind(
+  installed: Record<string, string> | null | undefined,
+  latest: string | null,
+  perSurface: Record<string, string> | undefined,
+): BehindSurface[] {
+  if (!installed || !latest) return [];
+  const out: BehindSurface[] = [];
+  for (const [surface, ver] of Object.entries(installed)) {
+    const meta = SURFACE_META[surface];
+    if (!meta || typeof ver !== 'string') continue;
+    const surfaceLatest = perSurface?.[surface] ?? latest;
+    if (cmpVersion(ver, surfaceLatest) < 0) {
+      out.push({ surface, label: meta.label, installed: ver, latest: surfaceLatest, command: meta.command });
+    }
+  }
+  return out;
+}
+
+export default function UpdateBanner({ surfaces: initialSurfaces, installed }: {
+  /** Server-computed behind-list, seeds the first paint. */
+  surfaces: BehindSurface[];
+  /** Raw per-surface installed versions, so the client can recompute vs fresh latest. */
+  installed?: Record<string, string> | null;
+}) {
+  const [surfaces, setSurfaces] = useState<BehindSurface[]>(initialSurfaces);
   const [open, setOpen] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [inDesktop, setInDesktop] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
   const [result, setResult] = useState<Record<string, 'ok' | 'err'>>({});
-  const [dismissed, setDismissed] = useState<boolean>(() => {
-    if (typeof window === 'undefined' || !surfaces.length) return false;
-    try { return window.localStorage.getItem(dismissKey(surfaces)) === '1'; } catch { return false; }
-  });
+  const [dismissed, setDismissed] = useState<boolean>(false);
 
   // Detect the desktop bridge after mount (it is injected by the desktop app's
   // preload; absent in a plain browser).
   useEffect(() => { setInDesktop(!!desktopBridge()); }, []);
+
+  // Re-fetch the public versions feed and recompute. Keeps a long-lived window
+  // (the desktop shell) honest without a full reload.
+  const refresh = useCallback(async () => {
+    if (!installed) return;
+    try {
+      const res = await fetch(`${BACKEND}/api/v2/versions`, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return;
+      const body = await res.json();
+      const next = deriveBehind(installed, body?.plugin?.latest ?? null, body?.plugin?.surfaces);
+      setSurfaces(next);
+    } catch { /* offline / transient: keep what we have */ }
+  }, [installed]);
+
+  useEffect(() => {
+    void refresh();
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisible);
+    const t = setInterval(() => void refresh(), 5 * 60 * 1000);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(t);
+    };
+  }, [refresh]);
+
+  // Re-evaluate dismissal whenever the behind-set changes: a NEW version pair is
+  // a new key, so a dismissal of an older pair doesn't suppress a fresh update.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !surfaces.length) { setDismissed(false); return; }
+    try { setDismissed(window.localStorage.getItem(dismissKey(surfaces)) === '1'); } catch { setDismissed(false); }
+  }, [surfaces]);
 
   if (!surfaces.length || dismissed) return null;
 
