@@ -12,9 +12,8 @@
  * lands next; the Activate button reflects readiness today.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier } from '@/lib/activation';
@@ -76,6 +75,161 @@ function PermissionList({ items, optIns, onToggle }: {
         );
       })}
     </ul>
+  );
+}
+
+// ── Just-in-time connections + tools (the activation-phase move) ─────────────
+// The desktop shell's bridge (dashboard-preload.js). Present only inside the
+// Implexa app; the web falls back to guidance copy. Sign-ins and CLI tool
+// installs happen HERE, per agent, for exactly what this agent needs — not as
+// an onboarding wall of every account the user may never use.
+type DesktopBridge = {
+  connectAccount?: (domain: string) => Promise<{ ok: boolean; message?: string }>;
+  verifyAccount?: (domain: string) => Promise<{ ok: boolean; reachable?: boolean; identity?: string | null; message?: string }>;
+  checkTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean }>;
+  installTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean; alreadyInstalled?: boolean; message?: string }>;
+};
+function desktopBridge(): DesktopBridge | null {
+  if (typeof window === 'undefined') return null;
+  return (window as Window & { implexaDesktop?: DesktopBridge }).implexaDesktop ?? null;
+}
+
+type NeededConnection = { account?: string; label?: string; status?: string; identity?: string | null };
+
+function ConnectionRow({ item, onChanged }: { item: NeededConnection; onChanged: () => void }) {
+  const bridge = desktopBridge();
+  const domain = item.account || '';
+  const reachable = item.status === 'reachable';
+  const [busy, setBusy] = useState<'signin' | 'verify' | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  const signIn = async () => {
+    if (!bridge?.connectAccount) return;
+    setBusy('signin'); setNote(null);
+    try {
+      const r = await bridge.connectAccount(domain);
+      setNote(r.ok ? 'Sign in in the workspace window that just opened, then hit Verify.' : (r.message || 'Could not open the sign-in page.'));
+    } catch { setNote('Could not open the sign-in page.'); }
+    setBusy(null);
+  };
+  const verify = async () => {
+    if (!bridge?.verifyAccount) return;
+    setBusy('verify'); setNote(null);
+    try {
+      const r = await bridge.verifyAccount(domain);
+      if (r.ok && r.reachable) {
+        setNote(r.identity ? `Connected as ${r.identity}.` : 'Connected.');
+        onChanged(); // refresh the checklist so the step flips to done
+      } else {
+        setNote(r.ok ? 'Not signed in yet. Hit Sign in, finish in the workspace window, then Verify again.' : (r.message || 'Verify could not run.'));
+      }
+    } catch { setNote('Verify could not run.'); }
+    setBusy(null);
+  };
+
+  return (
+    <li className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-ink-100">{item.label || domain}</span>
+          {reachable
+            ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">connected{item.identity ? ` as ${item.identity}` : ''}</span>
+            : <span className="text-[11px] text-amber-700 dark:text-amber-300">not connected</span>}
+        </div>
+        {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
+      </div>
+      {!reachable && bridge?.connectAccount && (
+        <div className="flex-none flex items-center gap-1.5">
+          <button type="button" onClick={signIn} disabled={busy !== null} className="btn-outline text-xs px-2.5 py-1">
+            {busy === 'signin' ? 'Opening…' : 'Sign in'}
+          </button>
+          <button type="button" onClick={verify} disabled={busy !== null} className="btn-outline text-xs px-2.5 py-1">
+            {busy === 'verify' ? 'Checking…' : 'Verify'}
+          </button>
+        </div>
+      )}
+    </li>
+  );
+}
+
+function ConnectionsList({ items, onChanged }: { items: NeededConnection[]; onChanged: () => void }) {
+  const bridge = desktopBridge();
+  return (
+    <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
+      <ul className="space-y-2">
+        {items.map((it) => <ConnectionRow key={it.account || it.label} item={it} onChanged={onChanged} />)}
+      </ul>
+      {!bridge?.connectAccount && (
+        <p className="text-xs text-ink-500 mt-2 leading-snug">
+          Open this page in the Implexa app to sign in with one click — the app keeps a dedicated browser workspace your agents use.
+        </p>
+      )}
+    </div>
+  );
+}
+
+type ToolItem = { key: string; name: string };
+
+function ToolRow({ item }: { item: ToolItem }) {
+  const bridge = desktopBridge();
+  const [state, setState] = useState<'unknown' | 'checking' | 'installed' | 'missing' | 'installing' | 'failed'>('unknown');
+  const [note, setNote] = useState<string | null>(null);
+  const canInstall = !!bridge?.installTool;
+
+  useEffect(() => {
+    let cancelled = false;
+    const b = desktopBridge();
+    if (!b?.checkTool) return;
+    setState('checking');
+    b.checkTool(item.key)
+      .then((r) => { if (!cancelled) setState(r.ok && r.installed ? 'installed' : 'missing'); })
+      .catch(() => { if (!cancelled) setState('unknown'); });
+    return () => { cancelled = true; };
+  }, [item.key]);
+
+  const install = async () => {
+    if (!bridge?.installTool) return;
+    setState('installing'); setNote(null);
+    try {
+      const r = await bridge.installTool(item.key);
+      if (r.ok && r.installed) { setState('installed'); setNote(r.alreadyInstalled ? 'Already installed.' : 'Installed.'); }
+      else { setState('failed'); setNote(r.message || 'Install failed. The agent will install it on its first run instead.'); }
+    } catch { setState('failed'); setNote('Install failed. The agent will install it on its first run instead.'); }
+  };
+
+  return (
+    <li className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-ink-100">{item.name}</span>
+          {state === 'installed' && <span className="text-[11px] text-emerald-600 dark:text-emerald-400">installed</span>}
+          {(state === 'missing' || state === 'failed') && <span className="text-[11px] text-amber-700 dark:text-amber-300">not installed</span>}
+          {state === 'checking' && <span className="text-[11px] text-ink-500">checking…</span>}
+        </div>
+        {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
+      </div>
+      {(state === 'missing' || state === 'failed' || state === 'installing') && canInstall && (
+        <button type="button" onClick={install} disabled={state === 'installing'} className="btn-outline text-xs px-2.5 py-1 flex-none">
+          {state === 'installing' ? 'Installing…' : state === 'failed' ? 'Retry' : 'Install'}
+        </button>
+      )}
+    </li>
+  );
+}
+
+function ToolsList({ items }: { items: ToolItem[] }) {
+  const bridge = desktopBridge();
+  return (
+    <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
+      <ul className="space-y-2">
+        {items.map((it) => <ToolRow key={it.key} item={it} />)}
+      </ul>
+      {!bridge?.installTool && (
+        <p className="text-xs text-ink-500 mt-2 leading-snug">
+          The agent installs anything missing the first time it runs. In the Implexa app you can install these ahead of time with one click.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -256,17 +410,24 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen }: 
     // when todo ("Set schedule") and when done ("Change").
     const label = step.status === 'done' ? 'Change' : (step.cta || 'Set schedule');
     cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : label}</button>;
+  } else if (step.id === 'tools' && ((step.data?.items ?? []) as unknown as ToolItem[]).length > 0) {
+    // Always offered (status is 'auto'): in the app each tool gets a one-click
+    // Install; on the web it explains the first-run auto-install.
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : 'View'}</button>;
   } else if (isTodo && step.cta) {
     if (step.id === 'permissions') {
       cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : step.cta}</button>;
     } else if (step.id === 'connections') {
-      cta = <Link href="/connections" className="btn-outline text-xs px-2.5 py-1">{step.cta}</Link>;
+      // Inline connect (no navigation): sign in + verify right here, for exactly
+      // the accounts THIS agent needs.
+      cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : step.cta}</button>;
     } else {
       cta = <button type="button" className="btn-outline text-xs px-2.5 py-1">{step.cta}</button>;
     }
   }
 
   const items = (step.data?.items ?? []) as PermissionItem[];
+  const needed = (step.data?.needed ?? []) as NeededConnection[];
 
   return (
     <li className="py-3.5">
@@ -285,6 +446,12 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen }: 
       </div>
       {step.id === 'permissions' && open && items.length > 0 && (
         <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} />
+      )}
+      {step.id === 'connections' && open && needed.length > 0 && (
+        <ConnectionsList items={needed} onChanged={onChanged} />
+      )}
+      {step.id === 'tools' && open && (
+        <ToolsList items={(step.data?.items ?? []) as unknown as ToolItem[]} />
       )}
       {step.id === 'schedule' && open && (
         <SchedulePicker slug={slug} onSaved={() => { setOpen(false); onChanged(); }} />
@@ -379,7 +546,7 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
             optIns={optIns}
             onToggleOptIn={toggleOptIn}
             onChanged={() => router.refresh()}
-            defaultOpen={needsGrant && s.id === 'permissions'}
+            defaultOpen={(needsGrant && s.id === 'permissions') || (s.id === 'connections' && s.status === 'todo')}
           />
         ))}
       </ul>
