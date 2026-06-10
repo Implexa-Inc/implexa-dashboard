@@ -19,6 +19,7 @@ import { createClient } from '@/lib/supabase/server';
 import { listWorkflows, listMyWorkflows, getWorkflow, type WorkflowCard, type MyWorkflowCard } from '@/lib/workflow-catalog';
 import { remoteSafety, remoteSafetyFromCard } from '@/lib/remote-safety';
 import { RemoteSafetyBadge } from '../_components/remote-safety-badge';
+import { categorizeAgent } from '@/lib/agent-category';
 import { AgentsHome } from '../_components/agents-home';
 
 export const dynamic = 'force-dynamic';
@@ -132,7 +133,13 @@ export default async function WorkflowsPage() {
                     <div className="flex items-start gap-4 flex-wrap">
                       <div className="flex-1 min-w-[220px]">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <Link href={href} className="text-base font-medium text-ink-50 hover:underline">{w.name}</Link>
+                          <Link href={href} className="text-base font-medium text-ink-50 hover:underline">
+                            <span aria-hidden className="mr-1.5">{categorizeAgent([w.name, w.description, w.primary_outcome, w.vertical]).emoji}</span>
+                            {w.name}
+                          </Link>
+                          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">
+                            {categorizeAgent([w.name, w.description, w.primary_outcome, w.vertical]).label}
+                          </span>
                           <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-ink-800 text-ink-300">{w.origin}</span>
                           {w.is_scheduled && <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">on autopilot</span>}
                           {w.shared && <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-brand-500/15 text-brand-600 dark:text-brand-400">shared</span>}
@@ -197,8 +204,12 @@ export default async function WorkflowsPage() {
                     <div className="flex-1 min-w-[220px]">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <Link href={href} className="text-base font-medium text-ink-50 hover:underline">
+                          <span aria-hidden className="mr-1.5">{categorizeAgent([g.card.name, g.card.description, g.card.primary_outcome, g.card.vertical]).emoji}</span>
                           {g.card.name}
                         </Link>
+                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">
+                          {categorizeAgent([g.card.name, g.card.description, g.card.primary_outcome, g.card.vertical]).label}
+                        </span>
                         <RemoteSafetyBadge safety={safety} size="xs" />
                         {g.anyActive ? (
                           <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">active</span>

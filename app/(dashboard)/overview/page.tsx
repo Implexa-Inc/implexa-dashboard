@@ -21,6 +21,7 @@ import SuggestedShelf from '../_components/suggested-shelf';
 import FirstRunMagic from '../_components/first-run-magic';
 import TalkToImplexa from '../_components/talk-to-implexa';
 import { listWorkflows, listMyWorkflows, listSuggestedAgents, type MyWorkflowCard, type SuggestedAgent } from '@/lib/workflow-catalog';
+import { categorizeAgent } from '@/lib/agent-category';
 
 export const dynamic = 'force-dynamic';
 
@@ -156,9 +157,14 @@ export default async function OverviewPage() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {myAgents.slice(0, 9).map((a) => (
                 <Link key={a.workflow_id} href={`/workflows/${a.slug}`} className="card p-5 hover:border-ink-600 transition-colors block">
-                  <div className="text-sm font-medium text-ink-50 truncate">{a.name}</div>
+                  <div className="text-sm font-medium text-ink-50 truncate">
+                    <span aria-hidden className="mr-1.5">{categorizeAgent([a.name, a.description, a.primary_outcome, a.vertical]).emoji}</span>
+                    {a.name}
+                  </div>
                   <div className="text-xs text-ink-400 mt-1.5 line-clamp-2">{a.description || a.primary_outcome || `${a.step_count} steps`}</div>
                   <div className="text-[11px] text-ink-500 mt-3 flex items-center gap-2">
+                    <span>{categorizeAgent([a.name, a.description, a.primary_outcome, a.vertical]).label}</span>
+                    <span aria-hidden>·</span>
                     <span>{a.is_scheduled ? 'scheduled' : 'manual'}</span>
                     <span aria-hidden>·</span>
                     <span>last run {rel(a.last_run_at)}</span>
