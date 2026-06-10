@@ -95,10 +95,22 @@ function desktopBridge(): DesktopBridge | null {
   return (window as Window & { implexaDesktop?: DesktopBridge }).implexaDesktop ?? null;
 }
 
+// Bridge detection AFTER mount only. Reading the bridge during render makes the
+// server HTML (no bridge) disagree with the desktop webview's first client
+// render (bridge present) - a hydration mismatch that crashes the page with
+// React's production "client-side exception" (the founder hit it clicking into
+// an activation card). First paint always matches the server; the app-only
+// buttons appear right after mount.
+function useDesktopBridge(): DesktopBridge | null {
+  const [bridge, setBridge] = useState<DesktopBridge | null>(null);
+  useEffect(() => { setBridge(desktopBridge()); }, []);
+  return bridge;
+}
+
 type NeededConnection = { account?: string; label?: string; status?: string; identity?: string | null };
 
 function ConnectionRow({ item, onChanged }: { item: NeededConnection; onChanged: () => void }) {
-  const bridge = desktopBridge();
+  const bridge = useDesktopBridge();
   const domain = item.account || '';
   const reachable = item.status === 'reachable';
   const [busy, setBusy] = useState<'signin' | 'verify' | null>(null);
@@ -154,7 +166,7 @@ function ConnectionRow({ item, onChanged }: { item: NeededConnection; onChanged:
 }
 
 function ConnectionsList({ items, onChanged }: { items: NeededConnection[]; onChanged: () => void }) {
-  const bridge = desktopBridge();
+  const bridge = useDesktopBridge();
   return (
     <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
       <ul className="space-y-2">
@@ -172,7 +184,7 @@ function ConnectionsList({ items, onChanged }: { items: NeededConnection[]; onCh
 type ToolItem = { key: string; name: string };
 
 function ToolRow({ item }: { item: ToolItem }) {
-  const bridge = desktopBridge();
+  const bridge = useDesktopBridge();
   const [state, setState] = useState<'unknown' | 'checking' | 'installed' | 'missing' | 'installing' | 'failed'>('unknown');
   const [note, setNote] = useState<string | null>(null);
   const canInstall = !!bridge?.installTool;
@@ -219,7 +231,7 @@ function ToolRow({ item }: { item: ToolItem }) {
 }
 
 function ToolsList({ items }: { items: ToolItem[] }) {
-  const bridge = desktopBridge();
+  const bridge = useDesktopBridge();
   return (
     <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
       <ul className="space-y-2">
