@@ -174,7 +174,7 @@ export default async function ConnectionsPage() {
   // ── Needs-you data: everything waiting on the user, assembled in parallel ──
   // (founder: "show all alerts/pending tasks here since Activate does the
   // connections bit too"). Connections health demotes to a section below.
-  const [status, myAgents, { data: schedules }, { count: pendingCount }] = await Promise.all([
+  const [status, myAgents, { data: schedules }, { count: pendingCount }, { data: stalledRows }] = await Promise.all([
     getConnectionStatus(),
     getMyAgents(),
     supabase
@@ -187,6 +187,13 @@ export default async function ConnectionsPage() {
       .from('skill_runs')
       .select('id', { count: 'exact', head: true })
       .eq('review_status', 'pending'),
+    supabase
+      .from('skill_runs')
+      .select('id, skill_slug, ran_at, stalled_at')
+      .eq('run_state', 'stalled')
+      .gte('ran_at', new Date(Date.now() - 24 * 3600 * 1000).toISOString())
+      .order('ran_at', { ascending: false })
+      .limit(10),
   ]);
 
   type SchedRow = { id: string; skill_slug: string; cron_expression: string | null; schedule_nl: string | null; status: string; last_run_at: string | null };
@@ -196,7 +203,9 @@ export default async function ConnectionsPage() {
   const allMyAgents = myAgents ? [...myAgents.active, ...myAgents.needsActivation] : [];
   const nameBySlug = new Map(allMyAgents.map((a) => [a.slug, a.name]));
   const needGrant = allMyAgents.filter((a) => a.needsIntervention);
-  const attentionCount = needGrant.length + missed.length + ((pendingCount ?? 0) > 0 ? 1 : 0) + (status?.warnings.length ? 1 : 0);
+  type StalledRow = { id: string; skill_slug: string; ran_at: string; stalled_at: string | null };
+  const stalled = ((stalledRows as StalledRow[]) || []);
+  const attentionCount = needGrant.length + missed.length + stalled.length + ((pendingCount ?? 0) > 0 ? 1 : 0) + (status?.warnings.length ? 1 : 0);
 
   const hasData = !!status && (status.connections.length > 0 || status.agents.length > 0);
   const reachable = status?.connections.filter((c) => c.status === 'reachable').length ?? 0;
@@ -221,6 +230,17 @@ export default async function ConnectionsPage() {
           </div>
         ) : (
           <section className="mb-12 space-y-3">
+            {stalled.map((r) => (
+              <div key={r.id} className="card flex items-center justify-between gap-3 border-amber-500/40">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink-100 truncate">{nameBySlug.get(r.skill_slug) || r.skill_slug}</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                    Stalled mid-run, likely waiting for a permission. Open Claude Code and approve the prompt to let it continue.
+                  </p>
+                </div>
+                <Link href={`/workflows/${r.skill_slug}`} className="btn-outline text-xs px-3 py-1.5 flex-none">Open agent</Link>
+              </div>
+            ))}
             {needGrant.map((a) => (
               <div key={a.slug} className="card flex items-center justify-between gap-3">
                 <div className="min-w-0">
