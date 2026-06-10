@@ -233,7 +233,6 @@ export default async function WorkflowDetailPage({
             <div className="flex-none">
               <AgentActions
                 slug={workflow.slug}
-                source={workflow.source}
                 isActive={isActive}
                 requiresLocal={checklist?.requiresLocal}
               />
