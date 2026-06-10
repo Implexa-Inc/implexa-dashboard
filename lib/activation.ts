@@ -41,6 +41,8 @@ export type ActivationChecklist = {
   state: ActivationState;
   /** 'on_demand' (runs when invoked) vs 'scheduled' (cron/once). */
   mode?: 'on_demand' | 'scheduled';
+  /** Needs the user's machine (shell/browser) -> runs in Claude Code / the app. */
+  requiresLocal?: boolean;
   canActivate: boolean;
   stepsLeft: number;
   steps: ActivationStep[];

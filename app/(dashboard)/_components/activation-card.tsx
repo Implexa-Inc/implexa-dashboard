@@ -354,6 +354,12 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
         <div className="min-w-0">
           <h1 className="text-lg font-semibold text-ink-50 truncate">{checklist.name}</h1>
           {checklist.summary && <p className="text-sm text-ink-400 mt-1 leading-snug">{checklist.summary}</p>}
+          {checklist.requiresLocal && (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-ink-400">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-500 flex-none" aria-hidden />
+              Runs on your computer, in the Implexa app (not on a server).
+            </p>
+          )}
         </div>
         <span className={`flex-none text-xs font-medium rounded-full px-2.5 py-1 ${badge.classes}`}>{badge.label}</span>
       </div>
