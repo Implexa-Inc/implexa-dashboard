@@ -3,7 +3,9 @@
  * Throws on non-2xx with the upstream error message.
  */
 
-const BASE = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'http://localhost:8001').replace(/\/$/, '');
+// Falls back to production (not localhost) so a missing NEXT_PUBLIC_IMPLEXA_API_URL
+// degrades to the real API instead of an unreachable localhost ("Failed to fetch").
+const BASE = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai').replace(/\/$/, '');
 
 export async function callBackend(path: string, opts: {
   jwt?: string | null;
