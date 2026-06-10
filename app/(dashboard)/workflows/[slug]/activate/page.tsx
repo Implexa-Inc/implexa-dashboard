@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { getActivationChecklist } from '@/lib/activation';
 import { ActivationCard } from '../../../_components/activation-card';
+import { OpenInAppBanner } from '../../../_components/open-in-app-banner';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +41,7 @@ export default async function ActivateAgentPage({ params }: { params: { slug: st
           </div>
         ) : (
           <>
+            <OpenInAppBanner path={`/workflows/${params.slug}/activate`} verb="activate" />
             <p className="text-xs uppercase tracking-wider text-ink-500 mb-3">Switch on</p>
             <ActivationCard checklist={checklist} />
           </>
