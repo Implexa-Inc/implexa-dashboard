@@ -60,7 +60,7 @@ function ActiveRow({ a }: { a: MyAgent }) {
         <div className="min-w-0">
           <span className="text-sm font-medium text-ink-100 truncate">{a.name}</span>
           <p className="text-xs text-ink-500 mt-0.5">
-            {a.scheduleNl || 'scheduled'} · <span className={TONE[s.tone]}>{s.label}</span>
+            {a.mode === 'on_demand' ? 'On-demand' : (a.scheduleNl || 'scheduled')} · <span className={TONE[s.tone]}>{s.label}</span>
           </p>
         </div>
       </div>
@@ -75,6 +75,11 @@ export async function AgentsHome() {
   const { needsActivation, active } = data;
   if (needsActivation.length === 0 && active.length === 0) return null;
 
+  // Active agents split by HOW they run: on-demand (you invoke them) vs scheduled
+  // (a cadence). A scheduled mode is anything not explicitly on_demand.
+  const onDemand = active.filter((a) => a.mode === 'on_demand');
+  const scheduled = active.filter((a) => a.mode !== 'on_demand');
+
   return (
     <div className="mb-10 space-y-7">
       {needsActivation.length > 0 && (
@@ -85,11 +90,19 @@ export async function AgentsHome() {
           </ul>
         </section>
       )}
-      {active.length > 0 && (
+      {onDemand.length > 0 && (
         <section>
-          <h2 className="text-xs uppercase tracking-wider text-ink-400 mb-2">Active ({active.length})</h2>
+          <h2 className="text-xs uppercase tracking-wider text-ink-400 mb-2">On-demand ({onDemand.length})</h2>
           <ul className="card !py-1 divide-y divide-ink-800">
-            {active.map((a) => <ActiveRow key={a.slug} a={a} />)}
+            {onDemand.map((a) => <ActiveRow key={a.slug} a={a} />)}
+          </ul>
+        </section>
+      )}
+      {scheduled.length > 0 && (
+        <section>
+          <h2 className="text-xs uppercase tracking-wider text-ink-400 mb-2">Scheduled ({scheduled.length})</h2>
+          <ul className="card !py-1 divide-y divide-ink-800">
+            {scheduled.map((a) => <ActiveRow key={a.slug} a={a} />)}
           </ul>
         </section>
       )}

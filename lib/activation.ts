@@ -39,6 +39,8 @@ export type ActivationChecklist = {
   name: string;
   summary: string | null;
   state: ActivationState;
+  /** 'on_demand' (runs when invoked) vs 'scheduled' (cron/once). */
+  mode?: 'on_demand' | 'scheduled';
   canActivate: boolean;
   stepsLeft: number;
   steps: ActivationStep[];

@@ -17,6 +17,8 @@ export type MyAgent = {
   needsIntervention?: boolean;
   /** Plain-language "what to do", e.g. Allow "Run commands on your computer". */
   interventionReason?: string | null;
+  /** 'on_demand' (runs when invoked) vs 'scheduled' (cron/once) — groups the home. */
+  mode?: 'on_demand' | 'scheduled';
   scheduleNl: string | null;
   lastRun: { status: string; runState: string | null; ranAt: string } | null;
 };
