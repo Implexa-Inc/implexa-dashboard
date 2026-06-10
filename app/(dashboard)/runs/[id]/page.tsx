@@ -1,46 +1,41 @@
 /**
- * /runs/[id] — detail view for ONE run.
+ * /runs/[id] — clean permalink for ONE run's deliverable.
  *
- * The review/approve links Implexa emits (record_scheduled_run ->
- * app.implexa.ai/runs/<id>) point here. Without this page those links 404 — the
- * /runs index only renders a list. RLS-scoped: a run that isn't the caller's
- * resolves to null and renders a friendly not-found rather than leaking.
+ * Where Implexa's "ready to review" links land (record_scheduled_run →
+ * implexa://runs/<id>, web fallback https://app.implexa.ai/runs/<id>). Unlike
+ * the Results overlay (which only knows the recent feed), this RLS-fetches ANY
+ * run by id, so a deep link to an older run still resolves. Renders the
+ * deliverable as MARKDOWN (the overlay's look), not a raw <pre> dump — the old
+ * page showed the slug + raw source, which is the "ugly page" the founder hit.
+ *
+ * RLS-scoped: a run that isn't the caller's resolves to null and renders a
+ * friendly not-found rather than leaking.
  */
 
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/server';
 import { listWorkflows } from '@/lib/workflow-catalog';
+import { deriveRunState, type RunRow } from '@/lib/run-state';
+import { RunStateBadge } from '../../_components/run-state-badge';
+import BackLink from '../../_components/back-link';
 
 export const dynamic = 'force-dynamic';
 
-type SkillRun = {
-  id:                  string;
-  scheduled_skill_id:  string | null;
-  orchestration_id:    string | null;
-  skill_slug:          string;
-  source:              'scheduled' | 'adhoc' | 'orchestration';
-  output_markdown:     string | null;
-  status:              'completed' | 'failed' | 'partial';
-  duration_ms:         number | null;
-  delivery:            Record<string, unknown>;
-  review_status:       'none' | 'pending' | 'approved' | 'dismissed' | null;
-  ran_at:              string;
-};
-
-function statusBadge(status: SkillRun['status']) {
-  const base = 'inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded';
-  if (status === 'completed') return <span className={`${base} bg-emerald-500/15 text-emerald-700 dark:text-emerald-400`}>ok</span>;
-  if (status === 'partial')   return <span className={`${base} bg-amber-500/15 text-amber-700 dark:text-amber-400`}>partial</span>;
-  return <span className={`${base} bg-rose-500/15 text-rose-700 dark:text-rose-400`}>failed</span>;
+function humanize(slug: string): string {
+  return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function reviewBadge(rs: SkillRun['review_status']) {
-  const base = 'inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded';
-  if (rs === 'pending')   return <span className={`${base} bg-brand-500/15 text-brand-600 dark:text-brand-400`}>needs review</span>;
-  if (rs === 'approved')  return <span className={`${base} bg-emerald-500/15 text-emerald-700 dark:text-emerald-400`}>approved</span>;
-  if (rs === 'dismissed') return <span className={`${base} bg-ink-700 text-ink-300`}>dismissed</span>;
-  return null;
+function rel(iso: string): string {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 86400 * 7) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(iso).toLocaleDateString();
 }
 
 export default async function RunDetailPage({ params }: { params: { id: string } }) {
@@ -56,79 +51,76 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   const [{ data: run }, catalog] = await Promise.all([
     supabase
       .from('skill_runs')
-      .select('id, scheduled_skill_id, orchestration_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at')
+      .select('id, scheduled_skill_id, orchestration_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at, run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at')
       .eq('id', params.id)
       .maybeSingle(),
     listWorkflows(),
   ]);
 
-  const r = run as SkillRun | null;
+  const r = run as RunRow | null;
 
   if (!r) {
     return (
       <main className="min-h-screen px-4 py-12">
         <div className="max-w-3xl mx-auto">
-          <Link href="/runs" className="text-xs text-brand-500 hover:underline">← All runs</Link>
+          <BackLink fallback="/inbox" label="Results" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
           <div className="card mt-4 text-sm text-ink-300">
             <p className="font-medium text-ink-100 mb-1">Run not found.</p>
             <p>This run does not exist, or it belongs to another account. See your{' '}
-              <Link href="/runs" className="text-brand-500 hover:underline">recent runs</Link>.</p>
+              <Link href="/inbox" className="text-brand-500 hover:underline">results</Link>.</p>
           </div>
         </div>
       </main>
     );
   }
 
-  const workflowSource = catalog.find((c) => c.slug === r.skill_slug)?.source || null;
+  const wf = catalog.find((c) => c.slug === r.skill_slug);
+  const name = wf?.name || humanize(r.skill_slug);
+  const pending = r.review_status === 'pending';
 
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
-        <Link href="/runs" className="text-xs text-brand-500 hover:underline">← All runs</Link>
+        <BackLink fallback="/inbox" label="Results" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
 
-        <header className="mt-3 mb-6">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="font-mono text-xl text-ink-50">{r.skill_slug}</h1>
-            {statusBadge(r.status)}
-            {reviewBadge(r.review_status)}
-          </div>
-          <p className="text-ink-400 text-xs mt-2">
-            {r.source} · {new Date(r.ran_at).toLocaleString()}
-            {r.duration_ms != null && ` · ${r.duration_ms}ms`}
-            {workflowSource && (
-              <>
-                {' · '}
-                <Link
-                  href={`/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(workflowSource)}`}
-                  className="text-brand-500 hover:underline"
-                >
-                  view workflow
-                </Link>
-              </>
+        <header className="mt-4 mb-6">
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">{name}</h1>
+          <div className="flex items-center gap-2.5 mt-2 flex-wrap">
+            <RunStateBadge info={deriveRunState(r)} size="xs" />
+            <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
+            <span className="text-xs text-ink-600 font-mono">{r.skill_slug}</span>
+            {wf && (
+              <Link
+                href={`/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`}
+                className="text-xs text-brand-500 hover:underline"
+              >
+                open agent
+              </Link>
             )}
-          </p>
+          </div>
         </header>
 
-        {r.review_status === 'pending' && (
+        {pending && (
           <Link
-            href="/inbox"
+            href={`/inbox?run=${r.id}`}
             className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-brand-500/40 bg-brand-500/10 p-4 hover:bg-brand-500/15 transition-colors"
           >
             <div>
               <div className="text-sm font-semibold text-ink-50">This deliverable is waiting for your review</div>
-              <div className="text-xs text-ink-300 mt-0.5">Approve what you shipped, or dismiss it.</div>
+              <div className="text-xs text-ink-300 mt-0.5">Approve what it produced, or dismiss it. Nothing posts without you.</div>
             </div>
-            <span className="text-sm text-brand-500 font-medium whitespace-nowrap">Review in inbox →</span>
+            <span className="text-sm text-brand-500 font-medium whitespace-nowrap">Review →</span>
           </Link>
         )}
 
-        <h2 className="text-xs font-medium text-ink-300 uppercase tracking-wider mb-2">Output</h2>
         {r.output_markdown ? (
-          <pre className="whitespace-pre-wrap text-sm text-ink-200 bg-ink-900 border border-ink-800 rounded-lg p-4 overflow-x-auto">
-            {r.output_markdown}
-          </pre>
+          <div className="prose prose-sm max-w-none rounded-lg border border-ink-800 bg-ink-950/60 p-5">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+              {r.output_markdown}
+            </ReactMarkdown>
+          </div>
         ) : (
-          <p className="text-sm text-ink-400 italic">No output recorded for this run.</p>
+          <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
         )}
       </div>
     </main>
