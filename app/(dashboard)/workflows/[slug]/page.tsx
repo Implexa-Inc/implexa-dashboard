@@ -21,7 +21,8 @@ import { remoteSafety } from '@/lib/remote-safety';
 import { getConnectionStatus, warningsForAgent } from '@/lib/connections';
 import { RemoteSafetyBadge } from '../../_components/remote-safety-badge';
 import { ConnectionAttentionBanner } from '../../_components/connection-attention-banner';
-import CopyRunCommand from '../../_components/copy-run-command';
+import AgentActions from '../../_components/agent-actions';
+import { getActivationChecklist } from '@/lib/activation';
 
 export const dynamic = 'force-dynamic';
 
@@ -188,6 +189,12 @@ export default async function WorkflowDetailPage({
   const safety = remoteSafety(workflow);
   const boundCount = workflow.steps.filter((s) => s.ref && !s.gap).length;
 
+  // Activation state drives the primary action: Activate (not yet on) vs Run now
+  // (queues a run-request that Claude Code picks up). Null (agent not in the
+  // user's library yet) falls back to the Activate path.
+  const checklist = await getActivationChecklist(workflow.slug);
+  const isActive = checklist?.state === 'active';
+
   return (
     <main className="min-h-screen px-4 py-10">
       <div className="max-w-4xl mx-auto">
@@ -224,7 +231,12 @@ export default async function WorkflowDetailPage({
               </div>
             </div>
             <div className="flex-none">
-              <CopyRunCommand slug={workflow.slug} kind="workflow" />
+              <AgentActions
+                slug={workflow.slug}
+                source={workflow.source}
+                isActive={isActive}
+                requiresLocal={checklist?.requiresLocal}
+              />
             </div>
           </div>
         </header>
@@ -326,7 +338,8 @@ export default async function WorkflowDetailPage({
             </div>
             {routines.length === 0 ? (
               <p className="text-sm text-ink-500">
-                Not on a schedule yet. Copy the run command above and approve a schedule in your Claude or Codex to run it automatically.
+                Runs on-demand (the Run now button above). To run it automatically, add a schedule on its{' '}
+                <Link href={`/workflows/${workflow.slug}/activate`} className="text-brand-500 hover:underline">activation page</Link>.
               </p>
             ) : (
               <ul className="space-y-3 text-sm">

@@ -19,7 +19,6 @@ import { createClient } from '@/lib/supabase/server';
 import { listWorkflows, listMyWorkflows, getWorkflow, type WorkflowCard, type MyWorkflowCard } from '@/lib/workflow-catalog';
 import { remoteSafety, remoteSafetyFromCard } from '@/lib/remote-safety';
 import { RemoteSafetyBadge } from '../_components/remote-safety-badge';
-import CopyRunCommand from '../_components/copy-run-command';
 import { AgentsHome } from '../_components/agents-home';
 
 export const dynamic = 'force-dynamic';
@@ -155,7 +154,9 @@ export default async function WorkflowsPage() {
                         </div>
                       </div>
                       <div className="flex-none">
-                        <CopyRunCommand slug={w.slug} kind="workflow" />
+                        <Link href={href} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded border border-ink-700 text-ink-300 hover:text-ink-50 hover:border-ink-500 hover:bg-ink-800 transition-colors">
+                          <span aria-hidden className="font-mono">▷</span> Activate &amp; run
+                        </Link>
                       </div>
                     </div>
                   </li>
@@ -218,13 +219,15 @@ export default async function WorkflowsPage() {
                         <span>last {rel(g.lastRunAt)}</span>
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-                        <Link href={href} className="text-brand-500 hover:underline font-medium">View workflow</Link>
+                        <Link href={href} className="text-brand-500 hover:underline font-medium">Open agent</Link>
                         <Link href="/scheduled" className="text-ink-400 hover:text-ink-200 hover:underline">Routine</Link>
                         <Link href="/runs" className="text-ink-400 hover:text-ink-200 hover:underline">Runs</Link>
                       </div>
                     </div>
                     <div className="flex-none">
-                      <CopyRunCommand slug={g.card.slug} kind="workflow" />
+                      <Link href={href} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded border border-ink-700 text-ink-300 hover:text-ink-50 hover:border-ink-500 hover:bg-ink-800 transition-colors">
+                        <span aria-hidden className="font-mono">▷</span> Activate &amp; run
+                      </Link>
                     </div>
                   </div>
                 </li>

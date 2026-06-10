@@ -17,7 +17,7 @@ import { looksOverdue } from '@/lib/routine-status';
 import { selectRuns, deriveRunState, type RunRow } from '@/lib/run-state';
 import { RunStateBadge } from '../_components/run-state-badge';
 import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
-import CopyRunCommand from '../_components/copy-run-command';
+import SuggestedShelf from '../_components/suggested-shelf';
 import FirstRunMagic from '../_components/first-run-magic';
 import TalkToImplexa from '../_components/talk-to-implexa';
 import { listWorkflows, listMyWorkflows, listSuggestedAgents, type MyWorkflowCard, type SuggestedAgent } from '@/lib/workflow-catalog';
@@ -168,6 +168,11 @@ export default async function OverviewPage() {
             </div>
           )}
         </section>
+
+        {/* suggested for you - the learning-driven shelf, with an explicit
+         * build -> activate -> runs-in-Claude affordance on every card. (It was
+         * fetched but never rendered, so suggestions were invisible.) */}
+        <SuggestedShelf suggestions={suggested} />
 
         {/* recent results */}
         {recentRuns.length > 0 && (
