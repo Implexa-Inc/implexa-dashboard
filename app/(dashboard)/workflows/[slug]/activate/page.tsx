@@ -7,6 +7,7 @@
 
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import BackLink from '../../../_components/back-link';
 import { createClient } from '@/lib/supabase/server';
 import { getActivationChecklist } from '@/lib/activation';
 import { ActivationCard } from '../../../_components/activation-card';
@@ -24,9 +25,7 @@ export default async function ActivateAgentPage({ params }: { params: { slug: st
   return (
     <main className="min-h-screen px-6 lg:px-12 py-12">
       <div className="max-w-2xl mx-auto">
-        <Link href="/workflows" className="inline-flex items-center gap-2 text-sm text-ink-500 hover:text-ink-200 mb-8">
-          <span aria-hidden>&larr;</span> Agents
-        </Link>
+        <BackLink fallback="/workflows" label="Back" className="inline-flex items-center gap-2 text-sm text-ink-500 hover:text-ink-200 mb-8 transition-colors" />
 
         {!checklist ? (
           <div className="card max-w-2xl">

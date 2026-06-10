@@ -220,7 +220,6 @@ export default async function WorkflowsPage() {
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
                         <Link href={href} className="text-brand-500 hover:underline font-medium">Open agent</Link>
-                        <Link href="/scheduled" className="text-ink-400 hover:text-ink-200 hover:underline">Routine</Link>
                         <Link href="/runs" className="text-ink-400 hover:text-ink-200 hover:underline">Runs</Link>
                       </div>
                     </div>

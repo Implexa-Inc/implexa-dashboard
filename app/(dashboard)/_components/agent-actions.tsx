@@ -27,10 +27,14 @@ type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
 const POLL_MS = 5000;
 const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in the inbox
 
-export default function AgentActions({ slug, isActive, requiresLocal }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, align = 'end' }: {
   slug: string;
+  /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
+  name?: string;
   isActive: boolean;
   requiresLocal?: boolean;
+  /** 'end' on the detail page header; 'start' inside the activation card. */
+  align?: 'start' | 'end';
 }) {
   const [state, setState] = useState<RunState>('idle');
   const [msg, setMsg] = useState('');
@@ -74,16 +78,29 @@ export default function AgentActions({ slug, isActive, requiresLocal }: {
       });
       requestId.current = res?.request?.id || null;
       pollStart.current = Date.now();
-      // Inside the desktop shell, pop the user's Claude open so the pending
-      // run-request is picked up right away (presence, never runtime).
+      // The handoff must be VISIBLE (founder: "Queued" with an empty Claude box
+      // reads as a silent failure). Inside the desktop shell we open Claude with
+      // the run command PREFILLED via the claude:// deep link; the user reviews
+      // and hits enter. The queued request stays underneath so the result still
+      // comes home to Results. Clipboard is the belt-and-suspenders fallback.
+      const runCommand = `Run my Implexa agent "${name || slug}"`;
+      try { await navigator.clipboard.writeText(runCommand); } catch { /* clipboard is best-effort */ }
       const bridge = typeof window !== 'undefined'
-        ? (window as Window & { implexaDesktop?: { openAgent?: () => Promise<{ ok: boolean }> } }).implexaDesktop
+        ? (window as Window & { implexaDesktop?: {
+            openAgent?: () => Promise<{ ok: boolean }>;
+            handoffAgent?: (prompt: string) => Promise<{ ok: boolean; mode?: string }>;
+          } }).implexaDesktop
         : undefined;
-      if (bridge?.openAgent) {
+      if (bridge?.handoffAgent) {
+        const h = await bridge.handoffAgent(runCommand).catch(() => null);
+        setMsg(h && h.ok && h.mode === 'deeplink'
+          ? 'Opening Claude with the run command prefilled — review it and hit enter.'
+          : `Opening Claude. Paste the command we copied (${runCommand}) and hit enter.`);
+      } else if (bridge?.openAgent) {
         await bridge.openAgent().catch(() => null);
-        setMsg('Queued — opening Claude Code, it runs there.');
+        setMsg(`Opening Claude. Paste the command we copied (${runCommand}) and hit enter.`);
       } else {
-        setMsg('Queued. It runs in Claude Code on your next message there.');
+        setMsg(`Queued. In Claude, send: ${runCommand} (copied to your clipboard).`);
       }
       setState('queued');
     } catch (e) {
@@ -93,7 +110,7 @@ export default function AgentActions({ slug, isActive, requiresLocal }: {
   }
 
   return (
-    <div className="flex flex-col items-end gap-1.5">
+    <div className={`flex flex-col gap-1.5 ${align === 'end' ? 'items-end' : 'items-start'}`}>
       {!isActive ? (
         <Link href={`/workflows/${slug}/activate`} className="btn-success text-sm px-4 py-2">
           Activate
@@ -115,7 +132,7 @@ export default function AgentActions({ slug, isActive, requiresLocal }: {
             : '▶ Run now'}
         </button>
       )}
-      <span className="text-[11px] text-ink-500 text-right max-w-[230px]">
+      <span className={`text-[11px] text-ink-500 max-w-[320px] ${align === 'end' ? 'text-right' : 'text-left'}`}>
         {msg || (isActive
           ? (requiresLocal ? 'Runs in Claude Code, on your computer.' : 'Runs in your Claude.')
           : 'Activate once, then run it anytime.')}

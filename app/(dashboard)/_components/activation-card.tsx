@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import AgentActions from './agent-actions';
 import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier } from '@/lib/activation';
 
 // Defined here (not imported) because lib/activation.ts is server-only; a client
@@ -551,9 +552,21 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
         ))}
       </ul>
 
-      <div className="mt-5 flex items-center gap-3">
+      <div className="mt-5 flex items-start gap-3">
         {isActive && allSavedGranted ? (
-          <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Active.</span>
+          // The moment of highest motivation must not dead-end at "Active."
+          // (founder: "I activated this agent but what to do next, Im clueless").
+          // Offer the first run right here; the schedule row above covers later.
+          <div className="flex flex-col gap-2">
+            <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Active. Take it for its first run:</span>
+            <AgentActions
+              slug={checklist.slug}
+              name={checklist.name}
+              isActive
+              requiresLocal={checklist.requiresLocal}
+              align="start"
+            />
+          </div>
         ) : needsGrant ? (
           // Already active, but a Tier-2 capability still needs your deliberate OK.
           <>

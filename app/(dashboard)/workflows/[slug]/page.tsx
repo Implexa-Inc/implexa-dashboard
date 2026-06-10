@@ -22,6 +22,7 @@ import { getConnectionStatus, warningsForAgent } from '@/lib/connections';
 import { RemoteSafetyBadge } from '../../_components/remote-safety-badge';
 import { ConnectionAttentionBanner } from '../../_components/connection-attention-banner';
 import AgentActions from '../../_components/agent-actions';
+import BackLink from '../../_components/back-link';
 import { getActivationChecklist } from '@/lib/activation';
 
 export const dynamic = 'force-dynamic';
@@ -199,7 +200,7 @@ export default async function WorkflowDetailPage({
     <main className="min-h-screen px-4 py-10">
       <div className="max-w-4xl mx-auto">
         <nav className="text-sm text-ink-500 mb-6">
-          <Link href="/workflows" className="hover:underline">← All agents</Link>
+          <BackLink fallback="/workflows" label="Back" />
         </nav>
 
         {/* Header */}
@@ -233,6 +234,7 @@ export default async function WorkflowDetailPage({
             <div className="flex-none">
               <AgentActions
                 slug={workflow.slug}
+                name={workflow.name}
                 isActive={isActive}
                 requiresLocal={checklist?.requiresLocal}
               />
@@ -333,7 +335,7 @@ export default async function WorkflowDetailPage({
           <div className="card">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Schedule</h2>
-              <Link href="/scheduled" className="text-xs text-brand-500 hover:underline">manage</Link>
+              <Link href={`/workflows/${workflow.slug}/activate`} className="text-xs text-brand-500 hover:underline">manage</Link>
             </div>
             {routines.length === 0 ? (
               <p className="text-sm text-ink-500">
