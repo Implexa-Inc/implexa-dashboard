@@ -29,10 +29,14 @@ function sanitizeNext(next: string | undefined): string | null {
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams?: { next?: string; invite?: string };
+  searchParams?: { next?: string; invite?: string; intent?: string };
 }) {
   const next        = sanitizeNext(searchParams?.next);
   const inviteToken = typeof searchParams?.invite === 'string' ? searchParams.invite : null;
+  // The build prompt carried from the website's hero box (?intent=). Free text;
+  // the form stashes it in app-origin localStorage so it survives the auth
+  // round-trip, then /overview turns it into a build run-request.
+  const intent = typeof searchParams?.intent === 'string' ? searchParams.intent.slice(0, 500) : null;
 
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
@@ -43,10 +47,11 @@ export default async function SignupPage({
     if (inviteToken) {
       redirect(`/onboarding?invite=${encodeURIComponent(inviteToken)}`);
     }
-    redirect(next || '/overview');
+    // Carry the build intent onward so /overview's consumer still gets it.
+    redirect(intent ? `/overview?intent=${encodeURIComponent(intent)}` : (next || '/overview'));
   }
 
-  return <SignupForm initialNext={next} initialInvite={inviteToken} />;
+  return <SignupForm initialNext={next} initialInvite={inviteToken} initialIntent={intent} />;
 }
 
 export const metadata = {

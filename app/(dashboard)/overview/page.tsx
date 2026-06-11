@@ -20,6 +20,8 @@ import { RunAttentionBanner, type AttentionItem } from '../_components/run-atten
 import SuggestedShelf from '../_components/suggested-shelf';
 import FirstRunMagic from '../_components/first-run-magic';
 import TalkToImplexa from '../_components/talk-to-implexa';
+import GetStartedIntent from '../_components/get-started-intent';
+import { Suspense } from 'react';
 import { listWorkflows, listMyWorkflows, listSuggestedAgents, type MyWorkflowCard, type SuggestedAgent } from '@/lib/workflow-catalog';
 import { categorizeAgent } from '@/lib/agent-category';
 
@@ -126,6 +128,7 @@ export default async function OverviewPage() {
   return (
     <main className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-6xl mx-auto">
+        <Suspense fallback={null}><GetStartedIntent /></Suspense>
         {isFirstRun ? (
           <>
             <TalkToImplexa hasAgents={false} />

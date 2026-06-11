@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -17,11 +17,22 @@ import PasswordInput from '@/components/password-input';
 export default function SignupForm({
   initialNext,
   initialInvite,
+  initialIntent,
 }: {
   initialNext:   string | null;
   initialInvite: string | null;
+  initialIntent?: string | null;
 }) {
   const router = useRouter();
+
+  // Stash the build prompt (from the website hero box) in app-origin localStorage
+  // immediately, so it survives email-confirm / OAuth redirects. /overview reads
+  // it after the account exists and turns it into a build run-request.
+  useEffect(() => {
+    if (initialIntent && initialIntent.trim()) {
+      try { window.localStorage.setItem('implexa_pending_intent', initialIntent.trim()); } catch { /* private mode */ }
+    }
+  }, [initialIntent]);
 
   // Preserve `next` through OAuth + email-confirm. If we have an invite token,
   // route post-auth through /onboarding so it can call accept-invite before
