@@ -38,10 +38,11 @@ function StatusDot({ status }: { status: ActivationStep['status'] }) {
   return <span className="flex-none mt-0.5 inline-flex w-5 h-5 rounded-full border-2 border-ink-600" aria-hidden />;
 }
 
-function PermissionList({ items, optIns, onToggle }: {
+function PermissionList({ items, optIns, onToggle, savingGroup }: {
   items: PermissionItem[];
   optIns: Record<string, boolean>;
   onToggle: (group: string, on: boolean) => void;
+  savingGroup?: string | null;
 }) {
   return (
     <ul className="mt-3 space-y-2 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
@@ -61,14 +62,15 @@ function PermissionList({ items, optIns, onToggle }: {
             {isOptIn ? (
               <button
                 type="button"
+                disabled={savingGroup === it.group}
                 onClick={() => onToggle(it.group, !optIns[it.group])}
-                className={`flex-none text-xs font-medium rounded-md px-2.5 py-1 transition-colors ${
+                className={`flex-none text-xs font-medium rounded-md px-2.5 py-1 transition-colors disabled:opacity-60 ${
                   optIns[it.group]
                     ? 'bg-amber-500/20 text-amber-700 dark:text-amber-200'
                     : 'border border-ink-700 text-ink-400 hover:text-ink-200'
                 }`}
               >
-                {optIns[it.group] ? 'Allowed' : 'Allow'}
+                {savingGroup === it.group ? 'Saving…' : optIns[it.group] ? 'Allowed' : 'Allow'}
               </button>
             ) : (
               <span className="flex-none text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">granted</span>
@@ -407,13 +409,14 @@ function SchedulePicker({ slug, onSaved }: { slug: string; onSaved: () => void }
   );
 }
 
-function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen }: {
+function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, savingGroup }: {
   step: ActivationStep;
   slug: string;
   optIns: Record<string, boolean>;
   onToggleOptIn: (group: string, on: boolean) => void;
   onChanged: () => void;
   defaultOpen?: boolean;
+  savingGroup?: string | null;
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
   const isTodo = step.status === 'todo';
@@ -460,7 +463,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen }: 
         {cta && <div className="flex-none">{cta}</div>}
       </div>
       {step.id === 'permissions' && open && items.length > 0 && (
-        <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} />
+        <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} savingGroup={savingGroup} />
       )}
       {step.id === 'connections' && open && needed.length > 0 && (
         <ConnectionsList items={needed} onChanged={onChanged} />
@@ -494,8 +497,6 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
     for (const i of tier2) if ((i as PermissionItem & { granted?: boolean }).granted) seed[i.group] = true;
     return seed;
   });
-  const toggleOptIn = (group: string, on: boolean) => setOptIns((s) => ({ ...s, [group]: on }));
-
   const router = useRouter();
   const supabase = createClient();
   const [activating, setActivating] = useState(false);
@@ -503,18 +504,19 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
   const [savedLocally, setSavedLocally] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localGrantNote, setLocalGrantNote] = useState<string | null>(null);
+  const [savingGroup, setSavingGroup] = useState<string | null>(null);
 
   // A backend opt-in records INTENT, but a scheduled run executes in Claude Code
   // on this machine and still PROMPTS for the tool — which, unattended, kills the
   // run ("permission stream closed"). So when shell is granted, write the tool to
   // the local Claude Code allowlist via the desktop bridge, so scheduled runs
   // stop prompting. Map: the 'shell' permission group -> the Bash tool.
-  async function writeLocalAllowlist() {
+  async function writeLocalAllowlist(opts: Record<string, boolean>) {
     const bridge = desktopBridge();
     if (!bridge?.grantLocalPermissions) return; // web (no app) — nothing local to write
     const tools: string[] = [];
     for (const i of tier2) {
-      if (!optIns[i.group]) continue;
+      if (!opts[i.group]) continue;
       if (i.group === 'shell') tools.push('Bash');
     }
     if (!tools.length) return;
@@ -526,16 +528,23 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
     } catch { /* best effort: the run still works if the user clicks Always allow once */ }
   }
 
+  // Persist the given opt-ins to the backend + write the local allowlist. Used
+  // both by the Activate/Grant button and by an auto-save on toggle for an
+  // already-active agent (which has no Activate button to save behind).
+  async function persistGrants(opts: Record<string, boolean>) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const jwt = session?.access_token;
+    await callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/activate`, {
+      jwt, method: 'POST', body: { optIns: opts },
+    });
+    await writeLocalAllowlist(opts);
+  }
+
   async function activate() {
     setError(null);
     setActivating(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const jwt = session?.access_token;
-      await callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/activate`, {
-        jwt, method: 'POST', body: { optIns },
-      });
-      await writeLocalAllowlist();
+      await persistGrants(optIns);
       setActivated(true);
       setSavedLocally(true);
       router.refresh();
@@ -556,6 +565,28 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
   const needsGrant = isActive && !allSavedGranted;
   const ready = checklist.canActivate && allLocalGranted && !isActive; // initial activation
   const badge = STATE_BADGE[checklist.state];
+
+  // A recommended (optional) Tier-2 grant the user hasn't allowed yet, while the
+  // agent is already active — nudge them to allow it so runs don't stall.
+  const ungrantedOptional = tier2.filter((i) => i.optional && !optIns[i.group]);
+  const showStallNudge = isActive && allSavedGranted && ungrantedOptional.length > 0;
+
+  // Toggling a grant updates local state. On an ALREADY-ACTIVE agent there is no
+  // Activate button to save behind, so persist immediately (and write the local
+  // allowlist) — otherwise "Allowed" wouldn't stick. During initial activation
+  // (not yet active) we defer to the Activate button as before.
+  function toggleOptIn(group: string, on: boolean) {
+    const next = { ...optIns, [group]: on };
+    setOptIns(next);
+    if (isActive) {
+      setSavingGroup(group);
+      setError(null);
+      persistGrants(next)
+        .then(() => router.refresh())
+        .catch(() => { setError('Could not save that grant. Try again.'); setOptIns((s) => ({ ...s, [group]: !on })); })
+        .finally(() => setSavingGroup(null));
+    }
+  }
 
   return (
     <div className="card max-w-2xl">
@@ -588,7 +619,8 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
             optIns={optIns}
             onToggleOptIn={toggleOptIn}
             onChanged={() => router.refresh()}
-            defaultOpen={(needsGrant && s.id === 'permissions') || (s.id === 'connections' && s.status === 'todo')}
+            savingGroup={savingGroup}
+            defaultOpen={(needsGrant && s.id === 'permissions') || (showStallNudge && s.id === 'permissions') || (s.id === 'connections' && s.status === 'todo')}
           />
         ))}
       </ul>
@@ -600,6 +632,11 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
           // Offer the first run right here; the schedule row above covers later.
           <div className="flex flex-col gap-2">
             <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Active. Take it for its first run:</span>
+            {showStallNudge && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 leading-snug max-w-md">
+                Recommended: allow “{ungrantedOptional[0].label}” in Permissions above — without it a scheduled run can stall waiting on a prompt. (Allowing saves instantly.)
+              </p>
+            )}
             <AgentActions
               slug={checklist.slug}
               name={checklist.name}
