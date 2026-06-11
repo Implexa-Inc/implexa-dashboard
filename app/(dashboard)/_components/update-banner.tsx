@@ -17,6 +17,13 @@
  * "Update" expands the exact command for that surface (copyable). Dismissible
  * per version-set (localStorage) so it stops nagging once seen, but returns when
  * a new version ships or the user is still behind after dismissing elsewhere.
+ *
+ * DESKTOP-ONLY: a plugin update is a Claude-Code-side action. The desktop app can
+ * run it (via the bridge) or hand it to Claude Code; a plain browser cannot do
+ * anything with `/plugin marketplace update`, so showing "Update here" on the web
+ * is a dead button. We therefore render this banner ONLY inside the desktop app.
+ * The desktop app updates ITSELF natively (main.js checkAppUpdate), so the web
+ * has no update affordance to fake — updates live where they can actually run.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -138,6 +145,9 @@ export default function UpdateBanner({ surfaces: initialSurfaces, installed }: {
     try { setDismissed(window.localStorage.getItem(dismissKey(surfaces)) === '1'); } catch { setDismissed(false); }
   }, [surfaces]);
 
+  // Plugin updates are only actionable where Claude Code is reachable (the
+  // desktop app's bridge). On the web there is nothing to do, so don't show it.
+  if (!inDesktop) return null;
   if (!surfaces.length || dismissed) return null;
 
   async function runUpdate(surface: string) {
