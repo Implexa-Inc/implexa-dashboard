@@ -14,7 +14,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
@@ -647,8 +646,18 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
                 align="start"
               />
               {/* Granting/activating is itself the finished task — let the user
-                  leave without feeling obliged to run it right now. */}
-              <Link href="/workflows" className="text-sm text-ink-400 hover:text-ink-200 mt-2">Done</Link>
+                  leave without feeling obliged to run it right now. Go BACK to
+                  where they came from (Needs You, Agents, …), not a fixed page. */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== 'undefined' && window.history.length > 1) router.back();
+                  else router.push('/workflows');
+                }}
+                className="text-sm text-ink-400 hover:text-ink-200 mt-2"
+              >
+                Done
+              </button>
             </div>
           </div>
         ) : needsGrant ? (
