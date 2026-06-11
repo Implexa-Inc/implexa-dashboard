@@ -87,14 +87,15 @@ export default async function PricingPage() {
         <div className="mb-4 flex justify-center"><Logo height={18} /></div>
         <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Pricing</h1>
         <p className="text-ink-300 mt-3 max-w-2xl mx-auto leading-relaxed">
-          Bring your own Claude. Bring your own API keys. Free to start with 5 skill captures per
-          month and unlimited usage. Upgrade to Pro when you outgrow solo.
+          Build, run, and manage hundreds of agents on the Claude or Codex subscription you
+          already have. Free for your one-person company. Pro when your team joins. We never
+          charge for AI compute, because your agents run on yours.
         </p>
       </header>
 
       {/* Trust strip */}
       <div className="text-center mb-10 text-xs text-ink-400">
-        ✓ No metered usage  &nbsp;·&nbsp;  ✓ No surprise bills  &nbsp;·&nbsp;  ✓ Cancel anytime  &nbsp;·&nbsp;  ✓ Your data, your control
+        ✓ Runs on your machine  &nbsp;·&nbsp;  ✓ No metered usage  &nbsp;·&nbsp;  ✓ No surprise bills  &nbsp;·&nbsp;  ✓ Cancel anytime
       </div>
 
       <PricingClient
@@ -113,13 +114,13 @@ export default async function PricingPage() {
                 Skip Pro entirely — become a Founding Creator.
               </h2>
               <p className="text-sm text-ink-200 leading-relaxed">
-                Capture a new skill <em>and</em> share it publicly. Your seat on Pro becomes
-                <strong> free for life</strong> — no checkout, no card. Plus a Founding Creator badge on every skill
-                you share. The earliest people who help compound the skill graph get permanent perks.
+                Build an agent <em>and</em> share it publicly. Your seat on Pro becomes
+                <strong> free for life</strong> — no checkout, no card. Plus a Founding Creator badge on every agent
+                you share. The earliest builders get permanent perks.
               </p>
               {isAuthed && (
-                <a href="/skills" className="text-xs text-brand-500 hover:underline font-medium mt-3 inline-block">
-                  See your library and start →
+                <a href="/workflows" className="text-xs text-brand-500 hover:underline font-medium mt-3 inline-block">
+                  See your agents and start →
                 </a>
               )}
             </div>
@@ -130,20 +131,20 @@ export default async function PricingPage() {
       {/* FAQ */}
       <section className="mt-16 grid md:grid-cols-2 gap-6">
         <FaqItem
-          q="What's the difference between 'capture' and 'use'?"
-          a="Capture = recording a new skill from a demonstration. Use = running an existing skill (yours, your team's, or a base Playbook). Free caps capture at 5/month but lets you USE skills unlimited times — the moat-building work has a cap, the value-receiving work is free."
+          q="Why is it free?"
+          a="Your agents run in YOUR Claude or Codex, on the subscription you already pay for. We never run AI compute for you, so we never charge for it. Implexa is the control plane: building, activating, scheduling, and watching your agents."
         />
         <FaqItem
-          q="What counts toward my 5 captures?"
-          a="Only NEW skills you author via /implexa:record-skill (or save_workflow_as_skill). Forking a Playbook doesn't count. Running an existing skill doesn't count. Editing a fork into your own version counts once. So onboarding (which forks 5–10 Playbooks) leaves your capture quota fully intact."
+          q="What do I need to start?"
+          a="A Claude (or Codex) subscription and the free Implexa app. Describe a job in a sentence; Implexa builds the agent, walks you through a one-time activation, and it runs on your machine."
         />
         <FaqItem
-          q="Monthly or annual?"
-          a="Annual saves you 2 full months — same Pro, ~17% cheaper. Switch anytime via the Stripe Customer Portal in Settings → Billing. We don't lock you in."
+          q="What is Pro actually for?"
+          a="People. Free covers everything a one-person company needs. Pro adds seats, a shared agent library (one teammate builds it, everyone runs it), team results, and priority support."
         />
         <FaqItem
-          q="Can I cancel anytime?"
-          a="Yes. Cancellations take effect at the end of your current billing period — you keep Pro features until then. After that you revert to Free. Your skill library always stays with you."
+          q="Do agents run when my laptop is closed?"
+          a="Today runs happen on your machine (the desktop app keeps your Mac awake, and the watchdog tells you if a schedule ever misses). When Claude and Codex ship cloud automations, your routines will be able to schedule there too: still your subscription, still your data."
         />
       </section>
     </div>
@@ -180,5 +181,5 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 export const metadata = {
   title:       'Pricing — Implexa',
-  description: 'Free forever — 5 skill captures per month, unlimited use. Pro at $19/month or $190/year (2 months free).',
+  description: 'Build, run, and manage hundreds of agents on your existing Claude or Codex subscription. Free for individuals; Pro for teams at $19/seat/month.',
 };

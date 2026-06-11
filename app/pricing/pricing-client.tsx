@@ -16,37 +16,31 @@ type Props = {
 };
 
 const FREE_FEATURES = [
-  '🔍 Unlimited search across 19,300+ skills (Anthropic, Smithery, ClawHub, Skills.sh)',
-  '⚡ Unlimited inline-apply: no download, runs in your chat',
-  '🎯 Ambient recommender: watches your work, surfaces skills mid-task',
-  '🌐 Works in Claude Code, Codex, Cursor, Gemini CLI',
-  '🔒 Privacy-by-discard: prompts that don\'t match a skill are never logged',
-  '📚 5 personal skill captures / month + unlimited runs',
-  '🌳 Fork any base Playbook into your library',
-  '✨ Public sharing for Founding Creator status (free Pro for life)',
+  '🤖 Unlimited agents: describe a job in a sentence, Implexa builds it',
+  '▶️ Unlimited runs and schedules, on the Claude or Codex you already pay for',
+  '🧱 Steps grounded in a 40,000+ community skill catalog (license-checked)',
+  '🖥️ The Implexa desktop app: guided activation, one-click tool installs, a dedicated browser workspace for your agents',
+  '📬 Results inbox with review gates: nothing posts without you',
+  '🔔 Watchdog + alerts: know when a run finishes, stalls, or misses',
+  '🔒 Runs on YOUR machine, on YOUR subscription: your data never executes on our servers',
 ] as const;
 
 const PRO_FEATURES = [
   'Everything in Free, plus:',
-  '🧠 Work-signature opt-in for 3x better recommendations (SkillRank cohort matching)',
-  '🚀 Unlimited skill captures (Free is 5/month)',
-  '🏢 Org-wide skill library: every teammate sees what the team has saved',
-  '📊 Skill ROI dashboard: which skills drive real outcomes (deals, hires, meetings)',
-  '🔗 Outcome attribution: last-touch within a 30-day window from CRM / ATS / calendar',
-  '🔐 SSO (Google / Microsoft) for team workspaces',
-  '👥 Unlimited team members on the same workspace',
-  '📧 Priority email support',
+  '👥 Seats for your team in one workspace',
+  '📚 Shared agent library: one person builds it, the whole team runs it',
+  '🔗 One-click share links for your agents',
+  '📊 Team results: see what every agent delivered across the team',
+  '📧 Priority support from the founders',
+  '🚀 Early access to new agent packs and features',
 ] as const;
 
-const ENTERPRISE_FEATURES = [
-  'Everything in Pro, plus:',
-  '🛡️  SAML SSO + custom identity providers',
-  '📋 Full audit log (every skill recorded, edited, shared, invoked)',
-  '🚦 Compliance + security review documentation',
-  '🎨 White-label share pages with your branding',
-  '🔧 Custom integrations + dedicated MCP server hosting',
-  '👤 Dedicated success manager + private support channel',
-  '🏢 On-prem deployment option',
+const CLOUD_FEATURES = [
+  'Our thesis: we never run your AI for you.',
+  '☁️ When Claude and Codex ship cloud automations, your Implexa routines will schedule there too',
+  '💤 Agents run even when your laptop is closed',
+  '🏷️ Remote-safe agents are already flagged in your library today',
+  '💳 Still your subscription doing the work: we stay the control plane',
 ] as const;
 
 export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator }: Props) {
@@ -148,7 +142,7 @@ export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator
           name="Free"
           priceLabel="$0"
           priceSub="forever"
-          tagline="Get started, no credit card."
+          tagline="The whole product, for your one-person company."
           bullets={FREE_FEATURES}
           isCurrent={currentPlan === 'free' && !isFoundingCreator}
           cta={
@@ -163,7 +157,7 @@ export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator
           name="Pro"
           priceLabel={cycle === 'annual' ? '$15.83' : '$19'}
           priceSub={cycle === 'annual' ? '/ seat / mo — billed $190/yr' : '/ seat / month'}
-          tagline="Unlimited captures + team unlock."
+          tagline="For when your team joins your agents."
           highlight
           bullets={PRO_FEATURES}
           isCurrent={isPro || isFoundingCreator}
@@ -179,22 +173,15 @@ export default function PricingClient({ isAuthed, currentPlan, isFoundingCreator
           extraNote={error ? <p className="text-xs text-red-500 mt-2">{error}</p> : null}
         />
 
-        {/* Enterprise */}
+        {/* Cloud routines (roadmap teaser, not purchasable) */}
         <PlanCard
-          name="Enterprise"
-          priceLabel="Custom"
-          priceSub="contact us"
-          tagline="For teams that need security + scale."
-          bullets={ENTERPRISE_FEATURES}
-          isCurrent={currentPlan === 'enterprise'}
-          cta={
-            <a
-              href="mailto:sales@implexa.ai?subject=Implexa%20Enterprise%20inquiry"
-              className="btn-outline w-full inline-flex items-center justify-center"
-            >
-              Contact sales
-            </a>
-          }
+          name="Cloud routines"
+          priceLabel="Soon"
+          priceSub="on the roadmap"
+          tagline="Runs even when your laptop is closed."
+          bullets={CLOUD_FEATURES}
+          isCurrent={false}
+          cta={<DisabledBtn label="Coming when the vendors ship it" />}
         />
       </div>
     </>

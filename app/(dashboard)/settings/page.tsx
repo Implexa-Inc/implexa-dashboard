@@ -55,13 +55,13 @@ export default async function SettingsHubPage() {
             href="/settings/billing"
             icon="💎"
             title="Billing & plan"
-            description="Current plan, seats, capture quota, Stripe portal."
+            description="Current plan, seats, Stripe portal."
           />
           <SettingsCard
             href="/settings/team"
             icon="👥"
             title="Team"
-            description="Invite teammates, view members, manage pending invites."
+            description="Invite teammates to share your agents (Pro). View members, manage invites."
           />
           <SettingsCard
             href="/settings/api-keys"
@@ -70,22 +70,10 @@ export default async function SettingsHubPage() {
             description="See every device/session connected to your Implexa account — revoke any you don't recognize."
           />
           <SettingsCard
-            href="/settings/karma"
-            icon="✨"
-            title="Creator karma"
-            description="Your total karma + per-skill breakdown of what's earning. Karma comes from installs, forks, and public-share promotions."
-          />
-          <SettingsCard
             href="/settings/data"
             icon="🧠"
-            title="Data & SkillRank preferences"
-            description="What Implexa stores about you, the three opt-in flags for the recommender, and the delete-all-my-data button."
-          />
-          <SettingsCard
-            href="/integrations"
-            icon="🔌"
-            title="Integrations"
-            description="Connect Fiber, Coresignal, Apollo, and more."
+            title="Data & privacy"
+            description="What Implexa stores about you, recommendation opt-ins, and the delete-all-my-data button. Your agents run on your machine; this is the little we keep."
           />
           <SettingsCard
             href="/install"
