@@ -17,6 +17,8 @@ export type PermissionItem = {
   domains?: string[];
   /** Tier 0/1 are always granted; a Tier-2 is granted once the user opts in. */
   granted?: boolean;
+  /** A recommended Tier-2 grant (e.g. "Run commands") that never BLOCKS activation. */
+  optional?: boolean;
 };
 export type StepStatus = 'done' | 'todo' | 'auto';
 export type ActivationStep = {

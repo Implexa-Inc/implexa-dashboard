@@ -54,6 +54,7 @@ function PermissionList({ items, optIns, onToggle }: {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-ink-100">{it.label}</span>
                 <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${spec.classes}`}>{spec.label}</span>
+                {it.optional && <span className="text-[10px] text-ink-500">recommended</span>}
               </div>
               {it.detail && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{it.detail}</p>}
             </div>
@@ -545,8 +546,11 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
     }
   }
 
-  const allSavedGranted = tier2.every((i) => (i as PermissionItem & { granted?: boolean }).granted) || savedLocally;
-  const allLocalGranted = tier2.every((i) => optIns[i.group]); // saved + just-toggled
+  // OPTIONAL Tier-2 grants (e.g. the recommended "Run commands") never block
+  // activation — only required ones gate the Activate button.
+  const requiredTier2 = tier2.filter((i) => !i.optional);
+  const allSavedGranted = requiredTier2.every((i) => (i as PermissionItem & { granted?: boolean }).granted) || savedLocally;
+  const allLocalGranted = requiredTier2.every((i) => optIns[i.group]); // saved + just-toggled
   const isActive = checklist.state === 'active' || activated;
   // Active, but a Tier-2 grant is still missing -> the wedged "Fix"/needs-you case.
   const needsGrant = isActive && !allSavedGranted;
