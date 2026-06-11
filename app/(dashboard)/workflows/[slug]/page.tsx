@@ -23,6 +23,7 @@ import { RemoteSafetyBadge } from '../../_components/remote-safety-badge';
 import { ConnectionAttentionBanner } from '../../_components/connection-attention-banner';
 import AgentActions from '../../_components/agent-actions';
 import BackLink from '../../_components/back-link';
+import AgentSetupCard from '../../_components/agent-setup-card';
 import { getActivationChecklist } from '@/lib/activation';
 
 export const dynamic = 'force-dynamic';
@@ -237,6 +238,7 @@ export default async function WorkflowDetailPage({
                 name={workflow.name}
                 isActive={isActive}
                 requiresLocal={checklist?.requiresLocal}
+                source={workflow.source}
               />
             </div>
           </div>
@@ -247,6 +249,13 @@ export default async function WorkflowDetailPage({
         {connWarnings.length > 0 && (
           <ConnectionAttentionBanner warnings={connWarnings} scope="agent" className="mb-6" />
         )}
+
+        {/* The agent's config interview — answer its questions here so it runs
+         * unattended (no stopping to ask in Claude Code). Renders nothing when
+         * the agent declares no questions. */}
+        <div className="mb-6">
+          <AgentSetupCard slug={workflow.slug} source={workflow.source} />
+        </div>
 
         {/* Stat strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

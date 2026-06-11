@@ -27,12 +27,14 @@ type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
 const POLL_MS = 5000;
 const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in the inbox
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, align = 'end' }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', align = 'end' }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
   isActive: boolean;
   requiresLocal?: boolean;
+  /** Catalog source, to fetch the agent's saved config answers for the run prompt. */
+  source?: string;
   /** 'end' on the detail page header; 'start' inside the activation card. */
   align?: 'start' | 'end';
 }) {
@@ -83,7 +85,20 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, alig
       // the run command PREFILLED via the claude:// deep link; the user reviews
       // and hits enter. The queued request stays underneath so the result still
       // comes home to Results. Clipboard is the belt-and-suspenders fallback.
-      const runCommand = `Run my Implexa agent "${name || slug}"`;
+      // Thread the agent's saved config answers into the run command, so it runs
+      // unattended instead of stopping to ask in Claude Code. (apply_workflow
+      // also injects them server-side; this makes them visible in the prompt.)
+      let settings = '';
+      try {
+        const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`, { jwt: session?.access_token });
+        const schema: Array<{ key: string; question: string }> = Array.isArray(setup?.schema) ? setup.schema : [];
+        const answers: Record<string, string> = (setup?.answers && typeof setup.answers === 'object') ? setup.answers : {};
+        const pairs = schema
+          .filter((f) => (answers[f.key] ?? '').toString().trim() !== '')
+          .map((f) => `${f.question} ${answers[f.key]}`);
+        if (pairs.length) settings = ` Use these saved answers, do not ask again: ${pairs.join('; ')}.`;
+      } catch { /* no config or transient: run without inline settings (server still injects) */ }
+      const runCommand = `Run my Implexa agent "${name || slug}".${settings}`;
       try { await navigator.clipboard.writeText(runCommand); } catch { /* clipboard is best-effort */ }
       const bridge = typeof window !== 'undefined'
         ? (window as Window & { implexaDesktop?: {
