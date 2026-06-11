@@ -18,6 +18,12 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
 type Field = { key: string; question: string; kind: 'text' | 'choice'; options?: string[] };
+
+// Does this text question ask for an email? (so we can default it to the user's
+// login email). Matches "email" / "e-mail" in the question or the field key.
+function isEmailQ(f: Field): boolean {
+  return /e-?mail/i.test(`${f.question} ${f.key}`);
+}
 type Setup = {
   schema: Field[];
   answers: Record<string, string>;
@@ -47,6 +53,14 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
         const s = res as Setup;
         setSetup(s);
         const a = { ...(s.answers || {}) };
+        // Pre-fill an empty email question with the user's login email (editable),
+        // so "where should this go?" defaults to them instead of a blank field.
+        const email = session?.user?.email || '';
+        if (email) {
+          for (const f of s.schema) {
+            if (f.kind === 'text' && isEmailQ(f) && !(a[f.key] ?? '').toString().trim()) a[f.key] = email;
+          }
+        }
         setValues(a);
         // A saved choice answer that isn't one of the presets is a custom value:
         // start that field in "type your own" mode so the typed answer shows.
@@ -134,13 +148,18 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
                 )}
               </div>
             ) : (
-              <input
-                type="text"
-                value={values[f.key] ?? ''}
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                placeholder="Type your answer"
-                className={inputCls}
-              />
+              <>
+                <input
+                  type="text"
+                  value={values[f.key] ?? ''}
+                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                  placeholder={isEmailQ(f) ? 'you@example.com' : 'Type your answer'}
+                  className={inputCls}
+                />
+                {isEmailQ(f) && !(setup.answers[f.key] ?? '').toString().trim() && (
+                  <p className="text-[11px] text-ink-500 mt-1">Defaulted to your login email — edit if it should go somewhere else.</p>
+                )}
+              </>
             )}
           </div>
         ))}
