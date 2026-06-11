@@ -13,7 +13,7 @@ type NavItem = {
   /** Match `/skills` AND `/skills/anything`. */
   matchPrefix?: boolean;
   /** Key into the badge counts map, renders a glanceable count chip when > 0. */
-  badgeKey?: 'inbox';
+  badgeKey?: 'inbox' | 'needs';
   /** Hidden from nav to keep the surface focused on the autopilot loop. The
    *  route + page stay live (deep links + future work); only the nav item is
    *  suppressed. Flip back to surface it again. */
@@ -46,7 +46,7 @@ const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Home',           icon: 'dashboard', matchPrefix: true },
   { href: '/workflows',    label: 'Agents',         icon: 'workflows', matchPrefix: true },
   { href: '/inbox',        label: 'Results',        icon: 'activity',  matchPrefix: true, badgeKey: 'inbox' },
-  { href: '/connections',  label: 'Needs you',      icon: 'link',      matchPrefix: true },
+  { href: '/connections',  label: 'Needs you',      icon: 'link',      matchPrefix: true, badgeKey: 'needs' },
   { href: '/runs',         label: 'Runs log',       icon: 'activity',  matchPrefix: true, hidden: true },
   { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true, hidden: true },
   { href: '/roi',          label: 'ROI',            icon: 'analytics', matchPrefix: true, hidden: true },
@@ -74,7 +74,7 @@ type UserCtx = {
   isAdmin?:     boolean;
 };
 
-export default function Sidebar({ user, pendingCount = 0 }: { user: UserCtx; pendingCount?: number }) {
+export default function Sidebar({ user, pendingCount = 0, needsCount = 0 }: { user: UserCtx; pendingCount?: number; needsCount?: number }) {
   const pathname = usePathname() || '';
 
   const isActive = (item: NavItem) =>
@@ -83,7 +83,7 @@ export default function Sidebar({ user, pendingCount = 0 }: { user: UserCtx; pen
       : pathname === item.href;
 
   const badgeFor = (item: NavItem) =>
-    item.badgeKey === 'inbox' ? pendingCount : 0;
+    item.badgeKey === 'inbox' ? pendingCount : item.badgeKey === 'needs' ? needsCount : 0;
 
   return (
     <aside className="hidden md:flex md:flex-col md:sticky md:top-0 w-56 shrink-0 border-r border-ink-700 bg-ink-900/50 h-screen overflow-y-auto">

@@ -91,6 +91,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .select('id', { count: 'exact', head: true })
     .eq('review_status', 'pending');
 
+  // Cheap "Needs you" badge: stalled runs (last 24h) + pending reviews — the two
+  // most urgent items, countable with head-only queries on every page. Grants /
+  // missed schedules add to the page but not the badge (they'd need heavier
+  // reads); the badge is an urgency hint, not an exact tally.
+  const { count: stalledCount } = await supabase
+    .from('skill_runs')
+    .select('id', { count: 'exact', head: true })
+    .eq('run_state', 'stalled')
+    .gte('ran_at', new Date(Date.now() - 24 * 3600 * 1000).toISOString());
+  const needsCount = (pendingCount ?? 0) + (stalledCount ?? 0);
+
   const setup = computeSetupStatus(profile.last_mcp_call_at, profile.last_hook_event_at);
 
   // Out-of-date surfaces drive the top update banner. Best-effort: if the
@@ -122,7 +133,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar user={userCtx} pendingCount={pendingCount ?? 0} />
+      <Sidebar user={userCtx} pendingCount={pendingCount ?? 0} needsCount={needsCount} />
       <div className="flex-1 flex flex-col min-w-0">
         <MobileTopBar user={userCtx} />
         <UpdateBanner surfaces={behind} installed={profile.plugin_versions as Record<string, string> | null} />

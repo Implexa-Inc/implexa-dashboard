@@ -70,6 +70,12 @@ export default async function SettingsHubPage() {
             description="See every device/session connected to your Implexa account — revoke any you don't recognize."
           />
           <SettingsCard
+            href="/settings/connections"
+            icon="🔗"
+            title="Your accounts"
+            description="Every account your agents drive in the Implexa browser, whether it's reachable, and which agents need what."
+          />
+          <SettingsCard
             href="/settings/data"
             icon="🧠"
             title="Data & privacy"
