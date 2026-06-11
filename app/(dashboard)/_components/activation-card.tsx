@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
@@ -637,13 +638,18 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
                 Recommended: allow “{ungrantedOptional[0].label}” in Permissions above — without it a scheduled run can stall waiting on a prompt. (Allowing saves instantly.)
               </p>
             )}
-            <AgentActions
-              slug={checklist.slug}
-              name={checklist.name}
-              isActive
-              requiresLocal={checklist.requiresLocal}
-              align="start"
-            />
+            <div className="flex items-start gap-4 flex-wrap">
+              <AgentActions
+                slug={checklist.slug}
+                name={checklist.name}
+                isActive
+                requiresLocal={checklist.requiresLocal}
+                align="start"
+              />
+              {/* Granting/activating is itself the finished task — let the user
+                  leave without feeling obliged to run it right now. */}
+              <Link href="/workflows" className="text-sm text-ink-400 hover:text-ink-200 mt-2">Done</Link>
+            </div>
           </div>
         ) : needsGrant ? (
           // Already active, but a Tier-2 capability still needs your deliberate OK.
