@@ -15,9 +15,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import ConnectCommand from './connect-command';
 
 const KEY = 'implexa_pending_intent';
 
@@ -63,25 +63,24 @@ export default function GetStartedIntent() {
       <blockquote className="text-lg text-ink-50 font-medium leading-snug border-l-2 border-brand-500/50 pl-3 mb-3">
         “{intent}”
       </blockquote>
-      <p className="text-sm text-ink-300 leading-relaxed mb-1">
+      <p className="text-sm text-ink-300 leading-relaxed mb-4">
         {queued
-          ? 'Saved. Implexa will build this the moment you open the app — it runs inside your own Claude or Codex, on your machine.'
-          : 'We’ve got your idea. It builds inside your own Claude or Codex, on your machine.'}
+          ? 'Saved. One step left: connect Implexa to your own Claude or Codex. It runs there, as you, free on the plan you already pay for. The moment you connect, this agent builds itself.'
+          : 'We’ve got your idea. Connect your own Claude or Codex below and it builds itself, runs as you, free.'}
       </p>
-      <p className="text-sm text-ink-400 mb-5">One thing left: get the Implexa app so it can build and run on your computer.</p>
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href="/install" className="btn-success text-sm px-4 py-2">Download Implexa</Link>
-        <span className="text-xs text-ink-500">
-          Already installed?{' '}
-          <a
-            href={`implexa://build?intent=${encodeURIComponent(intent.slice(0, 2000))}`}
-            className="text-brand-400 hover:text-brand-300 underline underline-offset-2"
-          >
-            Open it
-          </a>{' '}
-          and your agent builds automatically.
-        </span>
-      </div>
+
+      <ConnectCommand />
+
+      <p className="text-xs text-ink-500 mt-4">
+        Prefer one click? The macOS app is coming soon.{' '}
+        <a
+          href={`implexa://build?intent=${encodeURIComponent(intent.slice(0, 2000))}`}
+          className="text-brand-400 hover:text-brand-300 underline underline-offset-2"
+        >
+          Already have it? Open it
+        </a>{' '}
+        and your agent builds automatically.
+      </p>
     </section>
   );
 }
