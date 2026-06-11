@@ -22,6 +22,7 @@ import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import { RunStateBadge } from '../_components/run-state-badge';
+import { categorizeAgent } from '@/lib/agent-category';
 import type { RunStateInfo } from '@/lib/run-state';
 
 export type InboxItem = {
@@ -43,6 +44,25 @@ function rel(iso: string): string {
   if (s < 86400)     return `${Math.floor(s / 3600)}h ago`;
   if (s < 86400 * 7) return `${Math.floor(s / 86400)}d ago`;
   return new Date(iso).toLocaleDateString();
+}
+
+// Calendar-day grouping (in the viewer's local tz), so Results reads as a
+// journal: "what did my agents do today / yesterday / Monday".
+function dayKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((start(new Date()) - start(d)) / 86400000);
+  const date = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  if (diff === 0) return `Today · ${date}`;
+  if (diff === 1) return `Yesterday · ${date}`;
+  return date;
+}
+function timeOf(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 // First readable line of a markdown deliverable, for the compact card. Strips
@@ -111,42 +131,76 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
     }
   }
 
+  // Group items (already newest-first) by calendar day, with a per-day summary.
+  const days = useMemo(() => {
+    const out: { key: string; label: string; items: InboxItem[] }[] = [];
+    for (const it of items) {
+      const k = dayKey(it.ran_at);
+      const last = out[out.length - 1];
+      if (last && last.key === k) last.items.push(it);
+      else out.push({ key: k, label: dayLabel(it.ran_at), items: [it] });
+    }
+    return out;
+  }, [items]);
+
   return (
     <>
-      <ul className="space-y-3">
-        {items.map((item) => {
-          const line = snippet(item.output_markdown);
+      <div className="space-y-8">
+        {days.map((day) => {
+          const delivered = day.items.filter((i) => i.output_markdown).length;
+          const review = day.items.filter((i) => i.pending && !done[i.id]).length;
           return (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => open(item.id)}
-                className="card w-full text-left hover:border-ink-600 transition-colors cursor-pointer"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="text-base font-medium text-ink-50 truncate">{item.name}</h2>
-                    {line ? (
-                      <p className="text-sm text-ink-400 mt-1 line-clamp-2">{line}</p>
-                    ) : item.why ? (
-                      <p className="text-sm text-ink-400 mt-1 line-clamp-2">{item.why}</p>
-                    ) : (
-                      <p className="text-xs text-ink-500 mt-1 font-mono">{item.slug}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2.5 flex-none mt-0.5">
-                    {item.pending && !done[item.id] && (
-                      <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-700 dark:text-amber-300">review</span>
-                    )}
-                    <RunStateBadge info={item.state} size="xs" />
-                    <span className="text-xs text-ink-500 whitespace-nowrap">{rel(item.ran_at)}</span>
-                  </div>
-                </div>
-              </button>
-            </li>
+            <section key={day.key}>
+              <div className="sticky top-0 z-10 -mx-1 px-1 py-2 bg-ink-950/85 backdrop-blur-sm flex items-baseline justify-between gap-3">
+                <h2 className="text-sm font-semibold text-ink-200">{day.label}</h2>
+                <span className="text-xs text-ink-500">
+                  {day.items.length} run{day.items.length === 1 ? '' : 's'} · {delivered} delivered
+                  {review > 0 && <span className="text-amber-600 dark:text-amber-400"> · {review} to review</span>}
+                </span>
+              </div>
+              <ul className="space-y-2 mt-2">
+                {day.items.map((item) => {
+                  const line = snippet(item.output_markdown);
+                  const cat = categorizeAgent([item.name, item.why]);
+                  const scheduled = item.source === 'scheduled';
+                  return (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => open(item.id)}
+                        className="card w-full text-left hover:border-ink-600 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-ink-500 tabular-nums">{timeOf(item.ran_at)}</span>
+                              <h3 className="text-sm font-medium text-ink-50 truncate">
+                                <span aria-hidden className="mr-1">{cat.emoji}</span>{item.name}
+                              </h3>
+                              <span className="text-[10px] uppercase tracking-wide text-ink-500">{scheduled ? 'scheduled' : 'manual'}</span>
+                            </div>
+                            {line ? (
+                              <p className="text-sm text-ink-400 mt-1 line-clamp-2">{line}</p>
+                            ) : item.why ? (
+                              <p className="text-sm text-ink-400 mt-1 line-clamp-2">{item.why}</p>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-2.5 flex-none mt-0.5">
+                            {item.pending && !done[item.id] && (
+                              <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-700 dark:text-amber-300">review</span>
+                            )}
+                            <RunStateBadge info={item.state} size="xs" />
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
           );
         })}
-      </ul>
+      </div>
 
       {openItem && (
         <div
