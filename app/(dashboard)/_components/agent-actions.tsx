@@ -27,7 +27,7 @@ type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
 const POLL_MS = 5000;
 const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in the inbox
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', align = 'end' }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, align = 'end' }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -35,6 +35,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   requiresLocal?: boolean;
   /** Catalog source, to fetch the agent's saved config answers for the run prompt. */
   source?: string;
+  /** ISO of the next scheduled fire — shown as grey "Next run: …" under Run now. */
+  nextRunAt?: string | null;
+  /** Unanswered config questions — shown as an amber chip that scrolls to the setup card. */
+  pendingQuestions?: number;
   /** 'end' on the detail page header; 'start' inside the activation card. */
   align?: 'start' | 'end';
 }) {
@@ -155,6 +159,34 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           ? (requiresLocal ? 'Runs in Claude Code, on your computer.' : 'Runs in your Claude.')
           : 'Activate once, then run it anytime.')}
       </span>
+      {/* When does it run next (scheduled agents), grey + small. */}
+      {isActive && !msg && nextRunAt && (
+        <span className={`text-[11px] text-ink-600 ${align === 'end' ? 'text-right' : 'text-left'}`}>
+          Next run: {nextRunLabel(nextRunAt)}
+        </span>
+      )}
+      {/* Unanswered questions block autonomous running — nudge, never disable Run. */}
+      {pendingQuestions > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            const el = document.getElementById('agent-setup');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }}
+          className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline"
+        >
+          {pendingQuestions} question{pendingQuestions === 1 ? '' : 's'} to answer ↑
+        </button>
+      )}
     </div>
   );
+}
+
+function nextRunLabel(iso: string): string {
+  const d = new Date(iso);
+  const day = d.toLocaleDateString(undefined, { weekday: 'short' });
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const secs = (d.getTime() - Date.now()) / 1000;
+  const rel = secs < 3600 ? `${Math.round(secs / 60)}m` : secs < 86400 ? `${Math.round(secs / 3600)}h` : `${Math.round(secs / 86400)}d`;
+  return `${day} ${time} (in ${rel})`;
 }

@@ -43,6 +43,10 @@ export type ActivationChecklist = {
   mode?: 'on_demand' | 'scheduled';
   /** Needs the user's machine (shell/browser) -> runs in Claude Code / the app. */
   requiresLocal?: boolean;
+  /** ISO of the next scheduled fire (active cron), or null/absent. */
+  nextRunAt?: string | null;
+  /** Unanswered config questions (drives the "N to answer" chip). */
+  pendingQuestions?: number;
   canActivate: boolean;
   stepsLeft: number;
   steps: ActivationStep[];

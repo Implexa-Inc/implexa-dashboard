@@ -17,10 +17,14 @@ export type MyAgent = {
   needsIntervention?: boolean;
   /** Plain-language "what to do", e.g. Allow "Run commands on your computer". */
   interventionReason?: string | null;
+  /** Unanswered config questions (drives the "N to answer" chip). */
+  pendingQuestions?: number;
   /** 'on_demand' (runs when invoked) vs 'scheduled' (cron/once) — groups the home. */
   mode?: 'on_demand' | 'scheduled';
   scheduleNl: string | null;
-  lastRun: { status: string; runState: string | null; ranAt: string } | null;
+  /** ISO of the next scheduled fire (active cron), or null. */
+  nextRunAt?: string | null;
+  lastRun: { id?: string; status: string; runState: string | null; ranAt: string } | null;
 };
 export type MyAgents = { needsActivation: MyAgent[]; active: MyAgent[] };
 
@@ -52,7 +56,8 @@ export function activeRunStatus(a: MyAgent): { label: string; tone: 'good' | 'wa
   const st = a.lastRun?.status;
   if (rs === 'stalled') return { label: 'Stalled', tone: 'warn', cta: 'Fix', href: `/workflows/${a.slug}` };
   if (st === 'failed' || rs === 'failed') return { label: 'Failed', tone: 'bad', cta: 'Fix', href: `/workflows/${a.slug}` };
-  if (st === 'partial') return { label: 'Partial', tone: 'warn', cta: 'View output', href: '/inbox' };
-  if (st === 'completed' || rs === 'completed') return { label: 'Done', tone: 'good', cta: 'View output', href: '/inbox' };
+  const outHref = a.lastRun?.id ? `/runs/${a.lastRun.id}` : '/inbox';
+  if (st === 'partial') return { label: 'Partial', tone: 'warn', cta: 'View output', href: outHref };
+  if (st === 'completed' || rs === 'completed') return { label: 'Done', tone: 'good', cta: 'View output', href: outHref };
   return { label: 'Scheduled', tone: 'idle', cta: 'View', href: `/workflows/${a.slug}` };
 }

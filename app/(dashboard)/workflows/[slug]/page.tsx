@@ -239,6 +239,8 @@ export default async function WorkflowDetailPage({
                 isActive={isActive}
                 requiresLocal={checklist?.requiresLocal}
                 source={workflow.source}
+                nextRunAt={checklist?.nextRunAt}
+                pendingQuestions={checklist?.pendingQuestions}
               />
             </div>
           </div>
@@ -253,7 +255,7 @@ export default async function WorkflowDetailPage({
         {/* The agent's config interview — answer its questions here so it runs
          * unattended (no stopping to ask in Claude Code). Renders nothing when
          * the agent declares no questions. */}
-        <div className="mb-6">
+        <div id="agent-setup" className="mb-6 scroll-mt-20">
           <AgentSetupCard slug={workflow.slug} source={workflow.source} />
         </div>
 
