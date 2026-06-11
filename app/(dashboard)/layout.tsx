@@ -84,23 +84,31 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .from('organizations').select('plan')
     .eq('id', profile.organization_id).maybeSingle();
 
-  // Pending-review count drives the "Needs you" badge in the sidebar. RLS-scoped
-  // to the caller; head:true returns the count with no rows over the wire.
-  const { count: pendingCount } = await supabase
-    .from('skill_runs')
-    .select('id', { count: 'exact', head: true })
-    .eq('review_status', 'pending');
-
-  // Cheap "Needs you" badge: stalled runs (last 24h) + pending reviews — the two
-  // most urgent items, countable with head-only queries on every page. Grants /
-  // missed schedules add to the page but not the badge (they'd need heavier
-  // reads); the badge is an urgency hint, not an exact tally.
-  const { count: stalledCount } = await supabase
-    .from('skill_runs')
-    .select('id', { count: 'exact', head: true })
-    .eq('run_state', 'stalled')
-    .gte('ran_at', new Date(Date.now() - 24 * 3600 * 1000).toISOString());
-  const needsCount = (pendingCount ?? 0) + (stalledCount ?? 0);
+  // Sidebar badges are "new since you last opened this page", not raw totals:
+  //   Results   = new runs since you last opened Results
+  //   Needs you = new held-for-review / stalled runs since you last opened it
+  // We hand the client sidebar the recent (bounded) timestamps; it compares them
+  // to a per-surface "last opened" marker in localStorage and clears the badge
+  // the instant you open that page. (The old badges counted ALL pending-review
+  // runs, so both showed the same number and never cleared on a visit.)
+  const badgeSince = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
+  const [{ data: resultRows }, { data: needsRows }] = await Promise.all([
+    supabase
+      .from('skill_runs')
+      .select('ran_at')
+      .gte('ran_at', badgeSince)
+      .order('ran_at', { ascending: false })
+      .limit(100),
+    supabase
+      .from('skill_runs')
+      .select('ran_at')
+      .or('review_status.eq.pending,run_state.eq.stalled')
+      .gte('ran_at', badgeSince)
+      .order('ran_at', { ascending: false })
+      .limit(100),
+  ]);
+  const resultRunsAt = ((resultRows as { ran_at: string }[]) || []).map((r) => r.ran_at).filter(Boolean);
+  const needsItemsAt = ((needsRows as { ran_at: string }[]) || []).map((r) => r.ran_at).filter(Boolean);
 
   const setup = computeSetupStatus(profile.last_mcp_call_at, profile.last_hook_event_at);
 
@@ -133,7 +141,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar user={userCtx} pendingCount={pendingCount ?? 0} needsCount={needsCount} />
+      <Sidebar user={userCtx} resultRunsAt={resultRunsAt} needsItemsAt={needsItemsAt} />
       <div className="flex-1 flex flex-col min-w-0">
         <MobileTopBar user={userCtx} />
         <UpdateBanner surfaces={behind} installed={profile.plugin_versions as Record<string, string> | null} />

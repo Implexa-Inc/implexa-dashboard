@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogoMark } from '@/components/logo';
@@ -74,8 +75,57 @@ type UserCtx = {
   isAdmin?:     boolean;
 };
 
-export default function Sidebar({ user, pendingCount = 0, needsCount = 0 }: { user: UserCtx; pendingCount?: number; needsCount?: number }) {
+// Per-surface "last opened" markers. The badge counts only items newer than
+// this, so opening the page clears it. Per-device on purpose (an unread hint,
+// not synced state) — this is what makes "I checked them, they go away" true.
+const SEEN_KEY: Record<'inbox' | 'needs', string> = {
+  inbox: 'implexa.seen.inbox',
+  needs: 'implexa.seen.needs',
+};
+
+// A glanceable "new since you last opened this page" count. Stores the open time
+// in localStorage and counts only timestamps newer than it, clearing the badge
+// the moment the user lands on the page. ISO timestamps are compared as epoch
+// millis so a timezone-suffix format ("+00:00" vs "Z") can't skew the result.
+function useUnreadBadge(
+  key: 'inbox' | 'needs',
+  pathPrefix: string,
+  timestamps: string[],
+  pathname: string,
+): number {
+  const [seenMs, setSeenMs] = useState<number | null>(null);
+  const onPage = pathname === pathPrefix || pathname.startsWith(`${pathPrefix}/`);
+
+  // Read the stored marker once on mount (0 = never opened -> everything is new).
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(SEEN_KEY[key]);
+      setSeenMs(v ? Number(v) : 0);
+    } catch { setSeenMs(0); }
+  }, [key]);
+
+  // While the page is open, mark everything seen now and clear instantly.
+  useEffect(() => {
+    if (!onPage) return;
+    const now = Date.now();
+    try { window.localStorage.setItem(SEEN_KEY[key], String(now)); } catch { /* private mode */ }
+    setSeenMs(now);
+  }, [onPage, key]);
+
+  if (seenMs === null) return 0;   // pre-hydration: render no badge (SSR-safe)
+  if (onPage) return 0;
+  let n = 0;
+  for (const t of timestamps) {
+    const ms = Date.parse(t);
+    if (Number.isFinite(ms) && ms > seenMs) n++;
+  }
+  return n;
+}
+
+export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: { user: UserCtx; resultRunsAt?: string[]; needsItemsAt?: string[] }) {
   const pathname = usePathname() || '';
+  const inboxUnread = useUnreadBadge('inbox', '/inbox', resultRunsAt, pathname);
+  const needsUnread = useUnreadBadge('needs', '/connections', needsItemsAt, pathname);
 
   const isActive = (item: NavItem) =>
     item.matchPrefix
@@ -83,7 +133,7 @@ export default function Sidebar({ user, pendingCount = 0, needsCount = 0 }: { us
       : pathname === item.href;
 
   const badgeFor = (item: NavItem) =>
-    item.badgeKey === 'inbox' ? pendingCount : item.badgeKey === 'needs' ? needsCount : 0;
+    item.badgeKey === 'inbox' ? inboxUnread : item.badgeKey === 'needs' ? needsUnread : 0;
 
   return (
     <aside className="hidden md:flex md:flex-col md:sticky md:top-0 w-56 shrink-0 border-r border-ink-700 bg-ink-900/50 h-screen overflow-y-auto">
