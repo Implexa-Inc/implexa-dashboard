@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { getMyAgents } from '@/lib/agents-home';
 import { looksOverdue } from '@/lib/routine-status';
-import { getConnectionStatus, RECONNECT_HREF } from '@/lib/connections';
+import { getConnectionStatus } from '@/lib/connections';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,10 +54,23 @@ export default async function NeedsYouPage() {
   const needGrant = allMyAgents.filter((a) => a.needsIntervention);
   type StalledRow = { id: string; skill_slug: string; ran_at: string; stalled_at: string | null };
   const stalled = ((stalledRows as StalledRow[]) || []);
-  // Accounts an agent needs that are signed OUT (unreachable only, never unknown).
-  const unreachable = (status?.connections || []).filter((c) => c.status === 'unreachable');
 
-  const attentionCount = needGrant.length + missed.length + stalled.length + unreachable.length + ((pendingCount ?? 0) > 0 ? 1 : 0);
+  // Accounts a SPECIFIC agent needs that are signed out. Built from status.agents
+  // (which names the agent), grouped by domain so one account = one card that
+  // says WHO needs it and links to THAT agent's activation card (where the
+  // per-account Sign in / Verify lives) — not the generic install page.
+  const signInMap = new Map<string, { label: string; domain: string; agents: { slug: string; name: string }[] }>();
+  for (const a of (status?.agents || [])) {
+    for (const n of a.needs) {
+      if (n.status !== 'unreachable') continue;
+      const e = signInMap.get(n.domain);
+      if (e) { if (!e.agents.some((x) => x.slug === a.slug)) e.agents.push({ slug: a.slug, name: a.name }); }
+      else signInMap.set(n.domain, { label: n.label, domain: n.domain, agents: [{ slug: a.slug, name: a.name }] });
+    }
+  }
+  const signIns = [...signInMap.values()];
+
+  const attentionCount = needGrant.length + missed.length + stalled.length + signIns.length + ((pendingCount ?? 0) > 0 ? 1 : 0);
 
   return (
     <main className="min-h-screen px-4 py-12">
@@ -97,15 +110,21 @@ export default async function NeedsYouPage() {
                 <Link href={`/workflows/${a.slug}/activate`} className="btn-outline text-xs px-3 py-1.5 flex-none">Grant</Link>
               </div>
             ))}
-            {unreachable.map((c) => (
-              <div key={c.id} className="card flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink-100 truncate">{c.label} needs a sign-in</p>
-                  <p className="text-xs text-ink-500 mt-0.5">An agent needs <code className="font-mono text-ink-400">{c.domain}</code> but it&apos;s signed out. Sign in once in your Implexa browser.</p>
+            {signIns.map((s) => {
+              const who = s.agents.length === 1 ? s.agents[0].name : `${s.agents.length} agents`;
+              const fixSlug = s.agents[0].slug; // sign-in is shared; fix it from the first agent's card
+              return (
+                <div key={s.domain} className="card flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink-100 truncate">{s.label || s.domain} needs a sign-in</p>
+                    <p className="text-xs text-ink-500 mt-0.5">
+                      <span className="text-ink-300">{who}</span> {s.agents.length === 1 ? 'needs' : 'need'} <code className="font-mono text-ink-400">{s.domain}</code>, but you&apos;re signed out. Sign in once on the agent&apos;s setup.
+                    </p>
+                  </div>
+                  <Link href={`/workflows/${encodeURIComponent(fixSlug)}/activate`} className="btn-outline text-xs px-3 py-1.5 flex-none">Set up</Link>
                 </div>
-                <Link href={RECONNECT_HREF} className="btn-outline text-xs px-3 py-1.5 flex-none">Set up</Link>
-              </div>
-            ))}
+              );
+            })}
             {(pendingCount ?? 0) > 0 && (
               <div className="card flex items-center justify-between gap-3">
                 <div className="min-w-0">
