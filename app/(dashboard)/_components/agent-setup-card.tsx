@@ -34,6 +34,8 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Which choice fields are in "type your own" mode (none of the presets fit).
+  const [otherMode, setOtherMode] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +46,15 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
         if (cancelled) return;
         const s = res as Setup;
         setSetup(s);
-        setValues({ ...(s.answers || {}) });
+        const a = { ...(s.answers || {}) };
+        setValues(a);
+        // A saved choice answer that isn't one of the presets is a custom value:
+        // start that field in "type your own" mode so the typed answer shows.
+        const om: Record<string, boolean> = {};
+        for (const f of s.schema) {
+          if (f.kind === 'choice' && a[f.key] && !(f.options || []).includes(a[f.key])) om[f.key] = true;
+        }
+        setOtherMode(om);
       } catch {
         if (!cancelled) setSetup({ schema: [], answers: {}, missing: [], complete: true, needs_setup: false });
       } finally {
@@ -93,14 +103,36 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
           <div key={f.key}>
             <label className="block text-sm text-ink-200 mb-1.5">{f.question}</label>
             {f.kind === 'choice' && f.options && f.options.length > 0 ? (
-              <select
-                value={values[f.key] ?? ''}
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                className={inputCls}
-              >
-                <option value="">Choose…</option>
-                {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
+              <div className="space-y-2">
+                <select
+                  value={otherMode[f.key] ? '__other__' : (values[f.key] ?? '')}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '__other__') {
+                      setOtherMode((m) => ({ ...m, [f.key]: true }));
+                      setValues((v) => ({ ...v, [f.key]: '' })); // wait for typed input
+                    } else {
+                      setOtherMode((m) => ({ ...m, [f.key]: false }));
+                      setValues((v) => ({ ...v, [f.key]: val }));
+                    }
+                  }}
+                  className={inputCls}
+                >
+                  <option value="">Choose…</option>
+                  {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                  <option value="__other__">Other (type your own)…</option>
+                </select>
+                {otherMode[f.key] && (
+                  <input
+                    type="text"
+                    value={values[f.key] ?? ''}
+                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                    placeholder="Type your answer"
+                    autoFocus
+                    className={inputCls}
+                  />
+                )}
+              </div>
             ) : (
               <input
                 type="text"
