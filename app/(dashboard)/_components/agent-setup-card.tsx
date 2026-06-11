@@ -19,10 +19,24 @@ import { callBackend } from '@/lib/api';
 
 type Field = { key: string; question: string; kind: 'text' | 'choice'; options?: string[] };
 
-// Does this text question ask for an email? (so we can default it to the user's
-// login email). Matches "email" / "e-mail" in the question or the field key.
+// Questions we can pre-fill from system context, so the user starts from a
+// sensible default instead of a blank field (always editable).
 function isEmailQ(f: Field): boolean {
   return /e-?mail/i.test(`${f.question} ${f.key}`);
+}
+function isTimezoneQ(f: Field): boolean {
+  return /time\s?-?zone|\btz\b/i.test(`${f.question} ${f.key}`);
+}
+// The suggested default for a field from the browser context. '' = no suggestion.
+function suggestedDefault(f: Field, ctx: { email: string; timezone: string }): string {
+  if (isEmailQ(f)) return ctx.email;
+  if (isTimezoneQ(f)) return ctx.timezone;
+  return '';
+}
+function defaultHint(f: Field): string | null {
+  if (isEmailQ(f)) return 'Defaulted to your login email — edit if it should go somewhere else.';
+  if (isTimezoneQ(f)) return 'Detected from your system — edit if it should report on a different timezone.';
+  return null;
 }
 type Setup = {
   schema: Field[];
@@ -53,13 +67,19 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
         const s = res as Setup;
         setSetup(s);
         const a = { ...(s.answers || {}) };
-        // Pre-fill an empty email question with the user's login email (editable),
-        // so "where should this go?" defaults to them instead of a blank field.
-        const email = session?.user?.email || '';
-        if (email) {
-          for (const f of s.schema) {
-            if (f.kind === 'text' && isEmailQ(f) && !(a[f.key] ?? '').toString().trim()) a[f.key] = email;
-          }
+        // Pre-fill unanswered questions we can infer from the browser (login
+        // email, system timezone), editable, so the user starts from a sensible
+        // default instead of a blank field. Never overrides a saved answer.
+        const ctx = {
+          email: session?.user?.email || '',
+          timezone: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } })(),
+        };
+        for (const f of s.schema) {
+          if ((a[f.key] ?? '').toString().trim()) continue;
+          const def = suggestedDefault(f, ctx);
+          if (!def) continue;
+          if (f.kind === 'text') a[f.key] = def;
+          else if (f.kind === 'choice' && (f.options || []).includes(def)) a[f.key] = def; // pre-select if it's an option
         }
         setValues(a);
         // A saved choice answer that isn't one of the presets is a custom value:
@@ -153,11 +173,11 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
                   type="text"
                   value={values[f.key] ?? ''}
                   onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                  placeholder={isEmailQ(f) ? 'you@example.com' : 'Type your answer'}
+                  placeholder={isEmailQ(f) ? 'you@example.com' : isTimezoneQ(f) ? 'e.g. America/New_York' : 'Type your answer'}
                   className={inputCls}
                 />
-                {isEmailQ(f) && !(setup.answers[f.key] ?? '').toString().trim() && (
-                  <p className="text-[11px] text-ink-500 mt-1">Defaulted to your login email — edit if it should go somewhere else.</p>
+                {defaultHint(f) && !(setup.answers[f.key] ?? '').toString().trim() && (
+                  <p className="text-[11px] text-ink-500 mt-1">{defaultHint(f)}</p>
                 )}
               </>
             )}
