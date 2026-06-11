@@ -71,7 +71,16 @@ export default function GetStartedIntent() {
       <p className="text-sm text-ink-400 mb-5">One thing left: get the Implexa app so it can build and run on your computer.</p>
       <div className="flex flex-wrap items-center gap-3">
         <Link href="/install" className="btn-success text-sm px-4 py-2">Download Implexa</Link>
-        <span className="text-xs text-ink-500">Already installed? Open it and your agent builds automatically.</span>
+        <span className="text-xs text-ink-500">
+          Already installed?{' '}
+          <a
+            href={`implexa://build?intent=${encodeURIComponent(intent.slice(0, 2000))}`}
+            className="text-brand-400 hover:text-brand-300 underline underline-offset-2"
+          >
+            Open it
+          </a>{' '}
+          and your agent builds automatically.
+        </span>
       </div>
     </section>
   );
