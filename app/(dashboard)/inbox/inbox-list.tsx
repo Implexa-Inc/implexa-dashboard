@@ -125,7 +125,14 @@ function snippet(md: string | null): string | null {
   return line.length > 180 ? `${line.slice(0, 177).trimEnd()}…` : line;
 }
 
-export default function InboxList({ initialItems }: { initialItems: InboxItem[] }) {
+export default function InboxList({
+  initialItems,
+  basePath = '/inbox',
+}: {
+  initialItems: InboxItem[];
+  /** Route the `?run=` deep-link syncs to. Home embeds this list at /overview. */
+  basePath?: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -167,13 +174,13 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
 
   const open = useCallback((id: string) => {
     setOpenId(id);
-    router.replace(`/inbox?run=${id}`, { scroll: false });
-  }, [router]);
+    router.replace(`${basePath}?run=${id}`, { scroll: false });
+  }, [router, basePath]);
 
   const close = useCallback(() => {
     setOpenId(null);
-    router.replace('/inbox', { scroll: false });
-  }, [router]);
+    router.replace(basePath, { scroll: false });
+  }, [router, basePath]);
 
   // Esc closes the overlay.
   useEffect(() => {

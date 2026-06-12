@@ -19,30 +19,11 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { listWorkflows } from '@/lib/workflow-catalog';
-import { selectRuns, deriveRunState } from '@/lib/run-state';
+import { loadInboxItems } from '@/lib/inbox';
 import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
-import InboxList, { type InboxItem, type FeedbackQuestion } from './inbox-list';
+import InboxList from './inbox-list';
 
 export const dynamic = 'force-dynamic';
-
-// Tighten a workflow description into a single plain-english line. Catalog
-// descriptions can be a few sentences; the inbox only needs the lead clause.
-function oneLine(text: string | null | undefined): string | null {
-  if (!text) return null;
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-  const firstSentence = trimmed.split(/(?<=[.!?])\s+/)[0] || trimmed;
-  const clipped = firstSentence.length > 160
-    ? `${firstSentence.slice(0, 157).trimEnd()}…`
-    : firstSentence;
-  return clipped;
-}
-
-// Humanize a slug as a last-resort name so we never render a bare slug alone.
-function humanize(slug: string): string {
-  return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 export default async function InboxPage() {
   const supabase = createClient();
@@ -54,39 +35,8 @@ export default async function InboxPage() {
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  // RLS-scoped to the caller. Catalog read degrades to [] on failure, so a
-  // missing public token just means we fall back to humanized slugs. selectRuns
-  // reads live run-state columns when present (migration 0065), else degrades.
-  const [runs, catalog] = await Promise.all([
-    selectRuns(supabase, {
-      limit: 40,
-      onlyWithOutput: true,
-      // The improvement-loop columns: the run's own feedback questions + the
-      // user's answers, so each result can show one-tap feedback (migration 0074).
-      extraColumns: 'feedback_questions, feedback_answers, feedback_at',
-    }),
-    listWorkflows(),
-  ]);
-
-  const bySlug = new Map(catalog.map((c) => [c.slug, c]));
-
-  const items: InboxItem[] = runs.map((r) => {
-    const wf = bySlug.get(r.skill_slug);
-    return {
-      id:              r.id,
-      slug:            r.skill_slug,
-      source:          r.source || 'scheduled',
-      name:            wf?.name || humanize(r.skill_slug),
-      why:             oneLine(wf?.primary_outcome) || oneLine(wf?.description),
-      output_markdown: r.output_markdown ?? null,
-      ran_at:          r.ran_at,
-      pending:         r.review_status === 'pending',
-      state:           deriveRunState(r),
-      feedbackQuestions: (r as { feedback_questions?: FeedbackQuestion[] | null }).feedback_questions ?? null,
-      feedbackAnswers:   (r as { feedback_answers?: Record<string, string> | null }).feedback_answers ?? null,
-      feedbackAt:        (r as { feedback_at?: string | null }).feedback_at ?? null,
-    };
-  });
+  // The same todo list Home renders, from the one shared loader.
+  const items = await loadInboxItems(supabase, 40);
 
   // The loud surface: any result that did not finish cleanly (stalled, or a
   // permission-blocked failure) gets a banner at the top of Results too, so a
