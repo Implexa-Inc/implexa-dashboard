@@ -71,15 +71,12 @@ export default function GetStartedIntent() {
 
       <ConnectCommand />
 
+      {/* The macOS app is not released yet, so it has not registered the
+          implexa:// scheme on anyone's machine. A "Open it" deep link here
+          resolves to a browser 404 for ~everyone. Re-add the implexa://build
+          link (the desktop already routes it) only once the app ships. */}
       <p className="text-xs text-ink-500 mt-4">
-        Prefer one click? The macOS app is coming soon.{' '}
-        <a
-          href={`implexa://build?intent=${encodeURIComponent(intent.slice(0, 2000))}`}
-          className="text-brand-400 hover:text-brand-300 underline underline-offset-2"
-        >
-          Already have it? Open it
-        </a>{' '}
-        and your agent builds automatically.
+        Prefer one click? A one-step macOS app is coming soon.
       </p>
     </section>
   );
