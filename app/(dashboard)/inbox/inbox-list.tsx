@@ -223,7 +223,9 @@ export default function InboxList({
 
   // The feedback form body, shared by the focused feedback pop-out AND the output
   // overlay so there is one implementation. Closes over the per-run draft state.
-  function feedbackInner(it: InboxItem) {
+  // Each question is a numbered card so a 3-question form reads as 3 small steps,
+  // not a wall; the footer shows answered-count so Send's state is never a mystery.
+  function feedbackInner(it: InboxItem, opts: { heading?: boolean } = {}) {
     if (isAnswered(it)) {
       return (
         <p className="text-sm text-success-700 dark:text-success-400">
@@ -232,68 +234,96 @@ export default function InboxList({
       );
     }
     const qs = feedbackQsFor(it);
-    const draftCount = Object.keys(fbDraft[it.id] || {}).length;
+    const answeredCount = qs.filter((q) => (fbDraft[it.id]?.[q.key] ?? '').toString().trim() !== '').length;
+    const canSend = answeredCount > 0 && !fbBusy[it.id];
     return (
       <>
-        <div className="text-xs uppercase tracking-wide text-ink-400 mb-3 font-medium">
-          How did this run do?{' '}
-          <span className="text-ink-600 normal-case">your feedback improves the agent next run</span>
-        </div>
-        <div className="space-y-4">
-          {qs.map((q) => {
+        {/* Shown only inside the output overlay; the focused modal's title
+            already says this. */}
+        {opts.heading && (
+          <div className="mb-3">
+            <span className="text-sm font-medium text-ink-100">How did this run do?</span>{' '}
+            <span className="text-xs text-ink-500">Your answers ride into the next run.</span>
+          </div>
+        )}
+        <div className="space-y-3">
+          {qs.map((q, i) => {
             const val = fbDraft[it.id]?.[q.key] ?? '';
             const setVal = (v: string) =>
               setFbDraft((d) => ({ ...d, [it.id]: { ...(d[it.id] || {}), [q.key]: v } }));
+            const done = val.toString().trim() !== '';
             return (
-              <div key={q.key}>
-                <label className="block text-sm text-ink-200 mb-1.5">{q.question}</label>
-                {q.kind === 'text' ? (
-                  <input
-                    type="text"
-                    value={val}
-                    onChange={(e) => setVal(e.target.value)}
-                    placeholder="A short note (optional)"
-                    className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
-                  />
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {(q.options && q.options.length ? q.options : ['Yes', 'No']).map((o) => (
-                      <button
-                        key={o}
-                        type="button"
-                        onClick={() => setVal(o)}
-                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                          val === o
-                            ? 'border-brand-500 bg-brand-500/15 text-brand-600 dark:text-brand-300'
-                            : 'border-ink-700 text-ink-300 hover:border-ink-500'
-                        }`}
-                      >
-                        {o}
-                      </button>
-                    ))}
+              <div key={q.key} className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
+                <div className="flex items-start gap-3">
+                  <span
+                    aria-hidden
+                    className={`flex-none inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold tabular-nums mt-0.5 transition-colors ${
+                      done
+                        ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                        : 'bg-ink-800 text-ink-400'
+                    }`}
+                  >
+                    {done ? '✓' : i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <label className="block text-sm text-ink-100 leading-relaxed">{q.question}</label>
+                    <div className="mt-2.5">
+                      {q.kind === 'text' ? (
+                        <input
+                          type="text"
+                          value={val}
+                          onChange={(e) => setVal(e.target.value)}
+                          placeholder="A short note (optional)"
+                          className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
+                        />
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {(q.options && q.options.length ? q.options : ['Yes', 'No']).map((o) => (
+                            <button
+                              key={o}
+                              type="button"
+                              onClick={() => setVal(val === o ? '' : o)}
+                              aria-pressed={val === o}
+                              className={`text-[13px] px-3.5 py-1.5 rounded-full border transition-colors ${
+                                val === o
+                                  ? 'border-brand-500 bg-brand-500/15 text-brand-600 dark:text-brand-300 font-medium'
+                                  : 'border-ink-700 text-ink-300 hover:border-ink-400 hover:text-ink-100'
+                              }`}
+                            >
+                              {o}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             );
           })}
         </div>
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
           <button
             type="button"
             onClick={() => submitFeedback(it)}
-            disabled={fbBusy[it.id] || draftCount === 0}
+            disabled={!canSend}
             className={
-              fbBusy[it.id] || draftCount === 0
-                ? 'btn-outline text-sm px-4 py-2 opacity-50 cursor-not-allowed'
-                : 'btn-success text-sm px-4 py-2'
+              canSend
+                ? 'btn-success text-sm px-5 py-2'
+                : 'btn-outline text-sm px-5 py-2 opacity-50 cursor-not-allowed'
             }
           >
             {fbBusy[it.id] ? 'Saving…' : 'Send feedback'}
           </button>
-          <span className="text-xs text-ink-500">The agent reads this before its next run.</span>
-          {error[it.id] && (
-            <span className="text-xs text-rose-600 dark:text-rose-400">{error[it.id]}</span>
-          )}
+          <span className="text-xs text-ink-500">
+            {error[it.id] ? (
+              <span className="text-rose-600 dark:text-rose-400">{error[it.id]}</span>
+            ) : answeredCount === 0 ? (
+              'Answer any one to send. Skipping the rest is fine.'
+            ) : (
+              `${answeredCount} of ${qs.length} answered`
+            )}
+          </span>
         </div>
       </>
     );
@@ -486,7 +516,7 @@ export default function InboxList({
                 so you can rate without leaving the output. */}
             {openItem.output_markdown && (
               <div className="mt-5 rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-                {feedbackInner(openItem)}
+                {feedbackInner(openItem, { heading: true })}
               </div>
             )}
 
@@ -539,10 +569,12 @@ export default function InboxList({
       <Modal
         open={!!feedbackItem}
         onClose={() => setFeedbackId(null)}
-        title={feedbackItem ? `Feedback , ${feedbackItem.name}` : 'Feedback'}
+        title="How did this run do?"
+        maxWidth="max-w-xl"
         subtitle={
           <span className="text-xs text-ink-500">
-            Your answers ride into this agent&apos;s next run.
+            <span className="text-ink-300">{feedbackItem?.name}</span>
+            {' · your answers ride into its next run'}
           </span>
         }
       >
