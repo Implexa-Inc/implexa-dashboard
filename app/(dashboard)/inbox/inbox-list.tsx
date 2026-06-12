@@ -50,8 +50,10 @@ export type InboxItem = {
 type Light = 'red' | 'amber' | 'green';
 function lightOf(it: InboxItem, answered: boolean): Light {
   if (it.state.attention) return 'red';
-  const wantsFeedback = !answered && !it.feedbackAt && (it.feedbackQuestions?.length ?? 0) > 0;
-  if (wantsFeedback || it.pending) return 'amber';
+  // Any delivered run you haven't given feedback on (or that's held for review)
+  // wants you. Feedback is available on EVERY run, not only ones the agent wrote
+  // questions for, so a bare "Done" run can still be rated and improved.
+  if (it.pending || !answered) return 'amber';
   return 'green';
 }
 const LIGHT_DOT: Record<Light, string> = {
@@ -59,6 +61,25 @@ const LIGHT_DOT: Record<Light, string> = {
   amber: 'bg-amber-400',
   green: 'bg-emerald-500',
 };
+// The label next to the dot, so the colour isn't a guessing game (founder:
+// "just a yellow dot is not intuitive — say Give Feedback").
+const LIGHT_LABEL: Record<Light, string> = {
+  red:   'Take action',
+  amber: 'Give feedback',
+  green: 'Done',
+};
+const LIGHT_TEXT: Record<Light, string> = {
+  red:   'text-rose-600 dark:text-rose-400',
+  amber: 'text-amber-700 dark:text-amber-300',
+  green: 'text-ink-500',
+};
+
+// Generic feedback questions for a run whose agent didn't write its own (old
+// runs, or agents that produced none). So you can always rate + improve a run.
+const GENERIC_FEEDBACK: FeedbackQuestion[] = [
+  { key: '_rating', question: 'How was this run?', kind: 'choice', options: ['👍 Good', '👎 Needs work'] },
+  { key: 'change', question: 'Anything to change next time?', kind: 'text' },
+];
 
 function rel(iso: string): string {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -163,6 +184,11 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
   }, [openId, close]);
 
   const openItem = useMemo(() => items.find((it) => it.id === openId) || null, [items, openId]);
+  // The questions to show in the overlay: the agent's own, else a generic set so
+  // feedback is always possible.
+  const openFeedbackQs: FeedbackQuestion[] = openItem
+    ? (openItem.feedbackQuestions?.length ? openItem.feedbackQuestions : GENERIC_FEEDBACK)
+    : [];
 
   async function review(id: string, status: 'approved' | 'dismissed') {
     setError((e) => ({ ...e, [id]: '' }));
@@ -218,14 +244,14 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
       <div className="space-y-8">
         {days.map((day) => {
           const delivered = day.items.filter((i) => i.output_markdown).length;
-          const review = day.items.filter((i) => i.pending && !done[i.id]).length;
+          const needYouDay = day.items.filter((i) => lightOf(i, isAnswered(i)) !== 'green').length;
           return (
             <section key={day.key}>
               <div className="sticky top-0 z-10 -mx-1 px-1 py-2 bg-ink-950/85 backdrop-blur-sm flex items-baseline justify-between gap-3">
                 <h2 className="text-sm font-semibold text-ink-200">{day.label}</h2>
                 <span className="text-xs text-ink-500">
                   {day.items.length} run{day.items.length === 1 ? '' : 's'} · {delivered} delivered
-                  {review > 0 && <span className="text-amber-600 dark:text-amber-400"> · {review} to review</span>}
+                  {needYouDay > 0 && <span className="text-amber-600 dark:text-amber-400"> · {needYouDay} need you</span>}
                 </span>
               </div>
               <ul className="space-y-2 mt-2">
@@ -258,12 +284,15 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
                           <div className="flex items-center gap-2.5 flex-none mt-0.5">
                             {(() => {
                               const light = lightOf(item, isAnswered(item));
-                              const label = light === 'red' ? 'needs action' : light === 'amber' ? 'needs you' : 'done';
                               return (
-                                <span className={`inline-block size-2.5 rounded-full ${LIGHT_DOT[light]}`} aria-label={label} title={label} />
+                                <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${LIGHT_TEXT[light]}`}>
+                                  <span className={`inline-block size-2 rounded-full ${LIGHT_DOT[light]}`} aria-hidden />
+                                  {LIGHT_LABEL[light]}
+                                </span>
                               );
                             })()}
-                            <RunStateBadge info={item.state} size="xs" />
+                            {/* keep the specific state only for a run that needs action */}
+                            {item.state.attention && <RunStateBadge info={item.state} size="xs" />}
                           </div>
                         </div>
                       </button>
@@ -317,9 +346,10 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
               <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
             )}
 
-            {/* Per-run feedback: the questions this run wrote about its own
-                output. One-tap answers ride into the agent's next run. */}
-            {openItem.feedbackQuestions && openItem.feedbackQuestions.length > 0 && (
+            {/* Per-run feedback: the agent's own questions when it wrote them,
+                else a generic prompt — so EVERY run can be rated. One-tap
+                answers ride into the agent's next run. */}
+            {openItem.output_markdown && (
               <div className="mt-5 rounded-lg border border-ink-800 bg-ink-900/40 p-4">
                 {isAnswered(openItem) ? (
                   <p className="text-sm text-success-700 dark:text-success-400">
@@ -332,7 +362,7 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
                       <span className="text-ink-600 normal-case">your feedback improves the agent next run</span>
                     </div>
                     <div className="space-y-4">
-                      {openItem.feedbackQuestions.map((q) => {
+                      {openFeedbackQs.map((q) => {
                         const val = fbDraft[openItem.id]?.[q.key] ?? '';
                         const setVal = (v: string) =>
                           setFbDraft((d) => ({ ...d, [openItem.id]: { ...(d[openItem.id] || {}), [q.key]: v } }));

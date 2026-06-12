@@ -23,7 +23,6 @@ import TalkToImplexa from '../_components/talk-to-implexa';
 import GetStartedIntent from '../_components/get-started-intent';
 import { Suspense } from 'react';
 import { listWorkflows, listMyWorkflows, listSuggestedAgents, type MyWorkflowCard, type SuggestedAgent } from '@/lib/workflow-catalog';
-import { categorizeAgent } from '@/lib/agent-category';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,13 +51,22 @@ function humanize(slug: string): string {
   return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function StatCard({ label, value, tone }: { label: string; value: string | number; tone?: 'ok' | 'warn' }) {
-  const valueColor = tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : tone === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-50';
+// A "see all" chip for the Home rail. count>0 shows an amber badge so a pending
+// queue (results to review, agents needing attention) is glanceable.
+function NavChip({ href, label, count = 0 }: { href: string; label: string; count?: number }) {
   return (
-    <div className="card">
-      <div className="text-xs uppercase tracking-wider text-ink-400">{label}</div>
-      <div className={`text-2xl font-semibold mt-1 ${valueColor}`}>{value}</div>
-    </div>
+    <Link
+      href={href}
+      className="inline-flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-900/40 px-3.5 py-2 text-sm text-ink-200 hover:border-ink-500 hover:text-ink-50 transition-colors"
+    >
+      {label}
+      {count > 0 && (
+        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-semibold bg-amber-400 text-ink-950">
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
+      <span aria-hidden className="text-ink-500">→</span>
+    </Link>
   );
 }
 
@@ -144,79 +152,50 @@ export default async function OverviewPage() {
           <RunAttentionBanner items={attentionItems} />
         </div>
 
-        {/* your agents */}
-        <section className="mt-12">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider">Your agents</h2>
-            {myAgents.length > 0 && (
-              <Link href="/workflows" className="text-xs text-ink-400 hover:text-ink-200">all agents</Link>
-            )}
+        {/* Inbox: a few recent runs (clean), then the rail to the full surfaces.
+            Founder: "show max 2-3, then click to see all". The big agent grid +
+            the long results list moved behind these links to keep Home calm. */}
+        <section className="mt-10">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider">Inbox</h2>
+            <Link href="/inbox" className="text-xs text-ink-400 hover:text-ink-200">all results →</Link>
           </div>
-          {myAgents.length === 0 ? (
+          {recentRuns.length === 0 ? (
             <div className="card p-5 text-sm text-ink-400">
-              No agents yet. Describe one above and Implexa builds your first.
+              No runs yet. Describe an agent above and it shows up here.
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {myAgents.slice(0, 9).map((a) => (
-                <Link key={a.workflow_id} href={`/workflows/${a.slug}`} className="card p-5 hover:border-ink-600 transition-colors block">
-                  <div className="text-sm font-medium text-ink-50 truncate">
-                    <span aria-hidden className="mr-1.5">{categorizeAgent([a.name, a.description, a.primary_outcome, a.vertical]).emoji}</span>
-                    {a.name}
-                  </div>
-                  <div className="text-xs text-ink-400 mt-1.5 line-clamp-2">{a.description || a.primary_outcome || `${a.step_count} steps`}</div>
-                  <div className="text-[11px] text-ink-500 mt-3 flex items-center gap-2">
-                    <span>{categorizeAgent([a.name, a.description, a.primary_outcome, a.vertical]).label}</span>
-                    <span aria-hidden>·</span>
-                    <span>{a.is_scheduled ? 'scheduled' : 'manual'}</span>
-                    <span aria-hidden>·</span>
-                    <span>last run {rel(a.last_run_at)}</span>
+            <div className="card p-0 overflow-hidden">
+              {recentRuns.slice(0, 3).map((r, i) => (
+                <Link
+                  key={r.id}
+                  href={`/inbox?run=${r.id}`}
+                  className={`flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-ink-900/40 transition-colors ${i > 0 ? 'border-t border-ink-800/60' : ''}`}
+                >
+                  <span className="text-sm text-ink-100 truncate">{nameBySlug.get(r.skill_slug) || humanize(r.skill_slug)}</span>
+                  <div className="flex items-center gap-2.5 flex-none">
+                    <RunStateBadge info={deriveRunState(r)} size="xs" />
+                    <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
                   </div>
                 </Link>
               ))}
             </div>
           )}
+
+          {/* the see-all rail: the three places to go deeper */}
+          <div className="mt-3 flex flex-wrap gap-2.5">
+            <NavChip href="/workflows" label={`Your Agents${myAgents.length ? ` (${myAgents.length})` : ''}`} />
+            <NavChip href="/inbox" label="Results" />
+            <NavChip
+              href="/connections"
+              label="Needs you"
+              count={(pendingCount ?? 0) + overdue.length + failedSchedules.length}
+            />
+          </div>
         </section>
 
-        {/* suggested for you - the learning-driven shelf, with an explicit
-         * build -> activate -> runs-in-Claude affordance on every card. (It was
-         * fetched but never rendered, so suggestions were invisible.) */}
+        {/* suggested for you - the learning-driven shelf */}
         <SuggestedShelf suggestions={suggested} />
-
-        {/* recent results */}
-        {recentRuns.length > 0 && (
-          <section className="mt-12">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider">Recent results</h2>
-              <Link href="/inbox" className="text-xs text-ink-400 hover:text-ink-200">all results</Link>
-            </div>
-            <ul>
-              {recentRuns.map((r) => (
-                <li key={r.id} className="flex items-center justify-between gap-3 py-3 border-b border-ink-800/60 last:border-0">
-                  <Link href={`/inbox?run=${r.id}`} className="min-w-0 group">
-                    <span className="text-sm text-ink-200 truncate group-hover:text-ink-50">{nameBySlug.get(r.skill_slug) || humanize(r.skill_slug)}</span>
-                  </Link>
-                  <div className="flex items-center gap-2.5 flex-none">
-                    <RunStateBadge info={deriveRunState(r)} size="xs" />
-                    <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* quiet status footer: review queue + attention, muted (no loud banners) */}
-        {((pendingCount ?? 0) > 0 || overdue.length + failedSchedules.length > 0) && (
-          <div className="mt-12 pt-6 border-t border-ink-800 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-ink-500">
-            {(pendingCount ?? 0) > 0 && (
-              <Link href="/inbox" className="hover:text-ink-300">{pendingCount} result{pendingCount === 1 ? '' : 's'} to review</Link>
-            )}
-            {overdue.length + failedSchedules.length > 0 && (
-              <Link href="/connections" className="hover:text-ink-300">{overdue.length + failedSchedules.length} agent{overdue.length + failedSchedules.length === 1 ? '' : 's'} need attention</Link>
-            )}
-          </div>
-        )}
         </>
         )}
       </div>
