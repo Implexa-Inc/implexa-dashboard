@@ -15,12 +15,14 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import Modal from '../_components/modal';
 import { RunStateBadge } from '../_components/run-state-badge';
 import { categorizeAgent } from '@/lib/agent-category';
 import type { RunStateInfo } from '@/lib/run-state';
@@ -138,6 +140,9 @@ export default function InboxList({
   const supabase = createClient();
   const [items, setItems] = useState<InboxItem[]>(initialItems);
   const [openId, setOpenId] = useState<string | null>(() => searchParams.get('run'));
+  // The focused feedback pop-out (separate from the output overlay) , opened by a
+  // row's "Give feedback" chip, so feedback is one tap with no output wall.
+  const [feedbackId, setFeedbackId] = useState<string | null>(null);
   const [done, setDone] = useState<Record<string, 'approved' | 'dismissed'>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string>>({});
@@ -191,11 +196,6 @@ export default function InboxList({
   }, [openId, close]);
 
   const openItem = useMemo(() => items.find((it) => it.id === openId) || null, [items, openId]);
-  // The questions to show in the overlay: the agent's own, else a generic set so
-  // feedback is always possible.
-  const openFeedbackQs: FeedbackQuestion[] = openItem
-    ? (openItem.feedbackQuestions?.length ? openItem.feedbackQuestions : GENERIC_FEEDBACK)
-    : [];
 
   async function review(id: string, status: 'approved' | 'dismissed') {
     setError((e) => ({ ...e, [id]: '' }));
@@ -214,6 +214,141 @@ export default function InboxList({
       setBusy((b) => ({ ...b, [id]: false }));
       setError((e) => ({ ...e, [id]: err instanceof Error ? err.message : 'Action failed' }));
     }
+  }
+
+  // The questions for a run: its own when the agent wrote them, else a generic
+  // set so EVERY run can be rated.
+  const feedbackQsFor = (it: InboxItem): FeedbackQuestion[] =>
+    it.feedbackQuestions?.length ? it.feedbackQuestions : GENERIC_FEEDBACK;
+
+  // The feedback form body, shared by the focused feedback pop-out AND the output
+  // overlay so there is one implementation. Closes over the per-run draft state.
+  function feedbackInner(it: InboxItem) {
+    if (isAnswered(it)) {
+      return (
+        <p className="text-sm text-success-700 dark:text-success-400">
+          ✓ Thanks. The agent will use this to improve on its next run.
+        </p>
+      );
+    }
+    const qs = feedbackQsFor(it);
+    const draftCount = Object.keys(fbDraft[it.id] || {}).length;
+    return (
+      <>
+        <div className="text-xs uppercase tracking-wide text-ink-400 mb-3 font-medium">
+          How did this run do?{' '}
+          <span className="text-ink-600 normal-case">your feedback improves the agent next run</span>
+        </div>
+        <div className="space-y-4">
+          {qs.map((q) => {
+            const val = fbDraft[it.id]?.[q.key] ?? '';
+            const setVal = (v: string) =>
+              setFbDraft((d) => ({ ...d, [it.id]: { ...(d[it.id] || {}), [q.key]: v } }));
+            return (
+              <div key={q.key}>
+                <label className="block text-sm text-ink-200 mb-1.5">{q.question}</label>
+                {q.kind === 'text' ? (
+                  <input
+                    type="text"
+                    value={val}
+                    onChange={(e) => setVal(e.target.value)}
+                    placeholder="A short note (optional)"
+                    className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
+                  />
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {(q.options && q.options.length ? q.options : ['Yes', 'No']).map((o) => (
+                      <button
+                        key={o}
+                        type="button"
+                        onClick={() => setVal(o)}
+                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                          val === o
+                            ? 'border-brand-500 bg-brand-500/15 text-brand-600 dark:text-brand-300'
+                            : 'border-ink-700 text-ink-300 hover:border-ink-500'
+                        }`}
+                      >
+                        {o}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => submitFeedback(it)}
+            disabled={fbBusy[it.id] || draftCount === 0}
+            className={
+              fbBusy[it.id] || draftCount === 0
+                ? 'btn-outline text-sm px-4 py-2 opacity-50 cursor-not-allowed'
+                : 'btn-success text-sm px-4 py-2'
+            }
+          >
+            {fbBusy[it.id] ? 'Saving…' : 'Send feedback'}
+          </button>
+          <span className="text-xs text-ink-500">The agent reads this before its next run.</span>
+          {error[it.id] && (
+            <span className="text-xs text-rose-600 dark:text-rose-400">{error[it.id]}</span>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  const feedbackItem = useMemo(() => items.find((it) => it.id === feedbackId) || null, [items, feedbackId]);
+
+  // The row's ONE next-action button (the colored chip). Each opens its own
+  // focused pop-out: amber -> the feedback modal; red (permission-blocked) ->
+  // the agent's grant UI; otherwise -> the output overlay.
+  function renderAction(it: InboxItem) {
+    const light = lightOf(it, isAnswered(it));
+    const dot = <span className={`inline-block size-2 rounded-full ${LIGHT_DOT[light]}`} aria-hidden />;
+    const base = 'inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors';
+    if (light === 'amber') {
+      return (
+        <button
+          type="button"
+          onClick={() => setFeedbackId(it.id)}
+          className={`${base} border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10`}
+        >
+          {dot} Give feedback
+        </button>
+      );
+    }
+    if (light === 'red') {
+      if (it.state.permissionBlocked) {
+        return (
+          <Link
+            href={`/workflows/${encodeURIComponent(it.slug)}/activate`}
+            className={`${base} border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10`}
+          >
+            {dot} Fix
+          </Link>
+        );
+      }
+      return (
+        <button
+          type="button"
+          onClick={() => open(it.id)}
+          className={`${base} border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10`}
+        >
+          {dot} View
+        </button>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => open(it.id)}
+        className={`${base} border-ink-700 text-ink-400 hover:text-ink-100 hover:border-ink-500`}
+      >
+        {dot} View
+      </button>
+    );
   }
 
   // Group items (already newest-first) by calendar day, with a per-day summary.
@@ -268,13 +403,15 @@ export default function InboxList({
                   const scheduled = item.source === 'scheduled';
                   return (
                     <li key={item.id}>
-                      <button
-                        type="button"
-                        onClick={() => open(item.id)}
-                        className="card w-full text-left hover:border-ink-600 transition-colors cursor-pointer"
-                      >
+                      <div className="card hover:border-ink-600 transition-colors">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
+                          {/* body opens the output overlay; the chip on the right
+                              does the one focused next-action */}
+                          <button
+                            type="button"
+                            onClick={() => open(item.id)}
+                            className="min-w-0 flex-1 text-left cursor-pointer"
+                          >
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs text-ink-500 tabular-nums">{timeOf(item.ran_at)}</span>
                               <h3 className="text-sm font-medium text-ink-50 truncate">
@@ -287,22 +424,14 @@ export default function InboxList({
                             ) : item.why ? (
                               <p className="text-sm text-ink-400 mt-1 line-clamp-2">{item.why}</p>
                             ) : null}
-                          </div>
-                          <div className="flex items-center gap-2.5 flex-none mt-0.5">
-                            {(() => {
-                              const light = lightOf(item, isAnswered(item));
-                              return (
-                                <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${LIGHT_TEXT[light]}`}>
-                                  <span className={`inline-block size-2 rounded-full ${LIGHT_DOT[light]}`} aria-hidden />
-                                  {LIGHT_LABEL[light]}
-                                </span>
-                              );
-                            })()}
+                          </button>
+                          <div className="flex items-center gap-2 flex-none mt-0.5">
+                            {renderAction(item)}
                             {/* keep the specific state only for a run that needs action */}
                             {item.state.attention && <RunStateBadge info={item.state} size="xs" />}
                           </div>
                         </div>
-                      </button>
+                      </div>
                     </li>
                   );
                 })}
@@ -353,79 +482,11 @@ export default function InboxList({
               <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
             )}
 
-            {/* Per-run feedback: the agent's own questions when it wrote them,
-                else a generic prompt — so EVERY run can be rated. One-tap
-                answers ride into the agent's next run. */}
+            {/* Per-run feedback , the same focused-popout form, inline here too
+                so you can rate without leaving the output. */}
             {openItem.output_markdown && (
               <div className="mt-5 rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-                {isAnswered(openItem) ? (
-                  <p className="text-sm text-success-700 dark:text-success-400">
-                    ✓ Thanks. The agent will use this to improve on its next run.
-                  </p>
-                ) : (
-                  <>
-                    <div className="text-xs uppercase tracking-wide text-ink-400 mb-3 font-medium">
-                      How did this run do?{' '}
-                      <span className="text-ink-600 normal-case">your feedback improves the agent next run</span>
-                    </div>
-                    <div className="space-y-4">
-                      {openFeedbackQs.map((q) => {
-                        const val = fbDraft[openItem.id]?.[q.key] ?? '';
-                        const setVal = (v: string) =>
-                          setFbDraft((d) => ({ ...d, [openItem.id]: { ...(d[openItem.id] || {}), [q.key]: v } }));
-                        return (
-                          <div key={q.key}>
-                            <label className="block text-sm text-ink-200 mb-1.5">{q.question}</label>
-                            {q.kind === 'text' ? (
-                              <input
-                                type="text"
-                                value={val}
-                                onChange={(e) => setVal(e.target.value)}
-                                placeholder="A short note (optional)"
-                                className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
-                              />
-                            ) : (
-                              <div className="flex flex-wrap gap-2">
-                                {(q.options && q.options.length ? q.options : ['Yes', 'No']).map((o) => (
-                                  <button
-                                    key={o}
-                                    type="button"
-                                    onClick={() => setVal(o)}
-                                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                                      val === o
-                                        ? 'border-brand-500 bg-brand-500/15 text-brand-600 dark:text-brand-300'
-                                        : 'border-ink-700 text-ink-300 hover:border-ink-500'
-                                    }`}
-                                  >
-                                    {o}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-4 flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => submitFeedback(openItem)}
-                        disabled={fbBusy[openItem.id] || Object.keys(fbDraft[openItem.id] || {}).length === 0}
-                        className={
-                          fbBusy[openItem.id] || Object.keys(fbDraft[openItem.id] || {}).length === 0
-                            ? 'btn-outline text-sm px-4 py-2 opacity-50 cursor-not-allowed'
-                            : 'btn-success text-sm px-4 py-2'
-                        }
-                      >
-                        {fbBusy[openItem.id] ? 'Saving…' : 'Send feedback'}
-                      </button>
-                      <span className="text-xs text-ink-500">The agent reads this before its next run.</span>
-                      {error[openItem.id] && (
-                        <span className="text-xs text-rose-600 dark:text-rose-400">{error[openItem.id]}</span>
-                      )}
-                    </div>
-                  </>
-                )}
+                {feedbackInner(openItem)}
               </div>
             )}
 
@@ -472,6 +533,21 @@ export default function InboxList({
           </div>
         </div>
       )}
+
+      {/* The focused feedback pop-out , opened by a row's "Give feedback" chip.
+          One tap to rate, no output wall. Shares feedbackInner with the overlay. */}
+      <Modal
+        open={!!feedbackItem}
+        onClose={() => setFeedbackId(null)}
+        title={feedbackItem ? `Feedback , ${feedbackItem.name}` : 'Feedback'}
+        subtitle={
+          <span className="text-xs text-ink-500">
+            Your answers ride into this agent&apos;s next run.
+          </span>
+        }
+      >
+        {feedbackItem && feedbackInner(feedbackItem)}
+      </Modal>
     </>
   );
 }
