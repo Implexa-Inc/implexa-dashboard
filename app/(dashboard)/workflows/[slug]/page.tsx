@@ -45,6 +45,8 @@ type Routine = {
   last_run_at: string | null;
   run_count: number;
   destination: { type: string; target?: string };
+  /** Claude Code scheduled-task id — enables the "Open in Claude" deep link. */
+  claude_task_id: string | null;
 };
 
 function rel(iso: string | null): string {
@@ -170,7 +172,7 @@ export default async function WorkflowDetailPage({
   const [{ data: routineRows }, agentRuns] = await Promise.all([
     supabase
       .from('scheduled_skills')
-      .select('id, skill_slug, schedule_nl, cron_expression, status, last_run_at, run_count, destination')
+      .select('id, skill_slug, schedule_nl, cron_expression, status, last_run_at, run_count, destination, claude_task_id')
       .eq('skill_slug', workflow.slug)
       .order('created_at', { ascending: false }),
     loadInboxItems(supabase, 20, workflow.slug),
@@ -310,6 +312,20 @@ export default async function WorkflowDetailPage({
                 </div>
                 <div className="text-xs text-ink-400 mt-0.5">
                   {r.run_count} run{r.run_count === 1 ? '' : 's'} · last {rel(r.last_run_at)}
+                  {/* Undocumented Claude route (verified 2026-06-12) — keep the
+                      dashboard as the fallback path beside it. */}
+                  {r.claude_task_id && (
+                    <>
+                      {' · '}
+                      <a
+                        href={`claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(r.claude_task_id)}`}
+                        className="text-brand-500 hover:underline"
+                        title="Opens this routine in the Claude desktop app (toggle, history, Run now)."
+                      >
+                        Open in Claude ↗
+                      </a>
+                    </>
+                  )}
                 </div>
               </li>
             ))}
