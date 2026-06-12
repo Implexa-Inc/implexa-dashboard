@@ -77,6 +77,10 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   const wf = catalog.find((c) => c.slug === r.skill_slug);
   const name = wf?.name || humanize(r.skill_slug);
   const pending = r.review_status === 'pending';
+  const info = deriveRunState(r);
+  const agentHref = wf
+    ? `/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`
+    : `/workflows/${encodeURIComponent(r.skill_slug)}`;
 
   return (
     <main className="min-h-screen px-4 py-12">
@@ -86,7 +90,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         <header className="mt-4 mb-6">
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50">{name}</h1>
           <div className="flex items-center gap-2.5 mt-2 flex-wrap">
-            <RunStateBadge info={deriveRunState(r)} size="xs" />
+            <RunStateBadge info={info} size="xs" />
             <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
             <span className="text-xs text-ink-600 font-mono">{r.skill_slug}</span>
             {wf && (
@@ -118,6 +122,25 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
               {r.output_markdown}
             </ReactMarkdown>
+          </div>
+        ) : info.attention ? (
+          // A stalled/failed run has no deliverable. Don't dead-end at a blank
+          // "no deliverable" line: say what happened + give the one action.
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.06] p-5">
+            <div className="text-sm font-semibold text-ink-50 mb-1">
+              {info.label === 'Failed' ? 'This run did not finish' : 'This run stalled'}
+            </div>
+            <p className="text-sm text-ink-300 leading-relaxed">{info.reason}</p>
+            {info.permissionBlocked && (
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 leading-relaxed">
+                It was blocked on a permission it could not auto-approve (often a file write or a tool outside the
+                pre-approved set). Open the agent, grant it on the setup card, then run it again.
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link href={agentHref} className="btn-success text-sm px-4 py-2">Open agent &amp; run again</Link>
+              <Link href="/inbox" className="btn-outline text-sm px-4 py-2">Back to results</Link>
+            </div>
           </div>
         ) : (
           <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
