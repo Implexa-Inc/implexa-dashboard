@@ -17,8 +17,10 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { loadInboxItems } from '@/lib/inbox';
+import { loadNeedsYou } from '@/lib/needs-you';
 import { listWorkflows, listMyWorkflows, listSuggestedAgents } from '@/lib/workflow-catalog';
 import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
+import NeedsYouStrip from '../_components/needs-you-strip';
 import InboxList from '../inbox/inbox-list';
 import SuggestedShelf from '../_components/suggested-shelf';
 import FirstRunMagic from '../_components/first-run-magic';
@@ -36,10 +38,11 @@ export default async function OverviewPage() {
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  // The todo list + the manager's-desk side data (own agents, learning shelf,
-  // public catalog for first-run featured cards).
-  const [items, myAgents, suggested, catalog] = await Promise.all([
+  // The todo list + "needs you" (grants/sign-ins/missed) + the manager's-desk
+  // side data (own agents, learning shelf, public catalog for first-run cards).
+  const [items, needsYou, myAgents, suggested, catalog] = await Promise.all([
     loadInboxItems(supabase, 40),
+    loadNeedsYou(supabase),
     listMyWorkflows(),
     listSuggestedAgents(6),
     listWorkflows(),
@@ -74,6 +77,10 @@ export default async function OverviewPage() {
             <div className="mt-8">
               <RunAttentionBanner items={attentionItems} />
             </div>
+
+            {/* needs you: grants to give, accounts to sign into, missed schedules,
+                each with one action (folds in the old "Needs you" surface) */}
+            <NeedsYouStrip data={needsYou} variant="home" className="mt-8" />
 
             {/* the one todo: every run as a colored todo, acted on in a pop-up */}
             <section className="mt-10">

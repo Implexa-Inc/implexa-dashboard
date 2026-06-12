@@ -49,7 +49,10 @@ const PRIMARY_NAV: NavItem[] = [
   // Results folded into Home (the one todo). Route stays live for deep links
   // (notification/email ?run= links) + the redesign's interim; nav item hidden.
   { href: '/inbox',        label: 'Results',        icon: 'activity',  matchPrefix: true, badgeKey: 'inbox', hidden: true },
-  { href: '/connections',  label: 'Needs you',      icon: 'link',      matchPrefix: true, badgeKey: 'needs' },
+  // Needs you folded into Home (grants/sign-ins/missed surface as a strip above
+  // the todo). Route stays live for deep links; nav item hidden. Final nav is
+  // the 2 sections: Home + Your Agents.
+  { href: '/connections',  label: 'Needs you',      icon: 'link',      matchPrefix: true, badgeKey: 'needs', hidden: true },
   { href: '/runs',         label: 'Runs log',       icon: 'activity',  matchPrefix: true, hidden: true },
   { href: '/scheduled',    label: 'Routines',       icon: 'replay',    matchPrefix: true, hidden: true },
   { href: '/roi',          label: 'ROI',            icon: 'analytics', matchPrefix: true, hidden: true },

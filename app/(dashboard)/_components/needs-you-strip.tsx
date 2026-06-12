@@ -1,0 +1,95 @@
+/**
+ * <NeedsYouStrip /> , the actionable "needs you" items, each with one CTA.
+ *
+ * variant="home"  : the agent/account-level items only (grants, sign-ins, missed
+ *                   schedules). Reviews + stalled runs are already the Home todo +
+ *                   attention banner, so they are omitted to avoid double-listing.
+ * variant="full"  : everything (the still-live /connections route).
+ *
+ * Server component , pure render over the loadNeedsYou() result.
+ */
+
+import Link from 'next/link';
+import type { NeedsYou } from '@/lib/needs-you';
+
+function Item({ title, detail, href, cta, warn = false }: {
+  title: string; detail: string; href: string; cta: string; warn?: boolean;
+}) {
+  return (
+    <div className={`card flex items-center justify-between gap-3 ${warn ? 'border-amber-500/40' : ''}`}>
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-ink-100 truncate">{title}</p>
+        <p className={`text-xs mt-0.5 ${warn ? 'text-amber-700 dark:text-amber-300' : 'text-ink-500'}`}>{detail}</p>
+      </div>
+      <Link href={href} className="btn-outline text-xs px-3 py-1.5 flex-none">{cta}</Link>
+    </div>
+  );
+}
+
+export default function NeedsYouStrip({
+  data,
+  variant = 'home',
+  className = '',
+}: {
+  data: NeedsYou;
+  variant?: 'home' | 'full';
+  className?: string;
+}) {
+  const full = variant === 'full';
+  const count = full ? data.total : data.homeCount;
+  if (count === 0) return null;
+
+  return (
+    <section className={`space-y-3 ${className}`}>
+      {variant === 'home' && (
+        <h2 className="text-xs font-medium text-ink-400 uppercase tracking-wider">Needs you</h2>
+      )}
+
+      {full && data.stalled.map((r) => (
+        <Item
+          key={`stalled-${r.id}`}
+          warn
+          title={r.name}
+          detail="Stalled mid-run, likely waiting for a permission. Open Claude Code and approve the prompt to let it continue."
+          href={`/workflows/${r.slug}`}
+          cta="Open agent"
+        />
+      ))}
+
+      {data.needGrant.map((a) => (
+        <Item key={`grant-${a.slug}`} warn title={a.name} detail={a.reason} href={`/workflows/${a.slug}/activate`} cta="Grant" />
+      ))}
+
+      {data.signIns.map((s) => (
+        <Item
+          key={`signin-${s.domain}`}
+          title={`${s.label || s.domain} needs a sign-in`}
+          detail={`${s.who} ${s.count === 1 ? 'needs' : 'need'} ${s.domain}, but you're signed out. Sign in once on the agent's setup.`}
+          href={`/workflows/${encodeURIComponent(s.fixSlug)}/activate`}
+          cta="Set up"
+        />
+      ))}
+
+      {full && data.pendingReviews > 0 && (
+        <Item
+          title={`${data.pendingReviews} result${data.pendingReviews === 1 ? '' : 's'} held for your review`}
+          detail="Approve or dismiss; nothing posts without you."
+          href="/overview"
+          cta="Review"
+        />
+      )}
+
+      {data.missed.map((m) => (
+        <Item
+          key={`missed-${m.id}`}
+          title={m.name}
+          detail={m.failed
+            ? 'Its schedule is marked failed.'
+            : `Missed its schedule (${m.when}). It runs when your machine is awake; it will catch up, or run it now.`}
+          href={`/workflows/${m.slug}`}
+          cta="Open agent"
+        />
+      ))}
+    </section>
+  );
+}
