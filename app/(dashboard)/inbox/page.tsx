@@ -22,7 +22,7 @@ import { createClient } from '@/lib/supabase/server';
 import { listWorkflows } from '@/lib/workflow-catalog';
 import { selectRuns, deriveRunState } from '@/lib/run-state';
 import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
-import InboxList, { type InboxItem } from './inbox-list';
+import InboxList, { type InboxItem, type FeedbackQuestion } from './inbox-list';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +58,13 @@ export default async function InboxPage() {
   // missing public token just means we fall back to humanized slugs. selectRuns
   // reads live run-state columns when present (migration 0065), else degrades.
   const [runs, catalog] = await Promise.all([
-    selectRuns(supabase, { limit: 40, onlyWithOutput: true }),
+    selectRuns(supabase, {
+      limit: 40,
+      onlyWithOutput: true,
+      // The improvement-loop columns: the run's own feedback questions + the
+      // user's answers, so each result can show one-tap feedback (migration 0074).
+      extraColumns: 'feedback_questions, feedback_answers, feedback_at',
+    }),
     listWorkflows(),
   ]);
 
@@ -76,6 +82,9 @@ export default async function InboxPage() {
       ran_at:          r.ran_at,
       pending:         r.review_status === 'pending',
       state:           deriveRunState(r),
+      feedbackQuestions: (r as { feedback_questions?: FeedbackQuestion[] | null }).feedback_questions ?? null,
+      feedbackAnswers:   (r as { feedback_answers?: Record<string, string> | null }).feedback_answers ?? null,
+      feedbackAt:        (r as { feedback_at?: string | null }).feedback_at ?? null,
     };
   });
 

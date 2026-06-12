@@ -25,6 +25,8 @@ import { RunStateBadge } from '../_components/run-state-badge';
 import { categorizeAgent } from '@/lib/agent-category';
 import type { RunStateInfo } from '@/lib/run-state';
 
+export type FeedbackQuestion = { key: string; question: string; kind?: 'choice' | 'text'; options?: string[] };
+
 export type InboxItem = {
   id:              string;
   slug:            string;
@@ -35,6 +37,27 @@ export type InboxItem = {
   ran_at:          string;
   pending:         boolean;
   state:           RunStateInfo;
+  /** The run's own feedback questions about this output (improvement loop). */
+  feedbackQuestions: FeedbackQuestion[] | null;
+  feedbackAnswers:   Record<string, string> | null;
+  feedbackAt:        string | null;
+};
+
+// Traffic-light status so Results reads as a clear-it-to-zero todo list:
+//   red    = the run needs action (failed / stalled).
+//   amber  = the run wants YOU (feedback not yet given, or held for review).
+//   green  = done, nothing owed.
+type Light = 'red' | 'amber' | 'green';
+function lightOf(it: InboxItem, answered: boolean): Light {
+  if (it.state.attention) return 'red';
+  const wantsFeedback = !answered && !it.feedbackAt && (it.feedbackQuestions?.length ?? 0) > 0;
+  if (wantsFeedback || it.pending) return 'amber';
+  return 'green';
+}
+const LIGHT_DOT: Record<Light, string> = {
+  red:   'bg-rose-500',
+  amber: 'bg-amber-400',
+  green: 'bg-emerald-500',
 };
 
 function rel(iso: string): string {
@@ -90,7 +113,36 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
   const [done, setDone] = useState<Record<string, 'approved' | 'dismissed'>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string>>({});
+  // Feedback: per-run draft answers, submitting flag, and the thank-you state.
+  const [fbDraft, setFbDraft] = useState<Record<string, Record<string, string>>>({});
+  const [fbBusy, setFbBusy] = useState<Record<string, boolean>>({});
+  const [fbDone, setFbDone] = useState<Record<string, boolean>>({});
   const [, startTransition] = useTransition();
+
+  // A run is "answered" once it has stored feedback OR we just submitted it.
+  const isAnswered = useCallback(
+    (it: InboxItem) => !!it.feedbackAt || !!fbDone[it.id],
+    [fbDone],
+  );
+
+  async function submitFeedback(it: InboxItem) {
+    const draft = fbDraft[it.id] || {};
+    if (Object.keys(draft).length === 0) return;
+    setFbBusy((b) => ({ ...b, [it.id]: true }));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend(`/api/v2/runs/${it.id}/feedback`, {
+        jwt: session?.access_token, method: 'POST', body: { answers: draft },
+      });
+      setFbDone((d) => ({ ...d, [it.id]: true }));
+      setItems((list) => list.map((x) => (x.id === it.id ? { ...x, feedbackAt: new Date().toISOString() } : x)));
+      startTransition(() => router.refresh());
+    } catch (err) {
+      setError((e) => ({ ...e, [it.id]: err instanceof Error ? err.message : 'Could not save feedback' }));
+    } finally {
+      setFbBusy((b) => ({ ...b, [it.id]: false }));
+    }
+  }
 
   const open = useCallback((id: string) => {
     setOpenId(id);
@@ -143,8 +195,26 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
     return out;
   }, [items]);
 
+  const needYou = items.filter((it) => lightOf(it, isAnswered(it)) !== 'green').length;
+
   return (
     <>
+      {/* Inbox-zero header: a count that nudges you to clear the colored todos. */}
+      <div className="mb-5 flex items-center gap-2 text-sm">
+        {needYou > 0 ? (
+          <>
+            <span className="inline-block size-2 rounded-full bg-amber-400" aria-hidden />
+            <span className="text-ink-200 font-medium">{needYou} run{needYou === 1 ? '' : 's'} need you</span>
+            <span className="text-ink-500">— give quick feedback or take action to clear them.</span>
+          </>
+        ) : (
+          <>
+            <span className="inline-block size-2 rounded-full bg-emerald-500" aria-hidden />
+            <span className="text-ink-300">You&apos;re all caught up. Nothing needs you.</span>
+          </>
+        )}
+      </div>
+
       <div className="space-y-8">
         {days.map((day) => {
           const delivered = day.items.filter((i) => i.output_markdown).length;
@@ -186,9 +256,13 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
                             ) : null}
                           </div>
                           <div className="flex items-center gap-2.5 flex-none mt-0.5">
-                            {item.pending && !done[item.id] && (
-                              <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-700 dark:text-amber-300">review</span>
-                            )}
+                            {(() => {
+                              const light = lightOf(item, isAnswered(item));
+                              const label = light === 'red' ? 'needs action' : light === 'amber' ? 'needs you' : 'done';
+                              return (
+                                <span className={`inline-block size-2.5 rounded-full ${LIGHT_DOT[light]}`} aria-label={label} title={label} />
+                              );
+                            })()}
                             <RunStateBadge info={item.state} size="xs" />
                           </div>
                         </div>
@@ -241,6 +315,81 @@ export default function InboxList({ initialItems }: { initialItems: InboxItem[] 
               </div>
             ) : (
               <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
+            )}
+
+            {/* Per-run feedback: the questions this run wrote about its own
+                output. One-tap answers ride into the agent's next run. */}
+            {openItem.feedbackQuestions && openItem.feedbackQuestions.length > 0 && (
+              <div className="mt-5 rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+                {isAnswered(openItem) ? (
+                  <p className="text-sm text-success-700 dark:text-success-400">
+                    ✓ Thanks. The agent will use this to improve on its next run.
+                  </p>
+                ) : (
+                  <>
+                    <div className="text-xs uppercase tracking-wide text-ink-400 mb-3 font-medium">
+                      How did this run do?{' '}
+                      <span className="text-ink-600 normal-case">your feedback improves the agent next run</span>
+                    </div>
+                    <div className="space-y-4">
+                      {openItem.feedbackQuestions.map((q) => {
+                        const val = fbDraft[openItem.id]?.[q.key] ?? '';
+                        const setVal = (v: string) =>
+                          setFbDraft((d) => ({ ...d, [openItem.id]: { ...(d[openItem.id] || {}), [q.key]: v } }));
+                        return (
+                          <div key={q.key}>
+                            <label className="block text-sm text-ink-200 mb-1.5">{q.question}</label>
+                            {q.kind === 'text' ? (
+                              <input
+                                type="text"
+                                value={val}
+                                onChange={(e) => setVal(e.target.value)}
+                                placeholder="A short note (optional)"
+                                className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
+                              />
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {(q.options && q.options.length ? q.options : ['Yes', 'No']).map((o) => (
+                                  <button
+                                    key={o}
+                                    type="button"
+                                    onClick={() => setVal(o)}
+                                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                                      val === o
+                                        ? 'border-brand-500 bg-brand-500/15 text-brand-600 dark:text-brand-300'
+                                        : 'border-ink-700 text-ink-300 hover:border-ink-500'
+                                    }`}
+                                  >
+                                    {o}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-4 flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => submitFeedback(openItem)}
+                        disabled={fbBusy[openItem.id] || Object.keys(fbDraft[openItem.id] || {}).length === 0}
+                        className={
+                          fbBusy[openItem.id] || Object.keys(fbDraft[openItem.id] || {}).length === 0
+                            ? 'btn-outline text-sm px-4 py-2 opacity-50 cursor-not-allowed'
+                            : 'btn-success text-sm px-4 py-2'
+                        }
+                      >
+                        {fbBusy[openItem.id] ? 'Saving…' : 'Send feedback'}
+                      </button>
+                      <span className="text-xs text-ink-500">The agent reads this before its next run.</span>
+                      {error[openItem.id] && (
+                        <span className="text-xs text-rose-600 dark:text-rose-400">{error[openItem.id]}</span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
 
             <div className="mt-5 flex items-center gap-3">
