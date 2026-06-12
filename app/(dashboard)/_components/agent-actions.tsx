@@ -27,7 +27,7 @@ type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
 const POLL_MS = 5000;
 const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in the inbox
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, align = 'end' }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, claudeTaskId, align = 'end' }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -39,6 +39,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   nextRunAt?: string | null;
   /** Unanswered config questions — shown as an amber chip that scrolls to the setup card. */
   pendingQuestions?: number;
+  /** Claude routine id — lets "Running…" deep-link the routine's page in Claude. */
+  claudeTaskId?: string | null;
   /** 'end' on the detail page header; 'start' inside the activation card. */
   align?: 'start' | 'end';
 }) {
@@ -183,6 +185,17 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           ? (requiresLocal ? 'Runs in Claude Code, on your computer.' : 'Runs in your Claude.')
           : 'Activate once, then run it anytime.')}
       </span>
+      {/* While the run is in flight, give the user a place to WATCH it: the
+          routine's own page in the Claude app (undocumented deep link, verified
+          2026-06-12). Only when we know the routine's Claude task id. */}
+      {claudeTaskId && (state === 'queued' || state === 'running') && (
+        <a
+          href={`claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(claudeTaskId)}`}
+          className={`text-[11px] text-brand-500 hover:underline ${align === 'end' ? 'text-right' : 'text-left'}`}
+        >
+          Check it here in Claude ↗
+        </a>
+      )}
       {/* When does it run next (scheduled agents), grey + small. */}
       {isActive && !msg && nextRunAt && (
         <span className={`text-[11px] text-ink-600 ${align === 'end' ? 'text-right' : 'text-left'}`}>

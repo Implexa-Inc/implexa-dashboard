@@ -452,6 +452,7 @@ export default async function WorkflowDetailPage({
                 source={workflow.source}
                 nextRunAt={checklist?.nextRunAt}
                 pendingQuestions={checklist?.pendingQuestions}
+                claudeTaskId={pausableRoutine?.claude_task_id}
               />
               {pausableRoutine && (
                 <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />
