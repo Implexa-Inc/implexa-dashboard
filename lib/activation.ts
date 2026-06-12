@@ -49,6 +49,8 @@ export type ActivationChecklist = {
   nextRunAt?: string | null;
   /** Unanswered config questions (drives the "N to answer" chip). */
   pendingQuestions?: number;
+  /** Catalog source, threaded to the setup card / run command. */
+  source?: string;
   canActivate: boolean;
   stepsLeft: number;
   steps: ActivationStep[];
@@ -74,6 +76,13 @@ export async function getActivationChecklist(slug: string): Promise<ActivationCh
       name: String(b.name ?? slug),
       summary: (b.summary as string) ?? null,
       state: (b.state as ActivationState) ?? 'created',
+      mode: (b.mode as ActivationChecklist['mode']) ?? undefined,
+      requiresLocal: !!b.requiresLocal,
+      nextRunAt: (b.nextRunAt as string) ?? null,
+      // The activation card gates Run on this: a generated agent with unanswered
+      // config questions must surface them at the Run moment, not fire blind.
+      pendingQuestions: Number(b.pendingQuestions ?? 0),
+      source: (b.source as string) ?? 'generated',
       canActivate: !!b.canActivate,
       stepsLeft: Number(b.stepsLeft ?? 0),
       steps: Array.isArray(b.steps) ? (b.steps as ActivationStep[]) : [],

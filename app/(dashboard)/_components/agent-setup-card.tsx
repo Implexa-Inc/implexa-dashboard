@@ -17,7 +17,16 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
-type Field = { key: string; question: string; kind: 'text' | 'choice'; options?: string[] };
+type Field = { key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[] };
+
+// The desktop app exposes a native file picker; a plain browser cannot read a
+// local path, so a 'file' question degrades to a path field there.
+type DesktopBridge = { pickFile?: (opts?: { accept?: string }) => Promise<{ ok: boolean; path?: string }> };
+function desktopBridge(): DesktopBridge | null {
+  if (typeof window === 'undefined') return null;
+  const b = (window as unknown as { implexaDesktop?: DesktopBridge }).implexaDesktop;
+  return b && typeof b.pickFile === 'function' ? b : null;
+}
 
 // Questions we can pre-fill from system context, so the user starts from a
 // sensible default instead of a blank field (always editable).
@@ -56,6 +65,15 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
   const [error, setError] = useState<string | null>(null);
   // Which choice fields are in "type your own" mode (none of the presets fit).
   const [otherMode, setOtherMode] = useState<Record<string, boolean>>({});
+  // Brief highlight when Run surfaces the questions, so the eye lands here.
+  const [flash, setFlash] = useState(false);
+  const [inDesktop, setInDesktop] = useState(false);
+  useEffect(() => { setInDesktop(!!desktopBridge()); }, []);
+  useEffect(() => {
+    const onFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 1800); };
+    window.addEventListener('implexa-flash-setup', onFlash);
+    return () => window.removeEventListener('implexa-flash-setup', onFlash);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,8 +138,17 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
   const allFilled = setup.schema.every((f) => (values[f.key] ?? '').toString().trim() !== '');
   const inputCls = 'w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none';
 
+  async function chooseFile(key: string) {
+    const b = desktopBridge();
+    if (!b?.pickFile) return;
+    try {
+      const r = await b.pickFile();
+      if (r?.ok && r.path) setValues((v) => ({ ...v, [key]: r.path as string }));
+    } catch { /* user cancelled / picker unavailable */ }
+  }
+
   return (
-    <div className="card max-w-2xl">
+    <div className={`card max-w-2xl transition-shadow ${flash ? 'ring-2 ring-amber-500/70 ring-offset-2 ring-offset-ink-950' : ''}`}>
       <div className="flex items-start justify-between gap-3 mb-1">
         <h2 className="text-base font-semibold text-ink-50">Questions this agent needs answered</h2>
         {setup.needs_setup
@@ -165,6 +192,43 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
                     autoFocus
                     className={inputCls}
                   />
+                )}
+              </div>
+            ) : f.kind === 'file' ? (
+              // File input: in the desktop app, a native picker captures the
+              // absolute path (like Claude's own file picker). In a plain browser
+              // we cannot read local paths, so accept a typed path and tell the
+              // user it's attached when it runs in Claude.
+              <div className="space-y-1.5">
+                {inDesktop && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => chooseFile(f.key)}
+                      className="btn-outline text-xs px-3 py-1.5"
+                    >
+                      Choose file…
+                    </button>
+                    {values[f.key] ? (
+                      <span className="text-xs text-ink-300 font-mono truncate max-w-[18rem]" title={values[f.key]}>
+                        {values[f.key].split('/').pop()}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-ink-500">No file chosen</span>
+                    )}
+                  </div>
+                )}
+                <input
+                  type="text"
+                  value={values[f.key] ?? ''}
+                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                  placeholder={inDesktop ? 'Or paste a file path' : '/path/to/your/file (you can also attach it in Claude)'}
+                  className={inputCls + ' font-mono text-xs'}
+                />
+                {!inDesktop && (
+                  <p className="text-[11px] text-ink-500">
+                    In your browser you can paste a path here; the file itself is attached when the agent runs in your Claude.
+                  </p>
                 )}
               </div>
             ) : (

@@ -24,6 +24,7 @@ import { ConnectionAttentionBanner } from '../../_components/connection-attentio
 import AgentActions from '../../_components/agent-actions';
 import BackLink from '../../_components/back-link';
 import AgentSetupCard from '../../_components/agent-setup-card';
+import AgentFeedback from '../../_components/agent-feedback';
 import { getActivationChecklist } from '@/lib/activation';
 
 export const dynamic = 'force-dynamic';
@@ -257,6 +258,10 @@ export default async function WorkflowDetailPage({
          * the agent declares no questions. */}
         <div id="agent-setup" className="mb-6 scroll-mt-20">
           <AgentSetupCard slug={workflow.slug} source={workflow.source} />
+        </div>
+
+        <div className="mb-6">
+          <AgentFeedback slug={workflow.slug} name={workflow.name} />
         </div>
 
         {/* Stat strip */}

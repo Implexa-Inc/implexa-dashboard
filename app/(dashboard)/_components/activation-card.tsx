@@ -17,6 +17,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
+import AgentSetupCard from './agent-setup-card';
+import AgentFeedback from './agent-feedback';
 import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier } from '@/lib/activation';
 
 // Defined here (not imported) because lib/activation.ts is server-only; a client
@@ -637,12 +639,22 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
                 Recommended: allow “{ungrantedOptional[0].label}” in Permissions above — without it a scheduled run can stall waiting on a prompt. (Allowing saves instantly.)
               </p>
             )}
+            {/* The agent's questions live RIGHT HERE, at the moment of Run, so
+                they can never be missed (founder: "you could have shown the
+                questions during Run; I got lost in the middle"). The card
+                self-hides when the agent has none. */}
+            <div id="agent-setup" className="scroll-mt-20 my-1">
+              <AgentSetupCard slug={checklist.slug} source={checklist.source} />
+            </div>
+            <AgentFeedback slug={checklist.slug} name={checklist.name} />
             <div className="flex items-start gap-4 flex-wrap">
               <AgentActions
                 slug={checklist.slug}
                 name={checklist.name}
                 isActive
                 requiresLocal={checklist.requiresLocal}
+                source={checklist.source}
+                pendingQuestions={checklist.pendingQuestions ?? 0}
                 align="start"
               />
               {/* Granting/activating is itself the finished task — let the user

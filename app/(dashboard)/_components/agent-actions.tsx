@@ -71,8 +71,22 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
+  // Scroll the agent's questions into view and flash them. Used when Run is
+  // pressed with unanswered questions, so they surface AT the run moment instead
+  // of the run firing blind (founder: "I clicked Run and nothing happened").
+  function surfaceQuestions() {
+    const el = document.getElementById('agent-setup');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      try { window.dispatchEvent(new CustomEvent('implexa-flash-setup')); } catch { /* best effort */ }
+    }
+  }
+
   async function runNow() {
     if (state === 'queuing' || state === 'running') return;
+    // Hard gate: never hand off a run that is missing required answers. Surface
+    // the questions instead of producing a dead "nothing happened" run.
+    if (pendingQuestions > 0) { surfaceQuestions(); return; }
     setState('queuing');
     setMsg('');
     try {
@@ -141,6 +155,16 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <Link href="/inbox" className="btn-success text-sm px-4 py-2">
           ✓ Done — view result
         </Link>
+      ) : pendingQuestions > 0 ? (
+        // Unanswered questions: the primary action IS answering them. The button
+        // surfaces + flashes the question card rather than firing a dead run.
+        <button
+          type="button"
+          onClick={surfaceQuestions}
+          className="text-sm px-4 py-2 rounded-md border border-amber-500/60 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-medium"
+        >
+          Answer {pendingQuestions} question{pendingQuestions === 1 ? '' : 's'} to run ↑
+        </button>
       ) : (
         <button
           type="button"
@@ -164,19 +188,6 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <span className={`text-[11px] text-ink-600 ${align === 'end' ? 'text-right' : 'text-left'}`}>
           Next run: {nextRunLabel(nextRunAt)}
         </span>
-      )}
-      {/* Unanswered questions block autonomous running — nudge, never disable Run. */}
-      {pendingQuestions > 0 && (
-        <button
-          type="button"
-          onClick={() => {
-            const el = document.getElementById('agent-setup');
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }}
-          className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline"
-        >
-          {pendingQuestions} question{pendingQuestions === 1 ? '' : 's'} to answer ↑
-        </button>
       )}
     </div>
   );
