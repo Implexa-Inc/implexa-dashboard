@@ -94,7 +94,7 @@ type DesktopBridge = {
   verifyAccount?: (domain: string) => Promise<{ ok: boolean; reachable?: boolean; identity?: string | null; message?: string }>;
   checkTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean }>;
   installTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean; alreadyInstalled?: boolean; message?: string }>;
-  grantLocalPermissions?: (tools: string[]) => Promise<{ ok: boolean; added?: string[]; error?: string }>;
+  grantLocalPermissions?: (tools: string[]) => Promise<{ ok: boolean; added?: string[]; addedDirs?: string[]; error?: string }>;
 };
 function desktopBridge(): DesktopBridge | null {
   if (typeof window === 'undefined') return null;
@@ -516,16 +516,25 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
   async function writeLocalAllowlist(opts: Record<string, boolean>) {
     const bridge = desktopBridge();
     if (!bridge?.grantLocalPermissions) return; // web (no app) — nothing local to write
-    const tools: string[] = [];
+    const tools = new Set<string>();
     for (const i of tier2) {
       if (!opts[i.group]) continue;
-      if (i.group === 'shell') tools.push('Bash');
+      // 'shell' -> Bash. A local-work agent that gets shell almost always also
+      // writes files (logs, renders), so grant the file-write tools too — and
+      // the desktop then widens additionalDirectories so those writes don't
+      // stall on "path outside allowed working directories".
+      if (i.group === 'shell') { tools.add('Bash'); tools.add('Write'); tools.add('Edit'); tools.add('MultiEdit'); }
+      // 'files_w' -> the file-write tools (desktop widens the work dirs).
+      if (i.group === 'files_w') { tools.add('Write'); tools.add('Edit'); tools.add('MultiEdit'); }
     }
-    if (!tools.length) return;
+    if (!tools.size) return;
     try {
-      const r = await bridge.grantLocalPermissions(tools);
-      if (r?.ok && r.added && r.added.length) {
-        setLocalGrantNote(`Added ${r.added.join(', ')} to your Claude Code allowlist, so scheduled runs won’t stall on a permission prompt.`);
+      const r = await bridge.grantLocalPermissions([...tools]);
+      if (r?.ok && ((r.added && r.added.length) || (r.addedDirs && r.addedDirs.length))) {
+        const bits: string[] = [];
+        if (r.added && r.added.length) bits.push(r.added.join(', '));
+        if (r.addedDirs && r.addedDirs.length) bits.push('its working folders');
+        setLocalGrantNote(`Granted ${bits.join(' + ')} in your Claude Code, so scheduled runs won’t stall on a permission prompt.`);
       }
     } catch { /* best effort: the run still works if the user clicks Always allow once */ }
   }
