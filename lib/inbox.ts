@@ -35,15 +35,18 @@ function humanize(slug: string): string {
 /**
  * loadInboxItems , the recent deliverables for the caller as todo items,
  * newest first. `limit` bounds the window (Home and /inbox both use 40).
+ * `slug` scopes to one agent's runs (the agent page's Runs tab).
  */
 export async function loadInboxItems(
   supabase: SupabaseClient,
   limit = 40,
+  slug?: string,
 ): Promise<InboxItem[]> {
   const [runs, catalog] = await Promise.all([
     selectRuns(supabase, {
       limit,
       onlyWithOutput: true,
+      slug,
       // The improvement-loop columns: the run's own feedback questions + the
       // user's answers, so each result can show one-tap feedback (migration 0074).
       extraColumns: 'feedback_questions, feedback_answers, feedback_at',

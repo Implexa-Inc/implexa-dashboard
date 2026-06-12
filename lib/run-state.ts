@@ -219,6 +219,8 @@ export type SelectRunsOpts = {
   onlyWithOutput?: boolean;
   /** Extra base columns to fetch (e.g. '/runs' needs delivery, duration_ms). */
   extraColumns?: string;
+  /** Scope to one agent's runs (the agent page's Runs tab). */
+  slug?: string;
 };
 
 /**
@@ -236,6 +238,7 @@ export async function selectRuns(
   const build = (cols: string) => {
     let q = supabase.from('skill_runs').select(cols).order('ran_at', { ascending: false }).limit(limit);
     if (opts.onlyWithOutput) q = q.not('output_markdown', 'is', null);
+    if (opts.slug) q = q.eq('skill_slug', opts.slug);
     return q;
   };
 
