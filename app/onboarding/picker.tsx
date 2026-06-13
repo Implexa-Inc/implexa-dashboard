@@ -54,16 +54,15 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
       return;
     }
 
-    // Success path: route through /install first (a brand-new user has zero
-    // plugin/connector wired to Claude, so /skills before /install would
-    // show skills they can't run). The /install page reads ?welcome= to
-    // render the right banner. Joining an existing org skips role pick —
-    // they inherit the team library.
+    // Success path: ask proficiency FIRST (one tap, so we know how hands-on to
+    // be), then continue. A new org goes proficiency -> role -> install; a
+    // joiner skips role (they inherit the team library) so proficiency -> install.
+    // An explicit `next` (returning deep link) is honored as-is, no interruption.
     const destination = next
       ? next
       : joinOrgId
-        ? '/install?welcome=joined'
-        : '/onboarding/role';
+        ? `/onboarding/proficiency?next=${encodeURIComponent('/install?welcome=joined')}`
+        : '/onboarding/proficiency';
     router.push(destination);
     // Safety net: if router.push silently fails to navigate (network blip,
     // race with auth-cookie refresh, etc.), force a hard navigation after
