@@ -24,6 +24,7 @@ import { loadInboxItems } from '@/lib/inbox';
 import { detectRequirements } from '@/lib/requirements';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
 import AgentRequirements from '../../_components/agent-requirements';
+import AgentNameEditor from '../../_components/agent-name-editor';
 import { RemoteSafetyBadge } from '../../_components/remote-safety-badge';
 import { ConnectionAttentionBanner } from '../../_components/connection-attention-banner';
 import AgentActions from '../../_components/agent-actions';
@@ -446,7 +447,7 @@ export default async function WorkflowDetailPage({
           </div>
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex-1 min-w-0">
-              <h1 className="text-3xl font-semibold tracking-tight text-ink-50">{workflow.name}</h1>
+              <AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={workflow.source === 'generated'} />
               <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>
               <p className="text-ink-200 mt-3">{workflow.job || workflow.description}</p>
               <div className="mt-3 flex items-center gap-2 flex-wrap">
