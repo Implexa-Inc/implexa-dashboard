@@ -80,8 +80,8 @@ export default async function LeaderboardPage({
           <Logo height={20} />
         </Link>
         {isAuthed ? (
-          <Link href="/settings/karma" className="text-sm text-ink-200 hover:underline">
-            Your karma →
+          <Link href="/overview" className="text-sm text-ink-200 hover:underline">
+            Dashboard →
           </Link>
         ) : (
           <Link href="/signup" className="text-sm text-brand-500 hover:underline">

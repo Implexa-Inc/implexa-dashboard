@@ -1,9 +1,11 @@
 /**
- * Billing settings — current plan, seat count, period end, Stripe portal.
+ * Billing settings , plan + (for teams) seats + Stripe portal.
  *
- * Implexa moved off metered credits in May 2026. Every plan has unlimited
- * skill capture, fork, share, run. Billing surface now shows plan + seats
- * instead of credit balance + quota.
+ * Locked vision: the single-person product is FREE forever , unlimited agents
+ * that run in the user's own Claude/Codex, no per-run metering, no second AI
+ * bill. Money is made on Team (shared agents) and Enterprise. So this surface
+ * shows the plan + what it includes + the upgrade path , NO capture quotas, no
+ * skill-run meters, no Pro/Playbook framing (all of which were the old model).
  */
 
 import Link from 'next/link';
@@ -16,17 +18,9 @@ export const dynamic = 'force-dynamic';
 
 const PLAN_LABEL: Record<string, string> = {
   free:       'Free',
-  pro:        'Pro',
+  team:       'Team',
   enterprise: 'Enterprise',
-  // legacy plans still recognized for grandfathered customers
-  starter:    'Starter (legacy)',
-  growth:     'Growth (legacy)',
-  scale:      'Scale (legacy)',
-};
-
-const BILLING_CYCLE_LABEL: Record<string, string> = {
-  monthly: 'billed monthly',
-  annual:  'billed annually (2 months free)',
+  pro:        'Team', // legacy 'pro' rows map to Team
 };
 
 export default async function BillingPage() {
@@ -34,7 +28,6 @@ export default async function BillingPage() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  // Pull org + plan + Founding Creator from Supabase directly (cheap, RLS-scoped)
   const { data: profile } = await supabase
     .from('users').select('id, organization_id, founding_creator_unlocked_at')
     .eq('id', session.user.id).maybeSingle();
@@ -54,34 +47,13 @@ export default async function BillingPage() {
     seatCount = count || 1;
   }
 
-  // Skill creation quota — count NEW (non-fork) skills captured by this user
-  // this calendar month. Drives the "3/5 captured" gauge.
-  const startOfMonth = new Date();
-  startOfMonth.setUTCDate(1);
-  startOfMonth.setUTCHours(0, 0, 0, 0);
-  const { count: capturedThisMonth } = await supabase
-    .from('org_skills')
-    .select('id', { count: 'exact', head: true })
-    .eq('organization_id', profile?.organization_id)
-    .eq('created_by->>userId', profile?.id)
-    .is('forked_from_skill_id', null)
-    .gte('created_at', startOfMonth.toISOString());
-  const captured = capturedThisMonth || 0;
-  const isFoundingCreatorEarly = !!profile?.founding_creator_unlocked_at;
-  const captureLimit = (plan === 'free' && !isFoundingCreatorEarly) ? 5 : null;
-
-  // Subscription/Stripe state (only meaningful for paid plans)
-  let sub: { subscriptionPeriodEnd?: string | null; billingCycle?: string | null; hasStripeCustomer?: boolean; hasActiveSubscription?: boolean; planStatus?: string } = {};
+  let sub: { subscriptionPeriodEnd?: string | null; hasStripeCustomer?: boolean } = {};
   try {
     sub = await callBackend('/api/v2/billing/subscription', { jwt: session.access_token });
-  } catch (_) {}
-  const periodEnd    = sub.subscriptionPeriodEnd ? new Date(sub.subscriptionPeriodEnd).toLocaleDateString() : null;
-  const billingCycle = sub.billingCycle || null;
+  } catch (_) { /* free plan / no subscription */ }
+  const periodEnd = sub.subscriptionPeriodEnd ? new Date(sub.subscriptionPeriodEnd).toLocaleDateString() : null;
 
-  const isPaidPlan = plan !== 'free';
-  // No seat cap on any plan — Implexa lets you invite the whole company on Free.
-  // Monetization happens via the 3-skill org-shared cap instead.
-  const seatsLimit: number | null = null;
+  const isFree = plan === 'free';
   const isFoundingCreator = !!profile?.founding_creator_unlocked_at;
 
   return (
@@ -108,50 +80,28 @@ export default async function BillingPage() {
                     🏆 Founding Creator
                   </span>
                 )}
-                {billingCycle && plan === 'pro' && (
-                  <span className="text-xs text-ink-400">— {BILLING_CYCLE_LABEL[billingCycle] || billingCycle}</span>
-                )}
               </div>
-              <div className="text-sm text-ink-400 mt-1">
-                {plan === 'pro' || isFoundingCreator
-                  ? '🚀 Unlimited captures, ROI dashboard, team library, priority support'
-                  : '✨ 5 captures/month, unlimited use, fork any base Playbook'}
+              <div className="text-sm text-ink-400 mt-1 max-w-md leading-relaxed">
+                {isFree
+                  ? 'Unlimited agents, built and run in your own Claude or Codex. No per-run metering, no second AI bill , free forever for one person.'
+                  : 'Everything in Free, plus a shared agent library, every teammate’s runs and results in one place, and roles.'}
               </div>
             </div>
             <Link href="/pricing" className="btn-outline">Compare plans</Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-ink-700">
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-ink-700">
             <div>
-              <div className="text-xs text-ink-500 uppercase tracking-wide">Skills captured this month</div>
-              <div className="text-xl font-semibold mt-1 tabular-nums text-ink-50">
-                {captureLimit
-                  ? <>{captured}<span className="text-ink-400 text-sm font-normal"> / {captureLimit}</span></>
-                  : <>{captured}<span className="text-ink-400 text-sm font-normal"> (unlimited)</span></>}
-              </div>
-              {captureLimit && captured >= captureLimit && (
-                <div className="text-[10px] text-accent-700 dark:text-accent-400 mt-1">At capture cap — upgrade or wait until next month</div>
-              )}
-              {captureLimit && captured === captureLimit - 1 && (
-                <div className="text-[10px] text-ink-400 mt-1">1 capture left this month</div>
-              )}
-            </div>
-            <div>
-              <div className="text-xs text-ink-500 uppercase tracking-wide">Team members</div>
+              <div className="text-xs text-ink-500 uppercase tracking-wide">Members</div>
               <div className="text-xl font-semibold mt-1 tabular-nums text-ink-50">{seatCount}</div>
               <Link href="/settings/team" className="text-[10px] text-brand-600 hover:underline mt-0.5 inline-block">
                 Manage team →
               </Link>
             </div>
-            {periodEnd ? (
+            {periodEnd && (
               <div>
                 <div className="text-xs text-ink-500 uppercase tracking-wide">Renews</div>
                 <div className="text-lg mt-1 tabular-nums text-ink-100">{periodEnd}</div>
-              </div>
-            ) : (
-              <div>
-                <div className="text-xs text-ink-500 uppercase tracking-wide">Skill runs</div>
-                <div className="text-lg mt-1 text-ink-100">Unlimited</div>
               </div>
             )}
           </div>
@@ -166,60 +116,20 @@ export default async function BillingPage() {
           )}
         </div>
 
-        {/* Founding Creator card (only on free plan, only once unlocked) */}
-        {isFoundingCreator && !isPaidPlan && (
-          <div className="card !bg-gradient-to-r !from-success-400/12 !to-brand-500/10 !border-success-400/40">
+        {/* Upgrade path , only on Free, framed as Team (shared agents). */}
+        {isFree && (
+          <div className="card !border-brand-500/40">
             <div className="flex items-start gap-3">
-              <div className="text-2xl shrink-0">🏆</div>
+              <div className="text-2xl shrink-0" aria-hidden="true">👥</div>
               <div className="flex-1">
-                <h2 className="text-sm font-medium text-ink-50 mb-1">
-                  Pro is unlocked free for life on your account
-                </h2>
-                <p className="text-xs text-ink-200 leading-relaxed">
-                  You&apos;re a Founding Creator. Everything in Pro (unlimited captures, ROI dashboard,
-                  team library, priority support) is permanently included — no checkout needed.
+                <h2 className="text-sm font-medium text-ink-50 mb-1">Running agents with a team?</h2>
+                <p className="text-xs text-ink-200 leading-relaxed mb-3">
+                  Team adds a shared agent library (build once, the whole team runs it), everyone&apos;s
+                  runs and results in one place, and roles. $20 per seat / month. Your solo use stays free.
                 </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Free-plan upgrade CTA + Founding Creator path */}
-        {plan === 'free' && !isFoundingCreator && (
-          <div className="space-y-3">
-            <div className="card !bg-gradient-to-r !from-brand-500/10 !to-brand-500/5 !border-brand-500/40">
-              <div className="flex items-start gap-3">
-                <div className="text-2xl shrink-0">💎</div>
-                <div className="flex-1">
-                  <h2 className="text-sm font-medium text-ink-50 mb-1">
-                    Upgrade to Pro
-                  </h2>
-                  <p className="text-xs text-ink-200 leading-relaxed mb-3">
-                    Unlimited skill captures + ROI dashboard + team-wide library + priority support.
-                    $19/month or $190/year (2 months free).
-                  </p>
-                  <Link href="/pricing" className="btn-primary inline-flex items-center justify-center text-sm py-1.5 px-4">
-                    See plans →
-                  </Link>
-                </div>
-              </div>
-            </div>
-
-            <div className="card !bg-gradient-to-r !from-accent-400/10 !to-brand-500/8 !border-accent-400/40">
-              <div className="flex items-start gap-3">
-                <div className="text-2xl shrink-0">🏆</div>
-                <div className="flex-1">
-                  <h2 className="text-sm font-medium text-ink-50 mb-1">
-                    Or earn Pro free for life — become a Founding Creator
-                  </h2>
-                  <p className="text-xs text-ink-200 leading-relaxed mb-2">
-                    Capture a new skill <em>and</em> share it publicly. Your seat on Pro becomes
-                    free forever — no card, no checkout. The earliest creators get permanent perks.
-                  </p>
-                  <Link href="/skills" className="text-xs text-brand-500 hover:underline font-medium">
-                    Start on /skills →
-                  </Link>
-                </div>
+                <Link href="/pricing" className="btn-primary inline-flex items-center justify-center text-sm py-1.5 px-4">
+                  See plans →
+                </Link>
               </div>
             </div>
           </div>
