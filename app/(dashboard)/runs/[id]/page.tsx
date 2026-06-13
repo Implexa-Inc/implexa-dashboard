@@ -18,6 +18,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/server';
+import { callBackend } from '@/lib/api';
 import { listWorkflows } from '@/lib/workflow-catalog';
 import { deriveRunState, type RunRow } from '@/lib/run-state';
 import { RunStateBadge } from '../../_components/run-state-badge';
@@ -44,7 +45,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   if (!session?.user) redirect('/login');
 
   const { data: profile } = await supabase
-    .from('users').select('id, organization_id')
+    .from('users').select('id, organization_id, email')
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
@@ -60,15 +61,40 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   const r = run as RunRow | null;
 
   if (!r) {
+    // RLS didn't return it. Ask the backend (privacy-safe) whether it exists at
+    // all: if it does, it's under a DIFFERENT Implexa account than the one
+    // signed in (the cross-account footgun: agents run under whichever account
+    // is connected in your Claude, which may not be the one you're browsing as).
+    let existsElsewhere = false;
+    try {
+      const res = await callBackend(`/api/v2/runs/${encodeURIComponent(params.id)}/exists`, { jwt: session.access_token });
+      existsElsewhere = !!res?.exists && !res?.mine;
+    } catch { /* fall back to the generic message */ }
+
     return (
       <main className="min-h-screen px-4 py-12">
         <div className="max-w-3xl mx-auto">
           <BackLink fallback="/inbox" label="Results" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
-          <div className="card mt-4 text-sm text-ink-300">
-            <p className="font-medium text-ink-100 mb-1">Run not found.</p>
-            <p>This run does not exist, or it belongs to another account. See your{' '}
-              <Link href="/inbox" className="text-brand-500 hover:underline">results</Link>.</p>
-          </div>
+          {existsElsewhere ? (
+            <div className="card mt-4 text-sm text-ink-300">
+              <p className="font-medium text-ink-100 mb-1">This run is in a different Implexa account.</p>
+              <p className="leading-relaxed">
+                You&apos;re signed in as <span className="text-ink-100">{profile.email}</span>, but this run lives under another account.
+                Your agents and their runs belong to whichever account is connected to your Claude or Codex, so open the dashboard signed in with that account to see it.
+              </p>
+              <form action="/auth/signout" method="POST" className="mt-3">
+                <button className="text-sm font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-brand-600 dark:text-brand-400 hover:bg-brand-500/25 transition-colors">
+                  Sign out to switch account
+                </button>
+              </form>
+            </div>
+          ) : (
+            <div className="card mt-4 text-sm text-ink-300">
+              <p className="font-medium text-ink-100 mb-1">Run not found.</p>
+              <p>This run doesn&apos;t exist (it may have been deleted). See your{' '}
+                <Link href="/inbox" className="text-brand-500 hover:underline">results</Link>.</p>
+            </div>
+          )}
         </div>
       </main>
     );
