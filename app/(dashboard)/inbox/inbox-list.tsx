@@ -83,6 +83,10 @@ const GENERIC_FEEDBACK: FeedbackQuestion[] = [
   { key: 'change', question: 'Anything to change next time?', kind: 'text' },
 ];
 
+// An always-present free-text answer key, appended to EVERY feedback form so the
+// agent's pre-filled questions are never the only way to respond.
+const FREEFORM_KEY = '_freeform';
+
 function rel(iso: string): string {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60)        return 'just now';
@@ -235,7 +239,13 @@ export default function InboxList({
     }
     const qs = feedbackQsFor(it);
     const answeredCount = qs.filter((q) => (fbDraft[it.id]?.[q.key] ?? '').toString().trim() !== '').length;
-    const canSend = answeredCount > 0 && !fbBusy[it.id];
+    // An always-present free-text box, so you are never boxed into the agent's
+    // pre-filled questions — say anything and it rides into the next run too.
+    const freeform = (fbDraft[it.id]?.[FREEFORM_KEY] ?? '').toString();
+    const hasFreeform = freeform.trim() !== '';
+    const setFreeform = (v: string) =>
+      setFbDraft((d) => ({ ...d, [it.id]: { ...(d[it.id] || {}), [FREEFORM_KEY]: v } }));
+    const canSend = (answeredCount > 0 || hasFreeform) && !fbBusy[it.id];
     return (
       <>
         {/* Shown only inside the output overlay; the focused modal's title
@@ -301,6 +311,35 @@ export default function InboxList({
               </div>
             );
           })}
+
+          {/* Always-on free comment: never be boxed into the agent's questions. */}
+          <div className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
+            <div className="flex items-start gap-3">
+              <span
+                aria-hidden
+                className={`flex-none inline-flex items-center justify-center w-6 h-6 rounded-full text-[12px] font-semibold mt-0.5 transition-colors ${
+                  hasFreeform
+                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-ink-800 text-ink-400'
+                }`}
+              >
+                {hasFreeform ? '✓' : '+'}
+              </span>
+              <div className="min-w-0 flex-1">
+                <label className="block text-sm text-ink-100 leading-relaxed">
+                  Anything else?{' '}
+                  <span className="text-ink-500 font-normal">in your own words (optional)</span>
+                </label>
+                <textarea
+                  value={freeform}
+                  onChange={(e) => setFreeform(e.target.value)}
+                  rows={2}
+                  placeholder="Tell the agent anything — what to do differently, what you liked, a new instruction…"
+                  className="mt-2.5 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+                />
+              </div>
+            </div>
+          </div>
         </div>
         <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
           <button
@@ -318,10 +357,10 @@ export default function InboxList({
           <span className="text-xs text-ink-500">
             {error[it.id] ? (
               <span className="text-rose-600 dark:text-rose-400">{error[it.id]}</span>
-            ) : answeredCount === 0 ? (
-              'Answer any one to send. Skipping the rest is fine.'
+            ) : answeredCount === 0 && !hasFreeform ? (
+              'Answer any one, or just write a comment, to send.'
             ) : (
-              `${answeredCount} of ${qs.length} answered`
+              `${answeredCount} of ${qs.length} answered${hasFreeform ? ' + your comment' : ''}`
             )}
           </span>
         </div>
