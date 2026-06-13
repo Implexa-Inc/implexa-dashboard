@@ -191,7 +191,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         >
           {state === 'queuing' ? 'Queuing…'
             : state === 'running' ? 'Running…'
-            : state === 'queued' ? '✓ Queued'
+            : state === 'queued' ? 'Waiting for Claude…'
             : '▶ Run now'}
         </button>
       )}

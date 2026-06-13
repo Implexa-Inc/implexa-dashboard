@@ -14,7 +14,8 @@
  * running in my Claude", the better.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 
 type Surface = 'claude' | 'codex';
 
@@ -32,6 +33,17 @@ const COMMANDS: Record<Surface, { label: string; cmd: string }> = {
 export default function ConnectCommand() {
   const [surface, setSurface] = useState<Surface>('claude');
   const [copied, setCopied] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+
+  // Which Implexa account Claude wires to (the command embeds THIS account's
+  // key). Surfacing it kills the multi-account footgun: agents run under the
+  // account you connect, so you know which one to browse the dashboard as.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data }) => {
+      setEmail(data.session?.user?.email ?? null);
+    });
+  }, []);
 
   async function copy() {
     try {
@@ -84,6 +96,12 @@ export default function ConnectCommand() {
           </span>
         </div>
       </button>
+
+      {email && (
+        <p className="text-xs text-ink-400 mt-2">
+          Connecting as <span className="text-ink-100 font-medium">{email}</span>. Your agents and runs live under this account, so sign into the dashboard with it too.
+        </p>
+      )}
 
       <p className="text-xs text-ink-500 mt-2 leading-relaxed">
         Paste it in your terminal. It signs you in and installs Implexa into your {COMMANDS[surface].label}.
