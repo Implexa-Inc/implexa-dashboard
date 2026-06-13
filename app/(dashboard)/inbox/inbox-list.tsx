@@ -147,6 +147,9 @@ export default function InboxList({
   // The focused feedback pop-out (separate from the output overlay) , opened by a
   // row's "Give feedback" chip, so feedback is one tap with no output wall.
   const [feedbackId, setFeedbackId] = useState<string | null>(null);
+  // When an agent ran multiple times in a day, the rows collapse into one and
+  // "Ran N times" opens this run-picker to choose which output to view.
+  const [pickerRuns, setPickerRuns] = useState<{ name: string; runs: InboxItem[] } | null>(null);
   const [done, setDone] = useState<Record<string, 'approved' | 'dismissed'>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string>>({});
@@ -434,6 +437,92 @@ export default function InboxList({
     );
   }
 
+  // Worst light across a set of runs (red beats amber beats green), for a
+  // collapsed multi-run group's status.
+  function worstLight(group: InboxItem[]): Light {
+    if (group.some((i) => i.state.attention)) return 'red';
+    if (group.some((i) => i.pending)) return 'amber';
+    return 'green';
+  }
+
+  // One agent's single run (the normal row): body opens the output, chip does
+  // the focused next-action.
+  function renderSingle(item: InboxItem) {
+    const line = snippet(item.output_markdown);
+    const cat = categorizeAgent([item.name, item.why]);
+    const scheduled = item.source === 'scheduled';
+    return (
+      <li key={item.id}>
+        <div className="card hover:border-ink-600 transition-colors">
+          <div className="flex items-start justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => open(item.id)}
+              className="min-w-0 flex-1 text-left cursor-pointer"
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-ink-500 tabular-nums">{timeOf(item.ran_at)}</span>
+                <h3 className="text-sm font-medium text-ink-50 truncate">
+                  <span aria-hidden className="mr-1">{cat.emoji}</span>{item.name}
+                </h3>
+                <span className="text-[10px] uppercase tracking-wide text-ink-500">{scheduled ? 'scheduled' : 'manual'}</span>
+              </div>
+              {line ? (
+                <p className="text-sm text-ink-400 mt-1 line-clamp-2">{line}</p>
+              ) : item.why ? (
+                <p className="text-sm text-ink-400 mt-1 line-clamp-2">{item.why}</p>
+              ) : null}
+            </button>
+            <div className="flex items-center gap-2 flex-none mt-0.5">
+              {renderAction(item)}
+              {item.state.attention && <RunStateBadge info={item.state} size="xs" />}
+            </div>
+          </div>
+        </div>
+      </li>
+    );
+  }
+
+  // Several runs of the SAME agent in one day collapse into one row: name +
+  // "Ran N times" + the worst status; clicking opens a picker to choose a run.
+  function renderGroup(group: InboxItem[]) {
+    const latest = group[0]; // items are newest-first
+    const cat = categorizeAgent([latest.name, latest.why]);
+    const light = worstLight(group);
+    const line = snippet(latest.output_markdown);
+    const needN = group.filter((i) => lightOf(i) !== 'green').length;
+    return (
+      <li key={`grp-${latest.slug}`}>
+        <button
+          type="button"
+          onClick={() => setPickerRuns({ name: latest.name, runs: group })}
+          className="card w-full text-left hover:border-ink-600 transition-colors cursor-pointer"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-medium text-ink-50 truncate">
+                  <span aria-hidden className="mr-1">{cat.emoji}</span>{latest.name}
+                </h3>
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-ink-800 text-ink-300">
+                  Ran {group.length} times today
+                </span>
+                {needN > 0 && (
+                  <span className="text-[10px] text-amber-700 dark:text-amber-300">{needN} need you</span>
+                )}
+              </div>
+              {line && <p className="text-sm text-ink-400 mt-1 line-clamp-1">latest: {line}</p>}
+            </div>
+            <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-ink-700 text-ink-400 flex-none mt-0.5`}>
+              <span className={`inline-block size-2 rounded-full ${LIGHT_DOT[light]}`} aria-hidden />
+              View {group.length} →
+            </span>
+          </div>
+        </button>
+      </li>
+    );
+  }
+
   // Group items (already newest-first) by calendar day, with a per-day summary.
   const days = useMemo(() => {
     const out: { key: string; label: string; items: InboxItem[] }[] = [];
@@ -480,44 +569,19 @@ export default function InboxList({
                 </span>
               </div>
               <ul className="space-y-2 mt-2">
-                {day.items.map((item) => {
-                  const line = snippet(item.output_markdown);
-                  const cat = categorizeAgent([item.name, item.why]);
-                  const scheduled = item.source === 'scheduled';
-                  return (
-                    <li key={item.id}>
-                      <div className="card hover:border-ink-600 transition-colors">
-                        <div className="flex items-start justify-between gap-3">
-                          {/* body opens the output overlay; the chip on the right
-                              does the one focused next-action */}
-                          <button
-                            type="button"
-                            onClick={() => open(item.id)}
-                            className="min-w-0 flex-1 text-left cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs text-ink-500 tabular-nums">{timeOf(item.ran_at)}</span>
-                              <h3 className="text-sm font-medium text-ink-50 truncate">
-                                <span aria-hidden className="mr-1">{cat.emoji}</span>{item.name}
-                              </h3>
-                              <span className="text-[10px] uppercase tracking-wide text-ink-500">{scheduled ? 'scheduled' : 'manual'}</span>
-                            </div>
-                            {line ? (
-                              <p className="text-sm text-ink-400 mt-1 line-clamp-2">{line}</p>
-                            ) : item.why ? (
-                              <p className="text-sm text-ink-400 mt-1 line-clamp-2">{item.why}</p>
-                            ) : null}
-                          </button>
-                          <div className="flex items-center gap-2 flex-none mt-0.5">
-                            {renderAction(item)}
-                            {/* keep the specific state only for a run that needs action */}
-                            {item.state.attention && <RunStateBadge info={item.state} size="xs" />}
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
+                {(() => {
+                  // Collapse same-agent runs within the day into one group
+                  // (newest-first order preserved). 1 run -> normal row; many ->
+                  // a "Ran N times" row that opens a run-picker.
+                  const groups: InboxItem[][] = [];
+                  const idx = new Map<string, number>();
+                  for (const it of day.items) {
+                    const at = idx.get(it.slug);
+                    if (at !== undefined) groups[at].push(it);
+                    else { idx.set(it.slug, groups.length); groups.push([it]); }
+                  }
+                  return groups.map((g) => (g.length === 1 ? renderSingle(g[0]) : renderGroup(g)));
+                })()}
               </ul>
             </section>
           );
@@ -632,6 +696,37 @@ export default function InboxList({
         }
       >
         {feedbackItem && feedbackInner(feedbackItem)}
+      </Modal>
+
+      {/* Run picker , opened from a "Ran N times" collapsed row. Pick a run to
+          open its output overlay. */}
+      <Modal
+        open={!!pickerRuns}
+        onClose={() => setPickerRuns(null)}
+        title={pickerRuns ? pickerRuns.name : 'Runs'}
+        maxWidth="max-w-xl"
+        subtitle={pickerRuns ? <span className="text-xs text-ink-500">{pickerRuns.runs.length} runs , pick one to view its output</span> : undefined}
+      >
+        <ul className="space-y-2">
+          {pickerRuns?.runs.map((it) => {
+            const line = snippet(it.output_markdown);
+            return (
+              <li key={it.id}>
+                <button
+                  type="button"
+                  onClick={() => { setPickerRuns(null); open(it.id); }}
+                  className="w-full text-left rounded-lg border border-ink-800 bg-ink-950/40 hover:border-ink-600 transition-colors p-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-ink-100 tabular-nums">{timeOf(it.ran_at)}</span>
+                    <RunStateBadge info={it.state} size="xs" />
+                  </div>
+                  {line && <p className="text-xs text-ink-400 mt-1 line-clamp-1">{line}</p>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </Modal>
     </>
   );
