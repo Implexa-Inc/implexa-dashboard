@@ -18,10 +18,12 @@
  */
 
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { computeSetupStatus } from '@/lib/setup-status';
 import Sidebar, { MobileTopBar } from './_components/sidebar';
 import UpdateBanner, { type BehindSurface } from './_components/update-banner';
+import PersistIntent from './_components/persist-intent';
 import { getLatestVersions } from '@/lib/versions';
 
 // Per-surface update command. Claude/Cursor update in-session via /plugin; Codex
@@ -141,6 +143,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen">
+      {/* Persist a website build intent server-side on ANY authed page (incl.
+          /install where onboarding lands), so it can never be lost before Home. */}
+      <Suspense fallback={null}><PersistIntent /></Suspense>
       <Sidebar user={userCtx} resultRunsAt={resultRunsAt} needsItemsAt={needsItemsAt} />
       <div className="flex-1 flex flex-col min-w-0">
         <MobileTopBar user={userCtx} />
