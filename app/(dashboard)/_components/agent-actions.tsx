@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import Modal from './modal';
 
 type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
 
@@ -46,6 +47,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
 }) {
   const [state, setState] = useState<RunState>('idle');
   const [msg, setMsg] = useState('');
+  const [showRunModal, setShowRunModal] = useState(false);
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
   const supabase = createClient();
@@ -103,15 +105,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // A SCHEDULED agent runs as its real routine: the plugin sees the queued
       // request and re-arms the agent's one-time fireAt task, which fires in the
       // background runtime with its pre-granted permissions (no chat, no enter
-      // key). Don't prefill a run command too - that would run it twice. We
-      // still open Claude so the pending-request hook gets a session to fire in.
+      // key). The pending-runs hook picks the request up on the user's next
+      // Claude interaction (SessionStart / any prompt), so we do NOT open a blank
+      // Claude session here. Confirm with a clear pop-up instead of inline text.
       if (claudeTaskId) {
-        const bridge0 = typeof window !== 'undefined'
-          ? (window as Window & { implexaDesktop?: { openAgent?: () => Promise<{ ok: boolean }> } }).implexaDesktop
-          : undefined;
-        if (bridge0?.openAgent) await bridge0.openAgent().catch(() => null);
-        setMsg('Its routine is firing in the background - the result lands in your inbox like any scheduled run.');
         setState('queued');
+        setMsg('');
+        setShowRunModal(true);
         return;
       }
       // The handoff must be VISIBLE (founder: "Queued" with an empty Claude box
@@ -162,6 +162,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   }
 
   return (
+    <>
     <div className={`flex flex-col gap-1.5 ${align === 'end' ? 'items-end' : 'items-start'}`}>
       {!isActive ? (
         <Link href={`/workflows/${slug}/activate`} className="btn-success text-sm px-4 py-2">
@@ -217,6 +218,43 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         </span>
       )}
     </div>
+
+    {/* Run-triggered confirmation for a scheduled agent — a clear pop-up instead
+        of the barely-visible inline line. */}
+    <Modal
+      open={showRunModal}
+      onClose={() => setShowRunModal(false)}
+      title="Run triggered"
+      maxWidth="max-w-md"
+    >
+      <p className="text-sm text-ink-200 leading-relaxed">
+        Your agent’s run is triggered.
+        {claudeTaskId ? (
+          <>
+            {' '}You’ll see it in your{' '}
+            <a
+              href={`claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(claudeTaskId)}`}
+              className="text-brand-500 hover:underline"
+            >
+              Claude Routines here
+            </a>
+            {' '}(you might have to wait a minute or two), and the result lands in your Implexa inbox like any scheduled run.
+          </>
+        ) : (
+          <> The result lands in your Implexa inbox like any scheduled run (you might have to wait a minute or two).</>
+        )}
+      </p>
+      <div className="mt-5 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setShowRunModal(false)}
+          className="btn-success text-sm px-5 py-2"
+        >
+          OK
+        </button>
+      </div>
+    </Modal>
+    </>
   );
 }
 
