@@ -21,6 +21,8 @@ import { getWorkflow, getMyWorkflow, type WorkflowStep } from '@/lib/workflow-ca
 import { remoteSafety } from '@/lib/remote-safety';
 import { getConnectionStatus, warningsForAgent } from '@/lib/connections';
 import { loadInboxItems } from '@/lib/inbox';
+import { detectRequirements } from '@/lib/requirements';
+import AgentRequirements from '../../_components/agent-requirements';
 import { RemoteSafetyBadge } from '../../_components/remote-safety-badge';
 import { ConnectionAttentionBanner } from '../../_components/connection-attention-banner';
 import AgentActions from '../../_components/agent-actions';
@@ -201,8 +203,15 @@ export default async function WorkflowDetailPage({
 
   // ── tab panels (server-rendered, handed to the client tab shell) ──
 
+  // What the user needs on their side before running (paid services + the free
+  // tools we auto-install), derived from the agent's steps.
+  const requirements = detectRequirements(workflow.steps);
+
   const overviewPanel = (
     <>
+      {/* What you'll need , prerequisites up front, before the run */}
+      <AgentRequirements req={requirements} />
+
       {/* Stat strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Stat label="Steps" value={`${workflow.steps.length}`} />
