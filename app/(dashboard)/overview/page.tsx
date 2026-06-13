@@ -22,6 +22,7 @@ import { getProficiency, isGuided } from '@/lib/proficiency';
 import { listWorkflows, listMyWorkflows, listSuggestedAgents } from '@/lib/workflow-catalog';
 import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
 import NeedsYouStrip from '../_components/needs-you-strip';
+import FirstWinMoment from '../_components/first-win-moment';
 import InboxList from '../inbox/inbox-list';
 import SuggestedShelf from '../_components/suggested-shelf';
 import FirstRunMagic from '../_components/first-run-magic';
@@ -75,6 +76,13 @@ export default async function OverviewPage() {
         ) : (
           <>
             <TalkToImplexa hasAgents={myAgents.length > 0} guided={guided} />
+
+            {/* first-win celebration -> tailored 2nd agent (fires once, early users) */}
+            <FirstWinMoment
+              delivered={items.length}
+              nextTitle={suggested[0]?.title}
+              nextIntent={suggested[0]?.suggested_intent}
+            />
 
             {/* a stalled or permission-blocked run, loud and at the top */}
             <div className="mt-8">

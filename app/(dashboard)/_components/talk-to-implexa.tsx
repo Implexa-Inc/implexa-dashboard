@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * The conversation box: "you talk to Implexa". One codebase, two contexts.
@@ -28,6 +28,19 @@ export default function TalkToImplexa({ hasAgents = false, guided = false }: { h
   const [intent, setIntent] = useState('');
   const [state, setState] = useState<State>('idle');
   const [msg, setMsg] = useState('');
+
+  // The first-win moment (and other nudges) can prefill + focus this box so the
+  // user re-enters the build loop with zero typing.
+  useEffect(() => {
+    function onPrefill(e: Event) {
+      const text = (e as CustomEvent).detail;
+      if (typeof text === 'string' && text.trim()) setIntent(text.trim());
+      const el = document.getElementById('talk');
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); (el as HTMLInputElement).focus(); }
+    }
+    window.addEventListener('implexa-prefill-build', onPrefill);
+    return () => window.removeEventListener('implexa-prefill-build', onPrefill);
+  }, []);
 
   const submit = async () => {
     const t = intent.trim();
