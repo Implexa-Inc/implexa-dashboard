@@ -22,6 +22,7 @@ import { remoteSafety } from '@/lib/remote-safety';
 import { getConnectionStatus, warningsForAgent } from '@/lib/connections';
 import { loadInboxItems } from '@/lib/inbox';
 import { detectRequirements } from '@/lib/requirements';
+import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
 import AgentRequirements from '../../_components/agent-requirements';
 import { RemoteSafetyBadge } from '../../_components/remote-safety-badge';
 import { ConnectionAttentionBanner } from '../../_components/connection-attention-banner';
@@ -465,6 +466,13 @@ export default async function WorkflowDetailPage({
               />
               {pausableRoutine && (
                 <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />
+              )}
+              {/* Desktop-first: open this agent in the app (gated until the app
+                  ships; web actions above remain the fallback). */}
+              {desktopAppLive() && (
+                <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-brand-500 hover:underline">
+                  Open in the Implexa app ↗
+                </a>
               )}
             </div>
           </div>

@@ -19,6 +19,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/server';
 import { callBackend } from '@/lib/api';
+import { desktopAppLive, appRunUrl } from '@/lib/app-links';
 import { listWorkflows } from '@/lib/workflow-catalog';
 import { deriveRunState, type RunRow } from '@/lib/run-state';
 import { RunStateBadge } from '../../_components/run-state-badge';
@@ -126,6 +127,11 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               >
                 open agent
               </Link>
+            )}
+            {desktopAppLive() && (
+              <a href={appRunUrl(r.id)} className="text-xs text-brand-500 hover:underline">
+                open in the Implexa app ↗
+              </a>
             )}
           </div>
         </header>
