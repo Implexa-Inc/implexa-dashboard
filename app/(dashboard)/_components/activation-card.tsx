@@ -487,7 +487,10 @@ const STATE_BADGE: Record<ActivationChecklist['state'], { label: string; classes
   needs_attention: { label: 'Needs attention', classes: 'bg-amber-500/20 text-amber-700 dark:text-amber-300' },
 };
 
-export function ActivationCard({ checklist }: { checklist: ActivationChecklist }) {
+export function ActivationCard({ checklist, proficiency }: { checklist: ActivationChecklist; proficiency?: 'novice' | 'beginner' | 'pro' | 'advanced' | null }) {
+  // Guided = novice/beginner: friendlier "Turn it on" framing + a reassurance
+  // line. Pro/advanced keep the terser "Activate". (audit #7)
+  const guided = proficiency === 'novice' || proficiency === 'beginner';
   const permStep = checklist.steps.find((s) => s.id === 'permissions');
   const tier2 = ((permStep?.data?.items ?? []) as PermissionItem[]).filter((i) => i.tier === 2);
 
@@ -621,6 +624,13 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
         </p>
       )}
 
+      {/* Guided reassurance for novice/beginner: take the fear out of the steps. */}
+      {guided && checklist.state !== 'active' && (
+        <p className="text-xs text-ink-300 mb-2 rounded-md bg-brand-500/10 border border-brand-500/20 px-3 py-2 leading-relaxed">
+          Don&apos;t worry about the details below; they&apos;re here if you want them. When the steps are green, hit <span className="font-medium text-ink-100">Turn it on</span> and your agent is live.
+        </p>
+      )}
+
       <ul className="divide-y divide-ink-800">
         {checklist.steps.map((s) => (
           <StepRow
@@ -708,7 +718,7 @@ export function ActivationCard({ checklist }: { checklist: ActivationChecklist }
               className={ready && !activating ? 'btn-success' : 'btn-outline opacity-50 cursor-not-allowed'}
               title={ready ? 'Switch this agent on' : 'Finish the steps above first'}
             >
-              {activating ? 'Activating…' : 'Activate'}
+              {activating ? (guided ? 'Turning on…' : 'Activating…') : (guided ? 'Turn it on' : 'Activate')}
             </button>
             {error ? (
               <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>

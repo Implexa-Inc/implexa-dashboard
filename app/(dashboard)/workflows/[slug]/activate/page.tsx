@@ -10,6 +10,7 @@ import Link from 'next/link';
 import BackLink from '../../../_components/back-link';
 import { createClient } from '@/lib/supabase/server';
 import { getActivationChecklist } from '@/lib/activation';
+import { getProficiency } from '@/lib/proficiency';
 import { ActivationCard } from '../../../_components/activation-card';
 import { OpenInAppBanner } from '../../../_components/open-in-app-banner';
 
@@ -20,7 +21,10 @@ export default async function ActivateAgentPage({ params }: { params: { slug: st
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  const checklist = await getActivationChecklist(params.slug);
+  const [checklist, proficiency] = await Promise.all([
+    getActivationChecklist(params.slug),
+    getProficiency(supabase, session.user.id),
+  ]);
 
   return (
     <main className="min-h-screen px-6 lg:px-12 py-12">
@@ -42,7 +46,7 @@ export default async function ActivateAgentPage({ params }: { params: { slug: st
           <>
             <OpenInAppBanner path={`/workflows/${params.slug}/activate`} verb="activate" />
             <p className="text-xs uppercase tracking-wider text-ink-500 mb-3">Switch on</p>
-            <ActivationCard checklist={checklist} />
+            <ActivationCard checklist={checklist} proficiency={proficiency} />
           </>
         )}
       </div>

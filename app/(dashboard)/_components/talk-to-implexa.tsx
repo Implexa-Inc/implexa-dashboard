@@ -24,7 +24,7 @@ declare global {
 
 type State = 'idle' | 'sending' | 'queued' | 'opening' | 'error';
 
-export default function TalkToImplexa({ hasAgents = false }: { hasAgents?: boolean }) {
+export default function TalkToImplexa({ hasAgents = false, guided = false }: { hasAgents?: boolean; guided?: boolean }) {
   const [intent, setIntent] = useState('');
   const [state, setState] = useState<State>('idle');
   const [msg, setMsg] = useState('');
@@ -79,7 +79,9 @@ export default function TalkToImplexa({ hasAgents = false }: { hasAgents?: boole
           {hasAgents ? 'Build an agent' : 'Build your first agent'}
         </h1>
         <p className="text-sm text-ink-400 mt-1.5 mb-5">
-          Describe a recurring job in a sentence. Implexa builds the agent; it runs in your Claude or Codex, on a schedule, as you.
+          {guided
+            ? 'Just tell us a job you do over and over, in plain words. We build the agent and walk you through turning it on. No setup knowledge needed.'
+            : 'Describe a recurring job in a sentence. Implexa builds the agent; it runs in your Claude or Codex, on a schedule, as you.'}
         </p>
         <div className="flex gap-2.5">
           <input

@@ -18,6 +18,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { loadInboxItems } from '@/lib/inbox';
 import { loadNeedsYou } from '@/lib/needs-you';
+import { getProficiency, isGuided } from '@/lib/proficiency';
 import { listWorkflows, listMyWorkflows, listSuggestedAgents } from '@/lib/workflow-catalog';
 import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
 import NeedsYouStrip from '../_components/needs-you-strip';
@@ -40,13 +41,15 @@ export default async function OverviewPage() {
 
   // The todo list + "needs you" (grants/sign-ins/missed) + the manager's-desk
   // side data (own agents, learning shelf, public catalog for first-run cards).
-  const [items, needsYou, myAgents, suggested, catalog] = await Promise.all([
+  const [items, needsYou, myAgents, suggested, catalog, proficiency] = await Promise.all([
     loadInboxItems(supabase, 40),
     loadNeedsYou(supabase),
     listMyWorkflows(),
     listSuggestedAgents(6),
     listWorkflows(),
+    getProficiency(supabase, session.user.id),
   ]);
+  const guided = isGuided(proficiency);
 
   // First-run magic: a brand-new user (no agents, no runs) gets THE OFFER
   // instead of an empty todo list.
@@ -66,12 +69,12 @@ export default async function OverviewPage() {
 
         {isFirstRun ? (
           <>
-            <TalkToImplexa hasAgents={false} />
+            <TalkToImplexa hasAgents={false} guided={guided} />
             <FirstRunMagic workflows={catalog} />
           </>
         ) : (
           <>
-            <TalkToImplexa hasAgents={myAgents.length > 0} />
+            <TalkToImplexa hasAgents={myAgents.length > 0} guided={guided} />
 
             {/* a stalled or permission-blocked run, loud and at the top */}
             <div className="mt-8">
