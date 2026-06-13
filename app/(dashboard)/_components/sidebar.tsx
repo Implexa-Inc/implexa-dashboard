@@ -223,11 +223,22 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
          * is actually wired up to Implexa. 'never' is clickable → /install
          * because that's the failure mode that needs action. */}
         <SetupChip status={user.setupStatus} lastSeenAt={user.lastSeenAt} />
-        <form action="/auth/signout" method="POST" className="mt-3">
-          <button className="text-[11px] text-ink-500 hover:text-ink-200 hover:underline">
-            Sign out
-          </button>
-        </form>
+        {/* Switch account + Sign out. Many users run agents under a different
+         * Implexa account than they browse as; "Switch account" makes hopping to
+         * the connected account one click (sign out -> login picks the other). */}
+        <div className="mt-3 flex items-center gap-3">
+          <form action="/auth/signout" method="POST">
+            <button className="text-[11px] text-ink-300 hover:text-ink-50 hover:underline">
+              Switch account
+            </button>
+          </form>
+          <span className="text-ink-700" aria-hidden>·</span>
+          <form action="/auth/signout" method="POST">
+            <button className="text-[11px] text-ink-500 hover:text-ink-200 hover:underline">
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
     </aside>
   );
