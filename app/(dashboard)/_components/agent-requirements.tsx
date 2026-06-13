@@ -50,7 +50,7 @@ export default function AgentRequirements({ req }: { req: Requirements }) {
         <div className={req.services.length > 0 ? 'mt-4' : ''}>
           <div className="flex items-center gap-1.5 mb-2">
             <span className="inline-block size-1.5 rounded-full bg-emerald-500" aria-hidden />
-            <span className="text-xs text-ink-400">Installed for you automatically , no setup</span>
+            <span className="text-xs text-ink-400">Installed for you automatically. No setup needed.</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {req.tools.map((t) => (

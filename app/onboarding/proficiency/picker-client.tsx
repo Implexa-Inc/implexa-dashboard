@@ -7,7 +7,7 @@ import { callBackend } from '@/lib/api';
 type Level = { key: 'novice' | 'beginner' | 'pro' | 'advanced'; label: string; tagline: string };
 
 const LEVELS: Level[] = [
-  { key: 'novice',   label: 'Novice',   tagline: 'New to this , Implexa does most of the work and guides you' },
+  { key: 'novice',   label: 'Novice',   tagline: 'New to this. Implexa does most of the work and guides you' },
   { key: 'beginner', label: 'Beginner', tagline: 'You use Claude Code / Codex for a couple of tasks a day' },
   { key: 'pro',      label: 'Pro',      tagline: 'You use it regularly and know most features and capabilities' },
   { key: 'advanced', label: 'Advanced', tagline: 'You build apps and agents' },

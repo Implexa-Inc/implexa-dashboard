@@ -46,16 +46,16 @@ export type InboxItem = {
 };
 
 // Traffic-light status so Results reads as a clear-it-to-zero todo list:
-//   red    = the run needs action (failed / stalled).
-//   amber  = the run wants YOU (feedback not yet given, or held for review).
-//   green  = done, nothing owed.
+//   red    = the run needs action (failed / stalled / permission-blocked).
+//   amber  = the run wants a DECISION (held for your review / approval).
+//   green  = delivered + done. A successful run is Done by DEFAULT, even with no
+//            feedback given. Feedback is an OPTIONAL "Rate it" affordance that
+//            never turns a row amber or inflates the "needs you" count (audit #9:
+//            don't train users to ignore the surface meant to flag real failures).
 type Light = 'red' | 'amber' | 'green';
-function lightOf(it: InboxItem, answered: boolean): Light {
+function lightOf(it: InboxItem): Light {
   if (it.state.attention) return 'red';
-  // Any delivered run you haven't given feedback on (or that's held for review)
-  // wants you. Feedback is available on EVERY run, not only ones the agent wrote
-  // questions for, so a bare "Done" run can still be rated and improved.
-  if (it.pending || !answered) return 'amber';
+  if (it.pending) return 'amber';
   return 'green';
 }
 const LIGHT_DOT: Record<Light, string> = {
@@ -67,7 +67,7 @@ const LIGHT_DOT: Record<Light, string> = {
 // "just a yellow dot is not intuitive — say Give Feedback").
 const LIGHT_LABEL: Record<Light, string> = {
   red:   'Take action',
-  amber: 'Give feedback',
+  amber: 'Review',
   green: 'Done',
 };
 const LIGHT_TEXT: Record<Light, string> = {
@@ -374,20 +374,9 @@ export default function InboxList({
   // focused pop-out: amber -> the feedback modal; red (permission-blocked) ->
   // the agent's grant UI; otherwise -> the output overlay.
   function renderAction(it: InboxItem) {
-    const light = lightOf(it, isAnswered(it));
+    const light = lightOf(it);
     const dot = <span className={`inline-block size-2 rounded-full ${LIGHT_DOT[light]}`} aria-hidden />;
     const base = 'inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors';
-    if (light === 'amber') {
-      return (
-        <button
-          type="button"
-          onClick={() => setFeedbackId(it.id)}
-          className={`${base} border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10`}
-        >
-          {dot} Give feedback
-        </button>
-      );
-    }
     if (light === 'red') {
       if (it.state.permissionBlocked) {
         return (
@@ -409,14 +398,39 @@ export default function InboxList({
         </button>
       );
     }
+    if (light === 'amber') {
+      // Held for the user's review/approval , a real decision.
+      return (
+        <button
+          type="button"
+          onClick={() => open(it.id)}
+          className={`${base} border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10`}
+        >
+          {dot} Review
+        </button>
+      );
+    }
+    // green = delivered + done. "View" is primary; "Rate" is an optional,
+    // uncounted affordance (only while not yet rated and there's output to rate).
     return (
-      <button
-        type="button"
-        onClick={() => open(it.id)}
-        className={`${base} border-ink-700 text-ink-400 hover:text-ink-100 hover:border-ink-500`}
-      >
-        {dot} View
-      </button>
+      <div className="inline-flex items-center gap-2">
+        {it.output_markdown && !isAnswered(it) && (
+          <button
+            type="button"
+            onClick={() => setFeedbackId(it.id)}
+            className="text-xs text-ink-500 hover:text-ink-200"
+          >
+            Rate
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => open(it.id)}
+          className={`${base} border-ink-700 text-ink-400 hover:text-ink-100 hover:border-ink-500`}
+        >
+          {dot} View
+        </button>
+      </div>
     );
   }
 
@@ -432,7 +446,7 @@ export default function InboxList({
     return out;
   }, [items]);
 
-  const needYou = items.filter((it) => lightOf(it, isAnswered(it)) !== 'green').length;
+  const needYou = items.filter((it) => lightOf(it) !== 'green').length;
 
   return (
     <>
@@ -455,7 +469,7 @@ export default function InboxList({
       <div className="space-y-8">
         {days.map((day) => {
           const delivered = day.items.filter((i) => i.output_markdown).length;
-          const needYouDay = day.items.filter((i) => lightOf(i, isAnswered(i)) !== 'green').length;
+          const needYouDay = day.items.filter((i) => lightOf(i) !== 'green').length;
           return (
             <section key={day.key}>
               <div className="sticky top-0 z-10 -mx-1 px-1 py-2 bg-ink-950/85 backdrop-blur-sm flex items-baseline justify-between gap-3">

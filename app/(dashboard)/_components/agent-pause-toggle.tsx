@@ -75,7 +75,7 @@ export default function AgentPauseToggle({
       )}
       {status === 'paused' && !error && (
         <span className="text-[11px] text-amber-700 dark:text-amber-400 max-w-[220px] text-right">
-          Paused , no runs until resumed. Claude&apos;s Routines updates next time Claude is open.
+          Paused. No runs until resumed. Claude&apos;s Routines updates next time Claude is open.
         </span>
       )}
       {error && <span className="text-[11px] text-rose-600 dark:text-rose-400">{error}</span>}
