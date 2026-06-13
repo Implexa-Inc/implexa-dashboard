@@ -16,6 +16,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import ConnectionHeartbeat from './connection-heartbeat';
 
 type Surface = 'claude' | 'codex';
 
@@ -107,6 +108,9 @@ export default function ConnectCommand() {
         Paste it in your terminal. It signs you in and installs Implexa into your {COMMANDS[surface].label}.
         Then your agent builds itself, runs as you, free on the plan you already pay for.
       </p>
+
+      {/* Live "are you actually connected?" status (flips green on first heartbeat). */}
+      <ConnectionHeartbeat />
     </div>
   );
 }
