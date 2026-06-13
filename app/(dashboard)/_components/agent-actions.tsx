@@ -100,6 +100,20 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       });
       requestId.current = res?.request?.id || null;
       pollStart.current = Date.now();
+      // A SCHEDULED agent runs as its real routine: the plugin sees the queued
+      // request and re-arms the agent's one-time fireAt task, which fires in the
+      // background runtime with its pre-granted permissions (no chat, no enter
+      // key). Don't prefill a run command too - that would run it twice. We
+      // still open Claude so the pending-request hook gets a session to fire in.
+      if (claudeTaskId) {
+        const bridge0 = typeof window !== 'undefined'
+          ? (window as Window & { implexaDesktop?: { openAgent?: () => Promise<{ ok: boolean }> } }).implexaDesktop
+          : undefined;
+        if (bridge0?.openAgent) await bridge0.openAgent().catch(() => null);
+        setMsg('Its routine is firing in the background - the result lands in your inbox like any scheduled run.');
+        setState('queued');
+        return;
+      }
       // The handoff must be VISIBLE (founder: "Queued" with an empty Claude box
       // reads as a silent failure). Inside the desktop shell we open Claude with
       // the run command PREFILLED via the claude:// deep link; the user reviews
