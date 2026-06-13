@@ -20,6 +20,8 @@ import { createClient } from '@/lib/supabase/server';
 import { callBackend } from '@/lib/api';
 import InstallFlow from './install-flow';
 import HeroInstall from './hero-install';
+import PrerequisitesChecklist from '../_components/prerequisites-checklist';
+import { getProficiency, isGuided } from '@/lib/proficiency';
 import { Logo } from '@/components/logo';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +34,11 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
   const { data: profile } = await supabase
     .from('users').select('id, email').eq('id', session.user.id).maybeSingle();
   if (!profile) redirect('/onboarding?next=/install');
+
+  // Desktop-first: guided (novice/beginner) users get a "what you need" checklist
+  // up front. Defensive read (degrades to null if migration 0076 isn't applied).
+  const proficiency = await getProficiency(supabase, session.user.id);
+  const guided = isGuided(proficiency);
 
   // Find the most-recently-created active API key (surface only the prefix —
   // never expose the full key in HTML). Last-used timestamp powers the
@@ -120,6 +127,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
         {showWelcome && welcomeBanner}
+        {guided && <PrerequisitesChecklist />}
 
         <header className="mb-8 text-center">
           <div className="mb-4 flex justify-center"><Logo height={18} /></div>
