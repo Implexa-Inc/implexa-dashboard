@@ -104,7 +104,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
   //   welcome=role-<slug>&forked=N    → fresh signup + role pack picked
   //   welcome=skipped                 → fresh signup, role pack skipped
   const welcomeRaw = searchParams?.welcome || '';
-  const showWelcome = welcomeRaw === '1' || welcomeRaw === 'joined' || welcomeRaw === 'invited' || welcomeRaw === 'skipped' || welcomeRaw.startsWith('role-');
+  const showWelcome = welcomeRaw === '1' || welcomeRaw === 'joined' || welcomeRaw === 'invited' || welcomeRaw === 'skipped' || welcomeRaw === 'building' || welcomeRaw.startsWith('role-');
   const fromSkillSlug   = (searchParams?.from_skill || '').slice(0, 80);
   const forkedCount     = Math.max(0, parseInt(searchParams?.forked || '0', 10) || 0);
   let fromSkillName: string | null = null;
@@ -385,6 +385,14 @@ function renderWelcomeBanner({
     body = (
       <>
         Connect Implexa to Claude below so those Playbooks actually run when you invoke them. Takes about 2 minutes — same surface every Implexa user goes through.
+      </>
+    );
+  } else if (welcomeRaw === 'building') {
+    // Intent-carrier: they typed an agent on the website; it's queued to build.
+    headline = <>Your agent is queued to build.</>;
+    body = (
+      <>
+        One step left: connect Implexa to your own Claude or Codex below. The moment you connect, the agent you described builds itself and runs there, as you, free on the plan you already pay for. Takes about 2 minutes.
       </>
     );
   } else if (welcomeRaw === 'skipped') {

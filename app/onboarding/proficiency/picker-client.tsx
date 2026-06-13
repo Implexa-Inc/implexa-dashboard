@@ -18,16 +18,27 @@ export default function ProficiencyPicker({ jwt, next }: { jwt: string; next: st
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Intent-carriers already told us their first agent on the website, so don't
+  // make them pick a role-pack library , skip straight to connect (one fewer
+  // screen to first value). Others continue to the role step (`next`).
+  function destination(): string {
+    try {
+      if (window.localStorage.getItem('implexa_pending_intent')) return '/install?welcome=building';
+    } catch { /* private mode */ }
+    return next;
+  }
+
   async function pick(level: Level['key']) {
     setError(null);
     setSaving(level);
+    const dest = destination();
     try {
       await callBackend('/api/v2/me/proficiency', { jwt, method: 'POST', body: { proficiency: level } });
-      router.push(next);
+      router.push(dest);
     } catch (err) {
-      // Don't trap onboarding on a save hiccup , record the error but let them move on.
+      // Don't trap onboarding on a save hiccup. Record the error but let them move on.
       setError(err instanceof Error ? err.message : 'Could not save');
-      router.push(next);
+      router.push(dest);
     }
   }
 
@@ -68,7 +79,7 @@ export default function ProficiencyPicker({ jwt, next }: { jwt: string; next: st
       <div className="text-center mt-6">
         <button
           type="button"
-          onClick={() => router.push(next)}
+          onClick={() => router.push(destination())}
           disabled={!!saving}
           className="text-sm text-ink-400 hover:text-ink-200 underline disabled:opacity-50"
         >
