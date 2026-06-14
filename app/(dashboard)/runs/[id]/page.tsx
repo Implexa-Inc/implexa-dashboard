@@ -24,6 +24,7 @@ import { listWorkflows } from '@/lib/workflow-catalog';
 import { deriveRunState, type RunRow } from '@/lib/run-state';
 import { RunStateBadge } from '../../_components/run-state-badge';
 import BackLink from '../../_components/back-link';
+import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,6 +114,14 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
         <BackLink fallback="/inbox" label="Results" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
+
+        {/* web→app handoff: the https email link lands here; offer the bounce into
+            the desktop app. Dormant until the app ships (desktopAppLive). */}
+        {desktopAppLive() && (
+          <div className="mt-4">
+            <OpenInAppPrompt runId={r.id} />
+          </div>
+        )}
 
         <header className="mt-4 mb-6">
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50">{name}</h1>
