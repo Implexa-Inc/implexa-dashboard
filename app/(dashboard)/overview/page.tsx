@@ -24,7 +24,6 @@ import { RunAttentionBanner, type AttentionItem } from '../_components/run-atten
 import NeedsYouStrip from '../_components/needs-you-strip';
 import FirstWinMoment from '../_components/first-win-moment';
 import InboxList from '../inbox/inbox-list';
-import SuggestedShelf from '../_components/suggested-shelf';
 import FirstRunMagic from '../_components/first-run-magic';
 import TalkToImplexa from '../_components/talk-to-implexa';
 import GetStartedIntent from '../_components/get-started-intent';
@@ -86,12 +85,12 @@ export default async function OverviewPage() {
 
         {isFirstRun ? (
           <>
-            <TalkToImplexa hasAgents={false} guided={guided} />
+            <TalkToImplexa hasAgents={false} guided={guided} suggestions={suggested} />
             <FirstRunMagic workflows={catalog} />
           </>
         ) : (
           <>
-            <TalkToImplexa hasAgents={myAgents.length > 0} guided={guided} />
+            <TalkToImplexa hasAgents={myAgents.length > 0} guided={guided} suggestions={suggested} />
 
             {/* first-win celebration -> tailored 2nd agent (fires once, early users) */}
             <FirstWinMoment
@@ -123,9 +122,6 @@ export default async function OverviewPage() {
                 <InboxList initialItems={items} basePath="/overview" />
               )}
             </section>
-
-            {/* suggested for you , the learning-driven shelf */}
-            <SuggestedShelf suggestions={suggested} />
           </>
         )}
       </div>

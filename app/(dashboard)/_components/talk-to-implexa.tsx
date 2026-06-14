@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { SuggestedAgent } from '@/lib/workflow-catalog';
 
 /**
  * The conversation box: "you talk to Implexa". One codebase, two contexts.
@@ -49,13 +51,27 @@ function readAsDataUrl(file: File): Promise<string | null> {
   });
 }
 
-export default function TalkToImplexa({ hasAgents = false, guided = false }: { hasAgents?: boolean; guided?: boolean }) {
+export default function TalkToImplexa({ hasAgents = false, guided = false, suggestions = [] }: { hasAgents?: boolean; guided?: boolean; suggestions?: SuggestedAgent[] }) {
   const [intent, setIntent] = useState('');
   const [state, setState] = useState<State>('idle');
   const [msg, setMsg] = useState('');
   const [images, setImages] = useState<Attachment[]>([]);
   const [hasBridge, setHasBridge] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+
+  // Pick a suggestion: an idea (suggested_intent) fills the box so the user can
+  // tweak then Build; an existing catalog agent (workflow_slug) jumps to it.
+  function pickSuggestion(s: SuggestedAgent) {
+    if (s.suggested_intent) {
+      setIntent(s.suggested_intent);
+      const el = document.getElementById('talk');
+      if (el) { (el as HTMLInputElement).focus(); }
+    } else if (s.workflow_slug) {
+      router.push(`/workflows/${s.workflow_slug}`);
+    }
+  }
+  const chips = suggestions.filter((s) => s.suggested_intent || s.workflow_slug).slice(0, 6);
 
   // The desktop bridge is only knowable client-side. Gate the attach UI on it.
   useEffect(() => {
@@ -226,6 +242,25 @@ export default function TalkToImplexa({ hasAgents = false, guided = false }: { h
         )}
         {hasBridge && images.length === 0 && (
           <p className="text-[11px] text-ink-500 mt-2">Tip: paste or attach an image (a screenshot, a design) and your agent can see it.</p>
+        )}
+
+        {/* Suggested for you — one-tap idea chips. An idea fills the box; an
+            existing agent jumps to its page. Right where you'd start typing. */}
+        {chips.length > 0 && (
+          <div className="mt-4 flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] text-ink-500 mr-0.5">Suggested:</span>
+            {chips.map((s, i) => (
+              <button
+                key={`${s.workflow_slug || s.skill_slug || s.title}-${i}`}
+                type="button"
+                onClick={() => pickSuggestion(s)}
+                title={s.reason || s.title}
+                className="text-xs rounded-full border border-ink-700 px-3 py-1 text-ink-300 hover:border-ink-500 hover:text-ink-100 transition-colors"
+              >
+                {s.workflow_slug && !s.suggested_intent ? '▶ ' : '+ '}{s.title}
+              </button>
+            ))}
+          </div>
         )}
 
         {msg && (
