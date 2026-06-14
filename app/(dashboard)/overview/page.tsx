@@ -28,6 +28,7 @@ import SuggestedShelf from '../_components/suggested-shelf';
 import FirstRunMagic from '../_components/first-run-magic';
 import TalkToImplexa from '../_components/talk-to-implexa';
 import GetStartedIntent from '../_components/get-started-intent';
+import OnboardingProgress, { type OnboardingStep } from '../_components/onboarding-progress';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,18 @@ export default async function OverviewPage() {
   ]);
   const guided = isGuided(proficiency);
 
+  // Onboarding progress (persistent until every step is genuinely done). Each
+  // step is a real signal: experience level set, ≥1 agent, a live connection.
+  // The connection check = does an active API key exist (an install happened).
+  const { data: activeKeys } = await supabase
+    .from('api_keys').select('id').eq('user_id', profile.id).eq('status', 'active').limit(1);
+  const connected = (activeKeys || []).length > 0;
+  const onboardingSteps: OnboardingStep[] = [
+    { label: 'Set your experience level', href: '/onboarding/proficiency', done: proficiency != null },
+    { label: 'Add your starter agents',    href: '/onboarding/role',        done: myAgents.length > 0 },
+    { label: 'Connect your Claude or Codex', href: '/install',              done: connected },
+  ];
+
   // First-run magic: a brand-new user (no agents, no runs) gets THE OFFER
   // instead of an empty todo list.
   const isFirstRun = myAgents.length === 0 && items.length === 0;
@@ -67,6 +80,9 @@ export default async function OverviewPage() {
     <main className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-3xl mx-auto">
         <Suspense fallback={null}><GetStartedIntent /></Suspense>
+
+        {/* Resume-anytime onboarding bar — vanishes once all steps are done. */}
+        <OnboardingProgress steps={onboardingSteps} />
 
         {isFirstRun ? (
           <>
