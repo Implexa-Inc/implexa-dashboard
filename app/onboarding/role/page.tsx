@@ -38,16 +38,16 @@ export default async function RolePickerPage() {
             {profile.display_name ? `One quick thing, ${profile.display_name.split(' ')[0]}` : 'One quick thing'}
           </h1>
           <p className="text-ink-300 text-sm mt-3 max-w-xl mx-auto">
-            What do you spend most of your time doing? We&apos;ll set up a starter library
-            of skills tailored to your role — fork them, run them, share your customized
-            versions with your team.
+            What do you spend most of your time doing? We&apos;ll set up a starter set of
+            agents tailored to your role — turn them on, run them, and tweak them to fit
+            how you actually work.
           </p>
         </header>
 
         <RolePickerClient jwt={session.access_token} roles={ROLE_PACKS} />
 
         <footer className="text-center text-xs text-ink-400 mt-8">
-          You can pick another role later — or capture your own skills from scratch.
+          You can pick another role later — or build your own agents from scratch.
         </footer>
       </div>
     </main>

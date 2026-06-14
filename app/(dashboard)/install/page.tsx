@@ -127,7 +127,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
         {showWelcome && welcomeBanner}
-        {guided && <PrerequisitesChecklist />}
+        {guided && <PrerequisitesChecklist connected={hasKey} />}
 
         <header className="mb-8 text-center">
           <div className="mb-4 flex justify-center"><Logo height={18} /></div>
@@ -388,11 +388,11 @@ function renderWelcomeBanner({
     );
   } else if (welcomeRaw.startsWith('role-')) {
     headline = forkedCount > 0
-      ? <>{forkedCount} starter Playbook{forkedCount === 1 ? '' : 's'} forked into your library.</>
-      : <>Your role pack is ready.</>;
+      ? <>{forkedCount} starter agent{forkedCount === 1 ? '' : 's'} added to your account.</>
+      : <>Your starter agents are ready.</>;
     body = (
       <>
-        Connect Implexa to Claude below so those Playbooks actually run when you invoke them. Takes about 2 minutes — same surface every Implexa user goes through.
+        Connect Implexa to your own Claude or Codex below so those agents actually run when you turn them on. Takes about 2 minutes — same surface every Implexa user goes through.
       </>
     );
   } else if (welcomeRaw === 'building') {
@@ -407,7 +407,7 @@ function renderWelcomeBanner({
     headline = <>Welcome to Implexa.</>;
     body = (
       <>
-        One step before you can run any of 40,000+ vetted AI skills: connect Implexa to Claude Code or Codex below. Takes about 2 minutes. After that, try <code className="bg-ink-800 px-1 rounded text-xs">/implexa:run draft a cold outreach email</code> to feel the wedge.
+        One step before your agents can run: connect Implexa to your own Claude Code or Codex below. Takes about 2 minutes. After that, try <code className="bg-ink-800 px-1 rounded text-xs">/implexa:run draft a cold outreach email</code> to see one run for yourself.
       </>
     );
   }

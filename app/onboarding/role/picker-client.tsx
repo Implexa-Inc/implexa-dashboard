@@ -63,7 +63,7 @@ export default function RolePickerClient({ jwt, roles }: { jwt: string; roles: R
                 {role.rationale}
               </div>
               <div className="mt-3 text-[11px] text-brand-500 font-medium">
-                {isSelecting ? 'Setting up your library…' : `→ Fork ${role.starterPlaybooks.length} Playbooks`}
+                {isSelecting ? 'Setting up your agents…' : `→ Add ${role.starterPlaybooks.length} agents`}
               </div>
             </button>
           );
@@ -83,7 +83,7 @@ export default function RolePickerClient({ jwt, roles }: { jwt: string; roles: R
           disabled={!!selecting}
           className="text-sm text-ink-400 hover:text-ink-200 underline disabled:opacity-50"
         >
-          Skip — I&apos;ll browse the library myself
+          Skip — I&apos;ll build my own from scratch
         </button>
       </div>
     </>

@@ -37,7 +37,7 @@ export const ROLE_PACKS: RolePack[] = [
       'cold-outreach-sequence',
       'competitor-scan',
     ],
-    rationale: '7 Playbooks covering the daily SDR / AE / RevOps motion — prospect research, cold outreach, meeting prep, competitive intel.',
+    rationale: '7 agents covering the daily SDR / AE / RevOps motion — prospect research, cold outreach, meeting prep, competitive intel.',
   },
   {
     slug: 'recruiting',
@@ -52,7 +52,7 @@ export const ROLE_PACKS: RolePack[] = [
       'pre-meeting-prep',
       'draft-an-email',
     ],
-    rationale: '6 Playbooks covering sourcing → screening → interview prep → redeployment, plus shared meeting + email helpers.',
+    rationale: '6 agents covering sourcing → screening → interview prep → redeployment, plus shared meeting + email helpers.',
   },
   {
     slug: 'customer-success',
@@ -67,7 +67,7 @@ export const ROLE_PACKS: RolePack[] = [
       'renewal-risk-brief',
       'pre-meeting-prep',
     ],
-    rationale: '6 Playbooks covering health checks, QBR prep, expansion plays, escalations, and renewal-risk briefs.',
+    rationale: '6 agents covering health checks, QBR prep, expansion plays, escalations, and renewal-risk briefs.',
   },
   {
     slug: 'founder',
@@ -87,7 +87,7 @@ export const ROLE_PACKS: RolePack[] = [
       'social-post-draft',
       'runway-check',
     ],
-    rationale: '10 cross-functional Playbooks — research, daily ops, prospecting, hiring, customer pulse, public posts, runway. Most-leveraged skill from each function.',
+    rationale: '10 cross-functional agents — research, daily ops, prospecting, hiring, customer pulse, public posts, runway. Most-leveraged one from each function.',
   },
   {
     slug: 'engineering',
@@ -102,7 +102,7 @@ export const ROLE_PACKS: RolePack[] = [
       'draft-an-email',
       'one-on-one-prep',
     ],
-    rationale: '6 Playbooks — code review checklist, bug triage, release notes, plus shared research + 1:1 + email helpers.',
+    rationale: '6 agents — code review checklist, bug triage, release notes, plus shared research + 1:1 + email helpers.',
   },
   {
     slug: 'other',
@@ -117,7 +117,7 @@ export const ROLE_PACKS: RolePack[] = [
       'draft-an-email',
       'onboarding-context',
     ],
-    rationale: '5 cross-functional Playbooks that work for anyone — research, meeting prep, daily brief, email drafting, new-hire onboarding.',
+    rationale: '5 cross-functional agents that work for anyone — research, meeting prep, daily brief, email drafting, new-hire onboarding.',
   },
 ];
 
