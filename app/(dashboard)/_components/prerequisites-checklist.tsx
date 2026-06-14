@@ -1,38 +1,60 @@
+'use client';
+
 /**
- * <PrerequisitesChecklist /> , the "what you need installed" list for guided
+ * <PrerequisitesChecklist /> — the "what you need installed" list for guided
  * (novice/beginner) users, per the desktop-first posture (locked 2026-06-13).
  *
- * Agents run in a LOCAL agent runtime, not a web chat, so a novice needs a few
- * things in place. Shown honestly for TODAY: the Implexa app is days away (the
- * command below is the interim connect), while the Claude/Codex DESKTOP app and
- * the Chrome extension are real prerequisites right now.
+ * Self-detecting inside the desktop app. When the bridge (window.implexaDesktop)
+ * is present we know real local state and mark steps done instead of nagging:
+ *   1. Install the Implexa app  → the bridge existing means we ARE in the app.
+ *   2. Install Claude/Codex     → detectAgents() (apps on disk) ‖ a live connection.
+ *   3. Add the Chrome extension → detectExtensions() (Claude/Codex ext on disk).
+ * In a plain browser (no bridge) we can't read the disk, so we fall back to the
+ * server `connected` hint for step 2 and leave the rest as to-dos.
  *
- * Detection: when `connected` is true (the dashboard has seen a live hook/MCP
- * connection for this user), the "install the desktop app" step is already
- * satisfied — we mark it done rather than asking the user to do something they
- * clearly already did. (Full local-app detection — "is Claude.app on disk" —
- * is the Implexa desktop app's job; the web can only know the connection
- * succeeded, which is the meaningful signal anyway.) Server component.
+ * `connected` (server prop) = an active API key exists, the web-knowable signal.
  */
+
+import { useEffect, useState } from 'react';
+
+type Bridge = {
+  detectAgents?: () => Promise<{ claude?: boolean; codex?: boolean }>;
+  detectExtensions?: () => Promise<{ claude?: boolean; codex?: boolean }>;
+};
 
 type Link = { label: string; href: string };
 
-type Step = {
-  title: string;
-  body: string;
-  links?: Link[];
-  badge?: string;
-  /** When true, this step renders in a completed (green check) state. */
-  done?: boolean;
-  doneNote?: string;
-};
-
 export default function PrerequisitesChecklist({ connected = false }: { connected?: boolean }) {
-  const steps: Step[] = [
+  // Detection state. null = not yet checked (SSR / first paint).
+  const [det, setDet] = useState<{ inApp: boolean; agents: boolean; ext: boolean } | null>(null);
+
+  useEffect(() => {
+    const bridge = typeof window !== 'undefined'
+      ? (window as Window & { implexaDesktop?: Bridge }).implexaDesktop
+      : undefined;
+    if (!bridge) {
+      // Plain browser: can't read the disk. Only step 2 is web-knowable.
+      setDet({ inApp: false, agents: connected, ext: false });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      let agents = connected;
+      let ext = false;
+      try { const a = await bridge.detectAgents?.(); if (a) agents = !!(a.claude || a.codex) || connected; } catch { /* keep connected */ }
+      try { const e = await bridge.detectExtensions?.(); if (e) ext = !!(e.claude || e.codex); } catch { /* leave as to-do */ }
+      if (!cancelled) setDet({ inApp: true, agents, ext }); // bridge present ⇒ the Implexa app is installed
+    })();
+    return () => { cancelled = true; };
+  }, [connected]);
+
+  const steps = [
     {
       title: 'Install the Implexa app',
       body: 'The one-click home for building, activating, and running your agents. Coming in the next few days. For now, connect with the command below.',
       badge: 'Coming soon',
+      done: det?.inApp ?? false,
+      doneNote: "Detected — you're using the Implexa app.",
     },
     {
       title: 'Install the Claude or Codex desktop app',
@@ -40,8 +62,8 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
       links: [
         { label: 'Get Claude', href: 'https://claude.ai/download' },
         { label: 'Get Codex', href: 'https://openai.com/codex' },
-      ],
-      done: connected,
+      ] as Link[],
+      done: det?.agents ?? connected,
       doneNote: 'Detected — your Claude or Codex is connected to Implexa.',
     },
     {
@@ -50,13 +72,20 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
       links: [
         { label: 'Claude for Chrome', href: 'https://chromewebstore.google.com/detail/claude/fcoeoabgfenejglbffodgkkbkcdhcgfn?hl=en-US' },
         { label: 'Codex for Chrome', href: 'https://chromewebstore.google.com/detail/codex/hehggadaopoacecdllhhajmbjkdcmajg?hl=en-US' },
-      ],
+      ] as Link[],
+      done: det?.ext ?? false,
+      doneNote: 'Detected — the Claude or Codex extension is installed.',
     },
   ];
 
+  const doneCount = steps.filter((s) => s.done).length;
+
   return (
     <section className="card mb-6">
-      <h2 className="text-sm font-medium text-ink-100">Before your agents can run, you&apos;ll need a few things</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium text-ink-100">Before your agents can run, you&apos;ll need a few things</h2>
+        <span className="text-xs text-ink-500 tabular-nums">{doneCount}/{steps.length} ready</span>
+      </div>
       <p className="text-xs text-ink-500 mt-1 mb-4">A one-time setup. We&apos;ll keep it simple.</p>
       <ol className="space-y-3">
         {steps.map((s, i) => (
@@ -79,7 +108,7 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
                   <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300">{s.badge}</span>
                 )}
               </div>
-              {s.done && s.doneNote ? (
+              {s.done ? (
                 <p className="text-xs text-success-600 dark:text-success-400 mt-0.5 leading-relaxed">{s.doneNote}</p>
               ) : (
                 <>
@@ -87,13 +116,7 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
                   {s.links && s.links.length > 0 && (
                     <div className="mt-1.5 flex items-center gap-4 flex-wrap">
                       {s.links.map((l) => (
-                        <a
-                          key={l.href}
-                          href={l.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block text-xs text-brand-500 hover:underline"
-                        >
+                        <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-brand-500 hover:underline">
                           {l.label} ↗
                         </a>
                       ))}
