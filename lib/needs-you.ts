@@ -17,7 +17,7 @@ import { looksOverdue } from '@/lib/routine-status';
 import { getConnectionStatus } from '@/lib/connections';
 
 export type NeedGrant = { slug: string; name: string; reason: string };
-export type MissedSchedule = { id: string; slug: string; name: string; failed: boolean; when: string };
+export type MissedSchedule = { id: string; slug: string; name: string; failed: boolean; when: string; claudeTaskId: string | null };
 export type SignIn = { domain: string; label: string; who: string; fixSlug: string; count: number };
 export type Stalled = { id: string; slug: string; name: string };
 
@@ -36,6 +36,7 @@ export type NeedsYou = {
 type SchedRow = {
   id: string; skill_slug: string; cron_expression: string | null;
   schedule_nl: string | null; status: string; last_run_at: string | null;
+  claude_task_id: string | null;
 };
 type StalledRow = { id: string; skill_slug: string; ran_at: string; stalled_at: string | null };
 
@@ -45,7 +46,7 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
     getMyAgents(),
     supabase
       .from('scheduled_skills')
-      .select('id, skill_slug, cron_expression, schedule_nl, status, last_run_at')
+      .select('id, skill_slug, cron_expression, schedule_nl, status, last_run_at, claude_task_id')
       .in('status', ['active', 'failed'])
       .order('created_at', { ascending: false })
       .limit(100),
@@ -82,6 +83,7 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
       name: nameBySlug.get(r.skill_slug) || r.skill_slug,
       failed: r.status === 'failed',
       when: r.schedule_nl || r.cron_expression || 'its schedule',
+      claudeTaskId: r.claude_task_id || null,
     }));
 
   // Accounts a specific agent needs that are signed out, grouped by domain so

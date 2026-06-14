@@ -11,6 +11,7 @@
 
 import Link from 'next/link';
 import type { NeedsYou } from '@/lib/needs-you';
+import FixNowButton from './fix-now-button';
 
 function Item({ title, detail, href, cta, warn = false }: {
   title: string; detail: string; href: string; cta: string; warn?: boolean;
@@ -80,15 +81,20 @@ export default function NeedsYouStrip({
       )}
 
       {data.missed.map((m) => (
-        <Item
-          key={`missed-${m.id}`}
-          title={m.name}
-          detail={m.failed
-            ? 'Its schedule is marked failed.'
-            : `Missed its schedule (${m.when}). It runs when your machine is awake; it will catch up, or run it now.`}
-          href={`/workflows/${m.slug}`}
-          cta="Open agent"
-        />
+        <div key={`missed-${m.id}`} className="card flex items-center justify-between gap-3 border-amber-500/40">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-ink-100 truncate">{m.name}</p>
+            <p className="text-xs mt-0.5 text-amber-700 dark:text-amber-300">
+              {m.failed
+                ? 'Its schedule is marked failed. Run it now in Claude to get it going again.'
+                : `Missed its schedule (${m.when}). Run it now in Claude — it lands on the routine so you can watch.`}
+            </p>
+            <Link href={`/workflows/${m.slug}`} className="text-[11px] text-ink-500 hover:text-ink-300 hover:underline mt-1 inline-block">
+              Open agent details
+            </Link>
+          </div>
+          <FixNowButton slug={m.slug} name={m.name} claudeTaskId={m.claudeTaskId} />
+        </div>
       ))}
     </section>
   );
