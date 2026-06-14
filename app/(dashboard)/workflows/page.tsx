@@ -19,6 +19,7 @@ import { listMyWorkflows } from '@/lib/workflow-catalog';
 import { getMyAgents } from '@/lib/agents-home';
 import { categorizeAgent } from '@/lib/agent-category';
 import AgentsList, { type ListAgent } from '../_components/agents-list';
+import ChainSuggestions from '../_components/chain-suggestions';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,6 +96,8 @@ export default async function WorkflowsPage() {
             Build a new one on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link>.
           </p>
         </header>
+
+        <ChainSuggestions />
 
         <AgentsList agents={list} />
       </div>
