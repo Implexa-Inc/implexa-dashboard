@@ -8,7 +8,7 @@
  * the starter pack is the *training wheels* moment, not the long-term library.
  */
 
-export type RoleSlug = 'sales' | 'recruiting' | 'customer-success' | 'founder' | 'engineering' | 'other';
+export type RoleSlug = 'solopreneur' | 'small-business' | 'sales' | 'recruiting' | 'customer-success' | 'founder' | 'engineering' | 'other';
 
 export type RolePack = {
   slug: RoleSlug;
@@ -23,6 +23,40 @@ export type RolePack = {
 };
 
 export const ROLE_PACKS: RolePack[] = [
+  {
+    slug: 'solopreneur',
+    label: 'Solopreneur',
+    icon: '🚀',
+    tagline: 'I run a one-person business end to end.',
+    starterPlaybooks: [
+      // A team of one wears every hat — content, outreach, research, admin.
+      'daily-brief',
+      'social-post-draft',
+      'draft-an-email',
+      'research-a-topic',
+      'draft-a-cold-email',
+      'competitor-scan',
+      'pre-meeting-prep',
+      'runway-check',
+    ],
+    rationale: '8 agents for a team of one — daily brief, social posts, email drafting, research, cold outreach, competitor watch, meeting prep, and cash runway.',
+  },
+  {
+    slug: 'small-business',
+    label: 'Small business',
+    icon: '🏪',
+    tagline: 'I run a small team or local business.',
+    starterPlaybooks: [
+      'daily-brief',
+      'draft-an-email',
+      'social-post-draft',
+      'customer-health-check',
+      'draft-a-cold-email',
+      'competitor-scan',
+      'pre-meeting-prep',
+    ],
+    rationale: '7 agents covering daily ops, customer email, social posts, customer health, outreach, competitor watch, and meeting prep.',
+  },
   {
     slug: 'sales',
     label: 'Sales / GTM',
