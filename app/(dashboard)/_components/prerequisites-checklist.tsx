@@ -80,6 +80,11 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
 
   const doneCount = steps.filter((s) => s.done).length;
 
+  // Once everything is detected, a wall of green checks is just noise — hide the
+  // whole checklist. We wait for detection (det != null) so a genuinely-unset-up
+  // user still sees it on first paint instead of it flashing away.
+  if (det && doneCount === steps.length) return null;
+
   return (
     <section className="card mb-6">
       <div className="flex items-center justify-between gap-2">
