@@ -36,6 +36,7 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
   const [created, setCreated] = useState<Record<string, string>>({}); // suggestion key -> new slug
   const [err, setErr] = useState<string | null>(null);
   const [showCustom, setShowCustom] = useState(false);
+  const [loading, setLoading] = useState(true);
   const supabase = createClient();
   const router = useRouter();
 
@@ -44,10 +45,11 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        if (!session) { if (!cancelled) setLoading(false); return; }
         const res = await callBackend('/api/v2/me/chain-suggestions', { jwt: session.access_token });
         if (!cancelled && res?.ok && Array.isArray(res.suggestions)) setSuggestions(res.suggestions);
       } catch { /* fail-quiet */ }
+      finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -86,12 +88,19 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
   }
 
   const canCustom = agents.length >= 2;
-  if (!suggestions.length && !canCustom) return null;
+  if (!loading && !suggestions.length && !canCustom) return null;
 
   return (
     <section className="mb-7">
       <h2 className="text-xs font-medium text-ink-400 uppercase tracking-wider mb-1">Chain your agents</h2>
       <p className="text-xs text-ink-500 mb-3">One agent&apos;s output feeds the next. One tap builds the pipeline.</p>
+
+      {loading && !suggestions.length && (
+        <div className="flex items-center gap-2 text-xs text-ink-500 mb-4" aria-live="polite">
+          <span className="inline-block w-3.5 h-3.5 border-2 border-ink-600 border-t-brand-500 rounded-full animate-spin" aria-hidden="true" />
+          Looking for chains you can build…
+        </div>
+      )}
 
       {suggestions.length > 0 && (
         <>
