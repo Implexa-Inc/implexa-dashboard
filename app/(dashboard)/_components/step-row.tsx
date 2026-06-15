@@ -8,14 +8,39 @@
  * which navigates IN-APP, never to an external tab.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { WorkflowStep } from '@/lib/workflow-catalog';
+import { createClient } from '@/lib/supabase/client';
+import { callBackend } from '@/lib/api';
 import Modal from './modal';
 
 export default function StepRow({ step }: { step: WorkflowStep }) {
   const [open, setOpen] = useState(false);
+  const [content, setContent] = useState<string | null>(null);
+  const [loadingContent, setLoadingContent] = useState(false);
   const router = useRouter();
+  const supabase = createClient();
+
+  // Lazy-load the FULL skill/agent content when the modal opens (once), so the
+  // user sees the whole thing instead of the truncated preview. Fail-soft: on
+  // any miss we keep showing the description + preview we already have.
+  useEffect(() => {
+    if (!open || content !== null || loadingContent || !step.ref) return;
+    let cancelled = false;
+    setLoadingContent(true);
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const q = `source=${encodeURIComponent(step.ref!.source)}&slug=${encodeURIComponent(step.ref!.slug)}`;
+        const res = await callBackend(`/api/v2/me/skill-content?${q}`, { jwt: session?.access_token });
+        if (!cancelled && res?.ok && typeof res.content === 'string') setContent(res.content);
+      } catch { /* keep the preview fallback */ }
+      finally { if (!cancelled) setLoadingContent(false); }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const bound = step.ref && !step.gap;
   const isAgent = step.kind === 'workflow';
@@ -94,13 +119,22 @@ export default function StepRow({ step }: { step: WorkflowStep }) {
           {step.ref_summary?.description && (
             <p className="text-sm text-ink-200 leading-relaxed">{step.ref_summary.description}</p>
           )}
-          {step.ref_summary?.preview && (
+          {/* Full SKILL.md content (lazy-loaded). Falls back to the preview. */}
+          {content ? (
+            <pre className="mt-3 max-h-[50vh] overflow-auto rounded-lg border border-ink-800 bg-ink-950/60 p-3 text-xs text-ink-300 leading-relaxed whitespace-pre-wrap font-mono">
+              {content}
+            </pre>
+          ) : loadingContent ? (
+            <div className="mt-3 flex items-center gap-2 text-xs text-ink-500">
+              <span className="inline-block w-3.5 h-3.5 border-2 border-ink-600 border-t-brand-500 rounded-full animate-spin" aria-hidden="true" />
+              Loading the full {noun}…
+            </div>
+          ) : step.ref_summary?.preview ? (
             <p className="mt-3 text-xs text-ink-400 leading-relaxed border-l border-ink-700 pl-3 whitespace-pre-wrap">
               {step.ref_summary.preview}
             </p>
-          )}
-          {!step.ref_summary?.description && !step.ref_summary?.preview && (
-            <p className="text-sm text-ink-400">This {noun} runs as step {step.order} of the chain.</p>
+          ) : (
+            <p className="mt-3 text-sm text-ink-400">This {noun} runs as step {step.order} of the chain.</p>
           )}
           {/* Open the full thing IN-APP (never an external browser tab). */}
           {isAgent && (
