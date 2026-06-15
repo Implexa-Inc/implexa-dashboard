@@ -97,7 +97,7 @@ export default async function WorkflowsPage() {
           </p>
         </header>
 
-        <ChainSuggestions />
+        <ChainSuggestions agents={list.map((a) => ({ slug: a.slug, source: a.source, name: a.name }))} />
 
         <AgentsList agents={list} />
       </div>
