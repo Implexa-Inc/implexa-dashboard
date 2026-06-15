@@ -17,7 +17,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { getWorkflow, getMyWorkflow, type WorkflowStep } from '@/lib/workflow-catalog';
+import { getWorkflow, getMyWorkflow } from '@/lib/workflow-catalog';
 import { remoteSafety } from '@/lib/remote-safety';
 import { getConnectionStatus, warningsForAgent } from '@/lib/connections';
 import { loadInboxItems } from '@/lib/inbox';
@@ -34,11 +34,10 @@ import InboxList from '../../inbox/inbox-list';
 import BackLink from '../../_components/back-link';
 import AgentSetupCard from '../../_components/agent-setup-card';
 import AgentFeedback from '../../_components/agent-feedback';
+import StepRow from '../../_components/step-row';
 import { getActivationChecklist } from '@/lib/activation';
 
 export const dynamic = 'force-dynamic';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://implexa.ai';
 
 type Routine = {
   id: string;
@@ -61,86 +60,6 @@ function rel(iso: string | null): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   if (s < 86400 * 7) return `${Math.floor(s / 86400)}d ago`;
   return new Date(iso).toLocaleDateString();
-}
-
-function StepRow({ step }: { step: WorkflowStep }) {
-  const bound = step.ref && !step.gap;
-  return (
-    <li className="flex gap-3 py-3">
-      <div className="flex-none mt-0.5">
-        <span
-          className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold tabular-nums ${
-            bound
-              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-              : 'bg-ink-800 text-ink-400'
-          }`}
-        >
-          {step.order}
-        </span>
-      </div>
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          {step.kind !== 'skill' && (
-            <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">
-              {step.kind}
-            </span>
-          )}
-          {step.gap && (
-            <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/40 text-amber-700 dark:text-amber-300">
-              gap
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-ink-100">{step.label}</p>
-        {step.detail ? (
-          <p className="mt-1 text-xs text-ink-400 leading-relaxed">{step.detail}</p>
-        ) : bound && step.ref_summary?.description ? (
-          <p className="mt-1 text-xs text-ink-400 leading-relaxed">{step.ref_summary.description}</p>
-        ) : null}
-        {bound && step.same_as_step ? (
-          <p className="mt-1 text-xs text-ink-500">
-            ↳ same skill as step {step.same_as_step}
-            {step.ref_summary?.name ? ` (${step.ref_summary.name})` : ''}
-          </p>
-        ) : null}
-        {bound && !step.same_as_step && step.ref_summary?.preview ? (
-          <p className="mt-1.5 text-xs text-ink-500 leading-relaxed border-l border-ink-700 pl-3">
-            {step.ref_summary.preview}
-          </p>
-        ) : null}
-        {bound && step.ref && step.ref.source === 'org' ? (
-          // Org skills are the user's OWN captured skills: private, no public
-          // page. Show the name plainly instead of a public link that 404s.
-          <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-            {step.ref_summary?.name ? `your skill: ${step.ref_summary.name}` : `your skill: ${step.ref.slug}`}
-          </span>
-        ) : bound && step.ref ? (
-          <a
-            href={`${SITE_URL}/s/${encodeURIComponent(step.ref.source)}/${encodeURIComponent(step.ref.slug)}`}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-1.5 inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 hover:underline"
-          >
-            {step.ref_summary?.name ? `full skill: ${step.ref_summary.name}` : `uses verified skill: ${step.ref.slug}`}
-          </a>
-        ) : step.kind === 'decision' ? (
-          <span className="mt-1 block text-xs text-ink-500">decision step</span>
-        ) : (
-          <span className="mt-1 block text-xs text-ink-500">your model fills this step</span>
-        )}
-        {step.fallbacks.length > 0 ? (
-          <ul className="mt-1.5 space-y-0.5">
-            {step.fallbacks.map((fb) => (
-              <li key={fb} className="text-xs text-ink-500">
-                <span className="text-ink-600">no integration? </span>
-                {fb}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    </li>
-  );
 }
 
 export default async function WorkflowDetailPage({
