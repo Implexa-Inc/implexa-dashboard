@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import Modal from './modal';
 
 type AgentRef = { slug: string; source: string; name: string };
 
@@ -34,6 +35,7 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
   const [busy, setBusy] = useState<string | null>(null);
   const [created, setCreated] = useState<Record<string, string>>({}); // suggestion key -> new slug
   const [err, setErr] = useState<string | null>(null);
+  const [showCustom, setShowCustom] = useState(false);
   const supabase = createClient();
   const router = useRouter();
 
@@ -132,23 +134,47 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
         </>
       )}
 
-      {canCustom && <CustomChainBuilder agents={agents} onCreated={(slug) => router.push(`/workflows/${slug}`)} build={postChain} busy={busy} />}
+      {canCustom && (
+        <button
+          type="button"
+          onClick={() => setShowCustom(true)}
+          className="btn-outline text-xs px-3 py-1.5"
+        >
+          + Create custom chain
+        </button>
+      )}
 
       {err && <p className="text-xs text-rose-400 mt-2">{err}</p>}
+
+      <Modal
+        open={showCustom}
+        onClose={() => setShowCustom(false)}
+        title="Create custom chain"
+        subtitle="Pick an agent, its output feeds the next, add as many hops as you want."
+        maxWidth="max-w-xl"
+      >
+        <CustomChainBuilder
+          agents={agents}
+          build={postChain}
+          busy={busy}
+          onCancel={() => setShowCustom(false)}
+          onCreated={(slug) => { setShowCustom(false); router.push(`/workflows/${slug}`); }}
+        />
+      </Modal>
     </section>
   );
 }
 
-/** The vertical "Create custom chain" builder. */
+/** The vertical "Create custom chain" builder — rendered inside the modal. */
 function CustomChainBuilder({
-  agents, onCreated, build, busy,
+  agents, onCreated, onCancel, build, busy,
 }: {
   agents: AgentRef[];
   onCreated: (slug: string) => void;
+  onCancel: () => void;
   build: (ordered: AgentRef[], name: string, busyKey: string) => Promise<string | null>;
   busy: string | null;
 }) {
-  const [open, setOpen] = useState(false);
   const [slots, setSlots] = useState<string[]>(['', '']); // selected slugs, in order
 
   const bySlug = new Map(agents.map((a) => [a.slug, a]));
@@ -170,21 +196,8 @@ function CustomChainBuilder({
     if (slug) onCreated(slug);
   }
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-xs font-medium text-brand-500 hover:underline"
-      >
-        + Create custom chain
-      </button>
-    );
-  }
-
   return (
-    <div className="card p-4">
-      <h3 className="text-[11px] font-medium text-ink-500 mb-3">Create custom chain</h3>
+    <div>
       <div className="space-y-1">
         {slots.map((sl, i) => (
           <div key={i}>
@@ -213,7 +226,7 @@ function CustomChainBuilder({
           </div>
         ))}
       </div>
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3">
         <button
           type="button"
           onClick={addSlot}
@@ -221,15 +234,24 @@ function CustomChainBuilder({
         >
           + Add agent
         </button>
+      </div>
+      <div className="mt-5 flex items-center justify-end gap-3 border-t border-ink-800 pt-4">
+        {!valid && <span className="text-[11px] text-ink-600 mr-auto">Pick at least 2 different agents.</span>}
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-sm text-ink-400 hover:text-ink-200 px-3 py-2"
+        >
+          Cancel
+        </button>
         <button
           type="button"
           onClick={create}
           disabled={!valid || !!busy}
-          className="btn-success text-xs px-3 py-1.5 disabled:opacity-50"
+          className="btn-success text-sm px-4 py-2 disabled:opacity-50"
         >
           {busy === '__custom__' ? 'Building…' : 'Create chain'}
         </button>
-        {!valid && <span className="text-[11px] text-ink-600">Pick at least 2 different agents.</span>}
       </div>
     </div>
   );
