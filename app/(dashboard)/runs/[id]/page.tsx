@@ -163,16 +163,12 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         </div>
 
         {pending && (
-          <Link
-            href={`/inbox?run=${r.id}`}
-            className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-brand-500/40 bg-brand-500/10 p-4 hover:bg-brand-500/15 transition-colors"
-          >
-            <div>
-              <div className="text-sm font-semibold text-ink-50">This deliverable is waiting for your review</div>
-              <div className="text-xs text-ink-300 mt-0.5">Approve what it produced, or dismiss it. Nothing posts without you.</div>
+          <div className="mb-6 rounded-lg border border-brand-500/40 bg-brand-500/10 p-4">
+            <div className="text-sm font-semibold text-ink-50">This deliverable is held for your approval</div>
+            <div className="text-xs text-ink-300 mt-0.5">
+              Read it below, then use <span className="text-ink-100 font-medium">Approve &amp; continue in Claude</span> above to let it finish the gated step. Nothing posts without you.
             </div>
-            <span className="text-sm text-brand-500 font-medium whitespace-nowrap">Review →</span>
-          </Link>
+          </div>
         )}
 
         {r.output_markdown ? (

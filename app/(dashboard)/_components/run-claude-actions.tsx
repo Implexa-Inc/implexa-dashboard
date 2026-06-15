@@ -71,8 +71,12 @@ export default function RunClaudeActions({
         {busy ? 'Opening…' : pending ? 'Approve & continue in Claude →' : 'Continue in Claude →'}
       </button>
       {routineHref && (
-        <a href={routineHref} className="text-xs text-brand-500 hover:underline whitespace-nowrap">
-          Open the routine in Claude ↗
+        <a
+          href={routineHref}
+          title="Opens Claude's Routines list (Claude doesn't support deep-linking to a specific routine)"
+          className="text-xs text-brand-500 hover:underline whitespace-nowrap"
+        >
+          Open Claude Routines ↗
         </a>
       )}
     </div>
