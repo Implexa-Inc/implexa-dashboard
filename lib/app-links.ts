@@ -13,6 +13,11 @@ export function desktopAppLive(): boolean {
   return process.env.NEXT_PUBLIC_DESKTOP_APP_LIVE === 'true';
 }
 
+/** Public download URL for the live, notarized universal macOS app. */
+export function macDownloadUrl(): string {
+  return 'https://github.com/Implexa-Inc/implexa-releases/releases/latest/download/Implexa-universal.dmg';
+}
+
 export function appActivateUrl(slug: string): string {
   return `implexa://workflows/${encodeURIComponent(slug)}/activate`;
 }

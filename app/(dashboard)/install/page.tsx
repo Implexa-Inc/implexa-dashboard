@@ -22,6 +22,7 @@ import InstallFlow from './install-flow';
 import HeroInstall from './hero-install';
 import PrerequisitesChecklist from '../_components/prerequisites-checklist';
 import { getProficiency, isGuided } from '@/lib/proficiency';
+import { desktopAppLive, macDownloadUrl } from '@/lib/app-links';
 import { Logo } from '@/components/logo';
 
 export const dynamic = 'force-dynamic';
@@ -131,11 +132,25 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
 
         <header className="mb-8 text-center">
           <div className="mb-4 flex justify-center"><Logo height={18} /></div>
-          <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Install Implexa</h1>
+          <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Run your agents</h1>
           <p className="text-ink-300 mt-3 leading-relaxed max-w-xl mx-auto">
-            One command per runtime. Installs the API key, hooks, the Implexa plugin, and MCP wiring in ~30 seconds. Claude Code and Codex both supported.
+            Two ways: download the Implexa app (one click, it does the rest), or paste the command below into your own Claude Code or Codex. That&apos;s it.
           </p>
         </header>
+
+        {/* Primary path, post-signup: the one-click app (live + notarized). The
+         * connect command below is the terminal alternative. */}
+        {desktopAppLive() && (
+          <div className="mb-8 flex flex-col items-center gap-2">
+            <a
+              href={macDownloadUrl()}
+              className="btn-success text-sm px-6 py-3 inline-flex items-center gap-2"
+            >
+              ↓ Download the Implexa app for Mac
+            </a>
+            <span className="text-[11px] text-ink-500">Universal · macOS 11+ · signed &amp; notarized · free</span>
+          </div>
+        )}
 
         {/* HERO — the primary install path. Tokenized curl when available,
          * universal curl as the fallback. Refreshes on copy to never go stale.
