@@ -25,6 +25,7 @@ import { deriveRunState, type RunRow } from '@/lib/run-state';
 import { RunStateBadge } from '../../_components/run-state-badge';
 import BackLink from '../../_components/back-link';
 import OpenInAppPrompt from '../../_components/open-in-app-prompt';
+import RunClaudeActions from '../../_components/run-claude-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,6 +111,16 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     ? `/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`
     : `/workflows/${encodeURIComponent(r.skill_slug)}`;
 
+  // The routine's Claude task id (when this agent has a live schedule) powers the
+  // "Open the routine in Claude" deep link + the "Continue in Claude" handoff that
+  // lets the user actually resume a run paused at a human-approval gate.
+  const { data: schedRows } = await supabase
+    .from('scheduled_skills')
+    .select('claude_task_id')
+    .eq('skill_slug', r.skill_slug)
+    .limit(1);
+  const claudeTaskId = schedRows?.[0]?.claude_task_id || null;
+
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
@@ -144,6 +155,12 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             )}
           </div>
         </header>
+
+        {/* Get back to Claude: continue a run paused at an approval gate, or open
+            the routine that produced it. */}
+        <div className="mb-6">
+          <RunClaudeActions runId={r.id} agentName={name} claudeTaskId={claudeTaskId} />
+        </div>
 
         {pending && (
           <Link
