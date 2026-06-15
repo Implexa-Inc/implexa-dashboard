@@ -197,7 +197,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           </summary>
           <div className="px-4 pb-4 pt-2 border-t border-ink-700/60">
             <p className="text-xs text-ink-400 mb-4 leading-relaxed">
-              Same skill library + capture loop across every Claude surface. Pick whichever you actually use day-to-day.
+              Same agents + library across every Claude surface. Pick whichever you actually use day-to-day.
             </p>
             <InstallFlow
               hasKey={hasKey}
@@ -231,7 +231,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
                   Idempotent — safe to re-run anytime. After it finishes, opening a fresh Terminal and running the install command gives you a true fresh-install experience (browser auth runs, no env vars leak through).
                 </p>
                 <p className="text-xs text-ink-400">
-                  <strong className="text-ink-200">What&apos;s NOT removed:</strong> your API keys in the cloud (revoke at <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Connected installs</Link> if you want a fully clean slate), your Implexa account, and your skill library.
+                  <strong className="text-ink-200">What&apos;s NOT removed:</strong> your API keys in the cloud (revoke at <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Connected installs</Link> if you want a fully clean slate), your Implexa account, and your agents and library.
                 </p>
               </div>
             </details>
@@ -268,10 +268,10 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
               </summary>
               <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
                 <p><strong className="text-ink-100">Claude Code (CLI)</strong> is the most-tested install. Best capture, full plugin support, and what we run end-to-end QA against.</p>
-                <p><strong className="text-ink-100">Codex (CLI)</strong> is fully supported as of v0.16. Same skill library, same SkillRank ranking, same <code className="text-xs bg-ink-800 px-1 rounded">/implexa:run</code> wedge. Use the second curl above.</p>
+                <p><strong className="text-ink-100">Codex (CLI)</strong> is fully supported as of v0.16. Same agents and library, same <code className="text-xs bg-ink-800 px-1 rounded">/implexa:run</code> wedge. Use the second curl above.</p>
                 <p><strong className="text-ink-100">Claude Code (Desktop)</strong> if you prefer a visual install — same capture as the CLI version, just clicked-through.</p>
-                <p>All three give you the full 7 slash commands and 30+ MCP tools. Your library is cloud-hosted and shared across whichever runtimes you install on.</p>
-                <p className="text-xs text-ink-400">Cursor, Gemini CLI, Cowork, and Claude chat work for read-only browsing but don&apos;t support full capture yet — pick Claude Code or Codex if you want to record skills.</p>
+                <p>All three give you the full 7 slash commands and 30+ MCP tools. Your agents and library are cloud-hosted and shared across whichever runtimes you install on.</p>
+                <p className="text-xs text-ink-400">Cursor, Gemini CLI, Cowork, and Claude chat work for read-only browsing but don&apos;t support full capture yet — pick Claude Code or Codex if you want to build and capture agents.</p>
               </div>
             </details>
 
@@ -282,7 +282,7 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
               </summary>
               <div className="px-4 pb-4 pt-1 text-sm text-ink-200 leading-relaxed space-y-2 border-t border-ink-700/60">
                 <p>
-                  No. Pick whichever surface you actually use day-to-day. Your skill library lives in our cloud — it&apos;s shared across all surfaces you install on, and surfaces you don&apos;t install on simply don&apos;t have local plugin commands.
+                  No. Pick whichever surface you actually use day-to-day. Your agents and library live in our cloud — they&apos;re shared across all surfaces you install on, and surfaces you don&apos;t install on simply don&apos;t have local plugin commands.
                 </p>
                 <p className="text-xs text-ink-400">
                   Tip: Cowork install also auto-registers Implexa as a Connector in Claude chat (Desktop). One install, two surfaces.
@@ -345,8 +345,8 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
         <footer className="mt-12 text-center text-xs text-ink-400 max-w-xl mx-auto leading-relaxed">
           <p>
             Once connected, try the wedge first: <code className="bg-ink-800 px-1 rounded">/implexa:run draft a cold outreach email</code>{' '}
-            searches the cross-vendor skill graph, ranks the matches with SkillRank, and runs the best one inline in your current session.{' '}
-            No install per skill, no SKILL.md copying.
+            builds a small agent for that, picks the best building blocks, and runs it inline in your current session.{' '}
+            Nothing to install per task, no SKILL.md copying.
           </p>
         </footer>
       </div>
@@ -377,28 +377,28 @@ function renderWelcomeBanner({
   );
 
   if (welcomeRaw === '1') {
-    // From share-link install — they just acquired their first skill
+    // From share-link install — they just acquired their first agent
     headline = fromSkillName
-      ? <>&ldquo;{fromSkillName}&rdquo; is in your library.</>
-      : <>Your first skill is in your library.</>;
+      ? <>&ldquo;{fromSkillName}&rdquo; is ready in your library.</>
+      : <>Your first agent is ready in your library.</>;
     body = (
       <>
-        One more step to actually use it: connect Implexa to Claude below. Takes about 2 minutes. Once done, just say{' '}
-        <em className="text-ink-100">&ldquo;Implexa, run {fromSkillSlug || 'this skill'}&rdquo;</em> inside Claude and you&apos;re off.
+        One more step to actually run it: connect Implexa to your own Claude or Codex below. Takes about 2 minutes. Once done, just say{' '}
+        <em className="text-ink-100">&ldquo;Implexa, run {fromSkillSlug || 'this agent'}&rdquo;</em> inside Claude and you&apos;re off.
       </>
     );
   } else if (welcomeRaw === 'joined') {
     headline = <>You joined your team on Implexa.</>;
     body = (
       <>
-        Your team&apos;s shared skill library is below — but you can&apos;t run them yet. Connect Implexa to Claude (below) so the saved workflows actually fire in your sessions. Takes about 2 minutes.
+        Your team&apos;s shared agents are below — but you can&apos;t run them yet. Connect Implexa to your own Claude or Codex (below) so they actually fire in your sessions. Takes about 2 minutes.
       </>
     );
   } else if (welcomeRaw === 'invited') {
     headline = <>You accepted the invite.</>;
     body = (
       <>
-        Welcome to the team. One more step before you can run your teammates&apos; saved skills: connect Implexa to Claude below. Takes about 2 minutes.
+        Welcome to the team. One more step before you can run your teammates&apos; shared agents: connect Implexa to your own Claude or Codex below. Takes about 2 minutes.
       </>
     );
   } else if (welcomeRaw.startsWith('role-')) {
