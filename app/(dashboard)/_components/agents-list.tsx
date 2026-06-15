@@ -71,6 +71,9 @@ function Row({ a }: { a: ListAgent }) {
               <span aria-hidden className="mr-1.5">{a.category.emoji}</span>{a.name}
             </Link>
             <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{a.category.label}</span>
+            {a.section === 'not_activated' && (
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-sky-700 dark:text-sky-300">Draft</span>
+            )}
             {badge && <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>}
           </div>
           {/* status line */}
@@ -85,7 +88,7 @@ function Row({ a }: { a: ListAgent }) {
               <span>Next run: {nextRunLabel(a.nextRunAt)}</span>
             )}
             {a.section === 'on_demand' && !a.needsIntervention && (a.pendingQuestions ?? 0) === 0 && <span>Runs on demand</span>}
-            {a.section === 'not_activated' && <span>Not activated yet</span>}
+            {a.section === 'not_activated' && <span>Saved as a draft · turn it on whenever you&apos;re ready</span>}
           </p>
         </div>
 
@@ -167,7 +170,7 @@ export default function AgentsList({ agents }: { agents: ListAgent[] }) {
 
       <Section title="Scheduled" agents={scheduled} />
       <Section title="On-demand" agents={onDemand} />
-      <Section title="Not activated" agents={notActivated} />
+      <Section title="Drafts" agents={notActivated} />
 
       {shown.length === 0 && (
         <div className="card text-center py-10">
