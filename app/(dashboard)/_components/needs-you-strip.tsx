@@ -71,14 +71,16 @@ export default function NeedsYouStrip({
         />
       ))}
 
-      {full && data.pendingReviews > 0 && (
+      {data.approvals.map((a) => (
         <Item
-          title={`${data.pendingReviews} result${data.pendingReviews === 1 ? '' : 's'} held for your review`}
-          detail="Approve or dismiss; nothing posts without you."
-          href="/overview"
-          cta="Review"
+          key={`approval-${a.id}`}
+          warn
+          title={`${a.name} — your approval needed`}
+          detail="It paused at a human-approval gate. Read what it produced, then approve to let it finish the held step."
+          href={`/runs/${a.id}`}
+          cta="Review & approve"
         />
-      )}
+      ))}
 
       {data.missed.map((m) => (
         <div key={`missed-${m.id}`} className="card flex items-center justify-between gap-3 border-amber-500/40">

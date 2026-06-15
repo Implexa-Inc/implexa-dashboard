@@ -20,12 +20,15 @@ export type NeedGrant = { slug: string; name: string; reason: string };
 export type MissedSchedule = { id: string; slug: string; name: string; failed: boolean; when: string; claudeTaskId: string | null };
 export type SignIn = { domain: string; label: string; who: string; fixSlug: string; count: number };
 export type Stalled = { id: string; slug: string; name: string };
+/** A run held at a human-approval gate, awaiting the user's approve-&-continue. */
+export type Approval = { id: string; slug: string; name: string };
 
 export type NeedsYou = {
   needGrant: NeedGrant[];
   missed: MissedSchedule[];
   signIns: SignIn[];
   stalled: Stalled[];
+  approvals: Approval[];
   pendingReviews: number;
   /** Count of the agent/account-level items shown on the Home strip. */
   homeCount: number;
@@ -41,7 +44,7 @@ type SchedRow = {
 type StalledRow = { id: string; skill_slug: string; ran_at: string; stalled_at: string | null };
 
 export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> {
-  const [status, myAgents, { data: schedules }, { count: pendingCount }, { data: stalledRows }] = await Promise.all([
+  const [status, myAgents, { data: schedules }, { data: pendingRows }, { data: stalledRows }] = await Promise.all([
     getConnectionStatus(),
     getMyAgents(),
     supabase
@@ -52,8 +55,10 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
       .limit(100),
     supabase
       .from('skill_runs')
-      .select('id', { count: 'exact', head: true })
-      .eq('review_status', 'pending'),
+      .select('id, skill_slug, ran_at')
+      .eq('review_status', 'pending')
+      .order('ran_at', { ascending: false })
+      .limit(20),
     supabase
       .from('skill_runs')
       .select('id, skill_slug, ran_at, stalled_at')
@@ -111,9 +116,18 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
     name: nameBySlug.get(r.skill_slug) || r.skill_slug,
   }));
 
-  const pendingReviews = pendingCount ?? 0;
-  const homeCount = needGrant.length + missed.length + signIns.length;
-  const total = homeCount + stalled.length + (pendingReviews > 0 ? 1 : 0);
+  // Runs held at a human-approval gate (review_status='pending'): actionable —
+  // the user reads the deliverable, approves, and the gated work continues.
+  const approvals: Approval[] = ((pendingRows as { id: string; skill_slug: string }[]) || []).map((r) => ({
+    id: r.id,
+    slug: r.skill_slug,
+    name: nameBySlug.get(r.skill_slug) || r.skill_slug,
+  }));
+  const pendingReviews = approvals.length;
+  // Approvals are actionable, so they belong ON the Home strip (not just the
+  // /connections full view).
+  const homeCount = needGrant.length + missed.length + signIns.length + approvals.length;
+  const total = homeCount + stalled.length;
 
-  return { needGrant, missed, signIns, stalled, pendingReviews, homeCount, total };
+  return { needGrant, missed, signIns, stalled, approvals, pendingReviews, homeCount, total };
 }

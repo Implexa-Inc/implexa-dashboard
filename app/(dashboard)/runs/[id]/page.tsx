@@ -159,7 +159,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         {/* Get back to Claude: continue a run paused at an approval gate, or open
             the routine that produced it. */}
         <div className="mb-6">
-          <RunClaudeActions runId={r.id} agentName={name} claudeTaskId={claudeTaskId} />
+          <RunClaudeActions runId={r.id} agentName={name} claudeTaskId={claudeTaskId} pending={pending} />
         </div>
 
         {pending && (
