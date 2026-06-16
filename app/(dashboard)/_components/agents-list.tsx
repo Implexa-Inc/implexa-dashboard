@@ -7,13 +7,18 @@
  * and dumped "output" to the whole Results list.
  *
  * The server hands a normalized, already-merged array (active agents from the
- * /me/agents feed + built-but-never-activated from the user's library), so this
- * component is purely presentational + the client-side category filter.
+ * /me/agents feed + built-but-never-activated from the user's library), plus the
+ * user's ARCHIVED agents (removed from their list). Archiving is a per-user
+ * soft-hide: it calls POST /me/workflows/dismiss, which hides the agent from
+ * THIS user only and NEVER deletes the shared/universal agent (others keep it).
+ * Reversible from the Archived section (DELETE /me/workflows/dismiss).
  */
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { callBackend } from '@/lib/api';
 
 export type ListAgent = {
   slug: string;
@@ -28,6 +33,8 @@ export type ListAgent = {
   scheduleNl?: string | null;
   lastRun?: { id?: string; status: string; runState: string | null; ranAt: string } | null;
 };
+
+export type ArchivedAgent = { slug: string; name: string; source: string };
 
 function rel(iso: string): string {
   const s = (new Date(iso).getTime() - Date.now()) / 1000;
@@ -59,7 +66,7 @@ function stateBadge(a: ListAgent): { label: string; cls: string } | null {
   return null;
 }
 
-function Row({ a }: { a: ListAgent }) {
+function Row({ a, onArchive, busy }: { a: ListAgent; onArchive: (a: ListAgent) => void; busy: boolean }) {
   const detail = `/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`;
   const badge = a.section !== 'not_activated' ? stateBadge(a) : null;
   return (
@@ -101,39 +108,101 @@ function Row({ a }: { a: ListAgent }) {
           {a.lastRun?.id && (
             <Link href={`/runs/${a.lastRun.id}`} className="text-xs text-ink-400 hover:text-ink-200 hover:underline whitespace-nowrap">Last output</Link>
           )}
+          {/* Archive = remove from MY list (never deletes the shared agent). */}
+          <button
+            type="button"
+            onClick={() => onArchive(a)}
+            disabled={busy}
+            title="Remove this agent from your list (it stays available to everyone, and you can restore it)"
+            aria-label={`Archive ${a.name}`}
+            className="text-xs text-ink-500 hover:text-rose-600 dark:hover:text-rose-300 disabled:opacity-50 whitespace-nowrap"
+          >
+            {busy ? 'Archiving…' : 'Archive'}
+          </button>
         </div>
       </div>
     </li>
   );
 }
 
-function Section({ title, agents }: { title: string; agents: ListAgent[] }) {
+function Section({ title, agents, onArchive, busySlug }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; busySlug: string | null }) {
   if (agents.length === 0) return null;
   return (
     <section className="mb-8">
       <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">{title} <span className="text-ink-500">({agents.length})</span></h2>
-      <ul className="space-y-3">{agents.map((a) => <Row key={a.slug} a={a} />)}</ul>
+      <ul className="space-y-3">{agents.map((a) => <Row key={a.slug} a={a} onArchive={onArchive} busy={busySlug === a.slug} />)}</ul>
     </section>
   );
 }
 
-export default function AgentsList({ agents }: { agents: ListAgent[] }) {
+export default function AgentsList({ agents, archived = [] }: { agents: ListAgent[]; archived?: ArchivedAgent[] }) {
   const router = useRouter();
   const params = useSearchParams();
+  const supabase = createClient();
+
+  // Local copies so archive/restore update instantly (the backend already
+  // filters dismissed agents out of the feeds, so an optimistic move is safe).
+  const [list, setList] = useState<ListAgent[]>(agents);
+  const [arch, setArch] = useState<ArchivedAgent[]>(archived);
+  const [busySlug, setBusySlug] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+
   const activeCat = params.get('cat') || '';
+
+  async function archive(a: ListAgent) {
+    setBusySlug(a.slug);
+    setError(null);
+    const prevList = list;
+    const prevArch = arch;
+    // Optimistic: drop from the list, add to Archived.
+    setList(list.filter((x) => x.slug !== a.slug));
+    setArch([{ slug: a.slug, name: a.name, source: a.source }, ...arch.filter((x) => x.slug !== a.slug)]);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend('/api/v2/me/workflows/dismiss', {
+        jwt: session?.access_token, method: 'POST', body: { slug: a.slug },
+      });
+    } catch (e) {
+      setList(prevList);
+      setArch(prevArch);
+      setError(e instanceof Error ? e.message : 'Could not archive that agent');
+    } finally {
+      setBusySlug(null);
+    }
+  }
+
+  async function restore(slug: string) {
+    setBusySlug(slug);
+    setError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend('/api/v2/me/workflows/dismiss', {
+        jwt: session?.access_token, method: 'DELETE', body: { slug },
+      });
+      setArch(arch.filter((x) => x.slug !== slug));
+      // Re-fetch the server feed so the restored agent comes back with its full
+      // row (status, next run, last output) rather than a stub.
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not restore that agent');
+    } finally {
+      setBusySlug(null);
+    }
+  }
 
   // Distinct categories present, for the filter bar.
   const categories = useMemo(() => {
     const m = new Map<string, { key: string; label: string; emoji: string; n: number }>();
-    for (const a of agents) {
+    for (const a of list) {
       const c = a.category;
       const e = m.get(c.key);
       if (e) e.n += 1; else m.set(c.key, { ...c, n: 1 });
     }
     return [...m.values()].sort((x, y) => y.n - x.n);
-  }, [agents]);
+  }, [list]);
 
-  const shown = activeCat ? agents.filter((a) => a.category.key === activeCat) : agents;
+  const shown = activeCat ? list.filter((a) => a.category.key === activeCat) : list;
   const scheduled = shown.filter((a) => a.section === 'scheduled');
   const onDemand = shown.filter((a) => a.section === 'on_demand');
   const notActivated = shown.filter((a) => a.section === 'not_activated');
@@ -146,6 +215,8 @@ export default function AgentsList({ agents }: { agents: ListAgent[] }) {
 
   return (
     <>
+      {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
+
       {categories.length > 1 && (
         <div className="flex flex-wrap items-center gap-2 mb-7">
           <button
@@ -168,9 +239,9 @@ export default function AgentsList({ agents }: { agents: ListAgent[] }) {
         </div>
       )}
 
-      <Section title="Scheduled" agents={scheduled} />
-      <Section title="On-demand" agents={onDemand} />
-      <Section title="Drafts" agents={notActivated} />
+      <Section title="Scheduled" agents={scheduled} onArchive={archive} busySlug={busySlug} />
+      <Section title="On-demand" agents={onDemand} onArchive={archive} busySlug={busySlug} />
+      <Section title="Drafts" agents={notActivated} onArchive={archive} busySlug={busySlug} />
 
       {shown.length === 0 && (
         <div className="card text-center py-10">
@@ -181,6 +252,38 @@ export default function AgentsList({ agents }: { agents: ListAgent[] }) {
               : <>Describe one on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link> and Implexa builds it.</>}
           </p>
         </div>
+      )}
+
+      {/* Archived — per-user hidden agents, restorable. The shared agents are
+          untouched; this is just the caller's view. */}
+      {arch.length > 0 && (
+        <section className="mt-10 pt-6 border-t border-ink-800">
+          <button
+            type="button"
+            onClick={() => setShowArchived((v) => !v)}
+            className="text-xs uppercase tracking-wider text-ink-500 hover:text-ink-300 flex items-center gap-1.5"
+          >
+            <span className={`inline-block transition-transform ${showArchived ? 'rotate-90' : ''}`}>▸</span>
+            Archived ({arch.length})
+          </button>
+          {showArchived && (
+            <ul className="space-y-2 mt-3">
+              {arch.map((a) => (
+                <li key={a.slug} className="card flex items-center justify-between gap-3 py-2.5">
+                  <span className="text-sm text-ink-300 truncate">{a.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => restore(a.slug)}
+                    disabled={busySlug === a.slug}
+                    className="text-xs btn-outline px-3 py-1 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {busySlug === a.slug ? 'Restoring…' : 'Restore'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
     </>
   );

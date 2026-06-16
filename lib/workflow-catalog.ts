@@ -245,6 +245,38 @@ export async function listMyWorkflows(): Promise<MyWorkflowCard[]> {
   }
 }
 
+export type DismissedAgent = {
+  slug: string;
+  name: string;
+  source: string;
+  dismissedAt: string | null;
+};
+
+/**
+ * listDismissedWorkflows() - the signed-in user's ARCHIVED agents (the ones they
+ * removed from their list). Calls GET /api/v2/me/workflows/dismissed with the
+ * session JWT (owner-scoped). Powers the "Archived" restore section. Degrades
+ * to [] on any failure.
+ */
+export async function listDismissedWorkflows(): Promise<DismissedAgent[]> {
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return [];
+  try {
+    const res = await fetch(`${BACKEND}/api/v2/me/workflows/dismissed`, {
+      headers: { authorization: `Bearer ${session.access_token}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { dismissed?: DismissedAgent[] };
+    return Array.isArray(body.dismissed) ? body.dismissed : [];
+  } catch {
+    return [];
+  }
+}
+
 export type SuggestedAgent = {
   kind: 'recommended' | 'popular';
   title: string;

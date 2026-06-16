@@ -15,10 +15,10 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { listMyWorkflows } from '@/lib/workflow-catalog';
+import { listMyWorkflows, listDismissedWorkflows } from '@/lib/workflow-catalog';
 import { getMyAgents } from '@/lib/agents-home';
 import { categorizeAgent } from '@/lib/agent-category';
-import AgentsList, { type ListAgent } from '../_components/agents-list';
+import AgentsList, { type ListAgent, type ArchivedAgent } from '../_components/agents-list';
 import ChainSuggestions from '../_components/chain-suggestions';
 
 export const dynamic = 'force-dynamic';
@@ -32,10 +32,12 @@ export default async function WorkflowsPage() {
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const [feed, mine] = await Promise.all([
+  const [feed, mine, dismissed] = await Promise.all([
     getMyAgents(),
     listMyWorkflows(),
+    listDismissedWorkflows(),
   ]);
+  const archived: ArchivedAgent[] = dismissed.map((d) => ({ slug: d.slug, name: d.name, source: d.source }));
 
   // slug -> library metadata (source + description for categorization).
   const meta = new Map(mine.map((w) => [w.slug, w]));
@@ -99,7 +101,7 @@ export default async function WorkflowsPage() {
 
         <ChainSuggestions agents={list.map((a) => ({ slug: a.slug, source: a.source, name: a.name }))} />
 
-        <AgentsList agents={list} />
+        <AgentsList agents={list} archived={archived} />
       </div>
     </main>
   );
