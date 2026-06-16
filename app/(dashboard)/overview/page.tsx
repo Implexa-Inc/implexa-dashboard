@@ -78,7 +78,7 @@ export default async function OverviewPage() {
   return (
     <main className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-3xl mx-auto">
-        <Suspense fallback={null}><GetStartedIntent /></Suspense>
+        <Suspense fallback={null}><GetStartedIntent connected={connected} /></Suspense>
 
         {/* Resume-anytime onboarding bar — vanishes once all steps are done. */}
         <OnboardingProgress steps={onboardingSteps} />

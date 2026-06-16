@@ -6,9 +6,15 @@
  * A visitor typed a job in the hero box and signed up; the prompt rode ?intent=
  * into app-origin localStorage. The build run-request is now persisted by
  * <PersistIntent /> (mounted in the dashboard layout, so it fires on /install
- * and every authed page, not only here). This component is display-only: it
- * shows the saved idea + the one step left (connect) on Home. Renders nothing
- * when there's no pending intent. Dismiss clears the saved idea.
+ * and every authed page, not only here).
+ *
+ * Two cases, by connection state:
+ *   - NOT connected → show the saved idea + the one step left (connect). The
+ *     connect card is the right next action.
+ *   - ALREADY connected → the connect card is useless ("it's already
+ *     connected"). Instead, drop the idea straight into the build box
+ *     (TalkToImplexa, via the implexa-prefill-build event) and render nothing.
+ * Renders nothing when there's no pending intent. Dismiss clears the saved idea.
  */
 
 import { useEffect, useState } from 'react';
@@ -18,7 +24,7 @@ import ConnectCommand from './connect-command';
 const KEY = 'implexa_pending_intent';
 const POSTED = 'implexa_intent_posted';
 
-export default function GetStartedIntent() {
+export default function GetStartedIntent({ connected = false }: { connected?: boolean }) {
   const params = useSearchParams();
   const [intent, setIntent] = useState<string | null>(null);
   const [queued, setQueued] = useState(false);
@@ -29,8 +35,22 @@ export default function GetStartedIntent() {
       if (!pending) pending = (window.localStorage.getItem(KEY) || '').trim();
       if (pending) setQueued((window.localStorage.getItem(POSTED) || '') === pending);
     } catch { /* private mode */ }
-    if (pending) setIntent(pending);
-  }, [params]);
+    if (!pending) return;
+
+    // Already connected: skip the connect card entirely and prefill the build
+    // box. Fire once now and once after a tick, in case TalkToImplexa attaches
+    // its listener on the same render pass as this one.
+    if (connected) {
+      const fire = () => {
+        try { window.dispatchEvent(new CustomEvent('implexa-prefill-build', { detail: pending })); } catch { /* ignore */ }
+      };
+      fire();
+      const t = setTimeout(fire, 150);
+      return () => clearTimeout(t);
+    }
+
+    setIntent(pending);
+  }, [params, connected]);
 
   function dismiss() {
     try { window.localStorage.removeItem(KEY); } catch { /* ignore */ }
@@ -62,7 +82,8 @@ export default function GetStartedIntent() {
       <ConnectCommand />
 
       <p className="text-xs text-ink-500 mt-4">
-        Prefer one click? A one-step macOS app is coming soon.
+        Prefer one click?{' '}
+        <a href="/install" className="text-brand-500 hover:underline">Download the macOS app</a>.
       </p>
     </section>
   );
