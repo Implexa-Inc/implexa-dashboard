@@ -46,12 +46,12 @@ export default function NeedsYouStrip({
         <h2 className="text-xs font-medium text-ink-400 uppercase tracking-wider">Needs you</h2>
       )}
 
-      {full && data.stalled.map((r) => (
+      {data.stalled.map((r) => (
         <Item
           key={`stalled-${r.id}`}
           warn
-          title={r.name}
-          detail="Stalled mid-run, likely waiting for a permission. Open Claude Code and approve the prompt to let it continue."
+          title={`${r.name} — stuck mid-run`}
+          detail="It started but stalled, most likely waiting on a permission prompt it can't answer unattended. Open Claude, approve (or deny) the prompt it's stuck on, and pre-approve that permission so the next run doesn't stall."
           href={`/workflows/${r.slug}`}
           cta="Open agent"
         />
