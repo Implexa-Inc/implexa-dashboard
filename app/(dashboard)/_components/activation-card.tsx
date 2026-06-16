@@ -677,14 +677,15 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
                 align="start"
               />
               {/* Granting/activating is itself the finished task — let the user
-                  leave without feeling obliged to run it right now. Go BACK to
-                  where they came from (Needs You, Agents, …), not a fixed page. */}
+                  leave without feeling obliged to run it right now. Done is
+                  SECONDARY (Run now above is primary) and must land on THIS
+                  agent's own page, where Run now / Last output / schedule live —
+                  never bounce to Home. router.back() used to return the user to
+                  wherever they came from; in the desktop flow that's /overview,
+                  a dead-end (founder: "lands on Home, clueless what's next"). */}
               <button
                 type="button"
-                onClick={() => {
-                  if (typeof window !== 'undefined' && window.history.length > 1) router.back();
-                  else router.push('/workflows');
-                }}
+                onClick={() => router.push(`/workflows/${encodeURIComponent(checklist.slug)}?source=${encodeURIComponent(checklist.source || 'generated')}`)}
                 className="text-sm text-ink-400 hover:text-ink-200 mt-2"
               >
                 Done
