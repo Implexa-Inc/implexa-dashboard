@@ -79,10 +79,25 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // pressed with unanswered questions, so they surface AT the run moment instead
   // of the run firing blind (founder: "I clicked Run and nothing happened").
   function surfaceQuestions() {
-    const el = document.getElementById('agent-setup');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      try { window.dispatchEvent(new CustomEvent('implexa-flash-setup')); } catch { /* best effort */ }
+    // The questions live in the Setup TAB, which AgentTabs leaves unmounted
+    // while another tab is active — so #agent-setup may not exist yet. Switch to
+    // the Setup tab first (AgentTabs listens for this), THEN scroll + flash once
+    // the panel has mounted. On surfaces without tabs (the activation card), the
+    // open-tab event is a harmless no-op and #agent-setup is already present.
+    try { window.dispatchEvent(new CustomEvent('implexa-open-tab', { detail: { key: 'setup' } })); } catch { /* best effort */ }
+    const focusSetup = () => {
+      const el = document.getElementById('agent-setup');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        try { window.dispatchEvent(new CustomEvent('implexa-flash-setup')); } catch { /* best effort */ }
+        return true;
+      }
+      return false;
+    };
+    // Try immediately (no-tab surfaces), then again after the tab panel mounts.
+    if (!focusSetup()) {
+      setTimeout(focusSetup, 90);
+      setTimeout(focusSetup, 300);
     }
   }
 

@@ -10,7 +10,7 @@
  * only owns which one is visible. Deep-link via ?tab=runs is honored on mount.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export type TabDef = { key: string; label: string; attention?: boolean };
 
@@ -27,6 +27,19 @@ export default function AgentTabs({
   const [active, setActive] = useState(
     initial && tabs.some((t) => t.key === initial) ? initial : first,
   );
+
+  // Let sibling components (e.g. the "Answer N questions to run" button in the
+  // header, which lives OUTSIDE this shell) switch tabs. Without this, that
+  // button tried to scroll to #agent-setup while the Setup panel was unmounted,
+  // so it silently did nothing.
+  useEffect(() => {
+    function onOpenTab(e: Event) {
+      const key = (e as CustomEvent).detail?.key;
+      if (key && tabs.some((t) => t.key === key)) setActive(key);
+    }
+    window.addEventListener('implexa-open-tab', onOpenTab as EventListener);
+    return () => window.removeEventListener('implexa-open-tab', onOpenTab as EventListener);
+  }, [tabs]);
 
   return (
     <div>
