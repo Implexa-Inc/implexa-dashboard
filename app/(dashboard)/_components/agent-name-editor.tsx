@@ -3,10 +3,14 @@
 /**
  * <AgentNameEditor /> , inline rename for an agent's display name.
  *
- * System-generated agent names are often hard to recognize, so the owner can
+ * System-generated agent names are often hard to recognize, so the user can
  * give it a human name right on its page (a pencil next to the title). Slug
- * stays the same (it's the stable id); only the display name changes. Editable
- * only for the caller's own generated agents (the backend enforces ownership).
+ * stays the same (it's the stable id); only the display name changes.
+ *
+ * The name is a PER-USER ALIAS (POST /me/workflows/rename → user_workflow_names):
+ * it shows everywhere in the caller's view but never changes the shared/canonical
+ * name, so it works on ANY agent — generated, captured, or a shared playbook —
+ * not just the caller's own. `editable` now just gates whether the pencil shows.
  */
 
 import { useState } from 'react';

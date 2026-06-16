@@ -66,17 +66,53 @@ function stateBadge(a: ListAgent): { label: string; cls: string } | null {
   return null;
 }
 
-function Row({ a, onArchive, busy }: { a: ListAgent; onArchive: (a: ListAgent) => void; busy: boolean }) {
+function Row({ a, onArchive, onRename, busy }: { a: ListAgent; onArchive: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busy: boolean }) {
   const detail = `/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`;
   const badge = a.section !== 'not_activated' ? stateBadge(a) : null;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(a.name);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const next = draft.trim();
+    if (next.length < 2 || next === a.name) { setEditing(false); setDraft(a.name); return; }
+    setSaving(true);
+    try { await onRename(a.slug, next); setEditing(false); }
+    finally { setSaving(false); }
+  }
+
   return (
     <li className="card">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Link href={detail} className="text-base font-medium text-ink-50 hover:underline">
-              <span aria-hidden className="mr-1.5">{a.category.emoji}</span>{a.name}
-            </Link>
+          <div className="flex items-center gap-2 flex-wrap group">
+            {editing ? (
+              <input
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={save}
+                onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setDraft(a.name); setEditing(false); } }}
+                maxLength={120}
+                disabled={saving}
+                className="text-base font-medium bg-ink-900 border border-ink-600 rounded px-2 py-0.5 text-ink-50 focus:border-brand-500/60 focus:outline-none min-w-[220px]"
+              />
+            ) : (
+              <Link href={detail} className="text-base font-medium text-ink-50 hover:underline">
+                <span aria-hidden className="mr-1.5">{a.category.emoji}</span>{a.name}
+              </Link>
+            )}
+            {!editing && (
+              <button
+                type="button"
+                onClick={() => { setDraft(a.name); setEditing(true); }}
+                aria-label={`Rename ${a.name}`}
+                title="Rename (your view only)"
+                className="text-ink-500 hover:text-ink-200 text-sm opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                ✎
+              </button>
+            )}
             <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{a.category.label}</span>
             {a.section === 'not_activated' && (
               <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-sky-700 dark:text-sky-300">Draft</span>
@@ -125,12 +161,12 @@ function Row({ a, onArchive, busy }: { a: ListAgent; onArchive: (a: ListAgent) =
   );
 }
 
-function Section({ title, agents, onArchive, busySlug }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; busySlug: string | null }) {
+function Section({ title, agents, onArchive, onRename, busySlug }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busySlug: string | null }) {
   if (agents.length === 0) return null;
   return (
     <section className="mb-8">
       <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">{title} <span className="text-ink-500">({agents.length})</span></h2>
-      <ul className="space-y-3">{agents.map((a) => <Row key={a.slug} a={a} onArchive={onArchive} busy={busySlug === a.slug} />)}</ul>
+      <ul className="space-y-3">{agents.map((a) => <Row key={a.slug} a={a} onArchive={onArchive} onRename={onRename} busy={busySlug === a.slug} />)}</ul>
     </section>
   );
 }
@@ -169,6 +205,22 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
       setError(e instanceof Error ? e.message : 'Could not archive that agent');
     } finally {
       setBusySlug(null);
+    }
+  }
+
+  async function rename(slug: string, name: string) {
+    setError(null);
+    const prevList = list;
+    // Optimistic: update the row's name in place.
+    setList(list.map((x) => (x.slug === slug ? { ...x, name } : x)));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend('/api/v2/me/workflows/rename', {
+        jwt: session?.access_token, method: 'POST', body: { slug, name },
+      });
+    } catch (e) {
+      setList(prevList);
+      setError(e instanceof Error ? e.message : 'Could not rename that agent');
     }
   }
 
@@ -239,9 +291,9 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
         </div>
       )}
 
-      <Section title="Scheduled" agents={scheduled} onArchive={archive} busySlug={busySlug} />
-      <Section title="On-demand" agents={onDemand} onArchive={archive} busySlug={busySlug} />
-      <Section title="Drafts" agents={notActivated} onArchive={archive} busySlug={busySlug} />
+      <Section title="Scheduled" agents={scheduled} onArchive={archive} onRename={rename} busySlug={busySlug} />
+      <Section title="On-demand" agents={onDemand} onArchive={archive} onRename={rename} busySlug={busySlug} />
+      <Section title="Drafts" agents={notActivated} onArchive={archive} onRename={rename} busySlug={busySlug} />
 
       {shown.length === 0 && (
         <div className="card text-center py-10">

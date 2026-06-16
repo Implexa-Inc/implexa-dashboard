@@ -366,7 +366,9 @@ export default async function WorkflowDetailPage({
           </div>
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex-1 min-w-0">
-              <AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={workflow.source === 'generated'} />
+              {/* Rename is a per-user alias (your view only, never the shared
+                  name), so it's available on EVERY agent — not just generated. */}
+              <AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={true} />
               <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>
               <p className="text-ink-200 mt-3">{workflow.job || workflow.description}</p>
               <div className="mt-3 flex items-center gap-2 flex-wrap">
