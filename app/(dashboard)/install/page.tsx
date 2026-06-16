@@ -165,26 +165,6 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           lastConnected={lastConnected}
         />
 
-        {/* agentskills.io ecosystem badge — signals that skills authored here
-         * aren't locked to Claude Code. Drives both trust (this isn't a walled
-         * garden) and curiosity (what else does this work in?). */}
-        <div className="mt-4 flex justify-center">
-          <a
-            href="https://agentskills.io"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-xs text-ink-400 hover:text-ink-200 transition-colors border border-ink-700 hover:border-ink-500 rounded-full px-3 py-1.5 group"
-          >
-            <svg className="w-3 h-3 text-success-600 dark:text-success-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-            </svg>
-            <span>
-              Built on the <strong className="text-ink-200 group-hover:text-ink-50">agentskills.io</strong> open standard ·
-              runs in Claude Code, Cursor, Gemini CLI &amp; 30+ more
-            </span>
-          </a>
-        </div>
-
         {/* ALT SURFACES — power-user fallback. Collapsed by default so the primary flow
          * stays visually clean. Inside: full InstallFlow component with the surface tabs
          * (Code Desktop UI / Cowork / Chat) for users who don't run Claude Code in a
@@ -321,25 +301,6 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
             </details>
 
           </div>
-        </section>
-
-        {/* ── Uninstall / reset section ──
-          * Quiet placement at the bottom — not competing with the install
-          * hero up top. Surfaces the one-line reset command for users who
-          * want to clean up their machine (test fresh installs, swap accounts,
-          * remove the tool entirely). The detailed explanation lives in the
-          * FAQ above; this section is just the command + one-line context.
-          */}
-        <section className="mt-16 max-w-3xl mx-auto pt-8 border-t border-ink-800">
-          <div className="flex items-baseline justify-between gap-4 mb-2">
-            <h2 className="text-xs uppercase tracking-wider text-ink-400 font-bold">Uninstall / reset</h2>
-            <span className="text-[11px] text-ink-500">macOS · Linux · WSL</span>
-          </div>
-          <p className="text-xs text-ink-300 leading-relaxed mb-3">
-            One command — reverses everything the install set up (API key file, hooks, MCP wiring, plugin, launchctl env). Doesn&apos;t revoke your cloud API keys; that&apos;s a separate action at{' '}
-            <Link href="/settings/api-keys" className="text-brand-500 hover:underline">Connected installs</Link>.
-          </p>
-          <pre className="bg-ink-950 border border-ink-700 rounded-md p-3 text-xs text-ink-100 font-mono overflow-x-auto hide-scrollbar">curl -fsSL https://core.implexa.ai/uninstall.sh | bash</pre>
         </section>
 
         <footer className="mt-12 text-center text-xs text-ink-400 max-w-xl mx-auto leading-relaxed">
