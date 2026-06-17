@@ -85,12 +85,12 @@ export default async function OverviewPage() {
 
         {isFirstRun ? (
           <>
-            <TalkToImplexa hasAgents={false} guided={guided} suggestions={suggested} />
+            <TalkToImplexa hasAgents={false} guided={guided} suggestions={suggested} connected={connected} />
             <FirstRunMagic workflows={catalog} />
           </>
         ) : (
           <>
-            <TalkToImplexa hasAgents={myAgents.length > 0} guided={guided} suggestions={suggested} />
+            <TalkToImplexa hasAgents={myAgents.length > 0} guided={guided} suggestions={suggested} connected={connected} />
 
             {/* first-win celebration -> tailored 2nd agent (fires once, early users) */}
             <FirstWinMoment

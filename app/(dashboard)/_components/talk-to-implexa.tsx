@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SuggestedAgent } from '@/lib/workflow-catalog';
+import { macDownloadUrl } from '@/lib/app-links';
 
 /**
  * The conversation box: "you talk to Implexa". One codebase, two contexts.
@@ -51,8 +52,9 @@ function readAsDataUrl(file: File): Promise<string | null> {
   });
 }
 
-export default function TalkToImplexa({ hasAgents = false, guided = false, suggestions = [] }: { hasAgents?: boolean; guided?: boolean; suggestions?: SuggestedAgent[] }) {
+export default function TalkToImplexa({ hasAgents = false, guided = false, suggestions = [], connected = false }: { hasAgents?: boolean; guided?: boolean; suggestions?: SuggestedAgent[]; connected?: boolean }) {
   const [intent, setIntent] = useState('');
+  const [showConnect, setShowConnect] = useState(false);
   const [state, setState] = useState<State>('idle');
   const [msg, setMsg] = useState('');
   const [images, setImages] = useState<Attachment[]>([]);
@@ -131,6 +133,16 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
       setIntent('');
       setImages([]);
       const bridge = typeof window !== 'undefined' ? window.implexaDesktop : undefined;
+      // Not connected to any Claude/Codex yet → the agent is SAVED but nothing
+      // can build it. Don't show a false "queued, open your Claude" (the founder
+      // hit exactly this dead-end: clicked Build, nothing happened). Warn instead
+      // and point to the app, which sets up the runtime that does the building.
+      if (!connected && !bridge?.handoffAgent) {
+        setState('queued');
+        setMsg('');
+        setShowConnect(true);
+        return;
+      }
       // Desktop shell: open the agent with the build PREFILLED for review (GUI
       // path, no terminal). For Claude this is a new-chat deep link; the user
       // reviews and sends, and Claude builds it via the Implexa connector. Any
@@ -267,6 +279,41 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
           <p className={`text-xs mt-3 ${state === 'error' ? 'text-rose-400' : 'text-ink-300'}`}>{msg}</p>
         )}
       </div>
+
+      {/* Not-connected warning. Clicking Build with no Claude/Codex linked used
+          to silently "queue" with nothing to build it (the dead-end the founder
+          hit). The agent IS saved server-side; this explains the one step left. */}
+      {showConnect && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowConnect(false)}
+        >
+          <div className="card max-w-md w-full p-6 relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setShowConnect(false)}
+              aria-label="Close"
+              className="absolute top-3 right-3 text-ink-500 hover:text-ink-200 text-lg leading-none"
+            >
+              ×
+            </button>
+            <h2 className="text-lg font-semibold text-ink-50 mb-2">Your agent is saved. One step to build it.</h2>
+            <p className="text-sm text-ink-300 leading-relaxed mb-4">
+              We recommend installing the Implexa desktop app, the control plane for your agents. It installs the Implexa plugin into your own Claude or Codex, then helps you build and run your agents there, as you, free. Your agent stays queued until you connect.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <a href={macDownloadUrl()} className="btn-success text-sm px-5 py-2.5 inline-flex items-center gap-2">
+                ↓ Download the Implexa app
+              </a>
+              <a href="/install" className="text-xs text-ink-400 hover:text-ink-200">
+                Prefer the terminal? Connect with one command →
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
