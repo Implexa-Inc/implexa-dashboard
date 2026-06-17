@@ -19,6 +19,8 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
   if (!session?.user) redirect('/login');
 
   const email = session.user.email!;
+  const displayName = session.user.user_metadata?.display_name || session.user.user_metadata?.name || email.split('@')[0];
+  const nextParam = typeof searchParams?.next === 'string' && searchParams.next.startsWith('/') ? searchParams.next : null;
 
   // ─── Invite acceptance path ────────────────────────────────────────────
   // If the user signed up via /signup?invite=TOKEN, the token is forwarded
@@ -62,18 +64,37 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
     suggestion = r.suggestion;
   } catch (_) { /* no suggestion is fine */ }
 
+  // No team to join → "Create your workspace" is an empty click (nothing to
+  // decide). Auto-provision the solo workspace server-side and skip straight to
+  // proficiency. provision is idempotent. Only fall through to the picker UI
+  // when there's a real choice (a join suggestion) or if auto-provision fails
+  // (the picker then offers a manual retry). NEXT_REDIRECT must be thrown
+  // OUTSIDE the try/catch (same rule as the invite path above).
+  let autoProvisioned = false;
+  if (!suggestion) {
+    try {
+      await callBackend('/api/v2/auth/provision', {
+        jwt: session.access_token, method: 'POST', body: { displayName, joinOrgId: null },
+      });
+      autoProvisioned = true;
+    } catch (_) { /* fall through to the picker for a manual retry */ }
+  }
+  if (autoProvisioned) {
+    redirect(nextParam || '/onboarding/proficiency');
+  }
+
   return (
     <main className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <h1 className="text-3xl font-semibold tracking-tight mb-2">Welcome to Implexa</h1>
-        <p className="text-ink-500 text-sm mb-8">One last step — set up your workspace.</p>
+        <p className="text-ink-500 text-sm mb-8">Your team already uses Implexa. Join them, or start your own workspace.</p>
 
         <OnboardingPicker
           jwt={session.access_token}
           email={email}
-          displayName={session.user.user_metadata?.display_name || session.user.user_metadata?.name || email.split('@')[0]}
+          displayName={displayName}
           suggestion={suggestion}
-          next={typeof searchParams?.next === 'string' && searchParams.next.startsWith('/') ? searchParams.next : null}
+          next={nextParam}
         />
       </div>
     </main>

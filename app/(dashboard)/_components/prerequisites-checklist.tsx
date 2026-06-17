@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { macDownloadUrl } from '@/lib/app-links';
 
 type Bridge = {
   detectAgents?: () => Promise<{ claude?: boolean; codex?: boolean }>;
@@ -50,15 +51,17 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
 
   const steps = [
     {
-      title: 'Install the Implexa app',
-      body: 'The one-click home for building, activating, and running your agents. Coming in the next few days. For now, connect with the command below.',
-      badge: 'Coming soon',
+      title: 'Get the Implexa app',
+      body: 'One click, and it does the rest: it connects Implexa to your own Claude or Codex and sets up the browser extension for you, so steps 2 and 3 below happen automatically. Signed and notarized by Apple.',
+      links: [
+        { label: '↓ Download for Mac', href: macDownloadUrl() },
+      ] as Link[],
       done: det?.inApp ?? false,
-      doneNote: "Detected — you're using the Implexa app.",
+      doneNote: "You're using the Implexa app.",
     },
     {
-      title: 'Install the Claude or Codex desktop app',
-      body: 'Your agents run inside your own Claude Code or Codex, on your computer. They do NOT work in the web chat interfaces, so you need the desktop app.',
+      title: 'Have Claude or Codex installed',
+      body: 'Your agents run inside your own Claude Code or Codex (not the web chat). The Implexa app installs Implexa into them for you. If you do not have Claude or Codex yet, grab one:',
       links: [
         { label: 'Get Claude', href: 'https://claude.ai/download' },
         { label: 'Get Codex', href: 'https://openai.com/codex' },
@@ -67,8 +70,8 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
       doneNote: 'Detected — your Claude or Codex is connected to Implexa.',
     },
     {
-      title: 'Add the Chrome extension (for browser agents)',
-      body: 'Some agents drive a real browser (sign into a site, post a reel, scrape a page). The extension lets them do that as you. Optional until you build one that needs it.',
+      title: 'Browser extension (only for browser agents)',
+      body: 'Some agents drive a real browser (sign into a site, post a reel, scrape a page). The Implexa app sets this up for you; install manually only if you prefer. Optional until you build an agent that needs it.',
       links: [
         { label: 'Claude for Chrome', href: 'https://chromewebstore.google.com/detail/claude/fcoeoabgfenejglbffodgkkbkcdhcgfn?hl=en-US' },
         { label: 'Codex for Chrome', href: 'https://chromewebstore.google.com/detail/codex/hehggadaopoacecdllhhajmbjkdcmajg?hl=en-US' },
@@ -109,9 +112,6 @@ export default function PrerequisitesChecklist({ connected = false }: { connecte
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-sm font-medium ${s.done ? 'text-ink-300 line-through decoration-ink-600' : 'text-ink-100'}`}>{s.title}</span>
-                {s.badge && !s.done && (
-                  <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300">{s.badge}</span>
-                )}
               </div>
               {s.done ? (
                 <p className="text-xs text-success-600 dark:text-success-400 mt-0.5 leading-relaxed">{s.doneNote}</p>

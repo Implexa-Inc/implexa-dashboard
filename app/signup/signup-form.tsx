@@ -111,7 +111,7 @@ export default function SignupForm({
       <div className="w-full max-w-sm">
         <div className="mb-6"><Logo height={18} /></div>
         <h1 className="text-3xl font-semibold tracking-tight mb-2 text-ink-50">Create your account</h1>
-        <p className="text-ink-300 text-sm mb-8">Free forever — unlimited skills. No credit card required.</p>
+        <p className="text-ink-300 text-sm mb-8">Free forever, unlimited agents. No credit card required.</p>
 
         <div className="card space-y-4">
           {/* GitHub goes first — Implexa's audience is developers, so GH is

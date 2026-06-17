@@ -104,13 +104,13 @@ export default function HeroInstall({
 
       <div className="card !p-6">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-brand-500/15 text-brand-500">
-            ★ Recommended
+          <span className="text-[10px] uppercase tracking-wider font-bold rounded px-1.5 py-0.5 bg-ink-800 text-ink-400">
+            Advanced · terminal
           </span>
           <span className="text-xs text-ink-400">
             {hasKey
               ? 'Install on another device or re-install on this one'
-              : 'Claude Code (CLI) — one command, ~30s'}
+              : 'Prefer the terminal? Connect Claude Code or Codex with one command. The app above is the simpler path.'}
           </span>
         </div>
 

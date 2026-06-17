@@ -19,7 +19,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import ConnectCommand from './connect-command';
+import { macDownloadUrl } from '@/lib/app-links';
 
 const KEY = 'implexa_pending_intent';
 const POSTED = 'implexa_intent_posted';
@@ -75,16 +75,18 @@ export default function GetStartedIntent({ connected = false }: { connected?: bo
       </blockquote>
       <p className="text-sm text-ink-300 leading-relaxed mb-4">
         {queued
-          ? 'Saved. One step left: connect Implexa to your own Claude or Codex. It runs there, as you, free on the plan you already pay for. The moment you connect, this agent builds itself.'
-          : 'We’ve got your idea. Connect your own Claude or Codex below and it builds itself, runs as you, free.'}
+          ? 'Saved. One step left: get the Implexa app. It connects your own Claude or Codex, then this agent builds itself and runs there, as you, free on the plan you already pay for.'
+          : 'We’ve got your idea. Get the Implexa app and it builds itself, runs as you on your own Claude or Codex, free.'}
       </p>
 
-      <ConnectCommand />
-
-      <p className="text-xs text-ink-500 mt-4">
-        Prefer one click?{' '}
-        <a href="/install" className="text-brand-500 hover:underline">Download the macOS app</a>.
-      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <a href={macDownloadUrl()} className="btn-success text-sm px-5 py-2.5 inline-flex items-center gap-2">
+          ↓ Download the Implexa app
+        </a>
+        <a href="/install" className="text-xs text-ink-400 hover:text-ink-200">
+          Prefer the terminal? Connect with one command →
+        </a>
+      </div>
     </section>
   );
 }
