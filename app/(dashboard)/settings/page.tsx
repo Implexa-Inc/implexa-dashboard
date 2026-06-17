@@ -76,6 +76,12 @@ export default async function SettingsHubPage() {
             description="Every account your agents drive in the Implexa browser, whether it's reachable, and which agents need what."
           />
           <SettingsCard
+            href="/settings/run-environment"
+            icon="🖥️"
+            title="Run environment"
+            description="The workspace folder + browser profile an on-demand run uses on this machine, so agents you fire from your phone come up equipped."
+          />
+          <SettingsCard
             href="/settings/data"
             icon="🧠"
             title="Data & privacy"
