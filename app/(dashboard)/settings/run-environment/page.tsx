@@ -41,15 +41,23 @@ export default async function RunEnvironmentPage() {
           <Link href="/settings" className="hover:underline">← Settings</Link>
         </nav>
 
-        <header className="mb-8">
+        <header className="mb-6">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Run environment</h1>
           <p className="text-sm text-ink-300 mt-1 leading-relaxed">
-            How an on-demand run comes up equipped on this machine. When you fire an agent (from
-            Claude, your phone, or — soon — Telegram), Implexa uses this to put the run in the right
-            folder with the right logged-in browser, instead of stopping mid-run to ask. Private to you;
-            it never changes the shared agent.
+            Where on-demand runs happen on this machine: the folder to work in and the browser that
+            holds your logins. Private to you; never changes the shared agent.
           </p>
         </header>
+
+        <div className="mb-6 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-4 text-sm">
+          <div className="font-medium text-ink-50 mb-1">You usually don&apos;t need to fill this in.</div>
+          <p className="text-ink-300 leading-relaxed">
+            The first time you run an agent from Claude, it captures the folder it ran in (and the browser
+            it used) automatically. These fields are just to <strong>view or override</strong> what was
+            captured — handy if you run agents in more than one place. Easiest setup: just run an agent
+            once and come back here to confirm.
+          </p>
+        </div>
 
         <RunEnvForm
           currentWorkspaceRoot={current.workspace_root || ''}

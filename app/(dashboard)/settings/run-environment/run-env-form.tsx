@@ -51,8 +51,9 @@ export default function RunEnvForm({
       <section className="card">
         <h2 className="text-base font-medium text-ink-50 mb-1">Workspace folder</h2>
         <p className="text-xs text-ink-300 mb-4 leading-relaxed">
-          Absolute path on this machine that agents needing local files should run in. An agent that
-          reads your docs or builds something runs here, so it has the right files on hand.
+          Absolute path agents needing local files run in. Normally captured automatically on your
+          first run — set it here only to override. (A browser can&apos;t pick a real folder path, so this
+          is a text field; copy it from Claude if you want to set it by hand.)
         </p>
         <input
           type="text"
@@ -67,11 +68,12 @@ export default function RunEnvForm({
       </section>
 
       <section className="card">
-        <h2 className="text-base font-medium text-ink-50 mb-1">Browser profile</h2>
+        <h2 className="text-base font-medium text-ink-50 mb-1">Browser</h2>
         <p className="text-xs text-ink-300 mb-4 leading-relaxed">
-          Which connected browser / Chrome profile holds your logged-in accounts, for agents that need
-          to act in a site you&apos;re signed into (e.g. a dashboard). Use the name as it appears in your
-          connected browsers.
+          Which of your <strong>Claude-connected browsers</strong> agents should drive for sites you&apos;re
+          signed into (e.g. your dashboard). This is the name from Claude&apos;s connected browsers — not a
+          Chrome setting — so the easiest path is to leave it blank and let the first run fill it in. If
+          you do set it, use the connected-browser name (e.g. the one you normally let Claude drive).
         </p>
         <input
           type="text"
