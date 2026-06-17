@@ -30,6 +30,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type RunState = 'queued' | 'running' | 'stalled' | 'completed' | 'failed';
 
+// One step in a run's live trace (skill_runs.progress, migration 0080). Appended
+// by record_run_heartbeat(note) at each step boundary so a run shows WHERE it is.
+export type RunProgressEntry = { at: string; note?: string; step?: string };
+export type RunProgress = { current?: RunProgressEntry; history?: RunProgressEntry[] };
+
 // A run row covering the base skill_runs columns plus the (possibly absent until
 // 0065 lands) live-state columns. The optional ones are read defensively.
 export type RunRow = {
@@ -52,6 +57,8 @@ export type RunRow = {
   completed_at?: string | null;
   expected_duration_ms?: number | null;
   stalled_at?: string | null;
+  // ── 0080 live step trace ──
+  progress?: RunProgress | null;
 };
 
 export type RunStateInfo = {

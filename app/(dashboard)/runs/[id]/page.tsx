@@ -21,7 +21,7 @@ import { createClient } from '@/lib/supabase/server';
 import { callBackend } from '@/lib/api';
 import { desktopAppLive, appRunUrl } from '@/lib/app-links';
 import { listWorkflows } from '@/lib/workflow-catalog';
-import { deriveRunState, type RunRow } from '@/lib/run-state';
+import { deriveRunState, type RunRow, type RunProgress } from '@/lib/run-state';
 import { RunStateBadge } from '../../_components/run-state-badge';
 import BackLink from '../../_components/back-link';
 import OpenInAppPrompt from '../../_components/open-in-app-prompt';
@@ -107,6 +107,19 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   const name = wf?.name || humanize(r.skill_slug);
   const pending = r.review_status === 'pending';
   const info = deriveRunState(r);
+
+  // Live step trace (migration 0080): each entry is a note the run reported at a
+  // step boundary. For a stalled run, the last entry is WHERE it got stuck.
+  // Fetched defensively in its OWN query so a pre-migration schema (no progress
+  // column) can never turn the whole run fetch into a 42703 error — this page
+  // hard-fails to "not found" on a select error, and we must not regress that.
+  let progress: RunProgress | null = null;
+  try {
+    const { data: pr } = await supabase
+      .from('skill_runs').select('progress').eq('id', params.id).maybeSingle();
+    progress = ((pr as { progress?: RunProgress } | null)?.progress) ?? null;
+  } catch { /* column not present yet — trace simply doesn't render */ }
+  const steps = progress?.history ?? [];
   const agentHref = wf
     ? `/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`
     : `/workflows/${encodeURIComponent(r.skill_slug)}`;
@@ -168,6 +181,44 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             <div className="text-xs text-ink-300 mt-0.5">
               Read it below, then use <span className="text-ink-100 font-medium">Approve &amp; continue in Claude</span> above to let it finish the gated step. Nothing posts without you.
             </div>
+          </div>
+        )}
+
+        {/* Live step trace: where the run is / where it got stuck. Only when the
+            run reported step notes (on-demand + long runs via record_run_heartbeat). */}
+        {steps.length > 0 && (
+          <div className="mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs font-semibold text-ink-300">Step trace</span>
+              {info.state === 'running' && (
+                <span className="text-[10px] uppercase tracking-wide font-semibold text-sky-700 dark:text-sky-300 bg-sky-500/15 rounded px-1.5 py-0.5">live</span>
+              )}
+            </div>
+            <ol className="space-y-2">
+              {steps.map((e, i) => {
+                const isLast = i === steps.length - 1;
+                const dot = isLast && info.attention
+                  ? 'bg-amber-500 dark:bg-amber-400'
+                  : isLast && info.state === 'running'
+                    ? 'bg-sky-500 dark:bg-sky-400'
+                    : 'bg-ink-600';
+                return (
+                  <li key={i} className="flex items-start gap-2.5 text-sm">
+                    <span className={`mt-[7px] h-1.5 w-1.5 rounded-full shrink-0 ${dot}`} aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      {e.step && <span className="font-mono text-xs text-ink-500 mr-1.5">{e.step}</span>}
+                      <span className="text-ink-200">{e.note || 'progress'}</span>
+                      <span className="text-ink-600 text-xs ml-2">{rel(e.at)}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+            {info.state === 'stalled' && (
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-3 leading-relaxed">
+                Stuck here. This is the last step it reported before it stopped making progress.
+              </p>
+            )}
           </div>
         )}
 
