@@ -20,8 +20,6 @@ import { createClient } from '@/lib/supabase/server';
 import { callBackend } from '@/lib/api';
 import InstallFlow from './install-flow';
 import HeroInstall from './hero-install';
-import PrerequisitesChecklist from '../_components/prerequisites-checklist';
-import { getProficiency, isGuided } from '@/lib/proficiency';
 import { desktopAppLive, macDownloadUrl } from '@/lib/app-links';
 import { Logo } from '@/components/logo';
 
@@ -35,11 +33,6 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
   const { data: profile } = await supabase
     .from('users').select('id, email').eq('id', session.user.id).maybeSingle();
   if (!profile) redirect('/onboarding?next=/install');
-
-  // Desktop-first: guided (novice/beginner) users get a "what you need" checklist
-  // up front. Defensive read (degrades to null if migration 0076 isn't applied).
-  const proficiency = await getProficiency(supabase, session.user.id);
-  const guided = isGuided(proficiency);
 
   // Find the most-recently-created active API key (surface only the prefix —
   // never expose the full key in HTML). Last-used timestamp powers the
@@ -128,42 +121,49 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
         {showWelcome && welcomeBanner}
-        {guided && <PrerequisitesChecklist connected={hasKey} />}
 
         <header className="mb-8 text-center">
           <div className="mb-4 flex justify-center"><Logo height={18} /></div>
           <h1 className="text-4xl font-semibold tracking-tight text-ink-50">Run your agents</h1>
           <p className="text-ink-300 mt-3 leading-relaxed max-w-xl mx-auto">
-            Two ways: download the Implexa app (one click, it does the rest), or paste the command below into your own Claude Code or Codex. That&apos;s it.
+            One download. The app connects Implexa to your own Claude or Codex and runs your agents there, as you, free. That&apos;s it.
           </p>
         </header>
 
-        {/* Primary path, post-signup: the one-click app (live + notarized). The
-         * connect command below is the terminal alternative. */}
+        {/* THE single primary action: the one-click app (live + notarized). It
+         * connects Claude/Codex and sets up the extension, so it's all most
+         * users need. The terminal path is collapsed below as advanced. */}
         {desktopAppLive() && (
-          <div className="mb-8 flex flex-col items-center gap-2">
+          <div className="mb-4 flex flex-col items-center gap-2">
             <a
               href={macDownloadUrl()}
-              className="btn-success text-sm px-6 py-3 inline-flex items-center gap-2"
+              className="btn-success text-base px-7 py-3.5 inline-flex items-center gap-2"
             >
               ↓ Download the Implexa app for Mac
             </a>
-            <span className="text-[11px] text-ink-500">Universal · macOS 11+ · signed &amp; notarized · free</span>
+            <span className="text-[11px] text-ink-500">Universal · macOS 11+ · signed &amp; notarized · free · connects your Claude or Codex for you</span>
           </div>
         )}
 
-        {/* HERO — the primary install path. Tokenized curl when available,
-         * universal curl as the fallback. Refreshes on copy to never go stale.
-         * Shows a "Connection active" banner above the curl when the user
-         * already has an install. */}
-        <HeroInstall
-          initialInstallCurl={installCurl}
-          initialInstallCurlCodex={installCurlCodex}
-          hasKey={hasKey}
-          keyPrefix={keyPrefix}
-          installName={installName}
-          lastConnected={lastConnected}
-        />
+        {/* Advanced: terminal install, collapsed so the app stays the clear path.
+         * Open by default for an already-connected user so they still see the
+         * "connection active" status HeroInstall renders. */}
+        <details className="card !p-0 group mt-2" {...(hasKey ? { open: true } : {})}>
+          <summary className="cursor-pointer hover:bg-ink-800/40 transition-colors px-4 py-3 select-none flex items-center gap-2 text-sm text-ink-100">
+            <span className="text-ink-400 group-open:rotate-90 transition-transform inline-block">▸</span>
+            <span>Prefer the terminal? Connect Claude Code or Codex with one command <span className="text-ink-500">(advanced)</span></span>
+          </summary>
+          <div className="px-4 pb-4 pt-3 border-t border-ink-700/60">
+            <HeroInstall
+              initialInstallCurl={installCurl}
+              initialInstallCurlCodex={installCurlCodex}
+              hasKey={hasKey}
+              keyPrefix={keyPrefix}
+              installName={installName}
+              lastConnected={lastConnected}
+            />
+          </div>
+        </details>
 
         {/* ALT SURFACES — power-user fallback. Collapsed by default so the primary flow
          * stays visually clean. Inside: full InstallFlow component with the surface tabs
