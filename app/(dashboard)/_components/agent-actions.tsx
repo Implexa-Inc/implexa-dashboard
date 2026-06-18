@@ -125,7 +125,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // Claude session here. Confirm with a clear pop-up instead of inline text.
       if (claudeTaskId) {
         setState('queued');
-        setMsg('');
+        // Be honest immediately: Run now QUEUES the run; it fires when Claude Code
+        // is open on this computer to pick it up. Don't imply it's already running.
+        setMsg('Queued. It fires when Claude Code is open on your computer — the result lands in your Implexa inbox (usually a minute or two once it picks up).');
         setShowRunModal(true);
         return;
       }
@@ -215,16 +217,18 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           ? (requiresLocal ? 'Runs in Claude Code, on your computer.' : 'Runs in your Claude.')
           : 'Activate once, then run it anytime.')}
       </span>
-      {/* While the run is in flight, give the user a place to WATCH it: the
-          routine's own page in the Claude app (undocumented deep link, verified
-          2026-06-12). Only when we know the routine's Claude task id. */}
-      {claudeTaskId && (state === 'queued' || state === 'running') && (
-        <a
-          href={`claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(claudeTaskId)}`}
+      {/* While the run is in flight, point the user at where the RESULT actually
+          lands — their Implexa results. We deliberately do NOT deep-link the
+          recurring routine's Claude page here: an on-demand Run now fires as a
+          separate one-time task, so that page shows the (often paused) schedule
+          with a "Skipped" cron, which reads as "broken" (founder hit this). */}
+      {(state === 'queued' || state === 'running') && (
+        <Link
+          href="/inbox"
           className={`text-[11px] text-brand-500 hover:underline ${align === 'end' ? 'text-right' : 'text-left'}`}
         >
-          Check it here in Claude ↗
-        </a>
+          Track it in your results →
+        </Link>
       )}
       {/* When does it run next (scheduled agents), grey + small. */}
       {isActive && !msg && nextRunAt && (
@@ -243,21 +247,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       maxWidth="max-w-md"
     >
       <p className="text-sm text-ink-200 leading-relaxed">
-        Your agent’s run is triggered.
-        {claudeTaskId ? (
-          <>
-            {' '}You’ll see it in your{' '}
-            <a
-              href={`claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(claudeTaskId)}`}
-              className="text-brand-500 hover:underline"
-            >
-              Claude Routines here
-            </a>
-            {' '}(you might have to wait a minute or two), and the result lands in your Implexa inbox like any scheduled run.
-          </>
-        ) : (
-          <> The result lands in your Implexa inbox like any scheduled run (you might have to wait a minute or two).</>
-        )}
+        Your agent’s run is queued. It fires the next time <strong>Claude Code is open</strong> on this
+        computer to pick it up (usually a minute or two), and the result lands in your{' '}
+        <Link href="/inbox" className="text-brand-500 hover:underline" onClick={() => setShowRunModal(false)}>
+          Implexa results
+        </Link>
+        {' '}like any scheduled run. Keep Claude open and you’ll see it come through.
       </p>
       <div className="mt-5 flex justify-end">
         <button
