@@ -71,6 +71,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [dontShowAgain, setDontShowAgain] = useState(false);
   // Free-text note the user attaches to THIS run (a tweak/comment), rides into it.
   const [runNote, setRunNote] = useState('');
+  // What the pre-run pop-up does on submit: queue it hands-off, or open a session
+  // to watch (so the note is pushed into the live session you're watching).
+  const [preRunMode, setPreRunMode] = useState<'queue' | 'watch'>('queue');
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
   const supabase = createClient();
@@ -129,27 +132,32 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // Hard gate: never hand off a run that is missing required answers. Surface
     // the questions instead of producing a dead "nothing happened" run.
     if (pendingQuestions > 0) { surfaceQuestions(); return; }
-    // Setup-review gate: the FIRST time you run an agent that has setup questions,
-    // pop them up (prefilled) so you can confirm/change + add a note before a
-    // hands-off run. Dismissable per agent. Best-effort: if none, just queue.
-    if (!setupReviewed(slug)) {
-      const { schema, answers } = await loadSetup();
-      if (schema.length) {
-        openPreRun(schema, answers);
-        return; // wait for the pop-up's "Save & run"
-      }
-    }
-    doQueue();
+    // Run now ALWAYS opens the pre-run pop-up so you can add a note for this run
+    // (and review setup until you've dismissed it for this agent).
+    await openPreRun('queue');
   }
 
-  // "Add a note" path: always opens the pre-run pop-up so you can attach a note for
-  // THIS run — even on agents whose setup review you've dismissed. Includes the
-  // setup fields too when they haven't been reviewed yet.
-  async function addNote() {
+  // "Open in a session to watch" also goes through the pop-up, so your note is
+  // pushed into the live session you're about to supervise.
+  async function openWatch() {
+    await openPreRun('watch');
+  }
+
+  async function openPreRun(mode: 'queue' | 'watch') {
     if (state === 'queuing' || state === 'running') return;
-    if (setupReviewed(slug)) { openPreRun([], {}); return; }
-    const { schema, answers } = await loadSetup();
-    openPreRun(schema, answers);
+    setPreRunMode(mode);
+    setRunNote('');
+    setDontShowAgain(false);
+    // Show the setup fields until the user has dismissed the review for this agent.
+    if (!setupReviewed(slug)) {
+      const { schema, answers } = await loadSetup();
+      setSetupFields(schema);
+      setSetupValues(Object.fromEntries(schema.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
+    } else {
+      setSetupFields([]);
+      setSetupValues({});
+    }
+    setShowSetupModal(true);
   }
 
   async function loadSetup(): Promise<{ schema: SetupField[]; answers: Record<string, string> }> {
@@ -162,17 +170,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     } catch { return { schema: [], answers: {} }; }
   }
 
-  function openPreRun(fields: SetupField[], answers: Record<string, string>) {
-    setSetupFields(fields);
-    setSetupValues(Object.fromEntries(fields.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
-    setRunNote('');
-    setDontShowAgain(false);
-    setShowSetupModal(true);
-  }
-
-  // Save any reviewed setup answers, optionally remember the dismissal, then queue
-  // the run (carrying the per-run note if one was typed).
-  async function saveSetupAndRun() {
+  // Submit the pop-up: save any reviewed setup (+ remember the dismissal), then
+  // either queue it hands-off or open a session to watch — carrying the note.
+  async function submitPreRun() {
     if (setupFields.some((f) => (setupValues[f.key] ?? '').toString().trim() === '')) return; // all required
     setSetupSaving(true);
     setMsg('');
@@ -185,7 +185,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         if (dontShowAgain) markSetupReviewed(slug);
       }
       setShowSetupModal(false);
-      await doQueue(runNote.trim() || undefined);
+      const note = runNote.trim() || undefined;
+      if (preRunMode === 'watch') await doWatch(note);
+      else await doQueue(note);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Could not save your input. Try again.');
     } finally {
@@ -220,8 +222,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
 
   // SECONDARY path: open Claude Code with the run PREFILLED so the user can watch
   // / supervise it live. Deliberately does NOT queue a run-request, so the drainer
-  // won't also fire it (no double-run). For when you want eyes on the run.
-  async function watchInSession() {
+  // won't also fire it (no double-run). The per-run note is pushed into the prompt
+  // so it's part of the session you're watching.
+  async function doWatch(note?: string) {
     setMsg('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -237,7 +240,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           .map((f) => `${f.question} ${answers[f.key]}`);
         if (pairs.length) settings = ` Use these saved answers, do not ask again: ${pairs.join('; ')}.`;
       } catch { /* run without inline settings */ }
-      const runCommand = `Run my Implexa agent "${name || slug}".${settings}`;
+      const noteClause = note ? ` For THIS run specifically: ${note}` : '';
+      const runCommand = `Run my Implexa agent "${name || slug}".${settings}${noteClause}`;
       try { await navigator.clipboard.writeText(runCommand); } catch { /* best-effort */ }
       const bridge = typeof window !== 'undefined'
         ? (window as Window & { implexaDesktop?: {
@@ -295,25 +299,17 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             : '▶ Run now'}
         </button>
       )}
-      {/* Secondary actions, shown only before queuing (so paths stay exclusive):
-          add a per-run note, or supervise the run live instead of hands-off. */}
+      {/* Secondary: supervise the run live instead of hands-off. Goes through the
+          same pop-up (so the note rides into the watched session). Shown only
+          before queuing so the paths stay mutually exclusive (no double-run). */}
       {isActive && pendingQuestions === 0 && (state === 'idle' || state === 'error') && (
-        <div className={`flex items-center gap-3 ${align === 'end' ? 'justify-end' : 'justify-start'}`}>
-          <button
-            type="button"
-            onClick={addNote}
-            className="text-[11px] text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline"
-          >
-            ✎ Add a note
-          </button>
-          <button
-            type="button"
-            onClick={watchInSession}
-            className="text-[11px] text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline"
-          >
-            Open in a session to watch ↗
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={openWatch}
+          className={`text-[11px] text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline ${align === 'end' ? 'text-right' : 'text-left'}`}
+        >
+          Open in a session to watch ↗
+        </button>
       )}
       <span className={`text-[11px] text-ink-500 max-w-[320px] ${align === 'end' ? 'text-right' : 'text-left'}`}>
         {msg || (isActive
@@ -373,13 +369,16 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     <Modal
       open={showSetupModal}
       onClose={() => { if (!setupSaving) setShowSetupModal(false); }}
-      title={setupFields.length ? 'Before it runs' : 'Add a note for this run'}
+      title={preRunMode === 'watch' ? 'Before it opens in Claude' : setupFields.length ? 'Before it runs' : 'Add a note for this run'}
       maxWidth="max-w-md"
     >
       <p className="text-sm text-ink-300 leading-relaxed mb-4">
         {setupFields.length
-          ? <>Quick check before it runs hands-off — confirm or change {setupFields.length === 1 ? 'this answer' : 'these answers'} (e.g. swap a reference video), and add anything specific for this run. Saved for next time.</>
-          : <>Add anything you want this run to do differently (optional), then it runs hands-off.</>}
+          ? <>Confirm or change {setupFields.length === 1 ? 'this answer' : 'these answers'} (e.g. swap a reference video), and add anything specific for this run. Saved for next time.</>
+          : <>Add anything you want this run to do differently (optional).</>}
+        {' '}{preRunMode === 'watch'
+          ? 'It opens in Claude Code with your note included, so you can watch.'
+          : 'It runs hands-off; the result lands in your inbox.'}
       </p>
       {setupFields.length > 0 && (
         <div className="space-y-4">
@@ -445,11 +444,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         </button>
         <button
           type="button"
-          onClick={saveSetupAndRun}
+          onClick={submitPreRun}
           disabled={setupSaving || setupFields.some((f) => (setupValues[f.key] ?? '').toString().trim() === '')}
           className="btn-success text-sm px-5 py-2 disabled:opacity-50"
         >
-          {setupSaving ? 'Saving…' : setupFields.length ? 'Save & run' : '▶ Run now'}
+          {setupSaving ? 'Saving…' : preRunMode === 'watch' ? 'Open in Claude →' : setupFields.length ? 'Save & run' : '▶ Run now'}
         </button>
       </div>
     </Modal>
