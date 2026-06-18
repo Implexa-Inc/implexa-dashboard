@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
-type Field = { key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[]; freshEachRun?: boolean };
+type Field = { key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[] };
 
 // The desktop app exposes a native file picker; a plain browser cannot read a
 // local path, so a 'file' question degrades to a path field there.
@@ -67,8 +67,6 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
   const [otherMode, setOtherMode] = useState<Record<string, boolean>>({});
   // Brief highlight when Run surfaces the questions, so the eye lands here.
   const [flash, setFlash] = useState(false);
-  // Which question's "fresh each run" toggle is mid-save (author-only flag).
-  const [freshSaving, setFreshSaving] = useState<string | null>(null);
   const [inDesktop, setInDesktop] = useState(false);
   useEffect(() => { setInDesktop(!!desktopBridge()); }, []);
   useEffect(() => {
@@ -134,29 +132,6 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
       setError(e instanceof Error ? e.message : 'Could not save. Try again.');
     } finally {
       setSaving(false);
-    }
-  }
-
-  // Toggle a question as "fresh each run" (author-only server-side). Optimistic,
-  // reverts on error. Run now pops these up for a quick update before each run.
-  async function toggleFresh(key: string, next: boolean) {
-    if (!setup) return;
-    const prevSchema = setup.schema;
-    const nextKeys = new Set(setup.schema.filter((f) => f.freshEachRun).map((f) => f.key));
-    if (next) nextKeys.add(key); else nextKeys.delete(key);
-    setSetup({ ...setup, schema: setup.schema.map((f) => ({ ...f, freshEachRun: nextKeys.has(f.key) })) });
-    setFreshSaving(key); setError(null);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/fresh-fields`, {
-        jwt: session?.access_token, method: 'POST', body: { freshKeys: Array.from(nextKeys), source },
-      });
-      setSetup(res as Setup);
-    } catch (e) {
-      setSetup((s) => (s ? { ...s, schema: prevSchema } : s));
-      setError(e instanceof Error ? e.message : 'Could not update (only the agent author can).');
-    } finally {
-      setFreshSaving(null);
     }
   }
 
@@ -270,19 +245,6 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
                 )}
               </>
             )}
-            {/* "Fresh each run": when on, Run now pops this question up for a quick
-                update before queuing, instead of silently reusing the saved value
-                (e.g. a new recording each time). Author-only; saves immediately. */}
-            <label className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-ink-500 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={!!f.freshEachRun}
-                disabled={freshSaving === f.key}
-                onChange={(e) => toggleFresh(f.key, e.target.checked)}
-                className="accent-brand-500 h-3 w-3"
-              />
-              Ask me this fresh each run{freshSaving === f.key ? '…' : ''}
-            </label>
           </div>
         ))}
       </div>

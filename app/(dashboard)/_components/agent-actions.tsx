@@ -24,7 +24,19 @@ import { callBackend } from '@/lib/api';
 import Modal from './modal';
 
 type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
-type FreshField = { key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[]; freshEachRun?: boolean };
+type SetupField = { key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[] };
+
+// "Review setup before running" is shown the FIRST time you run an agent that has
+// setup questions, with a "don't show again for this agent" opt-out. Dismissal is
+// a per-device UI nudge (localStorage), keyed by agent slug — losing it on a new
+// device just re-shows the (harmless) confirm once.
+function setupReviewed(slug: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try { return localStorage.getItem(`implexa:setup-reviewed:${slug}`) === '1'; } catch { return false; }
+}
+function markSetupReviewed(slug: string) {
+  try { localStorage.setItem(`implexa:setup-reviewed:${slug}`, '1'); } catch { /* private mode / blocked */ }
+}
 
 const POLL_MS = 5000;
 const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in the inbox
@@ -49,12 +61,14 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [state, setState] = useState<RunState>('idle');
   const [msg, setMsg] = useState('');
   const [showRunModal, setShowRunModal] = useState(false);
-  // Per-run input pop-up: questions the agent marked "fresh each run" (a new
-  // recording, today's topic) are collected here before the run is queued.
-  const [showFreshModal, setShowFreshModal] = useState(false);
-  const [freshFields, setFreshFields] = useState<FreshField[]>([]);
-  const [freshValues, setFreshValues] = useState<Record<string, string>>({});
-  const [freshSaving, setFreshSaving] = useState(false);
+  // Setup-review pop-up: shown the first time you run an agent that has setup
+  // questions (prefilled), so you can confirm/change answers (e.g. swap a
+  // reference video) before a hands-off run. Per-agent "don't show again".
+  const [showSetupModal, setShowSetupModal] = useState(false);
+  const [setupFields, setSetupFields] = useState<SetupField[]>([]);
+  const [setupValues, setSetupValues] = useState<Record<string, string>>({});
+  const [setupSaving, setSetupSaving] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
   const supabase = createClient();
@@ -113,42 +127,45 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // Hard gate: never hand off a run that is missing required answers. Surface
     // the questions instead of producing a dead "nothing happened" run.
     if (pendingQuestions > 0) { surfaceQuestions(); return; }
-    // Per-run input gate: if the agent has "fresh each run" questions (a new
-    // recording, today's topic), pop them up to update BEFORE queuing — don't
-    // silently reuse last run's answer. Best-effort: if the lookup fails, fall
-    // through and queue normally.
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`, { jwt: session?.access_token });
-      const schema: FreshField[] = Array.isArray(setup?.schema) ? setup.schema : [];
-      const fresh = schema.filter((f) => f.freshEachRun);
-      if (fresh.length) {
-        const answers: Record<string, string> = (setup?.answers && typeof setup.answers === 'object') ? setup.answers : {};
-        setFreshFields(fresh);
-        setFreshValues(Object.fromEntries(fresh.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
-        setShowFreshModal(true);
-        return; // wait for the pop-up's "Save & run"
-      }
-    } catch { /* setup lookup failed — queue without the pop-up */ }
+    // Setup-review gate: the FIRST time you run an agent that has setup questions,
+    // pop them up (prefilled) so you can confirm/change before a hands-off run —
+    // e.g. swap the reference video. Dismissable per agent ("don't show again").
+    // Best-effort: if the lookup fails, just queue.
+    if (!setupReviewed(slug)) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`, { jwt: session?.access_token });
+        const schema: SetupField[] = Array.isArray(setup?.schema) ? setup.schema : [];
+        if (schema.length) {
+          const answers: Record<string, string> = (setup?.answers && typeof setup.answers === 'object') ? setup.answers : {};
+          setSetupFields(schema);
+          setSetupValues(Object.fromEntries(schema.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
+          setDontShowAgain(false);
+          setShowSetupModal(true);
+          return; // wait for the pop-up's "Save & run"
+        }
+      } catch { /* setup lookup failed — queue without the pop-up */ }
+    }
     doQueue();
   }
 
-  // Save the fresh per-run answers, then queue the run.
-  async function saveFreshAndRun() {
-    if (freshFields.some((f) => (freshValues[f.key] ?? '').toString().trim() === '')) return; // all required
-    setFreshSaving(true);
+  // Save the reviewed setup answers, optionally remember the dismissal, then queue.
+  async function saveSetupAndRun() {
+    if (setupFields.some((f) => (setupValues[f.key] ?? '').toString().trim() === '')) return; // all required
+    setSetupSaving(true);
     setMsg('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
       await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup`, {
-        jwt: session?.access_token, method: 'POST', body: { answers: freshValues, source },
+        jwt: session?.access_token, method: 'POST', body: { answers: setupValues, source },
       });
-      setShowFreshModal(false);
+      if (dontShowAgain) markSetupReviewed(slug);
+      setShowSetupModal(false);
       await doQueue();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Could not save your input. Try again.');
     } finally {
-      setFreshSaving(false);
+      setSetupSaving(false);
     }
   }
 
@@ -318,24 +335,25 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       </div>
     </Modal>
 
-    {/* Per-run input pop-up: collect the "fresh each run" answers before queuing. */}
+    {/* Setup-review pop-up: shown the first time you run an agent (prefilled), so
+        you can confirm/change answers before a hands-off run. Dismissable. */}
     <Modal
-      open={showFreshModal}
-      onClose={() => { if (!freshSaving) setShowFreshModal(false); }}
-      title="Update this run's input"
+      open={showSetupModal}
+      onClose={() => { if (!setupSaving) setShowSetupModal(false); }}
+      title="Review setup before running"
       maxWidth="max-w-md"
     >
       <p className="text-sm text-ink-300 leading-relaxed mb-4">
-        This agent asks for fresh input each time it runs. Confirm or update {freshFields.length === 1 ? 'it' : 'these'} below, then it runs.
+        Quick check before it runs hands-off — confirm or change {setupFields.length === 1 ? 'this answer' : 'these answers'} (e.g. swap a reference video). They’re saved for next time.
       </p>
       <div className="space-y-4">
-        {freshFields.map((f) => (
+        {setupFields.map((f) => (
           <div key={f.key}>
             <label className="block text-sm text-ink-200 mb-1.5">{f.question}</label>
             {f.kind === 'choice' && f.options && f.options.length > 0 ? (
               <select
-                value={freshValues[f.key] ?? ''}
-                onChange={(e) => setFreshValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                value={setupValues[f.key] ?? ''}
+                onChange={(e) => setSetupValues((v) => ({ ...v, [f.key]: e.target.value }))}
                 className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
               >
                 <option value="">Choose…</option>
@@ -344,32 +362,40 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             ) : (
               <input
                 type="text"
-                value={freshValues[f.key] ?? ''}
-                onChange={(e) => setFreshValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                placeholder={f.kind === 'file' ? 'Paste the file path or link for this run' : 'Type this run’s value'}
-                autoFocus
+                value={setupValues[f.key] ?? ''}
+                onChange={(e) => setSetupValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                placeholder={f.kind === 'file' ? 'Paste a file path or link' : 'Type your answer'}
                 className={`w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none${f.kind === 'file' ? ' font-mono text-xs' : ''}`}
               />
             )}
           </div>
         ))}
       </div>
-      <div className="mt-5 flex items-center justify-end gap-3">
+      <label className="mt-4 flex items-center gap-2 text-xs text-ink-400 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={dontShowAgain}
+          onChange={(e) => setDontShowAgain(e.target.checked)}
+          className="accent-brand-500 h-3.5 w-3.5"
+        />
+        Don’t show this again for this agent
+      </label>
+      <div className="mt-4 flex items-center justify-end gap-3">
         <button
           type="button"
-          onClick={() => setShowFreshModal(false)}
-          disabled={freshSaving}
+          onClick={() => setShowSetupModal(false)}
+          disabled={setupSaving}
           className="btn-outline text-sm px-4 py-2 disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           type="button"
-          onClick={saveFreshAndRun}
-          disabled={freshSaving || freshFields.some((f) => (freshValues[f.key] ?? '').toString().trim() === '')}
+          onClick={saveSetupAndRun}
+          disabled={setupSaving || setupFields.some((f) => (setupValues[f.key] ?? '').toString().trim() === '')}
           className="btn-success text-sm px-5 py-2 disabled:opacity-50"
         >
-          {freshSaving ? 'Saving…' : 'Save & run'}
+          {setupSaving ? 'Saving…' : 'Save & run'}
         </button>
       </div>
     </Modal>
