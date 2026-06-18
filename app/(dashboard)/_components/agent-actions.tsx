@@ -24,6 +24,7 @@ import { callBackend } from '@/lib/api';
 import Modal from './modal';
 
 type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
+type FreshField = { key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[]; freshEachRun?: boolean };
 
 const POLL_MS = 5000;
 const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in the inbox
@@ -48,6 +49,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [state, setState] = useState<RunState>('idle');
   const [msg, setMsg] = useState('');
   const [showRunModal, setShowRunModal] = useState(false);
+  // Per-run input pop-up: questions the agent marked "fresh each run" (a new
+  // recording, today's topic) are collected here before the run is queued.
+  const [showFreshModal, setShowFreshModal] = useState(false);
+  const [freshFields, setFreshFields] = useState<FreshField[]>([]);
+  const [freshValues, setFreshValues] = useState<Record<string, string>>({});
+  const [freshSaving, setFreshSaving] = useState(false);
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
   const supabase = createClient();
@@ -106,6 +113,47 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // Hard gate: never hand off a run that is missing required answers. Surface
     // the questions instead of producing a dead "nothing happened" run.
     if (pendingQuestions > 0) { surfaceQuestions(); return; }
+    // Per-run input gate: if the agent has "fresh each run" questions (a new
+    // recording, today's topic), pop them up to update BEFORE queuing — don't
+    // silently reuse last run's answer. Best-effort: if the lookup fails, fall
+    // through and queue normally.
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`, { jwt: session?.access_token });
+      const schema: FreshField[] = Array.isArray(setup?.schema) ? setup.schema : [];
+      const fresh = schema.filter((f) => f.freshEachRun);
+      if (fresh.length) {
+        const answers: Record<string, string> = (setup?.answers && typeof setup.answers === 'object') ? setup.answers : {};
+        setFreshFields(fresh);
+        setFreshValues(Object.fromEntries(fresh.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
+        setShowFreshModal(true);
+        return; // wait for the pop-up's "Save & run"
+      }
+    } catch { /* setup lookup failed — queue without the pop-up */ }
+    doQueue();
+  }
+
+  // Save the fresh per-run answers, then queue the run.
+  async function saveFreshAndRun() {
+    if (freshFields.some((f) => (freshValues[f.key] ?? '').toString().trim() === '')) return; // all required
+    setFreshSaving(true);
+    setMsg('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup`, {
+        jwt: session?.access_token, method: 'POST', body: { answers: freshValues, source },
+      });
+      setShowFreshModal(false);
+      await doQueue();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Could not save your input. Try again.');
+    } finally {
+      setFreshSaving(false);
+    }
+  }
+
+  async function doQueue() {
+    if (state === 'queuing' || state === 'running') return;
     setState('queuing');
     setMsg('');
     try {
@@ -261,6 +309,62 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           className="btn-success text-sm px-5 py-2"
         >
           OK
+        </button>
+      </div>
+    </Modal>
+
+    {/* Per-run input pop-up: collect the "fresh each run" answers before queuing. */}
+    <Modal
+      open={showFreshModal}
+      onClose={() => { if (!freshSaving) setShowFreshModal(false); }}
+      title="Update this run's input"
+      maxWidth="max-w-md"
+    >
+      <p className="text-sm text-ink-300 leading-relaxed mb-4">
+        This agent asks for fresh input each time it runs. Confirm or update {freshFields.length === 1 ? 'it' : 'these'} below, then it runs.
+      </p>
+      <div className="space-y-4">
+        {freshFields.map((f) => (
+          <div key={f.key}>
+            <label className="block text-sm text-ink-200 mb-1.5">{f.question}</label>
+            {f.kind === 'choice' && f.options && f.options.length > 0 ? (
+              <select
+                value={freshValues[f.key] ?? ''}
+                onChange={(e) => setFreshValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
+              >
+                <option value="">Choose…</option>
+                {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={freshValues[f.key] ?? ''}
+                onChange={(e) => setFreshValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                placeholder={f.kind === 'file' ? 'Paste the file path or link for this run' : 'Type this run’s value'}
+                autoFocus
+                className={`w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none${f.kind === 'file' ? ' font-mono text-xs' : ''}`}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mt-5 flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => setShowFreshModal(false)}
+          disabled={freshSaving}
+          className="btn-outline text-sm px-4 py-2 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={saveFreshAndRun}
+          disabled={freshSaving || freshFields.some((f) => (freshValues[f.key] ?? '').toString().trim() === '')}
+          className="btn-success text-sm px-5 py-2 disabled:opacity-50"
+        >
+          {freshSaving ? 'Saving…' : 'Save & run'}
         </button>
       </div>
     </Modal>
