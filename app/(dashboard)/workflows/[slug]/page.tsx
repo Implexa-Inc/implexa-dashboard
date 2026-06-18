@@ -29,6 +29,7 @@ import { RemoteSafetyBadge } from '../../_components/remote-safety-badge';
 import { ConnectionAttentionBanner } from '../../_components/connection-attention-banner';
 import AgentActions from '../../_components/agent-actions';
 import AgentPauseToggle from '../../_components/agent-pause-toggle';
+import NotInApp from '../../_components/not-in-app';
 import AgentTabs, { type TabDef } from '../../_components/agent-tabs';
 import InboxList from '../../inbox/inbox-list';
 import BackLink from '../../_components/back-link';
@@ -392,9 +393,11 @@ export default async function WorkflowDetailPage({
               {/* Desktop-first: open this agent in the app (gated until the app
                   ships; web actions above remain the fallback). */}
               {desktopAppLive() && (
-                <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-brand-500 hover:underline">
-                  Open in the Implexa app ↗
-                </a>
+                <NotInApp>
+                  <a href={appActivateUrl(workflow.slug)} className="text-[11px] text-brand-500 hover:underline">
+                    Open in the Implexa app ↗
+                  </a>
+                </NotInApp>
               )}
             </div>
           </div>

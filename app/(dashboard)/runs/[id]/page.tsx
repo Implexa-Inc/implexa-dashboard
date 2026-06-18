@@ -25,6 +25,7 @@ import { deriveRunState, type RunRow, type RunProgress } from '@/lib/run-state';
 import { RunStateBadge } from '../../_components/run-state-badge';
 import BackLink from '../../_components/back-link';
 import OpenInAppPrompt from '../../_components/open-in-app-prompt';
+import NotInApp from '../../_components/not-in-app';
 import RunClaudeActions from '../../_components/run-claude-actions';
 
 export const dynamic = 'force-dynamic';
@@ -142,9 +143,11 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         {/* web→app handoff: the https email link lands here; offer the bounce into
             the desktop app. Dormant until the app ships (desktopAppLive). */}
         {desktopAppLive() && (
-          <div className="mt-4">
-            <OpenInAppPrompt runId={r.id} />
-          </div>
+          <NotInApp>
+            <div className="mt-4">
+              <OpenInAppPrompt runId={r.id} />
+            </div>
+          </NotInApp>
         )}
 
         <header className="mt-4 mb-6">
@@ -162,9 +165,11 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               </Link>
             )}
             {desktopAppLive() && (
-              <a href={appRunUrl(r.id)} className="text-xs text-brand-500 hover:underline">
-                open in the Implexa app ↗
-              </a>
+              <NotInApp>
+                <a href={appRunUrl(r.id)} className="text-xs text-brand-500 hover:underline">
+                  open in the Implexa app ↗
+                </a>
+              </NotInApp>
             )}
           </div>
         </header>
