@@ -12,10 +12,13 @@
  * Renders nothing when there's no live activity, so it's invisible at rest.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+
+// The statuses worth a native desktop notification (yellow/red — they need you).
+const NOTIFY: ReadonlySet<string> = new Set(['waiting_approval', 'needs_attention', 'failed']);
 
 type LiveStatus = 'waiting_approval' | 'needs_attention' | 'running' | 'failed' | 'finished';
 type LiveCard = {
@@ -53,6 +56,37 @@ export default function RunningAgents() {
   const supabase = createClient();
   const [cards, setCards] = useState<LiveCard[] | null>(null);
   const [showAll, setShowAll] = useState(false);
+  // Native desktop notifications fire from here (the dashboard runs inside the
+  // Electron webview, so the Notification API reaches the OS). We seed on the first
+  // poll so pre-existing states don't storm, then notify only on NEW transitions.
+  const notified = useRef<Set<string>>(new Set());
+  const seeded = useRef(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  function maybeNotify(items: LiveCard[]) {
+    if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const first = !seeded.current;
+    seeded.current = true;
+    for (const c of items) {
+      if (!NOTIFY.has(c.status)) continue;
+      const key = `${c.runId}:${c.status}`;
+      if (notified.current.has(key)) continue;
+      notified.current.add(key);
+      if (first) continue; // seed only on the first poll — don't notify for what's already there
+      try {
+        const n = new Notification(`Implexa · ${humanize(c.skillSlug)}`, {
+          body: `${(STATUS[c.status] ?? STATUS.running).label} — tap to open`,
+          tag: key,
+        });
+        n.onclick = () => { try { window.focus(); } catch { /* noop */ } window.location.href = `/runs/${encodeURIComponent(c.runId)}`; };
+      } catch { /* notifications unavailable */ }
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -60,7 +94,10 @@ export default function RunningAgents() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const res = await callBackend('/api/v2/scheduled-skills/live', { jwt: session?.access_token });
-        if (alive) setCards(Array.isArray(res?.items) ? (res.items as LiveCard[]) : []);
+        if (!alive) return;
+        const items = Array.isArray(res?.items) ? (res.items as LiveCard[]) : [];
+        setCards(items);
+        maybeNotify(items);
       } catch { if (alive) setCards([]); }
     }
     load();
