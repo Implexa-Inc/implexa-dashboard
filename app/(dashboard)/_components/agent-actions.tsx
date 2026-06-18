@@ -69,6 +69,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [setupValues, setSetupValues] = useState<Record<string, string>>({});
   const [setupSaving, setSetupSaving] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  // Free-text note the user attaches to THIS run (a tweak/comment), rides into it.
+  const [runNote, setRunNote] = useState('');
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
   const supabase = createClient();
@@ -128,40 +130,62 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // the questions instead of producing a dead "nothing happened" run.
     if (pendingQuestions > 0) { surfaceQuestions(); return; }
     // Setup-review gate: the FIRST time you run an agent that has setup questions,
-    // pop them up (prefilled) so you can confirm/change before a hands-off run —
-    // e.g. swap the reference video. Dismissable per agent ("don't show again").
-    // Best-effort: if the lookup fails, just queue.
+    // pop them up (prefilled) so you can confirm/change + add a note before a
+    // hands-off run. Dismissable per agent. Best-effort: if none, just queue.
     if (!setupReviewed(slug)) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`, { jwt: session?.access_token });
-        const schema: SetupField[] = Array.isArray(setup?.schema) ? setup.schema : [];
-        if (schema.length) {
-          const answers: Record<string, string> = (setup?.answers && typeof setup.answers === 'object') ? setup.answers : {};
-          setSetupFields(schema);
-          setSetupValues(Object.fromEntries(schema.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
-          setDontShowAgain(false);
-          setShowSetupModal(true);
-          return; // wait for the pop-up's "Save & run"
-        }
-      } catch { /* setup lookup failed — queue without the pop-up */ }
+      const { schema, answers } = await loadSetup();
+      if (schema.length) {
+        openPreRun(schema, answers);
+        return; // wait for the pop-up's "Save & run"
+      }
     }
     doQueue();
   }
 
-  // Save the reviewed setup answers, optionally remember the dismissal, then queue.
+  // "Add a note" path: always opens the pre-run pop-up so you can attach a note for
+  // THIS run — even on agents whose setup review you've dismissed. Includes the
+  // setup fields too when they haven't been reviewed yet.
+  async function addNote() {
+    if (state === 'queuing' || state === 'running') return;
+    if (setupReviewed(slug)) { openPreRun([], {}); return; }
+    const { schema, answers } = await loadSetup();
+    openPreRun(schema, answers);
+  }
+
+  async function loadSetup(): Promise<{ schema: SetupField[]; answers: Record<string, string> }> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`, { jwt: session?.access_token });
+      const schema: SetupField[] = Array.isArray(setup?.schema) ? setup.schema : [];
+      const answers: Record<string, string> = (setup?.answers && typeof setup.answers === 'object') ? setup.answers : {};
+      return { schema, answers };
+    } catch { return { schema: [], answers: {} }; }
+  }
+
+  function openPreRun(fields: SetupField[], answers: Record<string, string>) {
+    setSetupFields(fields);
+    setSetupValues(Object.fromEntries(fields.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
+    setRunNote('');
+    setDontShowAgain(false);
+    setShowSetupModal(true);
+  }
+
+  // Save any reviewed setup answers, optionally remember the dismissal, then queue
+  // the run (carrying the per-run note if one was typed).
   async function saveSetupAndRun() {
     if (setupFields.some((f) => (setupValues[f.key] ?? '').toString().trim() === '')) return; // all required
     setSetupSaving(true);
     setMsg('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup`, {
-        jwt: session?.access_token, method: 'POST', body: { answers: setupValues, source },
-      });
-      if (dontShowAgain) markSetupReviewed(slug);
+      if (setupFields.length) {
+        await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup`, {
+          jwt: session?.access_token, method: 'POST', body: { answers: setupValues, source },
+        });
+        if (dontShowAgain) markSetupReviewed(slug);
+      }
       setShowSetupModal(false);
-      await doQueue();
+      await doQueue(runNote.trim() || undefined);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Could not save your input. Try again.');
     } finally {
@@ -172,7 +196,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // PRIMARY path: always queue. The drainer (or an open Claude session's hook)
   // runs it hands-off on the user's machine — same for every agent, so there's no
   // confusing split and no double-run. The result lands in the inbox.
-  async function doQueue() {
+  async function doQueue(note?: string) {
     if (state === 'queuing' || state === 'running') return;
     setState('queuing');
     setMsg('');
@@ -181,7 +205,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       const res = await callBackend('/api/v2/me/run-requests', {
         jwt: session?.access_token,
         method: 'POST',
-        body: { workflowSlug: slug, source: 'dashboard', kind: 'run' },
+        body: { workflowSlug: slug, source: 'dashboard', kind: 'run', ...(note ? { note } : {}) },
       });
       requestId.current = res?.request?.id || null;
       pollStart.current = Date.now();
@@ -271,16 +295,25 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             : '▶ Run now'}
         </button>
       )}
-      {/* Secondary: supervise the run live instead of hands-off. Shown only before
-          queuing so the two paths stay mutually exclusive (no double-run). */}
+      {/* Secondary actions, shown only before queuing (so paths stay exclusive):
+          add a per-run note, or supervise the run live instead of hands-off. */}
       {isActive && pendingQuestions === 0 && (state === 'idle' || state === 'error') && (
-        <button
-          type="button"
-          onClick={watchInSession}
-          className={`text-[11px] text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline ${align === 'end' ? 'text-right' : 'text-left'}`}
-        >
-          Open in a session to watch ↗
-        </button>
+        <div className={`flex items-center gap-3 ${align === 'end' ? 'justify-end' : 'justify-start'}`}>
+          <button
+            type="button"
+            onClick={addNote}
+            className="text-[11px] text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline"
+          >
+            ✎ Add a note
+          </button>
+          <button
+            type="button"
+            onClick={watchInSession}
+            className="text-[11px] text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline"
+          >
+            Open in a session to watch ↗
+          </button>
+        </div>
       )}
       <span className={`text-[11px] text-ink-500 max-w-[320px] ${align === 'end' ? 'text-right' : 'text-left'}`}>
         {msg || (isActive
@@ -340,46 +373,67 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     <Modal
       open={showSetupModal}
       onClose={() => { if (!setupSaving) setShowSetupModal(false); }}
-      title="Review setup before running"
+      title={setupFields.length ? 'Before it runs' : 'Add a note for this run'}
       maxWidth="max-w-md"
     >
       <p className="text-sm text-ink-300 leading-relaxed mb-4">
-        Quick check before it runs hands-off — confirm or change {setupFields.length === 1 ? 'this answer' : 'these answers'} (e.g. swap a reference video). They’re saved for next time.
+        {setupFields.length
+          ? <>Quick check before it runs hands-off — confirm or change {setupFields.length === 1 ? 'this answer' : 'these answers'} (e.g. swap a reference video), and add anything specific for this run. Saved for next time.</>
+          : <>Add anything you want this run to do differently (optional), then it runs hands-off.</>}
       </p>
-      <div className="space-y-4">
-        {setupFields.map((f) => (
-          <div key={f.key}>
-            <label className="block text-sm text-ink-200 mb-1.5">{f.question}</label>
-            {f.kind === 'choice' && f.options && f.options.length > 0 ? (
-              <select
-                value={setupValues[f.key] ?? ''}
-                onChange={(e) => setSetupValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
-              >
-                <option value="">Choose…</option>
-                {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-            ) : (
-              <input
-                type="text"
-                value={setupValues[f.key] ?? ''}
-                onChange={(e) => setSetupValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                placeholder={f.kind === 'file' ? 'Paste a file path or link' : 'Type your answer'}
-                className={`w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none${f.kind === 'file' ? ' font-mono text-xs' : ''}`}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-      <label className="mt-4 flex items-center gap-2 text-xs text-ink-400 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={dontShowAgain}
-          onChange={(e) => setDontShowAgain(e.target.checked)}
-          className="accent-brand-500 h-3.5 w-3.5"
+      {setupFields.length > 0 && (
+        <div className="space-y-4">
+          {setupFields.map((f) => (
+            <div key={f.key}>
+              <label className="block text-sm text-ink-200 mb-1.5">{f.question}</label>
+              {f.kind === 'choice' && f.options && f.options.length > 0 ? (
+                <select
+                  value={setupValues[f.key] ?? ''}
+                  onChange={(e) => setSetupValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                  className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
+                >
+                  <option value="">Choose…</option>
+                  {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={setupValues[f.key] ?? ''}
+                  onChange={(e) => setSetupValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                  placeholder={f.kind === 'file' ? 'Paste a file path or link' : 'Type your answer'}
+                  className={`w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none${f.kind === 'file' ? ' font-mono text-xs' : ''}`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Per-run note: always available, rides into THIS run (distinct from the
+          saved last-run feedback loop). */}
+      <div className={setupFields.length ? 'mt-4' : ''}>
+        <label className="block text-sm text-ink-200 mb-1.5">Anything to add for this run? <span className="text-ink-500 font-normal">(optional)</span></label>
+        <textarea
+          value={runNote}
+          onChange={(e) => setRunNote(e.target.value)}
+          rows={3}
+          autoFocus={setupFields.length === 0}
+          placeholder="e.g. make the b-roll punchier; lean on the second reference video; keep it under 30s"
+          className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
         />
-        Don’t show this again for this agent
-      </label>
+      </div>
+
+      {setupFields.length > 0 && (
+        <label className="mt-3 flex items-center gap-2 text-xs text-ink-400 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={dontShowAgain}
+            onChange={(e) => setDontShowAgain(e.target.checked)}
+            className="accent-brand-500 h-3.5 w-3.5"
+          />
+          Skip the setup review for this agent next time (you can still add a note)
+        </label>
+      )}
       <div className="mt-4 flex items-center justify-end gap-3">
         <button
           type="button"
@@ -395,7 +449,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           disabled={setupSaving || setupFields.some((f) => (setupValues[f.key] ?? '').toString().trim() === '')}
           className="btn-success text-sm px-5 py-2 disabled:opacity-50"
         >
-          {setupSaving ? 'Saving…' : 'Save & run'}
+          {setupSaving ? 'Saving…' : setupFields.length ? 'Save & run' : '▶ Run now'}
         </button>
       </div>
     </Modal>
