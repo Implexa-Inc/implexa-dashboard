@@ -146,28 +146,26 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   async function openPreRun(mode: 'queue' | 'watch') {
     if (state === 'queuing' || state === 'running') return;
     setPreRunMode(mode);
-    setRunNote('');
     setDontShowAgain(false);
-    // Show the setup fields until the user has dismissed the review for this agent.
-    if (!setupReviewed(slug)) {
-      const { schema, answers } = await loadSetup();
-      setSetupFields(schema);
-      setSetupValues(Object.fromEntries(schema.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
-    } else {
-      setSetupFields([]);
-      setSetupValues({});
-    }
+    // Always fetch (for the saved note). Show the setup fields until the user has
+    // dismissed the review for this agent; pre-load the note either way.
+    const reviewed = setupReviewed(slug);
+    const { schema, answers, note } = await loadSetup();
+    setSetupFields(reviewed ? [] : schema);
+    setSetupValues(reviewed ? {} : Object.fromEntries(schema.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
+    setRunNote(note);
     setShowSetupModal(true);
   }
 
-  async function loadSetup(): Promise<{ schema: SetupField[]; answers: Record<string, string> }> {
+  async function loadSetup(): Promise<{ schema: SetupField[]; answers: Record<string, string>; note: string }> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`, { jwt: session?.access_token });
       const schema: SetupField[] = Array.isArray(setup?.schema) ? setup.schema : [];
       const answers: Record<string, string> = (setup?.answers && typeof setup.answers === 'object') ? setup.answers : {};
-      return { schema, answers };
-    } catch { return { schema: [], answers: {} }; }
+      const note: string = typeof setup?.note === 'string' ? setup.note : '';
+      return { schema, answers, note };
+    } catch { return { schema: [], answers: {}, note: '' }; }
   }
 
   // Submit the pop-up: save any reviewed setup (+ remember the dismissal), then
@@ -178,16 +176,19 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     setMsg('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (setupFields.length) {
-        await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup`, {
-          jwt: session?.access_token, method: 'POST', body: { answers: setupValues, source },
-        });
-        if (dontShowAgain) markSetupReviewed(slug);
-      }
+      // Persist the standing note (always — so it's saved + shown in Setup + honored
+      // on every run) plus any reviewed setup answers, in one save.
+      await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup`, {
+        jwt: session?.access_token,
+        method: 'POST',
+        body: { answers: { ...(setupFields.length ? setupValues : {}), __agent_note: runNote.trim() }, source },
+      });
+      if (setupFields.length && dontShowAgain) markSetupReviewed(slug);
       setShowSetupModal(false);
-      const note = runNote.trim() || undefined;
-      if (preRunMode === 'watch') await doWatch(note);
-      else await doQueue(note);
+      // The saved note is injected server-side on every run, so the hands-off queue
+      // path needs no per-run note; the watch path puts it in the prefilled prompt.
+      if (preRunMode === 'watch') await doWatch(runNote.trim() || undefined);
+      else await doQueue();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Could not save your input. Try again.');
     } finally {

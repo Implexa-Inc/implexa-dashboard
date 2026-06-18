@@ -50,6 +50,8 @@ function defaultHint(f: Field): string | null {
 type Setup = {
   schema: Field[];
   answers: Record<string, string>;
+  /** The user's saved free-text standing note for this agent. Honored every run. */
+  note?: string;
   missing: Field[];
   complete: boolean;
   needs_setup: boolean;
@@ -59,6 +61,8 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
   const supabase = createClient();
   const [setup, setSetup] = useState<Setup | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
+  // The agent's standing free-text note (saved; honored on every run).
+  const [noteValue, setNoteValue] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -84,6 +88,7 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
         if (cancelled) return;
         const s = res as Setup;
         setSetup(s);
+        setNoteValue(s.note || '');
         const a = { ...(s.answers || {}) };
         // Pre-fill unanswered questions we can infer from the browser (login
         // email, system timezone), editable, so the user starts from a sensible
@@ -123,9 +128,10 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup`, {
-        jwt: session?.access_token, method: 'POST', body: { answers: values, source },
+        jwt: session?.access_token, method: 'POST', body: { answers: { ...values, __agent_note: noteValue.trim() }, source },
       });
       setSetup(res as Setup);
+      setNoteValue((res as Setup).note || '');
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e) {
@@ -247,6 +253,22 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
             )}
           </div>
         ))}
+      </div>
+
+      <div className="mt-5">
+        <label className="block text-sm font-medium text-ink-100 mb-1">
+          Notes for this agent <span className="text-ink-500 font-normal">(optional)</span>
+        </label>
+        <p className="text-xs text-ink-400 mb-2 leading-snug">
+          Standing instructions honored on <strong>every</strong> run (tone, things to avoid, what to emphasize). You can also tweak this in the Run-now pop-up.
+        </p>
+        <textarea
+          value={noteValue}
+          onChange={(e) => setNoteValue(e.target.value)}
+          rows={3}
+          placeholder="e.g. keep the b-roll punchy; never use stock-looking footage; aim for under 30s"
+          className={inputCls + ' resize-y'}
+        />
       </div>
 
       <div className="mt-5 flex items-center gap-3">
