@@ -152,6 +152,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     }
   }
 
+  // PRIMARY path: always queue. The drainer (or an open Claude session's hook)
+  // runs it hands-off on the user's machine — same for every agent, so there's no
+  // confusing split and no double-run. The result lands in the inbox.
   async function doQueue() {
     if (state === 'queuing' || state === 'running') return;
     setState('queuing');
@@ -165,28 +168,24 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       });
       requestId.current = res?.request?.id || null;
       pollStart.current = Date.now();
-      // A SCHEDULED agent runs as its real routine: the plugin sees the queued
-      // request and re-arms the agent's one-time fireAt task, which fires in the
-      // background runtime with its pre-granted permissions (no chat, no enter
-      // key). The pending-runs hook picks the request up on the user's next
-      // Claude interaction (SessionStart / any prompt), so we do NOT open a blank
-      // Claude session here. Confirm with a clear pop-up instead of inline text.
-      if (claudeTaskId) {
-        setState('queued');
-        // Be honest immediately: Run now QUEUES the run; it fires when Claude Code
-        // is open on this computer to pick it up. Don't imply it's already running.
-        setMsg('Queued. It fires when Claude Code is open on your computer — the result lands in your Implexa inbox (usually a minute or two once it picks up).');
-        setShowRunModal(true);
-        return;
-      }
-      // The handoff must be VISIBLE (founder: "Queued" with an empty Claude box
-      // reads as a silent failure). Inside the desktop shell we open Claude with
-      // the run command PREFILLED via the claude:// deep link; the user reviews
-      // and hits enter. The queued request stays underneath so the result still
-      // comes home to Results. Clipboard is the belt-and-suspenders fallback.
-      // Thread the agent's saved config answers into the run command, so it runs
-      // unattended instead of stopping to ask in Claude Code. (apply_workflow
-      // also injects them server-side; this makes them visible in the prompt.)
+      setState('queued');
+      setMsg('Queued. It runs hands-off on your computer (Claude open / Mac awake) — the result lands in your Implexa inbox, usually within a few minutes.');
+      setShowRunModal(true);
+    } catch (e) {
+      setState('error');
+      setMsg(e instanceof Error ? e.message : 'Could not queue the run. Try again.');
+    }
+  }
+
+  // SECONDARY path: open Claude Code with the run PREFILLED so the user can watch
+  // / supervise it live. Deliberately does NOT queue a run-request, so the drainer
+  // won't also fire it (no double-run). For when you want eyes on the run.
+  async function watchInSession() {
+    setMsg('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      // Thread saved answers into the prompt so it doesn't stop to ask; the user
+      // can still edit them in the session before hitting enter.
       let settings = '';
       try {
         const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`, { jwt: session?.access_token });
@@ -196,9 +195,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           .filter((f) => (answers[f.key] ?? '').toString().trim() !== '')
           .map((f) => `${f.question} ${answers[f.key]}`);
         if (pairs.length) settings = ` Use these saved answers, do not ask again: ${pairs.join('; ')}.`;
-      } catch { /* no config or transient: run without inline settings (server still injects) */ }
+      } catch { /* run without inline settings */ }
       const runCommand = `Run my Implexa agent "${name || slug}".${settings}`;
-      try { await navigator.clipboard.writeText(runCommand); } catch { /* clipboard is best-effort */ }
+      try { await navigator.clipboard.writeText(runCommand); } catch { /* best-effort */ }
       const bridge = typeof window !== 'undefined'
         ? (window as Window & { implexaDesktop?: {
             openAgent?: () => Promise<{ ok: boolean }>;
@@ -206,23 +205,18 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           } }).implexaDesktop
         : undefined;
       if (bridge?.handoffAgent) {
-        // target 'code': the run must land in Claude CODE (Bash, Remotion, local
-        // files), never the chat tab — chat cannot execute a local agent. Older
-        // desktop builds ignore the third arg and fall back to chat.
         const h = await bridge.handoffAgent(runCommand, undefined, 'code').catch(() => null);
         setMsg(h && h.ok && h.mode === 'deeplink'
-          ? 'Opening Claude Code with the run command prefilled — review it and hit enter.'
-          : `Opening Claude. Paste the command we copied (${runCommand}) and hit enter.`);
+          ? 'Opening Claude Code with the run prefilled — review it and hit enter.'
+          : 'Opening Claude. Paste the command we copied and hit enter.');
       } else if (bridge?.openAgent) {
         await bridge.openAgent().catch(() => null);
-        setMsg(`Opening Claude. Paste the command we copied (${runCommand}) and hit enter.`);
+        setMsg('Opening Claude. Paste the command we copied and hit enter.');
       } else {
-        setMsg(`Queued. In Claude, send: ${runCommand} (copied to your clipboard).`);
+        setMsg('Copied a run command to your clipboard — paste it into Claude and hit enter.');
       }
-      setState('queued');
     } catch (e) {
-      setState('error');
-      setMsg(e instanceof Error ? e.message : 'Could not queue the run. Try again.');
+      setMsg(e instanceof Error ? e.message : 'Could not open a session.');
     }
   }
 
@@ -256,8 +250,19 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         >
           {state === 'queuing' ? 'Queuing…'
             : state === 'running' ? 'Running…'
-            : state === 'queued' ? 'Waiting for Claude…'
+            : state === 'queued' ? 'Queued ✓'
             : '▶ Run now'}
+        </button>
+      )}
+      {/* Secondary: supervise the run live instead of hands-off. Shown only before
+          queuing so the two paths stay mutually exclusive (no double-run). */}
+      {isActive && pendingQuestions === 0 && (state === 'idle' || state === 'error') && (
+        <button
+          type="button"
+          onClick={watchInSession}
+          className={`text-[11px] text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline ${align === 'end' ? 'text-right' : 'text-left'}`}
+        >
+          Open in a session to watch ↗
         </button>
       )}
       <span className={`text-[11px] text-ink-500 max-w-[320px] ${align === 'end' ? 'text-right' : 'text-left'}`}>
