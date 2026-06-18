@@ -13,6 +13,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { callBackend } from '@/lib/api';
 import RunEnvForm from './run-env-form';
+import ConnectTelegram from './connect-telegram';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +64,10 @@ export default async function RunEnvironmentPage() {
           currentWorkspaceRoot={current.workspace_root || ''}
           currentChromeProfile={current.chrome_profile || ''}
         />
+
+        <div className="mt-6">
+          <ConnectTelegram />
+        </div>
       </div>
     </main>
   );
