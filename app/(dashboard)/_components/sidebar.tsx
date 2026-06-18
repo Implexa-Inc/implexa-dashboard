@@ -45,7 +45,8 @@ type NavItem = {
 // off). Flip `hidden` to bring any back.
 const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Home',           icon: 'dashboard', matchPrefix: true },
-  { href: '/workflows',    label: 'Your Agents',    icon: 'workflows', matchPrefix: true },
+  { href: '/workflows',    label: 'Agents',         icon: 'workflows', matchPrefix: true },
+  { href: '/chains',       label: 'Agent Chains',   icon: 'link',      matchPrefix: true },
   // Results folded into Home (the one todo). Route stays live for deep links
   // (notification/email ?run= links) + the redesign's interim; nav item hidden.
   { href: '/inbox',        label: 'Results',        icon: 'activity',  matchPrefix: true, badgeKey: 'inbox', hidden: true },
