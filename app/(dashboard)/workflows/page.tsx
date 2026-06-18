@@ -20,6 +20,7 @@ import { getMyAgents } from '@/lib/agents-home';
 import { categorizeAgent } from '@/lib/agent-category';
 import AgentsList, { type ListAgent, type ArchivedAgent } from '../_components/agents-list';
 import ChainSuggestions from '../_components/chain-suggestions';
+import RunningAgents from '../_components/running-agents';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,6 +99,10 @@ export default async function WorkflowsPage() {
             Build a new one on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link>.
           </p>
         </header>
+
+        {/* Live "Running" section — polls /scheduled-skills/live, renders the
+            5-status pulsing-dot cards. Invisible when nothing is running. */}
+        <RunningAgents />
 
         <ChainSuggestions agents={list.map((a) => ({ slug: a.slug, source: a.source, name: a.name }))} />
 
