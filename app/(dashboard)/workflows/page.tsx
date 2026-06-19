@@ -117,8 +117,8 @@ export default async function WorkflowsPage() {
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Agents</h1>
           <p className="text-ink-300 text-sm mt-1">
             The workers you build. Each runs a whole job in your Claude or Codex, as you, and
-            drops its work in <Link href="/inbox" className="text-brand-500 hover:underline">Results</Link>.
-            Build a new one on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link>.
+            drops its work on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link>.
+            Build a new one there too.
           </p>
         </header>
 

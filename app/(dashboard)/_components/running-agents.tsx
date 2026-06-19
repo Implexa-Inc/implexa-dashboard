@@ -70,14 +70,21 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   const supabase = createClient();
   const [cards, setCards] = useState<LiveCard[] | null>(null);
   const [showAll, setShowAll] = useState(false);
-  // Cards the user cleared (the "Ignore & clear this run" action on the run detail
-  // page writes this key). Keyed by runId so a fresh run of the same agent
-  // re-appears. Read once on mount — navigating back from the detail page remounts
-  // this, so a just-cleared card is gone.
-  const [dismissed] = useState<Set<string>>(() => {
+  // Cards the user cleared — shared key with the run detail page's "Hide from
+  // alerts". Keyed by runId so a fresh run of the same agent re-appears. A ✕ on
+  // FINISHED cards (terminal, safe) dismisses inline; held/failed alerts go
+  // through the deliberate detail-page action instead.
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set();
     try { return new Set(JSON.parse(localStorage.getItem('implexa:live-cleared') || '[]')); } catch { return new Set(); }
   });
+  function dismiss(runId: string) {
+    setDismissed((prev) => {
+      const next = new Set(prev); next.add(runId);
+      try { localStorage.setItem('implexa:live-cleared', JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+  }
   // Native desktop notifications fire from here (the dashboard runs inside the
   // Electron webview, so the Notification API reaches the OS). We seed on the first
   // poll so pre-existing states don't storm, then notify only on NEW transitions.
@@ -167,6 +174,17 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                   ) : null}
                 </div>
               </div>
+              {c.status === 'finished' && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(c.runId); }}
+                  title="Dismiss"
+                  aria-label="Dismiss this finished run"
+                  className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
+                >
+                  ✕
+                </button>
+              )}
               <span className="shrink-0 text-lg leading-none text-ink-500 group-hover:text-ink-200 transition-colors" aria-hidden="true">›</span>
             </Link>
           );
