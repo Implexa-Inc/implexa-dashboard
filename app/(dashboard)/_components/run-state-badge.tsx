@@ -27,12 +27,13 @@ export function RunStateBadge({
       title={tip}
       className={`inline-flex items-center gap-1.5 rounded-full font-medium ${pad} ${spec.classes}`}
     >
-      <span className={`relative inline-flex w-1.5 h-1.5`} aria-hidden="true">
-        {spec.pulse && (
-          <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 motion-safe:animate-ping ${spec.dot}`} />
-        )}
-        <span className={`relative inline-flex w-1.5 h-1.5 rounded-full ${spec.dot}`} />
-      </span>
+      {/* Active states (running / stalled / waiting-for-approval) render a clean
+          spinner; terminal ones (done / failed / queued / partial) a static dot. */}
+      {spec.pulse ? (
+        <span className={`inline-block h-3 w-3 rounded-full border-2 ${spec.spinCls} animate-spin`} aria-hidden="true" />
+      ) : (
+        <span className={`inline-block w-1.5 h-1.5 rounded-full ${spec.dot}`} aria-hidden="true" />
+      )}
       {/* info.label, not spec.label: a `partial` run derives state='completed'
           but label='Partial' — using spec.label would mislabel it "Done"
           (a degraded run reading as success, the exact thing this surface

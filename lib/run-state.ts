@@ -95,6 +95,19 @@ export function deriveRunState(row: RunRow): RunStateInfo {
   const authoritative = row.run_state && VALID.has(row.run_state) ? row.run_state : null;
   const permissionBlocked = isPermissionBlocked(row);
 
+  // Held at a human-approval gate takes precedence over the terminal run_state:
+  // such a run is run_state='completed' + review_status='pending', so without this
+  // it would read as a clean "Done" even though it's waiting on the user (the
+  // confusing "Done + Approve & continue" the founder hit). It needs you, so it's
+  // attention; the state stays 'completed' so the deliverable still renders.
+  if (row.review_status === 'pending') {
+    return mk(
+      'completed', 'Waiting for approval',
+      'Held at a human-approval gate. Use Approve & continue to let it finish the gated step (e.g. send/post). Nothing happens without you.',
+      true, false, false,
+    );
+  }
+
   // Authoritative live state from the backend (post-0065 write path).
   if (authoritative) {
     switch (authoritative) {
@@ -149,42 +162,57 @@ function mk(
   return { state, label, reason, attention, permissionBlocked, estimated };
 }
 
-export const RUN_STATE_PRESENTATION: Record<
-  RunState,
-  { label: string; classes: string; dot: string; pulse: boolean }
-> = {
+export type RunPresentation = { label: string; classes: string; dot: string; pulse: boolean; spinCls: string };
+
+export const RUN_STATE_PRESENTATION: Record<RunState, RunPresentation> = {
   // Follows the /overview + remote-safety pattern: raw tailwind color with an
-  // explicit dark: variant so it flips correctly under forced dark mode.
+  // explicit dark: variant so it flips correctly under forced dark mode. Active
+  // states (pulse:true) render a clean spinner via spinCls; terminal ones a dot.
   running: {
     label: 'Running',
     classes: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
     dot: 'bg-sky-500 dark:bg-sky-400',
     pulse: true,
+    spinCls: 'border-sky-500/30 border-t-sky-500',
   },
   stalled: {
     label: 'Stalled',
     classes: 'bg-amber-500/20 text-amber-700 dark:text-amber-300',
     dot: 'bg-amber-500 dark:bg-amber-400',
     pulse: true,
+    spinCls: 'border-amber-500/30 border-t-amber-500',
   },
   completed: {
     label: 'Done',
     classes: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
     dot: 'bg-emerald-500 dark:bg-emerald-400',
     pulse: false,
+    spinCls: '',
   },
   failed: {
     label: 'Failed',
     classes: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
     dot: 'bg-rose-500 dark:bg-rose-400',
     pulse: false,
+    spinCls: '',
   },
   queued: {
     label: 'Queued',
     classes: 'bg-ink-800 text-ink-300',
     dot: 'bg-ink-500',
     pulse: false,
+    spinCls: '',
   },
+};
+
+// A held-for-approval run derives state='completed' but label='Waiting for
+// approval'; give it its own amber, spinner treatment (it's active, needs you).
+const AWAITING_PRESENTATION: RunPresentation = {
+  label: 'Waiting for approval',
+  classes: 'bg-amber-500/20 text-amber-700 dark:text-amber-300',
+  dot: 'bg-amber-500 dark:bg-amber-400',
+  pulse: true,
+  spinCls: 'border-amber-500/30 border-t-amber-500',
 };
 
 // A `partial` run derives state='completed' but must NOT read as a clean success
@@ -192,16 +220,20 @@ export const RUN_STATE_PRESENTATION: Record<
 // already render partial in AMBER; this gives the badge the matching treatment so
 // every surface agrees. Keyed off the derived label since 'partial' is not a
 // RunState. (Silence/degradation must never read as success.)
-const PARTIAL_PRESENTATION = {
+const PARTIAL_PRESENTATION: RunPresentation = {
   label: 'Partial',
   classes: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
   dot: 'bg-amber-500 dark:bg-amber-400',
   pulse: false,
+  spinCls: '',
 };
 
-/** Visual treatment for a run-state badge: amber for a degraded `partial`, else the per-state spec. */
-export function presentationFor(info: RunStateInfo) {
-  return info.label === 'Partial' ? PARTIAL_PRESENTATION : RUN_STATE_PRESENTATION[info.state];
+/** Visual treatment for a run-state badge: degraded `partial` and held
+ *  `Waiting for approval` get their own treatment; else the per-state spec. */
+export function presentationFor(info: RunStateInfo): RunPresentation {
+  if (info.label === 'Partial') return PARTIAL_PRESENTATION;
+  if (info.label === 'Waiting for approval') return AWAITING_PRESENTATION;
+  return RUN_STATE_PRESENTATION[info.state];
 }
 
 // ── defensive read of skill_runs (the integration slot) ─────────────────────

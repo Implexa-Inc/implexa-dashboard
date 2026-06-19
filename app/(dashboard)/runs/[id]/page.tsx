@@ -27,6 +27,7 @@ import BackLink from '../../_components/back-link';
 import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
 import RunClaudeActions from '../../_components/run-claude-actions';
+import ClearAlertButton from '../../_components/clear-alert-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -186,6 +187,14 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             <div className="text-xs text-ink-300 mt-0.5">
               Read it below, then use <span className="text-ink-100 font-medium">Approve &amp; continue in Claude</span> above to let it finish the gated step. Nothing posts without you.
             </div>
+          </div>
+        )}
+
+        {/* Deliberate, labeled clear (replaces the one-click ✕ on the Alerts card).
+            Shown only while this run is actually an alert (held / stalled / failed). */}
+        {(pending || info.attention) && (
+          <div className="mb-6">
+            <ClearAlertButton runId={r.id} pending={pending} />
           </div>
         )}
 
