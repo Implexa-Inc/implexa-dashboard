@@ -124,14 +124,14 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
     name: nameBySlug.get(r.skill_slug) || r.skill_slug,
   }));
   const pendingReviews = approvals.length;
-  // Approvals AND stalled runs are actionable (a stalled run is stuck waiting on
-  // a permission you must go approve), so both belong ON the Home strip — not
-  // just the /connections full view. (Previously stalled was excluded from
-  // homeCount and only rendered in the full variant, so a stuck run that hadn't
-  // produced a deliverable showed nowhere on Home even though the watchdog
-  // emailed about it.)
-  const homeCount = needGrant.length + missed.length + signIns.length + approvals.length + stalled.length;
-  const total = homeCount;
+  // Home now has a dedicated live "Alerts" section (RunningAgents alertsOnly)
+  // that owns held-for-approval + stalled/failed runs, and a loud attention
+  // banner for stalled ones. So the Home strip is ONLY the setup-level items
+  // (a grant to give, an account to sign into, a missed schedule) — keeping
+  // approvals/stalled here too produced a duplicate "needs you" section.
+  const homeCount = needGrant.length + missed.length + signIns.length;
+  // /connections (variant=full) still shows everything.
+  const total = homeCount + approvals.length + stalled.length;
 
   return { needGrant, missed, signIns, stalled, approvals, pendingReviews, homeCount, total };
 }

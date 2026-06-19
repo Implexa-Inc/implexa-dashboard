@@ -43,10 +43,10 @@ export default function NeedsYouStrip({
   return (
     <section className={`space-y-3 ${className}`}>
       {variant === 'home' && (
-        <h2 className="text-xs font-medium text-ink-400 uppercase tracking-wider">Needs you</h2>
+        <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">Set up</h2>
       )}
 
-      {data.stalled.map((r) => (
+      {full && data.stalled.map((r) => (
         <Item
           key={`stalled-${r.id}`}
           warn
@@ -71,7 +71,7 @@ export default function NeedsYouStrip({
         />
       ))}
 
-      {data.approvals.map((a) => (
+      {full && data.approvals.map((a) => (
         <Item
           key={`approval-${a.id}`}
           warn

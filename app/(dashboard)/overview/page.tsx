@@ -105,18 +105,18 @@ export default async function OverviewPage() {
               <RunAttentionBanner items={attentionItems} />
             </div>
 
-            {/* needs you: grants to give, accounts to sign into, missed schedules,
-                each with one action (folds in the old "Needs you" surface) */}
-            <NeedsYouStrip data={needsYou} variant="home" className="mt-8" />
-
-            {/* live alerts: agents that need you right now (held for approval,
+            {/* Alerts: agents that need you right now (held for approval,
                 stalled, failed), polled from /scheduled-skills/live — each links
                 into the run. Invisible when nothing needs you. */}
             <div className="mt-8">
               <RunningAgents alertsOnly />
             </div>
 
-            {/* the one todo: every run as a colored todo, acted on in a pop-up */}
+            {/* Set up: grants to give, accounts to sign into, missed schedules —
+                each with one action. (Approvals/stalled now live in Alerts.) */}
+            <NeedsYouStrip data={needsYou} variant="home" className="mt-8" />
+
+            {/* Inbox: every run as a colored todo, acted on in a pop-up */}
             <section className="mt-10">
               {items.length === 0 ? (
                 <div className="card p-6 text-center">

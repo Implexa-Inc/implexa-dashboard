@@ -88,7 +88,71 @@ export default async function WorkflowDetailPage({
   const workflow = wPublic
     || (await getMyWorkflow(params.slug, source === 'web-seed' ? 'generated' : source))
     || (await getMyWorkflow(params.slug, 'community'));
-  if (!workflow) notFound();
+
+  // Not in the workflow catalog — but it may still be a scheduled SKILL the user
+  // scheduled/paused (a skill isn't a "workflow", so the catalog read 404s). Open
+  // a minimal agent page built from its schedule so Pause/Resume + runs still work,
+  // instead of a dead 404 when someone clicks a paused agent.
+  if (!workflow) {
+    const [{ data: schedRows }, skillRuns] = await Promise.all([
+      supabase
+        .from('scheduled_skills')
+        .select('id, skill_slug, schedule_nl, cron_expression, status, last_run_at, run_count, destination, claude_task_id')
+        .eq('skill_slug', params.slug)
+        .order('created_at', { ascending: false }),
+      loadInboxItems(supabase, 20, params.slug),
+    ]);
+    const sched = (schedRows as Routine[]) || [];
+    if (sched.length === 0) notFound();
+    const pausable = sched.find((r) => r.status === 'active' || r.status === 'paused') || null;
+    const niceName = params.slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    return (
+      <main className="min-h-screen px-4 py-10">
+        <div className="max-w-4xl mx-auto">
+          <nav className="text-sm text-ink-500 mb-6"><BackLink fallback="/workflows" label="Back" /></nav>
+          <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold tracking-tight text-ink-50">{niceName}</h1>
+              <code className="text-xs text-ink-500 font-mono block mt-2">{params.slug}</code>
+            </div>
+            {pausable && (
+              <AgentPauseToggle routineId={pausable.id} initialStatus={pausable.status} />
+            )}
+          </header>
+
+          <div className="card mb-6">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Schedule</h2>
+            <ul className="space-y-3 text-sm">
+              {sched.map((r) => (
+                <li key={r.id}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-ink-200">{r.schedule_nl}</span>
+                    <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
+                      r.status === 'active'
+                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                        : r.status === 'paused'
+                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                          : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                    }`}>{r.status}</span>
+                  </div>
+                  <div className="text-xs text-ink-400 mt-0.5">
+                    {r.run_count} run{r.run_count === 1 ? '' : 's'} · last {rel(r.last_run_at)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-3">Runs</h2>
+          {skillRuns.length === 0 ? (
+            <p className="text-sm text-ink-500 italic">No runs yet.</p>
+          ) : (
+            <InboxList initialItems={skillRuns} basePath={`/workflows/${params.slug}`} heading={null} />
+          )}
+        </div>
+      </main>
+    );
+  }
 
   // Schedule for this workflow (RLS-scoped) + this agent's runs as todo items so
   // the Runs tab reuses the same colored-todo + output pop-up + feedback machinery
@@ -316,7 +380,7 @@ export default async function WorkflowDetailPage({
       </p>
     </div>
   ) : (
-    <InboxList initialItems={agentRuns} basePath={`/workflows/${workflow.slug}`} />
+    <InboxList initialItems={agentRuns} basePath={`/workflows/${workflow.slug}`} heading={null} />
   );
 
   const setupPanel = (

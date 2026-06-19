@@ -134,10 +134,14 @@ function snippet(md: string | null): string | null {
 export default function InboxList({
   initialItems,
   basePath = '/inbox',
+  heading = 'Inbox',
 }: {
   initialItems: InboxItem[];
   /** Route the `?run=` deep-link syncs to. Home embeds this list at /overview. */
   basePath?: string;
+  /** Section header label (with a live count). Pass null to hide it — e.g. the
+   *  agent page's Runs tab is already labeled, so a header there is noise. */
+  heading?: string | null;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -539,21 +543,15 @@ export default function InboxList({
 
   return (
     <>
-      {/* Inbox-zero header: a count that nudges you to clear the colored todos. */}
-      <div className="mb-5 flex items-center gap-2 text-sm">
-        {needYou > 0 ? (
-          <>
-            <span className="inline-block size-2 rounded-full bg-amber-400" aria-hidden />
-            <span className="text-ink-200 font-medium">{needYou} run{needYou === 1 ? '' : 's'} need you</span>
-            <span className="text-ink-500">— give quick feedback or take action to clear them.</span>
-          </>
-        ) : (
-          <>
-            <span className="inline-block size-2 rounded-full bg-emerald-500" aria-hidden />
-            <span className="text-ink-300">You&apos;re all caught up. Nothing needs you.</span>
-          </>
-        )}
-      </div>
+      {/* Section header: a clear label + live count. */}
+      {heading !== null && (
+        <div className="mb-5 flex items-baseline gap-2">
+          <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{heading} ({items.length})</h2>
+          {needYou > 0 && (
+            <span className="text-xs text-amber-600 dark:text-amber-400">{needYou} need you</span>
+          )}
+        </div>
+      )}
 
       <div className="space-y-8">
         {days.map((day) => {

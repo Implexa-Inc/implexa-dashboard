@@ -32,12 +32,15 @@ type LiveCard = {
 
 const POLL_MS = 15000;
 
-const STATUS: Record<LiveStatus, { dot: string; pulse: boolean; label: string; cta: string }> = {
-  running:          { dot: 'bg-emerald-500',                pulse: true,  label: 'Running',              cta: 'Watch' },
-  waiting_approval: { dot: 'bg-amber-500',                  pulse: true,  label: 'Waiting for approval', cta: 'Approve & continue' },
-  needs_attention:  { dot: 'bg-amber-500',                  pulse: true,  label: 'Needs attention',      cta: 'Open' },
-  failed:           { dot: 'bg-rose-500',                   pulse: false, label: 'Failed',               cta: 'View' },
-  finished:         { dot: 'bg-ink-500 dark:bg-ink-400',    pulse: false, label: 'Finished',             cta: 'View result' },
+// Active states (green/amber) show a clean spinner — they're still working or
+// waiting on you. Done states (red/grey) stay a static dot. Every card opens the
+// run page, so there's no per-status button label — just a chevron.
+const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: string; label: string }> = {
+  running:          { spin: true,  spinCls: 'border-emerald-500/25 border-t-emerald-500', dotCls: 'bg-emerald-500',             label: 'Running' },
+  waiting_approval: { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Waiting for approval' },
+  needs_attention:  { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Needs attention' },
+  failed:           { spin: false, spinCls: '',                                           dotCls: 'bg-rose-500',                label: 'Failed' },
+  finished:         { spin: false, spinCls: '',                                           dotCls: 'bg-ink-500 dark:bg-ink-400', label: 'Finished' },
 };
 
 function humanize(slug: string): string {
@@ -56,6 +59,19 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   const supabase = createClient();
   const [cards, setCards] = useState<LiveCard[] | null>(null);
   const [showAll, setShowAll] = useState(false);
+  // Per-card "clear" — keyed by runId so a fresh run of the same agent re-appears.
+  // Persisted so a cleared card stays cleared across polls and reloads.
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try { return new Set(JSON.parse(localStorage.getItem('implexa:live-cleared') || '[]')); } catch { return new Set(); }
+  });
+  function dismiss(runId: string) {
+    setDismissed((prev) => {
+      const next = new Set(prev); next.add(runId);
+      try { localStorage.setItem('implexa:live-cleared', JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+  }
   // Native desktop notifications fire from here (the dashboard runs inside the
   // Electron webview, so the Notification API reaches the OS). We seed on the first
   // poll so pre-existing states don't storm, then notify only on NEW transitions.
@@ -109,15 +125,14 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   if (!cards) return null;
   // On Home we show only the cards that need you (yellow/red); on the Agents page
   // we show everything live.
-  const list = alertsOnly ? cards.filter((c) => NOTIFY.has(c.status)) : cards;
+  const list = (alertsOnly ? cards.filter((c) => NOTIFY.has(c.status)) : cards).filter((c) => !dismissed.has(c.runId));
   if (list.length === 0) return null; // invisible at rest
   const shown = showAll ? list : list.slice(0, 5);
 
   return (
     <section className="mb-8">
       <div className="flex items-baseline gap-2 mb-3">
-        <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Needs you' : 'Running'}</h2>
-        <span className="text-xs text-ink-500">{list.length}</span>
+        <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Running'} ({list.length})</h2>
       </div>
       <div className="space-y-2">
         {shown.map((c) => {
@@ -126,19 +141,29 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
             <Link
               key={c.runId}
               href={`/runs/${encodeURIComponent(c.runId)}`}
-              className="flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3 hover:border-ink-700 transition-colors"
+              className="group flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3 hover:border-ink-700 transition-colors"
             >
-              <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
-                {s.pulse && <span className={`absolute inline-flex h-full w-full rounded-full ${s.dot} opacity-60 animate-ping`} />}
-                <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${s.dot}`} />
-              </span>
+              {s.spin ? (
+                <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${s.spinCls} animate-spin`} aria-hidden="true" />
+              ) : (
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${s.dotCls}`} aria-hidden="true" />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="text-sm text-ink-100 truncate">{humanize(c.skillSlug)}</div>
                 <div className="text-[11px] text-ink-500">
                   {s.label}{c.since ? ` · ${rel(c.since)}` : ''}
                 </div>
               </div>
-              <span className="text-xs text-brand-500 shrink-0 whitespace-nowrap">{s.cta} →</span>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(c.runId); }}
+                title="Clear from this list"
+                aria-label="Clear"
+                className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
+              >
+                ✕
+              </button>
+              <span className="shrink-0 text-lg leading-none text-ink-500 group-hover:text-ink-200 transition-colors" aria-hidden="true">›</span>
             </Link>
           );
         })}

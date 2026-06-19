@@ -20,6 +20,46 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
+/* Row actions are icon-only with a hover tooltip (title) for a clean, dense row.
+   Eye = open, Note = last output, Bin = archive, Play = activate/resume. */
+const ICON = 'h-4 w-4';
+function EyeIcon() {
+  return (
+    <svg className={ICON} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+function NoteIcon() {
+  return (
+    <svg className={ICON} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 3h11l5 5v13a0 0 0 0 1 0 0H4Z" /><path d="M14 3v6h6" /><path d="M8 13h8" /><path d="M8 17h6" />
+    </svg>
+  );
+}
+function BinIcon() {
+  return (
+    <svg className={ICON} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M6 6l1 14h10l1-14" /><path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+function PlayIcon() {
+  return (
+    <svg className={ICON} viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+/** Hover label for an icon button. Parent must be `group/btn` + `relative`. */
+function Tip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-ink-900 border border-ink-700 px-1.5 py-0.5 text-[10px] text-ink-200 opacity-0 group-hover/btn:opacity-100 transition-opacity z-10">
+      {children}
+    </span>
+  );
+}
+
 export type ListAgent = {
   slug: string;
   name: string;
@@ -135,26 +175,49 @@ function Row({ a, onArchive, onRename, busy }: { a: ListAgent; onArchive: (a: Li
           </p>
         </div>
 
-        <div className="flex-none flex items-center gap-2">
+        <div className="flex-none flex items-center gap-1">
           {a.section === 'not_activated' ? (
-            <Link href={`/workflows/${encodeURIComponent(a.slug)}/activate`} className="btn-success text-xs px-3 py-1.5">Activate</Link>
+            <Link
+              href={`/workflows/${encodeURIComponent(a.slug)}/activate`}
+              aria-label={`Activate ${a.name}`}
+              className="group/btn relative grid place-items-center h-8 w-8 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+            >
+              <PlayIcon />
+              <Tip>Activate</Tip>
+            </Link>
           ) : (
-            <Link href={detail} className="btn-outline text-xs px-3 py-1.5">View</Link>
+            <>
+              <Link
+                href={detail}
+                aria-label={`Open ${a.name}`}
+                className="group/btn relative grid place-items-center h-8 w-8 rounded-md text-ink-400 hover:text-ink-100 hover:bg-ink-800 transition-colors"
+              >
+                <EyeIcon />
+                <Tip>View</Tip>
+              </Link>
+              {a.lastRun?.id && (
+                <Link
+                  href={`/runs/${a.lastRun.id}`}
+                  aria-label={`Last output for ${a.name}`}
+                  className="group/btn relative grid place-items-center h-8 w-8 rounded-md text-ink-400 hover:text-ink-100 hover:bg-ink-800 transition-colors"
+                >
+                  <NoteIcon />
+                  <Tip>Last output</Tip>
+                </Link>
+              )}
+              {/* Archive = remove from MY list (never deletes the shared agent). */}
+              <button
+                type="button"
+                onClick={() => onArchive(a)}
+                disabled={busy}
+                aria-label={`Archive ${a.name}`}
+                className="group/btn relative grid place-items-center h-8 w-8 rounded-md text-ink-500 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-500/10 disabled:opacity-50 transition-colors"
+              >
+                {busy ? <span className="h-3.5 w-3.5 rounded-full border-2 border-ink-500/30 border-t-ink-300 animate-spin" /> : <BinIcon />}
+                <Tip>Archive</Tip>
+              </button>
+            </>
           )}
-          {a.lastRun?.id && (
-            <Link href={`/runs/${a.lastRun.id}`} className="text-xs text-ink-400 hover:text-ink-200 hover:underline whitespace-nowrap">Last output</Link>
-          )}
-          {/* Archive = remove from MY list (never deletes the shared agent). */}
-          <button
-            type="button"
-            onClick={() => onArchive(a)}
-            disabled={busy}
-            title="Remove this agent from your list (it stays available to everyone, and you can restore it)"
-            aria-label={`Archive ${a.name}`}
-            className="text-xs text-ink-500 hover:text-rose-600 dark:hover:text-rose-300 disabled:opacity-50 whitespace-nowrap"
-          >
-            {busy ? 'Archiving…' : 'Archive'}
-          </button>
         </div>
       </div>
     </li>
@@ -331,9 +394,11 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
                   </span>
                   <Link
                     href={`/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`}
-                    className="text-xs btn-outline px-3 py-1 whitespace-nowrap"
+                    aria-label={`Open ${a.name} to resume`}
+                    className="group/btn relative grid place-items-center h-8 w-8 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
                   >
-                    Resume
+                    <PlayIcon />
+                    <Tip>Open to resume</Tip>
                   </Link>
                 </li>
               ))}
