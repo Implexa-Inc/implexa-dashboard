@@ -174,12 +174,12 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                   ) : null}
                 </div>
               </div>
-              {c.status === 'finished' && (
+              {(c.status === 'finished' || c.status === 'failed') && (
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(c.runId); }}
-                  title="Dismiss"
-                  aria-label="Dismiss this finished run"
+                  title="Dismiss from alerts"
+                  aria-label="Dismiss this run from alerts"
                   className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
                 >
                   ✕

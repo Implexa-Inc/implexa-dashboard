@@ -239,7 +239,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
 
         {/* Deliberate, labeled clear (replaces the one-click ✕ on the Alerts card).
             Shown only while this run is actually an alert (held / stalled / failed). */}
-        {(pending || info.attention) && (
+        {(pending || info.attention || info.state === 'failed') && (
           <div className="mb-6">
             <ClearAlertButton runId={r.id} pending={pending} />
           </div>
