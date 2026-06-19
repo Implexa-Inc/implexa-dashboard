@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogoMark } from '@/components/logo';
 import { STATUS_PRESENTATION, relativeFromNow, type SetupStatus } from '@/lib/setup-status';
+import { createClient } from '@/lib/supabase/client';
+import { callBackend } from '@/lib/api';
 
 type NavItem = {
   href:    string;
@@ -14,7 +16,7 @@ type NavItem = {
   /** Match `/skills` AND `/skills/anything`. */
   matchPrefix?: boolean;
   /** Key into the badge counts map, renders a glanceable count chip when > 0. */
-  badgeKey?: 'inbox' | 'needs';
+  badgeKey?: 'inbox' | 'needs' | 'agents';
   /** Hidden from nav to keep the surface focused on the autopilot loop. The
    *  route + page stay live (deep links + future work); only the nav item is
    *  suppressed. Flip back to surface it again. */
@@ -45,7 +47,7 @@ type NavItem = {
 // off). Flip `hidden` to bring any back.
 const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Home',           icon: 'dashboard', matchPrefix: true },
-  { href: '/workflows',    label: 'Agents',         icon: 'workflows', matchPrefix: true },
+  { href: '/workflows',    label: 'Agents',         icon: 'workflows', matchPrefix: true, badgeKey: 'agents' },
   { href: '/chains',       label: 'Agent Chains',   icon: 'link',      matchPrefix: true },
   // Results folded into Home (the one todo). Route stays live for deep links
   // (notification/email ?run= links) + the redesign's interim; nav item hidden.
@@ -84,30 +86,84 @@ type UserCtx = {
 // Per-surface "last opened" markers. The badge counts only items newer than
 // this, so opening the page clears it. Per-device on purpose (an unread hint,
 // not synced state) — this is what makes "I checked them, they go away" true.
-const SEEN_KEY: Record<'inbox' | 'needs', string> = {
-  inbox: 'implexa.seen.inbox',
-  needs: 'implexa.seen.needs',
+const SEEN_KEY: Record<'inbox' | 'needs' | 'agents', string> = {
+  inbox:  'implexa.seen.inbox',
+  needs:  'implexa.seen.needs',
+  agents: 'implexa:agents-seen',
 };
+
+// Live statuses that count toward the "Agents" badge: the agent is working or
+// needs a look. Mirrors the NOTIFY/active set in running-agents.tsx (running +
+// the three "needs you" states), which is the same /live feed this reads.
+const AGENT_BADGE_STATUSES: ReadonlySet<string> = new Set([
+  'running', 'needs_attention', 'failed', 'waiting_approval',
+]);
+
+const LIVE_POLL_MS = 15000;
+
+// Polls GET /api/v2/scheduled-skills/live on the same ~15s cadence as the Active
+// Agents / Alerts views and returns the `since` timestamps of every currently
+// live/needs-a-look agent. Reuses running-agents.tsx's fetch + auth pattern.
+// Holds the last known list on transient errors so the badge doesn't flicker.
+function useLiveAgentTimestamps(): string[] {
+  const [stamps, setStamps] = useState<string[]>([]);
+  useEffect(() => {
+    const supabase = createClient();
+    let alive = true;
+    async function load() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await callBackend('/api/v2/scheduled-skills/live', { jwt: session?.access_token });
+        if (!alive) return;
+        const items = Array.isArray(res?.items) ? res.items : [];
+        const live = items
+          .filter((c: { status?: string }) => AGENT_BADGE_STATUSES.has(c?.status ?? ''))
+          .map((c: { since?: string | null }) => c?.since)
+          .filter((s: unknown): s is string => typeof s === 'string' && s.length > 0);
+        setStamps(live);
+      } catch { /* keep last known list — avoid flicker on a transient failure */ }
+    }
+    load();
+    const t = setInterval(load, LIVE_POLL_MS);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  return stamps;
+}
 
 // A glanceable "new since you last opened this page" count. Stores the open time
 // in localStorage and counts only timestamps newer than it, clearing the badge
 // the moment the user lands on the page. ISO timestamps are compared as epoch
 // millis so a timezone-suffix format ("+00:00" vs "Z") can't skew the result.
 function useUnreadBadge(
-  key: 'inbox' | 'needs',
+  key: 'inbox' | 'needs' | 'agents',
   pathPrefix: string,
   timestamps: string[],
   pathname: string,
+  // When true, a missing marker is seeded to "now" on first load so pre-existing
+  // activity doesn't all show as new on the very first render (mirrors the
+  // `seeded` guard in running-agents.tsx). Live feeds (Agents) want this; the
+  // server-fed inbox/needs counts want the opposite (surface existing unread).
+  seedOnFirstLoad = false,
 ): number {
   const [seenMs, setSeenMs] = useState<number | null>(null);
   const onPage = pathname === pathPrefix || pathname.startsWith(`${pathPrefix}/`);
 
-  // Read the stored marker once on mount (0 = never opened -> everything is new).
+  // Read the stored marker once on mount. No marker -> either seed to now (live
+  // feeds) or treat everything as new (0, server-fed counts).
   useEffect(() => {
     try {
       const v = window.localStorage.getItem(SEEN_KEY[key]);
-      setSeenMs(v ? Number(v) : 0);
+      if (v) { setSeenMs(Number(v)); return; }
+      if (seedOnFirstLoad) {
+        const now = Date.now();
+        try { window.localStorage.setItem(SEEN_KEY[key], String(now)); } catch { /* private mode */ }
+        setSeenMs(now);
+      } else {
+        setSeenMs(0);
+      }
     } catch { setSeenMs(0); }
+    // seedOnFirstLoad is a stable literal per call site; key identifies the marker.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   // While the page is open, mark everything seen now and clear instantly.
@@ -132,6 +188,11 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
   const pathname = usePathname() || '';
   const inboxUnread = useUnreadBadge('inbox', '/inbox', resultRunsAt, pathname);
   const needsUnread = useUnreadBadge('needs', '/connections', needsItemsAt, pathname);
+  // Live "Agents" badge: poll the same /live feed the Active Agents view uses,
+  // then apply unread-since semantics against /workflows (seeded on first load so
+  // pre-existing activity isn't counted as new; cleared on visiting the page).
+  const agentStamps = useLiveAgentTimestamps();
+  const agentsUnread = useUnreadBadge('agents', '/workflows', agentStamps, pathname, true);
 
   const isActive = (item: NavItem) =>
     item.matchPrefix
@@ -139,7 +200,13 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
       : pathname === item.href;
 
   const badgeFor = (item: NavItem) =>
-    item.badgeKey === 'inbox' ? inboxUnread : item.badgeKey === 'needs' ? needsUnread : 0;
+    item.badgeKey === 'inbox' ? inboxUnread
+      : item.badgeKey === 'needs' ? needsUnread
+      : item.badgeKey === 'agents' ? agentsUnread
+      : 0;
+
+  const badgeAriaFor = (item: NavItem, n: number) =>
+    item.badgeKey === 'agents' ? `${n} agents need attention` : `${n} waiting for you`;
 
   return (
     <aside className="hidden md:flex md:flex-col md:sticky md:top-0 w-56 shrink-0 border-r border-ink-700 bg-ink-900/50 h-screen overflow-y-auto">
@@ -159,7 +226,7 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
         <ul className="space-y-0.5">
           {PRIMARY_NAV.filter((item) => !item.hidden).map((item) => (
             <li key={item.href}>
-              <NavLink href={item.href} icon={item.icon} label={item.label} active={isActive(item)} badge={badgeFor(item)} />
+              <NavLink href={item.href} icon={item.icon} label={item.label} active={isActive(item)} badge={badgeFor(item)} badgeAria={badgeAriaFor(item, badgeFor(item))} />
             </li>
           ))}
         </ul>
@@ -271,7 +338,7 @@ function SetupChip({ status, lastSeenAt }: { status?: SetupStatus; lastSeenAt?: 
   );
 }
 
-function NavLink({ href, icon, label, active, badge = 0 }: { href: string; icon: string; label: string; active: boolean; badge?: number }) {
+function NavLink({ href, icon, label, active, badge = 0, badgeAria }: { href: string; icon: string; label: string; active: boolean; badge?: number; badgeAria?: string }) {
   return (
     <Link
       href={href}
@@ -312,7 +379,7 @@ function NavLink({ href, icon, label, active, badge = 0 }: { href: string; icon:
       {badge > 0 && (
         <span
           className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold bg-brand-500 text-ink-950"
-          aria-label={`${badge} waiting for you`}
+          aria-label={badgeAria ?? `${badge} waiting for you`}
         >
           {badge > 99 ? '99+' : badge}
         </span>
