@@ -28,6 +28,8 @@ type LiveCard = {
   source: string | null;
   status: LiveStatus;
   since: string | null;
+  /** Median duration of this agent's recent completed runs (ms), if known. */
+  typicalMs?: number | null;
 };
 
 const POLL_MS = 15000;
@@ -53,6 +55,15 @@ function rel(iso: string | null): string {
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
+}
+function fmtDur(ms: number): string {
+  const m = Math.round(ms / 60000);
+  if (m < 1) return '<1m';
+  if (m < 60) return `${m}m`;
+  return `${Math.round(m / 60)}h`;
+}
+function elapsedMs(iso: string | null): number {
+  return iso ? Math.max(0, Date.now() - new Date(iso).getTime()) : 0;
 }
 
 export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boolean } = {}) {
@@ -152,6 +163,13 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                 <div className="text-sm text-ink-100 truncate">{humanize(c.skillSlug)}</div>
                 <div className="text-[11px] text-ink-500">
                   {s.label}{c.since ? ` · ${rel(c.since)}` : ''}
+                  {c.status === 'running' && c.typicalMs ? (
+                    elapsedMs(c.since) > c.typicalMs * 1.5 ? (
+                      <span className="text-amber-600 dark:text-amber-400"> · longer than usual (~{fmtDur(c.typicalMs)})</span>
+                    ) : (
+                      <span> · ~{fmtDur(c.typicalMs)} typical</span>
+                    )
+                  ) : null}
                 </div>
               </div>
               <button
