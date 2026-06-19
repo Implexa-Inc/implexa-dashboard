@@ -98,13 +98,17 @@ export function deriveRunState(row: RunRow): RunStateInfo {
   // Held at a human-approval gate takes precedence over the terminal run_state:
   // such a run is run_state='completed' + review_status='pending', so without this
   // it would read as a clean "Done" even though it's waiting on the user (the
-  // confusing "Done + Approve & continue" the founder hit). It needs you, so it's
-  // attention; the state stays 'completed' so the deliverable still renders.
+  // confusing "Done + Approve & continue" the founder hit).
+  //
+  // attention is FALSE on purpose: attention means "did not finish cleanly"
+  // (stalled / permission-blocked) and drives the loud RunAttentionBanner. A held
+  // run finished cleanly and paused ON PURPOSE — it belongs in Alerts, not the
+  // "blocked on a permission" banner. The detail page surfaces it via `pending`.
   if (row.review_status === 'pending') {
     return mk(
       'completed', 'Waiting for approval',
       'Held at a human-approval gate. Use Approve & continue to let it finish the gated step (e.g. send/post). Nothing happens without you.',
-      true, false, false,
+      false, false, false,
     );
   }
 
