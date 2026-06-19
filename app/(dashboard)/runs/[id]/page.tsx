@@ -14,11 +14,10 @@
 
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/server';
 import { callBackend } from '@/lib/api';
+import { getWorkspaceRoot } from '@/lib/run-env';
+import RunMarkdown from '../../_components/run-markdown';
 import { desktopAppLive, appRunUrl } from '@/lib/app-links';
 import { listWorkflows } from '@/lib/workflow-catalog';
 import { deriveRunState, type RunRow, type RunProgress } from '@/lib/run-state';
@@ -183,6 +182,12 @@ export default async function RunDetailPage({ params }: { params: { id: string }
 
   const info = deriveRunState({ ...r, routine_paused: routinePaused });
 
+  // The run's workspace root powers clickable file paths in the deliverable
+  // (resolve a relative `reels/day-18/` to an absolute path the desktop bridge
+  // can open / Finder can reveal). Unknown → <FilePathCode> copies the relative
+  // path instead. Best-effort; never blocks the page.
+  const workspaceRoot = await getWorkspaceRoot(session.access_token);
+
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
@@ -285,9 +290,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
 
         {r.output_markdown ? (
           <div className="prose prose-sm max-w-none rounded-lg border border-ink-800 bg-ink-950/60 p-5">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
-              {r.output_markdown}
-            </ReactMarkdown>
+            <RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot} />
           </div>
         ) : info.attention ? (
           // A stalled/failed run has no deliverable. Don't dead-end at a blank

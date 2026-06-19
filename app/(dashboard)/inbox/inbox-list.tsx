@@ -17,11 +17,10 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { getWorkspaceRoot } from '@/lib/run-env';
+import RunMarkdown from '../_components/run-markdown';
 import Modal from '../_components/modal';
 import { RunStateBadge } from '../_components/run-state-badge';
 import { categorizeAgent } from '@/lib/agent-category';
@@ -153,6 +152,22 @@ export default function InboxList({
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
+  // The viewer's workspace root, so file paths in a deliverable resolve to an
+  // absolute path the desktop bridge can open / copy. Fetched once client-side
+  // (this list renders inside three server pages); null → copy-relative
+  // fallback in <FilePathCode>.
+  const [workspaceRoot, setWorkspaceRoot] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const root = await getWorkspaceRoot(session?.access_token);
+        if (!cancelled) setWorkspaceRoot(root);
+      } catch { /* leave null → copy relative path */ }
+    })();
+    return () => { cancelled = true; };
+  }, [supabase]);
 
   // A run is "answered" once it has stored feedback (the optimistic submit below
   // stamps feedbackAt locally). Drives the row's optional "Rate" chip.
@@ -447,9 +462,7 @@ export default function InboxList({
 
             {openItem.output_markdown ? (
               <div className="prose prose-sm max-w-none rounded-lg border border-ink-800 bg-ink-950/60 p-4">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
-                  {openItem.output_markdown}
-                </ReactMarkdown>
+                <RunMarkdown markdown={openItem.output_markdown} workspaceRoot={workspaceRoot} />
               </div>
             ) : (
               <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
