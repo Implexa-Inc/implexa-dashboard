@@ -43,22 +43,18 @@ const POLL_MS = 5000;
 const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in the inbox
 
 const MAX_RUN_FILES = 8;
-// Marker for the per-run attachment line we bake into the saved note. The note is
-// honored on the run via payload.userNote (the saved __agent_note) — the drainer
-// runs run_agent_now without the run-request note, so the SAVED note is the path
-// that reaches the hands-off run. We strip this line when re-loading the note so
-// the textarea only ever shows the user's own prose; it is recomposed on submit.
+// Label for the per-run attachment line. The per-run note (the user's one-off prose
+// for THIS run + any attached file paths) rides the run-request `note` field — a
+// dedicated one-off channel — NOT the saved standing note (__agent_note). The drainer
+// reads it back from the request's `intent` and passes it to run_agent_now, which
+// COMBINES it with the standing note (honoring both, per-run overriding on conflict).
+// So the saved note stays clean and the per-run note + files apply to just this run.
 const ATTACH_MARKER = '📎 Attached for this run';
 
-/** Drop any previously-baked attachment line so the textarea shows only prose. */
-function stripAttachLine(note: string): string {
-  const i = note.indexOf(ATTACH_MARKER);
-  return (i === -1 ? note : note.slice(0, i)).replace(/\s+$/, '');
-}
-
-/** Bake the attached file paths into the note that gets saved + honored on the run. */
+/** Combine the user's per-run prose with any attached file PATHS into the one-off
+ *  per-run note (rides the run-request `note` / the watched session's prompt; never saved). */
 function composeNoteWithFiles(note: string, files: string[]): string {
-  const base = stripAttachLine(note).trim();
+  const base = note.trim();
   if (!files.length) return base;
   const line = `${ATTACH_MARKER} (read these files as context/feedback): ${files.join(', ')}`;
   return base ? `${base}\n\n${line}` : line;
@@ -217,15 +213,16 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     if (state === 'queuing' || state === 'running') return;
     setPreRunMode(mode);
     setDontShowAgain(false);
-    // Always fetch (for the saved note). Show the setup fields until the user has
-    // dismissed the review for this agent; pre-load the note either way.
+    // Fetch the setup schema/answers. Show the setup fields until the user has
+    // dismissed the review for this agent.
     const reviewed = setupReviewed(slug);
-    const { schema, answers, note } = await loadSetup();
+    const { schema, answers } = await loadSetup();
     setSetupFields(reviewed ? [] : schema);
     setSetupValues(reviewed ? {} : Object.fromEntries(schema.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
-    // Show only the user's prose; any attachment line from a prior run is dropped
-    // (attachments are per-run — they start empty and re-bake fresh on submit).
-    setRunNote(stripAttachLine(note));
+    // The per-run note + attachments are ONE-OFF (they ride the run-request, not the
+    // saved standing note) — so they always start empty here, never pre-loaded from
+    // the saved note. The standing note is edited in the Setup card, not this pop-up.
+    setRunNote('');
     setRunFiles([]);
     setShowSetupModal(true);
   }
@@ -249,25 +246,30 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     setMsg('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      // Bake any attached file PATHS into the note. The drainer runs run_agent_now
-      // without the run-request note, so run_agent_now honors payload.userNote (this
-      // saved note) — making the saved note the channel that carries the paths to
-      // the hands-off run, where Claude is told to Read them as context/feedback.
-      const noteWithFiles = composeNoteWithFiles(runNote, runFiles);
-      // Persist the standing note (always — so it's saved + shown in Setup + honored
-      // on every run) plus any reviewed setup answers, in one save.
-      await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup`, {
-        jwt: session?.access_token,
-        method: 'POST',
-        body: { answers: { ...(setupFields.length ? setupValues : {}), __agent_note: noteWithFiles }, source },
-      });
-      if (setupFields.length && dontShowAgain) markSetupReviewed(slug);
+      // The PER-RUN note: the user's one-off prose for THIS run + any attached file
+      // PATHS, combined. It is one-off — it rides the run-request `note` (queue path)
+      // or the prefilled prompt (watch path), and is NEVER written to the saved
+      // standing note (__agent_note). The drainer reads it back from the request's
+      // `intent` and passes it to run_agent_now, which combines it with the standing
+      // note for the run. Net: the saved note stays clean; this applies to just this run.
+      const perRunNote = composeNoteWithFiles(runNote, runFiles);
+      // Save ONLY reviewed setup answers (when the setup-review was shown) — never the
+      // standing note here, so per-run additions can't mutate it. The standing note is
+      // edited in the Setup card.
+      if (setupFields.length) {
+        await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup`, {
+          jwt: session?.access_token,
+          method: 'POST',
+          body: { answers: setupValues, source },
+        });
+        if (dontShowAgain) markSetupReviewed(slug);
+      }
       setShowSetupModal(false);
-      // The saved note is injected server-side on every run, so the hands-off queue
-      // path needs no per-run note; the watch path puts it (paths included) in the
-      // prefilled prompt of the session you're about to supervise.
-      if (preRunMode === 'watch') await doWatch(noteWithFiles || undefined);
-      else await doQueue();
+      // Carry the per-run note into the run: the queue path sends it as the run-request
+      // `note`; the watch path puts it (paths included) in the prefilled prompt of the
+      // session you're about to supervise.
+      if (preRunMode === 'watch') await doWatch(perRunNote || undefined);
+      else await doQueue(perRunNote || undefined);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Could not save your input. Try again.');
     } finally {
@@ -466,7 +468,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     >
       <p className="text-sm text-ink-300 leading-relaxed mb-4">
         {setupFields.length
-          ? <>Confirm or change {setupFields.length === 1 ? 'this answer' : 'these answers'} (e.g. swap a reference video), and add anything specific for this run. Saved for next time.</>
+          ? <>Confirm or change {setupFields.length === 1 ? 'this answer' : 'these answers'} (e.g. swap a reference video) — saved for next time — and add anything for just this run below.</>
           : <>Add anything you want this run to do differently (optional).</>}
         {' '}{preRunMode === 'watch'
           ? 'It opens in Claude Code with your note included, so you can watch.'
