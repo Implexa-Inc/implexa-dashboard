@@ -42,6 +42,46 @@ function markSetupReviewed(slug: string) {
 const POLL_MS = 5000;
 const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in the inbox
 
+const MAX_RUN_FILES = 8;
+// Marker for the per-run attachment line we bake into the saved note. The note is
+// honored on the run via payload.userNote (the saved __agent_note) — the drainer
+// runs run_agent_now without the run-request note, so the SAVED note is the path
+// that reaches the hands-off run. We strip this line when re-loading the note so
+// the textarea only ever shows the user's own prose; it is recomposed on submit.
+const ATTACH_MARKER = '📎 Attached for this run';
+
+/** Drop any previously-baked attachment line so the textarea shows only prose. */
+function stripAttachLine(note: string): string {
+  const i = note.indexOf(ATTACH_MARKER);
+  return (i === -1 ? note : note.slice(0, i)).replace(/\s+$/, '');
+}
+
+/** Bake the attached file paths into the note that gets saved + honored on the run. */
+function composeNoteWithFiles(note: string, files: string[]): string {
+  const base = stripAttachLine(note).trim();
+  if (!files.length) return base;
+  const line = `${ATTACH_MARKER} (read these files as context/feedback): ${files.join(', ')}`;
+  return base ? `${base}\n\n${line}` : line;
+}
+
+// The desktop bridge (window.implexaDesktop). pickFile opens the native OS picker
+// and returns a real absolute path Claude can Read — the same bridge the kind="file"
+// config question uses. It only exists inside the Implexa desktop app, so the attach
+// affordance is gated on it (a plain browser can't hand Claude a local path).
+type DesktopBridge = {
+  openAgent?: () => Promise<{ ok: boolean }>;
+  handoffAgent?: (prompt: string, surface?: string, target?: string) => Promise<{ ok: boolean; mode?: string }>;
+  pickFile?: (opts?: unknown) => Promise<{ ok: boolean; path?: string }>;
+};
+function desktopBridge(): DesktopBridge | undefined {
+  return typeof window !== 'undefined'
+    ? (window as Window & { implexaDesktop?: DesktopBridge }).implexaDesktop
+    : undefined;
+}
+function fileName(p: string): string {
+  return p.split(/[\\/]/).pop() || p;
+}
+
 export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, claudeTaskId, align = 'end' }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
@@ -76,12 +116,37 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [dontShowAgain, setDontShowAgain] = useState(false);
   // Free-text note the user attaches to THIS run (a tweak/comment), rides into it.
   const [runNote, setRunNote] = useState('');
+  // Absolute paths of files the user attaches for THIS run (a screenshot, a doc).
+  // Their paths are baked into the note so the hands-off run can Read them.
+  const [runFiles, setRunFiles] = useState<string[]>([]);
+  // Whether the native file picker bridge is present (desktop app only) — gates
+  // the attach affordance, since a plain browser can't give Claude a local path.
+  const [canAttach, setCanAttach] = useState(false);
   // What the pre-run pop-up does on submit: queue it hands-off, or open a session
   // to watch (so the note is pushed into the live session you're watching).
   const [preRunMode, setPreRunMode] = useState<'queue' | 'watch'>('queue');
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
   const supabase = createClient();
+
+  // The desktop bridge is only knowable client-side. Gate the attach UI on it.
+  useEffect(() => {
+    setCanAttach(!!desktopBridge()?.pickFile);
+  }, []);
+
+  // Attach a file for this run via the native OS picker (returns an absolute path
+  // Claude can Read). One file per click; click again to add more.
+  async function attachFile() {
+    const bridge = desktopBridge();
+    if (!bridge?.pickFile) return;
+    const r = await bridge.pickFile().catch(() => null);
+    if (r?.ok && r.path) {
+      setRunFiles((prev) => (prev.includes(r.path!) ? prev : [...prev, r.path!].slice(0, MAX_RUN_FILES)));
+    }
+  }
+  function removeFile(i: number) {
+    setRunFiles((prev) => prev.filter((_, idx) => idx !== i));
+  }
 
   // Poll the queued request until the plugin marks it done (run_id linked).
   useEffect(() => {
@@ -158,7 +223,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     const { schema, answers, note } = await loadSetup();
     setSetupFields(reviewed ? [] : schema);
     setSetupValues(reviewed ? {} : Object.fromEntries(schema.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
-    setRunNote(note);
+    // Show only the user's prose; any attachment line from a prior run is dropped
+    // (attachments are per-run — they start empty and re-bake fresh on submit).
+    setRunNote(stripAttachLine(note));
+    setRunFiles([]);
     setShowSetupModal(true);
   }
 
@@ -181,18 +249,24 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     setMsg('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      // Bake any attached file PATHS into the note. The drainer runs run_agent_now
+      // without the run-request note, so run_agent_now honors payload.userNote (this
+      // saved note) — making the saved note the channel that carries the paths to
+      // the hands-off run, where Claude is told to Read them as context/feedback.
+      const noteWithFiles = composeNoteWithFiles(runNote, runFiles);
       // Persist the standing note (always — so it's saved + shown in Setup + honored
       // on every run) plus any reviewed setup answers, in one save.
       await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup`, {
         jwt: session?.access_token,
         method: 'POST',
-        body: { answers: { ...(setupFields.length ? setupValues : {}), __agent_note: runNote.trim() }, source },
+        body: { answers: { ...(setupFields.length ? setupValues : {}), __agent_note: noteWithFiles }, source },
       });
       if (setupFields.length && dontShowAgain) markSetupReviewed(slug);
       setShowSetupModal(false);
       // The saved note is injected server-side on every run, so the hands-off queue
-      // path needs no per-run note; the watch path puts it in the prefilled prompt.
-      if (preRunMode === 'watch') await doWatch(runNote.trim() || undefined);
+      // path needs no per-run note; the watch path puts it (paths included) in the
+      // prefilled prompt of the session you're about to supervise.
+      if (preRunMode === 'watch') await doWatch(noteWithFiles || undefined);
       else await doQueue();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Could not save your input. Try again.');
@@ -438,6 +512,58 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           placeholder="e.g. make the b-roll punchier; lean on the second reference video; keep it under 30s"
           className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
         />
+
+        {/* Attach a screenshot / file for THIS run. Mirrors the Build box's attach:
+            the picked file's absolute PATH is baked into the note above, so the
+            hands-off run can Read it. Desktop-only (a browser can't hand over a
+            local path) — disabled with a hint everywhere else. */}
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={attachFile}
+            disabled={!canAttach || runFiles.length >= MAX_RUN_FILES}
+            title={canAttach
+              ? 'Attach a screenshot or file for this run'
+              : 'Attach files in the Implexa desktop app'}
+            className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 text-ink-300 px-2.5 py-1.5 text-xs hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-40 disabled:hover:border-ink-700 disabled:hover:text-ink-300"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3 3 0 014.24 4.24l-9.2 9.19a1 1 0 01-1.41-1.41l8.49-8.49" />
+            </svg>
+            Attach file
+          </button>
+          {canAttach && (
+            <span className="text-[11px] text-ink-500">A screenshot, PDF, doc — the run reads it as context.</span>
+          )}
+        </div>
+
+        {/* Attached files as chips (filename + remove). The path is what reaches
+            the run; we show only the name to keep it readable. */}
+        {runFiles.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {runFiles.map((p, i) => (
+              <span
+                key={p}
+                title={p}
+                className="inline-flex items-center gap-1.5 max-w-[220px] rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-xs text-ink-200"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0 text-ink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9l-7-7z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 2v7h7" />
+                </svg>
+                <span className="truncate">{fileName(p)}</span>
+                <button
+                  type="button"
+                  onClick={() => removeFile(i)}
+                  aria-label={`Remove ${fileName(p)}`}
+                  className="text-ink-500 hover:text-rose-400 leading-none"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {setupFields.length > 0 && (
