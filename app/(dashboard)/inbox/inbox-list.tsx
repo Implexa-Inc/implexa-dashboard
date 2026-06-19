@@ -27,8 +27,11 @@ import { RunStateBadge } from '../_components/run-state-badge';
 import { categorizeAgent } from '@/lib/agent-category';
 import type { RunStateInfo } from '@/lib/run-state';
 import NextAgentCards, { type Recommendation } from '../_components/next-agent-cards';
+import RunFeedback, { type FeedbackQuestion } from '../_components/run-feedback';
 
-export type FeedbackQuestion = { key: string; question: string; kind?: 'choice' | 'text'; options?: string[] };
+// Re-exported so existing importers (lib/inbox.ts) keep their import path; the
+// canonical definition now lives in the shared <RunFeedback> component.
+export type { FeedbackQuestion };
 
 export type InboxItem = {
   id:              string;
@@ -78,17 +81,6 @@ const LIGHT_TEXT: Record<Light, string> = {
   amber: 'text-amber-700 dark:text-amber-300',
   green: 'text-ink-500',
 };
-
-// Generic feedback questions for a run whose agent didn't write its own (old
-// runs, or agents that produced none). So you can always rate + improve a run.
-const GENERIC_FEEDBACK: FeedbackQuestion[] = [
-  { key: '_rating', question: 'How was this run?', kind: 'choice', options: ['👍 Good', '👎 Needs work'] },
-  { key: 'change', question: 'Anything to change next time?', kind: 'text' },
-];
-
-// An always-present free-text answer key, appended to EVERY feedback form so the
-// agent's pre-filled questions are never the only way to respond.
-const FREEFORM_KEY = '_freeform';
 
 function rel(iso: string): string {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -160,36 +152,17 @@ export default function InboxList({
   const [done, setDone] = useState<Record<string, 'approved' | 'dismissed'>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string>>({});
-  // Feedback: per-run draft answers, submitting flag, and the thank-you state.
-  const [fbDraft, setFbDraft] = useState<Record<string, Record<string, string>>>({});
-  const [fbBusy, setFbBusy] = useState<Record<string, boolean>>({});
-  const [fbDone, setFbDone] = useState<Record<string, boolean>>({});
   const [, startTransition] = useTransition();
 
-  // A run is "answered" once it has stored feedback OR we just submitted it.
-  const isAnswered = useCallback(
-    (it: InboxItem) => !!it.feedbackAt || !!fbDone[it.id],
-    [fbDone],
-  );
+  // A run is "answered" once it has stored feedback (the optimistic submit below
+  // stamps feedbackAt locally). Drives the row's optional "Rate" chip.
+  const isAnswered = useCallback((it: InboxItem) => !!it.feedbackAt, []);
 
-  async function submitFeedback(it: InboxItem) {
-    const draft = fbDraft[it.id] || {};
-    if (Object.keys(draft).length === 0) return;
-    setFbBusy((b) => ({ ...b, [it.id]: true }));
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      await callBackend(`/api/v2/runs/${it.id}/feedback`, {
-        jwt: session?.access_token, method: 'POST', body: { answers: draft },
-      });
-      setFbDone((d) => ({ ...d, [it.id]: true }));
-      setItems((list) => list.map((x) => (x.id === it.id ? { ...x, feedbackAt: new Date().toISOString() } : x)));
-      startTransition(() => router.refresh());
-    } catch (err) {
-      setError((e) => ({ ...e, [it.id]: err instanceof Error ? err.message : 'Could not save feedback' }));
-    } finally {
-      setFbBusy((b) => ({ ...b, [it.id]: false }));
-    }
-  }
+  // <RunFeedback> owns the form + the POST; this optimistically flips the row so
+  // the "Rate" chip drops and a re-open shows the thank-you state.
+  const markAnswered = useCallback((id: string) => {
+    setItems((list) => list.map((x) => (x.id === id ? { ...x, feedbackAt: new Date().toISOString() } : x)));
+  }, []);
 
   const open = useCallback((id: string) => {
     setOpenId(id);
@@ -228,154 +201,6 @@ export default function InboxList({
       setBusy((b) => ({ ...b, [id]: false }));
       setError((e) => ({ ...e, [id]: err instanceof Error ? err.message : 'Action failed' }));
     }
-  }
-
-  // The questions for a run: its own when the agent wrote them, else a generic
-  // set so EVERY run can be rated.
-  const feedbackQsFor = (it: InboxItem): FeedbackQuestion[] =>
-    it.feedbackQuestions?.length ? it.feedbackQuestions : GENERIC_FEEDBACK;
-
-  // The feedback form body, shared by the focused feedback pop-out AND the output
-  // overlay so there is one implementation. Closes over the per-run draft state.
-  // Each question is a numbered card so a 3-question form reads as 3 small steps,
-  // not a wall; the footer shows answered-count so Send's state is never a mystery.
-  function feedbackInner(it: InboxItem, opts: { heading?: boolean } = {}) {
-    if (isAnswered(it)) {
-      return (
-        <p className="text-sm text-success-700 dark:text-success-400">
-          ✓ Thanks. The agent will use this to improve on its next run.
-        </p>
-      );
-    }
-    const qs = feedbackQsFor(it);
-    const answeredCount = qs.filter((q) => (fbDraft[it.id]?.[q.key] ?? '').toString().trim() !== '').length;
-    // An always-present free-text box, so you are never boxed into the agent's
-    // pre-filled questions — say anything and it rides into the next run too.
-    const freeform = (fbDraft[it.id]?.[FREEFORM_KEY] ?? '').toString();
-    const hasFreeform = freeform.trim() !== '';
-    const setFreeform = (v: string) =>
-      setFbDraft((d) => ({ ...d, [it.id]: { ...(d[it.id] || {}), [FREEFORM_KEY]: v } }));
-    const canSend = (answeredCount > 0 || hasFreeform) && !fbBusy[it.id];
-    return (
-      <>
-        {/* Shown only inside the output overlay; the focused modal's title
-            already says this. */}
-        {opts.heading && (
-          <div className="mb-3">
-            <span className="text-sm font-medium text-ink-100">How did this run do?</span>{' '}
-            <span className="text-xs text-ink-500">Your answers ride into the next run.</span>
-          </div>
-        )}
-        <div className="space-y-3">
-          {qs.map((q, i) => {
-            const val = fbDraft[it.id]?.[q.key] ?? '';
-            const setVal = (v: string) =>
-              setFbDraft((d) => ({ ...d, [it.id]: { ...(d[it.id] || {}), [q.key]: v } }));
-            const done = val.toString().trim() !== '';
-            return (
-              <div key={q.key} className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
-                <div className="flex items-start gap-3">
-                  <span
-                    aria-hidden
-                    className={`flex-none inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold tabular-nums mt-0.5 transition-colors ${
-                      done
-                        ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                        : 'bg-ink-800 text-ink-400'
-                    }`}
-                  >
-                    {done ? '✓' : i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <label className="block text-sm text-ink-100 leading-relaxed">{q.question}</label>
-                    <div className="mt-2.5">
-                      {q.kind === 'text' ? (
-                        <input
-                          type="text"
-                          value={val}
-                          onChange={(e) => setVal(e.target.value)}
-                          placeholder="A short note (optional)"
-                          className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
-                        />
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {(q.options && q.options.length ? q.options : ['Yes', 'No']).map((o) => (
-                            <button
-                              key={o}
-                              type="button"
-                              onClick={() => setVal(val === o ? '' : o)}
-                              aria-pressed={val === o}
-                              className={`text-[13px] px-3.5 py-1.5 rounded-full border transition-colors ${
-                                val === o
-                                  ? 'border-brand-500 bg-brand-500/15 text-brand-600 dark:text-brand-300 font-medium'
-                                  : 'border-ink-700 text-ink-300 hover:border-ink-400 hover:text-ink-100'
-                              }`}
-                            >
-                              {o}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Always-on free comment: never be boxed into the agent's questions. */}
-          <div className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
-            <div className="flex items-start gap-3">
-              <span
-                aria-hidden
-                className={`flex-none inline-flex items-center justify-center w-6 h-6 rounded-full text-[12px] font-semibold mt-0.5 transition-colors ${
-                  hasFreeform
-                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-ink-800 text-ink-400'
-                }`}
-              >
-                {hasFreeform ? '✓' : '+'}
-              </span>
-              <div className="min-w-0 flex-1">
-                <label className="block text-sm text-ink-100 leading-relaxed">
-                  Anything else?{' '}
-                  <span className="text-ink-500 font-normal">in your own words (optional)</span>
-                </label>
-                <textarea
-                  value={freeform}
-                  onChange={(e) => setFreeform(e.target.value)}
-                  rows={2}
-                  placeholder="Tell the agent anything — what to do differently, what you liked, a new instruction…"
-                  className="mt-2.5 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
-          <button
-            type="button"
-            onClick={() => submitFeedback(it)}
-            disabled={!canSend}
-            className={
-              canSend
-                ? 'btn-success text-sm px-5 py-2'
-                : 'btn-outline text-sm px-5 py-2 opacity-50 cursor-not-allowed'
-            }
-          >
-            {fbBusy[it.id] ? 'Saving…' : 'Send feedback'}
-          </button>
-          <span className="text-xs text-ink-500">
-            {error[it.id] ? (
-              <span className="text-rose-600 dark:text-rose-400">{error[it.id]}</span>
-            ) : answeredCount === 0 && !hasFreeform ? (
-              'Answer any one, or just write a comment, to send.'
-            ) : (
-              `${answeredCount} of ${qs.length} answered${hasFreeform ? ' + your comment' : ''}`
-            )}
-          </span>
-        </div>
-      </>
-    );
   }
 
   const feedbackItem = useMemo(() => items.find((it) => it.id === feedbackId) || null, [items, feedbackId]);
@@ -634,7 +459,14 @@ export default function InboxList({
                 so you can rate without leaving the output. */}
             {openItem.output_markdown && (
               <div className="mt-5 rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-                {feedbackInner(openItem, { heading: true })}
+                <RunFeedback
+                  runId={openItem.id}
+                  feedbackQuestions={openItem.feedbackQuestions}
+                  feedbackAnswers={openItem.feedbackAnswers}
+                  feedbackAt={openItem.feedbackAt}
+                  heading
+                  onSubmitted={() => markAnswered(openItem.id)}
+                />
               </div>
             )}
 
@@ -687,7 +519,7 @@ export default function InboxList({
       )}
 
       {/* The focused feedback pop-out , opened by a row's "Give feedback" chip.
-          One tap to rate, no output wall. Shares feedbackInner with the overlay. */}
+          One tap to rate, no output wall. Shares <RunFeedback> with the overlay. */}
       <Modal
         open={!!feedbackItem}
         onClose={() => setFeedbackId(null)}
@@ -700,7 +532,15 @@ export default function InboxList({
           </span>
         }
       >
-        {feedbackItem && feedbackInner(feedbackItem)}
+        {feedbackItem && (
+          <RunFeedback
+            runId={feedbackItem.id}
+            feedbackQuestions={feedbackItem.feedbackQuestions}
+            feedbackAnswers={feedbackItem.feedbackAnswers}
+            feedbackAt={feedbackItem.feedbackAt}
+            onSubmitted={() => markAnswered(feedbackItem.id)}
+          />
+        )}
       </Modal>
 
       {/* Run picker , opened from a "Ran N times" collapsed row. Pick a run to

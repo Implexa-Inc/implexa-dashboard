@@ -29,6 +29,7 @@ import NotInApp from '../../_components/not-in-app';
 import RunClaudeActions from '../../_components/run-claude-actions';
 import ClearAlertButton from '../../_components/clear-alert-button';
 import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
+import RunFeedback, { type FeedbackQuestion } from '../../_components/run-feedback';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,6 +135,31 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     const raw = (rec as { recommendations?: unknown } | null)?.recommendations;
     if (Array.isArray(raw)) recommendations = raw as Recommendation[];
   } catch { /* column not present yet — cards simply don't render */ }
+
+  // Improvement-loop feedback (migration 0074), the same columns lib/inbox.ts
+  // loads for the Results overlay. Fetched defensively in its OWN query so a
+  // pre-migration schema (no feedback_* columns) can never 42703 the page —
+  // absent columns just mean we fall back to the GENERIC_FEEDBACK questions in
+  // <RunFeedback>, so every run stays rateable from this permalink too.
+  let feedbackQuestions: FeedbackQuestion[] | null = null;
+  let feedbackAnswers: Record<string, string> | null = null;
+  let feedbackAt: string | null = null;
+  try {
+    const { data: fb } = await supabase
+      .from('skill_runs')
+      .select('feedback_questions, feedback_answers, feedback_at')
+      .eq('id', params.id)
+      .maybeSingle();
+    const row = fb as {
+      feedback_questions?: FeedbackQuestion[] | null;
+      feedback_answers?: Record<string, string> | null;
+      feedback_at?: string | null;
+    } | null;
+    feedbackQuestions = row?.feedback_questions ?? null;
+    feedbackAnswers = row?.feedback_answers ?? null;
+    feedbackAt = row?.feedback_at ?? null;
+  } catch { /* columns not present yet — RunFeedback uses its generic fallback */ }
+
   const agentHref = wf
     ? `/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`
     : `/workflows/${encodeURIComponent(r.skill_slug)}`;
@@ -284,6 +310,22 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           </div>
         ) : (
           <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
+        )}
+
+        {/* Per-run feedback — the same form the Results overlay shows, so a run
+            opened from an Active-Agents card / email / Telegram / the calendar is
+            rateable right here instead of forcing a detour through the Runs tab.
+            Only when there's a deliverable to rate (matches the overlay). */}
+        {r.output_markdown && (
+          <div className="mt-5 rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+            <RunFeedback
+              runId={r.id}
+              feedbackQuestions={feedbackQuestions}
+              feedbackAnswers={feedbackAnswers}
+              feedbackAt={feedbackAt}
+              heading
+            />
+          </div>
         )}
 
         {/* Next agents to build — the run's own recommendations, right under its
