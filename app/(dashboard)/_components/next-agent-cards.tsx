@@ -67,15 +67,6 @@ function humanizeCron(cron?: string | null): string | null {
   return `runs daily ${time}`;
 }
 
-// The desktop shell bridge (same cast the suggested shelf uses): when present, we
-// hand the build straight to the user's Claude so it builds without a context switch.
-type DesktopBridge = { handoffAgent?: (p: string) => Promise<{ ok: boolean }> };
-function desktopBridge(): DesktopBridge | undefined {
-  return typeof window !== 'undefined'
-    ? (window as Window & { implexaDesktop?: DesktopBridge }).implexaDesktop
-    : undefined;
-}
-
 export default function NextAgentCards({
   runId,
   recommendations,
@@ -118,13 +109,9 @@ export default function NextAgentCards({
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) { setState((s) => ({ ...s, [rec.id]: 'error' })); return; }
 
-      // Desktop shell: open Claude with the build ready (mirrors the shelf).
-      const bridge = desktopBridge();
-      if (bridge?.handoffAgent) {
-        const handoff = `Build my new Implexa agent. Use Implexa's get_pending_run_requests tool to find the request I just queued ("${rec.intent}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.`;
-        await bridge.handoffAgent(handoff).catch(() => null);
-      }
-
+      // Hands-off: the always-on drainer builds it on the user's own Claude/Codex.
+      // No session is opened (building needs no approval). Power users can still
+      // open the build interactively via shapeInClaude below.
       setState((s) => ({ ...s, [rec.id]: 'built' }));
       // Mark this recommendation built server-side, then drop the card.
       const token = await jwt();

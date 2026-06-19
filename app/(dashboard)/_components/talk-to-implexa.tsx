@@ -42,6 +42,7 @@ type Attachment = { dataUrl: string; name: string };
 
 const MAX_IMAGES = 8;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024; // mirror the desktop cap
+const CLAUDE_CODE_MAX = 13000; // claude://code/new?q= prompt cap
 
 function readAsDataUrl(file: File): Promise<string | null> {
   return new Promise((resolve) => {
@@ -59,6 +60,10 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
   const [msg, setMsg] = useState('');
   const [images, setImages] = useState<Attachment[]>([]);
   const [hasBridge, setHasBridge] = useState(false);
+  // The just-queued build, kept so the secondary "shape it in Claude" opt-in can
+  // hand it off interactively after the hands-off queue has cleared the input.
+  const [queuedIntent, setQueuedIntent] = useState('');
+  const [queuedImages, setQueuedImages] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -129,7 +134,6 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
         return;
       }
       const sentImages = images.map((im) => im.dataUrl);
-      const imageCount = sentImages.length;
       setIntent('');
       setImages([]);
       const bridge = typeof window !== 'undefined' ? window.implexaDesktop : undefined;
@@ -143,29 +147,45 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
         setShowConnect(true);
         return;
       }
-      // Desktop shell: open the agent with the build PREFILLED for review (GUI
-      // path, no terminal). For Claude this is a new-chat deep link; the user
-      // reviews and sends, and Claude builds it via the Implexa connector. Any
-      // attached images are materialized to disk by the desktop and referenced
-      // by path in the prompt (see handoffAgent), so the agent can Read them.
-      if (bridge?.handoffAgent) {
-        setState('opening');
-        const imageNote = imageCount > 0
-          ? ` I attached ${imageCount} image${imageCount === 1 ? '' : 's'} as reference (paths are listed at the end of this prompt — Read them).`
-          : '';
-        const handoff = `Build my new Implexa agent. Use Implexa's get_pending_run_requests tool to find the request I just queued ("${t}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.${imageNote}`;
-        const r = await bridge.handoffAgent(handoff, undefined, 'code', imageCount ? sentImages : undefined).catch(() => ({ ok: false }));
-        setState('queued');
-        setMsg(r?.ok
-          ? `Opening your agent with the build ready${imageCount ? ` and ${imageCount} image${imageCount === 1 ? '' : 's'} attached` : ''}. Review it and hit send, then it appears under Your agents below.`
-          : 'Queued. Open your Claude or Codex and Implexa will build it.');
-      } else {
-        setState('queued');
-        setMsg('Queued. Open your Claude or Codex and Implexa builds it, then it appears under Your agents below.');
-      }
+      // HANDS-OFF (primary): the build is queued on the run-request bus and the
+      // always-on drainer composes it via generate_workflow on the user's own
+      // Claude/Codex — no session to open, no human approval needed (building is
+      // unattended). Remember the intent so the secondary "shape it in Claude"
+      // opt-in can still hand it off interactively for power users.
+      setQueuedIntent(t);
+      setQueuedImages(sentImages);
+      setState('queued');
+      setMsg('Queued. Your agent will appear under Your agents when the runner builds it (usually a few minutes).');
     } catch {
       setState('error');
       setMsg('Could not queue that. Try again.');
+    }
+  };
+
+  // Secondary opt-in: open the user's Claude with the queued build prefilled so a
+  // power user can shape it interactively. Desktop uses the native bridge (and can
+  // carry image attachments by path); a plain browser falls back to a claude://
+  // deep link. Never auto-sends; the user reviews and hits send.
+  const shapeInClaude = async () => {
+    const t = queuedIntent;
+    if (!t) return;
+    setState('opening');
+    const imageCount = queuedImages.length;
+    const imageNote = imageCount > 0
+      ? ` I attached ${imageCount} image${imageCount === 1 ? '' : 's'} as reference (paths are listed at the end of this prompt — Read them).`
+      : '';
+    const handoff = `Build my new Implexa agent. Use Implexa's get_pending_run_requests tool to find the request I just queued ("${t}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.${imageNote}`;
+    const bridge = typeof window !== 'undefined' ? window.implexaDesktop : undefined;
+    if (bridge?.handoffAgent) {
+      const r = await bridge.handoffAgent(handoff, undefined, 'code', imageCount ? queuedImages : undefined).catch(() => ({ ok: false }));
+      setState('queued');
+      setMsg(r?.ok
+        ? `Opening your Claude with the build ready${imageCount ? ` and ${imageCount} image${imageCount === 1 ? '' : 's'} attached` : ''}. Review it and hit send.`
+        : 'Open your Claude or Codex and Implexa will build it.');
+    } else {
+      setState('queued');
+      setMsg('Opening Claude with the build prefilled. Review it and hit send.');
+      window.location.href = `claude://code/new?q=${encodeURIComponent(handoff.slice(0, CLAUDE_CODE_MAX))}`;
     }
   };
 
@@ -178,10 +198,13 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
         <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
           {hasAgents ? 'Build an agent' : 'Build your first agent'}
         </h1>
-        <p className="text-sm text-ink-400 mt-1.5 mb-5">
+        <p className="text-sm text-ink-400 mt-1.5 mb-2">
           {guided
             ? 'Just tell us a job you do over and over, in plain words. We build the agent and walk you through turning it on. No setup knowledge needed.'
             : 'Describe a recurring job in a sentence. Implexa builds the agent; it runs in your Claude or Codex, on a schedule, as you.'}
+        </p>
+        <p className="text-xs text-ink-500 mb-5">
+          Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Implexa.
         </p>
         <div className="flex gap-2.5">
           <input
@@ -277,6 +300,18 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
 
         {msg && (
           <p className={`text-xs mt-3 ${state === 'error' ? 'text-rose-400' : 'text-ink-300'}`}>{msg}</p>
+        )}
+
+        {/* Secondary opt-in for power users: shape the queued build interactively
+            in Claude. The hands-off queue above is the primary path. */}
+        {state === 'queued' && queuedIntent && (
+          <button
+            type="button"
+            onClick={shapeInClaude}
+            className="text-[11px] text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline mt-1.5"
+          >
+            …or shape it in Claude ↗
+          </button>
         )}
       </div>
 

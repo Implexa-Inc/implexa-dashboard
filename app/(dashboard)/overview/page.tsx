@@ -29,6 +29,7 @@ import FirstRunMagic from '../_components/first-run-magic';
 import TalkToImplexa from '../_components/talk-to-implexa';
 import GetStartedIntent from '../_components/get-started-intent';
 import OnboardingProgress, { type OnboardingStep } from '../_components/onboarding-progress';
+import FirstRunPermissionsNote from '../_components/first-run-permissions-note';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,6 +70,11 @@ export default async function OverviewPage() {
   // instead of an empty todo list.
   const isFirstRun = myAgents.length === 0 && items.length === 0;
 
+  // First-run permissions heads-up: shown once to a user who hasn't had a run
+  // finish cleanly yet. A completed run anywhere in the todo clears it (and the
+  // component self-clears via localStorage once seen).
+  const hasSucceededRun = items.some((it) => it.state?.state === 'completed');
+
   // The loud surface: any run that did not finish cleanly (stalled, or a
   // permission-blocked failure) gets a banner at the very top, so a stuck run is
   // impossible to miss. It renders nothing in the calm common case.
@@ -80,6 +86,10 @@ export default async function OverviewPage() {
     <main className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-3xl mx-auto">
         <Suspense fallback={null}><GetStartedIntent connected={connected} /></Suspense>
+
+        {/* One-time heads-up: a first run may pause for a permission. Clears itself
+            after it's seen / once a run has finished cleanly. */}
+        <FirstRunPermissionsNote active={!hasSucceededRun} />
 
         {/* Resume-anytime onboarding bar — vanishes once all steps are done. */}
         <OnboardingProgress steps={onboardingSteps} />

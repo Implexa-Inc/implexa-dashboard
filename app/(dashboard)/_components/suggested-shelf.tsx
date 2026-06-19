@@ -8,9 +8,11 @@
  * Two card shapes:
  * - An existing catalog agent (workflow_slug) → "View & activate" → the agent
  *   page → Activate → Run.
- * - A suggested intent (no agent yet) → "Build it" → queues the build (same bus
- *   as the conversation box); Implexa builds it in the user's Claude Code, then
- *   it appears under Your agents to activate.
+ * - A suggested intent (no agent yet) → "Build it" → queues the build HANDS-OFF
+ *   (same bus as the conversation box); the always-on drainer builds it on the
+ *   user's own Claude/Codex with no session to open, then it appears under Your
+ *   agents to activate. A small "shape it in Claude" opt-in remains for power
+ *   users who want the interactive build.
  */
 
 import { useState } from 'react';
@@ -18,6 +20,12 @@ import Link from 'next/link';
 import type { SuggestedAgent } from '@/lib/workflow-catalog';
 
 type BuildState = 'idle' | 'queuing' | 'queued' | 'error';
+
+const CLAUDE_CODE_MAX = 13000;
+
+function buildHandoffPrompt(intent: string) {
+  return `Build my new Implexa agent. Use Implexa's get_pending_run_requests tool to find the request I just queued ("${intent}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.`;
+}
 
 function BuildButton({ intent }: { intent: string }) {
   const [state, setState] = useState<BuildState>('idle');
@@ -33,33 +41,50 @@ function BuildButton({ intent }: { intent: string }) {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) { setState('error'); return; }
-      // Desktop shell: open Claude with the build ready (same flow as the box).
-      const bridge = typeof window !== 'undefined'
-        ? (window as Window & { implexaDesktop?: { handoffAgent?: (p: string) => Promise<{ ok: boolean }> } }).implexaDesktop
-        : undefined;
-      if (bridge?.handoffAgent) {
-        const handoff = `Build my new Implexa agent. Use Implexa's get_pending_run_requests tool to find the request I just queued ("${intent}"), then call generate_workflow to build the agent, then resolve_run_request to clear it. Then tell me what you built.`;
-        await bridge.handoffAgent(handoff).catch(() => null);
-      }
+      // Hands-off: the drainer builds it. No Claude session is opened here.
       setState('queued');
     } catch {
       setState('error');
     }
   }
 
+  // Secondary opt-in: shape the queued build interactively in Claude.
+  function shapeInClaude() {
+    const handoff = buildHandoffPrompt(intent);
+    const bridge = typeof window !== 'undefined'
+      ? (window as Window & { implexaDesktop?: { handoffAgent?: (p: string, s?: string, t?: string) => Promise<{ ok: boolean }> } }).implexaDesktop
+      : undefined;
+    if (bridge?.handoffAgent) {
+      void bridge.handoffAgent(handoff, undefined, 'code').catch(() => null);
+    } else {
+      window.location.href = `claude://code/new?q=${encodeURIComponent(handoff.slice(0, CLAUDE_CODE_MAX))}`;
+    }
+  }
+
   return (
-    <button
-      type="button"
-      onClick={build}
-      disabled={state === 'queuing' || state === 'queued'}
-      className={`text-xs font-medium rounded-md px-3 py-1.5 transition-colors ${
-        state === 'queued'
-          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-          : 'btn-success'
-      } disabled:opacity-70`}
-    >
-      {state === 'queuing' ? 'Queuing…' : state === 'queued' ? '✓ Building in Claude Code' : 'Build it'}
-    </button>
+    <div className="flex flex-col items-start gap-1">
+      <button
+        type="button"
+        onClick={build}
+        disabled={state === 'queuing' || state === 'queued'}
+        className={`text-xs font-medium rounded-md px-3 py-1.5 transition-colors ${
+          state === 'queued'
+            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+            : 'btn-success'
+        } disabled:opacity-70`}
+      >
+        {state === 'queuing' ? 'Queuing…' : state === 'queued' ? '✓ Queued — building' : 'Build it'}
+      </button>
+      {state === 'queued' && (
+        <button
+          type="button"
+          onClick={shapeInClaude}
+          className="text-[11px] text-ink-400 hover:text-ink-200 underline-offset-2 hover:underline"
+        >
+          …or shape it in Claude ↗
+        </button>
+      )}
+    </div>
   );
 }
 

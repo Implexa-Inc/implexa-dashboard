@@ -128,6 +128,9 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
           <p className="text-ink-300 mt-3 leading-relaxed max-w-xl mx-auto">
             One download. The app connects Implexa to your own Claude or Codex and runs your agents there, as you, free. That&apos;s it.
           </p>
+          <p className="text-ink-500 text-sm mt-3 leading-relaxed max-w-xl mx-auto">
+            Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Implexa.
+          </p>
         </header>
 
         {/* THE single primary action: the one-click app (live + notarized). It

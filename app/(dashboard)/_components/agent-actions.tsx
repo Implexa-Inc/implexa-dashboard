@@ -22,6 +22,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import Modal from './modal';
+import { firstRunPermsSeen, markFirstRunPermsSeen } from './first-run-permissions-note';
 
 type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
 type SetupField = { key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[] };
@@ -61,6 +62,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [state, setState] = useState<RunState>('idle');
   const [msg, setMsg] = useState('');
   const [showRunModal, setShowRunModal] = useState(false);
+  // One-time permissions heads-up inside the run-triggered modal, shown on the
+  // user's first queued run (shared SEEN flag with the Home note so it never
+  // double-shows across surfaces).
+  const [showPermsNote, setShowPermsNote] = useState(false);
   // Setup-review pop-up: shown the first time you run an agent that has setup
   // questions (prefilled), so you can confirm/change answers (e.g. swap a
   // reference video) before a hands-off run. Per-agent "don't show again".
@@ -214,6 +219,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       pollStart.current = Date.now();
       setState('queued');
       setMsg('Queued. It runs hands-off on your computer (Claude open / Mac awake) — the result lands in your Implexa inbox, usually within a few minutes.');
+      // First queued run ever → surface the one-time permissions heads-up.
+      if (!firstRunPermsSeen()) { setShowPermsNote(true); markFirstRunPermsSeen(); }
       setShowRunModal(true);
     } catch (e) {
       setState('error');
@@ -355,6 +362,15 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         </Link>
         {' '}like any scheduled run. Keep Claude open and you’ll see it come through.
       </p>
+      {showPermsNote && (
+        <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+          <p className="text-xs text-ink-200 leading-relaxed">
+            <span className="font-medium text-ink-50">Heads up:</span> your first run may pause for a
+            permission it can’t auto-approve. Watch Alerts (Active Agents / Home), your email, or a
+            desktop notification. Approving is one tap.
+          </p>
+        </div>
+      )}
       <div className="mt-5 flex justify-end">
         <button
           type="button"
