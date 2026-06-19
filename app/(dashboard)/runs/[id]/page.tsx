@@ -28,6 +28,7 @@ import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
 import RunClaudeActions from '../../_components/run-claude-actions';
 import ClearAlertButton from '../../_components/clear-alert-button';
+import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,6 +122,18 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     progress = ((pr as { progress?: RunProgress } | null)?.progress) ?? null;
   } catch { /* column not present yet — trace simply doesn't render */ }
   const steps = progress?.history ?? [];
+
+  // Next-agent recommendations (recommendation engine v1, RECOMMENDATION_ENGINE_PLAN
+  // §1.5). Fetched defensively in its OWN query — the skill_runs.recommendations
+  // jsonb column may not be live yet, and a 42703 here must never break the page
+  // (same precedent as `progress` above). Absent column ⇒ no cards.
+  let recommendations: Recommendation[] = [];
+  try {
+    const { data: rec } = await supabase
+      .from('skill_runs').select('recommendations').eq('id', params.id).maybeSingle();
+    const raw = (rec as { recommendations?: unknown } | null)?.recommendations;
+    if (Array.isArray(raw)) recommendations = raw as Recommendation[];
+  } catch { /* column not present yet — cards simply don't render */ }
   const agentHref = wf
     ? `/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`
     : `/workflows/${encodeURIComponent(r.skill_slug)}`;
@@ -272,6 +285,10 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         ) : (
           <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
         )}
+
+        {/* Next agents to build — the run's own recommendations, right under its
+            output (recommendation engine v1). Renders nothing when there are none. */}
+        <NextAgentCards runId={r.id} recommendations={recommendations} />
       </div>
     </main>
   );

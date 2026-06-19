@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { listWorkflows } from '@/lib/workflow-catalog';
 import { selectRuns, deriveRunState } from '@/lib/run-state';
 import type { InboxItem, FeedbackQuestion } from '@/app/(dashboard)/inbox/inbox-list';
+import type { Recommendation } from '@/app/(dashboard)/_components/next-agent-cards';
 
 // Tighten a workflow description into a single plain-english line. Catalog
 // descriptions can be a few sentences; the inbox only needs the lead clause.
@@ -56,6 +57,24 @@ export async function loadInboxItems(
 
   const bySlug = new Map(catalog.map((c) => [c.slug, c]));
 
+  // Next-agent recommendations (rec engine v1, RECOMMENDATION_ENGINE_PLAN §1.5).
+  // Fetched in a SEPARATE query — NOT via selectRuns extraColumns — so a missing
+  // skill_runs.recommendations column (42703) can never empty out the whole inbox;
+  // it just yields no recommendations. (selectRuns' fallback also drops extraColumns,
+  // so a not-yet-live column there would break the feed.)
+  const recsById = new Map<string, Recommendation[]>();
+  if (runs.length) {
+    const { data: recRows } = await supabase
+      .from('skill_runs')
+      .select('id, recommendations')
+      .in('id', runs.map((r) => r.id));
+    for (const row of (recRows as { id: string; recommendations?: unknown }[] | null) ?? []) {
+      if (Array.isArray(row.recommendations)) {
+        recsById.set(row.id, row.recommendations as Recommendation[]);
+      }
+    }
+  }
+
   return runs.map((r) => {
     const wf = bySlug.get(r.skill_slug);
     return {
@@ -71,6 +90,7 @@ export async function loadInboxItems(
       feedbackQuestions: (r as { feedback_questions?: FeedbackQuestion[] | null }).feedback_questions ?? null,
       feedbackAnswers:   (r as { feedback_answers?: Record<string, string> | null }).feedback_answers ?? null,
       feedbackAt:        (r as { feedback_at?: string | null }).feedback_at ?? null,
+      recommendations:   recsById.get(r.id) ?? null,
     } satisfies InboxItem;
   });
 }

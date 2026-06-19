@@ -26,6 +26,7 @@ import Modal from '../_components/modal';
 import { RunStateBadge } from '../_components/run-state-badge';
 import { categorizeAgent } from '@/lib/agent-category';
 import type { RunStateInfo } from '@/lib/run-state';
+import NextAgentCards, { type Recommendation } from '../_components/next-agent-cards';
 
 export type FeedbackQuestion = { key: string; question: string; kind?: 'choice' | 'text'; options?: string[] };
 
@@ -43,6 +44,8 @@ export type InboxItem = {
   feedbackQuestions: FeedbackQuestion[] | null;
   feedbackAnswers:   Record<string, string> | null;
   feedbackAt:        string | null;
+  /** Next-agent recommendations carried on this run's output (rec engine v1). */
+  recommendations:   Recommendation[] | null;
 };
 
 // Traffic-light status so Results reads as a clear-it-to-zero todo list:
@@ -634,6 +637,10 @@ export default function InboxList({
                 {feedbackInner(openItem, { heading: true })}
               </div>
             )}
+
+            {/* Next agents to build — this run's recommendations, right where its
+                output is shown. Renders nothing when there are none. */}
+            <NextAgentCards runId={openItem.id} recommendations={openItem.recommendations} />
 
             <div className="mt-5 flex items-center gap-3">
               {done[openItem.id] ? (

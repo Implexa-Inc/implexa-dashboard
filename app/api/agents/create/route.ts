@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 /**
- * POST /api/agents/create  { intent }
+ * POST /api/agents/create  { intent, mode?, cron?, timezone? }
  *
  * Enqueues a "build an agent that <intent>" request on the backend run-request
  * bus, using the caller's Supabase session (so it works identically in a plain
@@ -23,9 +23,17 @@ export async function POST(request: Request) {
   }
 
   let intent = '';
+  // Optional schedule shaping from a recommendation (mode='cron' lands a timed
+  // routine). Forwarded as-is; the backend ignores them for a plain build.
+  let mode: string | undefined;
+  let cron: string | undefined;
+  let timezone: string | undefined;
   try {
     const body = await request.json();
     intent = String(body?.intent || '').trim();
+    if (body?.mode) mode = String(body.mode);
+    if (body?.cron) cron = String(body.cron);
+    if (body?.timezone) timezone = String(body.timezone);
   } catch {
     /* empty body handled below */
   }
@@ -40,7 +48,7 @@ export async function POST(request: Request) {
         'content-type': 'application/json',
         authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ kind: 'build', intent, source: 'dashboard' }),
+      body: JSON.stringify({ kind: 'build', intent, source: 'dashboard', mode, cron, timezone }),
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });
