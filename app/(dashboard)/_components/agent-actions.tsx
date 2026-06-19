@@ -23,6 +23,7 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import Modal from './modal';
 import { firstRunPermsSeen, markFirstRunPermsSeen } from './first-run-permissions-note';
+import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 
 type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
 type SetupField = { key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[] };
@@ -42,41 +43,10 @@ function markSetupReviewed(slug: string) {
 const POLL_MS = 5000;
 const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in the inbox
 
-const MAX_RUN_FILES = 8;
-// Label for the per-run attachment line. The per-run note (the user's one-off prose
-// for THIS run + any attached file paths) rides the run-request `note` field — a
-// dedicated one-off channel — NOT the saved standing note (__agent_note). The drainer
-// reads it back from the request's `intent` and passes it to run_agent_now, which
-// COMBINES it with the standing note (honoring both, per-run overriding on conflict).
-// So the saved note stays clean and the per-run note + files apply to just this run.
-const ATTACH_MARKER = '📎 Attached for this run';
-
-/** Combine the user's per-run prose with any attached file PATHS into the one-off
- *  per-run note (rides the run-request `note` / the watched session's prompt; never saved). */
-function composeNoteWithFiles(note: string, files: string[]): string {
-  const base = note.trim();
-  if (!files.length) return base;
-  const line = `${ATTACH_MARKER} (read these files as context/feedback): ${files.join(', ')}`;
-  return base ? `${base}\n\n${line}` : line;
-}
-
-// The desktop bridge (window.implexaDesktop). pickFile opens the native OS picker
-// and returns a real absolute path Claude can Read — the same bridge the kind="file"
-// config question uses. It only exists inside the Implexa desktop app, so the attach
-// affordance is gated on it (a plain browser can't hand Claude a local path).
-type DesktopBridge = {
-  openAgent?: () => Promise<{ ok: boolean }>;
-  handoffAgent?: (prompt: string, surface?: string, target?: string) => Promise<{ ok: boolean; mode?: string }>;
-  pickFile?: (opts?: unknown) => Promise<{ ok: boolean; path?: string }>;
-};
-function desktopBridge(): DesktopBridge | undefined {
-  return typeof window !== 'undefined'
-    ? (window as Window & { implexaDesktop?: DesktopBridge }).implexaDesktop
-    : undefined;
-}
-function fileName(p: string): string {
-  return p.split(/[\\/]/).pop() || p;
-}
+// The per-run note + attached file PATHS plumbing (the picker, the chips, the note
+// composition) is shared with the universal "Continue this run" box — see
+// ./run-attachments. The per-run note rides the run-request `note` (a one-off
+// channel), never the saved standing note.
 
 export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, claudeTaskId, align = 'end' }: {
   slug: string;
@@ -112,37 +82,15 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [dontShowAgain, setDontShowAgain] = useState(false);
   // Free-text note the user attaches to THIS run (a tweak/comment), rides into it.
   const [runNote, setRunNote] = useState('');
-  // Absolute paths of files the user attaches for THIS run (a screenshot, a doc).
-  // Their paths are baked into the note so the hands-off run can Read them.
-  const [runFiles, setRunFiles] = useState<string[]>([]);
-  // Whether the native file picker bridge is present (desktop app only) — gates
-  // the attach affordance, since a plain browser can't give Claude a local path.
-  const [canAttach, setCanAttach] = useState(false);
+  // Per-run file attachments (absolute paths) via the native picker — shared with
+  // the Continue box. Their paths are baked into the note so the hands-off run reads them.
+  const { files: runFiles, setFiles: setRunFiles, canAttach, attachFile, removeFile } = useRunAttachments();
   // What the pre-run pop-up does on submit: queue it hands-off, or open a session
   // to watch (so the note is pushed into the live session you're watching).
   const [preRunMode, setPreRunMode] = useState<'queue' | 'watch'>('queue');
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
   const supabase = createClient();
-
-  // The desktop bridge is only knowable client-side. Gate the attach UI on it.
-  useEffect(() => {
-    setCanAttach(!!desktopBridge()?.pickFile);
-  }, []);
-
-  // Attach a file for this run via the native OS picker (returns an absolute path
-  // Claude can Read). One file per click; click again to add more.
-  async function attachFile() {
-    const bridge = desktopBridge();
-    if (!bridge?.pickFile) return;
-    const r = await bridge.pickFile().catch(() => null);
-    if (r?.ok && r.path) {
-      setRunFiles((prev) => (prev.includes(r.path!) ? prev : [...prev, r.path!].slice(0, MAX_RUN_FILES)));
-    }
-  }
-  function removeFile(i: number) {
-    setRunFiles((prev) => prev.filter((_, idx) => idx !== i));
-  }
 
   // Poll the queued request until the plugin marks it done (run_id linked).
   useEffect(() => {
@@ -515,57 +463,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
         />
 
-        {/* Attach a screenshot / file for THIS run. Mirrors the Build box's attach:
-            the picked file's absolute PATH is baked into the note above, so the
-            hands-off run can Read it. Desktop-only (a browser can't hand over a
-            local path) — disabled with a hint everywhere else. */}
-        <div className="mt-2 flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={attachFile}
-            disabled={!canAttach || runFiles.length >= MAX_RUN_FILES}
-            title={canAttach
-              ? 'Attach a screenshot or file for this run'
-              : 'Attach files in the Implexa desktop app'}
-            className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 text-ink-300 px-2.5 py-1.5 text-xs hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-40 disabled:hover:border-ink-700 disabled:hover:text-ink-300"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3 3 0 014.24 4.24l-9.2 9.19a1 1 0 01-1.41-1.41l8.49-8.49" />
-            </svg>
-            Attach file
-          </button>
-          {canAttach && (
-            <span className="text-[11px] text-ink-500">A screenshot, PDF, doc — the run reads it as context.</span>
-          )}
-        </div>
-
-        {/* Attached files as chips (filename + remove). The path is what reaches
-            the run; we show only the name to keep it readable. */}
-        {runFiles.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {runFiles.map((p, i) => (
-              <span
-                key={p}
-                title={p}
-                className="inline-flex items-center gap-1.5 max-w-[220px] rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-xs text-ink-200"
-              >
-                <svg className="w-3.5 h-3.5 shrink-0 text-ink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9l-7-7z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 2v7h7" />
-                </svg>
-                <span className="truncate">{fileName(p)}</span>
-                <button
-                  type="button"
-                  onClick={() => removeFile(i)}
-                  aria-label={`Remove ${fileName(p)}`}
-                  className="text-ink-500 hover:text-rose-400 leading-none"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+        {/* Attach a screenshot / file for THIS run. The picked file's absolute PATH
+            is baked into the note above so the hands-off run can Read it. Desktop-only
+            (a browser can't hand over a local path) — disabled with a hint elsewhere. */}
+        <AttachFiles files={runFiles} canAttach={canAttach} onAttach={attachFile} onRemove={removeFile} />
       </div>
 
       {setupFields.length > 0 && (

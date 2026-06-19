@@ -26,6 +26,7 @@ import BackLink from '../../_components/back-link';
 import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
 import RunClaudeActions from '../../_components/run-claude-actions';
+import RunContinueBox from '../../_components/run-continue-box';
 import ClearAlertButton from '../../_components/clear-alert-button';
 import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
 import RunFeedback, { type FeedbackQuestion } from '../../_components/run-feedback';
@@ -227,20 +228,24 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           </div>
         </header>
 
-        {/* Get back to Claude: continue a run paused at an approval gate, or open
-            the routine that produced it. */}
-        <div className="mb-6">
-          <RunClaudeActions runId={r.id} agentName={name} claudeTaskId={claudeTaskId} pending={pending} />
-        </div>
-
         {pending && (
-          <div className="mb-6 rounded-lg border border-brand-500/40 bg-brand-500/10 p-4">
+          <div className="mb-4 rounded-lg border border-brand-500/40 bg-brand-500/10 p-4">
             <div className="text-sm font-semibold text-ink-50">This deliverable is held for your approval</div>
             <div className="text-xs text-ink-300 mt-0.5">
-              Read it below, then use <span className="text-ink-100 font-medium">Approve &amp; continue in Claude</span> above to let it finish the gated step. Nothing posts without you.
+              Read it below, then <span className="text-ink-100 font-medium">Approve &amp; finish</span> to ship the staged option hands-off — or use <span className="text-ink-100 font-medium">Continue this run</span> to add changes or the inputs it still needs. Nothing posts without you.
             </div>
           </div>
         )}
+
+        {/* Continue this run — the universal per-run action. Held runs keep
+            "Approve & finish" prominent (RunClaudeActions); the general prompt-+-files
+            box sits right under it. Available on ANY run (held, needs-inputs, finished)
+            so the user can iterate without opening Claude. The small "continue in
+            Claude ↗" stays as the watch-it opt-in. */}
+        <div className="mb-6 space-y-3">
+          <RunClaudeActions runId={r.id} agentName={name} claudeTaskId={claudeTaskId} pending={pending} />
+          <RunContinueBox runId={r.id} agentName={name} pending={pending} />
+        </div>
 
         {/* Deliberate, labeled clear (replaces the one-click ✕ on the Alerts card).
             Shown only while this run is actually an alert (held / stalled / failed). */}

@@ -11,9 +11,11 @@
  *    isn't live yet (sibling chip not deployed → non-2xx / unknown-kind), we
  *    fall back to the prior open-Claude behavior so Approve never breaks.
  *  - "continue in Claude ↗" — small secondary opt-in (watch-it mode): marks the
- *    run approved, then opens a fresh Claude session prefilled to execute the
- *    gated step so the user can supervise it live. For a non-held run this is the
- *    primary "Continue in Claude" (no approval needed).
+ *    run approved (if held), then opens a fresh Claude session prefilled to execute
+ *    the gated step so the user can supervise it live. It's a SMALL link for held
+ *    AND non-held runs now — the primary continue path is the hands-off, prompt-+-
+ *    files <RunContinueBox /> rendered alongside this (the universal "Continue this
+ *    run"); this component is just Approve & finish (held) + the watch-it opt-in.
  *  - "Open the routine in Claude" — the verified Routines deep link, to VIEW the
  *    routine that produced this run (when we know its Claude task id).
  *
@@ -62,7 +64,7 @@ export default function RunClaudeActions({
       await callBackend('/api/v2/me/run-requests', {
         jwt: session?.access_token,
         method: 'POST',
-        body: { kind: 'continue', run_id: runId, source: 'dashboard' },
+        body: { kind: 'continue', runId, source: 'dashboard' },
       });
       setDone(true);
       setMsg('Approved. Finishing hands-off; the result lands in your inbox.');
@@ -96,25 +98,31 @@ export default function RunClaudeActions({
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
-      <button
-        type="button"
-        onClick={pending ? approveAndFinish : openInClaude}
-        disabled={busy}
-        className="btn-success text-xs px-3 py-1.5 whitespace-nowrap disabled:opacity-60"
-      >
-        {busy ? 'Working…' : pending ? 'Approve & finish' : 'Continue in Claude →'}
-      </button>
-      {/* Secondary opt-in for held runs: watch it finish live in Claude. */}
+      {/* Held runs keep "Approve & finish" as the prominent primary CTA (continue
+          with the implicit "ship the approved deliverable" intent). The general
+          "Continue with a prompt" box (<RunContinueBox />) sits right under this so
+          the user can instead supply inputs/changes. */}
       {pending && (
         <button
           type="button"
-          onClick={openInClaude}
+          onClick={approveAndFinish}
           disabled={busy}
-          className="text-xs text-brand-500 hover:underline whitespace-nowrap disabled:opacity-60"
+          className="btn-success text-xs px-3 py-1.5 whitespace-nowrap disabled:opacity-60"
         >
-          continue in Claude ↗
+          {busy ? 'Working…' : 'Approve & finish'}
         </button>
       )}
+      {/* Watch-it path: a small opt-in to finish/continue live in Claude. Primary
+          continuing now happens hands-off via <RunContinueBox />, so this stays a
+          small link for held AND non-held runs. */}
+      <button
+        type="button"
+        onClick={openInClaude}
+        disabled={busy}
+        className="text-xs text-brand-500 hover:underline whitespace-nowrap disabled:opacity-60"
+      >
+        continue in Claude ↗
+      </button>
       {routineHref && (
         <a
           href={routineHref}

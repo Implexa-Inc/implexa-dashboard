@@ -27,6 +27,8 @@ import { categorizeAgent } from '@/lib/agent-category';
 import type { RunStateInfo } from '@/lib/run-state';
 import NextAgentCards, { type Recommendation } from '../_components/next-agent-cards';
 import RunFeedback, { type FeedbackQuestion } from '../_components/run-feedback';
+import RunClaudeActions from '../_components/run-claude-actions';
+import RunContinueBox from '../_components/run-continue-box';
 
 // Re-exported so existing importers (lib/inbox.ts) keep their import path; the
 // canonical definition now lives in the shared <RunFeedback> component.
@@ -486,6 +488,18 @@ export default function InboxList({
             {/* Next agents to build — this run's recommendations, right where its
                 output is shown. Renders nothing when there are none. */}
             <NextAgentCards runId={openItem.id} recommendations={openItem.recommendations} />
+
+            {/* Continue this run — the universal per-run action, available on ANY run.
+                Held runs keep "Approve & finish" prominent; the general prompt-+-files
+                box sits right under it so the user can add changes or the missing
+                inputs instead of shipping as-is. Mark reviewed / Dismiss below stay
+                the lightweight record-only actions (no re-run). */}
+            <div className="mt-5 space-y-3">
+              {openItem.pending && (
+                <RunClaudeActions runId={openItem.id} agentName={openItem.name} pending />
+              )}
+              <RunContinueBox runId={openItem.id} agentName={openItem.name} pending={openItem.pending} />
+            </div>
 
             <div className="mt-5 flex items-center gap-3">
               {done[openItem.id] ? (
