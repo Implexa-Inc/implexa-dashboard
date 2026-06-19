@@ -317,17 +317,18 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           ? (requiresLocal ? 'Runs in Claude Code, on your computer.' : 'Runs in your Claude.')
           : 'Activate once, then run it anytime.')}
       </span>
-      {/* While the run is in flight, point the user at where the RESULT actually
-          lands — their Implexa results. We deliberately do NOT deep-link the
-          recurring routine's Claude page here: an on-demand Run now fires as a
-          separate one-time task, so that page shows the (often paused) schedule
-          with a "Skipped" cron, which reads as "broken" (founder hit this). */}
+      {/* While the run is in flight, point the user at where it shows LIVE — the
+          "Active Agents" section on the Agents page (polls the live feed). We
+          deliberately do NOT deep-link the recurring routine's Claude page here:
+          an on-demand Run now fires as a separate one-time task, so that page
+          shows the (often paused) schedule with a "Skipped" cron, which reads as
+          "broken" (founder hit this). */}
       {(state === 'queued' || state === 'running') && (
         <Link
-          href="/inbox"
+          href="/workflows"
           className={`text-[11px] text-brand-500 hover:underline ${align === 'end' ? 'text-right' : 'text-left'}`}
         >
-          Track it in your results →
+          Track it under Active Agents →
         </Link>
       )}
       {/* When does it run next (scheduled agents), grey + small. */}
