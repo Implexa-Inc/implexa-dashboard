@@ -17,12 +17,19 @@ export const MAX_RUN_FILES = 8;
 // Label for the per-run attachment line baked into the note. The hands-off run is
 // told to Read these paths as context/feedback.
 export const ATTACH_MARKER = '📎 Attached for this run';
+// Same plumbing, but for a hands-off BUILD: the Home "Build an agent" box bakes the
+// attached paths into the build `intent` so the drainer's generate_workflow sees them.
+export const ATTACH_BUILD_MARKER = '📎 Attached for this build';
 
-/** Combine the user's prose with any attached file PATHS into the one-off note. */
-export function composeNoteWithFiles(note: string, files: string[]): string {
+/**
+ * Combine the user's prose with any attached file PATHS into one text blob.
+ * `marker` lets callers tailor the label (per-run note vs per-build intent); it
+ * defaults to the per-run marker so existing callers are unchanged.
+ */
+export function composeNoteWithFiles(note: string, files: string[], marker: string = ATTACH_MARKER): string {
   const base = note.trim();
   if (!files.length) return base;
-  const line = `${ATTACH_MARKER} (read these files as context/feedback): ${files.join(', ')}`;
+  const line = `${marker} (read these files as context/feedback): ${files.join(', ')}`;
   return base ? `${base}\n\n${line}` : line;
 }
 

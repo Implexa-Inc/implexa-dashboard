@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SuggestedAgent } from '@/lib/workflow-catalog';
 import { macDownloadUrl } from '@/lib/app-links';
+import { AttachFiles, composeNoteWithFiles, useRunAttachments, ATTACH_BUILD_MARKER } from './run-attachments';
 
 /**
  * The conversation box: "you talk to Implexa". One codebase, two contexts.
@@ -15,12 +16,19 @@ import { macDownloadUrl } from '@/lib/app-links';
  * right away. In a plain browser it tells the user to open their agent. The
  * model work always stays on the user's agent: presence, never runtime.
  *
- * Image attachments: in the desktop shell the box accepts pasted or picked
- * images. They can't ride the claude://code/new?q= deep link (text-only), so
- * the desktop main process writes each to ~/Implexa Agents/attachments and
- * appends its PATH to the prompt — Claude Code's Read tool opens images with
- * vision. The attach control only shows when the desktop bridge is present,
- * because the file-path trick needs the local agent runtime.
+ * File attachments: the box accepts ANY file (pdf/csv/json/docx/images/…) for
+ * parity with run-setup and "Continue this run". In the desktop app it uses the
+ * native picker bridge (window.implexaDesktop.pickFile) via the shared
+ * <AttachFiles> component, which returns real absolute paths. Those paths are
+ * baked into the build `intent` (a "📎 Attached for this build: …" line) so the
+ * always-on drainer's generate_workflow sees them when it composes the agent —
+ * the same way run-setup threads attachments into a run.
+ *
+ * Legacy image fallback: in an environment that exposes the older handoffAgent
+ * bridge but not pickFile, the box keeps the original image paste/data-URL path
+ * (images are written to disk by the desktop main process and their PATH is
+ * appended to the interactive "shape it in Claude" prompt). The picker is the
+ * primary, any-file path; this is only the fallback where pickFile is absent.
  */
 
 declare global {
@@ -60,6 +68,10 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
   const [msg, setMsg] = useState('');
   const [images, setImages] = useState<Attachment[]>([]);
   const [hasBridge, setHasBridge] = useState(false);
+  // Any-file attach via the native picker (desktop). Shared with run-setup and the
+  // Continue box. `canAttach` is true only when the pickFile bridge exists; when it
+  // does, this is the attach UI (any file type) and the legacy image picker is hidden.
+  const { files: runFiles, canAttach, attachFile, removeFile, reset: resetFiles } = useRunAttachments();
   // The just-queued build, kept so the secondary "shape it in Claude" opt-in can
   // hand it off interactively after the hands-off queue has cleared the input.
   const [queuedIntent, setQueuedIntent] = useState('');
@@ -108,8 +120,10 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
     setImages((prev) => [...prev, ...read.filter(Boolean) as Attachment[]].slice(0, MAX_IMAGES));
   };
 
+  // Image paste is the legacy data-URL path — only when pickFile is absent (any-file
+  // mode uses the native picker, which can't accept a pasted in-memory blob as a path).
   const onPaste = (e: React.ClipboardEvent) => {
-    if (!hasBridge) return;
+    if (!hasBridge || canAttach) return;
     const files = Array.from(e.clipboardData?.files || []).filter((f) => f.type.startsWith('image/'));
     if (files.length) { e.preventDefault(); void addFiles(files); }
   };
@@ -122,10 +136,14 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
     setState('sending');
     setMsg('');
     try {
+      // Bake any attached file PATHS into the build intent (same plumbing run-setup
+      // uses for a run): the drainer's generate_workflow reads them back from the
+      // request's `intent` when it composes the agent. No-op when nothing's attached.
+      const buildIntent = composeNoteWithFiles(t, runFiles, ATTACH_BUILD_MARKER);
       const res = await fetch('/api/agents/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ intent: t }),
+        body: JSON.stringify({ intent: buildIntent }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
@@ -136,6 +154,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
       const sentImages = images.map((im) => im.dataUrl);
       setIntent('');
       setImages([]);
+      resetFiles();
       const bridge = typeof window !== 'undefined' ? window.implexaDesktop : undefined;
       // Not connected to any Claude/Codex yet → the agent is SAVED but nothing
       // can build it. Don't show a false "queued, open your Claude" (the founder
@@ -152,7 +171,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
       // Claude/Codex — no session to open, no human approval needed (building is
       // unattended). Remember the intent so the secondary "shape it in Claude"
       // opt-in can still hand it off interactively for power users.
-      setQueuedIntent(t);
+      setQueuedIntent(buildIntent);
       setQueuedImages(sentImages);
       setState('queued');
       setMsg('Queued. Your agent will appear under Your agents when the runner builds it (usually a few minutes).');
@@ -217,7 +236,10 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
             disabled={busy}
             className="flex-1 rounded-lg bg-ink-900 border border-ink-700 px-4 py-3 text-[15px] text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-ink-500 disabled:opacity-60"
           />
-          {hasBridge && (
+          {/* Legacy inline image picker — only when pickFile is absent (no any-file
+              bridge). When pickFile exists, the shared <AttachFiles> below handles
+              any file type and this is hidden. */}
+          {hasBridge && !canAttach && (
             <>
               <input
                 ref={fileRef}
@@ -251,9 +273,21 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
           </button>
         </div>
 
-        {/* Attached image thumbnails (desktop only). Paths are written locally on
-         * submit; here we just preview + let the user remove before sending. */}
-        {images.length > 0 && (
+        {/* Any-file attach (desktop, via the native picker) — shared with run-setup
+            and the Continue box. Paths are baked into the build intent on submit. */}
+        {canAttach && (
+          <AttachFiles
+            files={runFiles}
+            canAttach={canAttach}
+            onAttach={attachFile}
+            onRemove={removeFile}
+            hint="Attach a file — a screenshot, a doc, a spec — and your agent can use it."
+          />
+        )}
+
+        {/* Attached image thumbnails — legacy image-only path (pickFile absent). Paths
+         * are written locally on submit; here we just preview + let the user remove. */}
+        {!canAttach && images.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-3">
             {images.map((im, i) => (
               <div key={i} className="relative group">
@@ -275,8 +309,8 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
             ))}
           </div>
         )}
-        {hasBridge && images.length === 0 && (
-          <p className="text-[11px] text-ink-500 mt-2">Tip: paste or attach an image (a screenshot, a design) and your agent can see it.</p>
+        {hasBridge && !canAttach && images.length === 0 && (
+          <p className="text-[11px] text-ink-500 mt-2">Tip: paste or attach a file — a screenshot, a doc, a spec — and your agent can use it.</p>
         )}
 
         {/* Suggested for you — one-tap idea chips. An idea fills the box; an
