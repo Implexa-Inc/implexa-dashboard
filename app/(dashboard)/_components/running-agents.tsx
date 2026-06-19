@@ -52,7 +52,7 @@ function rel(iso: string | null): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-export default function RunningAgents() {
+export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boolean } = {}) {
   const supabase = createClient();
   const [cards, setCards] = useState<LiveCard[] | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -106,14 +106,18 @@ export default function RunningAgents() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!cards || cards.length === 0) return null; // invisible at rest
-  const shown = showAll ? cards : cards.slice(0, 5);
+  if (!cards) return null;
+  // On Home we show only the cards that need you (yellow/red); on the Agents page
+  // we show everything live.
+  const list = alertsOnly ? cards.filter((c) => NOTIFY.has(c.status)) : cards;
+  if (list.length === 0) return null; // invisible at rest
+  const shown = showAll ? list : list.slice(0, 5);
 
   return (
     <section className="mb-8">
       <div className="flex items-baseline gap-2 mb-3">
-        <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">Running</h2>
-        <span className="text-xs text-ink-500">{cards.length}</span>
+        <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Needs you' : 'Running'}</h2>
+        <span className="text-xs text-ink-500">{list.length}</span>
       </div>
       <div className="space-y-2">
         {shown.map((c) => {
@@ -139,13 +143,13 @@ export default function RunningAgents() {
           );
         })}
       </div>
-      {cards.length > 5 && (
+      {list.length > 5 && (
         <button
           type="button"
           onClick={() => setShowAll((v) => !v)}
           className="text-xs text-ink-500 hover:text-ink-300 mt-2"
         >
-          {showAll ? 'Show less' : `Load more (${cards.length - 5})`}
+          {showAll ? 'Show less' : `Load more (${list.length - 5})`}
         </button>
       )}
     </section>

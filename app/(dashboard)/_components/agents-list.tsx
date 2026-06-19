@@ -24,7 +24,7 @@ export type ListAgent = {
   slug: string;
   name: string;
   source: string;
-  section: 'scheduled' | 'on_demand' | 'not_activated';
+  section: 'scheduled' | 'on_demand' | 'not_activated' | 'paused';
   category: { key: string; label: string; emoji: string };
   needsIntervention?: boolean;
   interventionReason?: string | null;
@@ -183,6 +183,7 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
   const [busySlug, setBusySlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [showPaused, setShowPaused] = useState(false);
 
   const activeCat = params.get('cat') || '';
 
@@ -258,6 +259,7 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
   const scheduled = shown.filter((a) => a.section === 'scheduled');
   const onDemand = shown.filter((a) => a.section === 'on_demand');
   const notActivated = shown.filter((a) => a.section === 'not_activated');
+  const paused = shown.filter((a) => a.section === 'paused');
 
   const setCat = (key: string) => {
     const p = new URLSearchParams(params.toString());
@@ -304,6 +306,40 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
               : <>Describe one on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link> and Implexa builds it.</>}
           </p>
         </div>
+      )}
+
+      {/* Paused — recurring agents the user paused. Collapsed by default (like
+          Archived): their clock is stopped but they still run on demand. Each row
+          opens the agent page, where Resume lives. */}
+      {paused.length > 0 && (
+        <section className="mt-10 pt-6 border-t border-ink-800">
+          <button
+            type="button"
+            onClick={() => setShowPaused((v) => !v)}
+            className="text-xs uppercase tracking-wider text-ink-500 hover:text-ink-300 flex items-center gap-1.5"
+          >
+            <span className={`inline-block transition-transform ${showPaused ? 'rotate-90' : ''}`}>▸</span>
+            Paused ({paused.length})
+          </button>
+          {showPaused && (
+            <ul className="space-y-2 mt-3">
+              {paused.map((a) => (
+                <li key={a.slug} className="card flex items-center justify-between gap-3 py-2.5">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
+                    <span className="text-sm text-ink-300 truncate">{a.name}</span>
+                  </span>
+                  <Link
+                    href={`/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`}
+                    className="text-xs btn-outline px-3 py-1 whitespace-nowrap"
+                  >
+                    Resume
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
       {/* Archived — per-user hidden agents, restorable. The shared agents are

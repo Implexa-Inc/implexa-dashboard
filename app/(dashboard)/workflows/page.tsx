@@ -87,6 +87,29 @@ export default async function WorkflowsPage() {
     });
   }
 
+  // Paused recurring agents — their clock is off so the active feed excludes them.
+  // Query the user's own scheduled_skills directly (RLS-scoped) and add a collapsed
+  // "Paused" section. On-demand agents have no clock to pause, so only cron ones.
+  const { data: pausedRows } = await supabase
+    .from('scheduled_skills')
+    .select('skill_slug, status, trigger_type')
+    .eq('status', 'paused')
+    .eq('trigger_type', 'cron');
+  for (const p of (pausedRows ?? [])) {
+    if (!p.skill_slug || seen.has(p.skill_slug)) continue;
+    seen.add(p.skill_slug);
+    const m = meta.get(p.skill_slug);
+    const name = m?.name || p.skill_slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+    list.push({
+      slug: p.skill_slug,
+      name,
+      source: sourceFor(p.skill_slug),
+      section: 'paused',
+      category: categorizeAgent(parts(p.skill_slug, name)),
+      lastRun: null,
+    });
+  }
+
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-4xl mx-auto">
