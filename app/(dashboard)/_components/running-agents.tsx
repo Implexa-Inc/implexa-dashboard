@@ -145,7 +145,7 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   return (
     <section className="mb-8">
       <div className="flex items-baseline gap-2 mb-3">
-        <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Running'} ({list.length})</h2>
+        <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Active Agents'} ({list.length})</h2>
       </div>
       <div className="space-y-2">
         {shown.map((c) => {
