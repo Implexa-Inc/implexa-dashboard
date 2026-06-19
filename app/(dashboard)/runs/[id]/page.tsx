@@ -108,7 +108,6 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   const wf = catalog.find((c) => c.slug === r.skill_slug);
   const name = wf?.name || humanize(r.skill_slug);
   const pending = r.review_status === 'pending';
-  const info = deriveRunState(r);
 
   // Live step trace (migration 0080): each entry is a note the run reported at a
   // step boundary. For a stalled run, the last entry is WHERE it got stuck.
@@ -128,13 +127,22 @@ export default async function RunDetailPage({ params }: { params: { id: string }
 
   // The routine's Claude task id (when this agent has a live schedule) powers the
   // "Open the routine in Claude" deep link + the "Continue in Claude" handoff that
-  // lets the user actually resume a run paused at a human-approval gate.
-  const { data: schedRows } = await supabase
+  // lets the user actually resume a run paused at a human-approval gate. We also
+  // read the routine's STATUS so a paused routine's leftover running/stalled row
+  // renders as a quiet "Paused" rather than a loud "This run stalled" card.
+  // Prefer the run's own parent routine (scheduled_skill_id); fall back to the
+  // agent's schedule by slug for legacy rows that predate scheduled_skill_id.
+  const schedQuery = supabase
     .from('scheduled_skills')
-    .select('claude_task_id')
-    .eq('skill_slug', r.skill_slug)
+    .select('claude_task_id, status')
     .limit(1);
+  const { data: schedRows } = r.scheduled_skill_id
+    ? await schedQuery.eq('id', r.scheduled_skill_id)
+    : await schedQuery.eq('skill_slug', r.skill_slug);
   const claudeTaskId = schedRows?.[0]?.claude_task_id || null;
+  const routinePaused = schedRows?.[0]?.status === 'paused';
+
+  const info = deriveRunState({ ...r, routine_paused: routinePaused });
 
   return (
     <main className="min-h-screen px-4 py-12">

@@ -59,6 +59,12 @@ export type RunRow = {
   stalled_at?: string | null;
   // ── 0080 live step trace ──
   progress?: RunProgress | null;
+  // True when this run's parent routine is currently PAUSED. A paused routine
+  // isn't firing, so a lingering running/stalled row is an orphan (a dead test-run
+  // session, or a stall not yet swept) — it must not render as a loud "Stalled" /
+  // "Running" alert. Set by the surface that knows the routine's status (the run
+  // detail page joins scheduled_skills). Absent ⇒ treated as not-paused.
+  routine_paused?: boolean | null;
 };
 
 export type RunStateInfo = {
@@ -94,6 +100,19 @@ function isPermissionBlocked(row: RunRow): boolean {
 export function deriveRunState(row: RunRow): RunStateInfo {
   const authoritative = row.run_state && VALID.has(row.run_state) ? row.run_state : null;
   const permissionBlocked = isPermissionBlocked(row);
+
+  // Parent routine paused: a running/stalled row here is an orphan, not a live
+  // alert. Render it as a quiet, terminal "Paused" state instead of the loud
+  // "This run stalled" / "Running" card — the routine isn't firing, so nothing is
+  // actually in flight. (A held/failed/finished run of a paused routine is real
+  // history and keeps its own state below.)
+  if (row.routine_paused && (authoritative === 'running' || authoritative === 'stalled')) {
+    return mk(
+      'completed', 'Paused',
+      'This run\'s routine is paused, so it is no longer running. This is a leftover from before it was paused — nothing is in flight.',
+      false, false, false,
+    );
+  }
 
   // Held at a human-approval gate takes precedence over the terminal run_state:
   // such a run is run_state='completed' + review_status='pending', so without this
@@ -232,11 +251,24 @@ const PARTIAL_PRESENTATION: RunPresentation = {
   spinCls: '',
 };
 
-/** Visual treatment for a run-state badge: degraded `partial` and held
- *  `Waiting for approval` get their own treatment; else the per-state spec. */
+// An orphan run of a PAUSED routine derives state='completed' but label='Paused'.
+// It isn't a success and isn't live — give it a quiet, neutral (no-pulse) dot so
+// it reads as inert, not as a green "Done".
+const PAUSED_PRESENTATION: RunPresentation = {
+  label: 'Paused',
+  classes: 'bg-ink-500/15 text-ink-600 dark:text-ink-300',
+  dot: 'bg-ink-500 dark:bg-ink-400',
+  pulse: false,
+  spinCls: '',
+};
+
+/** Visual treatment for a run-state badge: degraded `partial`, held
+ *  `Waiting for approval`, and orphaned `Paused` get their own treatment;
+ *  else the per-state spec. */
 export function presentationFor(info: RunStateInfo): RunPresentation {
   if (info.label === 'Partial') return PARTIAL_PRESENTATION;
   if (info.label === 'Waiting for approval') return AWAITING_PRESENTATION;
+  if (info.label === 'Paused') return PAUSED_PRESENTATION;
   return RUN_STATE_PRESENTATION[info.state];
 }
 
