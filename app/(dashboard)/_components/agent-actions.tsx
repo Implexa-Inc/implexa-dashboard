@@ -450,10 +450,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         </div>
       )}
 
-      {/* Per-run note: always available, rides into THIS run (distinct from the
-          saved last-run feedback loop). */}
+      {/* Per-run note: always available, rides into THIS run only (distinct from
+          the Setup-tab "Change how this agent works" box, which is permanent). */}
       <div className={setupFields.length ? 'mt-4' : ''}>
-        <label className="block text-sm text-ink-200 mb-1.5">Anything to add for this run? <span className="text-ink-500 font-normal">(optional)</span></label>
+        <label className="block text-sm text-ink-200 mb-1">Anything to add for this run? <span className="text-ink-500 font-normal">(just this run)</span></label>
+        <p className="text-[11px] text-ink-500 mb-1.5">Steers this one run only — it doesn’t change the agent. To change it for every run, use “Change how this agent works” in Setup.</p>
         <textarea
           value={runNote}
           onChange={(e) => setRunNote(e.target.value)}
