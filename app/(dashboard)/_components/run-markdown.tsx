@@ -64,10 +64,16 @@ function lastExt(s: string): string {
  * path tries to traverse out (`..`), or an absolute path escapes the root.
  */
 function resolveAbs(root: string | null | undefined, rel: string): string | null {
-  if (!root) return null;
-  const base = root.replace(/\/+$/, '');
   const p = rel.trim().replace(/^\.\//, '');
   if (!p) return null;
+  // Home-relative (`~/…`) is already rooted at the user's home. The browser can't
+  // expand `~`, so pass it through untouched — the desktop bridge expands it to the
+  // real home. Agent deliverables routinely print `~/…` paths, so this is common.
+  if (p === '~' || p.startsWith('~/')) {
+    return p.split('/').includes('..') ? null : p;
+  }
+  if (!root) return null;
+  const base = root.replace(/\/+$/, '');
   if (p.startsWith('/')) {
     // Already absolute — only honor it if it lives under the workspace root.
     return p === base || p.startsWith(`${base}/`) ? p : null;
