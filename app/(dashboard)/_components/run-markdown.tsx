@@ -19,7 +19,7 @@
  * the user can ⌘⇧G straight to it. It never silently does nothing.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -56,6 +56,23 @@ function looksLikePath(raw: string): boolean {
 function lastExt(s: string): string {
   const m = /\.([a-z0-9]+)$/i.exec(s.trim());
   return m ? m[1].toLowerCase() : '';
+}
+
+/**
+ * The folder a deliverable's artifacts live in. Agents routinely list files as
+ * BARE names under an "Artifacts (in `reels/day-18/`)" heading — those resolve
+ * to the workspace ROOT (where they don't exist) unless we re-base them onto the
+ * artifact folder. Prefer an explicit "in `dir/`" marker; else the first
+ * folder-shaped inline-code path in the doc. Null when there's no folder context.
+ */
+function deriveArtifactDir(md: string): string | null {
+  const clean = (s: string) => s.trim().replace(/^\.\//, '').replace(/\/+$/, '');
+  const marker = md.match(/\bin\s+`([^`\n]+?\/)`/i);
+  if (marker && !marker[1].includes('://') && !/\s/.test(marker[1])) return clean(marker[1]);
+  for (const m of md.matchAll(/`([^`\n]+?\/)`/g)) {
+    if (!m[1].includes('://') && !/\s/.test(m[1])) return clean(m[1]);
+  }
+  return null;
 }
 
 /**
@@ -107,10 +124,12 @@ function FilePathCode({
   text,
   className,
   workspaceRoot,
+  artifactDir,
 }: {
   text: string;
   className?: string;
   workspaceRoot?: string | null;
+  artifactDir?: string | null;
 }) {
   const [toast, setToast] = useState<string | null>(null);
   const trimmed = text.trim();
@@ -123,7 +142,11 @@ function FilePathCode({
   };
 
   const onActivate = useCallback(async () => {
-    const abs = resolveAbs(workspaceRoot, trimmed);
+    // A BARE filename (no slash) listed under an artifact-folder heading lives in
+    // that folder, not at the root — re-base it so it actually resolves.
+    const rel =
+      artifactDir && !trimmed.includes('/') ? `${artifactDir}/${trimmed}` : trimmed;
+    const abs = resolveAbs(workspaceRoot, rel);
     const bridge =
       typeof window !== 'undefined'
         ? (window as Window & { implexaDesktop?: DesktopBridge }).implexaDesktop
@@ -174,7 +197,7 @@ function FilePathCode({
     } catch {
       flash('Copy failed');
     }
-  }, [workspaceRoot, trimmed, readable]);
+  }, [workspaceRoot, trimmed, readable, artifactDir]);
 
   const Icon = isFolder ? FolderIcon : FileIcon;
   return (
@@ -212,6 +235,7 @@ export default function RunMarkdown({
   markdown: string;
   workspaceRoot?: string | null;
 }) {
+  const artifactDir = useMemo(() => deriveArtifactDir(markdown), [markdown]);
   const components: Components = {
     code(props) {
       const { className, children, ...rest } = props as {
@@ -231,7 +255,14 @@ export default function RunMarkdown({
           </code>
         );
       }
-      return <FilePathCode text={raw} className={className} workspaceRoot={workspaceRoot} />;
+      return (
+        <FilePathCode
+          text={raw}
+          className={className}
+          workspaceRoot={workspaceRoot}
+          artifactDir={artifactDir}
+        />
+      );
     },
   };
 
