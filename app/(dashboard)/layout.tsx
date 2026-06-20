@@ -23,6 +23,7 @@ import { createClient } from '@/lib/supabase/server';
 import { computeSetupStatus } from '@/lib/setup-status';
 import Sidebar, { MobileTopBar } from './_components/sidebar';
 import UpdateBanner, { type BehindSurface } from './_components/update-banner';
+import AutoUpdateToast from './_components/auto-update-toast';
 import PersistIntent from './_components/persist-intent';
 import { getLatestVersions } from '@/lib/versions';
 
@@ -154,6 +155,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {children}
         </main>
       </div>
+      {/* Desktop-app auto-update toast (bottom-left, "Restart to update"). Renders
+          nothing on plain web — the capability lives on window.implexaDesktop. */}
+      <AutoUpdateToast />
     </div>
   );
 }
