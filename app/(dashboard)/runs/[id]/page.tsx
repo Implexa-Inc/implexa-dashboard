@@ -109,7 +109,9 @@ export default async function RunDetailPage({ params }: { params: { id: string }
 
   const wf = catalog.find((c) => c.slug === r.skill_slug);
   const name = wf?.name || humanize(r.skill_slug);
-  const pending = r.review_status === 'pending';
+  const pending = r.review_status === 'pending';        // shippable deliverable → Approve & finish
+  const needsInput = r.review_status === 'needs_input'; // blocked on a question → Continue only
+  const held = pending || needsInput;
 
   // Live step trace (migration 0080): each entry is a note the run reported at a
   // step boundary. For a stalled run, the last entry is WHERE it got stuck.
@@ -237,19 +239,33 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           </div>
         )}
 
+        {needsInput && (
+          <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+            <div className="text-sm font-semibold text-ink-50">This run needs your input to continue</div>
+            <div className="text-xs text-ink-300 mt-0.5">
+              It paused with a question and can&apos;t finish on its own — read it below, then use <span className="text-ink-100 font-medium">Continue this run</span> to answer or add the missing inputs. There&apos;s nothing finished to ship yet, so there&apos;s no approve step.
+            </div>
+          </div>
+        )}
+
         {/* Continue this run — the universal per-run action. Held runs keep
             "Approve & finish" prominent (RunClaudeActions); the general prompt-+-files
             box sits right under it. Available on ANY run (held, needs-inputs, finished)
             so the user can iterate without opening Claude. The small "continue in
             Claude ↗" stays as the watch-it opt-in. */}
         <div className="mb-6 space-y-3">
-          <RunClaudeActions runId={r.id} agentName={name} claudeTaskId={claudeTaskId} pending={pending} />
-          <RunContinueBox runId={r.id} agentName={name} pending={pending} />
+          {/* Approve & finish ONLY for an approve-ready hold (a shippable deliverable).
+              A needs-input hold has nothing to ship — approving would finish the wrong
+              thing — so it gets Continue only. */}
+          {pending && (
+            <RunClaudeActions runId={r.id} agentName={name} claudeTaskId={claudeTaskId} pending={pending} />
+          )}
+          <RunContinueBox runId={r.id} agentName={name} pending={held} />
         </div>
 
         {/* Deliberate, labeled clear (replaces the one-click ✕ on the Alerts card).
             Shown only while this run is actually an alert (held / stalled / failed). */}
-        {(pending || info.attention || info.state === 'failed') && (
+        {(held || info.attention || info.state === 'failed') && (
           <div className="mb-6">
             <ClearAlertButton runId={r.id} pending={pending} />
           </div>

@@ -131,6 +131,17 @@ export function deriveRunState(row: RunRow): RunStateInfo {
     );
   }
 
+  // A blocked run that needs the user's input/decision to continue — distinct from
+  // an approve-ready hold: there is NOTHING shippable, so it offers Continue only
+  // (no Approve). Surfaces in "Needs you" same as a pending hold.
+  if (row.review_status === 'needs_input') {
+    return mk(
+      'completed', 'Needs your input',
+      'Paused with a question it can’t answer on its own. Use Continue to give it the decision or missing input. Nothing finished yet.',
+      false, false, false,
+    );
+  }
+
   // Authoritative live state from the backend (post-0065 write path).
   if (authoritative) {
     switch (authoritative) {
