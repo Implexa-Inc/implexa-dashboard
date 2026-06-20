@@ -336,6 +336,18 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
         )}
 
+        {/* Jump to this agent's OTHER runs. A held run often references sibling
+            runs ("Day 16/17 are still pending") — make it one click to go act on
+            them, instead of Open agent → Runs → hunt for the run. */}
+        <div className="mt-4 text-xs">
+          <Link
+            href={`${agentHref}${agentHref.includes('?') ? '&' : '?'}tab=runs`}
+            className="text-ink-400 hover:text-ink-200 inline-flex items-center gap-1.5"
+          >
+            <span aria-hidden>↩</span> See {name}&apos;s other runs — open one to continue it
+          </Link>
+        </div>
+
         {/* Per-run feedback — the same form the Results overlay shows, so a run
             opened from an Active-Agents card / email / Telegram / the calendar is
             rateable right here instead of forcing a detour through the Runs tab.
