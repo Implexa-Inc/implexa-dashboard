@@ -37,8 +37,8 @@ const READABLE = new Set([
 // this lights up the day the desktop app exposes them, with no dashboard change.
 type DesktopBridge = {
   handoffAgent?: (...a: unknown[]) => unknown;
-  openPath?: (abs: string) => Promise<{ ok: boolean }> | void;
-  revealPath?: (abs: string) => Promise<{ ok: boolean }> | void;
+  openPath?: (abs: string) => Promise<{ ok: boolean; error?: string }> | void;
+  revealPath?: (abs: string) => Promise<{ ok: boolean; error?: string }> | void;
 };
 
 /** Conservative path detector — true only for code that's clearly a path. */
@@ -130,23 +130,39 @@ function FilePathCode({
         : undefined;
 
     // In-app open/reveal when the desktop bridge supports it and we resolved a
-    // path under the workspace root.
+    // path under the workspace root. CRUCIAL: honor the bridge's {ok} result —
+    // a bare "Opening…" toast that fires even when the IPC returned ok:false is
+    // a silent lie (the file didn't exist / was outside the workspace, so
+    // nothing happened). Report the real reason and copy the path so the user
+    // can still get there.
     if (abs && bridge) {
-      try {
-        if (readable && typeof bridge.openPath === 'function') {
-          await bridge.openPath(abs);
-          flash('Opening…');
+      const act = readable ? bridge.openPath : bridge.revealPath;
+      if (typeof act === 'function') {
+        try {
+          const res = await act(abs);
+          // Legacy bridge returns void → can't verify; assume it acted.
+          if (!res || res.ok) {
+            flash(readable ? 'Opening…' : 'Revealing in Finder…');
+            return;
+          }
+          const why =
+            res.error === 'not-found'
+              ? "Couldn't find that file on disk"
+              : res.error === 'path-not-allowed'
+                ? 'That path is outside your workspace folder'
+                : "Couldn't open that file";
+          try {
+            await navigator.clipboard.writeText(abs);
+            flash(`${why} — copied the path`);
+          } catch {
+            flash(why);
+          }
           return;
+        } catch {
+          /* fall through to copy */
         }
-        if (!readable && typeof bridge.revealPath === 'function') {
-          await bridge.revealPath(abs);
-          flash('Revealing in Finder…');
-          return;
-        }
-        // Bridge present but missing the method we need → copy fallback below.
-      } catch {
-        /* fall through to copy */
       }
+      // Bridge present but missing the method we need → copy fallback below.
     }
 
     // Plain browser (or bridge without open/reveal): copy so the user can paste
