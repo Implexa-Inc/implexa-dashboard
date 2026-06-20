@@ -89,12 +89,15 @@ function resolveAbs(root: string | null | undefined, rel: string): string | null
   if (p === '~' || p.startsWith('~/')) {
     return p.split('/').includes('..') ? null : p;
   }
+  // Already absolute → pass it through to the desktop bridge, which enforces it's
+  // under the user's home (allowedLocalPath) + basename-falls-back if the file
+  // moved. Do NOT pre-reject paths outside the workspace root: agents run in their
+  // OWN working dirs (e.g. ~/Implexa/broll-…), so a perfectly valid full path that
+  // isn't under the configured root was dead-ending on "copy" instead of opening.
+  // (`..` collapses safely via path.resolve on the desktop; web just copies it.)
+  if (p.startsWith('/')) return p;
   if (!root) return null;
   const base = root.replace(/\/+$/, '');
-  if (p.startsWith('/')) {
-    // Already absolute — only honor it if it lives under the workspace root.
-    return p === base || p.startsWith(`${base}/`) ? p : null;
-  }
   if (p.split('/').includes('..')) return null; // no traversal outside the root
   const abs = `${base}/${p}`;
   return abs.startsWith(`${base}/`) ? abs : null;
