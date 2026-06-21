@@ -110,8 +110,8 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
       notified.current.add(key);
       if (first) continue; // seed only on the first poll — don't notify for what's already there
       try {
-        const n = new Notification(`Implexa · ${humanize(c.skillSlug)}`, {
-          body: `${(STATUS[c.status] ?? STATUS.running).label} — tap to open`,
+        const n = new Notification(c.headline || humanize(c.skillSlug), {
+          body: `${humanize(c.skillSlug)} · ${(STATUS[c.status] ?? STATUS.running).label} — tap to open`,
           tag: key,
         });
         n.onclick = () => { try { window.focus(); } catch { /* noop */ } window.location.href = `/runs/${encodeURIComponent(c.runId)}`; };
