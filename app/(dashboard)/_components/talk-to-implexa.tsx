@@ -318,17 +318,42 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
         {chips.length > 0 && (
           <div className="mt-4 flex items-center gap-2 flex-wrap">
             <span className="text-[11px] text-ink-500 mr-0.5">Suggested:</span>
-            {chips.map((s, i) => (
-              <button
-                key={`${s.workflow_slug || s.skill_slug || s.title}-${i}`}
-                type="button"
-                onClick={() => pickSuggestion(s)}
-                title={s.reason || s.title}
-                className="text-xs rounded-full border border-ink-700 px-3 py-1 text-ink-300 hover:border-ink-500 hover:text-ink-100 transition-colors"
-              >
-                {s.workflow_slug && !s.suggested_intent ? '▶ ' : '+ '}{s.title}
-              </button>
-            ))}
+            {chips.map((s, i) => {
+              // What it actually does — the run-driven idea carries the full build
+              // prompt (suggested_intent); a popular workflow just gets added. Show
+              // this on hover/focus so the chip isn't a "wild guess what's it for".
+              const what = s.suggested_intent
+                || (s.workflow_slug ? `Adds the "${s.title}" agent to your account in one tap.` : '');
+              return (
+                <span
+                  key={`${s.workflow_slug || s.skill_slug || s.title}-${i}`}
+                  className="group relative inline-block"
+                >
+                  <button
+                    type="button"
+                    onClick={() => pickSuggestion(s)}
+                    className="text-xs rounded-full border border-ink-700 px-3 py-1 text-ink-300 hover:border-ink-500 hover:text-ink-100 transition-colors"
+                  >
+                    {s.workflow_slug && !s.suggested_intent ? '▶ ' : '+ '}{s.title}
+                  </button>
+                  <span
+                    role="tooltip"
+                    className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 hidden w-72 max-w-[80vw] rounded-lg border border-ink-700 bg-ink-950 p-3 text-left shadow-xl group-hover:block group-focus-within:block"
+                  >
+                    <span className="block text-xs font-medium text-ink-100">{s.title}</span>
+                    {s.reason && (
+                      <span className="mt-1 block text-[11px] italic text-ink-400">{s.reason}</span>
+                    )}
+                    {what && (
+                      <span className="mt-1.5 block text-[11px] leading-relaxed text-ink-300">{what}</span>
+                    )}
+                    <span className="mt-2 block text-[10px] text-ink-500">
+                      {s.suggested_intent ? 'Tap to drop this into the box →' : 'Tap to add this agent →'}
+                    </span>
+                  </span>
+                </span>
+              );
+            })}
           </div>
         )}
 
