@@ -30,6 +30,8 @@ type LiveCard = {
   since: string | null;
   /** Median duration of this agent's recent completed runs (ms), if known. */
   typicalMs?: number | null;
+  /** Run IDENTITY — what THIS run is, from its own output. Primary card label. */
+  headline?: string | null;
 };
 
 const POLL_MS = 15000;
@@ -162,9 +164,11 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                 <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${s.dotCls}`} aria-hidden="true" />
               )}
               <div className="min-w-0 flex-1">
-                <div className="text-sm text-ink-100 truncate">{humanize(c.skillSlug)}</div>
-                <div className="text-[11px] text-ink-500">
-                  {s.label}{c.since ? ` · ${rel(c.since)}` : ''}
+                {/* Run IDENTITY first (what THIS run is); agent name drops to the
+                    secondary line so two runs of one agent read distinctly. */}
+                <div className="text-sm text-ink-100 truncate">{c.headline || humanize(c.skillSlug)}</div>
+                <div className="text-[11px] text-ink-500 truncate">
+                  {c.headline ? `${humanize(c.skillSlug)} · ` : ''}{s.label}{c.since ? ` · ${rel(c.since)}` : ''}
                   {c.status === 'running' && c.typicalMs ? (
                     elapsedMs(c.since) > c.typicalMs * 1.5 ? (
                       <span className="text-amber-600 dark:text-amber-400"> · longer than usual (~{fmtDur(c.typicalMs)})</span>
