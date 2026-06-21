@@ -185,6 +185,32 @@ export default async function RunDetailPage({ params }: { params: { id: string }
 
   const info = deriveRunState({ ...r, routine_paused: routinePaused });
 
+  // This run stalled/failed with NOTHING to show. The real result often already
+  // exists on a SIBLING run for the same agent (a retry, or a hands-off
+  // continuation that produced the deliverable) — surface it inline so the user
+  // doesn't have to Open agent → Runs → hunt for it (the exact friction the
+  // founder hit). Most-recent completed sibling WITH output, any time (the
+  // stalled ghost is often NEWER than the run that actually delivered). Defensive
+  // own-query; never regress the page to "not found" on error.
+  let siblingRun: { id: string; review_status: string | null } | null = null;
+  if (info.attention && !r.output_markdown) {
+    try {
+      let q = supabase
+        .from('skill_runs')
+        .select('id, review_status')
+        .neq('id', r.id)
+        .eq('run_state', 'completed')
+        .not('output_markdown', 'is', null)
+        .order('ran_at', { ascending: false })
+        .limit(1);
+      q = r.scheduled_skill_id
+        ? q.eq('scheduled_skill_id', r.scheduled_skill_id)
+        : q.eq('skill_slug', r.skill_slug);
+      const { data: sib } = await q;
+      siblingRun = (sib?.[0] as { id: string; review_status: string | null } | undefined) ?? null;
+    } catch { /* defensive — link simply doesn't render */ }
+  }
+
   // The run's workspace root powers clickable file paths in the deliverable
   // (resolve a relative `reels/day-18/` to an absolute path the desktop bridge
   // can open / Finder can reveal). Unknown → <FilePathCode> copies the relative
@@ -326,6 +352,17 @@ export default async function RunDetailPage({ params }: { params: { id: string }
                 It was blocked on a permission it could not auto-approve (often a file write or a tool outside the
                 pre-approved set). Open the agent, grant it on the setup card, then run it again.
               </p>
+            )}
+            {siblingRun && (
+              <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-2.5 text-sm">
+                <span className="text-ink-200">Good news — this agent already has a finished run. </span>
+                <Link
+                  href={`/runs/${siblingRun.id}`}
+                  className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
+                >
+                  View the latest result{siblingRun.review_status === 'needs_input' || siblingRun.review_status === 'pending' ? ' (needs you)' : ''} →
+                </Link>
+              </div>
             )}
             <div className="mt-4 flex flex-wrap gap-3">
               <Link href={agentHref} className="btn-success text-sm px-4 py-2">Open agent &amp; run again</Link>
