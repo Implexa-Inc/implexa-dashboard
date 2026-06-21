@@ -28,6 +28,7 @@ import NotInApp from '../../_components/not-in-app';
 import RunClaudeActions from '../../_components/run-claude-actions';
 import RunContinueBox from '../../_components/run-continue-box';
 import ClearAlertButton from '../../_components/clear-alert-button';
+import MarkDoneButton from '../../_components/mark-done-button';
 import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
 import RunFeedback, { type FeedbackQuestion } from '../../_components/run-feedback';
 
@@ -81,7 +82,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     return (
       <main className="min-h-screen px-4 py-12">
         <div className="max-w-3xl mx-auto">
-          <BackLink fallback="/inbox" label="Results" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
+          <BackLink fallback="/overview" label="Home" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
           {existsElsewhere ? (
             <div className="card mt-4 text-sm text-ink-300">
               <p className="font-medium text-ink-100 mb-1">This run is in a different Implexa account.</p>
@@ -99,7 +100,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             <div className="card mt-4 text-sm text-ink-300">
               <p className="font-medium text-ink-100 mb-1">Run not found.</p>
               <p>This run doesn&apos;t exist (it may have been deleted). See your{' '}
-                <Link href="/inbox" className="text-brand-500 hover:underline">results</Link>.</p>
+                <Link href="/overview" className="text-brand-500 hover:underline">home</Link>.</p>
             </div>
           )}
         </div>
@@ -220,7 +221,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
-        <BackLink fallback="/inbox" label="Results" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
+        <BackLink fallback="/overview" label="Home" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
 
         {/* web→app handoff: the https email link lands here; offer the bounce into
             the desktop app. Dormant until the app ships (desktopAppLive). */}
@@ -260,7 +261,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           <div className="mb-4 rounded-lg border border-brand-500/40 bg-brand-500/10 p-4">
             <div className="text-sm font-semibold text-ink-50">This deliverable is held for your approval</div>
             <div className="text-xs text-ink-300 mt-0.5">
-              Read it below, then <span className="text-ink-100 font-medium">Approve &amp; finish</span> to ship the staged option hands-off — or use <span className="text-ink-100 font-medium">Continue this run</span> to add changes or the inputs it still needs. Nothing posts without you.
+              Read it below, then <span className="text-ink-100 font-medium">Approve &amp; finish</span> to ship the staged option hands-off, <span className="text-ink-100 font-medium">Continue this run</span> to add changes or inputs, or <span className="text-ink-100 font-medium">Mark as done</span> if the output is something you just use yourself (e.g. drafts to paste). Nothing posts without you.
             </div>
           </div>
         )}
@@ -269,7 +270,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
             <div className="text-sm font-semibold text-ink-50">This run needs your input to continue</div>
             <div className="text-xs text-ink-300 mt-0.5">
-              It paused with a question and can&apos;t finish on its own — read it below, then use <span className="text-ink-100 font-medium">Continue this run</span> to answer or add the missing inputs. There&apos;s nothing finished to ship yet, so there&apos;s no approve step.
+              It paused with a question and can&apos;t finish on its own — read it below, then use <span className="text-ink-100 font-medium">Continue this run</span> to answer or add the missing inputs. If you already handled the last step yourself (e.g. uploaded the file), just <span className="text-ink-100 font-medium">Mark as done</span>.
             </div>
           </div>
         )}
@@ -285,6 +286,14 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               thing — so it gets Continue only. */}
           {pending && (
             <RunClaudeActions runId={r.id} agentName={name} claudeTaskId={claudeTaskId} pending={pending} />
+          )}
+          {/* "I've handled this" close — for a held/needs-input run whose output you
+              just use yourself (paste drafts) or a manual step you already did
+              (uploaded the file). Closes it, no re-run. */}
+          {held && (
+            <div>
+              <MarkDoneButton runId={r.id} />
+            </div>
           )}
           <RunContinueBox runId={r.id} agentName={name} pending={held} />
         </div>
@@ -366,7 +375,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             )}
             <div className="mt-4 flex flex-wrap gap-3">
               <Link href={agentHref} className="btn-success text-sm px-4 py-2">Open agent &amp; run again</Link>
-              <Link href="/inbox" className="btn-outline text-sm px-4 py-2">Back to results</Link>
+              <Link href="/overview" className="btn-outline text-sm px-4 py-2">Back to home</Link>
             </div>
           </div>
         ) : (
