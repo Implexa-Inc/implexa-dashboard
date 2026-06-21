@@ -27,6 +27,7 @@ import FirstWinMoment from '../_components/first-win-moment';
 import InboxList from '../inbox/inbox-list';
 import FirstRunMagic from '../_components/first-run-magic';
 import TalkToImplexa from '../_components/talk-to-implexa';
+import BuildingAgents from '../_components/building-agents';
 import GetStartedIntent from '../_components/get-started-intent';
 import OnboardingProgress, { type OnboardingStep } from '../_components/onboarding-progress';
 import FirstRunPermissionsNote from '../_components/first-run-permissions-note';
@@ -97,11 +98,13 @@ export default async function OverviewPage() {
         {isFirstRun ? (
           <>
             <TalkToImplexa hasAgents={false} guided={guided} suggestions={suggested} connected={connected} />
+            <BuildingAgents />
             <FirstRunMagic workflows={catalog} />
           </>
         ) : (
           <>
             <TalkToImplexa hasAgents={myAgents.length > 0} guided={guided} suggestions={suggested} connected={connected} />
+            <BuildingAgents />
 
             {/* first-win celebration -> tailored 2nd agent (fires once, early users) */}
             <FirstWinMoment
