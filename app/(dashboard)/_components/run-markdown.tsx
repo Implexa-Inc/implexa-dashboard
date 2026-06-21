@@ -96,6 +96,14 @@ function resolveAbs(root: string | null | undefined, rel: string): string | null
   // isn't under the configured root was dead-ending on "copy" instead of opening.
   // (`..` collapses safely via path.resolve on the desktop; web just copies it.)
   if (p.startsWith('/')) return p;
+  // Home-rooted relative path: agents (and hand-written run notes) routinely print
+  // paths relative to $HOME like "revenoid-workspace/…", "Implexa Agents/…", or
+  // "Downloads/clip.mov" — NOT relative to the artifact dir. Anchor those at ~ so
+  // the bridge (which expands ~ and basename-falls-back) can open them; without
+  // this they dead-ended on copy. Only first-segments that are real ~/ children.
+  if (/^(revenoid-workspace|Implexa|Implexa Agents|Downloads|Desktop|Documents|\.claude|\.config)\//.test(p)) {
+    return p.split('/').includes('..') ? null : `~/${p}`;
+  }
   if (!root) return null;
   const base = root.replace(/\/+$/, '');
   if (p.split('/').includes('..')) return null; // no traversal outside the root
