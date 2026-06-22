@@ -98,7 +98,7 @@ export default function RunChainSuggestions({ slug }: { slug: string }) {
               <div className="mt-3">
                 {existing ? (
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400">✓ Created</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400">✓ Saved</span>
                     <a href={`/workflows/${existing}`} className="text-xs font-medium text-brand-500 hover:underline">
                       Open it — run or schedule →
                     </a>

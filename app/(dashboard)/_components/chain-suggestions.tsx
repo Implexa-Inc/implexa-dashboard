@@ -120,7 +120,7 @@ export default function ChainSuggestions({ agents = [] }: { agents?: AgentRef[] 
                   <div className="mt-3">
                     {existing ? (
                       <div className="flex items-center gap-3">
-                        <span className="text-xs text-success-600 dark:text-success-400">✓ Created</span>
+                        <span className="text-xs text-success-600 dark:text-success-400">✓ Saved</span>
                         <a href={`/workflows/${existing}`} className="text-xs font-medium text-brand-500 hover:underline">
                           Open it — run or schedule →
                         </a>
