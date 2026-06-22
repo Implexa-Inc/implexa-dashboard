@@ -17,7 +17,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { getWorkflow, getMyWorkflow } from '@/lib/workflow-catalog';
+import { getWorkflow, getMyWorkflow, listMyWorkflows } from '@/lib/workflow-catalog';
 import { remoteSafety } from '@/lib/remote-safety';
 import { getConnectionStatus, warningsForAgent } from '@/lib/connections';
 import { loadInboxItems } from '@/lib/inbox';
@@ -36,6 +36,7 @@ import BackLink from '../../_components/back-link';
 import AgentSetupCard from '../../_components/agent-setup-card';
 import AgentFeedback from '../../_components/agent-feedback';
 import StepRow from '../../_components/step-row';
+import ExtendChain from '../../_components/extend-chain';
 import { getActivationChecklist } from '@/lib/activation';
 
 export const dynamic = 'force-dynamic';
@@ -219,6 +220,21 @@ export default async function WorkflowDetailPage({
   // tools we auto-install), derived from the agent's steps.
   const requirements = detectRequirements(workflow.steps);
 
+  // Chain detection + "add a step" candidates. A chain = ≥2 workflow-ref steps.
+  // For one, offer to extend it (the cycle-checked path): the user's OTHER agents,
+  // minus this chain and the agents already in it. Only fetched when it's a chain.
+  const chainHopSlugs = new Set(
+    workflow.steps.filter((s) => s.kind === 'workflow' && s.ref?.slug).map((s) => s.ref!.slug),
+  );
+  const isChain = chainHopSlugs.size >= 2;
+  let chainCandidates: Array<{ slug: string; source: string; name: string }> = [];
+  if (isChain) {
+    const mine = await listMyWorkflows();
+    chainCandidates = mine
+      .filter((w) => w.slug !== workflow.slug && !chainHopSlugs.has(w.slug))
+      .map((w) => ({ slug: w.slug, source: w.source, name: w.name }));
+  }
+
   const overviewPanel = (
     <>
       {/* What you'll need , prerequisites up front, before the run */}
@@ -280,6 +296,13 @@ export default async function WorkflowDetailPage({
               <StepRow key={`${s.order}-${s.label.slice(0, 16)}`} step={s} />
             ))}
           </ul>
+        )}
+        {/* Extend this chain in place (cycle-checked) — append one of your other
+            agents as a new step, instead of building a duplicate chain. */}
+        {isChain && (
+          <div className="mt-3 pt-3 border-t border-ink-800">
+            <ExtendChain slug={workflow.slug} candidates={chainCandidates} />
+          </div>
         )}
       </div>
 
