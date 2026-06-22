@@ -215,7 +215,11 @@ function CustomChainBuilder({
               <select
                 value={sl}
                 onChange={(e) => setSlot(i, e.target.value)}
-                className="flex-1 rounded-md bg-ink-900 border border-ink-700 px-3 py-2 text-sm text-ink-100 focus:outline-none focus:border-ink-500"
+                // min-w-0 lets the select shrink inside the flex row — without it a
+                // long agent/chain name gives the <select> an intrinsic min-width
+                // that overflows the modal (the default flex min-width:auto). The
+                // browser then truncates the long option to the box width.
+                className="flex-1 min-w-0 truncate rounded-md bg-ink-900 border border-ink-700 px-3 py-2 text-sm text-ink-100 focus:outline-none focus:border-ink-500"
               >
                 <option value="">{i === 0 ? 'Select an agent…' : 'Chain to an agent…'}</option>
                 {agents.map((a) => (
