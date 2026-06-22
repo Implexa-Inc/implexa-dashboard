@@ -20,7 +20,6 @@ import { loadInboxItems } from '@/lib/inbox';
 import { loadNeedsYou } from '@/lib/needs-you';
 import { getProficiency, isGuided } from '@/lib/proficiency';
 import { listWorkflows, listMyWorkflows, listSuggestedAgents } from '@/lib/workflow-catalog';
-import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
 import NeedsYouStrip from '../_components/needs-you-strip';
 import RunningAgents from '../_components/running-agents';
 import FirstWinMoment from '../_components/first-win-moment';
@@ -76,12 +75,11 @@ export default async function OverviewPage() {
   // component self-clears via localStorage once seen).
   const hasSucceededRun = items.some((it) => it.state?.state === 'completed');
 
-  // The loud surface: any run that did not finish cleanly (stalled, or a
-  // permission-blocked failure) gets a banner at the very top, so a stuck run is
-  // impossible to miss. It renders nothing in the calm common case.
-  const attentionItems: AttentionItem[] = items.map((it) => ({
-    id: it.id, name: it.name, info: it.state, ran_at: it.ran_at,
-  }));
+  // (Stalled / failed runs surface in the run-based Alerts list below — see
+  // <RunningAgents alertsOnly /> — which is per-run, dismissible, and suppresses
+  // a failure/stall the agent has already recovered from. The old always-on
+  // <RunAttentionBanner> duplicated that and never cleared a stale failure, so
+  // it was removed.)
 
   return (
     <main className="min-h-screen px-6 lg:px-12 py-14">
@@ -113,10 +111,6 @@ export default async function OverviewPage() {
               nextIntent={suggested[0]?.suggested_intent}
             />
 
-            {/* a stalled or permission-blocked run, loud and at the top */}
-            <div className="mt-8">
-              <RunAttentionBanner items={attentionItems} />
-            </div>
 
             {/* Alerts: agents that need you right now (held for approval,
                 stalled, failed), polled from /scheduled-skills/live — each links
