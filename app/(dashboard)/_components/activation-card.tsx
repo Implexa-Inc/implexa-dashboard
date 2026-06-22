@@ -434,10 +434,12 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
     // Always offered (status is 'auto'): in the app each tool gets a one-click
     // Install; on the web it explains the first-run auto-install.
     cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : 'View'}</button>;
+  } else if (step.id === 'permissions' && ((step.data?.items ?? []) as PermissionItem[]).length > 0) {
+    // Always expandable (even when fully granted) so the user can see what's
+    // pre-granted — incl. the default-on "Run commands" — and toggle it off.
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : (step.cta || 'View')}</button>;
   } else if (isTodo && step.cta) {
-    if (step.id === 'permissions') {
-      cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : step.cta}</button>;
-    } else if (step.id === 'connections') {
+    if (step.id === 'connections') {
       // Inline connect (no navigation): sign in + verify right here, for exactly
       // the accounts THIS agent needs.
       cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : step.cta}</button>;
