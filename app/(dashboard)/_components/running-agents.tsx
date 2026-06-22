@@ -19,6 +19,10 @@ import { callBackend } from '@/lib/api';
 
 // The statuses worth a native desktop notification (yellow/red — they need you).
 const NOTIFY: ReadonlySet<string> = new Set(['waiting_approval', 'needs_attention', 'failed']);
+// Statuses shown in the Home "Alerts" list — the notify set PLUS 'queued', so a
+// run you just kicked off appears there for parity with Active Agents (but queued
+// is NOT in NOTIFY, so it never fires a noisy desktop notification).
+const ALERT_STATUSES: ReadonlySet<string> = new Set([...NOTIFY, 'queued']);
 
 type LiveStatus = 'queued' | 'waiting_approval' | 'needs_attention' | 'running' | 'failed' | 'finished';
 type LiveCard = {
@@ -144,7 +148,7 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   if (!cards) return null;
   // On Home we show only the cards that need you (yellow/red); on the Agents page
   // we show everything live.
-  const list = (alertsOnly ? cards.filter((c) => NOTIFY.has(c.status)) : cards).filter((c) => !(c.runId && dismissed.has(c.runId)));
+  const list = (alertsOnly ? cards.filter((c) => ALERT_STATUSES.has(c.status)) : cards).filter((c) => !(c.runId && dismissed.has(c.runId)));
   if (list.length === 0) return null; // invisible at rest
   const shown = showAll ? list : list.slice(0, 5);
 
