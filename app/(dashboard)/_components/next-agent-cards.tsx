@@ -77,6 +77,11 @@ export default function NextAgentCards({
   // Local copy so a build/dismiss can optimistically drop a card.
   const [recs, setRecs] = useState<Recommendation[]>(() => (recommendations ?? []).slice(0, 3));
   const [state, setState] = useState<Record<string, CardState>>({});
+  // Which cards are expanded to show the full rationale + the build prompt — the
+  // collapsed card line-clamps the rationale, so without this there was no way to
+  // read the whole thing.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (id: string) => setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const supabase = createClient();
 
   if (!recs.length) return null;
@@ -153,8 +158,26 @@ export default function NextAgentCards({
                 ✕
               </button>
               <div className="text-sm font-medium text-ink-50 pr-5">{rec.title}</div>
-              {rec.rationale && (
-                <div className="text-xs text-ink-400 mt-1.5 line-clamp-3 flex-1">{rec.rationale}</div>
+              {(rec.rationale || rec.intent) && (
+                <div className="text-xs text-ink-400 mt-1.5 flex-1">
+                  {rec.rationale && (
+                    <p className={expanded.has(rec.id) ? '' : 'line-clamp-3'}>{rec.rationale}</p>
+                  )}
+                  {expanded.has(rec.id) && rec.intent && (
+                    <p className="mt-2 text-ink-300 leading-relaxed">
+                      <span className="text-ink-500">What it&apos;ll do: </span>{rec.intent}
+                    </p>
+                  )}
+                  {(rec.intent || (rec.rationale && rec.rationale.length > 120)) && (
+                    <button
+                      type="button"
+                      onClick={() => toggle(rec.id)}
+                      className="mt-1 text-[11px] text-ink-500 hover:text-ink-200 transition-colors"
+                    >
+                      {expanded.has(rec.id) ? 'Show less' : 'Read more'}
+                    </button>
+                  )}
+                </div>
               )}
               {hint && (
                 <div className="text-[11px] text-ink-500 mt-2 inline-flex items-center gap-1">
