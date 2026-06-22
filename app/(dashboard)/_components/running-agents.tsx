@@ -20,9 +20,11 @@ import { callBackend } from '@/lib/api';
 // The statuses worth a native desktop notification (yellow/red — they need you).
 const NOTIFY: ReadonlySet<string> = new Set(['waiting_approval', 'needs_attention', 'failed']);
 
-type LiveStatus = 'waiting_approval' | 'needs_attention' | 'running' | 'failed' | 'finished';
+type LiveStatus = 'queued' | 'waiting_approval' | 'needs_attention' | 'running' | 'failed' | 'finished';
 type LiveCard = {
-  runId: string;
+  runId: string | null;
+  /** Set on a 'queued' card (a pending run_request with no skill_run yet). */
+  requestId?: string | null;
   scheduledSkillId: string | null;
   skillSlug: string;
   source: string | null;
@@ -40,6 +42,7 @@ const POLL_MS = 15000;
 // waiting on you. Done states (red/grey) stay a static dot. Every card opens the
 // run page, so there's no per-status button label — just a chevron.
 const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: string; label: string }> = {
+  queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your Claude' },
   running:          { spin: true,  spinCls: 'border-emerald-500/25 border-t-emerald-500', dotCls: 'bg-emerald-500',             label: 'Running' },
   waiting_approval: { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Waiting for approval' },
   needs_attention:  { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Needs attention' },
@@ -104,8 +107,9 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
     const first = !seeded.current;
     seeded.current = true;
     for (const c of items) {
-      if (!NOTIFY.has(c.status)) continue;
-      const key = `${c.runId}:${c.status}`;
+      if (!NOTIFY.has(c.status) || !c.runId) continue; // queued has no runId; not notifiable anyway
+      const rid = c.runId;
+      const key = `${rid}:${c.status}`;
       if (notified.current.has(key)) continue;
       notified.current.add(key);
       if (first) continue; // seed only on the first poll — don't notify for what's already there
@@ -114,7 +118,7 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
           body: `${humanize(c.skillSlug)} · ${(STATUS[c.status] ?? STATUS.running).label} — tap to open`,
           tag: key,
         });
-        n.onclick = () => { try { window.focus(); } catch { /* noop */ } window.location.href = `/runs/${encodeURIComponent(c.runId)}`; };
+        n.onclick = () => { try { window.focus(); } catch { /* noop */ } window.location.href = `/runs/${encodeURIComponent(rid)}`; };
       } catch { /* notifications unavailable */ }
     }
   }
@@ -140,7 +144,7 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   if (!cards) return null;
   // On Home we show only the cards that need you (yellow/red); on the Agents page
   // we show everything live.
-  const list = (alertsOnly ? cards.filter((c) => NOTIFY.has(c.status)) : cards).filter((c) => !dismissed.has(c.runId));
+  const list = (alertsOnly ? cards.filter((c) => NOTIFY.has(c.status)) : cards).filter((c) => !(c.runId && dismissed.has(c.runId)));
   if (list.length === 0) return null; // invisible at rest
   const shown = showAll ? list : list.slice(0, 5);
 
@@ -152,12 +156,11 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
       <div className="space-y-2">
         {shown.map((c) => {
           const s = STATUS[c.status] ?? STATUS.running;
-          return (
-            <Link
-              key={c.runId}
-              href={`/runs/${encodeURIComponent(c.runId)}`}
-              className="group flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3 hover:border-ink-700 transition-colors"
-            >
+          // A 'queued' card has no skill_run yet (it's a pending run_request), so
+          // there's no /runs/[id] to open — render it as a static row, not a link.
+          const linkable = c.status !== 'queued' && !!c.runId;
+          const body = (
+            <>
               {s.spin ? (
                 <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${s.spinCls} animate-spin`} aria-hidden="true" />
               ) : (
@@ -178,10 +181,10 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                   ) : null}
                 </div>
               </div>
-              {(c.status === 'finished' || c.status === 'failed') && (
+              {(c.status === 'finished' || c.status === 'failed') && c.runId && (
                 <button
                   type="button"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(c.runId); }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(c.runId!); }}
                   title="Dismiss from alerts"
                   aria-label="Dismiss this run from alerts"
                   className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
@@ -189,8 +192,19 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                   ✕
                 </button>
               )}
-              <span className="shrink-0 text-lg leading-none text-ink-500 group-hover:text-ink-200 transition-colors" aria-hidden="true">›</span>
+              {linkable && (
+                <span className="shrink-0 text-lg leading-none text-ink-500 group-hover:text-ink-200 transition-colors" aria-hidden="true">›</span>
+              )}
+            </>
+          );
+          const key = c.runId || c.requestId || c.skillSlug;
+          const cls = 'group flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3';
+          return linkable ? (
+            <Link key={key} href={`/runs/${encodeURIComponent(c.runId!)}`} className={`${cls} hover:border-ink-700 transition-colors`}>
+              {body}
             </Link>
+          ) : (
+            <div key={key} className={cls}>{body}</div>
           );
         })}
       </div>
