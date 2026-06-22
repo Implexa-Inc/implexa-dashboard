@@ -31,6 +31,8 @@ import ClearAlertButton from '../../_components/clear-alert-button';
 import MarkDoneButton from '../../_components/mark-done-button';
 import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
 import RunFeedback, { type FeedbackQuestion } from '../../_components/run-feedback';
+import MakeRecurring from '../../_components/make-recurring';
+import RunChainSuggestions from '../../_components/run-chain-suggestions';
 
 export const dynamic = 'force-dynamic';
 
@@ -183,6 +185,23 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     : await schedQuery.eq('skill_slug', r.skill_slug);
   const claudeTaskId = schedRows?.[0]?.claude_task_id || null;
   const routinePaused = schedRows?.[0]?.status === 'paused';
+
+  // On-demand detection for the "make it recurring" nudge: does this agent have
+  // ANY recurring (cron) schedule on the books (active or paused)? If not, it
+  // only ever runs when the user kicks it off — so once a run finishes cleanly
+  // we offer to put it on a clock. Defensive own-query (pre-cron-column schemas
+  // must never 42703 the page); on any error we simply don't show the nudge.
+  let isOnDemand = false;
+  try {
+    const { data: cronRows } = await supabase
+      .from('scheduled_skills')
+      .select('id')
+      .eq('skill_slug', r.skill_slug)
+      .not('cron_expression', 'is', null)
+      .neq('status', 'deleted')
+      .limit(1);
+    isOnDemand = (cronRows?.length ?? 0) === 0;
+  } catch { /* can't tell → don't nudge */ }
 
   const info = deriveRunState({ ...r, routine_paused: routinePaused });
 
@@ -409,6 +428,19 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             />
           </div>
         )}
+
+        {/* Make it recurring — once an ON-DEMAND agent delivers a clean result,
+            offer to put it on a schedule so it runs hands-off from now on (the
+            whole point of Implexa). Only when there's a real deliverable and the
+            agent has no recurring schedule yet. */}
+        {r.output_markdown && isOnDemand && (
+          <MakeRecurring slug={r.skill_slug} agentName={name} />
+        )}
+
+        {/* Chain this agent — "this agent's output feeds your weekly SEO agent".
+            One tap composes them into a pipeline. Renders nothing when this
+            agent isn't part of any suggested chain. */}
+        {r.output_markdown && <RunChainSuggestions slug={r.skill_slug} />}
 
         {/* Next agents to build — the run's own recommendations, right under its
             output (recommendation engine v1). Renders nothing when there are none. */}
