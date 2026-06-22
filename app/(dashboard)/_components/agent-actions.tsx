@@ -48,7 +48,7 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, claudeTaskId, align = 'end' }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, claudeTaskId, align = 'end', inFlight = null }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -64,9 +64,16 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   claudeTaskId?: string | null;
   /** 'end' on the detail page header; 'start' inside the activation card. */
   align?: 'start' | 'end';
+  /** Server-observed in-flight run for THIS agent (a queued run-request the drainer
+   *  hasn't picked up, or a live run) — so opening the agent shows Queued/Running
+   *  instead of always "Run now". Kept fresh by a live-feed poll below. */
+  inFlight?: 'queued' | 'running' | null;
 }) {
-  const [state, setState] = useState<RunState>('idle');
-  const [msg, setMsg] = useState('');
+  const [state, setState] = useState<RunState>(inFlight ?? 'idle');
+  const [msg, setMsg] = useState(
+    inFlight === 'running' ? 'Running in Claude Code…'
+      : inFlight === 'queued' ? 'Queued. Waiting for your Claude to pick it up — the result lands in your inbox.'
+      : '');
   const [showRunModal, setShowRunModal] = useState(false);
   // One-time permissions heads-up inside the run-triggered modal, shown on the
   // user's first queued run (shared SEEN flag with the Home note so it never
@@ -112,6 +119,39 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       } catch { /* transient poll failure: keep trying until the cap */ }
     }, POLL_MS);
     return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  // Externally-observed in-flight run: queued/running came from the SERVER (the
+  // `inFlight` prop), not a run kicked off in this tab — so there's no requestId
+  // to poll. Track it via the live feed instead, so the button follows
+  // queued → running → done without a reload, then frees up to "Run now" again.
+  useEffect(() => {
+    if (requestId.current) return;            // user-initiated runs use the poll above
+    if (state !== 'queued' && state !== 'running') return;
+    let alive = true;
+    let misses = 0;
+    const t = setInterval(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await callBackend('/api/v2/scheduled-skills/live', { jwt: session?.access_token });
+        if (!alive) return;
+        const items: Array<{ skillSlug?: string; status?: string }> = Array.isArray(res?.items) ? res.items : [];
+        const card = items.find((c) => c.skillSlug === slug && (c.status === 'queued' || c.status === 'running'));
+        if (card) {
+          misses = 0;
+          setState(card.status as RunState);
+          setMsg(card.status === 'running'
+            ? 'Running in Claude Code…'
+            : 'Queued. Waiting for your Claude to pick it up — the result lands in your inbox.');
+        } else if (++misses >= 2) {            // gone for two polls → finished; allow Run now again
+          clearInterval(t);
+          setState('idle');
+          setMsg('');
+        }
+      } catch { /* transient — keep polling */ }
+    }, POLL_MS);
+    return () => { alive = false; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 

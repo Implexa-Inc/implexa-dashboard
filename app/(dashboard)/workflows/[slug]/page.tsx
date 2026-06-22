@@ -187,6 +187,32 @@ export default async function WorkflowDetailPage({
   // (A signed-out account gets its own loud banner above the tabs.)
   const setupAttention = pendingQuestions > 0;
 
+  // In-flight state for THIS agent, so the primary action reflects reality on
+  // open (not always "Run now"): a queued run (pending run_request the drainer
+  // hasn't picked up) → "Queued"; one it has picked up, or a live skill_run →
+  // "Running". RLS-scoped; bounded to a 12h window so a stuck/abandoned request
+  // doesn't pin the button forever. Best-effort — any error just falls back to
+  // the normal Run-now button.
+  let inFlight: 'queued' | 'running' | null = null;
+  try {
+    const since = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
+    const { data: reqRows } = await supabase
+      .from('run_requests')
+      .select('status')
+      .eq('workflow_slug', workflow.slug)
+      .in('kind', ['run', 'continue', 'revise'])
+      .in('status', ['pending', 'consumed'])
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (reqRows?.[0]) inFlight = reqRows[0].status === 'consumed' ? 'running' : 'queued';
+    if (!inFlight) {
+      const { data: runRows } = await supabase
+        .from('skill_runs').select('id').eq('skill_slug', workflow.slug).eq('run_state', 'running').limit(1);
+      if (runRows?.length) inFlight = 'running';
+    }
+  } catch { /* fall back to Run now */ }
+
   // ── tab panels (server-rendered, handed to the client tab shell) ──
 
   // What the user needs on their side before running (paid services + the free
@@ -450,6 +476,7 @@ export default async function WorkflowDetailPage({
                 nextRunAt={checklist?.nextRunAt}
                 pendingQuestions={checklist?.pendingQuestions}
                 claudeTaskId={pausableRoutine?.claude_task_id}
+                inFlight={inFlight}
               />
               {pausableRoutine && (
                 <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />
