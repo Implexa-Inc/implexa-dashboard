@@ -20,12 +20,14 @@ import { getWorkspaceRoot } from '@/lib/run-env';
 import RunMarkdown from '../../_components/run-markdown';
 import { desktopAppLive, appRunUrl } from '@/lib/app-links';
 import { listWorkflows } from '@/lib/workflow-catalog';
-import { deriveRunState, type RunRow, type RunProgress } from '@/lib/run-state';
+import { deriveRunState, type RunRow, type RunProgress, type RunStep } from '@/lib/run-state';
+import RunStepChecklist from '../../_components/run-step-checklist';
 import { RunStateBadge } from '../../_components/run-state-badge';
 import BackLink from '../../_components/back-link';
 import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
 import RunActions from '../../_components/run-actions';
+import RunActionItems, { type RunActionItem } from '../../_components/run-action-items';
 import ClearAlertButton from '../../_components/clear-alert-button';
 import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
 import RunFeedback, { type FeedbackQuestion } from '../../_components/run-feedback';
@@ -134,6 +136,18 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   } catch { /* column not present yet — trace simply doesn't render */ }
   const steps = progress?.history ?? [];
 
+  // Live per-step checklist (migration 0089): the canonical done/running/pending
+  // list for a chain/workflow run, distinct from the free-text trace above. Same
+  // defensive own-query pattern as `progress` — a pre-migration schema (no
+  // steps_state column) must never 42703 the whole page.
+  let stepsState: RunStep[] = [];
+  try {
+    const { data: ss } = await supabase
+      .from('skill_runs').select('steps_state').eq('id', params.id).maybeSingle();
+    const raw = (ss as { steps_state?: RunStep[] } | null)?.steps_state;
+    if (Array.isArray(raw)) stepsState = raw as RunStep[];
+  } catch { /* column not present yet — checklist simply doesn't render */ }
+
   // Next-agent recommendations (recommendation engine v1, RECOMMENDATION_ENGINE_PLAN
   // §1.5). Fetched defensively in its OWN query — the skill_runs.recommendations
   // jsonb column may not be live yet, and a 42703 here must never break the page
@@ -169,6 +183,21 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     feedbackAnswers = row?.feedback_answers ?? null;
     feedbackAt = row?.feedback_at ?? null;
   } catch { /* columns not present yet — RunFeedback uses its generic fallback */ }
+
+  // Proposed follow-up actions for this run (run_actions, migration 0090). The
+  // structured version of the deliverable's "Holds / Next steps" — surfaced as
+  // one-tap buttons at the TOP of the run. Defensive own-query: a pre-migration
+  // schema (no run_actions table) must never 42703 the page — absent ⇒ no buttons.
+  let runActions: RunActionItem[] = [];
+  try {
+    const { data: ra } = await supabase
+      .from('run_actions')
+      .select('id, kind, label, summary, preset_prompt, readiness, blocker, confidence, status')
+      .eq('run_id', params.id)
+      .in('status', ['open', 'acting'])
+      .order('rank', { ascending: true });
+    if (Array.isArray(ra)) runActions = ra as RunActionItem[];
+  } catch { /* table not present yet — action buttons simply don't render */ }
 
   const agentHref = wf
     ? `/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`
@@ -315,6 +344,23 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           <div className="mb-6">
             <ClearAlertButton runId={r.id} pending={false} />
           </div>
+        )}
+
+        {/* Proposed follow-up actions (run_actions, 0090) — the one-tap "what's
+            next" for a DELIVERED run (publish / approve render / …). Held runs use
+            RunActions above; this is for the delivered-with-next-steps case the
+            founder flagged (a run that shipped real follow-ups but went silent). */}
+        {!held && runActions.length > 0 && (
+          <div className="mb-6">
+            <RunActionItems runId={r.id} actions={runActions} />
+          </div>
+        )}
+
+        {/* Live per-step checklist: which of the chain's steps are done / running
+            / pending, updating on poll while in flight. Only when the run reported
+            structured step state (a chain/workflow via record_run_heartbeat). */}
+        {(stepsState.length > 0 || info.state === 'running') && (
+          <RunStepChecklist runId={r.id} initialSteps={stepsState} live={info.state === 'running'} />
         )}
 
         {/* Live step trace: where the run is / where it got stuck. Only when the

@@ -18,13 +18,14 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
 // The statuses worth a native desktop notification (yellow/red — they need you).
-const NOTIFY: ReadonlySet<string> = new Set(['waiting_approval', 'needs_attention', 'failed']);
+// action_available = a delivered run has a READY one-tap action (publish, etc.).
+const NOTIFY: ReadonlySet<string> = new Set(['waiting_approval', 'needs_attention', 'failed', 'action_available']);
 // Statuses shown in the Home "Alerts" list — the notify set PLUS 'queued', so a
 // run you just kicked off appears there for parity with Active Agents (but queued
 // is NOT in NOTIFY, so it never fires a noisy desktop notification).
 const ALERT_STATUSES: ReadonlySet<string> = new Set([...NOTIFY, 'queued']);
 
-type LiveStatus = 'queued' | 'waiting_approval' | 'needs_attention' | 'running' | 'failed' | 'finished';
+type LiveStatus = 'queued' | 'waiting_approval' | 'needs_attention' | 'running' | 'failed' | 'finished' | 'action_available';
 type LiveCard = {
   runId: string | null;
   /** Set on a 'queued' card (a pending run_request with no skill_run yet). */
@@ -38,6 +39,13 @@ type LiveCard = {
   typicalMs?: number | null;
   /** Run IDENTITY — what THIS run is, from its own output. Primary card label. */
   headline?: string | null;
+  /** Live per-step progress (0089) — drives "Step N/M · <label>" while running. */
+  currentStepIndex?: number | null;
+  totalSteps?: number | null;
+  currentStepLabel?: string | null;
+  /** action_available (0090): the primary ready action's label + how many open. */
+  actionLabel?: string | null;
+  actionCount?: number | null;
 };
 
 const POLL_MS = 15000;
@@ -49,6 +57,7 @@ const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: strin
   queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your Claude' },
   running:          { spin: true,  spinCls: 'border-emerald-500/25 border-t-emerald-500', dotCls: 'bg-emerald-500',             label: 'Running' },
   waiting_approval: { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Waiting for approval' },
+  action_available: { spin: false, spinCls: '',                                           dotCls: 'bg-brand-500',               label: 'Action available' },
   needs_attention:  { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Needs attention' },
   failed:           { spin: false, spinCls: '',                                           dotCls: 'bg-rose-500',                label: 'Failed' },
   finished:         { spin: false, spinCls: '',                                           dotCls: 'bg-ink-500 dark:bg-ink-400', label: 'Finished' },
@@ -180,7 +189,11 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                     secondary line so two runs of one agent read distinctly. */}
                 <div className="text-sm text-ink-100 truncate">{c.headline || humanize(c.skillSlug)}</div>
                 <div className="text-[11px] text-ink-500 truncate">
-                  {c.headline ? `${humanize(c.skillSlug)} · ` : ''}{s.label}{c.since ? ` · ${rel(c.since)}` : ''}
+                  {c.headline ? `${humanize(c.skillSlug)} · ` : ''}
+                  {c.status === 'action_available' && c.actionLabel
+                    ? <span className="text-brand-500">{c.actionLabel}{c.actionCount && c.actionCount > 1 ? ` (+${c.actionCount - 1} more)` : ''}</span>
+                    : s.label}
+                  {c.since ? ` · ${rel(c.since)}` : ''}
                   {c.status === 'running' && c.typicalMs ? (
                     elapsedMs(c.since) > c.typicalMs * 1.5 ? (
                       <span className="text-amber-600 dark:text-amber-400"> · longer than usual (~{fmtDur(c.typicalMs)})</span>
@@ -189,6 +202,15 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                     )
                   ) : null}
                 </div>
+                {/* Live per-step progress (0089): which step of how many is in
+                    flight RIGHT NOW. Only for a running chain that reports it —
+                    a plain run (no step state) shows just "Running" as before. */}
+                {c.status === 'running' && c.totalSteps ? (
+                  <div className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300 truncate mt-0.5">
+                    Step {Math.min(c.currentStepIndex || 1, c.totalSteps)}/{c.totalSteps}
+                    {c.currentStepLabel ? ` · ${c.currentStepLabel}` : ''}
+                  </div>
+                ) : null}
               </div>
               {(c.status === 'finished' || c.status === 'failed') && c.runId && (
                 <button

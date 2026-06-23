@@ -35,6 +35,12 @@ export type RunState = 'queued' | 'running' | 'stalled' | 'completed' | 'failed'
 export type RunProgressEntry = { at: string; note?: string; step?: string };
 export type RunProgress = { current?: RunProgressEntry; history?: RunProgressEntry[] };
 
+// One step in a run's live CHECKLIST (skill_runs.steps_state, migration 0089).
+// Maintained by record_run_heartbeat(stepIndex/totalSteps/stepLabel) so a chain
+// shows which of its steps are done / running / pending while it's in flight.
+export type StepStatus = 'pending' | 'running' | 'done' | 'failed';
+export type RunStep = { index: number; label?: string | null; status: StepStatus };
+
 // A run row covering the base skill_runs columns plus the (possibly absent until
 // 0065 lands) live-state columns. The optional ones are read defensively.
 export type RunRow = {
@@ -59,6 +65,11 @@ export type RunRow = {
   stalled_at?: string | null;
   // ── 0080 live step trace ──
   progress?: RunProgress | null;
+  // ── 0089 live per-step checklist ──
+  current_step_index?: number | null;
+  total_steps?: number | null;
+  current_step_label?: string | null;
+  steps_state?: RunStep[] | null;
   // True when this run's parent routine is currently PAUSED. A paused routine
   // isn't firing, so a lingering running/stalled row is an orphan (a dead test-run
   // session, or a stall not yet swept) — it must not render as a loud "Stalled" /
