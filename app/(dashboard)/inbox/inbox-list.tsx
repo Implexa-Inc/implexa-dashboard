@@ -27,7 +27,13 @@ import { categorizeAgent } from '@/lib/agent-category';
 import type { RunStateInfo } from '@/lib/run-state';
 import NextAgentCards, { type Recommendation } from '../_components/next-agent-cards';
 import RunFeedback, { type FeedbackQuestion } from '../_components/run-feedback';
-import RunClaudeActions from '../_components/run-claude-actions';
+import RunActions from '../_components/run-actions';
+
+// A held deliverable describes a deferred ship step (post/publish/render/deploy) →
+// the consolidated RunActions shows "Approve & finish"; otherwise "Mark as done".
+// Mirrors the server-side detection on /runs/[id] (client-only here: we have the
+// deliverable text but not the agent's destination, which is good enough).
+const SHIP_RE = /\b(to ship|post to|publish|publishing|deploy|go live|final approval|schedule the post|open (?:a |the )?pr|merge the pr|render)\b/i;
 import RunContinueBox from '../_components/run-continue-box';
 
 // Re-exported so existing importers (lib/inbox.ts) keep their import path; the
@@ -150,9 +156,6 @@ export default function InboxList({
   // When an agent ran multiple times in a day, the rows collapse into one and
   // "Ran N times" opens this run-picker to choose which output to view.
   const [pickerRuns, setPickerRuns] = useState<{ name: string; runs: InboxItem[] } | null>(null);
-  const [done, setDone] = useState<Record<string, 'approved' | 'dismissed'>>({});
-  const [busy, setBusy] = useState<Record<string, boolean>>({});
-  const [error, setError] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
   // The viewer's workspace root, so file paths in a deliverable resolve to an
   // absolute path the desktop bridge can open / copy. Fetched once client-side
@@ -200,25 +203,6 @@ export default function InboxList({
   }, [openId, close]);
 
   const openItem = useMemo(() => items.find((it) => it.id === openId) || null, [items, openId]);
-
-  async function review(id: string, status: 'approved' | 'dismissed') {
-    setError((e) => ({ ...e, [id]: '' }));
-    setBusy((b) => ({ ...b, [id]: true }));
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const jwt = session?.access_token;
-      await callBackend(`/api/v2/runs/${id}/review`, { jwt, method: 'POST', body: { status } });
-      setDone((d) => ({ ...d, [id]: status }));
-      setBusy((b) => ({ ...b, [id]: false }));
-      setTimeout(() => {
-        setItems((list) => list.map((it) => (it.id === id ? { ...it, pending: false } : it)));
-        startTransition(() => router.refresh());
-      }, 900);
-    } catch (err) {
-      setBusy((b) => ({ ...b, [id]: false }));
-      setError((e) => ({ ...e, [id]: err instanceof Error ? err.message : 'Action failed' }));
-    }
-  }
 
   const feedbackItem = useMemo(() => items.find((it) => it.id === feedbackId) || null, [items, feedbackId]);
 
@@ -489,58 +473,27 @@ export default function InboxList({
                 output is shown. Renders nothing when there are none. */}
             <NextAgentCards runId={openItem.id} recommendations={openItem.recommendations} />
 
-            {/* Continue this run — the universal per-run action, available on ANY run.
-                Held runs keep "Approve & finish" prominent; the general prompt-+-files
-                box sits right under it so the user can add changes or the missing
-                inputs instead of shipping as-is. Mark reviewed / Dismiss below stay
-                the lightweight record-only actions (no re-run). */}
-            <div className="mt-5 space-y-3">
-              {openItem.pending && (
-                <RunClaudeActions runId={openItem.id} agentName={openItem.name} pending />
+            {/* Held → the SAME consolidated RunActions as the run page (one primary +
+                Request changes + quiet Dismiss + ⋯). Finished → the universal continue
+                box to iterate on the output. Identical surface in both places. */}
+            <div className="mt-5">
+              {openItem.pending ? (
+                <RunActions
+                  runId={openItem.id}
+                  agentName={openItem.name}
+                  reviewStatus="pending"
+                  hasShipStep={SHIP_RE.test(openItem.output_markdown || '')}
+                />
+              ) : (
+                <RunContinueBox runId={openItem.id} agentName={openItem.name} pending={false} />
               )}
-              <RunContinueBox runId={openItem.id} agentName={openItem.name} pending={openItem.pending} />
             </div>
 
-            <div className="mt-5 flex items-center gap-3">
-              {done[openItem.id] ? (
-                <span className="text-sm text-success-700 dark:text-success-400">
-                  {done[openItem.id] === 'approved' ? '✓ Marked reviewed' : '✓ Dismissed'}
-                </span>
-              ) : openItem.pending ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => review(openItem.id, 'approved')}
-                    disabled={busy[openItem.id]}
-                    className="btn-success"
-                  >
-                    {busy[openItem.id] ? 'Saving…' : 'Mark reviewed'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => review(openItem.id, 'dismissed')}
-                    disabled={busy[openItem.id]}
-                    className="btn-outline"
-                  >
-                    Dismiss
-                  </button>
-                  {error[openItem.id] && (
-                    <span className="text-xs text-rose-600 dark:text-rose-400">{error[openItem.id]}</span>
-                  )}
-                </>
-              ) : (
-                <span className="text-xs text-ink-500">reviewed</span>
-              )}
+            <div className="mt-5 flex items-center">
               <button type="button" onClick={close} className="ml-auto text-xs text-ink-400 hover:text-ink-200">
                 Close
               </button>
             </div>
-            {openItem.pending && !done[openItem.id] && (
-              <p className="mt-2 text-xs text-ink-500">
-                Marking only records this run as reviewed. It will not re-run the
-                agent or post anything.
-              </p>
-            )}
           </div>
         </div>
       )}
