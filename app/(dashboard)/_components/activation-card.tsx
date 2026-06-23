@@ -115,16 +115,40 @@ function useDesktopBridge(): DesktopBridge | null {
 
 type NeededConnection = { account?: string; label?: string; status?: string; identity?: string | null };
 
-function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround }: {
+function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround, slug }: {
   item: NeededConnection;
   onChanged: () => void;
   /** User chose "let Claude figure out an alternative" for this connection. */
   workedAround: boolean;
   onToggleWorkAround: (on: boolean) => void;
+  /** Agent slug — for the permanent "remove this requirement" waive. */
+  slug: string;
 }) {
   const bridge = useDesktopBridge();
+  const supabase = createClient();
   const domain = item.account || '';
   const reachable = item.status === 'reachable';
+  const [waiving, setWaiving] = useState(false);
+  const [waiveNote, setWaiveNote] = useState<string | null>(null);
+
+  // Slice 3: permanently drop a misclassified connection from the agent (owner-only
+  // server-side). On success the requirement is gone for good → the checklist
+  // refreshes and this row disappears.
+  async function removePermanently() {
+    if (waiving) return;
+    setWaiving(true); setWaiveNote(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/connections/waive`, {
+        jwt: session?.access_token, method: 'POST', body: { account: domain || item.label || '' },
+      });
+      if (res?.ok) onChanged();
+      else setWaiveNote(res?.code === 'not_owned'
+        ? "This is a shared agent — use the checkbox above instead."
+        : 'Could not remove it. Try again.');
+    } catch { setWaiveNote('Could not remove it. Try again.'); }
+    finally { setWaiving(false); }
+  }
   const [busy, setBusy] = useState<'signin' | 'verify' | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -193,15 +217,31 @@ function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround }: {
           </span>
         </label>
       )}
+      {/* Slice 3: the dep is just wrong (a public source mistaken for a sign-in) →
+          remove it from the agent for good. Owner-only; shared agents get a hint. */}
+      {!reachable && (
+        <div className="mt-1">
+          <button
+            type="button"
+            onClick={removePermanently}
+            disabled={waiving}
+            className="text-[11px] text-ink-500 hover:text-ink-200 underline-offset-2 hover:underline disabled:opacity-60"
+          >
+            {waiving ? 'Removing…' : 'This isn’t a sign-in this agent needs — remove it'}
+          </button>
+          {waiveNote && <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">{waiveNote}</p>}
+        </div>
+      )}
     </li>
   );
 }
 
-function ConnectionsList({ items, onChanged, workedAround, onToggleWorkAround }: {
+function ConnectionsList({ items, onChanged, workedAround, onToggleWorkAround, slug }: {
   items: NeededConnection[];
   onChanged: () => void;
   workedAround: Set<string>;
   onToggleWorkAround: (key: string, on: boolean) => void;
+  slug: string;
 }) {
   const bridge = useDesktopBridge();
   return (
@@ -213,6 +253,7 @@ function ConnectionsList({ items, onChanged, workedAround, onToggleWorkAround }:
             <ConnectionRow
               key={key}
               item={it}
+              slug={slug}
               onChanged={onChanged}
               workedAround={workedAround.has(key)}
               onToggleWorkAround={(on) => onToggleWorkAround(key, on)}
@@ -514,7 +555,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
         <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} savingGroup={savingGroup} />
       )}
       {step.id === 'connections' && open && needed.length > 0 && (
-        <ConnectionsList items={needed} onChanged={onChanged} workedAround={workedAround} onToggleWorkAround={onToggleWorkAround} />
+        <ConnectionsList items={needed} onChanged={onChanged} workedAround={workedAround} onToggleWorkAround={onToggleWorkAround} slug={slug} />
       )}
       {step.id === 'tools' && open && (
         <ToolsList items={(step.data?.items ?? []) as unknown as ToolItem[]} />
