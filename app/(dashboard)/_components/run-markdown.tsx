@@ -41,12 +41,32 @@ type DesktopBridge = {
   revealPath?: (abs: string) => Promise<{ ok: boolean; error?: string }> | void;
 };
 
+/**
+ * A SCHEME-LESS URL written as inline code, e.g. `implexa.ai/guides/day-20` or a
+ * bare `implexa.ai`. Agents routinely cite a page without the `https://`, and the
+ * old path detector saw the slash and rendered it as a clickable FILE PATH — so
+ * clicking tried to open a local file that doesn't exist (the founder's "the links
+ * don't work"). Detect a real domain so we can render it as an external link. The
+ * host (text before the first `/`) must be domain-shaped with a 2+ letter TLD, and
+ * the whole thing must NOT end in a known file extension (so `config.json` /
+ * `REEL_BRIEF.md` stay file paths, not URLs).
+ */
+function looksLikeBareUrl(raw: string): boolean {
+  const s = raw.trim();
+  if (!s || /\s/.test(s) || s.includes('://')) return false;
+  if (PATH_EXT.test(s)) return false;          // a file (config.json), not a URL
+  const host = (s.includes('/') ? s.slice(0, s.indexOf('/')) : s).toLowerCase();
+  // label(.label)+ with a 2+ letter TLD; underscores (REEL_BRIEF) excluded.
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) && /\.[a-z]{2,}$/.test(host);
+}
+
 /** Conservative path detector — true only for code that's clearly a path. */
 function looksLikePath(raw: string): boolean {
   const s = raw.trim();
   if (!s) return false;
   if (/\s/.test(s)) return false;     // commands, cron strings, prose
   if (s.includes('://')) return false; // URLs go through the link renderer
+  if (looksLikeBareUrl(s)) return false; // scheme-less URL → link, not a path
   if (s.endsWith('/')) return true;    // a folder
   if (PATH_EXT.test(s)) return true;   // a known file extension
   if (s.includes('/')) return true;    // otherwise path-shaped (has a slash)
@@ -257,8 +277,19 @@ export default function RunMarkdown({
         ? children.join('')
         : String(children ?? '');
       // Block code (fenced / highlighted) keeps its normal rendering; we only
-      // linkify single-line INLINE code that's path-shaped.
+      // linkify single-line INLINE code.
       const isBlock = /\blanguage-/.test(className || '') || raw.includes('\n');
+      // A scheme-less URL (implexa.ai/guides/day-20) → a real, clickable external
+      // link (opens in a new tab) instead of a dead file-path chip.
+      if (!isBlock && looksLikeBareUrl(raw)) {
+        const href = `https://${raw.trim()}`;
+        return (
+          <a href={href} target="_blank" rel="noopener noreferrer"
+            className="text-brand-500 hover:underline break-all">
+            {children}
+          </a>
+        );
+      }
       if (isBlock || !looksLikePath(raw)) {
         return (
           <code className={className} {...rest}>
