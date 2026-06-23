@@ -115,7 +115,13 @@ function useDesktopBridge(): DesktopBridge | null {
 
 type NeededConnection = { account?: string; label?: string; status?: string; identity?: string | null };
 
-function ConnectionRow({ item, onChanged }: { item: NeededConnection; onChanged: () => void }) {
+function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround }: {
+  item: NeededConnection;
+  onChanged: () => void;
+  /** User chose "let Claude figure out an alternative" for this connection. */
+  workedAround: boolean;
+  onToggleWorkAround: (on: boolean) => void;
+}) {
   const bridge = useDesktopBridge();
   const domain = item.account || '';
   const reachable = item.status === 'reachable';
@@ -147,36 +153,72 @@ function ConnectionRow({ item, onChanged }: { item: NeededConnection; onChanged:
   };
 
   return (
-    <li className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-ink-100">{item.label || domain}</span>
-          {reachable
-            ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">connected{item.identity ? ` as ${item.identity}` : ''}</span>
-            : <span className="text-[11px] text-amber-700 dark:text-amber-300">not connected</span>}
+    <li>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-ink-100">{item.label || domain}</span>
+            {reachable
+              ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">connected{item.identity ? ` as ${item.identity}` : ''}</span>
+              : workedAround
+                ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">Claude will work around it</span>
+                : <span className="text-[11px] text-amber-700 dark:text-amber-300">not connected</span>}
+          </div>
+          {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
         </div>
-        {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
+        {!reachable && bridge?.connectAccount && (
+          <div className="flex-none flex items-center gap-1.5">
+            <button type="button" onClick={signIn} disabled={busy !== null} className="btn-outline text-xs px-2.5 py-1">
+              {busy === 'signin' ? 'Opening…' : 'Sign in'}
+            </button>
+            <button type="button" onClick={verify} disabled={busy !== null} className="btn-outline text-xs px-2.5 py-1">
+              {busy === 'verify' ? 'Checking…' : 'Verify'}
+            </button>
+          </div>
+        )}
       </div>
-      {!reachable && bridge?.connectAccount && (
-        <div className="flex-none flex items-center gap-1.5">
-          <button type="button" onClick={signIn} disabled={busy !== null} className="btn-outline text-xs px-2.5 py-1">
-            {busy === 'signin' ? 'Opening…' : 'Sign in'}
-          </button>
-          <button type="button" onClick={verify} disabled={busy !== null} className="btn-outline text-xs px-2.5 py-1">
-            {busy === 'verify' ? 'Checking…' : 'Verify'}
-          </button>
-        </div>
+      {/* The escape hatch — when you don't have the sign-in, let Claude route around
+          it. Ticking this satisfies the connection so "Turn it on" goes green. */}
+      {!reachable && (
+        <label className="mt-1.5 flex items-start gap-2 text-xs text-ink-300 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={workedAround}
+            onChange={(e) => onToggleWorkAround(e.target.checked)}
+            className="accent-brand-500 h-3.5 w-3.5 mt-0.5"
+          />
+          <span>
+            Don&apos;t have access? <span className="text-ink-100">Let Claude figure out an alternative</span>
+            <span className="block text-[11px] text-ink-500">It&apos;ll try another way (read the public site, web search) and only ask if it truly can&apos;t.</span>
+          </span>
+        </label>
       )}
     </li>
   );
 }
 
-function ConnectionsList({ items, onChanged }: { items: NeededConnection[]; onChanged: () => void }) {
+function ConnectionsList({ items, onChanged, workedAround, onToggleWorkAround }: {
+  items: NeededConnection[];
+  onChanged: () => void;
+  workedAround: Set<string>;
+  onToggleWorkAround: (key: string, on: boolean) => void;
+}) {
   const bridge = useDesktopBridge();
   return (
     <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
       <ul className="space-y-2">
-        {items.map((it) => <ConnectionRow key={it.account || it.label} item={it} onChanged={onChanged} />)}
+        {items.map((it) => {
+          const key = it.account || it.label || '';
+          return (
+            <ConnectionRow
+              key={key}
+              item={it}
+              onChanged={onChanged}
+              workedAround={workedAround.has(key)}
+              onToggleWorkAround={(on) => onToggleWorkAround(key, on)}
+            />
+          );
+        })}
       </ul>
       {!bridge?.connectAccount && (
         <p className="text-xs text-ink-500 mt-2 leading-snug">
@@ -411,7 +453,7 @@ function SchedulePicker({ slug, onSaved }: { slug: string; onSaved: () => void }
   );
 }
 
-function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, savingGroup }: {
+function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, savingGroup, workedAround, onToggleWorkAround }: {
   step: ActivationStep;
   slug: string;
   optIns: Record<string, boolean>;
@@ -419,6 +461,8 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
   onChanged: () => void;
   defaultOpen?: boolean;
   savingGroup?: string | null;
+  workedAround: Set<string>;
+  onToggleWorkAround: (key: string, on: boolean) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
   const isTodo = step.status === 'todo';
@@ -470,7 +514,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
         <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} savingGroup={savingGroup} />
       )}
       {step.id === 'connections' && open && needed.length > 0 && (
-        <ConnectionsList items={needed} onChanged={onChanged} />
+        <ConnectionsList items={needed} onChanged={onChanged} workedAround={workedAround} onToggleWorkAround={onToggleWorkAround} />
       )}
       {step.id === 'tools' && open && (
         <ToolsList items={(step.data?.items ?? []) as unknown as ToolItem[]} />
@@ -503,6 +547,13 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
     const seed: Record<string, boolean> = {};
     for (const i of tier2) if ((i as PermissionItem & { granted?: boolean }).granted) seed[i.group] = true;
     return seed;
+  });
+  // Connections the user chose to "let Claude figure out an alternative" for (keyed
+  // by account/label). Ticking all the unmet ones satisfies Connections so the
+  // normal "Turn it on" goes green — no separate "anyway" button.
+  const [workedAround, setWorkedAround] = useState<Set<string>>(new Set());
+  const toggleWorkAround = (key: string, on: boolean) => setWorkedAround((prev) => {
+    const next = new Set(prev); if (on) next.add(key); else next.delete(key); return next;
   });
   const router = useRouter();
   const supabase = createClient();
@@ -581,11 +632,21 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
   const isActive = checklist.state === 'active' || activated;
   // Active, but a Tier-2 grant is still missing -> the wedged "Fix"/needs-you case.
   const needsGrant = isActive && !allSavedGranted;
-  const ready = checklist.canActivate && allLocalGranted && !isActive; // initial activation
-  // The agent can't activate ONLY because a connection is unmet (the one hard gate).
-  // That's frequently a misclassified public source, so we offer a soft-activate.
-  const connectionsBlocked = !isActive && !checklist.canActivate
-    && checklist.steps.some((s) => s.id === 'connections' && s.status === 'todo');
+  // Unmet connections (the one hard gate). Each can be satisfied EITHER by signing
+  // in (status → reachable) OR by ticking "let Claude figure out an alternative".
+  const connStep = checklist.steps.find((s) => s.id === 'connections');
+  const unmetConns = (((connStep?.data?.needed ?? []) as NeededConnection[])
+    .filter((c) => c.status !== 'reachable'));
+  const connKey = (c: NeededConnection) => c.account || c.label || '';
+  // Connections are RESOLVED when the step is no longer todo (all signed in), or
+  // every unmet one has been worked around.
+  const connectionsResolved = !connStep || connStep.status !== 'todo'
+    || (unmetConns.length > 0 && unmetConns.every((c) => workedAround.has(connKey(c))));
+  // Ready to turn on: permissions in hand + connections resolved (signed in OR
+  // worked around) + not already active. (canActivate is the server's view; we OR
+  // in the work-around so ticking the box flips the button green.)
+  const ready = !isActive && allLocalGranted && (checklist.canActivate || connectionsResolved);
+  const anyWorkedAround = unmetConns.some((c) => workedAround.has(connKey(c)));
   const badge = STATE_BADGE[checklist.state];
 
   // A recommended (optional) Tier-2 grant the user hasn't allowed yet, while the
@@ -649,6 +710,8 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
             onToggleOptIn={toggleOptIn}
             onChanged={() => router.refresh()}
             savingGroup={savingGroup}
+            workedAround={workedAround}
+            onToggleWorkAround={toggleWorkAround}
             defaultOpen={(needsGrant && s.id === 'permissions') || (showStallNudge && s.id === 'permissions') || (s.id === 'connections' && s.status === 'todo')}
           />
         ))}
@@ -722,7 +785,7 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
           <>
             <button
               type="button"
-              onClick={() => activate()}
+              onClick={() => activate(anyWorkedAround)}
               disabled={!ready || activating}
               className={ready && !activating ? 'btn-success' : 'btn-outline opacity-50 cursor-not-allowed'}
               title={ready ? 'Switch this agent on' : 'Finish the steps above first'}
@@ -731,26 +794,11 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
             </button>
             {error ? (
               <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>
+            ) : !ready && unmetConns.length > 0 ? (
+              <span className="text-xs text-ink-500">Sign in above, or tick “let Claude figure out an alternative”.</span>
             ) : !ready && tier2.length > 0 && !allLocalGranted ? (
               <span className="text-xs text-ink-500">Allow the highlighted permission first.</span>
             ) : null}
-            {/* SOFT-ACTIVATE: when the ONLY thing blocking is an unmet connection
-                (often a misclassified public source, not a real sign-in), offer to
-                turn it on anyway — the run will work around what's not connected. */}
-            {connectionsBlocked && !activating && (
-              <div className="basis-full mt-1">
-                <button
-                  type="button"
-                  onClick={() => activate(true)}
-                  className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
-                >
-                  Turn it on anyway →
-                </button>
-                <p className="text-[11px] text-ink-500 mt-0.5 max-w-[420px]">
-                  Don&apos;t have that sign-in? Claude will try to do it another way (read the public site, web search) and only ask if it truly can&apos;t.
-                </p>
-              </div>
-            )}
           </>
         )}
       </div>
