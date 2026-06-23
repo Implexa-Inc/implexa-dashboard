@@ -75,7 +75,14 @@ export async function loadInboxItems(
     }
   }
 
-  return runs.map((r) => {
+  return runs
+    // Drop "resolver" rows — bookkeeping placeholders run_agent_now opens during a
+    // continue while the real deliverable records on the linked continuation run.
+    // They self-describe ("Resolver row opened … No separate action needed here")
+    // and must not show as their own todo. (Filter in JS, not a NOT-ILIKE query,
+    // which would also drop legitimate null-output rows.)
+    .filter((r) => !(r.output_markdown || '').startsWith('Resolver row opened'))
+    .map((r) => {
     const wf = bySlug.get(r.skill_slug);
     return {
       id:              r.id,
