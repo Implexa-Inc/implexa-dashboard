@@ -160,9 +160,14 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
       <div className="space-y-2">
         {shown.map((c) => {
           const s = STATUS[c.status] ?? STATUS.running;
-          // A 'queued' card has no skill_run yet (it's a pending run_request), so
-          // there's no /runs/[id] to open — render it as a static row, not a link.
-          const linkable = c.status !== 'queued' && !!c.runId;
+          // Where the card opens. With a real run row -> the run page (status-aware
+          // step-trace / approve / retry). A queued or just-picked-up card has no
+          // skill_run yet (it's a pending/consumed run_request, runId null), but the
+          // user still wants IN — fall back to the agent page so they can see the
+          // chain's steps while it spins up. (Founder hit a running chain card that
+          // was dead because the run row wasn't logged yet.)
+          const href = c.runId ? `/runs/${encodeURIComponent(c.runId)}` : (c.skillSlug ? `/workflows/${encodeURIComponent(c.skillSlug)}` : null);
+          const linkable = !!href;
           const body = (
             <>
               {s.spin ? (
@@ -204,7 +209,7 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
           const key = c.runId || c.requestId || c.skillSlug;
           const cls = 'group flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3';
           return linkable ? (
-            <Link key={key} href={`/runs/${encodeURIComponent(c.runId!)}`} className={`${cls} hover:border-ink-700 transition-colors`}>
+            <Link key={key} href={href!} className={`${cls} hover:border-ink-700 transition-colors`}>
               {body}
             </Link>
           ) : (
