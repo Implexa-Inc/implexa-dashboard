@@ -25,10 +25,8 @@ import { RunStateBadge } from '../../_components/run-state-badge';
 import BackLink from '../../_components/back-link';
 import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
-import RunClaudeActions from '../../_components/run-claude-actions';
-import RunContinueBox from '../../_components/run-continue-box';
+import RunActions from '../../_components/run-actions';
 import ClearAlertButton from '../../_components/clear-alert-button';
-import MarkDoneButton from '../../_components/mark-done-button';
 import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
 import RunFeedback, { type FeedbackQuestion } from '../../_components/run-feedback';
 import MakeRecurring from '../../_components/make-recurring';
@@ -178,13 +176,25 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   // agent's schedule by slug for legacy rows that predate scheduled_skill_id.
   const schedQuery = supabase
     .from('scheduled_skills')
-    .select('claude_task_id, status')
+    .select('claude_task_id, status, destination, post_run_action')
     .limit(1);
   const { data: schedRows } = r.scheduled_skill_id
     ? await schedQuery.eq('id', r.scheduled_skill_id)
     : await schedQuery.eq('skill_slug', r.skill_slug);
   const claudeTaskId = schedRows?.[0]?.claude_task_id || null;
   const routinePaused = schedRows?.[0]?.status === 'paused';
+
+  // Does APPROVING this run trigger a consequential ship step (post/publish/render/
+  // deploy) vs is it deliver-only (a draft you use yourself)? Drives the held-run
+  // primary action: "Approve & finish" (ship hands-off) vs "Mark as done" (just
+  // close). Signals, any of: a post_run_action; an external delivery destination
+  // (not dashboard-only); or the deliverable itself describing a deferred ship.
+  const _dest = schedRows?.[0]?.destination as { type?: string } | null | undefined;
+  const _shipRe = /\b(to ship|post to|publish|publishing|deploy|go live|final approval|schedule the post|open (?:a |the )?pr|merge the pr|render)\b/i;
+  const hasShipStep =
+    !!schedRows?.[0]?.post_run_action ||
+    !!(_dest && _dest.type && _dest.type !== 'dashboard') ||
+    (!!r.output_markdown && _shipRe.test(r.output_markdown));
 
   // On-demand detection for the "make it recurring" nudge: does this agent have
   // ANY recurring (cron) schedule on the books (active or paused)? If not, it
@@ -276,52 +286,27 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           </div>
         </header>
 
-        {pending && (
-          <div className="mb-4 rounded-lg border border-brand-500/40 bg-brand-500/10 p-4">
-            <div className="text-sm font-semibold text-ink-50">This deliverable is held for your approval</div>
-            <div className="text-xs text-ink-300 mt-0.5">
-              Read it below, then <span className="text-ink-100 font-medium">Approve &amp; finish</span> to ship the staged option hands-off, <span className="text-ink-100 font-medium">Continue this run</span> to add changes or inputs, or <span className="text-ink-100 font-medium">Mark as done</span> if the output is something you just use yourself (e.g. drafts to paste). Nothing posts without you.
-            </div>
-          </div>
-        )}
-
-        {needsInput && (
-          <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
-            <div className="text-sm font-semibold text-ink-50">This run needs your input to continue</div>
-            <div className="text-xs text-ink-300 mt-0.5">
-              It paused with a question and can&apos;t finish on its own — read it below, then use <span className="text-ink-100 font-medium">Continue this run</span> to answer or add the missing inputs. If you already handled the last step yourself (e.g. uploaded the file), just <span className="text-ink-100 font-medium">Mark as done</span>.
-            </div>
-          </div>
-        )}
-
-        {/* Continue this run — the universal per-run action. Held runs keep
-            "Approve & finish" prominent (RunClaudeActions); the general prompt-+-files
-            box sits right under it. Available on ANY run (held, needs-inputs, finished)
-            so the user can iterate without opening Claude. The small "continue in
-            Claude ↗" stays as the watch-it opt-in. */}
-        <div className="mb-6 space-y-3">
-          {/* Approve & finish ONLY for an approve-ready hold (a shippable deliverable).
-              A needs-input hold has nothing to ship — approving would finish the wrong
-              thing — so it gets Continue only. */}
-          {pending && (
-            <RunClaudeActions runId={r.id} agentName={name} claudeTaskId={claudeTaskId} pending={pending} />
-          )}
-          {/* "I've handled this" close — for a held/needs-input run whose output you
-              just use yourself (paste drafts) or a manual step you already did
-              (uploaded the file). Closes it, no re-run. */}
-          {held && (
-            <div>
-              <MarkDoneButton runId={r.id} />
-            </div>
-          )}
-          <RunContinueBox runId={r.id} agentName={name} pending={held} />
-        </div>
-
-        {/* Deliberate, labeled clear (replaces the one-click ✕ on the Alerts card).
-            Shown only while this run is actually an alert (held / stalled / failed). */}
-        {(held || info.attention || info.state === 'failed') && (
+        {/* The ONE action surface for a held run — context-aware primary (Approve &
+            finish / Mark as done / Answer & continue), Request-changes on demand, a
+            quiet Dismiss, and power-user escapes under "⋯". Replaces the old banner +
+            Approve & finish + Mark done + always-open Continue box + Hide/Dismiss pile. */}
+        {held && (
           <div className="mb-6">
-            <ClearAlertButton runId={r.id} pending={pending} />
+            <RunActions
+              runId={r.id}
+              agentName={name}
+              reviewStatus={pending ? 'pending' : 'needs_input'}
+              hasShipStep={hasShipStep}
+              claudeTaskId={claudeTaskId}
+            />
+          </div>
+        )}
+
+        {/* Non-held alert (stalled / failed) has no approval to act on — just the
+            quiet "hide from alerts" (the retry CTA lives in the deliverable block). */}
+        {!held && (info.attention || info.state === 'failed') && (
+          <div className="mb-6">
+            <ClearAlertButton runId={r.id} pending={false} />
           </div>
         )}
 
