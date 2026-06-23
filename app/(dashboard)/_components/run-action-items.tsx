@@ -46,6 +46,11 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
   const [busy, setBusy] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // A needs_setup action opens a small panel FIRST (collect the missing info /
+  // confirm the setup) instead of firing blind — the founder hit a needs_setup
+  // action that "said it needed setup but didn't ask me anything".
+  const [setupOpen, setSetupOpen] = useState<Set<string>>(new Set());
+  const [notes, setNotes] = useState<Record<string, string>>({});
 
   async function jwt() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -56,8 +61,9 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
     if (busy) return;
     setBusy(a.id); setErr(null);
     try {
+      const note = (notes[a.id] || '').trim();
       await callBackend(`/api/v2/runs/${encodeURIComponent(runId)}/actions/${encodeURIComponent(a.id)}/act`, {
-        jwt: await jwt(), method: 'POST', body: {},
+        jwt: await jwt(), method: 'POST', body: note ? { note } : {},
       });
       setActed((m) => ({ ...m, [a.id]: `Queued — “${a.label}” runs hands-off. The result lands on Home.` }));
     } catch {
@@ -65,6 +71,13 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
     } finally {
       setBusy(null);
     }
+  }
+
+  // Ready → one-tap. needs_setup → reveal the setup panel first; a second click
+  // ("Run it") inside the panel actually queues.
+  function primaryClick(a: RunActionItem) {
+    if (a.readiness === 'ready') { act(a); return; }
+    setSetupOpen((s) => { const n = new Set(s); n.add(a.id); return n; });
   }
 
   async function dismiss(a: RunActionItem) {
@@ -98,19 +111,20 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
   function Row({ a }: { a: RunActionItem }) {
     const confirmation = acted[a.id];
     const ready = a.readiness === 'ready';
+    const open = setupOpen.has(a.id);
     return (
       <div className="flex items-start gap-3 py-2.5">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => act(a)}
+              onClick={() => primaryClick(a)}
               disabled={!!busy || !!confirmation}
               className={`${ready ? 'btn-success' : 'btn-outline'} text-sm px-3.5 py-1.5 disabled:opacity-60`}
             >
               {busy === a.id ? 'Queuing…' : confirmation ? '✓ Queued' : a.label}
             </button>
-            {!ready && (
+            {!ready && !confirmation && (
               <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-medium">
                 needs setup
               </span>
@@ -122,6 +136,34 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
             <>
               {a.summary && <p className="mt-1 text-xs text-ink-400 leading-snug">{a.summary}</p>}
               {!ready && a.blocker && <p className="mt-0.5 text-[11px] text-amber-600/90 dark:text-amber-400/80">{a.blocker}</p>}
+
+              {/* needs_setup panel — collect the missing info / confirm setup BEFORE
+                  queuing, so a blocked action never fires blind. */}
+              {!ready && open && (
+                <div className="mt-2.5 rounded-md border border-amber-500/25 bg-amber-500/[0.06] p-3">
+                  <p className="text-[11px] text-ink-300">
+                    This needs you to set something up first. Add what it needs below (e.g. the blog slugs, a path,
+                    or a note), <span className="text-ink-400">or run it from a session where the setup is in place</span> — then it goes hands-off.
+                  </p>
+                  <textarea
+                    value={notes[a.id] || ''}
+                    onChange={(e) => setNotes((m) => ({ ...m, [a.id]: e.target.value }))}
+                    rows={2}
+                    autoFocus
+                    placeholder={a.blocker || 'Add the missing inputs or setup notes…'}
+                    className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-2.5 py-1.5 text-ink-100 placeholder:text-ink-600 focus:border-amber-500/50 focus:outline-none resize-y"
+                  />
+                  <div className="mt-2 flex items-center gap-3">
+                    <button type="button" onClick={() => act(a)} disabled={!!busy}
+                      className="btn-success text-sm px-3.5 py-1.5 disabled:opacity-60">
+                      {busy === a.id ? 'Queuing…' : 'Run it'}
+                    </button>
+                    <button type="button"
+                      onClick={() => setSetupOpen((s) => { const n = new Set(s); n.delete(a.id); return n; })}
+                      className="text-xs text-ink-500 hover:text-ink-300">Cancel</button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
