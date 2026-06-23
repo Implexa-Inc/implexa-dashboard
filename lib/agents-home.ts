@@ -19,6 +19,8 @@ export type MyAgent = {
   interventionReason?: string | null;
   /** Unanswered config questions (drives the "N to answer" chip). */
   pendingQuestions?: number;
+  /** Built but never activated, never run, stale — collapsed out of SET UP. */
+  isDraft?: boolean;
   /** 'on_demand' (runs when invoked) vs 'scheduled' (cron/once) — groups the home. */
   mode?: 'on_demand' | 'scheduled';
   scheduleNl: string | null;
@@ -26,7 +28,7 @@ export type MyAgent = {
   nextRunAt?: string | null;
   lastRun: { id?: string; status: string; runState: string | null; ranAt: string } | null;
 };
-export type MyAgents = { needsActivation: MyAgent[]; active: MyAgent[] };
+export type MyAgents = { needsActivation: MyAgent[]; active: MyAgent[]; drafts: MyAgent[] };
 
 export async function getMyAgents(): Promise<MyAgents | null> {
   const { createClient } = await import('@/lib/supabase/server');
@@ -44,6 +46,7 @@ export async function getMyAgents(): Promise<MyAgents | null> {
     return {
       needsActivation: Array.isArray(b.needsActivation) ? (b.needsActivation as MyAgent[]) : [],
       active: Array.isArray(b.active) ? (b.active as MyAgent[]) : [],
+      drafts: Array.isArray(b.drafts) ? (b.drafts as MyAgent[]) : [],
     };
   } catch {
     return null;
