@@ -596,6 +596,11 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
   const toggleWorkAround = (key: string, on: boolean) => setWorkedAround((prev) => {
     const next = new Set(prev); if (on) next.add(key); else next.delete(key); return next;
   });
+  // The build inferred a recurring cadence → we adopt it on activate (opt-out to
+  // on-demand). suggestedCadence (e.g. "every monday at 9am") comes from the
+  // Schedule step; forceOnDemand is the user's "run on-demand instead" choice.
+  const suggestedCadence = (checklist.steps.find((s) => s.id === 'schedule')?.data as { suggestedCadence?: string } | undefined)?.suggestedCadence || null;
+  const [forceOnDemand, setForceOnDemand] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const [activating, setActivating] = useState(false);
@@ -639,22 +644,22 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
   // Persist the given opt-ins to the backend + write the local allowlist. Used
   // both by the Activate/Grant button and by an auto-save on toggle for an
   // already-active agent (which has no Activate button to save behind).
-  async function persistGrants(opts: Record<string, boolean>, workAround = false) {
+  async function persistGrants(opts: Record<string, boolean>, workAround = false, onDemand = false) {
     const { data: { session } } = await supabase.auth.getSession();
     const jwt = session?.access_token;
     await callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/activate`, {
-      jwt, method: 'POST', body: { optIns: opts, ...(workAround ? { workAround: true } : {}) },
+      jwt, method: 'POST', body: { optIns: opts, ...(workAround ? { workAround: true } : {}), ...(onDemand ? { onDemand: true } : {}) },
     });
     await writeLocalAllowlist(opts);
   }
 
-  // workAround=true → "Turn it on anyway, Claude works around what's not connected":
-  // soft-activate past an unmet connection (often a misclassified public source).
-  async function activate(workAround = false) {
+  // workAround → soft-activate past an unmet connection. onDemand → opt OUT of
+  // auto-adopting the build-inferred cadence (the "run on-demand instead" choice).
+  async function activate(workAround = false, onDemand = false) {
     setError(null);
     setActivating(true);
     try {
-      await persistGrants(optIns, workAround);
+      await persistGrants(optIns, workAround, onDemand);
       setActivated(true);
       setSavedLocally(true);
       router.refresh();
@@ -826,7 +831,7 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
           <>
             <button
               type="button"
-              onClick={() => activate(anyWorkedAround)}
+              onClick={() => activate(anyWorkedAround, forceOnDemand)}
               disabled={!ready || activating}
               className={ready && !activating ? 'btn-success' : 'btn-outline opacity-50 cursor-not-allowed'}
               title={ready ? 'Switch this agent on' : 'Finish the steps above first'}
@@ -839,6 +844,14 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
               <span className="text-xs text-ink-500">Sign in above, or tick “let Claude figure out an alternative”.</span>
             ) : !ready && tier2.length > 0 && !allLocalGranted ? (
               <span className="text-xs text-ink-500">Allow the highlighted permission first.</span>
+            ) : suggestedCadence ? (
+              // Recurring agent → activates on its inferred clock by default, with a
+              // one-tap opt-out to on-demand.
+              <span className="text-xs text-ink-500 basis-full">
+                {forceOnDemand
+                  ? <>Will run <span className="text-ink-200">on-demand</span> (only when you start it). <button type="button" onClick={() => setForceOnDemand(false)} className="text-brand-500 hover:underline">Run {suggestedCadence} instead</button></>
+                  : <>Will run <span className="text-ink-200">{suggestedCadence}</span> once on (change it in Schedule above). <button type="button" onClick={() => setForceOnDemand(true)} className="text-brand-500 hover:underline">Run on-demand instead</button></>}
+              </span>
             ) : null}
           </>
         )}
