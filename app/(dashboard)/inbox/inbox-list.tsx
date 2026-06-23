@@ -29,11 +29,11 @@ import NextAgentCards, { type Recommendation } from '../_components/next-agent-c
 import RunFeedback, { type FeedbackQuestion } from '../_components/run-feedback';
 import RunActions from '../_components/run-actions';
 
-// A held deliverable describes a deferred ship step (post/publish/render/deploy) →
-// the consolidated RunActions shows "Approve & finish"; otherwise "Mark as done".
-// Mirrors the server-side detection on /runs/[id] (client-only here: we have the
-// deliverable text but not the agent's destination, which is good enough).
-const SHIP_RE = /\b(to ship|post to|publish|publishing|deploy|go live|final approval|schedule the post|open (?:a |the )?pr|merge the pr|render)\b/i;
+// A held deliverable that names a step the AGENT runs ON APPROVAL → "Approve &
+// finish"; otherwise deliver-only ("posted by hand", a draft you act on) → "Mark as
+// done". STRICT deferred-work phrases (not generic "post"/"publish"), so a draft you
+// post yourself isn't mistaken for agent work. Same regex as /runs/[id] (SHIP_STEP_RE).
+const SHIP_RE = /\b(to ship|on approval|approve to (?:render|publish|post|deploy)|then \(expensive\)|final approval|held before)\b/i;
 import RunContinueBox from '../_components/run-continue-box';
 
 // Re-exported so existing importers (lib/inbox.ts) keep their import path; the

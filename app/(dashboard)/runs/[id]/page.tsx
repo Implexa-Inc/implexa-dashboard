@@ -34,6 +34,13 @@ import RunChainSuggestions from '../../_components/run-chain-suggestions';
 
 export const dynamic = 'force-dynamic';
 
+// A held deliverable that names a step the AGENT runs ON APPROVAL (render/publish/
+// deploy) → "Approve & finish". Otherwise it's deliver-only ("posted by hand",
+// a draft you act on) → "Mark as done". Intentionally STRICT (deferred-work phrases,
+// not generic "post"/"publish" mentions) so a draft you post yourself isn't mistaken
+// for agent work. Shared verbatim with the inbox overlay's detection.
+const SHIP_STEP_RE = /\b(to ship|on approval|approve to (?:render|publish|post|deploy)|then \(expensive\)|final approval|held before)\b/i;
+
 function humanize(slug: string): string {
   return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -184,17 +191,17 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   const claudeTaskId = schedRows?.[0]?.claude_task_id || null;
   const routinePaused = schedRows?.[0]?.status === 'paused';
 
-  // Does APPROVING this run trigger a consequential ship step (post/publish/render/
-  // deploy) vs is it deliver-only (a draft you use yourself)? Drives the held-run
-  // primary action: "Approve & finish" (ship hands-off) vs "Mark as done" (just
-  // close). Signals, any of: a post_run_action; an external delivery destination
-  // (not dashboard-only); or the deliverable itself describing a deferred ship.
-  const _dest = schedRows?.[0]?.destination as { type?: string } | null | undefined;
-  const _shipRe = /\b(to ship|post to|publish|publishing|deploy|go live|final approval|schedule the post|open (?:a |the )?pr|merge the pr|render)\b/i;
+  // Does APPROVING trigger DEFERRED AGENT WORK it does itself (render/publish/deploy
+  // on approval) vs is it DELIVER-ONLY (a draft/brief the human acts on — "posted by
+  // hand")? Drives the held-run primary: "Approve & finish" (queue a continue so the
+  // agent does that work) vs "Mark as done" (just close — no pointless "all done"
+  // run). DEFAULT deliver-only; flip to ship ONLY on a strong signal — an auto
+  // post_run_action, or the deliverable explicitly naming a step it runs ON APPROVAL.
+  // (A delivery destination like email/dashboard/slack is NOT a ship step — it just
+  // sends you the result; treating it as ship made HN drafts queue a dead continue.)
   const hasShipStep =
     !!schedRows?.[0]?.post_run_action ||
-    !!(_dest && _dest.type && _dest.type !== 'dashboard') ||
-    (!!r.output_markdown && _shipRe.test(r.output_markdown));
+    (!!r.output_markdown && SHIP_STEP_RE.test(r.output_markdown));
 
   // On-demand detection for the "make it recurring" nudge: does this agent have
   // ANY recurring (cron) schedule on the books (active or paused)? If not, it
