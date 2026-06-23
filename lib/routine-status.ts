@@ -10,15 +10,21 @@
 export function looksOverdue(cron: string, lastRunAt: string | null): boolean {
   const p = (cron || "").trim().split(/\s+/);
   if (p.length !== 5) return false;
-  const [m, h, , , dow] = p;
+  const [m, h, dom, , dow] = p;
   let maxH: number | null = null;
   let mm: RegExpMatchArray | null;
   let hm: RegExpMatchArray | null;
+  let dm: RegExpMatchArray | null;
   if ((mm = m.match(/^\*\/(\d+)$/)) && h === "*") maxH = Math.max(1, +mm[1] / 60);
   else if (m === "0" && (hm = h.match(/^\*\/(\d+)$/))) maxH = +hm[1];
   else if (m === "0" && h === "*") maxH = 1;
   else if (/^\d+$/.test(m) && /^\d+$/.test(h)) {
-    if (dow === "*") maxH = 24; // daily
+    // Day-of-month interval takes precedence: "*/2" = every 2 days (≈48h), not daily.
+    // Without this an every-N-days cron was read as daily and a normal ~35h gap
+    // tripped a false "missed its schedule" alert (founder hit this on the SEO chain).
+    if ((dm = dom.match(/^\*\/(\d+)$/))) maxH = Math.max(1, +dm[1]) * 24;
+    else if (dom !== "*" && /^\d+$/.test(dom)) maxH = 31 * 24; // a specific day each month
+    else if (dow === "*") maxH = 24; // daily
     else if (dow === "1-5") maxH = 72; // weekday (covers the weekend gap)
     else if (/^\d+$/.test(dow)) maxH = 168; // weekly
   }
