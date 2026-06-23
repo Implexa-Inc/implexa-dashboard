@@ -547,20 +547,22 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
   // Persist the given opt-ins to the backend + write the local allowlist. Used
   // both by the Activate/Grant button and by an auto-save on toggle for an
   // already-active agent (which has no Activate button to save behind).
-  async function persistGrants(opts: Record<string, boolean>) {
+  async function persistGrants(opts: Record<string, boolean>, workAround = false) {
     const { data: { session } } = await supabase.auth.getSession();
     const jwt = session?.access_token;
     await callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/activate`, {
-      jwt, method: 'POST', body: { optIns: opts },
+      jwt, method: 'POST', body: { optIns: opts, ...(workAround ? { workAround: true } : {}) },
     });
     await writeLocalAllowlist(opts);
   }
 
-  async function activate() {
+  // workAround=true → "Turn it on anyway, Claude works around what's not connected":
+  // soft-activate past an unmet connection (often a misclassified public source).
+  async function activate(workAround = false) {
     setError(null);
     setActivating(true);
     try {
-      await persistGrants(optIns);
+      await persistGrants(optIns, workAround);
       setActivated(true);
       setSavedLocally(true);
       router.refresh();
@@ -580,6 +582,10 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
   // Active, but a Tier-2 grant is still missing -> the wedged "Fix"/needs-you case.
   const needsGrant = isActive && !allSavedGranted;
   const ready = checklist.canActivate && allLocalGranted && !isActive; // initial activation
+  // The agent can't activate ONLY because a connection is unmet (the one hard gate).
+  // That's frequently a misclassified public source, so we offer a soft-activate.
+  const connectionsBlocked = !isActive && !checklist.canActivate
+    && checklist.steps.some((s) => s.id === 'connections' && s.status === 'todo');
   const badge = STATE_BADGE[checklist.state];
 
   // A recommended (optional) Tier-2 grant the user hasn't allowed yet, while the
@@ -699,7 +705,7 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
           <>
             <button
               type="button"
-              onClick={activate}
+              onClick={() => activate()}
               disabled={!allLocalGranted || activating}
               className={allLocalGranted && !activating ? 'btn-success' : 'btn-outline opacity-50 cursor-not-allowed'}
               title={allLocalGranted ? 'Save this grant' : 'Allow the permission above first'}
@@ -716,7 +722,7 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
           <>
             <button
               type="button"
-              onClick={activate}
+              onClick={() => activate()}
               disabled={!ready || activating}
               className={ready && !activating ? 'btn-success' : 'btn-outline opacity-50 cursor-not-allowed'}
               title={ready ? 'Switch this agent on' : 'Finish the steps above first'}
@@ -728,6 +734,23 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
             ) : !ready && tier2.length > 0 && !allLocalGranted ? (
               <span className="text-xs text-ink-500">Allow the highlighted permission first.</span>
             ) : null}
+            {/* SOFT-ACTIVATE: when the ONLY thing blocking is an unmet connection
+                (often a misclassified public source, not a real sign-in), offer to
+                turn it on anyway — the run will work around what's not connected. */}
+            {connectionsBlocked && !activating && (
+              <div className="basis-full mt-1">
+                <button
+                  type="button"
+                  onClick={() => activate(true)}
+                  className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
+                >
+                  Turn it on anyway →
+                </button>
+                <p className="text-[11px] text-ink-500 mt-0.5 max-w-[420px]">
+                  Don&apos;t have that sign-in? Claude will try to do it another way (read the public site, web search) and only ask if it truly can&apos;t.
+                </p>
+              </div>
+            )}
           </>
         )}
       </div>
