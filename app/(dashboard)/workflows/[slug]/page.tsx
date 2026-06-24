@@ -38,6 +38,8 @@ import AgentFeedback from '../../_components/agent-feedback';
 import StepRow from '../../_components/step-row';
 import ExtendChain from '../../_components/extend-chain';
 import { getActivationChecklist } from '@/lib/activation';
+import { getMyAgents } from '@/lib/agents-home';
+import GradeBadge from '../../_components/grade-badge';
 
 export const dynamic = 'force-dynamic';
 
@@ -220,6 +222,22 @@ export default async function WorkflowDetailPage({
   // tools we auto-install), derived from the agent's steps.
   const requirements = detectRequirements(workflow.steps);
 
+  // The proof-layer grade (run_outcome_ledger, 0091). Owner view: pull their
+  // private grade from the /me/agents feed (delivered N% over M real runs). Falls
+  // back to the public aggregate (min-N gated) for a non-owner visitor. Null when
+  // there isn't a real grade yet — the index refuses to flatter a thin history.
+  let grade: { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null = null;
+  try {
+    const mine = await getMyAgents();
+    const owned = mine ? [...mine.active, ...mine.needsActivation].find((x) => x.slug === params.slug) : null;
+    grade = owned?.grade ?? null;
+    if (!grade) {
+      const API = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai').replace(/\/$/, '');
+      const r = await fetch(`${API}/api/v2/agents/${encodeURIComponent(params.slug)}/grade`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+      if (r.ok) { const b = await r.json(); if (b?.grade?.hasGrade) grade = b.grade; }
+    }
+  } catch { /* no grade shown */ }
+
   // Chain detection + "add a step" candidates. A chain = ≥2 workflow-ref steps.
   // For one, offer to extend it (the cycle-checked path): the user's OTHER agents,
   // minus this chain and the agents already in it. Only fetched when it's a chain.
@@ -247,6 +265,20 @@ export default async function WorkflowDetailPage({
         <Stat label="Runs" value={`${workflow.activity.run_count}`} highlight={workflow.activity.run_count > 0} />
         <Stat label="Last run" value={rel(workflow.activity.last_run_at)} />
       </div>
+
+      {/* Track record — the proof-layer grade, graded on real runs (0091). */}
+      {grade && (
+        <div className="card mb-6 flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-1">Track record</h2>
+            <p className="text-sm text-ink-200">
+              Delivered <span className="font-semibold text-ink-50">{Math.round(grade.rate * 100)}%</span> across {grade.runs} real run{grade.runs === 1 ? '' : 's'}.
+              <span className="text-ink-500"> Graded on what actually happened, not a benchmark.</span>
+            </p>
+          </div>
+          <GradeBadge grade={grade} />
+        </div>
+      )}
 
       {/* Remote verdict explainer */}
       <div className="card mb-6">
