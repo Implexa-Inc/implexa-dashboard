@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import GradeBadge from './grade-badge';
 
 /* Row actions are icon-only with a hover tooltip (title) for a clean, dense row.
    Eye = open, Note = last output, Bin = archive, Play = activate/resume. */
@@ -72,6 +73,7 @@ export type ListAgent = {
   nextRunAt?: string | null;
   scheduleNl?: string | null;
   lastRun?: { id?: string; status: string; runState: string | null; ranAt: string } | null;
+  grade?: { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null;
 };
 
 export type ArchivedAgent = { slug: string; name: string; source: string };
@@ -158,6 +160,7 @@ function Row({ a, onArchive, onRename, busy }: { a: ListAgent; onArchive: (a: Li
               <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-sky-700 dark:text-sky-300">Draft</span>
             )}
             {badge && <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>}
+            <GradeBadge grade={a.grade} />
           </div>
           {/* status line */}
           <p className="text-xs text-ink-500 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">

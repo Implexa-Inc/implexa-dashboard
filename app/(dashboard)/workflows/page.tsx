@@ -70,6 +70,7 @@ export default async function WorkflowsPage() {
       nextRunAt: a.nextRunAt,
       scheduleNl: a.scheduleNl,
       lastRun: a.lastRun,
+      grade: a.grade,
     });
   }
 
