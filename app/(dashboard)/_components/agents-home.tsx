@@ -8,6 +8,7 @@
 
 import Link from 'next/link';
 import { getMyAgents, activeRunStatus, type MyAgent } from '@/lib/agents-home';
+import GradeBadge from './grade-badge';
 
 const TONE: Record<string, string> = {
   good: 'text-emerald-600 dark:text-emerald-400',
@@ -59,8 +60,9 @@ function ActiveRow({ a }: { a: MyAgent }) {
         <span className={`inline-block w-1.5 h-1.5 rounded-full flex-none ${DOT[s.tone]}`} aria-hidden />
         <div className="min-w-0">
           <span className="text-sm font-medium text-ink-100 truncate">{a.name}</span>
-          <p className="text-xs text-ink-500 mt-0.5">
-            {a.mode === 'on_demand' ? 'On-demand' : (a.scheduleNl || 'scheduled')} · <span className={TONE[s.tone]}>{s.label}</span>
+          <p className="text-xs text-ink-500 mt-0.5 flex items-center gap-2 flex-wrap">
+            <span>{a.mode === 'on_demand' ? 'On-demand' : (a.scheduleNl || 'scheduled')} · <span className={TONE[s.tone]}>{s.label}</span></span>
+            <GradeBadge grade={a.grade} />
           </p>
         </div>
       </div>

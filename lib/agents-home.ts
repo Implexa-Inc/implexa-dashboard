@@ -21,6 +21,8 @@ export type MyAgent = {
   pendingQuestions?: number;
   /** Built but never activated, never run, stale — collapsed out of SET UP. */
   isDraft?: boolean;
+  /** Proof-layer grade (owner's private view), or null when not enough real runs. */
+  grade?: { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null;
   /** 'on_demand' (runs when invoked) vs 'scheduled' (cron/once) — groups the home. */
   mode?: 'on_demand' | 'scheduled';
   scheduleNl: string | null;
