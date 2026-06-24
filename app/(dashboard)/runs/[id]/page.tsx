@@ -28,6 +28,7 @@ import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
 import RunActions from '../../_components/run-actions';
 import RunActionItems, { type RunActionItem } from '../../_components/run-action-items';
+import RunShareButton from '../../_components/run-share-button';
 import ClearAlertButton from '../../_components/clear-alert-button';
 import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
 import RunFeedback, { type FeedbackQuestion } from '../../_components/run-feedback';
@@ -402,9 +403,19 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         )}
 
         {r.output_markdown ? (
-          <div className="prose prose-sm max-w-none rounded-lg border border-ink-800 bg-ink-950/60 p-5">
-            <RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot} />
-          </div>
+          <>
+            <div className="prose prose-sm max-w-none rounded-lg border border-ink-800 bg-ink-950/60 p-5">
+              <RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot} />
+            </div>
+            {/* Turn a delivered run into a public, forkable Run Card (the growth
+                loop). Opt-in; the run stays private until shared, then it's a
+                PII-scrubbed snapshot + trust line + fork-the-agent CTA. */}
+            {r.run_state === 'completed' && (
+              <div className="mt-3">
+                <RunShareButton runId={r.id} />
+              </div>
+            )}
+          </>
         ) : info.attention ? (
           // A stalled/failed run has no deliverable. Don't dead-end at a blank
           // "no deliverable" line: say what happened + give the one action.
