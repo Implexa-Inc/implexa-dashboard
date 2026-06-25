@@ -64,9 +64,18 @@ function looksLikeBareUrl(raw: string): boolean {
 function looksLikePath(raw: string): boolean {
   const s = raw.trim();
   if (!s) return false;
-  if (/\s/.test(s)) return false;     // commands, cron strings, prose
   if (s.includes('://')) return false; // URLs go through the link renderer
   if (looksLikeBareUrl(s)) return false; // scheme-less URL → link, not a path
+  // Real paths routinely contain SPACES ("Sanna Reels", "Implexa Agents"), so we
+  // can't blanket-reject whitespace. A SPACED string is a path only when it's
+  // unambiguously one — path-shaped (leading /, ~/, ./ or a slash) AND ending in a
+  // known file extension or a trailing slash (folder). That admits
+  // "/…/Sanna Reels/…/launch_reel.mp4" while still rejecting prose/commands/cron.
+  const pathShaped = s.startsWith('/') || s.startsWith('~/') || s.startsWith('./') || s.includes('/');
+  if (/\s/.test(s)) {
+    return pathShaped && (s.endsWith('/') || PATH_EXT.test(s));
+  }
+  // No whitespace → the original conservative rules.
   if (s.endsWith('/')) return true;    // a folder
   if (PATH_EXT.test(s)) return true;   // a known file extension
   if (s.includes('/')) return true;    // otherwise path-shaped (has a slash)
