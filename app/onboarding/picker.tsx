@@ -61,7 +61,7 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
     const destination = next
       ? next
       : joinOrgId
-        ? `/onboarding/proficiency?next=${encodeURIComponent('/install?welcome=joined')}`
+        ? `/onboarding/proficiency?next=${encodeURIComponent('/get-app')}`
         : '/onboarding/proficiency';
     router.push(destination);
     // Safety net: if router.push silently fails to navigate (network blip,

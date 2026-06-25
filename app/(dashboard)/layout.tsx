@@ -115,6 +115,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const setup = computeSetupStatus(profile.last_mcp_call_at, profile.last_hook_event_at);
 
+  // ── App-first hard gate ───────────────────────────────────────────────────
+  // The product does nothing without a connected executor (the desktop app, or
+  // Claude/Codex via the curl install). A user who has NEVER connected anything
+  // (status 'never' = both activity timestamps null) gets routed to /get-app —
+  // the dashboard is not a place to look around, it's the control surface for an
+  // already-running setup. Peeking/results live on the marketing site. We keep a
+  // few routes reachable so they can actually finish connecting (get the app, see
+  // other install options, grab an API key, manage the account).
+  const ALLOW_WHEN_DISCONNECTED = ['/install', '/settings', '/get-app'];
+  if (setup.status === 'never') {
+    const { headers } = await import('next/headers');
+    const pathname = headers().get('x-pathname') || '';
+    const allowed = ALLOW_WHEN_DISCONNECTED.some((p) => pathname.startsWith(p));
+    if (!allowed) redirect('/get-app');
+  }
+
   // Out-of-date surfaces drive the top update banner. Best-effort: if the
   // versions feed is unreachable, behind=[] and the banner simply doesn't show.
   const latestVersions = await getLatestVersions();

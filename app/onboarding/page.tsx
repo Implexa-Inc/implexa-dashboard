@@ -49,12 +49,11 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
     }
   }
   // Redirect OUTSIDE the try/catch so NEXT_REDIRECT propagates correctly.
-  // Route through /install first — a brand-new invitee has zero plugin
-  // wired to Claude, so /skills (the library) is useless to them until
-  // they've connected. The /install page picks up ?welcome=invited and
-  // renders the right priming banner.
+  // Route through /get-app first — a brand-new invitee has no executor
+  // connected, so the library/dashboard is useless until they get the app.
+  // (The dashboard hard-gates to /get-app anyway.)
   if (acceptedInvite) {
-    redirect('/install?welcome=invited');
+    redirect('/get-app');
   }
 
   let suggestion: { organizationId: string; organizationName: string; memberCount: number } | null = null;

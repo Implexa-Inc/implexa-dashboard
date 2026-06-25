@@ -22,12 +22,11 @@ export default function RolePickerClient({ jwt, roles }: { jwt: string; roles: R
           scope: 'private',
         },
       });
-      // Route through /install BEFORE /skills — a brand-new user has zero
-      // plugin/connector wired to Claude, so dropping them on the library
-      // first is hostile. /install reads ?welcome= to render the right
-      // banner (mentioning the forked starter pack), then they navigate
-      // to /skills themselves after completing connect-Claude.
-      router.push(`/install?welcome=role-${role.slug}&forked=${res.succeeded || 0}`);
+      // Route through /get-app BEFORE the library — a brand-new user has no
+      // executor connected, so the only thing that matters now is getting the
+      // app. The dashboard hard-gates to /get-app anyway; sending them straight
+      // there (vs the old curl /install page) keeps the app-first story.
+      router.push('/get-app');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to set up starter pack';
       setError(message);
@@ -36,8 +35,8 @@ export default function RolePickerClient({ jwt, roles }: { jwt: string; roles: R
   }
 
   function skip() {
-    // Same routing reason as above — /install first, /skills after connect.
-    router.push('/install?welcome=skipped');
+    // Same routing reason as above — get the app first, library after connect.
+    router.push('/get-app');
   }
 
   return (

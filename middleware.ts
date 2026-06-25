@@ -37,6 +37,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Expose the pathname to server components (Next doesn't surface it in
+  // layouts). The (dashboard) layout reads this to hard-gate not-yet-connected
+  // users to /get-app without an extra DB round-trip.
+  response.headers.set('x-pathname', path);
   return response;
 }
 
