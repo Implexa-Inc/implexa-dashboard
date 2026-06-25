@@ -95,7 +95,7 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
       disabled={firing}
       className="btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
     >
-      {firing ? 'Opening…' : neverArmed ? 'Set it up in Claude' : 'Fix now in Claude'}
+      {firing ? 'Opening…' : neverArmed ? 'Start it in Claude' : 'Fix now in Claude'}
     </button>
   );
 }
