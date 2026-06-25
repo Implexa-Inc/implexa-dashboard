@@ -64,11 +64,14 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
   } catch (_) { /* no suggestion is fine */ }
 
   // No team to join → "Create your workspace" is an empty click (nothing to
-  // decide). Auto-provision the solo workspace server-side and skip straight to
-  // proficiency. provision is idempotent. Only fall through to the picker UI
-  // when there's a real choice (a join suggestion) or if auto-provision fails
-  // (the picker then offers a manual retry). NEXT_REDIRECT must be thrown
-  // OUTSIDE the try/catch (same rule as the invite path above).
+  // decide). Auto-provision the solo workspace server-side and go STRAIGHT to
+  // /get-app. We deliberately do NOT ask proficiency (novice/beginner/pro/
+  // advanced) on the web — the desktop app auto-detects the tier from a silent
+  // executor probe (what's installed), so a manual web question would both
+  // conflict with that and add friction before the one step that matters (get
+  // the app). provision is idempotent. Only fall through to the picker UI when
+  // there's a real choice (a join suggestion) or if auto-provision fails.
+  // NEXT_REDIRECT must be thrown OUTSIDE the try/catch (same rule as above).
   let autoProvisioned = false;
   if (!suggestion) {
     try {
@@ -79,7 +82,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
     } catch (_) { /* fall through to the picker for a manual retry */ }
   }
   if (autoProvisioned) {
-    redirect(nextParam || '/onboarding/proficiency');
+    redirect(nextParam || '/get-app');
   }
 
   return (

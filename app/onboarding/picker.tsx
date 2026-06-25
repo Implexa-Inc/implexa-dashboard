@@ -54,15 +54,11 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
       return;
     }
 
-    // Success path: ask proficiency FIRST (one tap, so we know how hands-on to
-    // be), then continue. A new org goes proficiency -> role -> install; a
-    // joiner skips role (they inherit the team library) so proficiency -> install.
-    // An explicit `next` (returning deep link) is honored as-is, no interruption.
-    const destination = next
-      ? next
-      : joinOrgId
-        ? `/onboarding/proficiency?next=${encodeURIComponent('/get-app')}`
-        : '/onboarding/proficiency';
+    // Success path: go STRAIGHT to /get-app. We no longer ask proficiency or
+    // role on the web — the desktop app auto-detects the tier (silent executor
+    // probe) and handles onboarding, so the only web step is "get the app".
+    // An explicit `next` (returning deep link) is still honored as-is.
+    const destination = next || '/get-app';
     router.push(destination);
     // Safety net: if router.push silently fails to navigate (network blip,
     // race with auth-cookie refresh, etc.), force a hard navigation after
