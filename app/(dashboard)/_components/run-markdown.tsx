@@ -153,11 +153,14 @@ function FileIcon() {
 
 function FilePathCode({
   text,
+  label,
   className,
   workspaceRoot,
   artifactDir,
 }: {
   text: string;
+  /** Visible label (e.g. a markdown link's text). Falls back to the full path. */
+  label?: React.ReactNode;
   className?: string;
   workspaceRoot?: string | null;
   artifactDir?: string | null;
@@ -248,7 +251,7 @@ function FilePathCode({
         }}
       >
         <Icon />
-        {text}
+        {label ?? text}
       </code>
       {toast && (
         <span className="ml-1 text-[10px] text-ink-500 not-prose" aria-live="polite">
@@ -266,8 +269,51 @@ export default function RunMarkdown({
   markdown: string;
   workspaceRoot?: string | null;
 }) {
-  const artifactDir = useMemo(() => deriveArtifactDir(markdown), [markdown]);
+  // Agents write file deliverables as markdown links — [REEL_BRIEF.md](~/Implexa
+  // Agents/.../REEL_BRIEF.md). The path has a SPACE ("Implexa Agents"), which
+  // CommonMark won't accept as a bare link destination, so the whole link rendered
+  // as dead plain text (the founder: "file links aren't clickable any more").
+  // Angle-bracket-wrap any local-path link destination that contains a space so it
+  // parses into a real link node, which the `a` renderer below turns into a
+  // clickable file chip. Only touches non-URL, not-already-wrapped destinations.
+  const prepared = useMemo(
+    () => markdown.replace(/\]\(([^)<>]*?)\)/g, (m, dest: string) => {
+      const d = dest.trim();
+      if (!d || !/\s/.test(d)) return m;                       // no space → fine as-is
+      if (/^https?:\/\//i.test(d) || /^mailto:/i.test(d)) return m; // real URL → leave
+      return `](<${d}>)`;
+    }),
+    [markdown],
+  );
+  const artifactDir = useMemo(() => deriveArtifactDir(prepared), [prepared]);
   const components: Components = {
+    // Markdown LINKS: an external URL opens in a new tab; a LOCAL FILE PATH href
+    // (~/, /abs, or a home-rooted relative) becomes a clickable file chip (same
+    // open/reveal-via-bridge behavior as a coded path), labelled with the link text.
+    a(props) {
+      const { href, children } = props as { href?: string; children?: React.ReactNode };
+      const dest = (href || '').trim();
+      if (/^https?:\/\//i.test(dest) || /^mailto:/i.test(dest)) {
+        return (
+          <a href={dest} target="_blank" rel="noopener noreferrer"
+            className="text-brand-500 hover:underline break-all">
+            {children}
+          </a>
+        );
+      }
+      const isLocalPath = !!dest && (dest.startsWith('~') || dest.startsWith('/') || looksLikePath(dest));
+      if (isLocalPath) {
+        return (
+          <FilePathCode
+            text={dest}
+            label={children}
+            workspaceRoot={workspaceRoot}
+            artifactDir={artifactDir}
+          />
+        );
+      }
+      return <a href={dest} className="text-brand-500 hover:underline break-all">{children}</a>;
+    },
     code(props) {
       const { className, children, ...rest } = props as {
         className?: string;
@@ -314,7 +360,7 @@ export default function RunMarkdown({
       rehypePlugins={[rehypeHighlight]}
       components={components}
     >
-      {markdown}
+      {prepared}
     </ReactMarkdown>
   );
 }
