@@ -105,23 +105,35 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
     });
   }
 
-  // Cancel a QUEUED run (a pending run_request not yet picked up) — the cheap,
-  // clean catch-before-it-spends case. The × opens a confirm; on yes we flip the
-  // request to 'cancelled' so the drainer/Claude never picks it up, and hide the
-  // card optimistically. (Stopping an already-RUNNING run needs the kill infra —
-  // a separate slice; the × only shows on 'queued' for now.)
+  // Cancel a run. TWO cases:
+  //  • QUEUED (a pending run_request not yet picked up) — the cheap catch-before-
+  //    it-spends case: flip the request to 'cancelled' so the drainer/Claude never
+  //    picks it up, and hide the card.
+  //  • RUNNING (already in flight) — the kill case: POST /runs/:id/cancel sets a
+  //    flag the executor watches; the headless drainer SIGKILLs its child, an
+  //    attended run aborts at its next step. We can't un-spend what's already gone,
+  //    so the card flips to "Stopping…" (not hidden) until the executor confirms.
   const [confirmCancel, setConfirmCancel] = useState<LiveCard | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelledReqIds, setCancelledReqIds] = useState<Set<string>>(new Set());
+  const [stoppingRunIds, setStoppingRunIds] = useState<Set<string>>(new Set());
+  const isRunningCancel = (c: LiveCard | null) => !!c && c.status === 'running' && !!c.runId;
   async function doCancel(card: LiveCard) {
-    if (!card.requestId || cancelBusy) return;
+    if (cancelBusy) return;
     setCancelBusy(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      await callBackend(`/api/v2/me/run-requests/${encodeURIComponent(card.requestId)}`, {
-        jwt: session?.access_token, method: 'PATCH', body: { status: 'cancelled' },
-      });
-      setCancelledReqIds((p) => { const n = new Set(p); n.add(card.requestId!); return n; });
+      if (isRunningCancel(card)) {
+        await callBackend(`/api/v2/runs/${encodeURIComponent(card.runId!)}/cancel`, {
+          jwt: session?.access_token, method: 'POST',
+        });
+        setStoppingRunIds((p) => { const n = new Set(p); n.add(card.runId!); return n; });
+      } else if (card.requestId) {
+        await callBackend(`/api/v2/me/run-requests/${encodeURIComponent(card.requestId)}`, {
+          jwt: session?.access_token, method: 'PATCH', body: { status: 'cancelled' },
+        });
+        setCancelledReqIds((p) => { const n = new Set(p); n.add(card.requestId!); return n; });
+      }
       setConfirmCancel(null);
     } catch { /* leave the card; the user can retry */ }
     finally { setCancelBusy(false); }
@@ -222,7 +234,9 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                 <div className="text-sm text-ink-100 truncate">{c.headline || humanize(c.skillSlug)}</div>
                 <div className="text-[11px] text-ink-500 truncate">
                   {c.headline ? `${humanize(c.skillSlug)} · ` : ''}
-                  {c.status === 'action_available' && c.actionLabel
+                  {c.runId && stoppingRunIds.has(c.runId)
+                    ? <span className="text-rose-500">Stopping… your Claude wraps up at its next step</span>
+                    : c.status === 'action_available' && c.actionLabel
                     ? <span className="text-brand-500">{c.actionLabel}{c.actionCount && c.actionCount > 1 ? ` (+${c.actionCount - 1} more)` : ''}</span>
                     : s.label}
                   {c.since ? ` · ${rel(c.since)}` : ''}
@@ -268,6 +282,19 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                   ✕
                 </button>
               )}
+              {/* Kill a RUNNING run that's already in flight. The × stays after the
+                  flag is set (shows "Stopping…") until the executor confirms the kill. */}
+              {c.status === 'running' && c.runId && !stoppingRunIds.has(c.runId) && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancel(c); }}
+                  title="Stop this run"
+                  aria-label="Stop this run"
+                  className="shrink-0 text-ink-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
+                >
+                  ✕
+                </button>
+              )}
               {linkable && (
                 <span className="shrink-0 text-lg leading-none text-ink-500 group-hover:text-ink-200 transition-colors" aria-hidden="true">›</span>
               )}
@@ -297,14 +324,23 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
       <Modal
         open={!!confirmCancel}
         onClose={() => { if (!cancelBusy) setConfirmCancel(null); }}
-        title="Cancel this run?"
+        title={isRunningCancel(confirmCancel) ? 'Stop this run?' : 'Cancel this run?'}
         maxWidth="max-w-sm"
       >
-        <p className="text-sm text-ink-200 leading-relaxed">
-          This will cancel{' '}
-          <span className="font-medium text-ink-50">{confirmCancel ? humanize(confirmCancel.skillSlug) : 'this run'}</span>{' '}
-          before your Claude picks it up — it won&apos;t run, and nothing will be spent. You can run it again anytime.
-        </p>
+        {isRunningCancel(confirmCancel) ? (
+          <p className="text-sm text-ink-200 leading-relaxed">
+            This will stop{' '}
+            <span className="font-medium text-ink-50">{confirmCancel ? humanize(confirmCancel.skillSlug) : 'this run'}</span>{' '}
+            while it&apos;s running — your Claude wraps up at its next step instead of finishing.
+            Work already done (and any credits already spent) can&apos;t be undone. You can run it again anytime.
+          </p>
+        ) : (
+          <p className="text-sm text-ink-200 leading-relaxed">
+            This will cancel{' '}
+            <span className="font-medium text-ink-50">{confirmCancel ? humanize(confirmCancel.skillSlug) : 'this run'}</span>{' '}
+            before your Claude picks it up — it won&apos;t run, and nothing will be spent. You can run it again anytime.
+          </p>
+        )}
         <div className="mt-5 flex items-center justify-end gap-3">
           <button
             type="button"
@@ -320,7 +356,7 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
             disabled={cancelBusy}
             className="text-sm px-4 py-2 rounded-lg bg-rose-500 text-white hover:bg-rose-400 font-medium disabled:opacity-50"
           >
-            {cancelBusy ? 'Cancelling…' : 'Cancel run'}
+            {cancelBusy ? (isRunningCancel(confirmCancel) ? 'Stopping…' : 'Cancelling…') : (isRunningCancel(confirmCancel) ? 'Stop run' : 'Cancel run')}
           </button>
         </div>
       </Modal>
