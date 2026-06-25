@@ -19,6 +19,7 @@ import { createClient } from '@/lib/supabase/server';
 import { loadInboxItems } from '@/lib/inbox';
 import { loadNeedsYou } from '@/lib/needs-you';
 import { getProficiency, isGuided } from '@/lib/proficiency';
+import { isExecutorConnected } from '@/lib/connection';
 import { listWorkflows, listMyWorkflows, listSuggestedAgents } from '@/lib/workflow-catalog';
 import NeedsYouStrip from '../_components/needs-you-strip';
 import RunningAgents from '../_components/running-agents';
@@ -28,7 +29,6 @@ import FirstRunMagic from '../_components/first-run-magic';
 import TalkToImplexa from '../_components/talk-to-implexa';
 import BuildingAgents from '../_components/building-agents';
 import GetStartedIntent from '../_components/get-started-intent';
-import OnboardingProgress, { type OnboardingStep } from '../_components/onboarding-progress';
 import FirstRunPermissionsNote from '../_components/first-run-permissions-note';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +38,7 @@ export default async function OverviewPage() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
   const { data: profile } = await supabase
-    .from('users').select('id, organization_id, display_name')
+    .from('users').select('id, organization_id, display_name, last_mcp_call_at, last_hook_event_at')
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
@@ -54,17 +54,19 @@ export default async function OverviewPage() {
   ]);
   const guided = isGuided(proficiency);
 
-  // Onboarding progress (persistent until every step is genuinely done). Each
-  // step is a real signal: experience level set, ≥1 agent, a live connection.
-  // The connection check = does an active API key exist (an install happened).
-  const { data: activeKeys } = await supabase
-    .from('api_keys').select('id').eq('user_id', profile.id).eq('status', 'active').limit(1);
-  const connected = (activeKeys || []).length > 0;
-  const onboardingSteps: OnboardingStep[] = [
-    { label: 'Set your experience level', href: '/onboarding/proficiency', done: proficiency != null },
-    { label: 'Add your starter agents',    href: '/onboarding/role',        done: myAgents.length > 0 },
-    { label: 'Connect your Claude or Codex', href: '/install',              done: connected },
-  ];
+  // "Connected" uses the ONE shared definition (isExecutorConnected) so Home and
+  // the hard-gate never disagree. Reaching /overview already implies connected
+  // (the gate redirects never-connected users to /get-app), but we compute it
+  // properly so the page is self-consistent. The old check ("an active API key
+  // row exists") diverged from the gate and made Home show "Download the app /
+  // Connect your Claude" to users the gate had already let in.
+  const connected = await isExecutorConnected(supabase, profile.id, {
+    lastMcpCallAt: profile.last_mcp_call_at, lastHookEventAt: profile.last_hook_event_at,
+  });
+  // NOTE: the web onboarding checklist (experience level / starter agents /
+  // connect) was removed — onboarding now happens IN THE APP (tiered onboarding),
+  // and the hard-gate guarantees the user is connected before Home renders, so
+  // the checklist only ever showed stale "connect" steps to connected users.
 
   // First-run magic: a brand-new user (no agents, no runs) gets THE OFFER
   // instead of an empty todo list.
@@ -89,9 +91,6 @@ export default async function OverviewPage() {
         {/* One-time heads-up: a first run may pause for a permission. Clears itself
             after it's seen / once a run has finished cleanly. */}
         <FirstRunPermissionsNote active={!hasSucceededRun} />
-
-        {/* Resume-anytime onboarding bar — vanishes once all steps are done. */}
-        <OnboardingProgress steps={onboardingSteps} />
 
         {isFirstRun ? (
           <>
