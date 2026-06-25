@@ -19,6 +19,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import Modal from './modal';
@@ -98,6 +99,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
   const supabase = createClient();
+  const router = useRouter();
 
   // Poll the queued request until the plugin marks it done (run_id linked).
   useEffect(() => {
@@ -283,9 +285,18 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       pollStart.current = Date.now();
       setState('queued');
       setMsg('Queued. It runs hands-off on your computer (Claude open / Mac awake) — the result lands in your Implexa inbox, usually within a few minutes.');
-      // First queued run ever → surface the one-time permissions heads-up.
-      if (!firstRunPermsSeen()) { setShowPermsNote(true); markFirstRunPermsSeen(); }
-      setShowRunModal(true);
+      // Land the user where the run actually shows itself starting — the Active
+      // Agents loader on /workflows (founder ask: "redirect to agent home so I can
+      // see the loader starting"). EXCEPTION: on the very first queued run ever,
+      // show the one-time permissions heads-up modal first, then redirect when they
+      // acknowledge — so that crucial note isn't skipped past.
+      if (!firstRunPermsSeen()) {
+        setShowPermsNote(true);
+        markFirstRunPermsSeen();
+        setShowRunModal(true);
+      } else {
+        router.push('/workflows');
+      }
     } catch (e) {
       setState('error');
       setMsg(e instanceof Error ? e.message : 'Could not queue the run. Try again.');
@@ -438,10 +449,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       <div className="mt-5 flex justify-end">
         <button
           type="button"
-          onClick={() => setShowRunModal(false)}
+          onClick={() => { setShowRunModal(false); router.push('/workflows'); }}
           className="btn-success text-sm px-5 py-2"
         >
-          OK
+          Track it under Active Agents →
         </button>
       </div>
     </Modal>
