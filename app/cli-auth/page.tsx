@@ -27,12 +27,19 @@ import CliAuthApproval from './cli-auth-approval';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CliAuthPage({ searchParams }: { searchParams: { code?: string } }) {
+export default async function CliAuthPage({ searchParams }: { searchParams: { code?: string; source?: string } }) {
   const rawCode = String(searchParams?.code || '').trim();
+  // source=app means this device flow was opened IN the desktop app's own
+  // sign-in window (not a terminal). We thread it through the login/onboarding
+  // bounces so it survives a fresh signup, and the approval screen uses it to
+  // auto-approve + show app-flavored copy ("this window will close") instead of
+  // "return to your terminal".
+  const isApp = String(searchParams?.source || '') === 'app';
 
   // Whitelist the format we issue: XXXX-YYYY (8 alphanumeric chars + dash).
   // Reject anything else early — prevents URL fuzzing from reaching the API.
   const verificationCode = /^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(rawCode) ? rawCode : '';
+  const selfUrl = `/cli-auth?code=${verificationCode}${isApp ? '&source=app' : ''}`;
 
   if (!verificationCode) {
     return (
@@ -58,7 +65,7 @@ export default async function CliAuthPage({ searchParams }: { searchParams: { co
   // Not logged in → send them through /login (which supports ?next=) and
   // they'll bounce back here automatically after they log in / sign up.
   if (!session?.user) {
-    redirect(`/login?next=${encodeURIComponent(`/cli-auth?code=${verificationCode}`)}`);
+    redirect(`/login?next=${encodeURIComponent(selfUrl)}`);
   }
 
   // Make sure they finished onboarding (have an organization). If not,
@@ -66,7 +73,7 @@ export default async function CliAuthPage({ searchParams }: { searchParams: { co
   const { data: profile } = await supabase
     .from('users').select('id, email, organization_id').eq('id', session.user.id).maybeSingle();
   if (!profile || !profile.organization_id) {
-    redirect(`/onboarding?next=${encodeURIComponent(`/cli-auth?code=${verificationCode}`)}`);
+    redirect(`/onboarding?next=${encodeURIComponent(selfUrl)}`);
   }
 
   // Fetch session info from backend so we can show the user what they're
@@ -90,6 +97,7 @@ export default async function CliAuthPage({ searchParams }: { searchParams: { co
           email={profile.email || ''}
           sessionInfo={sessionInfo}
           accessToken={session.access_token}
+          isApp={isApp}
         />
       </div>
     </main>

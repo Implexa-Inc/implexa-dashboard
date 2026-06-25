@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { callBackend } from '@/lib/api';
 
@@ -11,11 +11,13 @@ export default function CliAuthApproval({
   email,
   sessionInfo,
   accessToken,
+  isApp = false,
 }: {
   verificationCode: string;
   email:            string;
   sessionInfo:      SessionInfo;
   accessToken:      string;
+  isApp?:           boolean;
 }) {
   // UI states:
   //   - idle:     showing the code + Approve/Deny buttons
@@ -38,6 +40,22 @@ export default function CliAuthApproval({
 
   // If the session doesn't exist at all on the backend, show a clear error.
   const sessionMissing = sessionInfo === null;
+
+  // Auto-approve when opened from the desktop app (source=app). It's safe to skip
+  // the manual confirm here: the APP generated this device code and opened this
+  // window itself, in-app — there's no untrusted terminal to phish a code from,
+  // which is the only thing the manual Approve step guards against. This is what
+  // makes the app flow "just sign in and done" — no extra click.
+  const autoApproveFired = useRef(false);
+  useEffect(() => {
+    if (!isApp || autoApproveFired.current) return;
+    const pending = sessionInfo && sessionInfo.status === 'pending';
+    if (pending && state === 'idle') {
+      autoApproveFired.current = true;
+      handleApprove();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isApp, sessionInfo, state]);
 
   async function handleApprove() {
     setState('approving');
@@ -78,7 +96,9 @@ export default function CliAuthApproval({
         <div className="text-5xl mb-4" aria-hidden>✓</div>
         <h1 className="text-2xl font-semibold text-ink-50 mb-3">You&apos;re signed in.</h1>
         <p className="text-ink-200 leading-relaxed mb-6">
-          Return to your terminal — the install will continue automatically. You can close this tab.
+          {isApp
+            ? 'All set — this window closes itself and Implexa picks up from here.'
+            : 'Return to your terminal — the install will continue automatically. You can close this tab.'}
         </p>
         <div className="text-xs text-ink-400 border-t border-ink-700 pt-4 leading-relaxed">
           Signed in as <strong className="text-ink-200">{email}</strong>. We minted a fresh API key for this install — view or revoke it any time from{' '}
