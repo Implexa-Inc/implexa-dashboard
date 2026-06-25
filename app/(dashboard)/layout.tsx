@@ -125,10 +125,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // other install options, grab an API key, manage the account).
   const ALLOW_WHEN_DISCONNECTED = ['/install', '/settings', '/get-app'];
   if (setup.status === 'never') {
-    const { headers } = await import('next/headers');
-    const pathname = headers().get('x-pathname') || '';
-    const allowed = ALLOW_WHEN_DISCONNECTED.some((p) => pathname.startsWith(p));
-    if (!allowed) redirect('/get-app');
+    // 'never' means no MCP/hook activity yet — but the desktop app's drainer
+    // polls the backend with the API key every ~20s while it's OPEN, bumping
+    // api_keys.last_used_at. Treat that as connected too, so simply opening the
+    // app unlocks the dashboard within seconds (no first-run required). Only the
+    // not-yet-connected pay this extra query; connected users skip the branch.
+    const { data: keyUse } = await supabase
+      .from('api_keys')
+      .select('last_used_at')
+      .eq('user_id', profile.id)
+      .eq('status', 'active')
+      .not('last_used_at', 'is', null)
+      .limit(1);
+    const appOpen = (keyUse || []).length > 0;
+    if (!appOpen) {
+      const { headers } = await import('next/headers');
+      const pathname = headers().get('x-pathname') || '';
+      const allowed = ALLOW_WHEN_DISCONNECTED.some((p) => pathname.startsWith(p));
+      if (!allowed) redirect('/get-app');
+    }
   }
 
   // Out-of-date surfaces drive the top update banner. Best-effort: if the

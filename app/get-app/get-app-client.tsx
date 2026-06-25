@@ -73,13 +73,16 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user || !alive) return;
-        const { data } = await supabase
-          .from('users')
-          .select('last_mcp_call_at, last_hook_event_at')
-          .eq('id', user.id)
-          .maybeSingle();
+        // Two signals, either unlocks: real MCP/hook activity (a run happened),
+        // OR the app simply being open (its drainer bumps api_keys.last_used_at
+        // every ~20s). The dashboard gate accepts the same pair.
+        const [{ data: u }, { data: keys }] = await Promise.all([
+          supabase.from('users').select('last_mcp_call_at, last_hook_event_at').eq('id', user.id).maybeSingle(),
+          supabase.from('api_keys').select('last_used_at').eq('user_id', user.id).eq('status', 'active').not('last_used_at', 'is', null).limit(1),
+        ]);
         if (!alive) return;
-        if (data && (data.last_mcp_call_at || data.last_hook_event_at)) {
+        const connectedNow = !!(u && (u.last_mcp_call_at || u.last_hook_event_at)) || ((keys || []).length > 0);
+        if (connectedNow) {
           setConnected(true);
           // Brief beat on the success state, then into the product.
           setTimeout(() => { if (alive) router.push('/overview'); }, 1400);
