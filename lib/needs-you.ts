@@ -17,7 +17,7 @@ import { looksOverdue } from '@/lib/routine-status';
 import { getConnectionStatus } from '@/lib/connections';
 
 export type NeedGrant = { slug: string; name: string; reason: string };
-export type MissedSchedule = { id: string; slug: string; name: string; failed: boolean; when: string; claudeTaskId: string | null };
+export type MissedSchedule = { id: string; slug: string; name: string; failed: boolean; neverArmed: boolean; when: string; claudeTaskId: string | null };
 export type SignIn = { domain: string; label: string; who: string; fixSlug: string; count: number };
 export type Stalled = { id: string; slug: string; name: string };
 /** A run held at a human-approval gate, awaiting the user's approve-&-continue. */
@@ -80,13 +80,24 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
     }));
 
   const sched = ((schedules as SchedRow[]) || []).filter((r) => r.cron_expression);
+  // A scheduled routine with no claude_task_id was activated but NEVER ARMED in
+  // Claude's runtime (the SessionStart reconcile that registers the cron never
+  // ran — usually activated on web with the desktop closed). It physically can't
+  // fire, so it's not a "missed run" (a one-time failure) — it's incomplete setup.
+  // Surface it as "finish arming" REGARDLESS of overdue, and don't let an unarmed
+  // routine masquerade as a recurring missed-schedule alarm forever.
+  const isNeverArmed = (r: SchedRow) => r.status === 'active' && !r.claude_task_id;
   const missed: MissedSchedule[] = sched
-    .filter((r) => r.status === 'failed' || (r.status === 'active' && looksOverdue(r.cron_expression || '', r.last_run_at)))
+    .filter((r) =>
+      r.status === 'failed'
+      || isNeverArmed(r)                                                              // setup incomplete
+      || (r.status === 'active' && r.claude_task_id && looksOverdue(r.cron_expression || '', r.last_run_at)))  // armed but missed
     .map((r) => ({
       id: r.id,
       slug: r.skill_slug,
       name: nameBySlug.get(r.skill_slug) || r.skill_slug,
       failed: r.status === 'failed',
+      neverArmed: isNeverArmed(r),
       when: r.schedule_nl || r.cron_expression || 'its schedule',
       claudeTaskId: r.claude_task_id || null,
     }));

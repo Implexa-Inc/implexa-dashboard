@@ -27,10 +27,14 @@ type Bridge = {
   handoffAgent?: (prompt: string, surface?: string, target?: string) => Promise<{ ok: boolean; mode?: string }>;
 };
 
-export default function FixNowButton({ slug, name, claudeTaskId }: {
+export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = false }: {
   slug: string;
   name: string;
   claudeTaskId?: string | null;
+  /** Routine was activated but never armed in Claude — relabel as a one-time
+   *  setup ("Set it up in Claude") rather than a re-run of a missed fire. The
+   *  action is identical: the enqueued run lets the reconcile hook arm the cron. */
+  neverArmed?: boolean;
 }) {
   const [firing, setFiring] = useState(false);
   const supabase = createClient();
@@ -91,7 +95,7 @@ export default function FixNowButton({ slug, name, claudeTaskId }: {
       disabled={firing}
       className="btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
     >
-      {firing ? 'Opening…' : 'Fix now in Claude'}
+      {firing ? 'Opening…' : neverArmed ? 'Set it up in Claude' : 'Fix now in Claude'}
     </button>
   );
 }

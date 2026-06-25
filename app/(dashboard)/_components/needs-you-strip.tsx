@@ -87,7 +87,9 @@ export default function NeedsYouStrip({
           <div className="min-w-0">
             <p className="text-sm font-medium text-ink-100 truncate">{m.name}</p>
             <p className="text-xs mt-0.5 text-amber-700 dark:text-amber-300">
-              {m.failed
+              {m.neverArmed
+                ? `Scheduled for ${m.when}, but not armed yet — finish setting it up in Claude once so it runs on its own.`
+                : m.failed
                 ? 'Its schedule is marked failed. Run it now in Claude to get it going again.'
                 : `Missed its schedule (${m.when}). Run it now in Claude — it lands on the routine so you can watch.`}
             </p>
@@ -95,7 +97,7 @@ export default function NeedsYouStrip({
               Open agent details
             </Link>
           </div>
-          <FixNowButton slug={m.slug} name={m.name} claudeTaskId={m.claudeTaskId} />
+          <FixNowButton slug={m.slug} name={m.name} claudeTaskId={m.claudeTaskId} neverArmed={m.neverArmed} />
         </div>
       ))}
     </section>
