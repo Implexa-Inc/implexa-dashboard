@@ -179,8 +179,15 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
 
   if (!cards) return null;
   // On Home we show only the cards that need you (yellow/red); on the Agents page
-  // we show everything live.
-  const list = (alertsOnly ? cards.filter((c) => ALERT_STATUSES.has(c.status)) : cards)
+  // we show everything live. On Home (alertsOnly) we ALSO keep a just-FINISHED run
+  // around for ~30 min as a "Done — view result" receipt, so a run you kicked off
+  // doesn't vanish the instant it completes (founder: "it ran and immediately went
+  // out of my agents, so I had to dig in Runs to find it"). After the window it ages
+  // out of Home; the full Agents page still shows finished runs for the backend's 3h.
+  const RECENT_DONE_MS = 30 * 60 * 1000;
+  const recentlyDone = (c: LiveCard) =>
+    c.status === 'finished' && !!c.since && (Date.now() - new Date(c.since).getTime()) < RECENT_DONE_MS;
+  const list = (alertsOnly ? cards.filter((c) => ALERT_STATUSES.has(c.status) || recentlyDone(c)) : cards)
     .filter((c) => !(c.runId && dismissed.has(c.runId)))
     .filter((c) => !(c.requestId && cancelledReqIds.has(c.requestId)));
   if (list.length === 0) return null; // invisible at rest
