@@ -323,6 +323,15 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           </div>
         </header>
 
+        {/* Share — prominent on ANY completed run with a deliverable, so the owner
+            can turn it into a public, forkable Run Card without hunting (founder
+            ask). Amber + share icon. The detailed URL/copy state expands in place. */}
+        {r.run_state === 'completed' && r.output_markdown && (
+          <div className="mb-6">
+            <RunShareButton runId={r.id} />
+          </div>
+        )}
+
         {/* The ONE action surface for a held run — context-aware primary (Approve &
             finish / Mark as done / Answer & continue), Request-changes on demand, a
             quiet Dismiss, and power-user escapes under "⋯". Replaces the old banner +
@@ -407,14 +416,8 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             <div className="prose prose-sm max-w-none rounded-lg border border-ink-800 bg-ink-950/60 p-5">
               <RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot} />
             </div>
-            {/* Turn a delivered run into a public, forkable Run Card (the growth
-                loop). Opt-in; the run stays private until shared, then it's a
-                PII-scrubbed snapshot + trust line + fork-the-agent CTA. */}
-            {r.run_state === 'completed' && (
-              <div className="mt-3">
-                <RunShareButton runId={r.id} />
-              </div>
-            )}
+            {/* (Share moved to the top of the run view — see the amber "Share this
+                run" button under the header. The growth-loop Run Card lives there.) */}
           </>
         ) : info.attention ? (
           // A stalled/failed run has no deliverable. Don't dead-end at a blank
