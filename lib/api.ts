@@ -9,7 +9,7 @@ const BASE = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.a
 
 export async function callBackend(path: string, opts: {
   jwt?: string | null;
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: any;
 } = {}) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };

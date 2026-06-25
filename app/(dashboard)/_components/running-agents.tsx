@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import Modal from './modal';
 
 // The statuses worth a native desktop notification (yellow/red — they need you).
 // action_available = a delivered run has a READY one-tap action (publish, etc.).
@@ -103,6 +104,28 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
       return next;
     });
   }
+
+  // Cancel a QUEUED run (a pending run_request not yet picked up) — the cheap,
+  // clean catch-before-it-spends case. The × opens a confirm; on yes we flip the
+  // request to 'cancelled' so the drainer/Claude never picks it up, and hide the
+  // card optimistically. (Stopping an already-RUNNING run needs the kill infra —
+  // a separate slice; the × only shows on 'queued' for now.)
+  const [confirmCancel, setConfirmCancel] = useState<LiveCard | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelledReqIds, setCancelledReqIds] = useState<Set<string>>(new Set());
+  async function doCancel(card: LiveCard) {
+    if (!card.requestId || cancelBusy) return;
+    setCancelBusy(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend(`/api/v2/me/run-requests/${encodeURIComponent(card.requestId)}`, {
+        jwt: session?.access_token, method: 'PATCH', body: { status: 'cancelled' },
+      });
+      setCancelledReqIds((p) => { const n = new Set(p); n.add(card.requestId!); return n; });
+      setConfirmCancel(null);
+    } catch { /* leave the card; the user can retry */ }
+    finally { setCancelBusy(false); }
+  }
   // Native desktop notifications fire from here (the dashboard runs inside the
   // Electron webview, so the Notification API reaches the OS). We seed on the first
   // poll so pre-existing states don't storm, then notify only on NEW transitions.
@@ -157,7 +180,9 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   if (!cards) return null;
   // On Home we show only the cards that need you (yellow/red); on the Agents page
   // we show everything live.
-  const list = (alertsOnly ? cards.filter((c) => ALERT_STATUSES.has(c.status)) : cards).filter((c) => !(c.runId && dismissed.has(c.runId)));
+  const list = (alertsOnly ? cards.filter((c) => ALERT_STATUSES.has(c.status)) : cards)
+    .filter((c) => !(c.runId && dismissed.has(c.runId)))
+    .filter((c) => !(c.requestId && cancelledReqIds.has(c.requestId)));
   if (list.length === 0) return null; // invisible at rest
   const shown = showAll ? list : list.slice(0, 5);
 
@@ -223,6 +248,19 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                   ✕
                 </button>
               )}
+              {/* Cancel a QUEUED run before it's picked up (catch it before it
+                  spends). Opens a confirm; stops the drainer/Claude from running it. */}
+              {c.status === 'queued' && c.requestId && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancel(c); }}
+                  title="Cancel this run"
+                  aria-label="Cancel this run"
+                  className="shrink-0 text-ink-600 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
+                >
+                  ✕
+                </button>
+              )}
               {linkable && (
                 <span className="shrink-0 text-lg leading-none text-ink-500 group-hover:text-ink-200 transition-colors" aria-hidden="true">›</span>
               )}
@@ -248,6 +286,37 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
           {showAll ? 'Show less' : `Load more (${list.length - 5})`}
         </button>
       )}
+
+      <Modal
+        open={!!confirmCancel}
+        onClose={() => { if (!cancelBusy) setConfirmCancel(null); }}
+        title="Cancel this run?"
+        maxWidth="max-w-sm"
+      >
+        <p className="text-sm text-ink-200 leading-relaxed">
+          This will cancel{' '}
+          <span className="font-medium text-ink-50">{confirmCancel ? humanize(confirmCancel.skillSlug) : 'this run'}</span>{' '}
+          before your Claude picks it up — it won&apos;t run, and nothing will be spent. You can run it again anytime.
+        </p>
+        <div className="mt-5 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => setConfirmCancel(null)}
+            disabled={cancelBusy}
+            className="btn-outline text-sm px-4 py-2 disabled:opacity-50"
+          >
+            Keep it
+          </button>
+          <button
+            type="button"
+            onClick={() => confirmCancel && doCancel(confirmCancel)}
+            disabled={cancelBusy}
+            className="text-sm px-4 py-2 rounded-lg bg-rose-500 text-white hover:bg-rose-400 font-medium disabled:opacity-50"
+          >
+            {cancelBusy ? 'Cancelling…' : 'Cancel run'}
+          </button>
+        </div>
+      </Modal>
     </section>
   );
 }
