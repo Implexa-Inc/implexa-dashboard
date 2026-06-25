@@ -14,6 +14,7 @@ import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Logo } from '@/components/logo';
+import ForkRunCta from './fork-run-cta';
 
 import 'highlight.js/styles/github-dark.css';
 
@@ -50,7 +51,6 @@ export default async function RunCardPage({ params }: { params: { token: string 
   if (!card) notFound();
 
   const agentName = humanize(card.skillSlug || 'agent');
-  const adoptHref = `/signup?intent=adopt&agent=${encodeURIComponent(card.skillSlug)}`;
   const pct = card.grade ? Math.round(card.grade.rate * 100) : null;
 
   return (
@@ -113,9 +113,7 @@ export default async function RunCardPage({ params }: { params: { token: string 
           <p className="text-xs text-ink-400 mt-1">
             Run this agent inside the Claude or Codex you already pay for. It never touches your credentials, and it&apos;s free to use with the tools you have.
           </p>
-          <Link href={adoptHref} className="btn-success inline-block mt-3 px-5 py-2 text-sm">
-            Run this agent in your subscription
-          </Link>
+          <ForkRunCta skillSlug={card.skillSlug} />
         </div>
 
         <p className="mt-6 text-center text-[11px] text-ink-600">

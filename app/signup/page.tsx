@@ -29,7 +29,7 @@ function sanitizeNext(next: string | undefined): string | null {
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams?: { next?: string; invite?: string; intent?: string };
+  searchParams?: { next?: string; invite?: string; intent?: string; agent?: string };
 }) {
   const next        = sanitizeNext(searchParams?.next);
   const inviteToken = typeof searchParams?.invite === 'string' ? searchParams.invite : null;
@@ -37,6 +37,14 @@ export default async function SignupPage({
   // the form stashes it in app-origin localStorage so it survives the auth
   // round-trip, then /overview turns it into a build run-request.
   const intent = typeof searchParams?.intent === 'string' ? searchParams.intent.slice(0, 500) : null;
+  // Adopt-and-run from a shared Run Card: intent=adopt&agent=<slug>. We route the
+  // user STRAIGHT to that agent's page, where the existing Activate → Run flow
+  // adopts it correctly (creates the scheduled_skills row + runs via the drainer).
+  // No build-box path, no hand-rolled fork — the proven activation flow owns it.
+  const agentSlug = (intent === 'adopt' && typeof searchParams?.agent === 'string' && /^[a-z0-9][a-z0-9-]{0,159}$/.test(searchParams.agent))
+    ? searchParams.agent
+    : null;
+  const adoptNext = agentSlug ? `/workflows/${agentSlug}` : null;
 
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
@@ -47,11 +55,13 @@ export default async function SignupPage({
     if (inviteToken) {
       redirect(`/onboarding?invite=${encodeURIComponent(inviteToken)}`);
     }
-    // Carry the build intent onward so /overview's consumer still gets it.
+    // Adopt-and-run → land on the agent page. Else carry the build intent to /overview.
+    if (adoptNext) redirect(adoptNext);
     redirect(intent ? `/overview?intent=${encodeURIComponent(intent)}` : (next || '/overview'));
   }
 
-  return <SignupForm initialNext={next} initialInvite={inviteToken} initialIntent={intent} />;
+  // Adopt → post-auth `next` = the agent page (no build intent stashed).
+  return <SignupForm initialNext={adoptNext || next} initialInvite={inviteToken} initialIntent={adoptNext ? null : intent} />;
 }
 
 export const metadata = {
