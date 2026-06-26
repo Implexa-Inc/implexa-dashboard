@@ -518,6 +518,9 @@ export default async function WorkflowDetailPage({
               <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>
               <p className="text-ink-200 mt-3">{workflow.job || workflow.description}</p>
               <div className="mt-3 flex items-center gap-2 flex-wrap">
+                {/→|->/.test(workflow.name || '') && (
+                  <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-violet-600 dark:text-violet-300" title="A chain — runs several agents in sequence, each feeding the next">⛓ Chain</span>
+                )}
                 <RemoteSafetyBadge safety={safety} />
               </div>
             </div>

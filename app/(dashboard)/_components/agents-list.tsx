@@ -74,7 +74,14 @@ export type ListAgent = {
   scheduleNl?: string | null;
   lastRun?: { id?: string; status: string; runState: string | null; ranAt: string } | null;
   grade?: { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null;
+  /** True when this agent chains other agents (its name reads "A → B"). Shown as a ⛓ Chain tag. */
+  isChain?: boolean;
 };
+
+// A chain agent's name is the leaf names joined by an arrow (createChainWorkflow).
+export function looksLikeChain(name: string): boolean {
+  return /→|->/.test(name || '');
+}
 
 export type ArchivedAgent = { slug: string; name: string; source: string };
 
@@ -156,6 +163,9 @@ function Row({ a, onArchive, onRename, busy }: { a: ListAgent; onArchive: (a: Li
               </button>
             )}
             <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{a.category.label}</span>
+            {(a.isChain ?? looksLikeChain(a.name)) && (
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-violet-600 dark:text-violet-300" title="This agent runs several agents in sequence">⛓ Chain</span>
+            )}
             {a.section === 'not_activated' && (
               <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-sky-700 dark:text-sky-300">Draft</span>
             )}

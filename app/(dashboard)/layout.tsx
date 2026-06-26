@@ -25,6 +25,7 @@ import Sidebar, { MobileTopBar } from './_components/sidebar';
 import UpdateBanner, { type BehindSurface } from './_components/update-banner';
 import AutoUpdateToast from './_components/auto-update-toast';
 import PersistIntent from './_components/persist-intent';
+import CreateFab from './_components/create-fab';
 import { getLatestVersions } from '@/lib/versions';
 
 // Per-surface update command. Claude/Cursor update in-session via /plugin; Codex
@@ -186,6 +187,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {children}
         </main>
       </div>
+      {/* Omnipresent "create an agent from anywhere" floating button + build box. */}
+      <CreateFab />
       {/* Desktop-app auto-update toast (bottom-left, "Restart to update"). Renders
           nothing on plain web — the capability lives on window.implexaDesktop. */}
       <AutoUpdateToast />
