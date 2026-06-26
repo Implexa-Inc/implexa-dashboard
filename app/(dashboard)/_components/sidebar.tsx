@@ -48,6 +48,7 @@ type NavItem = {
 const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Home',           icon: 'dashboard', matchPrefix: true },
   { href: '/workflows',    label: 'Agents',         icon: 'workflows', matchPrefix: true, badgeKey: 'agents' },
+  { href: '/browse',       label: 'Browse agents',  icon: 'skills',    matchPrefix: true },
   { href: '/chains',       label: 'Agent Chains',   icon: 'link',      matchPrefix: true },
   // Results folded into Home (the one todo). Route stays live for deep links
   // (notification/email ?run= links) + the redesign's interim; nav item hidden.
