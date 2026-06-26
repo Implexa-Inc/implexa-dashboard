@@ -20,8 +20,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title:       'Implexa — Skill recording for any AI session',
-  description: 'Demonstrate any workflow once. Implexa captures it as a reusable, structured, measurable skill.',
+  title:       'Implexa — Build and run powerful agents in your own Claude or Codex',
+  description: 'Build and run powerful agents inside your own Claude or Codex, on your machine. Unlimited agents. Free forever.',
   icons: {
     icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
     apple: '/logo-mark.svg',

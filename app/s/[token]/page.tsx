@@ -283,7 +283,7 @@ export default async function SharePreviewPage({ params }: { params: { token: st
         {/* Footer */}
         <footer className="mt-10 text-center text-xs text-ink-400">
           <p>
-            Powered by <Link href="/" className="text-brand-500 hover:underline font-medium">Implexa</Link> · Skill recording for any AI session
+            Powered by <Link href="/" className="text-brand-500 hover:underline font-medium">Implexa</Link> · Build and run powerful agents in your own Claude or Codex
           </p>
           <p className="mt-2">
             {stats.viewCount} {stats.viewCount === 1 ? 'view' : 'views'} · {stats.installCount} {stats.installCount === 1 ? 'install' : 'installs'}

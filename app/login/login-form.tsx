@@ -101,7 +101,7 @@ export default function LoginForm({
       <div className="w-full max-w-sm">
         <div className="mb-6"><Logo height={18} /></div>
         <h1 className="text-3xl font-semibold tracking-tight mb-2 text-ink-50">Sign in</h1>
-        <p className="text-ink-300 text-sm mb-8">Skill recording for any AI session.</p>
+        <p className="text-ink-300 text-sm mb-8">Build and run powerful agents in your own Claude or Codex.</p>
 
         {error && (
           <div className="card !p-3 !border-red-500/40 !bg-red-500/5 mb-4 text-sm text-red-700 dark:text-red-400 leading-relaxed">
