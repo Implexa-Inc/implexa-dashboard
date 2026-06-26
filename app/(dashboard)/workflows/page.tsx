@@ -20,6 +20,7 @@ import { getMyAgents } from '@/lib/agents-home';
 import { categorizeAgent } from '@/lib/agent-category';
 import AgentsList, { type ListAgent, type ArchivedAgent } from '../_components/agents-list';
 import RunningAgents from '../_components/running-agents';
+import ManageTips from '../_components/manage-tips';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,6 +128,10 @@ export default async function WorkflowsPage() {
               agents had no way INTO building/finding one from this page. */}
           <Link href="/create" className="flex-none btn-primary text-sm px-4 py-2 whitespace-nowrap">+ Create agent</Link>
         </header>
+
+        {/* Quiet, dismissible tips on getting hands-off agents (keep Claude
+            running, schedule browser agents, run from your phone). */}
+        <ManageTips />
 
         {/* Live "Running" section — polls /scheduled-skills/live, renders the
             5-status pulsing-dot cards. Invisible when nothing is running. */}
