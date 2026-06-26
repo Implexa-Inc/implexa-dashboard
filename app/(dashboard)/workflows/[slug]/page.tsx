@@ -35,6 +35,7 @@ import InboxList from '../../inbox/inbox-list';
 import BackLink from '../../_components/back-link';
 import AgentSetupCard from '../../_components/agent-setup-card';
 import AgentFeedback from '../../_components/agent-feedback';
+import ImproveAgent from '../../_components/improve-agent';
 import StepRow from '../../_components/step-row';
 import ExtendChain from '../../_components/extend-chain';
 import { getActivationChecklist } from '@/lib/activation';
@@ -471,6 +472,12 @@ export default async function WorkflowDetailPage({
        * the agent declares no questions. */}
       <div id="agent-setup" className="mb-6 scroll-mt-20">
         <AgentSetupCard slug={workflow.slug} source={workflow.source} />
+      </div>
+
+      {/* Edit what the agent DOES — a plain-language change rewrites its steps
+          (kind='revise') into a new version. Distinct from config answers above. */}
+      <div className="mb-6">
+        <ImproveAgent slug={workflow.slug} />
       </div>
 
       {/* "Or have feedback? Tell Claude to change it." */}
