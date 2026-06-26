@@ -36,6 +36,9 @@ type LiveCard = {
   source: string | null;
   status: LiveStatus;
   since: string | null;
+  /** When the run actually completed (null while running/queued). The Home linger
+   *  and a finished card's "Nm ago" measure from THIS, not `since` (start time). */
+  finishedAt?: string | null;
   /** Median duration of this agent's recent completed runs (ms), if known. */
   typicalMs?: number | null;
   /** Run IDENTITY — what THIS run is, from its own output. Primary card label. */
@@ -197,8 +200,12 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   // out of my agents, so I had to dig in Runs to find it"). After the window it ages
   // out of Home; the full Agents page still shows finished runs for the backend's 3h.
   const RECENT_DONE_MS = 30 * 60 * 1000;
+  // Anchor the linger to COMPLETION (finishedAt), falling back to `since` only when an
+  // older card predates the finishedAt field. Measuring from start time made a long
+  // run age out almost as soon as it finished (founder: "disappeared before 30 min").
+  const doneAt = (c: LiveCard) => c.finishedAt || c.since;
   const recentlyDone = (c: LiveCard) =>
-    c.status === 'finished' && !!c.since && (Date.now() - new Date(c.since).getTime()) < RECENT_DONE_MS;
+    c.status === 'finished' && !!doneAt(c) && (Date.now() - new Date(doneAt(c)!).getTime()) < RECENT_DONE_MS;
   const list = (alertsOnly ? cards.filter((c) => ALERT_STATUSES.has(c.status) || recentlyDone(c)) : cards)
     .filter((c) => !(c.runId && dismissed.has(c.runId)))
     .filter((c) => !(c.requestId && cancelledReqIds.has(c.requestId)));
@@ -219,7 +226,15 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
           // user still wants IN — fall back to the agent page so they can see the
           // chain's steps while it spins up. (Founder hit a running chain card that
           // was dead because the run row wasn't logged yet.)
-          const href = c.runId ? `/runs/${encodeURIComponent(c.runId)}` : (c.skillSlug ? `/workflows/${encodeURIComponent(c.skillSlug)}` : null);
+          // With a real run row → the run page (status-aware step-trace / approve /
+          // retry). Without one (a queued/picked-up request, or a chain whose legs
+          // record under their own leaf slugs), fall back to the agent's RUNS TAB —
+          // never the marketing Overview (founder landed there from a running card and
+          // saw no steps). The Runs tab lists this agent's runs/requests, one click
+          // from the step-trace.
+          const href = c.runId
+            ? `/runs/${encodeURIComponent(c.runId)}`
+            : (c.skillSlug ? `/workflows/${encodeURIComponent(c.skillSlug)}?tab=runs` : null);
           const linkable = !!href;
           const body = (
             <>
@@ -239,7 +254,8 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                     : c.status === 'action_available' && c.actionLabel
                     ? <span className="text-brand-500">{c.actionLabel}{c.actionCount && c.actionCount > 1 ? ` (+${c.actionCount - 1} more)` : ''}</span>
                     : s.label}
-                  {c.since ? ` · ${rel(c.since)}` : ''}
+                  {/* Finished/failed → "Nm ago" from completion; live cards from start. */}
+                  {(() => { const t = (c.status === 'finished' || c.status === 'failed') && c.finishedAt ? c.finishedAt : c.since; return t ? ` · ${rel(t)}` : ''; })()}
                   {c.status === 'running' && c.typicalMs ? (
                     elapsedMs(c.since) > c.typicalMs * 1.5 ? (
                       <span className="text-amber-600 dark:text-amber-400"> · longer than usual (~{fmtDur(c.typicalMs)})</span>
