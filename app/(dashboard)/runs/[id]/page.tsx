@@ -42,7 +42,12 @@ export const dynamic = 'force-dynamic';
 // a draft you act on) → "Mark as done". Intentionally STRICT (deferred-work phrases,
 // not generic "post"/"publish" mentions) so a draft you post yourself isn't mistaken
 // for agent work. Shared verbatim with the inbox overlay's detection.
-const SHIP_STEP_RE = /\b(to ship|on approval|approve to (?:render|publish|post|deploy)|then \(expensive\)|final approval|held before)\b/i;
+// Phrasings that mean "this run is HELD before a consequential/costly step it runs
+// ON APPROVAL" → show "Approve & finish" (fire the step), not "Mark as done" (which
+// would discard it). Tested against markdown with emphasis stripped (see below), so
+// "held *before*" / "approve to **fire**" still match. Kept specific to approval-gated
+// ACTIONS (not delivery destinations) so a deliver-only draft never false-matches.
+const SHIP_STEP_RE = /\b(to ship|on approval|approve to (?:render|publish|post|deploy|fire|generate|assemble|send|spend|run)|approve (?:&|and) (?:ship|finish|render|fire)|approve before|held before|before (?:any )?(?:runway|heygen)\b|ready[- ]to[- ]fire|then \(expensive\)|final approval)/i;
 
 function humanize(slug: string): string {
   return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -231,7 +236,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   // sends you the result; treating it as ship made HN drafts queue a dead continue.)
   const hasShipStep =
     !!schedRows?.[0]?.post_run_action ||
-    (!!r.output_markdown && SHIP_STEP_RE.test(r.output_markdown));
+    (!!r.output_markdown && SHIP_STEP_RE.test(r.output_markdown.replace(/[*_`]/g, '')));
 
   // On-demand detection for the "make it recurring" nudge: does this agent have
   // ANY recurring (cron) schedule on the books (active or paused)? If not, it
