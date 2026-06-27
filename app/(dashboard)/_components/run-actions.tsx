@@ -62,7 +62,6 @@ export default function RunActions({
   const [showMore, setShowMore] = useState(false);
   const [confirmDismiss, setConfirmDismiss] = useState(false);
   const [busy, setBusy] = useState<null | string>(null);
-  const [done, setDone] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const { files, canAttach, attachFile, removeFile } = useRunAttachments();
@@ -81,7 +80,9 @@ export default function RunActions({
         jwt: await jwt(), method: 'POST',
         body: { kind: 'continue', runId, source: 'dashboard' },
       });
-      setDone('Approved — finishing hands-off. The result lands on Home.');
+      // Land the user on Active Agents so they SEE the new task spin up (parity
+      // with Run-now) instead of a static "done" line they have to interpret.
+      router.push('/workflows'); router.refresh();
     } catch {
       setErr('Could not approve. Try again.');
       setBusy(null);
@@ -123,10 +124,8 @@ export default function RunActions({
           });
         } catch { /* continue queued; the edit can be retried from "Edit this agent" */ }
       }
-      const future = editAgent ? ' The agent is also being updated for future runs.' : '';
-      setDone(needsInput
-        ? `Sent — continuing with your input, hands-off.${future} The result lands on Home.`
-        : `Queued — re-running with your changes.${future} The updated result lands on Home.`);
+      // Land on Active Agents so the new run's loader is visible (parity with Run).
+      router.push('/workflows'); router.refresh();
     } catch {
       setErr('Could not queue the changes. Try again.'); setBusy(null);
     }
@@ -150,14 +149,6 @@ export default function RunActions({
       `Continue my Implexa agent "${agentName}". Its latest run (${runId}) produced a deliverable I've approved. ` +
       `Pick up where it paused at the human-approval gate: execute only the steps held behind my approval (e.g. publish/ship the approved option), don't redo the whole job.`;
     window.location.href = `claude://code/new?q=${encodeURIComponent(prompt.slice(0, CLAUDE_CODE_MAX))}`;
-  }
-
-  if (done) {
-    return (
-      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-4 text-sm text-emerald-700 dark:text-emerald-300">
-        ✓ {done}
-      </div>
-    );
   }
 
   const primaryLabel = needsInput

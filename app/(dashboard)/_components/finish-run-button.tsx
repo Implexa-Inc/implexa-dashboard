@@ -13,6 +13,7 @@
  */
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
@@ -24,10 +25,11 @@ const FINISH_PROMPT =
 
 export default function FinishRunButton({ runId }: { runId: string }) {
   const supabase = createClient();
-  const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
+  const router = useRouter();
+  const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
 
   async function finish() {
-    if (state === 'busy' || state === 'done') return;
+    if (state === 'busy') return;
     setState('busy');
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -35,18 +37,11 @@ export default function FinishRunButton({ runId }: { runId: string }) {
         jwt: session?.access_token, method: 'POST',
         body: { kind: 'continue', runId, note: FINISH_PROMPT, source: 'dashboard' },
       });
-      setState('done');
+      // Land on Active Agents so the user SEES it spin up (parity with Run-now).
+      router.push('/workflows'); router.refresh();
     } catch {
       setState('error');
     }
-  }
-
-  if (state === 'done') {
-    return (
-      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-4 text-sm text-emerald-700 dark:text-emerald-300">
-        ✓ Finishing the rest, hands-off. The completed result lands on Home.
-      </div>
-    );
   }
 
   return (

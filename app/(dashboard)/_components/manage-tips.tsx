@@ -80,17 +80,64 @@ function loadDismissed(): Set<string> {
   try { return new Set(JSON.parse(localStorage.getItem(LS_KEY) || '[]')); } catch { return new Set(); }
 }
 
+// The desktop bridge (present only inside the Implexa app webview).
+type DesktopBridge = { isAgentAppRunning?: (surface: string) => Promise<boolean>; openAgent?: (s?: string) => Promise<unknown> };
+function bridge(): DesktopBridge | null {
+  if (typeof window === 'undefined') return null;
+  return (window as unknown as { implexaDesktop?: DesktopBridge }).implexaDesktop ?? null;
+}
+
+const ROTATE_MS = 9000;
+
 export default function ManageTips() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [idx, setIdx] = useState(0);
   const [ready, setReady] = useState(false);
+  const [paused, setPaused] = useState(false);
+  // null = can't tell (web / old build) → keep the gentle generic tip.
+  // true  = Claude is open → drop the "keep it running" nag.
+  // false = Claude is CLOSED → show a loud, actionable alert instead.
+  const [claudeRunning, setClaudeRunning] = useState<boolean | null>(null);
 
   useEffect(() => { setDismissed(loadDismissed()); setReady(true); }, []);
 
-  const live = TIPS.filter((t) => !dismissed.has(t.id));
-  if (!ready || live.length === 0) return null;
+  // Detect whether the Claude desktop app is actually open, and keep it fresh —
+  // so the "keep Claude running" message only nags when it's genuinely closed.
+  useEffect(() => {
+    const b = bridge();
+    if (!b?.isAgentAppRunning) return;
+    let alive = true;
+    const check = async () => {
+      try { const up = await b.isAgentAppRunning!('claude'); if (alive) setClaudeRunning(!!up); }
+      catch { if (alive) setClaudeRunning(null); }
+    };
+    check();
+    const t = setInterval(check, 20000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
 
-  const tip = live[idx % live.length];
+  // Detected CLOSED → a loud, actionable alert (this is what the user must fix).
+  const claudeClosed = claudeRunning === false;
+
+  const live = TIPS.filter((t) => {
+    if (dismissed.has(t.id)) return false;
+    // The keep-running tip is handled by the alert (closed) or unnecessary (open);
+    // only keep it in the gentle rotation when we genuinely can't tell.
+    if (t.id === 'keep-claude-running' && claudeRunning !== null) return false;
+    return true;
+  });
+
+  // Auto-rotate the tips on a cadence (pause on hover so a reader isn't yanked).
+  useEffect(() => {
+    if (paused || live.length < 2) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % live.length), ROTATE_MS);
+    return () => clearInterval(t);
+  }, [paused, live.length]);
+
+  if (!ready) return null;
+  if (!claudeClosed && live.length === 0) return null;
+
+  const tip = live.length ? live[idx % live.length] : null;
 
   function dismiss(id: string) {
     const next = new Set(dismissed); next.add(id);
@@ -103,7 +150,36 @@ export default function ManageTips() {
   }
 
   return (
-    <div className="card !p-4 mb-6 border-l-2 !border-l-brand-500/50">
+    <>
+      {/* CLAUDE-CLOSED ALERT — only when we can SEE the app is shut. The whole
+          product depends on Claude being open, so this is loud + actionable. */}
+      {claudeClosed && (
+        <div className="card !p-4 mb-6 border-l-2 !border-l-amber-500" role="alert">
+          <div className="flex items-start gap-3">
+            <span className="text-lg leading-none mt-0.5" aria-hidden>⚠️</span>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-300">Claude isn’t running — your agents can’t fire</h3>
+              <p className="text-xs text-ink-300 leading-relaxed mt-1">
+                Agents run inside your own Claude on your Mac. Open the Claude desktop app (the menu-bar is enough — no
+                window needed) and your scheduled + queued runs go through. Implexa keeps your Mac awake once it’s open.
+              </p>
+              <button
+                onClick={() => bridge()?.openAgent?.('claude')}
+                className="mt-2.5 btn-success text-xs px-3 py-1.5"
+              >
+                Open Claude
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tip && (
+    <div
+      className="card !p-4 mb-6 border-l-2 !border-l-brand-500/50"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
       <div className="flex items-start gap-3">
         <span className="text-lg leading-none mt-0.5" aria-hidden>{tip.icon}</span>
         <div className="min-w-0 flex-1">
@@ -128,5 +204,7 @@ export default function ManageTips() {
         </div>
       </div>
     </div>
+      )}
+    </>
   );
 }
