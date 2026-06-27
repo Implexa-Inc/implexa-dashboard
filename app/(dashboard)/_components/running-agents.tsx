@@ -107,6 +107,19 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
       return next;
     });
   }
+  // A STALLED / held alert (incl. the "An Agent" permission-stall phantoms) had no
+  // way to clear it from here — the ✕ only showed on finished/failed. This removes
+  // it for REAL: mark the run reviewed=dismissed on the backend so it can't
+  // resurface, then hide the card. Optimistic: hide first, fire the call.
+  async function dismissHeld(runId: string) {
+    dismiss(runId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend(`/api/v2/runs/${encodeURIComponent(runId)}/review`, {
+        jwt: session?.access_token, method: 'POST', body: { status: 'dismissed' },
+      });
+    } catch { /* hidden locally already; backend retry on next interaction */ }
+  }
 
   // Cancel a run. TWO cases:
   //  • QUEUED (a pending run_request not yet picked up) — the cheap catch-before-
@@ -280,6 +293,20 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(c.runId!); }}
                   title="Dismiss from alerts"
                   aria-label="Dismiss this run from alerts"
+                  className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
+                >
+                  ✕
+                </button>
+              )}
+              {/* STALLED / held alerts (incl. the "An Agent" permission-stall phantoms)
+                  were un-clearable — give them a ✕ that REMOVES them for good
+                  (backend reviewed=dismissed), so a dead stall can't sit forever. */}
+              {(c.status === 'needs_attention' || c.status === 'waiting_approval') && c.runId && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismissHeld(c.runId!); }}
+                  title="Dismiss this alert"
+                  aria-label="Dismiss this alert"
                   className="shrink-0 text-ink-600 hover:text-ink-200 opacity-0 group-hover:opacity-100 transition-opacity text-sm leading-none px-1"
                 >
                   ✕
