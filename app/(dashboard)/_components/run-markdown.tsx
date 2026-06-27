@@ -140,6 +140,14 @@ function resolveAbs(root: string | null | undefined, rel: string): string | null
   return abs.startsWith(`${base}/`) ? abs : null;
 }
 
+// Decode a percent-encoded path (markdown link hrefs encode spaces etc.) back to
+// the real on-disk path. No-op when there's nothing to decode; returns the raw
+// string on a malformed escape so a stray "%" in a filename never throws.
+function decodePath(s: string): string {
+  if (!s || !s.includes('%')) return s;
+  try { return decodeURIComponent(s); } catch { return s; }
+}
+
 function FolderIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true"
@@ -175,7 +183,12 @@ function FilePathCode({
   artifactDir?: string | null;
 }) {
   const [toast, setToast] = useState<string | null>(null);
-  const trimmed = text.trim();
+  // A markdown LINK href arrives URL-ENCODED — a path like "~/Implexa Agents/…"
+  // becomes "~/Implexa%20Agents/…". That encoded string was used for BOTH the
+  // tooltip AND the actual reveal path, so the %20 never matched the real
+  // "Implexa Agents" folder → "path not found" (founder hit this). Decode it back
+  // (no-op for code-span paths, which aren't encoded; raw on any bad escape).
+  const trimmed = decodePath(text).trim();
   const isFolder = trimmed.endsWith('/');
   const readable = !isFolder && READABLE.has(lastExt(trimmed));
 
