@@ -1,0 +1,67 @@
+'use client';
+
+/**
+ * <FinishRunButton /> — the one-tap "finish a partial run" affordance.
+ *
+ * A run that stopped MID-PIPELINE (e.g. b-roll done, but the avatar render +
+ * compositing still to do) records as "delivered" with the remaining steps buried
+ * in prose — the user is left with "no clue how to continue" (founder hit this).
+ * When the page detects that remaining-steps/blocked structure, it shows this:
+ * one tap queues a kind='continue' that picks up from the deliverable and does the
+ * rest, hands-off. Same machinery as the changes box — just zero typing for the
+ * common "just finish it" case.
+ */
+
+import { useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { callBackend } from '@/lib/api';
+
+const FINISH_PROMPT =
+  "Continue from this run's deliverable and complete ALL the remaining / blocked steps to finish it end-to-end " +
+  '(e.g. generate the avatar/video, run the renders, composite, and produce the final output). ' +
+  "Use what's already done as the starting point — do NOT redo finished work. If a step genuinely can't run " +
+  '(a missing tool or input), do everything else and clearly say what is left.';
+
+export default function FinishRunButton({ runId }: { runId: string }) {
+  const supabase = createClient();
+  const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
+
+  async function finish() {
+    if (state === 'busy' || state === 'done') return;
+    setState('busy');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend('/api/v2/me/run-requests', {
+        jwt: session?.access_token, method: 'POST',
+        body: { kind: 'continue', runId, note: FINISH_PROMPT, source: 'dashboard' },
+      });
+      setState('done');
+    } catch {
+      setState('error');
+    }
+  }
+
+  if (state === 'done') {
+    return (
+      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-4 text-sm text-emerald-700 dark:text-emerald-300">
+        ✓ Finishing the rest, hands-off. The completed result lands on Home.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <p className="text-sm text-ink-100 font-medium">This run isn’t finished yet.</p>
+          <p className="text-xs text-ink-400 mt-0.5">It did part of the work and left the rest. Finish it in one tap — no typing.</p>
+        </div>
+        <button type="button" onClick={finish} disabled={state === 'busy'}
+          className="btn-success text-sm px-4 py-2 disabled:opacity-60 flex-none">
+          {state === 'busy' ? 'Queuing…' : 'Finish this run'}
+        </button>
+      </div>
+      {state === 'error' && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">Could not queue it. Try again.</p>}
+    </div>
+  );
+}

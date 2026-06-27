@@ -28,6 +28,7 @@ import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
 import RunActions from '../../_components/run-actions';
 import RunActionItems, { type RunActionItem } from '../../_components/run-action-items';
+import FinishRunButton from '../../_components/finish-run-button';
 import RunShareButton from '../../_components/run-share-button';
 import ClearAlertButton from '../../_components/clear-alert-button';
 import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
@@ -48,6 +49,13 @@ export const dynamic = 'force-dynamic';
 // "held *before*" / "approve to **fire**" still match. Kept specific to approval-gated
 // ACTIONS (not delivery destinations) so a deliver-only draft never false-matches.
 const SHIP_STEP_RE = /\b(to ship|on approval|approve to (?:render|publish|post|deploy|fire|generate|assemble|send|spend|run)|approve (?:&|and) (?:ship|finish|render|fire)|approve before|held before|before (?:any )?(?:runway|heygen)\b|ready[- ]to[- ]fire|then \(expensive\)|final approval)/i;
+
+// A run that stopped MID-PIPELINE leaves the remaining steps in its own notes — a
+// "What happens next / To finish / blocked on …" heading, or explicit "remaining /
+// still to do / blocked on" phrasing. When a DELIVERED (not-held) run looks like
+// this, we offer a one-tap "Finish this run" (founder: "I have no clue how to
+// continue"). Markdown emphasis stripped so "**blocked**" still matches.
+const PARTIAL_RUN_RE = /(^|\n)#{0,4}\s*[^\n]*\b(what happens next|to finish|to complete|remaining steps?|still (?:to do|needed|left)|blocked on|drops? (?:straight )?into step|the moment the .* (?:exists|is ready))\b/i;
 
 function humanize(slug: string): string {
   return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -349,6 +357,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               reviewStatus={pending ? 'pending' : 'needs_input'}
               hasShipStep={hasShipStep}
               claudeTaskId={claudeTaskId}
+              skillSlug={r.skill_slug}
             />
           </div>
         )}
@@ -368,6 +377,18 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         {!held && runActions.length > 0 && (
           <div className="mb-6">
             <RunActionItems runId={r.id} actions={runActions} />
+          </div>
+        )}
+
+        {/* "Finish this run" — a DELIVERED run that clearly stopped mid-pipeline
+            (its notes list remaining/blocked steps) gets a one-tap finish, so the
+            user never has to read prose to figure out how to continue. Suppressed
+            when the run already surfaced granular run_actions (no double CTA). */}
+        {!held && r.run_state === 'completed' && !!r.output_markdown &&
+          runActions.length === 0 &&
+          PARTIAL_RUN_RE.test(r.output_markdown.replace(/[*_`]/g, '')) && (
+          <div className="mb-6">
+            <FinishRunButton runId={r.id} />
           </div>
         )}
 
@@ -482,6 +503,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               feedbackAnswers={feedbackAnswers}
               feedbackAt={feedbackAt}
               heading
+              agentSlug={r.skill_slug}
             />
           </div>
         )}

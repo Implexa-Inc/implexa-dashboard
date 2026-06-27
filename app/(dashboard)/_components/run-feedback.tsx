@@ -45,6 +45,7 @@ export default function RunFeedback({
   feedbackAt,
   heading = false,
   onSubmitted,
+  agentSlug,
 }: {
   runId: string;
   feedbackQuestions: FeedbackQuestion[] | null;
@@ -56,12 +57,19 @@ export default function RunFeedback({
   heading?: boolean;
   /** Optimistic hook so a parent list can flip the row to "answered". */
   onSubmitted?: () => void;
+  /** The agent's slug — enables the "also edit the agent for future runs" opt-in.
+   *  Without it the feedback only rides into the NEXT run (one-shot). */
+  agentSlug?: string | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  // Opt-in: also bake this feedback into the agent so EVERY future run does it
+  // (a kind='revise'), not just the next run. Default off — most feedback is a
+  // one-off "tweak this run", and a permanent edit should be a deliberate choice.
+  const [editAgent, setEditAgent] = useState(false);
   const [error, setError] = useState<string>('');
   const [, startTransition] = useTransition();
 
@@ -72,6 +80,22 @@ export default function RunFeedback({
   // A run is "answered" once it has stored feedback OR we just submitted it.
   const answered = !!feedbackAt || done;
 
+  // The substantive instruction in this feedback (the free-text answers), used as
+  // the note when the user opts to permanently edit the agent. Choice chips like
+  // "👎 Needs work" aren't an instruction on their own, so we only carry text.
+  function instructionNote(): string {
+    const parts: string[] = [];
+    for (const q of qs) {
+      if (q.kind === 'text') {
+        const v = (draft[q.key] ?? '').toString().trim();
+        if (v) parts.push(v);
+      }
+    }
+    const ff = (draft[FREEFORM_KEY] ?? '').toString().trim();
+    if (ff) parts.push(ff);
+    return parts.join(' — ');
+  }
+
   async function submit() {
     if (Object.keys(draft).length === 0) return;
     setError('');
@@ -81,6 +105,18 @@ export default function RunFeedback({
       await callBackend(`/api/v2/runs/${runId}/feedback`, {
         jwt: session?.access_token, method: 'POST', body: { answers: draft },
       });
+      // Opt-in permanent edit: also queue a kind='revise' so the change sticks for
+      // every future run, not just the next one. Best-effort — the feedback is
+      // already saved, so a revise hiccup never loses the rating.
+      const note = instructionNote();
+      if (editAgent && agentSlug && note) {
+        try {
+          await fetch('/api/agents/revise', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ slug: agentSlug, note }),
+          });
+        } catch { /* feedback saved; the edit can be retried from "Edit this agent" */ }
+      }
       setDone(true);
       onSubmitted?.();
       startTransition(() => router.refresh());
@@ -94,7 +130,9 @@ export default function RunFeedback({
   if (answered) {
     return (
       <p className="text-sm text-success-700 dark:text-success-400">
-        ✓ Thanks. The agent will use this to improve on its next run.
+        ✓ Thanks. {editAgent
+          ? 'The agent is being updated so every future run does this.'
+          : 'The agent will use this to improve on its next run.'}
       </p>
     );
   }
@@ -201,6 +239,26 @@ export default function RunFeedback({
           </div>
         </div>
       </div>
+
+      {/* Permanent-edit opt-in. By default feedback rides into the NEXT run once;
+          check this to bake the instruction into the agent so EVERY future run does
+          it (the "whole point"). Only offered once there's a real instruction to
+          apply and we know the agent's slug. */}
+      {agentSlug && instructionNote() && (
+        <label className="mt-3 flex items-start gap-2.5 rounded-lg border border-ink-800 bg-ink-950/40 p-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={editAgent}
+            onChange={(e) => setEditAgent(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-brand-500 cursor-pointer"
+          />
+          <span className="text-[13px] text-ink-200 leading-snug">
+            Also apply this to <span className="font-medium text-ink-50">future runs</span> — edit the agent so it does this every time
+            <span className="block text-[11px] text-ink-500 mt-0.5">Otherwise this only improves the next run.</span>
+          </span>
+        </label>
+      )}
+
       <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
         <button
           type="button"
@@ -212,7 +270,7 @@ export default function RunFeedback({
               : 'btn-outline text-sm px-5 py-2 opacity-50 cursor-not-allowed'
           }
         >
-          {busy ? 'Saving…' : 'Send feedback'}
+          {busy ? 'Saving…' : (editAgent ? 'Send + edit agent' : 'Send feedback')}
         </button>
         <span className="text-xs text-ink-500">
           {error ? (

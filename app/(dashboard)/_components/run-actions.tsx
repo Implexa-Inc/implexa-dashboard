@@ -36,6 +36,7 @@ export default function RunActions({
   reviewStatus,
   hasShipStep,
   claudeTaskId,
+  skillSlug,
 }: {
   runId: string;
   agentName: string;
@@ -44,10 +45,16 @@ export default function RunActions({
   /** Approving triggers a consequential step (post/publish/render) vs deliver-only. */
   hasShipStep: boolean;
   claudeTaskId?: string | null;
+  /** The agent's slug — enables the "also edit the agent for future runs" opt-in
+   *  on the changes box (a permanent revise alongside the one-off continue). */
+  skillSlug?: string | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
   const needsInput = reviewStatus === 'needs_input';
+  // Opt-in: bake the requested change into the agent (kind='revise') so it holds
+  // for every future run, not just this re-run. Default off.
+  const [editAgent, setEditAgent] = useState(false);
 
   // needs-input runs open the changes box by default (it IS the action); a normal
   // approve-ready hold keeps it collapsed behind "Request changes".
@@ -105,9 +112,21 @@ export default function RunActions({
         jwt: await jwt(), method: 'POST',
         body: { kind: 'continue', runId, note: composed, source: 'dashboard' },
       });
+      // Opt-in: also bake the change into the agent (kind='revise') so future runs
+      // do it too, not just this re-run. Best-effort — the continue is already
+      // queued, so a revise hiccup never loses the re-run.
+      if (editAgent && skillSlug && note.trim()) {
+        try {
+          await fetch('/api/agents/revise', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ slug: skillSlug, note: note.trim() }),
+          });
+        } catch { /* continue queued; the edit can be retried from "Edit this agent" */ }
+      }
+      const future = editAgent ? ' The agent is also being updated for future runs.' : '';
       setDone(needsInput
-        ? 'Sent — continuing with your input, hands-off. The result lands on Home.'
-        : 'Queued — re-running with your changes. The updated result lands on Home.');
+        ? `Sent — continuing with your input, hands-off.${future} The result lands on Home.`
+        : `Queued — re-running with your changes.${future} The updated result lands on Home.`);
     } catch {
       setErr('Could not queue the changes. Try again.'); setBusy(null);
     }
@@ -218,6 +237,17 @@ export default function RunActions({
           />
           <AttachFiles files={files} canAttach={canAttach} onAttach={attachFile} onRemove={removeFile}
             hint="A screenshot, the captured footage, a doc — the run reads it as input." />
+          {/* Permanent-edit opt-in: by default this re-runs THIS run with the change;
+              check to also bake it into the agent so every future run does it. */}
+          {skillSlug && note.trim() && (
+            <label className="mt-2.5 flex items-start gap-2.5 cursor-pointer">
+              <input type="checkbox" checked={editAgent} onChange={(e) => setEditAgent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-brand-500 cursor-pointer" />
+              <span className="text-[13px] text-ink-200 leading-snug">
+                Also apply this to <span className="font-medium text-ink-50">future runs</span> — edit the agent so it does this every time
+              </span>
+            </label>
+          )}
           <div className="mt-2">
             <button type="button" onClick={continueWithChanges}
               disabled={!!busy || (!note.trim() && files.length === 0)}
