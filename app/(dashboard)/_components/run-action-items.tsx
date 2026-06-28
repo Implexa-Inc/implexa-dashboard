@@ -23,6 +23,7 @@
  */
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
@@ -109,9 +110,24 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
   const moreCount = live.length - PRIMARY;
 
   function Row({ a }: { a: RunActionItem }) {
-    const confirmation = acted[a.id];
+    // Queued state is DURABLE: driven by the server status (acting = a continue
+    // run-request was spawned), not just local React state — so it survives a
+    // refresh. Without this the action re-rendered as a fresh clickable button
+    // after reload and looked like the click did nothing (founder hit this).
+    const serverQueued = a.status === 'acting';
+    const serverDone = a.status === 'done';
+    const confirmation = acted[a.id]
+      || (serverQueued ? `Queued — “${a.label}” runs hands-off. Watch it in Active Agents; the result lands on Home.` : null);
     const ready = a.readiness === 'ready';
     const open = setupOpen.has(a.id);
+    // A done action: show a quiet "done" pill, never a live button.
+    if (serverDone && !acted[a.id]) {
+      return (
+        <div className="flex items-center gap-2 py-2.5">
+          <span className="text-sm text-emerald-700 dark:text-emerald-300">✓ {a.label} — done</span>
+        </div>
+      );
+    }
     return (
       <div className="flex items-start gap-3 py-2.5">
         <div className="min-w-0 flex-1">
@@ -131,7 +147,12 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
             )}
           </div>
           {confirmation ? (
-            <p className="mt-1.5 text-xs text-emerald-700 dark:text-emerald-300">{confirmation}</p>
+            <div className="mt-1.5">
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">{confirmation}</p>
+              <Link href="/workflows" className="mt-1 inline-block text-[11px] text-sky-600 dark:text-sky-400 hover:underline">
+                Watch in Active Agents →
+              </Link>
+            </div>
           ) : (
             <>
               {a.summary && <p className="mt-1 text-xs text-ink-400 leading-snug">{a.summary}</p>}
