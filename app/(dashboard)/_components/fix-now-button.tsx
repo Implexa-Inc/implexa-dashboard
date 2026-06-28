@@ -66,8 +66,13 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
     );
   }
 
-  // Case 2: no routine id → enqueue + hand the run to Claude Code via the bridge
-  // (target 'code': a run must land in Code, not chat). Falls back to details.
+  // Case 2: no routine id → just ENQUEUE the run and let it run on its own. The
+  // queued request is what arms the schedule + runs the agent (the dispatcher for
+  // browser agents, the drainer for headless) — so we do NOT hand over a "Run my
+  // agent" prompt the user has to send (founder: closing that prompt without acting
+  // still ran the agent, so it was pure friction). We just bring Claude to the front
+  // (no prompt) so a session exists to pick it up, then land on Active Agents to
+  // watch it spin up.
   async function fix() {
     if (firing) return;
     setFiring(true);
@@ -75,17 +80,8 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
     const bridge = typeof window !== 'undefined'
       ? (window as Window & { implexaDesktop?: Bridge }).implexaDesktop
       : undefined;
-    try {
-      if (bridge?.handoffAgent) {
-        await bridge.handoffAgent(`Run my Implexa agent "${name}".`, undefined, 'code').catch(() => null);
-      } else if (bridge?.openAgent) {
-        await bridge.openAgent().catch(() => null);
-      } else {
-        router.push(`/workflows/${slug}`); // plain browser: no local runtime to fix in
-      }
-    } finally {
-      setFiring(false);
-    }
+    try { await bridge?.openAgent?.().catch(() => null); } catch { /* web: no local app to focus */ }
+    router.push('/workflows'); router.refresh();
   }
 
   return (
@@ -95,7 +91,7 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
       disabled={firing}
       className="btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
     >
-      {firing ? 'Opening…' : neverArmed ? 'Start it in Claude' : 'Fix now in Claude'}
+      {firing ? 'Starting…' : neverArmed ? 'Start it' : 'Fix now'}
     </button>
   );
 }

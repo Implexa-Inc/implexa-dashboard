@@ -88,10 +88,10 @@ export default function NeedsYouStrip({
             <p className="text-sm font-medium text-ink-100 truncate">{m.name}</p>
             <p className="text-xs mt-0.5 text-amber-700 dark:text-amber-300">
               {m.neverArmed
-                ? `Scheduled for ${m.when}, but it hasn't started running yet. Open Claude once and it'll run on its own from then on.`
+                ? `Scheduled for ${m.when}, but it hasn't started running yet. Tap Start (keep the Claude app open) and it runs on its own from then on.`
                 : m.failed
-                ? 'Its schedule is marked failed. Run it now in Claude to get it going again.'
-                : `Missed its schedule (${m.when}). Run it now in Claude — it lands on the routine so you can watch.`}
+                ? 'Its schedule is marked failed. Tap Fix now and it re-runs on its own.'
+                : `Missed its schedule (${m.when}). Tap Fix now — it re-runs on its own and the result lands on Home.`}
             </p>
             <Link href={`/workflows/${m.slug}`} className="text-[11px] text-ink-500 hover:text-ink-300 hover:underline mt-1 inline-block">
               Open agent details
