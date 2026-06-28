@@ -29,6 +29,7 @@ import NotInApp from '../../_components/not-in-app';
 import RunActions from '../../_components/run-actions';
 import RunActionItems, { type RunActionItem } from '../../_components/run-action-items';
 import FinishRunButton from '../../_components/finish-run-button';
+import GrantPermissionsButton from '../../_components/grant-permissions-button';
 import RunShareButton from '../../_components/run-share-button';
 import ClearAlertButton from '../../_components/clear-alert-button';
 import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
@@ -56,6 +57,13 @@ const SHIP_STEP_RE = /\b(to ship|on approval|approve to (?:render|publish|post|d
 // this, we offer a one-tap "Finish this run" (founder: "I have no clue how to
 // continue"). Markdown emphasis stripped so "**blocked**" still matches.
 const PARTIAL_RUN_RE = /(^|\n)#{0,4}\s*[^\n]*\b(what happens next|to finish|to complete|remaining steps?|still (?:to do|needed|left)|blocked on|drops? (?:straight )?into step|the moment the .* (?:exists|is ready))\b/i;
+
+// The agent was caught needing browser / computer-use access it doesn't have on
+// this Mac — the pre-flight check (backend prompts) records this exact-style
+// message instead of letting the run hang on an ungranted-permission dialog. We
+// detect it and offer a one-click "Grant browser access" that opens Claude with
+// a grant-only prompt (NOT a trip to onboarding).
+const NEEDS_BROWSER_GRANT_RE = /Needs browser access on this Mac|grant Computer Use|Screen Recording \+ Accessibility|the browser is unavailable/i;
 
 function humanize(slug: string): string {
   return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -359,6 +367,23 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               claudeTaskId={claudeTaskId}
               skillSlug={r.skill_slug}
             />
+          </div>
+        )}
+
+        {/* Caught needing browser / computer-use access → one-click "Grant browser
+            access" that opens Claude with a grant-only prompt (it pops the macOS
+            permission dialog + pairs Chrome), instead of bouncing to onboarding. */}
+        {!!r.output_markdown && NEEDS_BROWSER_GRANT_RE.test(r.output_markdown) && (
+          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-4">
+            <p className="text-sm font-medium text-ink-100">This agent needs browser access on this Mac</p>
+            <p className="text-xs mt-1 text-amber-700 dark:text-amber-300">
+              It drives a browser/your screen, but Computer Use (Screen Recording + Accessibility) or the Claude for
+              Chrome extension isn&apos;t granted yet — so it froze waiting on a permission. Grant it once and re-run; it
+              runs hands-free from then on. Implexa never sees your logins.
+            </p>
+            <div className="mt-3">
+              <GrantPermissionsButton />
+            </div>
           </div>
         )}
 
