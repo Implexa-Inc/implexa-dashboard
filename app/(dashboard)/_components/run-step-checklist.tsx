@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import type { RunStep, StepStatus } from '@/lib/run-state';
@@ -47,6 +48,7 @@ export default function RunStepChecklist({
   live: boolean;
 }) {
   const supabase = createClient();
+  const router = useRouter();
   const [steps, setSteps] = useState<RunStep[]>(initialSteps);
   const [running, setRunning] = useState(live);
   const stop = useRef(false);
@@ -67,7 +69,13 @@ export default function RunStepChecklist({
           // lands the terminal state, then we idle.
           const stillRunning = item.run_state === 'running' && item.review_status !== 'pending' && item.review_status !== 'needs_input';
           setRunning(stillRunning);
-          if (!stillRunning) stop.current = true;
+          // The run just left "running" (completed, held for approval, or failed).
+          // The steps poll keeps the checklist fresh, but the REST of the page — the
+          // status badge, the Approve/Mark-done actions, the deliverable — is
+          // server-rendered and was going stale until a manual reload (founder: "no
+          // way to know it finished without leaving and coming back"). Refresh the
+          // server components ONCE on that transition so the whole page catches up.
+          if (!stillRunning) { stop.current = true; router.refresh(); }
         }
       } catch { /* transient — keep the last good state, try again */ }
       if (!stop.current) timer = setTimeout(poll, POLL_MS);
