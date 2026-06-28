@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import Modal from './modal';
+import StuckRunButton from './stuck-run-button';
 
 // The statuses worth a native desktop notification (yellow/red — they need you).
 // action_available = a delivered run has a READY one-tap action (publish, etc.).
@@ -50,6 +51,11 @@ type LiveCard = {
   /** action_available (0090): the primary ready action's label + how many open. */
   actionLabel?: string | null;
   actionCount?: number | null;
+  /** SOFT stuck signal (heartbeat stale on a running run) — likely waiting on a
+   *  permission. Drives the forever-fallback "open it in Claude & approve" nudge. */
+  stuck?: boolean;
+  /** The agent's own routine task id (for the stuck deep-link when scheduled). */
+  claudeTaskId?: string | null;
 };
 
 const POLL_MS = 15000;
@@ -345,12 +351,31 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
           );
           const key = c.runId || c.requestId || c.skillSlug;
           const cls = 'group flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3';
-          return linkable ? (
-            <Link key={key} href={href!} className={`${cls} hover:border-ink-700 transition-colors`}>
-              {body}
-            </Link>
+          // FOREVER FALLBACK: a run that's stuck (soft heartbeat-stale, or hard
+          // stalled) is almost always its dispatcher session waiting on a permission
+          // prompt. Offer a guaranteed one-click "open it in Claude & approve" so a
+          // fresh agent that hits an un-granted tool/site never dead-ends. Rendered
+          // as a SIBLING (can't nest an <a> inside the card's <Link>).
+          const showStuck = (c.stuck || c.status === 'needs_attention') && c.status !== 'finished' && c.status !== 'failed';
+          const card = linkable ? (
+            <Link href={href!} className={`${cls} hover:border-ink-700 transition-colors`}>{body}</Link>
           ) : (
-            <div key={key} className={cls}>{body}</div>
+            <div className={cls}>{body}</div>
+          );
+          return (
+            <div key={key}>
+              {card}
+              {showStuck && (
+                <div className="mt-1.5 ml-7 rounded-md border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5">
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-snug">
+                    {c.status === 'needs_attention'
+                      ? 'This run stalled — most likely it’s waiting on a permission it couldn’t answer on its own.'
+                      : 'On the same step a while — if it’s waiting on a permission to continue, you can approve it now.'}
+                  </p>
+                  <StuckRunButton claudeTaskId={c.claudeTaskId} className="mt-2" />
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
