@@ -7,7 +7,7 @@ export type EngineReport = {
   engine: 'claude' | 'codex'; machine_id: string; app_installed: boolean; cli_installed: boolean;
   authenticated: boolean; plugin_connected: boolean; healthy: boolean; plugin_version?: string | null;
   latest_plugin_version?: string | null; plan_type?: string | null; capabilities?: Record<string, boolean>;
-  usage_snapshot?: { primary?: { usedPercent?: number; windowMinutes?: number; resetsAt?: string }; secondary?: { usedPercent?: number; windowMinutes?: number; resetsAt?: string } };
+  usage_snapshot?: { primary?: { usedPercent?: number; windowMinutes?: number; resetsAt?: string }; secondary?: { usedPercent?: number; windowMinutes?: number; resetsAt?: string }; recentRunCount?: number; estimatedRuntimeMinutes?: number };
   usage_confidence?: 'authoritative' | 'estimated' | 'unknown'; last_connection_at?: string | null;
   last_successful_run_at?: string | null; last_seen_at?: string | null;
 };
@@ -73,7 +73,7 @@ function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: En
       <dl className="mt-5 space-y-2 text-xs">
         <Row label="Plan" value={report?.plan_type || 'Unknown'} />
         <Row label="Plugin" value={`${report?.plugin_version ? `v${report.plugin_version}` : 'Unknown'}${report?.latest_plugin_version ? ` · latest v${report.latest_plugin_version}` : ''}`} />
-        <Row label="Usage/headroom" value={usage?.usedPercent != null ? `${Math.max(0, 100 - usage.usedPercent)}% remaining (${confidence})` : `Unknown (${confidence})`} />
+        <Row label="Usage/headroom" value={usage?.usedPercent != null ? `${Math.max(0, 100 - usage.usedPercent)}% remaining (${confidence})` : confidence === 'estimated' ? `${report?.usage_snapshot?.recentRunCount || 0} Implexa runs in 5h (estimate)` : 'Unknown'} />
         <Row label="Usage source" value={confidence === 'authoritative' ? (engine === 'codex' ? 'Local Codex rate-limit event' : 'Vendor telemetry') : confidence === 'estimated' ? 'Recent Implexa-owned runs' : 'Not available'} />
         <Row label="Last connection" value={when(report?.last_connection_at)} />
         <Row label="Last successful run" value={when(report?.last_successful_run_at)} />
