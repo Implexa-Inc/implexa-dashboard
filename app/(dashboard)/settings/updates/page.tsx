@@ -145,7 +145,7 @@ export default async function UpdatesPage() {
           )}
 
           <div className="mt-3 flex items-center gap-4 text-xs">
-            <Link href="/install" className="text-brand-500 hover:underline">First time? Connect Claude →</Link>
+            <Link href="/settings/engines" className="text-brand-500 hover:underline">Manage AI engines →</Link>
             {plugin.changelog_url ? (
               <a href={plugin.changelog_url} target="_blank" rel="noreferrer" className="text-ink-400 hover:underline">
                 What changed →

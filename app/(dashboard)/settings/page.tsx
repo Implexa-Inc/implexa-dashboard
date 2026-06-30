@@ -88,10 +88,10 @@ export default async function SettingsHubPage() {
             description="What Implexa stores about you, recommendation opt-ins, and the delete-all-my-data button. Your agents run on your machine; this is the little we keep."
           />
           <SettingsCard
-            href="/install"
+            href="/settings/engines"
             icon="⚡"
-            title="Connect Claude"
-            description="Install the Implexa plugin in Claude Code / Desktop / Cursor / Cowork."
+            title="AI engines"
+            description="Connect, test, and compare Claude and Codex independently."
           />
           <SettingsCard
             href="/settings/updates"

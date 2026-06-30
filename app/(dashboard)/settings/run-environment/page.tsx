@@ -53,7 +53,7 @@ export default async function RunEnvironmentPage() {
         <div className="mb-6 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-4 text-sm">
           <div className="font-medium text-ink-50 mb-1">You usually don&apos;t need to fill this in.</div>
           <p className="text-ink-300 leading-relaxed">
-            The first time you run an agent from Claude, it captures the folder it ran in (and the browser
+            The first time you run an agent from Claude or Codex, it captures the folder it ran in (and the browser
             it used) automatically. These fields are just to <strong>view or override</strong> what was
             captured — handy if you run agents in more than one place. Easiest setup: just run an agent
             once and come back here to confirm.

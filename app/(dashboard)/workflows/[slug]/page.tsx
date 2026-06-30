@@ -34,6 +34,7 @@ import AgentTabs, { type TabDef } from '../../_components/agent-tabs';
 import InboxList from '../../inbox/inbox-list';
 import BackLink from '../../_components/back-link';
 import AgentSetupCard from '../../_components/agent-setup-card';
+import AgentExecutorPreference from '../../_components/agent-executor-preference';
 import AgentFeedback from '../../_components/agent-feedback';
 import ImproveAgent from '../../_components/improve-agent';
 import StepRow from '../../_components/step-row';
@@ -467,6 +468,7 @@ export default async function WorkflowDetailPage({
 
   const setupPanel = (
     <>
+      <AgentExecutorPreference slug={workflow.slug} />
       {/* The agent's config interview — answer its questions here so it runs
        * unattended (no stopping to ask in Claude Code). Renders nothing when
        * the agent declares no questions. */}
