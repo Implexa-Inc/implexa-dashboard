@@ -30,6 +30,7 @@ import RunActions from '../../_components/run-actions';
 import RunActionItems, { type RunActionItem } from '../../_components/run-action-items';
 import FinishRunButton from '../../_components/finish-run-button';
 import GrantPermissionsButton from '../../_components/grant-permissions-button';
+import StuckRunButton from '../../_components/stuck-run-button';
 import RunShareButton from '../../_components/run-share-button';
 import ClearAlertButton from '../../_components/clear-alert-button';
 import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
@@ -138,6 +139,13 @@ export default async function RunDetailPage({ params }: { params: { id: string }
       </main>
     );
   }
+
+  let executionContext: { executor?: 'claude' | 'codex'; thread_id?: string | null; workspace?: string | null } | null = null;
+  try {
+    const { data } = await supabase.from('run_execution_contexts')
+      .select('executor, thread_id, workspace').eq('run_id', r.id).maybeSingle();
+    executionContext = data || null;
+  } catch { /* pre-migration run: use the legacy Claude recovery path */ }
 
   const wf = catalog.find((c) => c.slug === r.skill_slug);
   const name = wf?.name || humanize(r.skill_slug);
@@ -496,7 +504,15 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               </div>
             )}
             <div className="mt-4 flex flex-wrap gap-3">
-              <Link href={agentHref} className="btn-success text-sm px-4 py-2">Open agent &amp; run again</Link>
+              <StuckRunButton
+                engine={executionContext?.executor || 'claude'}
+                threadId={executionContext?.thread_id}
+                workspace={executionContext?.workspace}
+                runId={r.id}
+                claudeTaskId={claudeTaskId}
+                permissionCapability={info.permissionBlocked ? (NEEDS_BROWSER_GRANT_RE.test(r.output_markdown || '') ? 'computerUse' : 'browser') : null}
+              />
+              <Link href={agentHref} className="btn-outline text-sm px-4 py-2">Run again</Link>
               <Link href="/overview" className="btn-outline text-sm px-4 py-2">Back to home</Link>
             </div>
           </div>

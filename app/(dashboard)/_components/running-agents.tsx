@@ -56,6 +56,9 @@ type LiveCard = {
   stuck?: boolean;
   /** The agent's own routine task id (for the stuck deep-link when scheduled). */
   claudeTaskId?: string | null;
+  executor?: 'claude' | 'codex' | null;
+  executorThreadId?: string | null;
+  executorWorkspace?: string | null;
 };
 
 const POLL_MS = 15000;
@@ -64,7 +67,7 @@ const POLL_MS = 15000;
 // waiting on you. Done states (red/grey) stay a static dot. Every card opens the
 // run page, so there's no per-status button label — just a chevron.
 const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: string; label: string }> = {
-  queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your Claude' },
+  queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your AI engine' },
   running:          { spin: true,  spinCls: 'border-emerald-500/25 border-t-emerald-500', dotCls: 'bg-emerald-500',             label: 'Running' },
   waiting_approval: { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Waiting for approval' },
   action_available: { spin: false, spinCls: '',                                           dotCls: 'bg-brand-500',               label: 'Action available' },
@@ -372,7 +375,15 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                       ? 'This run stalled — most likely it’s waiting on a permission it couldn’t answer on its own.'
                       : 'On the same step a while — if it’s waiting on a permission to continue, you can approve it now.'}
                   </p>
-                  <StuckRunButton claudeTaskId={c.claudeTaskId} className="mt-2" />
+                  <StuckRunButton
+                    engine={c.executor || 'claude'}
+                    threadId={c.executorThreadId}
+                    workspace={c.executorWorkspace}
+                    runId={c.runId}
+                    claudeTaskId={c.claudeTaskId}
+                    permissionCapability="browser"
+                    className="mt-2"
+                  />
                 </div>
               )}
             </div>
