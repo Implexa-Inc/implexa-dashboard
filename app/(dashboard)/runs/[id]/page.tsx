@@ -222,7 +222,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   try {
     const { data: ra } = await supabase
       .from('run_actions')
-      .select('id, kind, label, summary, preset_prompt, readiness, blocker, confidence, status')
+      .select('id, kind, label, summary, preset_prompt, fulfillment, confirmation_label, readiness, blocker, confidence, status')
       .eq('run_id', params.id)
       .in('status', ['open', 'acting'])
       .order('rank', { ascending: true });

@@ -10,8 +10,10 @@
  * renders them as one-tap buttons so the user acts without re-reading the markdown.
  *
  * Loud vs quiet (the founder's model):
- *   • READY actions → primary green buttons. One tap spawns a hands-off continue
- *     run that does the preset instruction from this run's deliverable.
+ *   • READY agent actions → primary green buttons. One tap spawns a hands-off
+ *     continue run that does the preset instruction from this deliverable.
+ *   • HUMAN actions → first-person acknowledgement buttons ("I posted draft 2").
+ *     One tap marks the external step done; it never queues another agent run.
  *   • NEEDS_SETUP actions → shown but muted, with the blocker ("needs the repo
  *     mounted"), since they need the user to enable something first.
  *   • Beyond the top two, the rest collapse under "More actions (N)".
@@ -33,11 +35,42 @@ export type RunActionItem = {
   label: string;
   summary: string | null;
   preset_prompt: string | null;
+  fulfillment?: 'agent_run' | 'human_confirm' | null;
+  confirmation_label?: string | null;
   readiness: 'ready' | 'needs_setup';
   blocker: string | null;
   confidence: number | null;
   status: 'open' | 'acting' | 'done' | 'dismissed';
 };
+
+function isHumanAction(a: RunActionItem): boolean {
+  if (a.fulfillment) return a.fulfillment === 'human_confirm';
+  const text = [a.label, a.summary, a.preset_prompt, a.blocker].filter(Boolean).join(' ').toLowerCase();
+  return /\b(myself|yourself|manually)\b/.test(text)
+    || /\bhuman[ -]action\b/.test(text)
+    || /\bcopy (?:and|then) (?:post|send|publish|upload|share)\b/.test(text)
+    || /\bopen (?:the )?(?:thread|page|app) and (?:post|send|publish|upload|share)\b/.test(text);
+}
+
+function humanConfirmationLabel(a: RunActionItem): string {
+  if (a.confirmation_label) return a.confirmation_label;
+  const label = a.label.trim()
+    .replace(/\s+(?:myself|yourself|manually)\s*$/i, '')
+    .replace(/^please\s+/i, '');
+  const replacements: Array<[RegExp, string]> = [
+    [/^post\b/i, 'I posted'],
+    [/^publish\b/i, 'I published'],
+    [/^send\b/i, 'I sent'],
+    [/^upload\b/i, 'I uploaded'],
+    [/^share\b/i, 'I shared'],
+    [/^review\b/i, 'I reviewed'],
+    [/^approve\b/i, 'I approved'],
+  ];
+  for (const [pattern, replacement] of replacements) {
+    if (pattern.test(label)) return label.replace(pattern, replacement).slice(0, 120);
+  }
+  return label ? `I completed: ${label}`.slice(0, 120) : 'I completed this';
+}
 
 export default function RunActionItems({ runId, actions }: { runId: string; actions: RunActionItem[] }) {
   const supabase = createClient();
@@ -63,12 +96,16 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
     setBusy(a.id); setErr(null);
     try {
       const note = (notes[a.id] || '').trim();
-      await callBackend(`/api/v2/runs/${encodeURIComponent(runId)}/actions/${encodeURIComponent(a.id)}/act`, {
+      const result = await callBackend(`/api/v2/runs/${encodeURIComponent(runId)}/actions/${encodeURIComponent(a.id)}/act`, {
         jwt: await jwt(), method: 'POST', body: note ? { note } : {},
       });
-      setActed((m) => ({ ...m, [a.id]: `Queued — “${a.label}” runs hands-off. The result lands on Home.` }));
+      if (result?.fulfillment === 'human_confirm' || isHumanAction(a)) {
+        setActed((m) => ({ ...m, [a.id]: `Done — ${result?.confirmationLabel || humanConfirmationLabel(a)}.` }));
+      } else {
+        setActed((m) => ({ ...m, [a.id]: `Queued — “${a.label}” runs hands-off. The result lands on Home.` }));
+      }
     } catch {
-      setErr('Could not queue that. Try again.');
+      setErr(isHumanAction(a) ? 'Could not mark that done. Try again.' : 'Could not queue that. Try again.');
     } finally {
       setBusy(null);
     }
@@ -77,6 +114,7 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
   // Ready → one-tap. needs_setup → reveal the setup panel first; a second click
   // ("Run it") inside the panel actually queues.
   function primaryClick(a: RunActionItem) {
+    if (isHumanAction(a)) { act(a); return; }
     if (a.readiness === 'ready') { act(a); return; }
     setSetupOpen((s) => { const n = new Set(s); n.add(a.id); return n; });
   }
@@ -116,9 +154,10 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
     // after reload and looked like the click did nothing (founder hit this).
     const serverQueued = a.status === 'acting';
     const serverDone = a.status === 'done';
+    const human = isHumanAction(a);
     const confirmation = acted[a.id]
       || (serverQueued ? `Queued — “${a.label}” runs hands-off. Watch it in Active Agents; the result lands on Home.` : null);
-    const ready = a.readiness === 'ready';
+    const ready = a.readiness === 'ready' || human;
     const open = setupOpen.has(a.id);
     // A done action: show a quiet "done" pill, never a live button.
     if (serverDone && !acted[a.id]) {
@@ -138,8 +177,17 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
               disabled={!!busy || !!confirmation}
               className={`${ready ? 'btn-success' : 'btn-outline'} text-sm px-3.5 py-1.5 disabled:opacity-60`}
             >
-              {busy === a.id ? 'Queuing…' : confirmation ? '✓ Queued' : a.label}
+              {busy === a.id
+                ? (human ? 'Saving…' : 'Queuing…')
+                : confirmation
+                  ? (human ? '✓ Done' : '✓ Queued')
+                  : (human ? humanConfirmationLabel(a) : a.label)}
             </button>
+            {human && !confirmation && (
+              <span className="text-[10px] uppercase tracking-wide text-ink-500 font-medium">
+                human action
+              </span>
+            )}
             {!ready && !confirmation && (
               <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-medium">
                 needs setup
@@ -149,9 +197,11 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
           {confirmation ? (
             <div className="mt-1.5">
               <p className="text-xs text-emerald-700 dark:text-emerald-300">{confirmation}</p>
-              <Link href="/workflows" className="mt-1 inline-block text-[11px] text-sky-600 dark:text-sky-400 hover:underline">
-                Watch in Active Agents →
-              </Link>
+              {!human && (
+                <Link href="/workflows" className="mt-1 inline-block text-[11px] text-sky-600 dark:text-sky-400 hover:underline">
+                  Watch in Active Agents →
+                </Link>
+              )}
             </div>
           ) : (
             <>
@@ -160,7 +210,7 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
 
               {/* needs_setup panel — collect the missing info / confirm setup BEFORE
                   queuing, so a blocked action never fires blind. */}
-              {!ready && open && (
+              {!human && !ready && open && (
                 <div className="mt-2.5 rounded-md border border-amber-500/25 bg-amber-500/[0.06] p-3">
                   <p className="text-[11px] text-ink-300">
                     This needs you to set something up first. Add what it needs below (e.g. the blog slugs, a path,
