@@ -1,11 +1,18 @@
 /**
  * /settings — hub page that links into each settings sub-section.
  *
+ * 2026-07-01 simplification (Codex's design audit): 9 flat equal tiles read as
+ * an IT admin panel. Grouped into 4 sections the user actually thinks in —
+ * Account, AI engines, Accounts agents can use, Privacy & data. Same routes,
+ * same tiles; only the grouping + a couple of plainer titles changed.
+ *
  * Subroutes today:
  *   /settings/billing    — plan, seats, capture quota, Stripe portal
- *   /settings/api-keys   — generate / revoke imp_live_... API keys
+ *   /settings/api-keys   — generate / revoke imp_live_... API keys (shown as
+ *                          "Devices & installs" — this audience reads "API keys"
+ *                          as a developer feature, not the device list it is)
  *
- * Add new tiles here as they ship (org members, integrations creds, etc.)
+ * Add new tiles into the right group as they ship.
  */
 
 import Link from 'next/link';
@@ -44,7 +51,7 @@ export default async function SettingsHubPage() {
           </p>
         </header>
 
-        <div className="grid sm:grid-cols-2 gap-4">
+        <SettingsGroup title="Account">
           <SettingsCard
             href="/settings/account"
             icon="👤"
@@ -63,17 +70,20 @@ export default async function SettingsHubPage() {
             title="Team"
             description="Invite teammates to share your agents (Pro). View members, manage invites."
           />
+        </SettingsGroup>
+
+        <SettingsGroup title="AI engines">
+          <SettingsCard
+            href="/settings/engines"
+            icon="⚡"
+            title="Claude & Codex"
+            description="Connect, test, and compare Claude and Codex independently."
+          />
           <SettingsCard
             href="/settings/api-keys"
             icon="🔑"
-            title="Connected installs"
+            title="Devices & installs"
             description="See every device/session connected to your Implexa account — revoke any you don't recognize."
-          />
-          <SettingsCard
-            href="/settings/connections"
-            icon="🔗"
-            title="Your accounts"
-            description="Every account your agents drive in the Implexa browser, whether it's reachable, and which agents need what."
           />
           <SettingsCard
             href="/settings/run-environment"
@@ -82,27 +92,42 @@ export default async function SettingsHubPage() {
             description="The workspace folder + browser profile an on-demand run uses on this machine, so agents you fire from your phone come up equipped."
           />
           <SettingsCard
-            href="/settings/data"
-            icon="🧠"
-            title="Data & privacy"
-            description="What Implexa stores about you, recommendation opt-ins, and the delete-all-my-data button. Your agents run on your machine; this is the little we keep."
-          />
-          <SettingsCard
-            href="/settings/engines"
-            icon="⚡"
-            title="AI engines"
-            description="Connect, test, and compare Claude and Codex independently."
-          />
-          <SettingsCard
             href="/settings/updates"
             icon="⬆️"
             title="Updates"
             description="Latest plugin + desktop versions and a one-click update command. Keep Implexa current for new workflows and fixes."
           />
-        </div>
+        </SettingsGroup>
+
+        <SettingsGroup title="Accounts agents can use">
+          <SettingsCard
+            href="/settings/connections"
+            icon="🔗"
+            title="Your accounts"
+            description="Every account your agents drive in the Implexa browser, whether it's reachable, and which agents need what."
+          />
+        </SettingsGroup>
+
+        <SettingsGroup title="Privacy & data">
+          <SettingsCard
+            href="/settings/data"
+            icon="🧠"
+            title="Data & privacy"
+            description="What Implexa stores about you, recommendation opt-ins, and the delete-all-my-data button. Your agents run on your machine; this is the little we keep."
+          />
+        </SettingsGroup>
 
       </div>
     </main>
+  );
+}
+
+function SettingsGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-8">
+      <h2 className="text-[11px] uppercase tracking-wider text-ink-500 font-medium mb-3">{title}</h2>
+      <div className="grid sm:grid-cols-2 gap-4">{children}</div>
+    </div>
   );
 }
 

@@ -1,10 +1,12 @@
 'use client';
 
 /**
- * <AgentsList /> — the ONE canonical agents list: three sections (Scheduled,
- * On-demand, Not activated), one row shape, a category filter bar. Replaces the
- * old mix of Home cards + catalog merge that gave agents different link targets
- * and dumped "output" to the whole Results list.
+ * <AgentsList /> — the ONE canonical agents list. Three DATA sections come from
+ * the server (scheduled / on_demand / not_activated / paused — a2026-06 build),
+ * but 2026-07-01 (Codex's design audit) merges them into what the OWNER actually
+ * thinks in: Needs setup / Active / Paused. "Scheduled vs on-demand" is
+ * implementation detail — it now reads as a small status line on the row
+ * ("Next run: Mon 9am" vs "Runs on demand") instead of splitting the roster.
  *
  * The server hands a normalized, already-merged array (active agents from the
  * /me/agents feed + built-but-never-activated from the user's library), plus the
@@ -14,50 +16,67 @@
  * Reversible from the Archived section (DELETE /me/workflows/dismiss).
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import GradeBadge from './grade-badge';
 
-/* Row actions are icon-only with a hover tooltip (title) for a clean, dense row.
-   Eye = open, Note = last output, Bin = archive, Play = activate/resume. */
-const ICON = 'h-4 w-4';
-function EyeIcon() {
+// 2026-07-01 simplification (Codex's design audit): a row of 3 mystery icon
+// buttons (Eye/Note/Bin) reads as a technical control panel. Each row now has
+// ONE clear primary action in words (Fix / View last result / Open / Activate /
+// Resume) plus rename (the pencil next to the name, unchanged) and archive
+// tucked behind a small "..." menu — a normal user never needs archive at a
+// glance, but it must stay reachable.
+function DotsIcon() {
   return (
-    <svg className={ICON} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
     </svg>
   );
 }
-function NoteIcon() {
+
+/** Small "..." overflow menu — today just Archive. Closes on outside click / Escape. */
+function RowMenu({ onArchive, busy }: { onArchive: () => void; busy: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false); }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDocClick); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
   return (
-    <svg className={ICON} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 3h11l5 5v13a0 0 0 0 1 0 0H4Z" /><path d="M14 3v6h6" /><path d="M8 13h8" /><path d="M8 17h6" />
-    </svg>
-  );
-}
-function BinIcon() {
-  return (
-    <svg className={ICON} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M6 6l1 14h10l1-14" /><path d="M10 11v6M14 11v6" />
-    </svg>
-  );
-}
-function PlayIcon() {
-  return (
-    <svg className={ICON} viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">
-      <path d="M8 5v14l11-7z" />
-    </svg>
-  );
-}
-/** Hover label for an icon button. Parent must be `group/btn` + `relative`. */
-function Tip({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-ink-900 border border-ink-700 px-1.5 py-0.5 text-[10px] text-ink-200 opacity-0 group-hover/btn:opacity-100 transition-opacity z-10">
-      {children}
-    </span>
+    <div ref={ref} className="relative flex-none">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="More actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="grid place-items-center h-8 w-8 rounded-md text-ink-500 hover:text-ink-100 hover:bg-ink-800 transition-colors"
+      >
+        <DotsIcon />
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-full mt-1 z-20 min-w-[140px] rounded-md border border-ink-700 bg-ink-900 py-1 shadow-lg">
+          <button
+            type="button"
+            role="menuitem"
+            disabled={busy}
+            onClick={() => { setOpen(false); onArchive(); }}
+            className="w-full text-left px-3 py-1.5 text-sm text-ink-300 hover:bg-ink-800 hover:text-rose-500 dark:hover:text-rose-300 disabled:opacity-50"
+          >
+            {busy ? 'Archiving…' : 'Archive'}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -188,49 +207,28 @@ function Row({ a, onArchive, onRename, busy }: { a: ListAgent; onArchive: (a: Li
           </p>
         </div>
 
-        <div className="flex-none flex items-center gap-1">
+        <div className="flex-none flex items-center gap-1.5">
           {a.section === 'not_activated' ? (
-            <Link
-              href={`/workflows/${encodeURIComponent(a.slug)}/activate`}
-              aria-label={`Activate ${a.name}`}
-              className="group/btn relative grid place-items-center h-8 w-8 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-            >
-              <PlayIcon />
-              <Tip>Activate</Tip>
+            <Link href={`/workflows/${encodeURIComponent(a.slug)}/activate`} className="btn-success text-xs px-3 py-1.5 whitespace-nowrap">
+              Activate
+            </Link>
+          ) : a.needsIntervention ? (
+            <Link href={detail} className="text-xs px-3 py-1.5 rounded-md border border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 transition-colors whitespace-nowrap font-medium">
+              Fix
+            </Link>
+          ) : a.lastRun?.id ? (
+            <Link href={`/runs/${a.lastRun.id}`} className="btn-outline text-xs px-3 py-1.5 whitespace-nowrap">
+              View last result
             </Link>
           ) : (
-            <>
-              <Link
-                href={detail}
-                aria-label={`Open ${a.name}`}
-                className="group/btn relative grid place-items-center h-8 w-8 rounded-md text-ink-400 hover:text-ink-100 hover:bg-ink-800 transition-colors"
-              >
-                <EyeIcon />
-                <Tip>View</Tip>
-              </Link>
-              {a.lastRun?.id && (
-                <Link
-                  href={`/runs/${a.lastRun.id}`}
-                  aria-label={`Last output for ${a.name}`}
-                  className="group/btn relative grid place-items-center h-8 w-8 rounded-md text-ink-400 hover:text-ink-100 hover:bg-ink-800 transition-colors"
-                >
-                  <NoteIcon />
-                  <Tip>Last output</Tip>
-                </Link>
-              )}
-              {/* Archive = remove from MY list (never deletes the shared agent). */}
-              <button
-                type="button"
-                onClick={() => onArchive(a)}
-                disabled={busy}
-                aria-label={`Archive ${a.name}`}
-                className="group/btn relative grid place-items-center h-8 w-8 rounded-md text-ink-500 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-500/10 disabled:opacity-50 transition-colors"
-              >
-                {busy ? <span className="h-3.5 w-3.5 rounded-full border-2 border-ink-500/30 border-t-ink-300 animate-spin" /> : <BinIcon />}
-                <Tip>Archive</Tip>
-              </button>
-            </>
+            <Link href={detail} className="btn-outline text-xs px-3 py-1.5 whitespace-nowrap">
+              Open
+            </Link>
           )}
+          {/* Archive = remove from MY list (never deletes the shared agent). Not
+              offered for a not-yet-activated draft — there's nothing to remove
+              from a running roster yet; the row IS the draft. */}
+          {a.section !== 'not_activated' && <RowMenu onArchive={() => onArchive(a)} busy={busy} />}
         </div>
       </div>
     </li>
@@ -369,9 +367,13 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
         </div>
       )}
 
-      <Section title="Scheduled" agents={scheduled} onArchive={archive} onRename={rename} busySlug={busySlug} />
-      <Section title="On-demand" agents={onDemand} onArchive={archive} onRename={rename} busySlug={busySlug} />
-      <Section title="Drafts" agents={notActivated} onArchive={archive} onRename={rename} busySlug={busySlug} />
+      {/* "Scheduled" vs "on-demand" is implementation detail, not how an owner
+          thinks about their roster — merged into one Active section; the
+          distinction now reads as the row's own status line (Next run: ... vs
+          Runs on demand). Needs setup first, matching the needs-you-first rule
+          everywhere else in the product. */}
+      <Section title="Needs setup" agents={notActivated} onArchive={archive} onRename={rename} busySlug={busySlug} />
+      <Section title="Active" agents={[...scheduled, ...onDemand]} onArchive={archive} onRename={rename} busySlug={busySlug} />
 
       {shown.length === 0 && (
         <div className="card text-center py-10">
@@ -407,11 +409,9 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
                   </span>
                   <Link
                     href={`/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`}
-                    aria-label={`Open ${a.name} to resume`}
-                    className="group/btn relative grid place-items-center h-8 w-8 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                    className="btn-success text-xs px-3 py-1.5 whitespace-nowrap flex-none"
                   >
-                    <PlayIcon />
-                    <Tip>Open to resume</Tip>
+                    Resume
                   </Link>
                 </li>
               ))}

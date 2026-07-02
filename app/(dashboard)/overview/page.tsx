@@ -30,7 +30,6 @@ import TalkToImplexa from '../_components/talk-to-implexa';
 import BuildingAgents from '../_components/building-agents';
 import GetStartedIntent from '../_components/get-started-intent';
 import FirstRunPermissionsNote from '../_components/first-run-permissions-note';
-import CommunityAgents from '../_components/community-agents';
 
 export const dynamic = 'force-dynamic';
 
@@ -136,18 +135,6 @@ export default async function OverviewPage() {
               ) : (
                 <InboxList initialItems={items} basePath="/overview" />
               )}
-            </section>
-
-            {/* A taste of the community catalog — a few proven agents + See all.
-                Discovery without leaving Home. */}
-            <section className="mt-12">
-              <CommunityAgents
-                agents={catalog}
-                limit={6}
-                heading="Browse proven agents"
-                blurb="Popular agents the community runs — pick one to make it yours."
-                seeAllHref="/browse"
-              />
             </section>
           </>
         )}

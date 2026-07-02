@@ -82,7 +82,9 @@ function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: En
       <div className="mt-5 flex flex-wrap gap-2">
         {!report?.plugin_connected && <Link href={`/install?surface=${engine}`} className="btn-primary text-xs px-3 py-1.5">Install</Link>}
         {report?.plugin_connected && report.latest_plugin_version && report.plugin_version !== report.latest_plugin_version && <button className="btn-primary text-xs px-3 py-1.5" disabled={!!busy} onClick={() => act('update', (b) => b.runUpdate?.(engine))}>{busy === 'update' ? 'Updating…' : 'Update'}</button>}
-        <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('test', (b) => b.handoffAgent?.(testPrompt, engine, 'code'))}>Test</button>
+        {/* "Test" read as optional/technical (Codex's design audit, 2026-07-01) —
+            this is the step that actually finishes the connection. */}
+        <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('test', (b) => b.handoffAgent?.(testPrompt, engine, 'code'))}>Finish setup in {name}</button>
         <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('reconnect', (b) => b.handoffAgent?.(testPrompt, engine, 'code'))}>Reconnect</button>
         <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('open', (b) => b.openEngine?.(engine))}>Open app</button>
         <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('permissions', (b) => b.openEnginePermissions?.(engine, caps.computerUse ? 'browser' : 'computerUse'))}>Permissions</button>

@@ -48,8 +48,12 @@ type NavItem = {
 const PRIMARY_NAV: NavItem[] = [
   { href: '/overview',     label: 'Home',           icon: 'dashboard', matchPrefix: true },
   { href: '/workflows',    label: 'Agents',         icon: 'workflows', matchPrefix: true, badgeKey: 'agents' },
-  { href: '/browse',       label: 'Browse agents',  icon: 'skills',    matchPrefix: true },
-  { href: '/chains',       label: 'Agent Chains',   icon: 'link',      matchPrefix: true },
+  // 2026-07-01 simplification: nav is Home / Agents / Settings only (Codex's
+  // design audit, adopted). "Browse agents" moved INTO the Agents page as
+  // "Starter agents"; "Agent Chains" surfaces as an in-page suggestion once the
+  // user has 2+ agents. Routes stay live for deep links; only the nav item hides.
+  { href: '/browse',       label: 'Browse agents',  icon: 'skills',    matchPrefix: true, hidden: true },
+  { href: '/chains',       label: 'Agent Chains',   icon: 'link',      matchPrefix: true, hidden: true },
   // Results folded into Home (the one todo). Route stays live for deep links
   // (notification/email ?run= links) + the redesign's interim; nav item hidden.
   { href: '/inbox',        label: 'Results',        icon: 'activity',  matchPrefix: true, badgeKey: 'inbox', hidden: true },
@@ -68,7 +72,9 @@ const PRIMARY_NAV: NavItem[] = [
 
 const SECONDARY_NAV: NavItem[] = [
   { href: '/settings',     label: 'Settings',     icon: 'settings', matchPrefix: true },
-  { href: '/pricing',      label: 'Pricing',      icon: 'spark',    matchPrefix: true },
+  // Pricing lives in Settings -> Billing + contextual upgrade CTAs now; route
+  // stays live (upgrade links point here), nav item hidden.
+  { href: '/pricing',      label: 'Pricing',      icon: 'spark',    matchPrefix: true, hidden: true },
 ];
 
 type UserCtx = {
@@ -234,7 +240,7 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
 
         <div className="mt-8 px-3 mb-2 text-[10px] uppercase tracking-wider text-ink-500 font-medium">Account</div>
         <ul className="space-y-0.5">
-          {SECONDARY_NAV.map((item) => (
+          {SECONDARY_NAV.filter((item) => !item.hidden).map((item) => (
             <li key={item.href}>
               <NavLink href={item.href} icon={item.icon} label={item.label} active={isActive(item)} />
             </li>

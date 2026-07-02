@@ -21,6 +21,7 @@ import { categorizeAgent } from '@/lib/agent-category';
 import AgentsList, { type ListAgent, type ArchivedAgent } from '../_components/agents-list';
 import RunningAgents from '../_components/running-agents';
 import ManageTips from '../_components/manage-tips';
+import ChainSuggestions from '../_components/chain-suggestions';
 
 export const dynamic = 'force-dynamic';
 
@@ -138,6 +139,15 @@ export default async function WorkflowsPage() {
         <RunningAgents />
 
         <AgentsList agents={list} archived={archived} />
+
+        {/* Agent Chains, folded in as an in-page suggestion (Codex's design
+            audit, 2026-07-01) rather than its own nav tab — "Agent Chains"
+            sounded like a separate product. ChainSuggestions already renders
+            nothing without enough agents to chain, so this is a no-op for a
+            new user and appears naturally once there's something to chain. */}
+        <div className="mt-10">
+          <ChainSuggestions agents={list.map((a) => ({ slug: a.slug, source: a.source, name: a.name }))} />
+        </div>
       </div>
     </main>
   );
