@@ -19,7 +19,7 @@ import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
 import AgentSetupCard from './agent-setup-card';
 import AgentFeedback from './agent-feedback';
-import GrantPermissionsButton from './grant-permissions-button';
+import AgentBrowserConnect from './agent-browser-connect';
 import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier } from '@/lib/activation';
 
 // Defined here (not imported) because lib/activation.ts is server-only; a client
@@ -794,7 +794,11 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
                     : 'This agent works in your browser. Connect it once and it’ll run unattended — until then a run will pause to ask.'}
                 </p>
                 <div className="mt-2">
-                  <GrantPermissionsButton label="Connect the browser" surface="claude" />
+                  <AgentBrowserConnect
+                    slug={checklist.slug}
+                    name={checklist.name}
+                    domains={browserCheck.domains ?? []}
+                  />
                 </div>
               </div>
             ) : (

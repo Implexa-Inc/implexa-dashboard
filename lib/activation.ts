@@ -41,6 +41,8 @@ export type VerificationCheck = {
   /** ok = confirmed present; missing = confirmed absent; unknown = couldn't read. */
   status: 'ok' | 'missing' | 'unknown';
   fix?: string;
+  /** For the browser check: the agent's own sites, so the grant sitting pre-warms them. */
+  domains?: string[];
 };
 /** The honest hands-free contract: an active agent only claims "runs hands-free"
  *  when every Class-2 grant it needs (today: the browser pairing) is confirmed. */
