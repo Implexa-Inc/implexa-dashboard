@@ -19,6 +19,7 @@ import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
 import AgentSetupCard from './agent-setup-card';
 import AgentFeedback from './agent-feedback';
+import GrantPermissionsButton from './grant-permissions-button';
 import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier } from '@/lib/activation';
 
 // Defined here (not imported) because lib/activation.ts is server-only; a client
@@ -693,7 +694,20 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
   // in the work-around so ticking the box flips the button green.)
   const ready = !isActive && allLocalGranted && (checklist.canActivate || connectionsResolved);
   const anyWorkedAround = unmetConns.some((c) => workedAround.has(connKey(c)));
-  const badge = STATE_BADGE[checklist.state];
+
+  // Honest hands-free contract: an active agent only earns the green "Active"
+  // badge once its Class-2 grants are verified. A browser agent on a machine that
+  // hasn't paired Chrome is active-but-unverified — show an amber "needs a check"
+  // and the one-tap browser grant, never a green light it hasn't earned. Absent
+  // verification (older backend) defaults to verified so the badge never regresses.
+  const verification = checklist.verification ?? { verified: true, checks: [] };
+  const verifiedHandsFree = isActive && verification.verified;
+  const browserCheck = verification.checks.find((c) => c.key === 'browser' && c.status !== 'ok');
+  // Override the green "Active" chip ONLY for a genuinely-active-but-unverified
+  // agent — never mask 'needs_attention' or a not-yet-activated state.
+  const badge = (checklist.state === 'active' && !verification.verified)
+    ? { label: 'Active · needs a check', classes: 'bg-amber-500/20 text-amber-700 dark:text-amber-300' }
+    : STATE_BADGE[checklist.state];
 
   // A recommended (optional) Tier-2 grant the user hasn't allowed yet, while the
   // agent is already active — nudge them to allow it so runs don't stall.
@@ -769,7 +783,23 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
           // (founder: "I activated this agent but what to do next, Im clueless").
           // Offer the first run right here; the schedule row above covers later.
           <div className="flex flex-col gap-2">
-            <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Active. Take it for its first run:</span>
+            {verifiedHandsFree ? (
+              <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Active — runs hands-free. Take it for its first run:</span>
+            ) : browserCheck ? (
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/25 px-3 py-2.5">
+                <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">Active — one check left before it runs on its own</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5 leading-snug">
+                  {browserCheck.status === 'unknown'
+                    ? 'This agent works in your browser. We couldn’t confirm your browser is connected yet — grant it once and it’ll run unattended.'
+                    : 'This agent works in your browser. Connect it once and it’ll run unattended — until then a run will pause to ask.'}
+                </p>
+                <div className="mt-2">
+                  <GrantPermissionsButton label="Connect the browser" surface="claude" />
+                </div>
+              </div>
+            ) : (
+              <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Active. Take it for its first run:</span>
+            )}
             {showStallNudge && (
               <p className="text-xs text-amber-600 dark:text-amber-400 leading-snug max-w-md">
                 Recommended: allow “{ungrantedOptional[0].label}” in Permissions above — without it a scheduled run can stall waiting on a prompt. (Allowing saves instantly.)

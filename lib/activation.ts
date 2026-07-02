@@ -35,6 +35,19 @@ export type ActivationStep = {
     [k: string]: unknown;
   };
 };
+export type VerificationCheck = {
+  key: string;
+  label: string;
+  /** ok = confirmed present; missing = confirmed absent; unknown = couldn't read. */
+  status: 'ok' | 'missing' | 'unknown';
+  fix?: string;
+};
+/** The honest hands-free contract: an active agent only claims "runs hands-free"
+ *  when every Class-2 grant it needs (today: the browser pairing) is confirmed. */
+export type ActivationVerification = {
+  verified: boolean;
+  checks: VerificationCheck[];
+};
 export type ActivationState = 'created' | 'activating' | 'active' | 'needs_attention';
 export type ActivationChecklist = {
   slug: string;
@@ -54,6 +67,8 @@ export type ActivationChecklist = {
   canActivate: boolean;
   stepsLeft: number;
   steps: ActivationStep[];
+  /** Honest hands-free verification (Class-2 grants confirmed). Absent → treat as verified. */
+  verification?: ActivationVerification;
 };
 
 /** GET /api/v2/agents/:slug/activation with the caller's JWT. null on any failure. */
@@ -86,6 +101,8 @@ export async function getActivationChecklist(slug: string): Promise<ActivationCh
       canActivate: !!b.canActivate,
       stepsLeft: Number(b.stepsLeft ?? 0),
       steps: Array.isArray(b.steps) ? (b.steps as ActivationStep[]) : [],
+      // Absent (older backend) → treat as verified so the badge never regresses.
+      verification: (b.verification as ActivationVerification) ?? { verified: true, checks: [] },
     };
   } catch {
     return null;
