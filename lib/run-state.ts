@@ -65,6 +65,8 @@ export type RunRow = {
   stalled_at?: string | null;
   // ── 0080 live step trace ──
   progress?: RunProgress | null;
+  // ── 0102 Completion Controller verdict (did it produce its deliverable?) ──
+  verification_status?: string | null;
   // ── 0089 live per-step checklist ──
   current_step_index?: number | null;
   total_steps?: number | null;
@@ -301,7 +303,7 @@ export function presentationFor(info: RunStateInfo): RunPresentation {
 // parallel migration lands, with no code change.
 
 const BASE_COLUMNS = 'id, skill_slug, source, status, ran_at, output_markdown, review_status';
-const STATE_COLUMNS = 'run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at';
+const STATE_COLUMNS = 'run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at, verification_status';
 
 // PostgREST raises 42703 (undefined_column) when we ask for a column that does
 // not exist yet. That, and only that, triggers the fallback.

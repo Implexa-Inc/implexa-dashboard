@@ -23,6 +23,7 @@ import { getWorkspaceRoot } from '@/lib/run-env';
 import RunMarkdown from '../_components/run-markdown';
 import Modal from '../_components/modal';
 import { RunStateBadge } from '../_components/run-state-badge';
+import { RunVerificationBadge, type VerificationStatus } from '../_components/run-verification-badge';
 import { categorizeAgent } from '@/lib/agent-category';
 import type { RunStateInfo } from '@/lib/run-state';
 import NextAgentCards, { type Recommendation } from '../_components/next-agent-cards';
@@ -50,6 +51,8 @@ export type InboxItem = {
   ran_at:          string;
   pending:         boolean;
   state:           RunStateInfo;
+  /** Completion Controller verdict (0102): did the run produce its deliverable? */
+  verification:    VerificationStatus;
   /** The run's own feedback questions about this output (improvement loop). */
   feedbackQuestions: FeedbackQuestion[] | null;
   feedbackAnswers:   Record<string, string> | null;
@@ -432,6 +435,7 @@ export default function InboxList({
                 <h2 className="text-lg font-semibold text-ink-50">{openItem.name}</h2>
                 <div className="flex items-center gap-2.5 mt-1">
                   <RunStateBadge info={openItem.state} size="xs" />
+                  <RunVerificationBadge status={openItem.verification} size="xs" />
                   <span className="text-xs text-ink-500">{rel(openItem.ran_at)}</span>
                   <span className="text-xs text-ink-600 font-mono truncate">{openItem.slug}</span>
                 </div>

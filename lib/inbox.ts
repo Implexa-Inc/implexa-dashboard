@@ -94,6 +94,7 @@ export async function loadInboxItems(
       ran_at:          r.ran_at,
       pending:         r.review_status === 'pending',
       state:           deriveRunState(r),
+      verification:    (r.verification_status ?? null) as InboxItem['verification'],
       feedbackQuestions: (r as { feedback_questions?: FeedbackQuestion[] | null }).feedback_questions ?? null,
       feedbackAnswers:   (r as { feedback_answers?: Record<string, string> | null }).feedback_answers ?? null,
       feedbackAt:        (r as { feedback_at?: string | null }).feedback_at ?? null,
