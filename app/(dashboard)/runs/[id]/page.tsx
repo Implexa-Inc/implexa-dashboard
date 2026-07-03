@@ -23,6 +23,7 @@ import { listWorkflows } from '@/lib/workflow-catalog';
 import { deriveRunState, type RunRow, type RunProgress, type RunStep } from '@/lib/run-state';
 import RunStepChecklist from '../../_components/run-step-checklist';
 import { RunStateBadge } from '../../_components/run-state-badge';
+import { RunVerificationBadge, type VerificationStatus } from '../../_components/run-verification-badge';
 import BackLink from '../../_components/back-link';
 import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
@@ -229,6 +230,17 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     if (Array.isArray(ra)) runActions = ra as RunActionItem[];
   } catch { /* table not present yet — action buttons simply don't render */ }
 
+  // Completion Controller verdict (migration 0102, skill_runs.verification_status)
+  // — did this run actually PRODUCE its deliverable, and with what confidence?
+  // Deterministic evidence, not an AI opinion. Defensive own-query: a pre-0102
+  // schema must never 42703 the whole page — absent column ⇒ no badge.
+  let verificationStatus: VerificationStatus = null;
+  try {
+    const { data: vr } = await supabase
+      .from('skill_runs').select('verification_status').eq('id', params.id).maybeSingle();
+    verificationStatus = ((vr as { verification_status?: VerificationStatus } | null)?.verification_status) ?? null;
+  } catch { /* column not present yet — badge simply doesn't render */ }
+
   const agentHref = wf
     ? `/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`
     : `/workflows/${encodeURIComponent(r.skill_slug)}`;
@@ -332,6 +344,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50">{name}</h1>
           <div className="flex items-center gap-2.5 mt-2 flex-wrap">
             <RunStateBadge info={info} size="xs" />
+            <RunVerificationBadge status={verificationStatus} size="xs" />
             <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
             <span className="text-xs text-ink-600 font-mono">{r.skill_slug}</span>
             {wf && (
