@@ -504,8 +504,10 @@ export default async function WorkflowDetailPage({
       </div>
 
       {/* Edit what the agent DOES — a plain-language change rewrites its steps
-          (kind='revise') into a new version. Distinct from config answers above. */}
-      <div className="mb-6">
+          (kind='revise') into a new version. Distinct from config answers above.
+          id + scroll-mt matches the other setup-panel anchors (agent-setup,
+          agent-learnings) — the header's "Edit" link jumps straight here. */}
+      <div id="agent-improve" className="mb-6 scroll-mt-20">
         <ImproveAgent slug={workflow.slug} />
       </div>
 
@@ -548,9 +550,22 @@ export default async function WorkflowDetailPage({
           </div>
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex-1 min-w-0">
-              {/* Rename is a per-user alias (your view only, never the shared
-                  name), so it's available on EVERY agent — not just generated. */}
-              <AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={true} />
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {/* Rename is a per-user alias (your view only, never the shared
+                    name), so it's available on EVERY agent — not just generated. */}
+                <AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={true} />
+                {/* Distinct from the rename pencil above: this jumps to "Edit this
+                    agent" (ImproveAgent, in the Setup tab) — changing what the
+                    agent DOES, not its display name. It used to be discoverable
+                    only by scrolling to the bottom of Setup (founder ask: surface
+                    it right next to the name so people know they can edit it). */}
+                <Link
+                  href={`/workflows/${encodeURIComponent(workflow.slug)}?source=${encodeURIComponent(workflow.source)}&tab=setup#agent-improve`}
+                  className="text-xs text-ink-400 hover:text-ink-200 underline underline-offset-2"
+                >
+                  Edit
+                </Link>
+              </div>
               <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>
               <p className="text-ink-200 mt-3">{workflow.job || workflow.description}</p>
               <div className="mt-3 flex items-center gap-2 flex-wrap">

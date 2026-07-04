@@ -379,20 +379,26 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         )}
 
         <header className="mt-4 mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">{name}</h1>
+          {/* The title itself is the primary way back to the agent now (founder
+              ask: the small "open agent" text link below was too easy to miss).
+              The Link lives INSIDE the h1 so the page keeps its heading landmark
+              either way; only wrap it in a Link when we actually know the agent
+              (wf) so we never link to a workflow we couldn't resolve. */}
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+            {wf ? (
+              <Link
+                href={`/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`}
+                className="hover:underline"
+              >
+                {name}
+              </Link>
+            ) : name}
+          </h1>
           <div className="flex items-center gap-2.5 mt-2 flex-wrap">
             <RunStateBadge info={info} size="xs" />
             <RunVerificationBadge status={verificationStatus} size="xs" />
             <span className="text-xs text-ink-500">{rel(r.ran_at)}</span>
             <span className="text-xs text-ink-600 font-mono">{r.skill_slug}</span>
-            {wf && (
-              <Link
-                href={`/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`}
-                className="text-xs text-brand-500 hover:underline"
-              >
-                open agent
-              </Link>
-            )}
             {desktopAppLive() && (
               <NotInApp>
                 <a href={appRunUrl(r.id)} className="text-xs text-brand-500 hover:underline">
