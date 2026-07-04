@@ -312,6 +312,7 @@ export default function InboxList({
             <div className="flex items-center gap-2 flex-none mt-0.5">
               {renderAction(item)}
               {item.state.attention && <RunStateBadge info={item.state} size="xs" />}
+              <RunVerificationBadge status={item.verification} size="xs" />
             </div>
           </div>
         </div>
@@ -548,7 +549,10 @@ export default function InboxList({
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm text-ink-100 tabular-nums">{timeOf(it.ran_at)}</span>
-                    <RunStateBadge info={it.state} size="xs" />
+                    <div className="flex items-center gap-1.5">
+                      <RunStateBadge info={it.state} size="xs" />
+                      <RunVerificationBadge status={it.verification} size="xs" />
+                    </div>
                   </div>
                   {line && <p className="text-xs text-ink-400 mt-1 line-clamp-1">{line}</p>}
                 </button>
