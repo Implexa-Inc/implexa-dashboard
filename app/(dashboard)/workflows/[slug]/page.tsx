@@ -563,7 +563,7 @@ export default async function WorkflowDetailPage({
                   href={`/workflows/${encodeURIComponent(workflow.slug)}?source=${encodeURIComponent(workflow.source)}&tab=setup#agent-improve`}
                   className="text-xs text-ink-400 hover:text-ink-200 underline underline-offset-2"
                 >
-                  Edit
+                  Edit Agent
                 </Link>
               </div>
               <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>
