@@ -19,7 +19,7 @@ import { callBackend } from '@/lib/api';
 import { getWorkspaceRoot } from '@/lib/run-env';
 import RunMarkdown from '../../_components/run-markdown';
 import { desktopAppLive, appRunUrl } from '@/lib/app-links';
-import { listWorkflows } from '@/lib/workflow-catalog';
+import { getWorkflow, getMyWorkflow } from '@/lib/workflow-catalog';
 import { deriveRunState, type RunRow, type RunProgress, type RunStep } from '@/lib/run-state';
 import RunStepChecklist from '../../_components/run-step-checklist';
 import { RunStateBadge } from '../../_components/run-state-badge';
@@ -116,14 +116,11 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const [{ data: run }, catalog] = await Promise.all([
-    supabase
-      .from('skill_runs')
-      .select('id, scheduled_skill_id, orchestration_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at, run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at')
-      .eq('id', params.id)
-      .maybeSingle(),
-    listWorkflows(),
-  ]);
+  const { data: run } = await supabase
+    .from('skill_runs')
+    .select('id, scheduled_skill_id, orchestration_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at, run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at')
+    .eq('id', params.id)
+    .maybeSingle();
 
   const r = run as RunRow | null;
 
@@ -174,7 +171,18 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     executionContext = data || null;
   } catch { /* pre-migration run: use the legacy Claude recovery path */ }
 
-  const wf = catalog.find((c) => c.slug === r.skill_slug);
+  // Resolve the agent this run belongs to. Used to have been a .find() over the
+  // full listWorkflows() catalog — but that catalog is heavily cached (1h) and,
+  // more importantly, is the PUBLIC-ish list; a private/unproven/just-generated
+  // agent (the founder's own tax-return agent, minutes old) never appears in it,
+  // so `wf` silently came back undefined and the run title fell back to plain
+  // (non-clickable) text — the exact bug the founder hit. Mirrors the agent
+  // page's own resolution: try the public read first, then the caller's OWN
+  // (private) workflows, same as workflows/[slug]/page.tsx does.
+  let wf: Awaited<ReturnType<typeof getWorkflow>> = null;
+  try {
+    wf = (await getWorkflow(r.skill_slug)) || (await getMyWorkflow(r.skill_slug));
+  } catch { /* best-effort — title/agent-link simply falls back to plain text */ }
   const name = wf?.name || humanize(r.skill_slug);
   const pending = r.review_status === 'pending';        // shippable deliverable → Approve & finish
   const needsInput = r.review_status === 'needs_input'; // blocked on a question → Continue only
