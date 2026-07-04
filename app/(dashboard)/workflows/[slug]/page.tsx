@@ -34,6 +34,7 @@ import AgentTabs, { type TabDef } from '../../_components/agent-tabs';
 import InboxList from '../../inbox/inbox-list';
 import BackLink from '../../_components/back-link';
 import AgentSetupCard from '../../_components/agent-setup-card';
+import AgentLearningsCard from '../../_components/agent-learnings-card';
 import AgentExecutorPreference from '../../_components/agent-executor-preference';
 import AgentFeedback from '../../_components/agent-feedback';
 import ImproveAgent from '../../_components/improve-agent';
@@ -474,6 +475,13 @@ export default async function WorkflowDetailPage({
        * the agent declares no questions. */}
       <div id="agent-setup" className="mb-6 scroll-mt-20">
         <AgentSetupCard slug={workflow.slug} source={workflow.source} />
+      </div>
+
+      {/* The private per-(user, agent) learnings that accumulate as it runs
+       * (backend migration 0105) — durable preferences injected into every run.
+       * Private to this user; never edits the shared agent definition. */}
+      <div id="agent-learnings" className="mb-6 scroll-mt-20">
+        <AgentLearningsCard slug={workflow.slug} />
       </div>
 
       {/* Edit what the agent DOES — a plain-language change rewrites its steps
