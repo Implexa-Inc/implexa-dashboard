@@ -360,6 +360,14 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
           // fresh agent that hits an un-granted tool/site never dead-ends. Rendered
           // as a SIBLING (can't nest an <a> inside the card's <Link>).
           const showStuck = (c.stuck || c.status === 'needs_attention') && c.status !== 'finished' && c.status !== 'failed';
+          // A queued run that's sat unclaimed for a while isn't "broken" — the most
+          // common cause is no available Claude session on the user's Mac to pick it
+          // up: Claude/the app is closed, the Mac slept, OR they hit the 5-hour usage
+          // limit (the interactive browser-dispatcher cron can't fire on a capped
+          // Claude, so browser runs queue silently). Say so, instead of an endless
+          // spinner (founder was out of Claude credits and had no idea why nothing ran).
+          const QUEUED_WAIT_MS = 8 * 60 * 1000;
+          const showQueuedWait = c.status === 'queued' && elapsedMs(c.since) > QUEUED_WAIT_MS;
           const card = linkable ? (
             <Link href={href!} className={`${cls} hover:border-ink-700 transition-colors`}>{body}</Link>
           ) : (
@@ -384,6 +392,15 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                     permissionCapability="browser"
                     className="mt-2"
                   />
+                </div>
+              )}
+              {showQueuedWait && (
+                <div className="mt-1.5 ml-7 rounded-md border border-sky-500/25 bg-sky-500/[0.06] px-3 py-2.5">
+                  <p className="text-[11px] text-sky-700 dark:text-sky-300 leading-snug">
+                    Still waiting for an available Claude session on your Mac to pick this up. Most often that means
+                    Claude (or the Implexa app) isn’t open, your Mac slept, or you’ve hit your Claude 5-hour usage
+                    limit. It runs automatically once Claude is free again — nothing’s lost.
+                  </p>
                 </div>
               )}
             </div>
