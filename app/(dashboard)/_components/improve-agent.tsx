@@ -17,10 +17,12 @@
  */
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 type State = 'idle' | 'sending' | 'queued' | 'error';
 
 export default function ImproveAgent({ slug, bare = false }: { slug: string; bare?: boolean }) {
+  const router = useRouter();
   const [open, setOpen] = useState(bare);
   const [note, setNote] = useState('');
   const [state, setState] = useState<State>('idle');
@@ -39,6 +41,9 @@ export default function ImproveAgent({ slug, bare = false }: { slug: string; bar
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) throw new Error(data?.error || 'Could not queue the change.');
       setState('queued');
+      // Re-render the agent page behind the modal so the "Rewrite in progress"
+      // indicator shows and Run now disables immediately — without a manual reload.
+      router.refresh();
     } catch (e) {
       setState('error');
       setError(e instanceof Error ? e.message : 'Could not queue the change.');
