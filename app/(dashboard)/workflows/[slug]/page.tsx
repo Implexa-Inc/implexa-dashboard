@@ -200,18 +200,25 @@ export default async function WorkflowDetailPage({
   // doesn't pin the button forever. Best-effort — any error just falls back to
   // the normal Run-now button.
   let inFlight: 'queued' | 'running' | null = null;
+  // A queued/in-progress EDIT (kind='revise') is tracked separately from a run:
+  // it's a rewrite of the agent's steps, not a run — so it must NOT read as
+  // "Queued ✓ / Running" on Run now, and while it's pending Run now is blocked
+  // (running the OLD version mid-rewrite is a footgun). Cleared once the user's
+  // Claude drains the revise request (status → done) and a new version lands.
+  let revisePending = false;
   try {
     const since = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
     const { data: reqRows } = await supabase
       .from('run_requests')
-      .select('status')
+      .select('status, kind')
       .eq('workflow_slug', workflow.slug)
       .in('kind', ['run', 'continue', 'revise'])
       .in('status', ['pending', 'consumed'])
       .gte('created_at', since)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    if (reqRows?.[0]) inFlight = reqRows[0].status === 'consumed' ? 'running' : 'queued';
+      .order('created_at', { ascending: false });
+    revisePending = (reqRows || []).some((r) => r.kind === 'revise');
+    const runReq = (reqRows || []).find((r) => r.kind === 'run' || r.kind === 'continue');
+    if (runReq) inFlight = runReq.status === 'consumed' ? 'running' : 'queued';
     if (!inFlight) {
       const { data: runRows } = await supabase
         .from('skill_runs').select('id').eq('skill_slug', workflow.slug).eq('run_state', 'running').limit(1);
@@ -491,6 +498,7 @@ export default async function WorkflowDetailPage({
             pendingQuestions={checklist?.pendingQuestions}
             claudeTaskId={pausableRoutine?.claude_task_id}
             inFlight={inFlight}
+            revisePending={revisePending}
             align="start"
           />
         </div>
@@ -558,6 +566,15 @@ export default async function WorkflowDetailPage({
                 <AgentEditButton slug={workflow.slug} />
               </div>
               <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>
+              {revisePending && (
+                <div className="mt-3 flex items-start gap-2 rounded-md border border-violet-500/30 bg-violet-500/5 px-3 py-2 max-w-xl">
+                  <span className="mt-0.5 inline-block h-2 w-2 flex-none rounded-full bg-violet-500 animate-pulse" aria-hidden />
+                  <p className="text-xs text-violet-700 dark:text-violet-300 leading-snug">
+                    <span className="font-medium">Rewrite in progress.</span> Your Claude is updating this agent’s
+                    steps with your edit. Running is paused until it lands — every future run then uses the new version.
+                  </p>
+                </div>
+              )}
               <p className="text-ink-200 mt-3">{workflow.job || workflow.description}</p>
               <div className="mt-3 flex items-center gap-2 flex-wrap">
                 {/→|->/.test(workflow.name || '') && (
@@ -577,6 +594,7 @@ export default async function WorkflowDetailPage({
                 pendingQuestions={checklist?.pendingQuestions}
                 claudeTaskId={pausableRoutine?.claude_task_id}
                 inFlight={inFlight}
+                revisePending={revisePending}
               />
               {pausableRoutine && (
                 <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />

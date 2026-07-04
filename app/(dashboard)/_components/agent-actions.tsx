@@ -49,7 +49,7 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, claudeTaskId, align = 'end', inFlight = null }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, claudeTaskId, align = 'end', inFlight = null, revisePending = false }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -69,6 +69,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
    *  hasn't picked up, or a live run) — so opening the agent shows Queued/Running
    *  instead of always "Run now". Kept fresh by a live-feed poll below. */
   inFlight?: 'queued' | 'running' | null;
+  /** A queued/in-progress EDIT (kind='revise') is rewriting this agent's steps.
+   *  While true, Run now is disabled (running the OLD version mid-rewrite is a
+   *  footgun) and relabelled "Updating…". Cleared server-side once the rewrite
+   *  lands; we poll router.refresh() so the button frees up without a reload. */
+  revisePending?: boolean;
 }) {
   const [state, setState] = useState<RunState>(inFlight ?? 'idle');
   const [msg, setMsg] = useState(
@@ -156,6 +161,21 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     return () => { alive = false; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
+
+  // While a rewrite (kind='revise') is pending, poll the server view so the
+  // "Updating…" state clears on its own once the user's Claude lands the new
+  // version (revisePending is computed server-side). Bounded so a stuck revise
+  // doesn't refresh forever; the user can always reload.
+  useEffect(() => {
+    if (!revisePending) return;
+    const start = Date.now();
+    const t = setInterval(() => {
+      if (Date.now() - start > 10 * 60 * 1000) { clearInterval(t); return; }
+      router.refresh();
+    }, 20000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revisePending]);
 
   // Scroll the agent's questions into view and flash them. Used when Run is
   // pressed with unanswered questions, so they surface AT the run moment instead
@@ -355,6 +375,17 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <Link href={`/workflows/${slug}/activate`} className="btn-success text-sm px-4 py-2">
           Activate
         </Link>
+      ) : revisePending ? (
+        // A rewrite is in flight — block Run now so the OLD version can't fire
+        // mid-edit. Auto-frees once the new version lands (poll above).
+        <button
+          type="button"
+          disabled
+          className="btn-success text-sm px-4 py-2 opacity-60 cursor-not-allowed"
+          title="This agent is being rewritten with your edit — it'll be runnable once the new version lands."
+        >
+          ✎ Updating…
+        </button>
       ) : state === 'done' ? (
         <Link href="/inbox" className="btn-success text-sm px-4 py-2">
           ✓ Done — view result
@@ -385,7 +416,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       {/* Secondary: supervise the run live instead of hands-off. Goes through the
           same pop-up (so the note rides into the watched session). Shown only
           before queuing so the paths stay mutually exclusive (no double-run). */}
-      {isActive && pendingQuestions === 0 && (state === 'idle' || state === 'error') && (
+      {isActive && !revisePending && pendingQuestions === 0 && (state === 'idle' || state === 'error') && (
         <button
           type="button"
           onClick={openWatch}
@@ -395,9 +426,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         </button>
       )}
       <span className={`text-[11px] text-ink-500 max-w-[320px] ${align === 'end' ? 'text-right' : 'text-left'}`}>
-        {msg || (isActive
-          ? (requiresLocal ? 'Runs in Claude Code, on your computer.' : 'Runs in your Claude.')
-          : 'Activate once, then run it anytime.')}
+        {revisePending
+          ? 'Being rewritten with your edit — runnable once the new version lands (usually a minute or two).'
+          : (msg || (isActive
+            ? (requiresLocal ? 'Runs in Claude Code, on your computer.' : 'Runs in your Claude.')
+            : 'Activate once, then run it anytime.'))}
       </span>
       {/* While the run is in flight, point the user at where it shows LIVE — the
           "Active Agents" section on the Agents page (polls the live feed). We
