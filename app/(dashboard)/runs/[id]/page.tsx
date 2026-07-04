@@ -67,6 +67,32 @@ const PARTIAL_RUN_RE = /(^|\n)#{0,4}\s*[^\n]*\b(what happens next|to finish|to c
 // a grant-only prompt (NOT a trip to onboarding).
 const NEEDS_BROWSER_GRANT_RE = /Needs browser access on this Mac|grant Computer Use|Screen Recording \+ Accessibility|the browser is unavailable/i;
 
+// A run that closed with NO deliverable used to just say "No deliverable recorded
+// for this run." — a dead end with zero diagnosis (founder testing hit this on a
+// run the A0 watchdog force-closed after 4h of total silence: a bare red "Failed",
+// no reason, no next step). run_close_reason (mig 0101) already carries the real
+// answer; this turns it into plain language instead of making the user go hunting
+// in Runs for an explanation we already have. NULL = a voluntary close (the agent's
+// own output IS the explanation) -> no message here.
+function closeReasonMessage(reason: string | null): string | null {
+  switch (reason) {
+    case 'silence_ceiling_forced':
+      return "It went silent for a long time with no update, so Implexa stopped it automatically. It's safe to run again.";
+    case 'orphaned_parent_gone':
+      return 'Its routine was paused or removed while it was still running, so Implexa closed it automatically.';
+    case 'exit_code_nonzero':
+      return 'The process exited with an error.';
+    case 'exit_signal':
+      return 'The process was terminated (killed) before it could finish.';
+    case 'exit_timeout':
+      return 'It ran past its time limit and was stopped.';
+    case 'exit_clean_no_completion_signal':
+      return 'The process exited without ever reporting whether it finished.';
+    default:
+      return null;
+  }
+}
+
 function humanize(slug: string): string {
   return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -232,14 +258,21 @@ export default async function RunDetailPage({ params }: { params: { id: string }
 
   // Completion Controller verdict (migration 0102, skill_runs.verification_status)
   // — did this run actually PRODUCE its deliverable, and with what confidence?
-  // Deterministic evidence, not an AI opinion. Defensive own-query: a pre-0102
-  // schema must never 42703 the whole page — absent column ⇒ no badge.
+  // Deterministic evidence, not an AI opinion. Same query also grabs
+  // run_close_reason (mig 0101) — HOW a run with no output actually ended (a real
+  // exit-code failure vs A0's silence-ceiling force-close), so a run that closed
+  // with nothing to show can say WHY instead of a dead-end "No deliverable
+  // recorded" (founder testing hit this on a watchdog force-close). Defensive
+  // own-query: a pre-0101/0102 schema must never 42703 the whole page.
   let verificationStatus: VerificationStatus = null;
+  let closeReason: string | null = null;
   try {
     const { data: vr } = await supabase
-      .from('skill_runs').select('verification_status').eq('id', params.id).maybeSingle();
-    verificationStatus = ((vr as { verification_status?: VerificationStatus } | null)?.verification_status) ?? null;
-  } catch { /* column not present yet — badge simply doesn't render */ }
+      .from('skill_runs').select('verification_status, run_close_reason').eq('id', params.id).maybeSingle();
+    const row = vr as { verification_status?: VerificationStatus; run_close_reason?: string | null } | null;
+    verificationStatus = row?.verification_status ?? null;
+    closeReason = row?.run_close_reason ?? null;
+  } catch { /* columns not present yet — badge/reason simply don't render */ }
 
   const agentHref = wf
     ? `/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`
@@ -491,14 +524,17 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             {/* (Share moved to the top of the run view — see the amber "Share this
                 run" button under the header. The growth-loop Run Card lives there.) */}
           </>
-        ) : info.attention ? (
+        ) : (info.attention || closeReason) ? (
           // A stalled/failed run has no deliverable. Don't dead-end at a blank
-          // "no deliverable" line: say what happened + give the one action.
+          // "no deliverable" line: say what happened + give the one action. This
+          // also fires for a run that A0's watchdog force-closed (run_close_reason
+          // set) even when info.attention is false — the exact case that used to
+          // render a bare, unexplained "Failed" with nothing else on the page.
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.06] p-5">
             <div className="text-sm font-semibold text-ink-50 mb-1">
               {info.label === 'Failed' ? 'This run did not finish' : 'This run stalled'}
             </div>
-            <p className="text-sm text-ink-300 leading-relaxed">{info.reason}</p>
+            <p className="text-sm text-ink-300 leading-relaxed">{closeReasonMessage(closeReason) ?? info.reason}</p>
             {info.permissionBlocked && (
               <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 leading-relaxed">
                 It was blocked on a permission it could not auto-approve (often a file write or a tool outside the
