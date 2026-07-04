@@ -448,18 +448,23 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             permission dialog + pairs Chrome), instead of bouncing to onboarding. */}
         {!!r.output_markdown && NEEDS_BROWSER_GRANT_RE.test(r.output_markdown) && (
           <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-4">
-            <p className="text-sm font-medium text-ink-100">This agent needs browser access on this Mac</p>
+            <p className="text-sm font-medium text-ink-100">This run needed browser or screen access it didn&apos;t have here</p>
+            {/* Deliberately does NOT claim the Chrome extension is ungranted — it
+                often IS connected (the run says so), and asserting otherwise
+                misled the founder. The real gap is usually Computer Use, or the
+                run happening unattended in the background. Offer BOTH fixes. */}
             <p className="text-xs mt-1 text-amber-700 dark:text-amber-300">
-              It drives a browser/your screen, but Computer Use (Screen Recording + Accessibility) or the Claude for
-              Chrome extension isn&apos;t granted yet — so it froze waiting on a permission. Grant it once and re-run; it
-              runs hands-free from then on. Implexa never sees your logins.
+              A step here drives a browser or your screen, and that wasn&apos;t fully available in this run — usually
+              because Computer Use (Screen Recording + Accessibility) isn&apos;t granted yet, or it ran unattended in the
+              background. Grant it once and re-run, or run it from the app while you&apos;re at your desk. Implexa never
+              sees your logins.
             </p>
             <div className="mt-3">
               <GrantPermissionsButton />
             </div>
             <p className="mt-2 text-xs text-amber-700/80 dark:text-amber-300/70">
               Click → Implexa opens Claude with a pre-filled prompt → press Enter → Claude asks for permissions →
-              choose &quot;Always Allow&quot; (preferred).
+              choose &quot;Always Allow&quot; (preferred). Or just re-run it attended from the agent page.
             </p>
           </div>
         )}
