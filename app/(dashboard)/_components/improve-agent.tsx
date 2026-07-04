@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * <ImproveAgent /> — the "edit / improve this agent" box.
+ * <ImproveAgent /> — the "edit / improve this agent" form.
  *
  * There was no way to change what an agent DOES (only config answers + a standing
  * note). This takes a plain-language instruction ("add a step that posts to
@@ -9,14 +9,19 @@
  * kind='revise' request: the user's own Claude loads the current steps and calls
  * revise_workflow with the full revised chain, so every future run uses the new
  * steps. A new version — the original is preserved.
+ *
+ * `bare` renders just the form (no card wrapper, no internal title, textarea open
+ * immediately) — used inside <AgentEditButton>'s Modal, which already supplies
+ * the card chrome + title + close button. Without `bare` it's the old
+ * self-contained collapsed/expand card (kept for any other embedding).
  */
 
 import { useState } from 'react';
 
 type State = 'idle' | 'sending' | 'queued' | 'error';
 
-export default function ImproveAgent({ slug }: { slug: string }) {
-  const [open, setOpen] = useState(false);
+export default function ImproveAgent({ slug, bare = false }: { slug: string; bare?: boolean }) {
+  const [open, setOpen] = useState(bare);
   const [note, setNote] = useState('');
   const [state, setState] = useState<State>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -41,33 +46,41 @@ export default function ImproveAgent({ slug }: { slug: string }) {
   }
 
   if (state === 'queued') {
-    return (
-      <div className="card max-w-2xl !border-emerald-500/30">
+    const body = (
+      <>
         <div className="text-sm font-medium text-emerald-600 dark:text-emerald-400">✓ Change queued</div>
         <p className="text-xs text-ink-400 mt-1">
           Your Claude will rewrite this agent’s steps with your change — every future run uses the new version.
           The original is kept.
         </p>
-      </div>
+      </>
     );
+    return bare ? body : <div className="card max-w-2xl !border-emerald-500/30">{body}</div>;
   }
 
-  return (
-    <div className="card max-w-2xl">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-ink-50">Edit this agent</h2>
-          <p className="text-xs text-ink-400 mt-0.5 leading-snug">
-            Tell it what to change — in plain words. It rewrites the steps into a new version (the original is kept).
-          </p>
+  const content = (
+    <>
+      {!bare && (
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-ink-50">Edit this agent</h2>
+            <p className="text-xs text-ink-400 mt-0.5 leading-snug">
+              Tell it what to change — in plain words. It rewrites the steps into a new version (the original is kept).
+            </p>
+          </div>
+          {!open && (
+            <button onClick={() => setOpen(true)} className="btn-outline text-sm px-3 py-1.5 flex-none">Edit</button>
+          )}
         </div>
-        {!open && (
-          <button onClick={() => setOpen(true)} className="btn-outline text-sm px-3 py-1.5 flex-none">Edit</button>
-        )}
-      </div>
+      )}
+      {bare && (
+        <p className="text-xs text-ink-400 leading-snug mb-3">
+          Tell it what to change — in plain words. It rewrites the steps into a new version (the original is kept).
+        </p>
+      )}
 
       {open && (
-        <div className="mt-3">
+        <div className={bare ? '' : 'mt-3'}>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -81,7 +94,9 @@ export default function ImproveAgent({ slug }: { slug: string }) {
           <div className="flex items-center justify-between mt-2.5">
             <span className="text-[11px] text-ink-500">Rewrites the agent on your own Claude · ⌘↵</span>
             <div className="flex items-center gap-2">
-              <button onClick={() => { setOpen(false); setNote(''); setState('idle'); setError(null); }} className="text-xs text-ink-400 hover:text-ink-200">Cancel</button>
+              {!bare && (
+                <button onClick={() => { setOpen(false); setNote(''); setState('idle'); setError(null); }} className="text-xs text-ink-400 hover:text-ink-200">Cancel</button>
+              )}
               <button
                 onClick={submit}
                 disabled={!note.trim() || state === 'sending'}
@@ -93,6 +108,8 @@ export default function ImproveAgent({ slug }: { slug: string }) {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
+
+  return bare ? content : <div className="card max-w-2xl">{content}</div>;
 }
