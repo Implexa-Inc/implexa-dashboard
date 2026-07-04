@@ -326,21 +326,26 @@ export default async function RunDetailPage({ params }: { params: { id: string }
 
   const info = deriveRunState({ ...r, routine_paused: routinePaused });
 
-  // This run stalled/failed with NOTHING to show. The real result often already
-  // exists on a SIBLING run for the same agent (a retry, or a hands-off
-  // continuation that produced the deliverable) — surface it inline so the user
-  // doesn't have to Open agent → Runs → hunt for it (the exact friction the
-  // founder hit). Most-recent completed sibling WITH output, any time (the
-  // stalled ghost is often NEWER than the run that actually delivered). Defensive
-  // own-query; never regress the page to "not found" on error.
-  let siblingRun: { id: string; review_status: string | null } | null = null;
-  if (info.attention && !r.output_markdown) {
+  // This run has NOTHING to show. The real explanation often already exists on a
+  // SIBLING run for the same agent — a retry that completed, OR (the case the
+  // founder hit) an earlier/later run that self-explained why it stopped (e.g.
+  // "Held for you to run attended — not safe to do hands-off") while THIS row
+  // just silently timed out with zero output. Surface it inline so the user isn't
+  // left confused across two runs of the same agent that tell two different
+  // stories. Triggers whenever this run has no output AND either looks broken
+  // (info.attention) or has a KNOWN close reason (closeReason) — matching the
+  // amber box's own condition below, so the two always show together. The query
+  // deliberately does NOT require run_state='completed': a sibling that's ALSO
+  // technically 'failed' but wrote a real explanation is exactly what's useful
+  // here — output_markdown being non-null is the only signal that matters.
+  // Defensive own-query; never regress the page to "not found" on error.
+  let siblingRun: { id: string; review_status: string | null; run_state: string | null } | null = null;
+  if ((info.attention || closeReason) && !r.output_markdown) {
     try {
       let q = supabase
         .from('skill_runs')
-        .select('id, review_status')
+        .select('id, review_status, run_state')
         .neq('id', r.id)
-        .eq('run_state', 'completed')
         .not('output_markdown', 'is', null)
         .order('ran_at', { ascending: false })
         .limit(1);
@@ -348,7 +353,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         ? q.eq('scheduled_skill_id', r.scheduled_skill_id)
         : q.eq('skill_slug', r.skill_slug);
       const { data: sib } = await q;
-      siblingRun = (sib?.[0] as { id: string; review_status: string | null } | undefined) ?? null;
+      siblingRun = (sib?.[0] as { id: string; review_status: string | null; run_state: string | null } | undefined) ?? null;
     } catch { /* defensive — link simply doesn't render */ }
   }
 
@@ -543,12 +548,24 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             )}
             {siblingRun && (
               <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-2.5 text-sm">
-                <span className="text-ink-200">Good news — this agent already has a finished run. </span>
+                {/* Honest lead-in: only call it "good news" when the sibling is an
+                    actual clean success. A held run (needs_input/pending) or a
+                    sibling that's ALSO failed but wrote a real explanation (the
+                    founder's exact confusion — one silent timeout next to another
+                    run of the same agent that self-explained why it stopped) gets
+                    neutral framing instead of a false "finished" claim. */}
+                <span className="text-ink-200">
+                  {siblingRun.review_status === 'needs_input' || siblingRun.review_status === 'pending'
+                    ? 'This agent has a related run waiting on you — it explains what happened. '
+                    : siblingRun.run_state === 'failed'
+                      ? 'This agent has a related run with more detail on what happened. '
+                      : 'Good news — this agent already has a finished run. '}
+                </span>
                 <Link
                   href={`/runs/${siblingRun.id}`}
                   className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
                 >
-                  View the latest result{siblingRun.review_status === 'needs_input' || siblingRun.review_status === 'pending' ? ' (needs you)' : ''} →
+                  View the run to see the reason{siblingRun.review_status === 'needs_input' || siblingRun.review_status === 'pending' ? ' (needs you)' : ''} →
                 </Link>
               </div>
             )}
