@@ -37,7 +37,7 @@ import AgentSetupCard from '../../_components/agent-setup-card';
 import AgentLearningsCard from '../../_components/agent-learnings-card';
 import AgentExecutorPreference from '../../_components/agent-executor-preference';
 import AgentFeedback from '../../_components/agent-feedback';
-import ImproveAgent from '../../_components/improve-agent';
+import AgentEditButton from '../../_components/agent-edit-button';
 import StepRow from '../../_components/step-row';
 import ExtendChain from '../../_components/extend-chain';
 import { getActivationChecklist } from '@/lib/activation';
@@ -503,13 +503,9 @@ export default async function WorkflowDetailPage({
         <AgentLearningsCard slug={workflow.slug} />
       </div>
 
-      {/* Edit what the agent DOES — a plain-language change rewrites its steps
-          (kind='revise') into a new version. Distinct from config answers above.
-          id + scroll-mt matches the other setup-panel anchors (agent-setup,
-          agent-learnings) — the header's "Edit" link jumps straight here. */}
-      <div id="agent-improve" className="mb-6 scroll-mt-20">
-        <ImproveAgent slug={workflow.slug} />
-      </div>
+      {/* "Edit what the agent DOES" now lives in the header's Edit Agent pop-up
+          (<AgentEditButton/>) instead of a card here — one place, opened right
+          where the click happens, instead of a tab-switch-and-scroll. */}
 
       {/* "Or have feedback? Tell Claude to change it." */}
       <AgentFeedback slug={workflow.slug} name={workflow.name} />
@@ -554,17 +550,12 @@ export default async function WorkflowDetailPage({
                 {/* Rename is a per-user alias (your view only, never the shared
                     name), so it's available on EVERY agent — not just generated. */}
                 <AgentNameEditor slug={workflow.slug} source={workflow.source} initialName={workflow.name} editable={true} />
-                {/* Distinct from the rename pencil above: this jumps to "Edit this
-                    agent" (ImproveAgent, in the Setup tab) — changing what the
-                    agent DOES, not its display name. It used to be discoverable
-                    only by scrolling to the bottom of Setup (founder ask: surface
-                    it right next to the name so people know they can edit it). */}
-                <Link
-                  href={`/workflows/${encodeURIComponent(workflow.slug)}?source=${encodeURIComponent(workflow.source)}&tab=setup#agent-improve`}
-                  className="text-xs text-ink-400 hover:text-ink-200 underline underline-offset-2"
-                >
-                  Edit Agent
-                </Link>
+                {/* Distinct from the rename pencil above: this opens the
+                    plain-language "edit what this agent does" form directly (a
+                    pop-up, not a tab-switch-and-scroll — founder feedback: the
+                    old Link "doesn't do anything" visible at the click itself).
+                    The Setup tab no longer carries its own copy of this form. */}
+                <AgentEditButton slug={workflow.slug} />
               </div>
               <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>
               <p className="text-ink-200 mt-3">{workflow.job || workflow.description}</p>
