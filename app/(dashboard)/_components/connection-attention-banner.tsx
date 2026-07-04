@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * <ConnectionAttentionBanner /> - the loud, impossible-to-miss surface for
  * agents that need an account which is not reachable in the Implexa browser.
@@ -9,14 +11,25 @@
  * connection gets a prominent banner with the reason and a one-tap sign-in, not
  * a quiet red dot buried in a list.
  *
+ * Sign in / Verify call the SAME desktop bridge the activation card already
+ * uses (window.implexaDesktop.connectAccount/verifyAccount — opens the dedicated
+ * Chrome profile straight to that domain's login, no arbitrary URL crosses the
+ * bridge). Founder testing caught the old version: this banner still pointed
+ * "Sign in" at the static RECONNECT_HREF ('/install') — a placeholder from
+ * before the per-domain bridge existed — so clicking it just landed on the
+ * marketing download page instead of actually signing anything in. Falls back
+ * to that same static link ONLY when running in a plain browser tab (no desktop
+ * bridge available at all).
+ *
  * Renders nothing when nothing is broken (the calm common case). Used both
  * globally (the Connections page, and reusable on Home) and scoped to a single
- * agent (the agent detail page). Pure presentational server component.
+ * agent (the agent detail page).
  */
 
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { ConnectionWarning } from '@/lib/connections';
-import { RECONNECT_HREF } from '@/lib/connections';
+import { RECONNECT_HREF, type ConnectionWarning } from '@/lib/connection-warning-types';
 
 function rel(iso: string | null): string {
   if (!iso) return '';
@@ -25,6 +38,98 @@ function rel(iso: string | null): string {
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
+}
+
+type DesktopBridge = {
+  connectAccount?: (domain: string) => Promise<{ ok: boolean; message?: string }>;
+  verifyAccount?: (domain: string) => Promise<{ ok: boolean; reachable?: boolean; identity?: string; message?: string }>;
+};
+
+function desktopBridge(): DesktopBridge | null {
+  if (typeof window === 'undefined') return null;
+  return (window as Window & { implexaDesktop?: DesktopBridge }).implexaDesktop ?? null;
+}
+
+function useDesktopBridge(): DesktopBridge | null {
+  const [bridge, setBridge] = useState<DesktopBridge | null>(null);
+  useEffect(() => { setBridge(desktopBridge()); }, []);
+  return bridge;
+}
+
+/** One warning row's Sign in / Verify actions — its own busy/note state so
+ * signing in to one account never blocks or mislabels another row. */
+function ConnectionWarningRow({ w }: { w: ConnectionWarning }) {
+  const bridge = useDesktopBridge();
+  const router = useRouter();
+  const [busy, setBusy] = useState<'signin' | 'verify' | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  const signIn = async () => {
+    if (!bridge?.connectAccount) return;
+    setBusy('signin'); setNote(null);
+    try {
+      const r = await bridge.connectAccount(w.domain);
+      setNote(r.ok ? 'Sign in in the workspace window that just opened, then hit Verify.' : (r.message || 'Could not open the sign-in page.'));
+    } catch { setNote('Could not open the sign-in page.'); }
+    setBusy(null);
+  };
+  const verify = async () => {
+    if (!bridge?.verifyAccount) return;
+    setBusy('verify'); setNote(null);
+    try {
+      const r = await bridge.verifyAccount(w.domain);
+      if (r.ok && r.reachable) {
+        setNote(r.identity ? `Connected as ${r.identity}.` : 'Connected.');
+        router.refresh(); // re-fetch server data so this warning drops once reachable
+      } else {
+        setNote(r.ok ? 'Not signed in yet. Hit Sign in, finish in the workspace window, then Verify again.' : (r.message || 'Verify could not run.'));
+      }
+    } catch { setNote('Verify could not run.'); }
+    setBusy(null);
+  };
+
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-ink-100 truncate">{w.label}</span>
+        </div>
+        <p className="text-xs text-ink-300 mt-0.5 line-clamp-2">{note || w.reason}</p>
+      </div>
+      <div className="flex items-center gap-2 flex-none">
+        {w.detected_at && !note && <span className="text-[11px] text-ink-500 mt-0.5">{rel(w.detected_at)}</span>}
+        {bridge?.connectAccount ? (
+          <>
+            <button
+              type="button"
+              onClick={signIn}
+              disabled={busy !== null}
+              className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-rose-700 dark:text-rose-200 hover:bg-rose-500/30 transition-colors whitespace-nowrap disabled:opacity-60"
+            >
+              {busy === 'signin' ? 'Opening…' : 'Sign in'}
+            </button>
+            <button
+              type="button"
+              onClick={verify}
+              disabled={busy !== null}
+              className="text-xs font-medium rounded-md px-2.5 py-1 border border-ink-700 text-ink-200 hover:bg-ink-800/60 transition-colors whitespace-nowrap disabled:opacity-60"
+            >
+              {busy === 'verify' ? 'Checking…' : 'Verify'}
+            </button>
+          </>
+        ) : (
+          // No desktop bridge (plain browser tab) — the connections concept only
+          // works via the Implexa desktop's dedicated Chrome, so point at the app.
+          <Link
+            href={RECONNECT_HREF}
+            className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-rose-700 dark:text-rose-200 hover:bg-rose-500/30 transition-colors whitespace-nowrap"
+          >
+            Open the app
+          </Link>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function ConnectionAttentionBanner({
@@ -59,30 +164,16 @@ export function ConnectionAttentionBanner({
       </p>
       <ul className="mt-3 space-y-2">
         {warnings.map((w, i) => (
-          <li key={`${w.agent_slug}-${w.domain}-${i}`} className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium text-ink-100 truncate">{w.label}</span>
-                {scope === 'global' && (
-                  <Link
-                    href={`/workflows/${w.agent_slug}`}
-                    className="text-[11px] uppercase tracking-wide text-ink-400 hover:text-ink-200"
-                  >
-                    {w.agent_name}
-                  </Link>
-                )}
-              </div>
-              <p className="text-xs text-ink-300 mt-0.5 line-clamp-2">{w.reason}</p>
-            </div>
-            <div className="flex items-center gap-2 flex-none">
-              {w.detected_at && <span className="text-[11px] text-ink-500 mt-0.5">{rel(w.detected_at)}</span>}
+          <li key={`${w.agent_slug}-${w.domain}-${i}`}>
+            {scope === 'global' && (
               <Link
-                href={RECONNECT_HREF}
-                className="text-xs font-medium rounded-md px-2.5 py-1 bg-rose-500/20 text-rose-700 dark:text-rose-200 hover:bg-rose-500/30 transition-colors whitespace-nowrap"
+                href={`/workflows/${w.agent_slug}`}
+                className="text-[11px] uppercase tracking-wide text-ink-400 hover:text-ink-200"
               >
-                Sign in
+                {w.agent_name}
               </Link>
-            </div>
+            )}
+            <ConnectionWarningRow w={w} />
           </li>
         ))}
       </ul>

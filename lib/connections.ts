@@ -26,16 +26,17 @@
 // response shape below is the contract; the mapper tolerates missing fields so a
 // half-built endpoint never throws.
 
+// RECONNECT_HREF + ConnectionWarning live in connection-warning-types.ts (a
+// zero-import file) so a 'use client' component can import them without
+// pulling in this file's server-only lib/supabase/server dependency. Imported
+// (for use below) AND re-exported here so existing server-side importers of
+// '@/lib/connections' see no change.
+import type { ConnectionWarning } from './connection-warning-types';
+export { RECONNECT_HREF, type ConnectionWarning } from './connection-warning-types';
+
 const BACKEND = (
   process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai'
 ).replace(/\/$/, '');
-
-// Where the user signs an account back in. The reliable home is the dedicated
-// profile in the Implexa desktop browser, which the desktop owns; the dashboard
-// has no web path to drive that pairing, so the CTA points at the Connect-Claude
-// flow (the closest existing web surface) until a desktop deep link exists. When
-// the desktop ships one (e.g. implexa://connections), change it here only.
-export const RECONNECT_HREF = '/install';
 
 export type ReachState = 'reachable' | 'unreachable' | 'unknown';
 // PRIMARY = the dedicated profile (the reliable home). BACKUP = the user's main
@@ -72,18 +73,6 @@ export type AgentConnections = {
   slug: string;
   name: string;
   needs: AgentNeed[];
-};
-
-// A loud, user-facing warning: an agent needs an account that is not reachable.
-// Mirrors the run-attention shape so the banner can render it like a stalled run.
-export type ConnectionWarning = {
-  agent_slug: string;
-  agent_name: string;
-  label: string;
-  account: string | null;
-  domain: string;
-  reason: string;
-  detected_at: string | null;
 };
 
 export type ConnectionStatus = {
