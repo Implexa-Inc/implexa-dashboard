@@ -475,6 +475,25 @@ export default async function WorkflowDetailPage({
        * the agent declares no questions. */}
       <div id="agent-setup" className="mb-6 scroll-mt-20">
         <AgentSetupCard slug={workflow.slug} source={workflow.source} />
+        {/* The primary Activate/Run action lives up in the page header — far
+         * enough from this card that saving your answers here left you with no
+         * next step in view (founder feedback: "I have to click Done, go back,
+         * and then activate"). Mirror it right here so Save answers is
+         * immediately followed by the actual next action, no navigating away. */}
+        <div className="mt-3">
+          <AgentActions
+            slug={workflow.slug}
+            name={workflow.name}
+            isActive={isActive}
+            requiresLocal={checklist?.requiresLocal}
+            source={workflow.source}
+            nextRunAt={checklist?.nextRunAt}
+            pendingQuestions={checklist?.pendingQuestions}
+            claudeTaskId={pausableRoutine?.claude_task_id}
+            inFlight={inFlight}
+            align="start"
+          />
+        </div>
       </div>
 
       {/* The private per-(user, agent) learnings that accumulate as it runs
