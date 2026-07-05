@@ -66,14 +66,21 @@ const POLL_MS = 15000;
 // Active states (green/amber) show a clean spinner — they're still working or
 // waiting on you. Done states (red/grey) stay a static dot. Every card opens the
 // run page, so there's no per-status button label — just a chevron.
-const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: string; label: string }> = {
-  queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your AI engine' },
-  running:          { spin: true,  spinCls: 'border-emerald-500/25 border-t-emerald-500', dotCls: 'bg-emerald-500',             label: 'Running' },
-  waiting_approval: { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Waiting for approval' },
-  action_available: { spin: false, spinCls: '',                                           dotCls: 'bg-brand-500',               label: 'Action available' },
-  needs_attention:  { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Needs attention' },
-  failed:           { spin: false, spinCls: '',                                           dotCls: 'bg-rose-500',                label: 'Failed' },
-  finished:         { spin: false, spinCls: '',                                           dotCls: 'bg-ink-500 dark:bg-ink-400', label: 'Finished' },
+//
+// `chip` is a short state word ("Queued" / "Running" / "Approval needed" / …)
+// rendered as a small colored badge next to the run identity — a static
+// "Running" buried in small grey subtitle text (esp. with no per-step detail,
+// e.g. a plain "Run now" with no heartbeat) read as if the status indicator had
+// disappeared (founder: "that's gone now"). The badge makes the state
+// unmissable at a glance regardless of whether step detail is present.
+const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: string; label: string; chip: string; chipCls: string }> = {
+  queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your AI engine', chip: 'Queued',          chipCls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30' },
+  running:          { spin: true,  spinCls: 'border-emerald-500/25 border-t-emerald-500', dotCls: 'bg-emerald-500',             label: 'Running',                                    chip: 'Running',         chipCls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' },
+  waiting_approval: { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Waiting for approval',                       chip: 'Approval needed', chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
+  action_available: { spin: false, spinCls: '',                                           dotCls: 'bg-brand-500',               label: 'Action available',                           chip: 'Action ready',    chipCls: 'bg-brand-500/10 text-brand-600 dark:text-brand-300 border-brand-500/30' },
+  needs_attention:  { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Needs attention',                            chip: 'Needs attention', chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
+  failed:           { spin: false, spinCls: '',                                           dotCls: 'bg-rose-500',                label: 'Failed',                                     chip: 'Failed',          chipCls: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30' },
+  finished:         { spin: false, spinCls: '',                                           dotCls: 'bg-ink-500 dark:bg-ink-400', label: 'Finished',                                   chip: 'Finished',        chipCls: 'bg-ink-500/10 text-ink-400 border-ink-500/30' },
 };
 
 function humanize(slug: string): string {
@@ -267,8 +274,16 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
               )}
               <div className="min-w-0 flex-1">
                 {/* Run IDENTITY first (what THIS run is); agent name drops to the
-                    secondary line so two runs of one agent read distinctly. */}
-                <div className="text-sm text-ink-100 truncate">{c.headline || humanize(c.skillSlug)}</div>
+                    secondary line so two runs of one agent read distinctly. The
+                    status CHIP is a small colored badge, not just inline text, so
+                    the state is unmissable even while it's a static "Running" with
+                    no per-step detail yet. */}
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="text-sm text-ink-100 truncate">{c.headline || humanize(c.skillSlug)}</div>
+                  <span className={`shrink-0 text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded border ${s.chipCls}`}>
+                    {s.chip}
+                  </span>
+                </div>
                 <div className="text-[11px] text-ink-500 truncate">
                   {c.headline ? `${humanize(c.skillSlug)} · ` : ''}
                   {c.runId && stoppingRunIds.has(c.runId)
