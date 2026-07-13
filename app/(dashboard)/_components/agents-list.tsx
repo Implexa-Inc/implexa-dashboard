@@ -134,8 +134,11 @@ function stateBadge(a: ListAgent): { label: string; cls: string } | null {
   return null;
 }
 
-function Row({ a, onArchive, onRename, busy }: { a: ListAgent; onArchive: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busy: boolean }) {
+function Row({ a, onArchive, onRename, busy, spotlight = false }: { a: ListAgent; onArchive: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busy: boolean; spotlight?: boolean }) {
   const detail = `/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`;
+  // In the activity spotlight the row title opens the RUN status/live page; in the
+  // roster it opens the agent's detail/setup page. Same agent, two doors.
+  const titleHref = spotlight && a.lastRun?.id ? `/runs/${a.lastRun.id}` : detail;
   const badge = a.section !== 'not_activated' ? stateBadge(a) : null;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(a.name);
@@ -166,7 +169,7 @@ function Row({ a, onArchive, onRename, busy }: { a: ListAgent; onArchive: (a: Li
                 className="text-base font-medium bg-ink-900 border border-ink-600 rounded px-2 py-0.5 text-ink-50 focus:border-brand-500/60 focus:outline-none min-w-[220px]"
               />
             ) : (
-              <Link href={detail} className="text-base font-medium text-ink-50 hover:underline">
+              <Link href={titleHref} className="text-base font-medium text-ink-50 hover:underline">
                 <span aria-hidden className="mr-1.5">{a.category.emoji}</span>{a.name}
               </Link>
             )}
@@ -182,6 +185,9 @@ function Row({ a, onArchive, onRename, busy }: { a: ListAgent; onArchive: (a: Li
               </button>
             )}
             <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400">{a.category.label}</span>
+            {a.section === 'scheduled' && (
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-emerald-500/40 text-emerald-700 dark:text-emerald-300" title="Runs automatically on a schedule">⏰ Scheduled</span>
+            )}
             {(a.isChain ?? looksLikeChain(a.name)) && (
               <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-violet-500/40 text-violet-600 dark:text-violet-300" title="This agent runs several agents in sequence">⛓ Chain</span>
             )}
@@ -218,7 +224,7 @@ function Row({ a, onArchive, onRename, busy }: { a: ListAgent; onArchive: (a: Li
             </Link>
           ) : a.lastRun?.id ? (
             <Link href={`/runs/${a.lastRun.id}`} className="btn-outline text-xs px-3 py-1.5 whitespace-nowrap">
-              View last result
+              {a.lastRun.runState === 'running' ? 'View live' : 'View last result'}
             </Link>
           ) : (
             <Link href={detail} className="btn-outline text-xs px-3 py-1.5 whitespace-nowrap">
@@ -235,12 +241,15 @@ function Row({ a, onArchive, onRename, busy }: { a: ListAgent; onArchive: (a: Li
   );
 }
 
-function Section({ title, agents, onArchive, onRename, busySlug }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busySlug: string | null }) {
+function Section({ title, agents, onArchive, onRename, busySlug, spotlight = false, subtitle }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busySlug: string | null; spotlight?: boolean; subtitle?: string }) {
   if (agents.length === 0) return null;
   return (
     <section className="mb-8">
-      <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">{title} <span className="text-ink-500">({agents.length})</span></h2>
-      <ul className="space-y-3">{agents.map((a) => <Row key={a.slug} a={a} onArchive={onArchive} onRename={onRename} busy={busySlug === a.slug} />)}</ul>
+      <h2 className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">
+        {title} <span className="text-ink-500">({agents.length})</span>
+        {subtitle && <span className="ml-2 normal-case tracking-normal text-ink-500 font-normal">{subtitle}</span>}
+      </h2>
+      <ul className="space-y-3">{agents.map((a) => <Row key={`${spotlight ? 'act' : 'row'}-${a.slug}`} a={a} onArchive={onArchive} onRename={onRename} busy={busySlug === a.slug} spotlight={spotlight} />)}</ul>
     </section>
   );
 }
@@ -334,6 +343,21 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
   const onDemand = shown.filter((a) => a.section === 'on_demand');
   const notActivated = shown.filter((a) => a.section === 'not_activated');
   const paused = shown.filter((a) => a.section === 'paused');
+  // The full activated roster (scheduled + on-demand together, scheduler-tagged).
+  const activated = [...scheduled, ...onDemand];
+  // Activity spotlight: agents running right now OR that ran in the last 24h.
+  // This OVERLAPS the roster on purpose — it's a live-pulse lens on the same
+  // agents (its rows open the RUN status page, not the agent page). Running
+  // first, then most-recent.
+  const RECENT_MS = 24 * 60 * 60 * 1000;
+  const recentlyActive = activated
+    .filter((a) => a.lastRun && (a.lastRun.runState === 'running' || (!!a.lastRun.ranAt && Date.now() - new Date(a.lastRun.ranAt).getTime() < RECENT_MS)))
+    .sort((x, y) => {
+      const xr = x.lastRun?.runState === 'running' ? 1 : 0;
+      const yr = y.lastRun?.runState === 'running' ? 1 : 0;
+      if (xr !== yr) return yr - xr;
+      return new Date(y.lastRun?.ranAt || 0).getTime() - new Date(x.lastRun?.ranAt || 0).getTime();
+    });
 
   const setCat = (key: string) => {
     const p = new URLSearchParams(params.toString());
@@ -367,13 +391,14 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
         </div>
       )}
 
-      {/* "Scheduled" vs "on-demand" is implementation detail, not how an owner
-          thinks about their roster — merged into one Active section; the
-          distinction now reads as the row's own status line (Next run: ... vs
-          Runs on demand). Needs setup first, matching the needs-you-first rule
-          everywhere else in the product. */}
-      <Section title="Needs setup" agents={notActivated} onArchive={archive} onRename={rename} busySlug={busySlug} />
-      <Section title="Active" agents={[...scheduled, ...onDemand]} onArchive={archive} onRename={rename} busySlug={busySlug} />
+      {/* Roster model: an ACTIVITY spotlight (what's running / just ran — rows open
+          the run status page) on top of the full ROSTER (all activated agents,
+          scheduled + on-demand, scheduler-tagged — rows open the agent page). The
+          two overlap on purpose: same agents, two doors. Then Need activation, then
+          Paused. Scheduling is surfaced as a per-row ⏰ tag, not a list split. */}
+      <Section title="Running & recently ran" subtitle="live activity · opens the run" agents={recentlyActive} onArchive={archive} onRename={rename} busySlug={busySlug} spotlight />
+      <Section title="Active agents" agents={activated} onArchive={archive} onRename={rename} busySlug={busySlug} />
+      <Section title="Need activation" agents={notActivated} onArchive={archive} onRename={rename} busySlug={busySlug} />
 
       {shown.length === 0 && (
         <div className="card text-center py-10">
@@ -391,31 +416,31 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
           opens the agent page, where Resume lives. */}
       {paused.length > 0 && (
         <section className="mt-10 pt-6 border-t border-ink-800">
-          <button
-            type="button"
-            onClick={() => setShowPaused((v) => !v)}
-            className="text-xs uppercase tracking-wider text-ink-500 hover:text-ink-300 flex items-center gap-1.5"
-          >
-            <span className={`inline-block transition-transform ${showPaused ? 'rotate-90' : ''}`}>▸</span>
-            Paused ({paused.length})
-          </button>
-          {showPaused && (
-            <ul className="space-y-2 mt-3">
-              {paused.map((a) => (
-                <li key={a.slug} className="card flex items-center justify-between gap-3 py-2.5">
-                  <span className="flex items-center gap-2 min-w-0">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
-                    <span className="text-sm text-ink-300 truncate">{a.name}</span>
-                  </span>
-                  <Link
-                    href={`/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`}
-                    className="btn-success text-xs px-3 py-1.5 whitespace-nowrap flex-none"
-                  >
-                    Resume
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <h2 className="text-xs uppercase tracking-wider text-ink-500 mb-3">Paused ({paused.length})</h2>
+          <ul className="space-y-2">
+            {(showPaused ? paused : paused.slice(0, 3)).map((a) => (
+              <li key={a.slug} className="card flex items-center justify-between gap-3 py-2.5">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
+                  <span className="text-sm text-ink-300 truncate">{a.name}</span>
+                </span>
+                <Link
+                  href={`/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`}
+                  className="btn-success text-xs px-3 py-1.5 whitespace-nowrap flex-none"
+                >
+                  Resume
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {paused.length > 3 && (
+            <button
+              type="button"
+              onClick={() => setShowPaused((v) => !v)}
+              className="text-xs text-ink-500 hover:text-ink-300 mt-3"
+            >
+              {showPaused ? 'Show less' : `Show all (${paused.length})`}
+            </button>
           )}
         </section>
       )}
