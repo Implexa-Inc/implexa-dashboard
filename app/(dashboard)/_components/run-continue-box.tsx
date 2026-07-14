@@ -24,8 +24,9 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { callBackend } from '@/lib/api';
+import { callBackend, BackendError } from '@/lib/api';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
+import CapabilityCard, { type CapabilityCardData } from './capability-card';
 
 export default function RunContinueBox({
   runId, agentName, pending = false,
@@ -39,15 +40,19 @@ export default function RunContinueBox({
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [msg, setMsg] = useState('');
+  // The pre-run capability ask — a continue runs the agent just like a Run does, so
+  // it hits the same gate and deserves the same actionable card rather than an error.
+  const [capCard, setCapCard] = useState<CapabilityCardData | null>(null);
   const { files, canAttach, attachFile, removeFile } = useRunAttachments();
   const supabase = createClient();
 
   const canSubmit = !!note.trim() || files.length > 0;
 
-  async function submit() {
+  async function submit(opts?: { force?: boolean }) {
     if (busy || !canSubmit) return;
     setBusy(true);
     setMsg('');
+    setCapCard(null);
     try {
       // The prompt + any attached file PATHS, combined into the one-off note the
       // run-request carries (read back by the drainer from the request's `intent`).
@@ -56,11 +61,16 @@ export default function RunContinueBox({
       await callBackend('/api/v2/me/run-requests', {
         jwt: session?.access_token,
         method: 'POST',
-        body: { kind: 'continue', runId, note: composed, source: 'dashboard' },
+        body: {
+          kind: 'continue', runId, note: composed, source: 'dashboard',
+          ...(opts?.force ? { force: true } : {}),
+        },
       });
       setDone(true);
       setMsg('Queued — continuing this run hands-off; the updated result lands in your inbox.');
     } catch (e) {
+      const cap = e instanceof BackendError && e.status === 409 ? e.body?.needsCapability : null;
+      if (cap) { setCapCard(cap as CapabilityCardData); return; }
       setMsg(e instanceof Error ? e.message : 'Could not queue the continue. Try again.');
     } finally {
       setBusy(false);
@@ -97,7 +107,9 @@ export default function RunContinueBox({
       <div className="mt-3 flex items-center gap-3 flex-wrap">
         <button
           type="button"
-          onClick={submit}
+          // Arrow, not a bare `submit`: onClick passes the MouseEvent as the first
+          // arg, which would land in `opts` and make `opts.force` a live tripwire.
+          onClick={() => submit()}
           disabled={busy || !canSubmit}
           className="btn-success text-xs px-3 py-1.5 disabled:opacity-50"
         >
@@ -105,6 +117,15 @@ export default function RunContinueBox({
         </button>
         {msg && <span className="text-xs text-rose-600 dark:text-rose-400">{msg}</span>}
       </div>
+      {capCard && (
+        <div className="mt-3">
+          <CapabilityCard
+            card={capCard}
+            onRetry={(o) => submit(o)}
+            onDismiss={() => setCapCard(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }

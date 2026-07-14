@@ -21,10 +21,11 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { callBackend } from '@/lib/api';
+import { callBackend, BackendError } from '@/lib/api';
 import Modal from './modal';
 import { firstRunPermsSeen, markFirstRunPermsSeen } from './first-run-permissions-note';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
+import CapabilityCard, { type CapabilityCardData } from './capability-card';
 
 type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
 type SetupField = { key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[] };
@@ -101,6 +102,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // What the pre-run pop-up does on submit: queue it hands-off, or open a session
   // to watch (so the note is pushed into the live session you're watching).
   const [preRunMode, setPreRunMode] = useState<'queue' | 'watch'>('queue');
+  // The pre-run capability ask (backend 409 + needsCapability): this agent needs
+  // something the engine it would run on doesn't have. Not an error state — a choice
+  // (switch engine / grant it / run anyway), so it renders as a card, not a failure.
+  const [capCard, setCapCard] = useState<CapabilityCardData | null>(null);
+  // The note the blocked attempt carried, so a retry after switching/granting keeps it.
+  const lastNote = useRef<string | undefined>(undefined);
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
   const supabase = createClient();
@@ -290,16 +297,23 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // PRIMARY path: always queue. The drainer (or an open Claude session's hook)
   // runs it hands-off on the user's machine — same for every agent, so there's no
   // confusing split and no double-run. The result lands in the inbox.
-  async function doQueue(note?: string) {
+  async function doQueue(note?: string, opts?: { force?: boolean }) {
     if (state === 'queuing' || state === 'running') return;
     setState('queuing');
     setMsg('');
+    setCapCard(null);
+    lastNote.current = note;
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await callBackend('/api/v2/me/run-requests', {
         jwt: session?.access_token,
         method: 'POST',
-        body: { workflowSlug: slug, source: 'dashboard', kind: 'run', ...(note ? { note } : {}) },
+        body: {
+          workflowSlug: slug, source: 'dashboard', kind: 'run',
+          ...(note ? { note } : {}),
+          // Carries the card's "Run anyway" through. We ask, we never forbid.
+          ...(opts?.force ? { force: true } : {}),
+        },
       });
       requestId.current = res?.request?.id || null;
       pollStart.current = Date.now();
@@ -318,6 +332,16 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         router.push('/workflows');
       }
     } catch (e) {
+      // A capability refusal is NOT an error — it's a decision the user can make
+      // right here (switch engine / grant it / run anyway), so it gets the card
+      // rather than a red dead-end sentence.
+      const cap = e instanceof BackendError && e.status === 409 ? e.body?.needsCapability : null;
+      if (cap) {
+        setState('idle');
+        setMsg('');
+        setCapCard(cap as CapabilityCardData);
+        return;
+      }
       setState('error');
       setMsg(e instanceof Error ? e.message : 'Could not queue the run. Try again.');
     }
@@ -432,6 +456,17 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             ? (requiresLocal ? 'Runs in Claude Code, on your computer.' : 'Runs in your Claude.')
             : 'Activate once, then run it anytime.'))}
       </span>
+      {/* The pre-run capability ask. Sits where the run status would be, because it
+          IS the run's status right now: it needs one decision before it can go. */}
+      {capCard && (
+        <div className="mt-1 w-full max-w-[420px]">
+          <CapabilityCard
+            card={capCard}
+            onRetry={(o) => doQueue(lastNote.current, o)}
+            onDismiss={() => setCapCard(null)}
+          />
+        </div>
+      )}
       {/* While the run is in flight, point the user at where it shows LIVE — the
           "Active Agents" section on the Agents page (polls the live feed). We
           deliberately do NOT deep-link the recurring routine's Claude page here:
