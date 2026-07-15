@@ -18,20 +18,32 @@
  * Every action here is real:
  *   - switch_engine      → POST /agents/:slug/executor, then re-run immediately.
  *   - install_capability → opens the engine's own permission surface (codex:// /
- *     claude:// deep link, handled by the OS). We never claim it worked: the run is
- *     retried, which re-runs the same preflight against a FRESH capability report.
+ *     claude:// deep link, handled by the OS), THEN POLLS for the grant instead of
+ *     leaving the user to guess and re-click Run (founder's design, 2026-07-14: "once
+ *     I click the link, remove the button and show loading text"). The button becomes
+ *     a live "Waiting for you to enable…" state; the moment GET /me/capability-status
+ *     confirms the flag, we auto-retry the run — no second click. We still never
+ *     CLAIM it worked ourselves: the retry re-runs the full server-side preflight,
+ *     the poll is only what decides WHEN to retry, not whether it will succeed.
  *   - run_anyway         → re-issues the run with force. We ask, we never forbid: our
  *     evidence can be stale and the user knows their machine better than we do.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+
+// Stop asking after this long — a toggle the desktop app hasn't reported back yet
+// (its own poll loop backs off to every 5 min when idle) shouldn't spin forever.
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS = 2 * 60 * 1000;
 
 export type CapabilityAction = {
   kind: 'switch_engine' | 'install_capability' | 'run_anyway';
   label: string;
   detail?: string;
+  /** Present-tense copy for the polling wait state — see capability-preflight.js. */
+  waitingLabel?: string;
   engine?: 'claude' | 'codex';
   capability?: string;
   url?: string | null;
@@ -61,7 +73,47 @@ export default function CapabilityCard({ card, onRetry }: {
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState('');
+  // The install_capability action we're actively polling for, or null. Distinct
+  // from `busy` (a one-shot in-flight request) — this spans the whole open-link +
+  // wait-for-the-toggle window, which can run for up to POLL_TIMEOUT_MS.
+  const [waitingFor, setWaitingFor] = useState<CapabilityAction | null>(null);
+  const [pollTimedOut, setPollTimedOut] = useState(false);
+  const pollRef = useRef<{ interval: ReturnType<typeof setInterval>; deadline: number } | null>(null);
   const supabase = createClient();
+
+  function stopPolling() {
+    if (pollRef.current) clearInterval(pollRef.current.interval);
+    pollRef.current = null;
+  }
+  // Unmount safety — the modal can close (Esc/backdrop/×) mid-wait; don't leak the interval.
+  useEffect(() => () => stopPolling(), []);
+
+  function startPolling(a: CapabilityAction) {
+    stopPolling();
+    setPollTimedOut(false);
+    setWaitingFor(a);
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    const tick = async () => {
+      if (Date.now() > deadline) { stopPolling(); setPollTimedOut(true); return; }
+      if (!a.engine || !a.capability) return; // nothing to poll for; shouldn't happen
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await callBackend(
+          `/api/v2/me/capability-status?engine=${encodeURIComponent(a.engine)}&capability=${encodeURIComponent(a.capability)}`,
+          { jwt: session?.access_token },
+        );
+        if (res?.value === true) {
+          stopPolling();
+          setWaitingFor(null);
+          await onRetry();   // the grant is confirmed — re-attempt immediately, no second click
+        }
+      } catch {
+        // A transient poll failure isn't the user's problem — just try again next tick.
+      }
+    };
+    pollRef.current = { interval: setInterval(tick, POLL_INTERVAL_MS), deadline };
+    tick();   // don't make the user wait a full interval for the first check
+  }
 
   async function act(a: CapabilityAction) {
     setErr('');
@@ -70,9 +122,11 @@ export default function CapabilityCard({ card, onRetry }: {
     if (a.kind === 'install_capability') {
       // Hand off to the engine's own permission UI. The grant itself happens in
       // Claude/Codex — Implexa can only ever TRIGGER a Class-2 OS permission, never
-      // grant it. So we open the door and let the retry re-check for real; we never
-      // infer a grant from the panel merely having been opened.
+      // grant it. codex:// / claude:// isn't http(s), so this does NOT navigate the
+      // tab away — the OS handles it via its registered protocol handler and this
+      // page keeps running, which is what makes polling after it possible at all.
       if (a.url) window.location.href = a.url;
+      startPolling(a);
       return;
     }
 
@@ -106,40 +160,62 @@ export default function CapabilityCard({ card, onRetry }: {
         <div className="mt-1 text-ink-400">{card.label} {card.why}.</div>
       ) : null}
 
-      <div className="mt-4 flex flex-col gap-2.5">
-        {card.actions.map((a) => {
-          const key = a.kind + (a.engine || '');
-          // Run anyway is deliberately the quiet one — it is the escape hatch, not
-          // the recommendation.
-          const primary = a.kind !== 'run_anyway';
-          return (
-            <div key={key}>
-              <button
-                type="button"
-                disabled={busy === key}
-                onClick={() => act(a)}
-                className={primary
-                  ? 'btn-success text-xs px-3 py-1.5 disabled:opacity-60'
-                  : 'btn-outline text-xs px-3 py-1.5 disabled:opacity-60'}
-              >
-                {busy === key ? 'Switching…' : a.label}
+      {waitingFor ? (
+        // The button is GONE while we wait — founder's explicit call: once the link
+        // is clicked, show live status, not a static button sitting there doing
+        // nothing. Polls GET /me/capability-status; the moment it confirms the
+        // grant, onRetry() fires automatically — no second click.
+        <div className="mt-4">
+          <div className="flex items-center gap-2 text-ink-200">
+            {!pollTimedOut && (
+              <span className="h-3 w-3 flex-none animate-spin rounded-full border-2 border-ink-400 border-t-transparent" aria-hidden />
+            )}
+            <span>{waitingFor.waitingLabel || `Waiting for you to enable ${waitingFor.label}…`}</span>
+          </div>
+          {pollTimedOut ? (
+            <div className="mt-2 flex items-center gap-3 text-xs">
+              <span className="text-ink-500">Still not seeing it — did you flip the toggle?</span>
+              <button type="button" className="text-brand-500 hover:underline" onClick={() => startPolling(waitingFor)}>
+                Check again
               </button>
-              {/* Visible, not a hover title — e.g. Codex's computer-use deep link
-                  lands one settings screen short of the real toggle, and a hover-only
-                  hint is easy to miss on something this actionable. */}
-              {a.detail ? <div className="mt-1 text-xs text-ink-500">{a.detail}</div> : null}
             </div>
-          );
-        })}
-      </div>
-
-      {/* After an install the user comes back here; the retry re-runs the preflight
-          against a fresh report, so this is the honest instruction, not a fake "done". */}
-      {card.missing?.length ? (
-        <div className="mt-3 text-xs text-ink-500">
-          After granting it, run again — we re-check rather than assume.
+          ) : null}
+          <button
+            type="button"
+            className="mt-2 text-xs text-ink-500 hover:underline"
+            onClick={() => { stopPolling(); setWaitingFor(null); setPollTimedOut(false); }}
+          >
+            Cancel
+          </button>
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-4 flex flex-col gap-2.5">
+          {card.actions.map((a) => {
+            const key = a.kind + (a.engine || '');
+            // Run anyway is deliberately the quiet one — it is the escape hatch, not
+            // the recommendation.
+            const primary = a.kind !== 'run_anyway';
+            return (
+              <div key={key}>
+                <button
+                  type="button"
+                  disabled={busy === key}
+                  onClick={() => act(a)}
+                  className={primary
+                    ? 'btn-success text-xs px-3 py-1.5 disabled:opacity-60'
+                    : 'btn-outline text-xs px-3 py-1.5 disabled:opacity-60'}
+                >
+                  {busy === key ? 'Switching…' : a.label}
+                </button>
+                {/* Visible, not a hover title — e.g. Codex's computer-use deep link
+                    lands one settings screen short of the real toggle, and a hover-only
+                    hint is easy to miss on something this actionable. */}
+                {a.detail ? <div className="mt-1 text-xs text-ink-500">{a.detail}</div> : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {err ? <div className="mt-2 text-xs text-red-700 dark:text-red-400">{err}</div> : null}
     </div>
   );
