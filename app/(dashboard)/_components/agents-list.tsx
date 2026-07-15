@@ -14,6 +14,17 @@
  * soft-hide: it calls POST /me/workflows/dismiss, which hides the agent from
  * THIS user only and NEVER deletes the shared/universal agent (others keep it).
  * Reversible from the Archived section (DELETE /me/workflows/dismiss).
+ *
+ * Lifecycle verbs (2026-07-15) — one control, one meaning:
+ *   • Deactivate (POST /me/workflows/deactivate) — stops the CALLER's schedules,
+ *     leaves the agent on the list. The honest way to say "stop running this".
+ *   • Archive (POST /me/workflows/dismiss) — hides it from the list AND stops
+ *     the caller's schedules, because a hidden agent that keeps delivering is
+ *     the one thing archive must never be. Both labels say so.
+ *   • Delete — deliberately absent. An agent def is a published package, not a
+ *     personal file: forks and other users' chains resolve it by slug at run
+ *     time, so a hard delete breaks people who aren't in the room.
+ * Neither verb ever touches the shared agent — only the caller's own rows.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -37,8 +48,18 @@ function DotsIcon() {
   );
 }
 
-/** Small "..." overflow menu — today just Archive. Closes on outside click / Escape. */
-function RowMenu({ onArchive, busy }: { onArchive: () => void; busy: boolean }) {
+/**
+ * Small "..." overflow menu — Deactivate + Archive. Closes on outside click / Escape.
+ *
+ * Two DIFFERENT verbs on purpose (2026-07-15). Archive is about your LIST;
+ * Deactivate is about the CLOCK. Each label says what it does and nothing else:
+ *   • Deactivate — stops the schedule, agent stays on your list. Reversible.
+ *   • Archive    — hides it from your list, and stops its schedule too (a hidden
+ *                  agent must never keep delivering). The menu says so in words
+ *                  rather than leaving the user to find out from an inbox.
+ * Deactivate is only offered when there's a clock to stop.
+ */
+function RowMenu({ onArchive, onDeactivate, canDeactivate, busy }: { onArchive: () => void; onDeactivate: () => void; canDeactivate: boolean; busy: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -64,7 +85,19 @@ function RowMenu({ onArchive, busy }: { onArchive: () => void; busy: boolean }) 
         <DotsIcon />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 top-full mt-1 z-20 min-w-[140px] rounded-md border border-ink-700 bg-ink-900 py-1 shadow-lg">
+        <div role="menu" className="absolute right-0 top-full mt-1 z-20 min-w-[230px] rounded-md border border-ink-700 bg-ink-900 py-1 shadow-lg">
+          {canDeactivate && (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={busy}
+              onClick={() => { setOpen(false); onDeactivate(); }}
+              className="w-full text-left px-3 py-1.5 text-sm text-ink-300 hover:bg-ink-800 hover:text-ink-100 disabled:opacity-50"
+            >
+              <span className="block">Deactivate</span>
+              <span className="block text-[11px] text-ink-500">Stops its schedule. Stays on your list.</span>
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
@@ -72,7 +105,10 @@ function RowMenu({ onArchive, busy }: { onArchive: () => void; busy: boolean }) 
             onClick={() => { setOpen(false); onArchive(); }}
             className="w-full text-left px-3 py-1.5 text-sm text-ink-300 hover:bg-ink-800 hover:text-rose-500 dark:hover:text-rose-300 disabled:opacity-50"
           >
-            {busy ? 'Archiving…' : 'Archive'}
+            <span className="block">{busy ? 'Archiving…' : 'Archive'}</span>
+            <span className="block text-[11px] text-ink-500">
+              {canDeactivate ? 'Hides it from your list and stops its schedule.' : 'Hides it from your list.'}
+            </span>
           </button>
         </div>
       )}
@@ -102,7 +138,13 @@ export function looksLikeChain(name: string): boolean {
   return /→|->/.test(name || '');
 }
 
-export type ArchivedAgent = { slug: string; name: string; source: string };
+export type ArchivedAgent = {
+  slug: string;
+  name: string;
+  source: string;
+  /** Archived but STILL on a live schedule — surfaced, never swallowed. */
+  isLive?: boolean;
+};
 
 function rel(iso: string): string {
   const s = (new Date(iso).getTime() - Date.now()) / 1000;
@@ -134,7 +176,7 @@ function stateBadge(a: ListAgent): { label: string; cls: string } | null {
   return null;
 }
 
-function Row({ a, onArchive, onRename, busy, spotlight = false }: { a: ListAgent; onArchive: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busy: boolean; spotlight?: boolean }) {
+function Row({ a, onArchive, onDeactivate, onRename, busy, spotlight = false }: { a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busy: boolean; spotlight?: boolean }) {
   const detail = `/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`;
   // In the activity spotlight the row title opens the RUN status/live page; in the
   // roster it opens the agent's detail/setup page. Same agent, two doors.
@@ -231,17 +273,27 @@ function Row({ a, onArchive, onRename, busy, spotlight = false }: { a: ListAgent
               Open
             </Link>
           )}
-          {/* Archive = remove from MY list (never deletes the shared agent). Not
+          {/* Archive = remove from MY list (never deletes the shared agent).
+              Deactivate = stop its clock, keep it on the list. Neither is
               offered for a not-yet-activated draft — there's nothing to remove
-              from a running roster yet; the row IS the draft. */}
-          {a.section !== 'not_activated' && <RowMenu onArchive={() => onArchive(a)} busy={busy} />}
+              from a running roster yet, and no clock to stop; the row IS the
+              draft. Deactivate only appears when the agent HAS a live schedule
+              ('paused' rows are already stopped — Resume is their action). */}
+          {a.section !== 'not_activated' && (
+            <RowMenu
+              onArchive={() => onArchive(a)}
+              onDeactivate={() => onDeactivate(a)}
+              canDeactivate={a.section === 'scheduled'}
+              busy={busy}
+            />
+          )}
         </div>
       </div>
     </li>
   );
 }
 
-function Section({ title, agents, onArchive, onRename, busySlug, spotlight = false, subtitle }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busySlug: string | null; spotlight?: boolean; subtitle?: string }) {
+function Section({ title, agents, onArchive, onDeactivate, onRename, busySlug, spotlight = false, subtitle }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busySlug: string | null; spotlight?: boolean; subtitle?: string }) {
   if (agents.length === 0) return null;
   return (
     <section className="mb-8">
@@ -249,7 +301,7 @@ function Section({ title, agents, onArchive, onRename, busySlug, spotlight = fal
         {title} <span className="text-ink-500">({agents.length})</span>
         {subtitle && <span className="ml-2 normal-case tracking-normal text-ink-500 font-normal">{subtitle}</span>}
       </h2>
-      <ul className="space-y-3">{agents.map((a) => <Row key={`${spotlight ? 'act' : 'row'}-${a.slug}`} a={a} onArchive={onArchive} onRename={onRename} busy={busySlug === a.slug} spotlight={spotlight} />)}</ul>
+      <ul className="space-y-3">{agents.map((a) => <Row key={`${spotlight ? 'act' : 'row'}-${a.slug}`} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} busy={busySlug === a.slug} spotlight={spotlight} />)}</ul>
     </section>
   );
 }
@@ -287,6 +339,51 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
       setList(prevList);
       setArch(prevArch);
       setError(e instanceof Error ? e.message : 'Could not archive that agent');
+    } finally {
+      setBusySlug(null);
+    }
+  }
+
+  // Deactivate = stop the caller's schedules for this agent, WITHOUT hiding it.
+  // The row stays put and moves to Paused on the next server read, where Resume
+  // already lives. Backend is caller-scoped, so this never touches the shared
+  // agent or anyone else's clock.
+  async function deactivate(a: ListAgent) {
+    setBusySlug(a.slug);
+    setError(null);
+    const prevList = list;
+    // Optimistic: the agent is no longer on a clock.
+    setList(list.map((x) => (x.slug === a.slug ? { ...x, section: 'paused', nextRunAt: null } : x)));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend('/api/v2/me/workflows/deactivate', {
+        jwt: session?.access_token, method: 'POST', body: { slug: a.slug },
+      });
+      // Re-read so the row comes back with real server state rather than a guess.
+      router.refresh();
+    } catch (e) {
+      setList(prevList);
+      setError(e instanceof Error ? e.message : 'Could not deactivate that agent');
+    } finally {
+      setBusySlug(null);
+    }
+  }
+
+  // Reactivate an archived agent that is somehow still live — the escape hatch
+  // for the STILL LIVE badge below, so seeing it always comes with a way to act.
+  async function deactivateArchived(slug: string) {
+    setBusySlug(slug);
+    setError(null);
+    const prev = arch;
+    setArch(arch.map((x) => (x.slug === slug ? { ...x, isLive: false } : x)));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend('/api/v2/me/workflows/deactivate', {
+        jwt: session?.access_token, method: 'POST', body: { slug },
+      });
+    } catch (e) {
+      setArch(prev);
+      setError(e instanceof Error ? e.message : 'Could not stop that agent');
     } finally {
       setBusySlug(null);
     }
@@ -337,6 +434,10 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
     }
     return [...m.values()].sort((x, y) => y.n - x.n);
   }, [list]);
+
+  // Archived agents that can still fire. Counted on the collapsed header too —
+  // a warning inside a collapsed section is a warning nobody reads.
+  const liveArchived = arch.filter((a) => a.isLive).length;
 
   const shown = activeCat ? list.filter((a) => a.category.key === activeCat) : list;
   const scheduled = shown.filter((a) => a.section === 'scheduled');
@@ -396,9 +497,9 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
           scheduled + on-demand, scheduler-tagged — rows open the agent page). The
           two overlap on purpose: same agents, two doors. Then Need activation, then
           Paused. Scheduling is surfaced as a per-row ⏰ tag, not a list split. */}
-      <Section title="Running & recently ran" subtitle="live activity · opens the run" agents={recentlyActive} onArchive={archive} onRename={rename} busySlug={busySlug} spotlight />
-      <Section title="Active agents" agents={activated} onArchive={archive} onRename={rename} busySlug={busySlug} />
-      <Section title="Need activation" agents={notActivated} onArchive={archive} onRename={rename} busySlug={busySlug} />
+      <Section title="Running & recently ran" subtitle="live activity · opens the run" agents={recentlyActive} onArchive={archive} onDeactivate={deactivate} onRename={rename} busySlug={busySlug} spotlight />
+      <Section title="Active agents" agents={activated} onArchive={archive} onDeactivate={deactivate} onRename={rename} busySlug={busySlug} />
+      <Section title="Need activation" agents={notActivated} onArchive={archive} onDeactivate={deactivate} onRename={rename} busySlug={busySlug} />
 
       {shown.length === 0 && (
         <div className="card text-center py-10">
@@ -446,7 +547,14 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
       )}
 
       {/* Archived — per-user hidden agents, restorable. The shared agents are
-          untouched; this is just the caller's view. */}
+          untouched; this is just the caller's view.
+
+          Archiving stops schedules, so an archived agent should never still be
+          running. When one IS (a stop that failed, or a row archived before that
+          was true), the row says STILL LIVE and offers Stop right here. Archive
+          is the one place things are out of sight — so it's the one place
+          liveness can't be left implicit. If this badge never appears, good:
+          that's the contract holding, visibly. */}
       {arch.length > 0 && (
         <section className="mt-10 pt-6 border-t border-ink-800">
           <button
@@ -456,23 +564,53 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
           >
             <span className={`inline-block transition-transform ${showArchived ? 'rotate-90' : ''}`}>▸</span>
             Archived ({arch.length})
+            {liveArchived > 0 && (
+              <span className="normal-case tracking-normal text-amber-600 dark:text-amber-400">
+                · {liveArchived} still running
+              </span>
+            )}
           </button>
           {showArchived && (
-            <ul className="space-y-2 mt-3">
-              {arch.map((a) => (
-                <li key={a.slug} className="card flex items-center justify-between gap-3 py-2.5">
-                  <span className="text-sm text-ink-300 truncate">{a.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => restore(a.slug)}
-                    disabled={busySlug === a.slug}
-                    className="text-xs btn-outline px-3 py-1 disabled:opacity-50 whitespace-nowrap"
-                  >
-                    {busySlug === a.slug ? 'Restoring…' : 'Restore'}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <>
+              <p className="text-[11px] text-ink-500 mt-2">Hidden from your list. Archiving also stops the schedule.</p>
+              <ul className="space-y-2 mt-3">
+                {arch.map((a) => (
+                  <li key={a.slug} className="card flex items-center justify-between gap-3 py-2.5">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm text-ink-300 truncate">{a.name}</span>
+                      {a.isLive && (
+                        <span
+                          className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-700 dark:text-amber-300 whitespace-nowrap"
+                          title="Hidden from your list, but still running on its schedule."
+                        >
+                          ⏰ Still live
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex items-center gap-1.5 flex-none">
+                      {a.isLive && (
+                        <button
+                          type="button"
+                          onClick={() => deactivateArchived(a.slug)}
+                          disabled={busySlug === a.slug}
+                          className="text-xs px-3 py-1 rounded-md border border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 transition-colors disabled:opacity-50 whitespace-nowrap"
+                        >
+                          {busySlug === a.slug ? 'Stopping…' : 'Stop it'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => restore(a.slug)}
+                        disabled={busySlug === a.slug}
+                        className="text-xs btn-outline px-3 py-1 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {busySlug === a.slug ? 'Restoring…' : 'Restore'}
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </section>
       )}
