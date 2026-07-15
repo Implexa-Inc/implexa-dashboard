@@ -250,6 +250,11 @@ export type DismissedAgent = {
   name: string;
   source: string;
   dismissedAt: string | null;
+  /** This archived agent can STILL FIRE (the caller has a schedule on it).
+   *  Archiving stops schedules, so this is normally false — but archive is the
+   *  one place things are out of sight, so when it IS true the row has to say
+   *  so out loud rather than hide a running agent. */
+  isLive?: boolean;
 };
 
 /**
