@@ -456,17 +456,23 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             ? (requiresLocal ? 'Runs in Claude Code, on your computer.' : 'Runs in your Claude.')
             : 'Activate once, then run it anytime.'))}
       </span>
-      {/* The pre-run capability ask. Sits where the run status would be, because it
-          IS the run's status right now: it needs one decision before it can go. */}
-      {capCard && (
-        <div className="mt-1 w-full max-w-[420px]">
+      {/* The pre-run capability ask. A MODAL, not inline: this is a rare, occasional
+          gate (most agents never trip it), and an inline block shoved the whole card
+          layout down every time it happened — the founder's own call after seeing it
+          fire live (2026-07-14). Modal keeps the layout stable and reads as the
+          one-off interruption it is. */}
+      <Modal
+        open={!!capCard}
+        onClose={() => setCapCard(null)}
+        title={capCard?.label ? `${capCard.label} needed` : 'One thing before this runs'}
+      >
+        {capCard && (
           <CapabilityCard
             card={capCard}
             onRetry={(o) => doQueue(lastNote.current, o)}
-            onDismiss={() => setCapCard(null)}
           />
-        </div>
-      )}
+        )}
+      </Modal>
       {/* While the run is in flight, point the user at where it shows LIVE — the
           "Active Agents" section on the Agents page (polls the live feed). We
           deliberately do NOT deep-link the recurring routine's Claude page here:

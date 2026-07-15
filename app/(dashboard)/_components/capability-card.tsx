@@ -52,11 +52,12 @@ export type CapabilityCardData = {
   slug?: string;
 };
 
-export default function CapabilityCard({ card, onRetry, onDismiss }: {
+export default function CapabilityCard({ card, onRetry }: {
   card: CapabilityCardData;
   /** Re-issue the run. `force` carries the "Run anyway" choice through. */
   onRetry: (opts?: { force?: boolean }) => void | Promise<void>;
-  onDismiss: () => void;
+  /** Dismissal lives on the wrapping <Modal>'s × / backdrop / Esc — this card
+   *  renders only its content, not a second close affordance. */
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState('');
@@ -95,13 +96,17 @@ export default function CapabilityCard({ card, onRetry, onDismiss }: {
   }
 
   return (
-    <div className="rounded-lg border border-amber-300/60 bg-amber-50 p-4 text-sm dark:border-amber-500/30 dark:bg-amber-950/30">
-      <div className="font-medium text-amber-900 dark:text-amber-200">{card.message}</div>
+    // No outer card/border here — this renders INSIDE <Modal>, which already owns
+    // the shell (title bar, × close, backdrop). A second nested card + a redundant
+    // Cancel button (Modal's × already dismisses) was exactly the doubled-up chrome
+    // the founder's inline-vs-modal call was about fixing.
+    <div className="text-sm">
+      <div className="text-ink-100">{card.message}</div>
       {card.why ? (
-        <div className="mt-1 text-amber-800/80 dark:text-amber-200/70">{card.label} {card.why}.</div>
+        <div className="mt-1 text-ink-400">{card.label} {card.why}.</div>
       ) : null}
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         {card.actions.map((a) => {
           const key = a.kind + (a.engine || '');
           // Run anyway is deliberately the quiet one — it is the escape hatch, not
@@ -115,26 +120,19 @@ export default function CapabilityCard({ card, onRetry, onDismiss }: {
               onClick={() => act(a)}
               title={a.detail || undefined}
               className={primary
-                ? 'rounded-md bg-amber-600 px-3 py-1.5 text-white hover:bg-amber-700 disabled:opacity-60'
-                : 'rounded-md border border-amber-300 px-3 py-1.5 text-amber-900 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-500/40 dark:text-amber-200 dark:hover:bg-amber-900/30'}
+                ? 'btn-success text-xs px-3 py-1.5 disabled:opacity-60'
+                : 'btn-outline text-xs px-3 py-1.5 disabled:opacity-60'}
             >
               {busy === key ? 'Switching…' : a.label}
             </button>
           );
         })}
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="rounded-md px-3 py-1.5 text-amber-900/70 hover:bg-amber-100 dark:text-amber-200/70 dark:hover:bg-amber-900/30"
-        >
-          Cancel
-        </button>
       </div>
 
       {/* After an install the user comes back here; the retry re-runs the preflight
           against a fresh report, so this is the honest instruction, not a fake "done". */}
       {card.missing?.length ? (
-        <div className="mt-2 text-xs text-amber-800/70 dark:text-amber-200/60">
+        <div className="mt-3 text-xs text-ink-500">
           After granting it, run again — we re-check rather than assume.
         </div>
       ) : null}

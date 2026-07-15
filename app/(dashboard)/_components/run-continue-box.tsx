@@ -27,6 +27,7 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend, BackendError } from '@/lib/api';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
+import Modal from './modal';
 
 export default function RunContinueBox({
   runId, agentName, pending = false,
@@ -117,15 +118,20 @@ export default function RunContinueBox({
         </button>
         {msg && <span className="text-xs text-rose-600 dark:text-rose-400">{msg}</span>}
       </div>
-      {capCard && (
-        <div className="mt-3">
+      {/* Modal, not inline — same call as agent-actions.tsx: a rare gate shouldn't
+          push the surrounding layout around every time it fires. */}
+      <Modal
+        open={!!capCard}
+        onClose={() => setCapCard(null)}
+        title={capCard?.label ? `${capCard.label} needed` : 'One thing before this runs'}
+      >
+        {capCard && (
           <CapabilityCard
             card={capCard}
             onRetry={(o) => submit(o)}
-            onDismiss={() => setCapCard(null)}
           />
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }
