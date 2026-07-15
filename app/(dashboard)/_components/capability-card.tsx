@@ -106,25 +106,29 @@ export default function CapabilityCard({ card, onRetry }: {
         <div className="mt-1 text-ink-400">{card.label} {card.why}.</div>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-col gap-2.5">
         {card.actions.map((a) => {
           const key = a.kind + (a.engine || '');
           // Run anyway is deliberately the quiet one — it is the escape hatch, not
           // the recommendation.
           const primary = a.kind !== 'run_anyway';
           return (
-            <button
-              key={key}
-              type="button"
-              disabled={busy === key}
-              onClick={() => act(a)}
-              title={a.detail || undefined}
-              className={primary
-                ? 'btn-success text-xs px-3 py-1.5 disabled:opacity-60'
-                : 'btn-outline text-xs px-3 py-1.5 disabled:opacity-60'}
-            >
-              {busy === key ? 'Switching…' : a.label}
-            </button>
+            <div key={key}>
+              <button
+                type="button"
+                disabled={busy === key}
+                onClick={() => act(a)}
+                className={primary
+                  ? 'btn-success text-xs px-3 py-1.5 disabled:opacity-60'
+                  : 'btn-outline text-xs px-3 py-1.5 disabled:opacity-60'}
+              >
+                {busy === key ? 'Switching…' : a.label}
+              </button>
+              {/* Visible, not a hover title — e.g. Codex's computer-use deep link
+                  lands one settings screen short of the real toggle, and a hover-only
+                  hint is easy to miss on something this actionable. */}
+              {a.detail ? <div className="mt-1 text-xs text-ink-500">{a.detail}</div> : null}
+            </div>
           );
         })}
       </div>
