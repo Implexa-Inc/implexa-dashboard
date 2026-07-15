@@ -106,6 +106,45 @@ function isPermissionBlocked(row: RunRow): boolean {
   return !!row.output_markdown && PERMISSION_BLOCK.test(row.output_markdown);
 }
 
+// ── liveness: is a 'running' run actually alive? ─────────────────────────────
+//
+// MIRRORS implexa-backend/src/lib/run-liveness.js — same 7-minute rule, same
+// vocabulary. This page reads skill_runs DIRECTLY from Supabase (not through the
+// backend's getRunById), so it cannot import that verdict; this is a second
+// READER of one rule, and the rule's home is the backend. Change one, change both.
+//
+// THE TRAP THIS CLOSES (founder, 2026-07-15, run ec42bac6): this file's own header
+// promises "silence on the dashboard never reads as success" — and then the
+// 'running' branch below said, flatly, "This run is in flight right now." for a run
+// whose last_progress_at had equalled started_at for twenty minutes. Nothing was in
+// flight; the session that opened the row had died. The row carried the proof the
+// whole time. Silence read as success on the one page you open when you're worried.
+const STUCK_NO_PROGRESS_MS = 7 * 60 * 1000; // 7 min — keep in step with the backend
+
+export type Liveness = 'alive' | 'quiet' | 'unborn' | 'unknown';
+
+/**
+ * 'alive'  - reported recently.
+ * 'quiet'  - WAS reporting, now silent past the window (often an unanswered prompt).
+ * 'unborn' - has NEVER reported since the row opened: no engine ever picked it up.
+ * 'unknown'- no usable timestamps. Never treat as a verdict.
+ *
+ * Knowable because a heartbeat stamps last_progress_at = now, while the row is born
+ * with last_progress_at === started_at. Equal means "not one word, ever".
+ */
+export function runLiveness(
+  row: RunRow,
+  now: number = Date.now(),
+): { state: Liveness; silentMs: number | null; everReported: boolean | null } {
+  const started = Date.parse(row.started_at || '');
+  const progress = Date.parse(row.last_progress_at || row.started_at || '');
+  if (!Number.isFinite(progress)) return { state: 'unknown', silentMs: null, everReported: null };
+  const silentMs = now - progress;
+  const everReported = Number.isFinite(started) ? progress > started : true;
+  if (silentMs <= STUCK_NO_PROGRESS_MS) return { state: 'alive', silentMs, everReported };
+  return { state: everReported ? 'quiet' : 'unborn', silentMs, everReported };
+}
+
 /**
  * deriveRunState - the live state of one run. Prefers the authoritative
  * skill_runs.run_state; falls back to the terminal status when it is absent.
@@ -158,8 +197,34 @@ export function deriveRunState(row: RunRow): RunStateInfo {
   // Authoritative live state from the backend (post-0065 write path).
   if (authoritative) {
     switch (authoritative) {
-      case 'running':
+      case 'running': {
+        // "Running" is a CLAIM, and we can check it. attention stays FALSE for both
+        // silent cases on purpose: a HeyGen render legitimately reports nothing for
+        // minutes, so this must not become a loud false alarm. The escalation to a
+        // real 'stalled' is the watchdog's job (backend sweepStalledRuns, where an
+        // unborn run no longer earns the 2h per-agent window). This surface's job is
+        // narrower and non-negotiable: don't tell the user it's fine when we can see
+        // it isn't.
+        const { state: live, silentMs } = runLiveness(row);
+        const mins = Math.max(1, Math.round((silentMs ?? 0) / 60000));
+        if (live === 'unborn') {
+          return mk(
+            'running', 'Not started',
+            `Started ${mins}m ago but has never reported a single step, so nothing has picked it up yet. `
+            + `Usually this means the session that was going to run it never got going. Nothing is burning — re-run it.`,
+            false, false, false,
+          );
+        }
+        if (live === 'quiet') {
+          return mk(
+            'running', 'Running',
+            `In flight, but it hasn't reported progress in ${mins}m. A long render can be quiet for a while; `
+            + `if it stays quiet it may be waiting on a prompt or stuck on a step.`,
+            false, false, false,
+          );
+        }
         return mk('running', 'Running', 'This run is in flight right now.', false, false, false);
+      }
       case 'stalled':
         return mk(
           'stalled', 'Stalled',

@@ -20,7 +20,7 @@ import { getWorkspaceRoot } from '@/lib/run-env';
 import RunMarkdown from '../../_components/run-markdown';
 import { desktopAppLive, appRunUrl } from '@/lib/app-links';
 import { getWorkflow, getMyWorkflow } from '@/lib/workflow-catalog';
-import { deriveRunState, type RunRow, type RunProgress, type RunStep } from '@/lib/run-state';
+import { deriveRunState, runLiveness, type RunRow, type RunProgress, type RunStep } from '@/lib/run-state';
 import RunStepChecklist from '../../_components/run-step-checklist';
 import { RunStateBadge } from '../../_components/run-state-badge';
 import { RunVerificationBadge, type VerificationStatus } from '../../_components/run-verification-badge';
@@ -604,6 +604,16 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               <Link href={agentHref} className="btn-outline text-sm px-4 py-2">Run again</Link>
               <Link href="/overview" className="btn-outline text-sm px-4 py-2">Back to home</Link>
             </div>
+          </div>
+        ) : r.run_state === 'running' && runLiveness(r).state !== 'alive' ? (
+          // A RUNNING run with no deliverable used to fall through to the bare
+          // "No deliverable recorded" line below — which is true and useless. The
+          // founder sat on this exact page for 20 minutes watching a spinner while
+          // the row's own last_progress_at had never moved off started_at (run
+          // ec42bac6). We knew. We just didn't say. Say it.
+          <div className="rounded-lg border border-ink-800 bg-ink-950/60 p-5">
+            <div className="text-sm font-semibold text-ink-50 mb-1">{info.label === 'Not started' ? 'This run has not actually started' : 'No progress reported recently'}</div>
+            <p className="text-sm text-ink-300 leading-relaxed">{info.reason}</p>
           </div>
         ) : (
           <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
