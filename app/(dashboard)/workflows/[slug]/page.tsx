@@ -42,6 +42,7 @@ import StepRow from '../../_components/step-row';
 import ExtendChain from '../../_components/extend-chain';
 import { getActivationChecklist } from '@/lib/activation';
 import { getMyAgents } from '@/lib/agents-home';
+import { isRevisePending, newestVersionAt } from '@/lib/revise-pending';
 import GradeBadge from '../../_components/grade-badge';
 
 export const dynamic = 'force-dynamic';
@@ -205,18 +206,24 @@ export default async function WorkflowDetailPage({
   // "Queued ✓ / Running" on Run now, and while it's pending Run now is blocked
   // (running the OLD version mid-rewrite is a footgun). Cleared once the user's
   // Claude drains the revise request (status → done) and a new version lands.
+  // SELF-HEALING (2026-07-16): the open-request check is only the TRIGGER — it's
+  // AND-gated with "no version landed since the ask" (isRevisePending). A session
+  // that lands the version but skips resolve_run_request leaves the request stuck
+  // at 'consumed' forever (a revise has no skill_run, so no server backstop closes
+  // it); without the gate that pinned "Updating…" indefinitely. workflow.versions
+  // is already in scope from the detail read — no extra round-trip.
   let revisePending = false;
   try {
     const since = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
     const { data: reqRows } = await supabase
       .from('run_requests')
-      .select('status, kind')
+      .select('status, kind, created_at')
       .eq('workflow_slug', workflow.slug)
       .in('kind', ['run', 'continue', 'revise'])
       .in('status', ['pending', 'consumed'])
       .gte('created_at', since)
       .order('created_at', { ascending: false });
-    revisePending = (reqRows || []).some((r) => r.kind === 'revise');
+    revisePending = isRevisePending(reqRows, newestVersionAt(workflow.versions));
     const runReq = (reqRows || []).find((r) => r.kind === 'run' || r.kind === 'continue');
     if (runReq) inFlight = runReq.status === 'consumed' ? 'running' : 'queued';
     if (!inFlight) {
