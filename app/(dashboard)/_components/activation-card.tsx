@@ -96,6 +96,10 @@ type DesktopBridge = {
   checkTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean }>;
   installTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean; alreadyInstalled?: boolean; message?: string }>;
   grantLocalPermissions?: (tools: string[]) => Promise<{ ok: boolean; added?: string[]; addedDirs?: string[]; error?: string }>;
+  // LOCAL KEY VAULT: the paste value crosses INTO the bridge only (renderer →
+  // main → OS keychain) and never comes back. setKey grants THIS agent in the
+  // same write; the web (no bridge) can't store keys and shows guidance instead.
+  setKey?: (p: { provider: string; value: string; agentSlug?: string }) => Promise<{ ok: boolean; error?: string }>;
 };
 function desktopBridge(): DesktopBridge | null {
   if (typeof window === 'undefined') return null;
@@ -336,6 +340,85 @@ function ToolsList({ items }: { items: ToolItem[] }) {
   );
 }
 
+// ── API keys (LOCAL_KEY_VAULT_SPEC §3.1) ─────────────────────────────────────
+type KeyItem = { provider: string; label: string; scope?: string; envVar?: string | null; createUrl?: string | null; configured?: boolean };
+
+function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string; onChanged: () => void }) {
+  const bridge = useDesktopBridge();
+  const [value, setValue] = useState('');
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!bridge?.setKey || !value.trim()) return;
+    setSaving(true); setNote(null);
+    try {
+      const r = await bridge.setKey({ provider: item.provider, value: value.trim(), agentSlug: slug });
+      if (r.ok) { setValue(''); setOpen(false); onChanged(); }   // configured → step flips to done
+      else setNote(r.error === 'vault_unavailable' ? 'This Mac can’t store keys securely (keychain unavailable).' : (r.error || 'Could not save the key.'));
+    } catch { setNote('Could not save the key.'); }
+    setSaving(false);
+  };
+
+  return (
+    <li>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-ink-100">{item.label} API key{item.scope ? ` (${item.scope} only)` : ''}</span>
+            {item.configured
+              ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">configured on this Mac</span>
+              : <span className="text-[11px] text-amber-700 dark:text-amber-300">not set</span>}
+          </div>
+          {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
+        </div>
+        {!item.configured && (
+          <div className="flex-none flex items-center gap-1.5">
+            {item.createUrl && (
+              <a href={item.createUrl} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Create one</a>
+            )}
+            {bridge?.setKey
+              ? <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : 'Paste it here'}</button>
+              : <span className="text-[11px] text-ink-500">Add it in the Implexa app</span>}
+          </div>
+        )}
+      </div>
+      {open && bridge?.setKey && !item.configured && (
+        <div className="mt-2 flex flex-col gap-2">
+          <input
+            type="password" autoComplete="off" spellCheck={false}
+            value={value} onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
+            placeholder={`Paste your ${item.label} key${item.envVar ? ` (${item.envVar})` : ''}`}
+            className="input text-xs px-2 py-1.5" aria-label={`${item.label} API key`}
+          />
+          <button type="button" onClick={save} disabled={saving || !value.trim()} className="btn-success text-xs px-3 py-1.5 self-start disabled:opacity-60">
+            {saving ? 'Saving…' : 'Save key'}
+          </button>
+        </div>
+      )}
+    </li>
+  );
+}
+
+function KeysList({ items, slug, trustLine, onChanged }: { items: KeyItem[]; slug: string; trustLine?: string; onChanged: () => void }) {
+  const bridge = useDesktopBridge();
+  return (
+    <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
+      {trustLine && <p className="text-xs text-ink-300 mb-2 leading-snug">🔒 {trustLine}</p>}
+      <ul className="space-y-3">
+        {items.map((it) => <KeyRow key={it.provider} item={it} slug={slug} onChanged={onChanged} />)}
+      </ul>
+      {!bridge?.setKey && (
+        <p className="text-xs text-ink-500 mt-2 leading-snug">
+          Keys are stored locally in the Implexa desktop app’s keychain — open the app to add one. The agent still activates now; a key-dependent step will pause until it’s set.
+        </p>
+      )}
+    </div>
+  );
+}
+
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // "09:30" (24h, from <input type=time>) -> "9:30am" for the schedule NL the
@@ -524,6 +607,10 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
     // Always expandable (even when fully granted) so the user can see what's
     // pre-granted — incl. the default-on "Run commands" — and toggle it off.
     cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : (step.cta || 'View')}</button>;
+  } else if (step.id === 'api-keys' && ((step.data?.items ?? []) as unknown as KeyItem[]).length > 0) {
+    // Expandable whether todo (Add key) or done (View) — the paste/create flow is
+    // inline, never a navigation. Soft gate: this never blocks Activate.
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : (step.cta || 'Add key')}</button>;
   } else if (isTodo && step.cta) {
     if (step.id === 'connections') {
       // Inline connect (no navigation): sign in + verify right here, for exactly
@@ -560,6 +647,14 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
       )}
       {step.id === 'tools' && open && (
         <ToolsList items={(step.data?.items ?? []) as unknown as ToolItem[]} />
+      )}
+      {step.id === 'api-keys' && open && (
+        <KeysList
+          items={(step.data?.items ?? []) as unknown as KeyItem[]}
+          slug={slug}
+          trustLine={(step.data as { trustLine?: string } | undefined)?.trustLine}
+          onChanged={onChanged}
+        />
       )}
       {step.id === 'schedule' && open && (
         <SchedulePicker slug={slug} onSaved={() => { setOpen(false); onChanged(); }} />

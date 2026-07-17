@@ -39,7 +39,7 @@ const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 2 * 60 * 1000;
 
 export type CapabilityAction = {
-  kind: 'switch_engine' | 'install_capability' | 'run_anyway';
+  kind: 'switch_engine' | 'install_capability' | 'run_anyway' | 'create_key' | 'paste_key';
   label: string;
   detail?: string;
   /** Present-tense copy for the polling wait state — see capability-preflight.js. */
@@ -47,6 +47,9 @@ export type CapabilityAction = {
   engine?: 'claude' | 'codex';
   capability?: string;
   url?: string | null;
+  /** API-key actions (LOCAL_KEY_VAULT_SPEC): which provider, and its env-var NAME. */
+  provider?: string;
+  envVar?: string | null;
 };
 
 export type CapabilityCardData = {
@@ -58,11 +61,27 @@ export type CapabilityCardData = {
   available?: string[];
   missing?: string[];
   actions: CapabilityAction[];
+  /** API-key card (capability:'apiKey'): the trust promise, shown prominently. */
+  trustLine?: string;
+  provider?: string;
+  envVar?: string | null;
   /** The agent the card is about. Carried on the payload (not passed in) because a
    *  CONTINUE is raised from a surface that only knows a runId — the backend
    *  resolved the slug, so it hands it over rather than making every caller re-find it. */
   slug?: string;
 };
+
+// The desktop preload bridge (dashboard-preload.js). Present only inside the
+// Implexa desktop app; undefined on plain web. The key VALUE crosses INTO the
+// bridge (renderer → main → OS keychain) and never comes back.
+type ImplexaDesktop = {
+  keysAvailable?: () => Promise<boolean>;
+  setKey?: (p: { provider: string; value: string; agentSlug?: string }) => Promise<{ ok: boolean; error?: string }>;
+};
+function desktopBridge(): ImplexaDesktop | null {
+  if (typeof window === 'undefined') return null;
+  return (window as unknown as { implexaDesktop?: ImplexaDesktop }).implexaDesktop || null;
+}
 
 // Self-contained diagram of the exact click path — matches the founder's own
 // annotated screenshot intent (arrows to "Computer use" in the sidebar, then "Any
@@ -122,6 +141,10 @@ export default function CapabilityCard({ card, onRetry }: {
   const [pollTimedOut, setPollTimedOut] = useState(false);
   const [checking, setChecking] = useState(false);   // the MANUAL "Check now" click, not the background poll
   const [showHelp, setShowHelp] = useState(false);
+  // API-key paste flow: which action's field is open, the typed value, save state.
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [keyValue, setKeyValue] = useState('');
+  const [savingKey, setSavingKey] = useState(false);
   const pollRef = useRef<{ interval: ReturnType<typeof setInterval>; deadline: number } | null>(null);
   // Guards against the background poll and a manual "Check now" click both landing
   // on a true result within the same few hundred ms — without this, both would call
@@ -182,9 +205,47 @@ export default function CapabilityCard({ card, onRetry }: {
     finally { setChecking(false); }
   }
 
+  // LOCAL KEY VAULT: write the pasted key to the OS keychain via the desktop
+  // bridge and grant THIS agent, then re-run. The value goes renderer → main →
+  // keychain and NEVER comes back or crosses the network. Web (no bridge) can't
+  // store keys — the paste field shows the "get the app" state instead.
+  async function saveKey(a: CapabilityAction) {
+    setErr('');
+    const bridge = desktopBridge();
+    if (!bridge?.setKey) { setErr('Open the Implexa desktop app to store a key on this Mac.'); return; }
+    if (!a.provider) { setErr('Could not identify the provider.'); return; }
+    if (!keyValue.trim()) { setErr('Paste your key first.'); return; }
+    setSavingKey(true);
+    try {
+      const res = await bridge.setKey({ provider: a.provider, value: keyValue.trim(), agentSlug: card.slug });
+      if (!res?.ok) {
+        setErr(res?.error === 'vault_unavailable'
+          ? 'This Mac can’t store keys securely (system keychain unavailable).'
+          : (res?.error || 'Could not save the key.'));
+        return;
+      }
+      setKeyValue('');
+      setPasteOpen(false);
+      await onRetry();   // configured now — the preflight passes and the run proceeds
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not save the key.');
+    } finally {
+      setSavingKey(false);
+    }
+  }
+
   async function act(a: CapabilityAction) {
     setErr('');
     if (a.kind === 'run_anyway') { onRetry({ force: true }); return; }
+
+    // Open the provider's key page in a NEW TAB (http(s), noopener) — the human
+    // mints the key there; Implexa never logs in or creates one (bright line §2).
+    if (a.kind === 'create_key') {
+      if (a.url) window.open(a.url, '_blank', 'noopener,noreferrer');
+      setPasteOpen(true);   // reveal the paste field so the flow continues in place
+      return;
+    }
+    if (a.kind === 'paste_key') { setPasteOpen(true); return; }
 
     if (a.kind === 'install_capability') {
       // Hand off to the engine's own permission UI. The grant itself happens in
@@ -225,6 +286,12 @@ export default function CapabilityCard({ card, onRetry }: {
       <div className="text-ink-100">{card.message}</div>
       {card.why ? (
         <div className="mt-1 text-ink-400">{card.label} {card.why}.</div>
+      ) : null}
+      {/* THE TRUST PROMISE, prominent on the key card — the brand, not a footnote. */}
+      {card.trustLine ? (
+        <div className="mt-2 rounded-md border border-ink-800 bg-ink-900/40 p-2 text-xs text-ink-300">
+          🔒 {card.trustLine}
+        </div>
       ) : null}
 
       {waitingFor ? (
@@ -281,10 +348,48 @@ export default function CapabilityCard({ card, onRetry }: {
       ) : (
         <div className="mt-4 flex flex-col gap-2.5">
           {card.actions.map((a) => {
-            const key = a.kind + (a.engine || '');
+            const key = a.kind + (a.engine || a.provider || '');
             // Run anyway is deliberately the quiet one — it is the escape hatch, not
             // the recommendation.
             const primary = a.kind !== 'run_anyway';
+            // The paste field renders in place of the plain "Paste it here" button
+            // once the key flow is open (either action reveals it).
+            if (a.kind === 'paste_key' && pasteOpen) {
+              const bridge = desktopBridge();
+              if (!bridge?.setKey) {
+                return (
+                  <div key={key} className="text-xs text-ink-400">
+                    Open the Implexa desktop app to paste and store your key on this Mac — it’s stored locally, never on the web.
+                  </div>
+                );
+              }
+              return (
+                <div key={key} className="flex flex-col gap-2">
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={keyValue}
+                    onChange={(e) => setKeyValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveKey(a); }}
+                    placeholder={`Paste your ${card.label} key${a.envVar ? ` (${a.envVar})` : ''}`}
+                    className="input text-xs px-2 py-1.5"
+                    aria-label={`${card.label} API key`}
+                  />
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={savingKey || !keyValue.trim()}
+                      onClick={() => saveKey(a)}
+                      className="btn-success text-xs px-3 py-1.5 disabled:opacity-60"
+                    >
+                      {savingKey ? 'Saving…' : 'Save key & run'}
+                    </button>
+                    <span className="text-xs text-ink-500">Stored in your Mac’s keychain.</span>
+                  </div>
+                </div>
+              );
+            }
             return (
               <div key={key}>
                 <button
