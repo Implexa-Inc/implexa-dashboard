@@ -96,10 +96,13 @@ type DesktopBridge = {
   checkTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean }>;
   installTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean; alreadyInstalled?: boolean; message?: string }>;
   grantLocalPermissions?: (tools: string[]) => Promise<{ ok: boolean; added?: string[]; addedDirs?: string[]; error?: string }>;
-  // LOCAL KEY VAULT: the paste value crosses INTO the bridge only (renderer →
-  // main → OS keychain) and never comes back. setKey grants THIS agent in the
-  // same write; the web (no bridge) can't store keys and shows guidance instead.
-  setKey?: (p: { provider: string; value: string; agentSlug?: string }) => Promise<{ ok: boolean; error?: string }>;
+  // LOCAL KEY VAULT (2026-07-17 review): this remote page never handles a key
+  // value. It can OPEN the packaged local key-entry window (openKeySetup) where
+  // the user types the key, and READ masked state; the web (no bridge) shows
+  // guidance. onKeysChanged fires after a save so the step can re-check.
+  openKeySetup?: (provider: string, agentSlug?: string) => Promise<{ ok: boolean; error?: string }>;
+  keysConfigured?: () => Promise<Record<string, boolean>>;
+  onKeysChanged?: (cb: (info: { provider: string }) => void) => () => void;
 };
 function desktopBridge(): DesktopBridge | null {
   if (typeof window === 'undefined') return null;
@@ -345,21 +348,33 @@ type KeyItem = { provider: string; label: string; scope?: string; envVar?: strin
 
 function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string; onChanged: () => void }) {
   const bridge = useDesktopBridge();
-  const [value, setValue] = useState('');
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [awaiting, setAwaiting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  const save = async () => {
-    if (!bridge?.setKey || !value.trim()) return;
-    setSaving(true); setNote(null);
-    try {
-      const r = await bridge.setKey({ provider: item.provider, value: value.trim(), agentSlug: slug });
-      if (r.ok) { setValue(''); setOpen(false); onChanged(); }   // configured → step flips to done
-      else setNote(r.error === 'vault_unavailable' ? 'This Mac can’t store keys securely (keychain unavailable).' : (r.error || 'Could not save the key.'));
-    } catch { setNote('Could not save the key.'); }
-    setSaving(false);
+  // Open the LOCAL key-entry window (the value is typed there, never here), then
+  // re-check keysConfigured on the keys:changed event and flip the step to done.
+  const addKey = async () => {
+    if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to add your key.'); return; }
+    setNote(null);
+    const r = await bridge.openKeySetup(item.provider, slug);
+    if (!r.ok) { setNote(r.error === 'vault_unavailable' ? 'This Mac can’t store keys securely (keychain unavailable).' : (r.error || 'Could not open key entry.')); return; }
+    setAwaiting(true);
   };
+
+  useEffect(() => {
+    if (!awaiting || !bridge?.keysConfigured) return;
+    let done = false;
+    const check = async () => {
+      if (done) return;
+      try {
+        const map = await bridge.keysConfigured!();
+        if (map && map[item.provider] === true) { done = true; setAwaiting(false); onChanged(); }
+      } catch { /* retry on next tick/event */ }
+    };
+    const unsub = bridge.onKeysChanged?.(() => check());
+    const interval = setInterval(check, 3000);
+    return () => { done = true; clearInterval(interval); if (unsub) unsub(); };
+  }, [awaiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <li>
@@ -372,32 +387,19 @@ function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string; onChan
               : <span className="text-[11px] text-amber-700 dark:text-amber-300">not set</span>}
           </div>
           {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
+          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to save the key in the Implexa window…</p>}
         </div>
-        {!item.configured && (
+        {!item.configured && !awaiting && (
           <div className="flex-none flex items-center gap-1.5">
             {item.createUrl && (
               <a href={item.createUrl} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Create one</a>
             )}
-            {bridge?.setKey
-              ? <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : 'Paste it here'}</button>
+            {bridge?.openKeySetup
+              ? <button type="button" onClick={addKey} className="btn-outline text-xs px-2.5 py-1">Add key</button>
               : <span className="text-[11px] text-ink-500">Add it in the Implexa app</span>}
           </div>
         )}
       </div>
-      {open && bridge?.setKey && !item.configured && (
-        <div className="mt-2 flex flex-col gap-2">
-          <input
-            type="password" autoComplete="off" spellCheck={false}
-            value={value} onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
-            placeholder={`Paste your ${item.label} key${item.envVar ? ` (${item.envVar})` : ''}`}
-            className="input text-xs px-2 py-1.5" aria-label={`${item.label} API key`}
-          />
-          <button type="button" onClick={save} disabled={saving || !value.trim()} className="btn-success text-xs px-3 py-1.5 self-start disabled:opacity-60">
-            {saving ? 'Saving…' : 'Save key'}
-          </button>
-        </div>
-      )}
     </li>
   );
 }
@@ -410,9 +412,9 @@ function KeysList({ items, slug, trustLine, onChanged }: { items: KeyItem[]; slu
       <ul className="space-y-3">
         {items.map((it) => <KeyRow key={it.provider} item={it} slug={slug} onChanged={onChanged} />)}
       </ul>
-      {!bridge?.setKey && (
+      {!bridge?.openKeySetup && (
         <p className="text-xs text-ink-500 mt-2 leading-snug">
-          Keys are stored locally in the Implexa desktop app’s keychain — open the app to add one. The agent still activates now; a key-dependent step will pause until it’s set.
+          Keys are stored locally on your Mac by the Implexa desktop app — open the app to add one. The agent still activates now; a key-dependent step will pause until it’s set.
         </p>
       )}
     </div>
