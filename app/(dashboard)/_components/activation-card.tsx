@@ -20,6 +20,7 @@ import AgentActions from './agent-actions';
 import AgentSetupCard from './agent-setup-card';
 import AgentFeedback from './agent-feedback';
 import AgentBrowserConnect from './agent-browser-connect';
+import { useDesktopBridge, desktopBridge, KeysList, type KeyItem } from './api-key-row';
 import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier } from '@/lib/activation';
 
 // Defined here (not imported) because lib/activation.ts is server-only; a client
@@ -90,36 +91,10 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
 // Implexa app; the web falls back to guidance copy. Sign-ins and CLI tool
 // installs happen HERE, per agent, for exactly what this agent needs — not as
 // an onboarding wall of every account the user may never use.
-type DesktopBridge = {
-  connectAccount?: (domain: string) => Promise<{ ok: boolean; message?: string }>;
-  verifyAccount?: (domain: string) => Promise<{ ok: boolean; reachable?: boolean; identity?: string | null; message?: string }>;
-  checkTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean }>;
-  installTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean; alreadyInstalled?: boolean; message?: string }>;
-  grantLocalPermissions?: (tools: string[]) => Promise<{ ok: boolean; added?: string[]; addedDirs?: string[]; error?: string }>;
-  // LOCAL KEY VAULT (2026-07-17 review): this remote page never handles a key
-  // value. It can OPEN the packaged local key-entry window (openKeySetup) where
-  // the user types the key, and READ masked state; the web (no bridge) shows
-  // guidance. onKeysChanged fires after a save so the step can re-check.
-  openKeySetup?: (provider: string, agentSlug?: string) => Promise<{ ok: boolean; error?: string }>;
-  keysConfigured?: () => Promise<Record<string, boolean>>;
-  onKeysChanged?: (cb: (info: { provider: string }) => void) => () => void;
-};
-function desktopBridge(): DesktopBridge | null {
-  if (typeof window === 'undefined') return null;
-  return (window as Window & { implexaDesktop?: DesktopBridge }).implexaDesktop ?? null;
-}
-
-// Bridge detection AFTER mount only. Reading the bridge during render makes the
-// server HTML (no bridge) disagree with the desktop webview's first client
-// render (bridge present) - a hydration mismatch that crashes the page with
-// React's production "client-side exception" (the founder hit it clicking into
-// an activation card). First paint always matches the server; the app-only
-// buttons appear right after mount.
-function useDesktopBridge(): DesktopBridge | null {
-  const [bridge, setBridge] = useState<DesktopBridge | null>(null);
-  useEffect(() => { setBridge(desktopBridge()); }, []);
-  return bridge;
-}
+//
+// DesktopBridge / desktopBridge / useDesktopBridge moved to ./api-key-row
+// (2026-07-18) so the "What you'll need" panel (agent-requirements.tsx) can
+// reuse the exact same bridge + key-vault UI instead of a second copy.
 
 type NeededConnection = { account?: string; label?: string; status?: string; identity?: string | null };
 
@@ -343,83 +318,7 @@ function ToolsList({ items }: { items: ToolItem[] }) {
   );
 }
 
-// ── API keys (LOCAL_KEY_VAULT_SPEC §3.1) ─────────────────────────────────────
-type KeyItem = { provider: string; label: string; scope?: string; envVar?: string | null; createUrl?: string | null; configured?: boolean };
-
-function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string; onChanged: () => void }) {
-  const bridge = useDesktopBridge();
-  const [awaiting, setAwaiting] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
-
-  // Open the LOCAL key-entry window (the value is typed there, never here), then
-  // re-check keysConfigured on the keys:changed event and flip the step to done.
-  const addKey = async () => {
-    if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to add your key.'); return; }
-    setNote(null);
-    const r = await bridge.openKeySetup(item.provider, slug);
-    if (!r.ok) { setNote(r.error === 'vault_unavailable' ? 'This Mac can’t store keys securely (keychain unavailable).' : (r.error || 'Could not open key entry.')); return; }
-    setAwaiting(true);
-  };
-
-  useEffect(() => {
-    if (!awaiting || !bridge?.keysConfigured) return;
-    let done = false;
-    const check = async () => {
-      if (done) return;
-      try {
-        const map = await bridge.keysConfigured!();
-        if (map && map[item.provider] === true) { done = true; setAwaiting(false); onChanged(); }
-      } catch { /* retry on next tick/event */ }
-    };
-    const unsub = bridge.onKeysChanged?.(() => check());
-    const interval = setInterval(check, 3000);
-    return () => { done = true; clearInterval(interval); if (unsub) unsub(); };
-  }, [awaiting]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return (
-    <li>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-ink-100">{item.label} API key{item.scope ? ` (${item.scope} only)` : ''}</span>
-            {item.configured
-              ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">configured on this Mac</span>
-              : <span className="text-[11px] text-amber-700 dark:text-amber-300">not set</span>}
-          </div>
-          {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
-          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to save the key in the Implexa window…</p>}
-        </div>
-        {!item.configured && !awaiting && (
-          <div className="flex-none flex items-center gap-1.5">
-            {item.createUrl && (
-              <a href={item.createUrl} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Create one</a>
-            )}
-            {bridge?.openKeySetup
-              ? <button type="button" onClick={addKey} className="btn-outline text-xs px-2.5 py-1">Add key</button>
-              : <span className="text-[11px] text-ink-500">Add it in the Implexa app</span>}
-          </div>
-        )}
-      </div>
-    </li>
-  );
-}
-
-function KeysList({ items, slug, trustLine, onChanged }: { items: KeyItem[]; slug: string; trustLine?: string; onChanged: () => void }) {
-  const bridge = useDesktopBridge();
-  return (
-    <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
-      {trustLine && <p className="text-xs text-ink-300 mb-2 leading-snug">🔒 {trustLine}</p>}
-      <ul className="space-y-3">
-        {items.map((it) => <KeyRow key={it.provider} item={it} slug={slug} onChanged={onChanged} />)}
-      </ul>
-      {!bridge?.openKeySetup && (
-        <p className="text-xs text-ink-500 mt-2 leading-snug">
-          Keys are stored locally on your Mac by the Implexa desktop app — open the app to add one. The agent still activates now; a key-dependent step will pause until it’s set.
-        </p>
-      )}
-    </div>
-  );
-}
+// KeyItem / KeyRow / KeysList moved to ./api-key-row (2026-07-18) — imported above.
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 

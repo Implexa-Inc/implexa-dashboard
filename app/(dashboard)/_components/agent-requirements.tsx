@@ -6,12 +6,22 @@
  * required"). Free CLI tools are shown as auto-installed; paid services are
  * shown with their cost, a sign-up link, and any cheaper alternative.
  *
- * Server component , pure render over detectRequirements(workflow.steps).
+ * "Add API key" CTA (2026-07-18 founder ask, after editing an agent to add a
+ * Runway ML step): a service with a LOCAL_KEY_VAULT provider gets the same
+ * "Add API key" affordance already built for the activation card's API-keys
+ * step — reused via <InlineAddKeyButton>, not reimplemented (see
+ * ./api-key-row.tsx). A service with no vault provider (e.g. OpenAI isn't in
+ * the vault's registry yet) keeps just the plain "Get it" link.
+ *
+ * Server component overall — pure render over detectRequirements(workflow.steps)
+ * — but the key-CTA needs client state (the desktop bridge), so it's an inline
+ * client sub-component; Next.js lets a server component render one directly.
  */
 
 import type { Requirements } from '@/lib/requirements';
+import { InlineAddKeyButton } from './api-key-row';
 
-export default function AgentRequirements({ req }: { req: Requirements }) {
+export default function AgentRequirements({ req, slug }: { req: Requirements; slug: string }) {
   if (req.tools.length === 0 && req.services.length === 0) return null;
 
   return (
@@ -33,14 +43,17 @@ export default function AgentRequirements({ req }: { req: Requirements }) {
                   <p className="text-xs text-ink-500 mt-1">or use <span className="text-ink-300">{s.alt}</span> instead</p>
                 )}
               </div>
-              <a
-                href={s.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-none text-xs text-brand-500 hover:underline whitespace-nowrap mt-0.5"
-              >
-                Get it ↗
-              </a>
+              <div className="flex-none flex items-center gap-3 mt-0.5">
+                {s.provider && <InlineAddKeyButton provider={s.provider} slug={slug} />}
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-brand-500 hover:underline whitespace-nowrap"
+                >
+                  Get it ↗
+                </a>
+              </div>
             </div>
           ))}
         </div>
