@@ -79,6 +79,9 @@ export type CapabilityCardData = {
 type ImplexaDesktop = {
   keysAvailable?: () => Promise<boolean>;
   keysConfigured?: () => Promise<Record<string, boolean>>;
+  // PER-AGENT grant booleans — the authority for "may THIS agent run with the
+  // key", which keysConfigured (per-provider) cannot answer.
+  keysGrantedFor?: (agentSlug: string) => Promise<Record<string, boolean>>;
   openKeySetup?: (provider: string, agentSlug?: string) => Promise<{ ok: boolean; error?: string }>;
   onKeysChanged?: (cb: (info: { provider: string }) => void) => () => void;
 };
@@ -162,9 +165,16 @@ export default function CapabilityCard({ card, onRetry }: {
   // Unmount safety — the modal can close (Esc/backdrop/×) mid-wait; don't leak the interval.
   useEffect(() => () => stopPolling(), []);
 
-  // While awaiting a key from the local entry window: re-check keysConfigured on
-  // the keys:changed event (and a short poll fallback), and re-run once the
-  // provider is configured. The value is never seen here — only the boolean flips.
+  // While awaiting a key from the local entry window: re-check on the
+  // keys:changed event (and a short poll fallback), and re-run the agent once
+  // it can ACTUALLY use the key. The value is never seen here — only booleans.
+  //
+  // Retry gates on the PER-AGENT grant, never on keysConfigured (2026-07-18
+  // review). With the grant-only flow a key can exist for another agent while
+  // THIS one is still denied — retrying on the provider boolean would re-run the
+  // agent before it is authorized, producing a keyless run and a second
+  // Needs-You for the same cause. keysGrantedFor is the only signal that answers
+  // "may this agent use it".
   useEffect(() => {
     if (!awaitingKey) return;
     const bridge = desktopBridge();
@@ -173,6 +183,14 @@ export default function CapabilityCard({ card, onRetry }: {
     const check = async () => {
       if (done) return;
       try {
+        if (bridge.keysGrantedFor && card.slug) {
+          const grants = await bridge.keysGrantedFor(card.slug);
+          if (grants && grants[awaitingKey] === true) { done = true; setAwaitingKey(null); await onRetry(); }
+          return;
+        }
+        // Older desktop build (no keysGrantedFor) or no slug to scope by: fall
+        // back to the provider boolean. Pre-grant-flow behaviour, unchanged —
+        // on those builds a saved key was always usable by every agent anyway.
         const map = await bridge.keysConfigured!();
         if (map && map[awaitingKey] === true) { done = true; setAwaitingKey(null); await onRetry(); }
       } catch { /* transient — the next tick or event retries */ }

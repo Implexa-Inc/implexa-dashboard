@@ -70,6 +70,28 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
   const bridge = useDesktopBridge();
   const [awaiting, setAwaiting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // `item.configured` is PROVIDER-level (it comes from the server-computed
+  // activation checklist, which reads keysConfigured). On its own it recreates
+  // the exact dead end this whole change removes: a Runway key saved for Agent A
+  // makes a brand-new Agent B read "configured on this Mac", hides the button,
+  // and leaves no way to authorize B. So pair it with the PER-AGENT grant.
+  // null = not yet known (or an older desktop with no keysGrantedFor) — treated
+  // as "assume granted" so this never regresses the pre-existing behaviour.
+  const [granted, setGranted] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (!bridge?.keysGrantedFor) { setGranted(null); return; }
+    bridge.keysGrantedFor(slug)
+      .then((m) => { if (alive) setGranted(!!m?.[item.provider]); })
+      .catch(() => { if (alive) setGranted(null); });
+    return () => { alive = false; };
+  }, [bridge, slug, item.provider]);
+
+  // Saved AND allowed for THIS agent. When granted is unknown (null) we fall back
+  // to the provider boolean alone, matching the old behaviour exactly.
+  const ready = !!item.configured && granted !== false;
+  const needsGrantOnly = !!item.configured && granted === false;
 
   // Open the LOCAL key-entry window (the value is typed there, never here), then
   // re-check keysConfigured on the keys:changed event and flip the step to done.
@@ -87,6 +109,18 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
     const check = async () => {
       if (done) return;
       try {
+        // Complete on THIS AGENT being granted, not on a key merely existing. A
+        // grant-only flow never changes keysConfigured (already true), so polling
+        // that alone would spin to the timeout on every grant.
+        if (bridge.keysGrantedFor) {
+          const grants = await bridge.keysGrantedFor(slug);
+          if (grants && grants[item.provider] === true) {
+            done = true; setAwaiting(false); setGranted(true); onChanged(); return;
+          }
+          return;
+        }
+        // Older desktop with no keysGrantedFor: fall back to the provider boolean
+        // so a first-time ADD still resolves instead of hanging.
         const map = await bridge.keysConfigured!();
         if (map && map[item.provider] === true) { done = true; setAwaiting(false); onChanged(); }
       } catch { /* retry on next tick/event */ }
@@ -106,22 +140,38 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm text-ink-100">{item.label} API key{item.scope ? ` (${item.scope} only)` : ''}</span>
-            {item.configured
-              ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">configured on this Mac</span>
-              : <span className="text-[11px] text-amber-700 dark:text-amber-300">not set</span>}
+            {ready
+              ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">ready for this agent</span>
+              : needsGrantOnly
+                ? <span className="text-[11px] text-amber-700 dark:text-amber-300">saved — not allowed for this agent yet</span>
+                : <span className="text-[11px] text-amber-700 dark:text-amber-300">not set</span>}
           </div>
           {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
-          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to save the key in the Implexa window — closed it? Hit Reopen.</p>}
+          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to confirm in the Implexa window — closed it? Hit Reopen.</p>}
         </div>
-        {/* Deliberately NOT hidden while awaiting: closing the key window without
-            saving used to leave this row with no control at all. */}
-        {!item.configured && (
+        {/* Shown until this agent is actually READY (saved AND allowed) — not
+            merely until a key exists somewhere. Gating on item.configured alone
+            hid the control from a saved-but-ungranted agent, which is the dead
+            end this change exists to remove. Also deliberately NOT hidden while
+            awaiting: closing the key window without saving used to leave this row
+            with no control at all. */}
+        {!ready && (
           <div className="flex-none flex items-center gap-1.5">
-            {item.createUrl && (
+            {/* "Create one" only makes sense when there is no saved key yet. */}
+            {item.createUrl && !needsGrantOnly && (
               <a href={item.createUrl} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Create one</a>
             )}
             {bridge?.openKeySetup
-              ? <button type="button" onClick={addKey} className="btn-outline text-xs px-2.5 py-1">{awaiting ? 'Reopen' : 'Add key'}</button>
+              ? (
+                <button
+                  type="button"
+                  onClick={addKey}
+                  title={needsGrantOnly ? 'Your key is already saved — this only allows this agent to use it.' : undefined}
+                  className="btn-outline text-xs px-2.5 py-1"
+                >
+                  {awaiting ? 'Reopen' : (needsGrantOnly ? 'Use saved key' : 'Add key')}
+                </button>
+              )
               : <span className="text-[11px] text-ink-500">Add it in the Implexa app</span>}
           </div>
         )}

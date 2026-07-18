@@ -63,11 +63,53 @@ test('KeyRow keeps its Add-key control visible while awaiting', () => {
   // The original hid the whole button cluster behind `!awaiting`.
   assert.doesNotMatch(
     body,
-    /\{!item\.configured && !awaiting && \(/,
+    /&& !awaiting && \(/,
     'the control cluster must not be hidden by !awaiting — that strands the row mid-flow',
   );
-  assert.match(body, /\{!item\.configured && \(/, 'the cluster is gated on configured only');
-  assert.match(body, /\{awaiting \? 'Reopen' : 'Add key'\}/, 'the button relabels to Reopen while awaiting');
+  // Gated on readiness only (see the saved-AND-granted test below for why the
+  // gate is `ready` rather than the provider boolean).
+  assert.match(body, /\{!ready && \(/, 'the cluster is gated on readiness only');
+  assert.match(body, /\{awaiting \? 'Reopen' : \(needsGrantOnly \? 'Use saved key' : 'Add key'\)\}/,
+    'the button relabels to Reopen while awaiting, and distinguishes grant-only from first-time add');
+});
+
+// REVIEW BLOCKER (2026-07-18): the grant-only flow was wired in ONE of three
+// surfaces. The other two still read the PROVIDER boolean alone, which recreates
+// the very dead end the change exists to remove — a Runway key saved for Agent A
+// makes a brand-new Agent B look ready, with no way to authorize B.
+test('KeyRow (activation/setup) gates on saved AND granted-for-this-agent, not the provider boolean alone', () => {
+  const body = componentBody('KeyRow');
+  // It must ASK for the per-agent grant…
+  assert.match(body, /bridge\.keysGrantedFor\(slug\)/, 'KeyRow must read the per-agent grant');
+  // …and derive readiness from BOTH booleans.
+  assert.match(body, /const ready = !!item\.configured && granted !== false;/, 'ready = saved AND not-denied for this agent');
+  assert.match(body, /const needsGrantOnly = !!item\.configured && granted === false;/, 'saved-but-ungranted is its own state');
+  // The control must be gated on `ready`, NOT on item.configured — gating on the
+  // provider boolean is exactly what hid the button from an ungranted agent.
+  assert.match(body, /\{!ready && \(/, 'the control cluster is gated on ready, not item.configured');
+  assert.doesNotMatch(body, /\{!item\.configured && \(\s*\n\s*<div className="flex-none/, 'must NOT gate the control cluster on the provider boolean alone');
+  // And it must offer the grant-only action rather than inviting a re-paste.
+  assert.match(body, /needsGrantOnly \? 'Use saved key' : 'Add key'/, 'a saved-but-ungranted agent is offered "Use saved key"');
+});
+
+// A premature retry re-runs the agent BEFORE it can read the key — a keyless run
+// and a second Needs-You for the same underlying cause.
+test('CapabilityCard retries only once THIS AGENT is granted, never on the provider boolean', () => {
+  const src = readFileSync(join(import.meta.dirname, 'capability-card.tsx'), 'utf8');
+  const start = src.indexOf('useEffect(() => {\n    if (!awaitingKey) return;');
+  assert.ok(start !== -1, 'the awaiting-key effect must still exist');
+  const body = src.slice(start, src.indexOf('}, [awaitingKey])', start));
+
+  // The grant check must come FIRST and must early-return, so the provider
+  // fallback below can never run on a build that has keysGrantedFor.
+  const grantIdx = body.indexOf('bridge.keysGrantedFor');
+  const cfgIdx = body.indexOf('bridge.keysConfigured!()');
+  assert.ok(grantIdx !== -1, 'must consult the per-agent grant');
+  assert.ok(cfgIdx !== -1, 'the provider fallback is still present for older desktop builds');
+  assert.ok(grantIdx < cfgIdx, 'the per-agent grant must be checked BEFORE the provider fallback');
+  assert.match(body, /if \(grants && grants\[awaitingKey\] === true\) \{ done = true; setAwaitingKey\(null\); await onRetry\(\); \}\s*\n\s*return;/,
+    'the grant branch must early-return so a granted-false agent never falls through to the provider check');
+  assert.match(body, /if \(bridge\.keysGrantedFor && card\.slug\)/, 'the fallback is used only when the per-agent read is unavailable');
 });
 
 test('both components expire the wait instead of polling forever', () => {
