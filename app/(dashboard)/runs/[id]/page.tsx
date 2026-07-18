@@ -28,6 +28,7 @@ import BackLink from '../../_components/back-link';
 import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
 import RunActions from '../../_components/run-actions';
+import RunContinueBox from '../../_components/run-continue-box';
 import RunActionItems, { type RunActionItem } from '../../_components/run-action-items';
 import FinishRunButton from '../../_components/finish-run-button';
 import GrantPermissionsButton from '../../_components/grant-permissions-button';
@@ -639,6 +640,25 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           </div>
         ) : (
           <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
+        )}
+
+        {/* UNIVERSAL "Continue this run" — a FINISHED run must never dead-end.
+            REGRESSION FIX (2026-07-18, founder hit this on a Done+Verified video
+            assembly run): <RunActions> consolidated ~10 controls and its comment
+            says it "replaces … the always-open Continue box" — but it only renders
+            when `held`, so a cleanly-completed run lost EVERY path to iterate. The
+            box itself (<RunContinueBox/>) still documented case 3, "iterate on a
+            finished run's output", yet was rendered nowhere but the inbox — and the
+            inbox only lists runs needing attention, so a finished run appeared in
+            neither place. Held runs keep using <RunActions> above (it has its own
+            continue); this is its non-held twin, sitting right under the deliverable
+            you just read. Failed/stalled runs are already covered by "Run again" +
+            <StuckRunButton> in the no-deliverable branch, so this stays scoped to a
+            real deliverable and never stacks a second CTA on a failure. */}
+        {!held && r.output_markdown && (
+          <div className="mt-5">
+            <RunContinueBox runId={r.id} agentName={name} pending={false} />
+          </div>
         )}
 
         {/* Jump to this agent's OTHER runs. A held run often references sibling
