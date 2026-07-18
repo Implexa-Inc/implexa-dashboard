@@ -229,8 +229,8 @@ export default function CapabilityCard({ card, onRetry }: {
   }
 
   // LOCAL KEY VAULT (2026-07-17 review): open the packaged key-entry window where
-  // the user types the key — the value is entered locally, encrypted into the OS
-  // keychain, and NEVER touches this remote page. We then poll keysConfigured (and
+  // the user types the key — the value is entered locally, encrypted into Implexa's
+  // local ciphertext store, and NEVER touches this remote page. We then poll keysConfigured (and
   // listen for the keys:changed event) and re-run once the provider flips true.
   async function openKeyEntry(provider: string) {
     setErr('');
