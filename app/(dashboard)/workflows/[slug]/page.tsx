@@ -283,7 +283,7 @@ export default async function WorkflowDetailPage({
   const overviewPanel = (
     <>
       {/* What you'll need , prerequisites up front, before the run */}
-      <AgentRequirements req={requirements} />
+      <AgentRequirements req={requirements} slug={workflow.slug} />
 
       {/* Stat strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

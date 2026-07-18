@@ -1,0 +1,185 @@
+'use client';
+
+/**
+ * <KeyRow /> / <KeysList /> — the LOCAL KEY VAULT's "add your API key" UI
+ * (LOCAL_KEY_VAULT_SPEC §3.1). Shared between every surface that lists an
+ * agent's provider-key needs: the activation card's "API keys" step, and the
+ * Overview tab's "What you'll need" panel (2026-07-18 founder ask: "we've
+ * already built the design for it, reuse it" — this file IS that reuse, so a
+ * third surface never re-implements this from scratch a third time).
+ *
+ * CRITICAL (2026-07-17 review, unchanged here): this remote page NEVER handles
+ * a key value. Every path opens the packaged LOCAL key-entry window
+ * (window.implexaDesktop.openKeySetup) where the user types the key; only a
+ * masked boolean (keysConfigured) ever comes back to this page.
+ */
+
+import { useEffect, useState } from 'react';
+
+export type DesktopBridge = {
+  connectAccount?: (domain: string) => Promise<{ ok: boolean; message?: string }>;
+  verifyAccount?: (domain: string) => Promise<{ ok: boolean; reachable?: boolean; identity?: string | null; message?: string }>;
+  checkTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean }>;
+  installTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean; alreadyInstalled?: boolean; message?: string }>;
+  grantLocalPermissions?: (tools: string[]) => Promise<{ ok: boolean; added?: string[]; addedDirs?: string[]; error?: string }>;
+  openKeySetup?: (provider: string, agentSlug?: string) => Promise<{ ok: boolean; error?: string }>;
+  keysConfigured?: () => Promise<Record<string, boolean>>;
+  onKeysChanged?: (cb: (info: { provider: string }) => void) => () => void;
+};
+
+export function desktopBridge(): DesktopBridge | null {
+  if (typeof window === 'undefined') return null;
+  return (window as Window & { implexaDesktop?: DesktopBridge }).implexaDesktop ?? null;
+}
+
+// Bridge detection AFTER mount only. Reading the bridge during render makes the
+// server HTML (no bridge) disagree with the desktop webview's first client
+// render (bridge present) — a hydration mismatch that crashes the page with
+// React's production "client-side exception" (the founder hit it clicking into
+// an activation card). First paint always matches the server; the app-only
+// buttons appear right after mount.
+export function useDesktopBridge(): DesktopBridge | null {
+  const [bridge, setBridge] = useState<DesktopBridge | null>(null);
+  useEffect(() => { setBridge(desktopBridge()); }, []);
+  return bridge;
+}
+
+export type KeyItem = { provider: string; label: string; scope?: string; envVar?: string | null; createUrl?: string | null; configured?: boolean };
+
+export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string; onChanged: () => void }) {
+  const bridge = useDesktopBridge();
+  const [awaiting, setAwaiting] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  // Open the LOCAL key-entry window (the value is typed there, never here), then
+  // re-check keysConfigured on the keys:changed event and flip the step to done.
+  const addKey = async () => {
+    if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to add your key.'); return; }
+    setNote(null);
+    const r = await bridge.openKeySetup(item.provider, slug);
+    if (!r.ok) { setNote(r.error === 'vault_unavailable' ? 'This Mac can’t store keys securely (keychain unavailable).' : (r.error || 'Could not open key entry.')); return; }
+    setAwaiting(true);
+  };
+
+  useEffect(() => {
+    if (!awaiting || !bridge?.keysConfigured) return;
+    let done = false;
+    const check = async () => {
+      if (done) return;
+      try {
+        const map = await bridge.keysConfigured!();
+        if (map && map[item.provider] === true) { done = true; setAwaiting(false); onChanged(); }
+      } catch { /* retry on next tick/event */ }
+    };
+    const unsub = bridge.onKeysChanged?.(() => check());
+    const interval = setInterval(check, 3000);
+    return () => { done = true; clearInterval(interval); if (unsub) unsub(); };
+  }, [awaiting]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <li>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-ink-100">{item.label} API key{item.scope ? ` (${item.scope} only)` : ''}</span>
+            {item.configured
+              ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">configured on this Mac</span>
+              : <span className="text-[11px] text-amber-700 dark:text-amber-300">not set</span>}
+          </div>
+          {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
+          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to save the key in the Implexa window…</p>}
+        </div>
+        {!item.configured && !awaiting && (
+          <div className="flex-none flex items-center gap-1.5">
+            {item.createUrl && (
+              <a href={item.createUrl} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Create one</a>
+            )}
+            {bridge?.openKeySetup
+              ? <button type="button" onClick={addKey} className="btn-outline text-xs px-2.5 py-1">Add key</button>
+              : <span className="text-[11px] text-ink-500">Add it in the Implexa app</span>}
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
+
+export function KeysList({ items, slug, trustLine, onChanged }: { items: KeyItem[]; slug: string; trustLine?: string; onChanged: () => void }) {
+  const bridge = useDesktopBridge();
+  return (
+    <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
+      {trustLine && <p className="text-xs text-ink-300 mb-2 leading-snug">🔒 {trustLine}</p>}
+      <ul className="space-y-3">
+        {items.map((it) => <KeyRow key={it.provider} item={it} slug={slug} onChanged={onChanged} />)}
+      </ul>
+      {!bridge?.openKeySetup && (
+        <p className="text-xs text-ink-500 mt-2 leading-snug">
+          Keys are stored locally on your Mac by the Implexa desktop app — open the app to add one. The agent still activates now; a key-dependent step will pause until it’s set.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Inline "Add API Key" CTA, next to "Get it" ───────────────────────────────
+// A LIGHTER variant of KeyRow for the "What you'll need" panel (agent-requirements
+// .tsx): that panel is a plain informational list, one line per service, not the
+// activation card's expandable step — so this renders as a single small button
+// alongside "Get it ↗" rather than a full row with its own configured/not-set
+// state line. Fetches its OWN configured state (this surface has no server-computed
+// setup payload to read it from, unlike the activation card).
+export function InlineAddKeyButton({ provider, slug }: { provider: string; slug: string }) {
+  const bridge = useDesktopBridge();
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [awaiting, setAwaiting] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const check = async () => {
+    if (!bridge?.keysConfigured) return;
+    try {
+      const map = await bridge.keysConfigured();
+      setConfigured(!!map?.[provider]);
+    } catch { /* leave as unknown — the button still offers to add */ }
+  };
+
+  useEffect(() => { check(); }, [bridge]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!awaiting || !bridge?.keysConfigured) return;
+    let done = false;
+    const poll = async () => {
+      if (done) return;
+      try {
+        const map = await bridge.keysConfigured!();
+        if (map && map[provider] === true) { done = true; setAwaiting(false); setConfigured(true); }
+      } catch { /* retry on next tick/event */ }
+    };
+    const unsub = bridge.onKeysChanged?.(() => poll());
+    const interval = setInterval(poll, 3000);
+    return () => { done = true; clearInterval(interval); if (unsub) unsub(); };
+  }, [awaiting]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const addKey = async () => {
+    if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to add your key.'); return; }
+    setNote(null);
+    const r = await bridge.openKeySetup(provider, slug);
+    if (!r.ok) { setNote(r.error === 'vault_unavailable' ? 'Keychain unavailable on this Mac.' : (r.error || 'Could not open key entry.')); return; }
+    setAwaiting(true);
+  };
+
+  if (configured) {
+    return <span className="text-[11px] text-emerald-600 dark:text-emerald-400 whitespace-nowrap">key configured</span>;
+  }
+  if (awaiting) {
+    return <span className="text-[11px] text-ink-500 whitespace-nowrap">Waiting for save…</span>;
+  }
+  if (!bridge?.openKeySetup) {
+    // Plain web / bridge not detected yet: never show a dead button.
+    return note ? <span className="text-[11px] text-amber-700 dark:text-amber-300">{note}</span> : null;
+  }
+  return (
+    <button type="button" onClick={addKey} className="flex-none text-xs text-brand-500 hover:underline whitespace-nowrap">
+      Add API key
+    </button>
+  );
+}
