@@ -86,15 +86,25 @@ export default async function WorkflowDetailPage({
   if (!profile?.organization_id) redirect('/onboarding');
 
   const source = searchParams.source || 'web-seed';
-  const w = await getWorkflow(params.slug, source);
+  // OWNER-SCOPED FRESH READ FIRST (2026-07-18 founder report): a revise (or
+  // continue/build) can land on the caller's OWN agent seconds before they open
+  // this exact page — the new step must show up immediately. getWorkflow's public
+  // catalog read is cached for 10 minutes (see workflow-catalog.ts's
+  // callMcpTool(..., 600)) for good reason on the BROWSE-someone-else's-shared-
+  // agent path, but this page's most common visitor is the owner checking their
+  // OWN agent right after editing it — and `||` short-circuits on the FIRST
+  // truthy result, so once a shared agent's cached public read ever succeeds, the
+  // always-fresh owner-scoped read below was never even attempted, silently
+  // hiding the edit for up to 10 minutes. getMyWorkflow is owner-scoped
+  // (cache: 'no-store') and correctly returns null for an agent that isn't the
+  // caller's own, so trying it first costs a cheap extra round-trip on the
+  // browse-a-public-agent path and nothing else — it never masks a real 404.
+  const mine = (await getMyWorkflow(params.slug, source === 'web-seed' ? 'generated' : source))
+    || (await getMyWorkflow(params.slug, 'community'));
+  const w = mine || (await getWorkflow(params.slug, source));
   // Fall back to the other known source before giving up (a generated workflow
   // reached without ?source, or vice versa).
-  const wPublic = w || (await getWorkflow(params.slug, source === 'web-seed' ? 'generated' : 'web-seed'));
-  // Last resort: the caller's OWN private (unshared) workflow, which the public
-  // read 404s by design. Owner-scoped authed read so users can view their own.
-  const workflow = wPublic
-    || (await getMyWorkflow(params.slug, source === 'web-seed' ? 'generated' : source))
-    || (await getMyWorkflow(params.slug, 'community'));
+  const workflow = w || (await getWorkflow(params.slug, source === 'web-seed' ? 'generated' : 'web-seed'));
 
   // Not in the workflow catalog — but it may still be a scheduled SKILL the user
   // scheduled/paused (a skill isn't a "workflow", so the catalog read 404s). Open
