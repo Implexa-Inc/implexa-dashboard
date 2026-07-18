@@ -110,6 +110,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const lastNote = useRef<string | undefined>(undefined);
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
+  // Mirrors `state`, readable inside the mount-once external-poll effect below
+  // without putting `state` in its dependency array (that would tear down and
+  // restart the interval — and lose `misses` — on every status flip).
+  const stateRef = useRef<RunState>(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
   const supabase = createClient();
   const router = useRouter();
 
@@ -137,15 +142,21 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   }, [state]);
 
   // Externally-observed in-flight run: queued/running came from the SERVER (the
-  // `inFlight` prop), not a run kicked off in this tab — so there's no requestId
-  // to poll. Track it via the live feed instead, so the button follows
-  // queued → running → done without a reload, then frees up to "Run now" again.
+  // `inFlight` prop) OR from a run queued on a DIFFERENT surface in this same
+  // session — most notably <RunContinueBox/> on the run detail page's "Continue
+  // this run" (2026-07-18 founder report: queuing a continue, closing that
+  // pop-up, and coming back to the agent page still showed "Run now" instead of
+  // "Queued ✓"). Either way there's no requestId to poll (this component didn't
+  // start the run), so track it via the live feed instead — polling UNCONDITIONALLY
+  // from mount (not gated on state already being queued/running) is what lets it
+  // DISCOVER a run that started elsewhere, not just follow one it already knew
+  // about. So the button follows idle → queued → running → done without a reload.
   useEffect(() => {
     if (requestId.current) return;            // user-initiated runs use the poll above
-    if (state !== 'queued' && state !== 'running') return;
     let alive = true;
     let misses = 0;
     const t = setInterval(async () => {
+      if (requestId.current) return;          // a run started from THIS component mid-poll — defer to its own poll
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const res = await callBackend('/api/v2/scheduled-skills/live', { jwt: session?.access_token });
@@ -158,16 +169,23 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           setMsg(card.status === 'running'
             ? 'Running in Claude Code…'
             : 'Queued. Waiting for your Claude to pick it up — the result lands in your inbox.');
-        } else if (++misses >= 2) {            // gone for two polls → finished; allow Run now again
-          clearInterval(t);
-          setState('idle');
-          setMsg('');
+        } else if (stateRef.current === 'queued' || stateRef.current === 'running') {
+          // Only reset to idle once we'd SEEN a queued/running card and then lost
+          // it twice in a row (finished) — never reset on a plain "still idle,
+          // never found anything" tick (that's the common case now this effect
+          // polls unconditionally), or a slow first poll could flash the button
+          // back to "Run now" for a run that just hasn't shown up in the feed yet.
+          if (++misses >= 2) {
+            clearInterval(t);
+            setState('idle');
+            setMsg('');
+          }
         }
       } catch { /* transient — keep polling */ }
     }, POLL_MS);
     return () => { alive = false; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  }, []);
 
   // While a rewrite (kind='revise') is pending, poll the server view so the
   // "Updating…" state clears on its own once the user's Claude lands the new
