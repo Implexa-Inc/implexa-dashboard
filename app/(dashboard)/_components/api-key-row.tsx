@@ -24,6 +24,10 @@ export type DesktopBridge = {
   grantLocalPermissions?: (tools: string[]) => Promise<{ ok: boolean; added?: string[]; addedDirs?: string[]; error?: string }>;
   openKeySetup?: (provider: string, agentSlug?: string) => Promise<{ ok: boolean; error?: string }>;
   keysConfigured?: () => Promise<Record<string, boolean>>;
+  // PER-AGENT grant booleans. keysConfigured is per-PROVIDER and therefore
+  // cannot answer "may THIS agent use the saved key" — see the note on
+  // InlineAddKeyButton for the dead end that caused.
+  keysGrantedFor?: (agentSlug: string) => Promise<Record<string, boolean>>;
   onKeysChanged?: (cb: (info: { provider: string }) => void) => () => void;
 };
 
@@ -148,20 +152,35 @@ export function KeysList({ items, slug, trustLine, onChanged }: { items: KeyItem
 // .tsx): that panel is a plain informational list, one line per service, not the
 // activation card's expandable step — so this renders as a single small button
 // alongside "Get it ↗" rather than a full row with its own configured/not-set
-// state line. Fetches its OWN configured state (this surface has no server-computed
-// setup payload to read it from, unlike the activation card).
+// state line. Fetches its OWN state (this surface has no server-computed setup
+// payload to read it from, unlike the activation card).
+//
+// TWO booleans, not one (2026-07-18 review). The vault stores a key ONCE per
+// provider but denies every agent by default, so there are three real states:
+//   saved=false               → "Add API key"      (paste + authorize)
+//   saved=true, granted=false → "Use saved key"    (authorize only — NO re-paste)
+//   saved=true, granted=true  → "key ready"        (nothing to do)
+// Reading only keysConfigured (per-PROVIDER) collapsed the middle state into the
+// last one: a brand-new agent that was NOT allowed rendered as "key configured"
+// with no control at all, and the only way to authorize it was to re-paste the
+// secret — which OVERWRITES the stored key. That is the dead end this fixes.
 export function InlineAddKeyButton({ provider, slug }: { provider: string; slug: string }) {
   const bridge = useDesktopBridge();
-  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [saved, setSaved] = useState<boolean | null>(null);
+  const [granted, setGranted] = useState<boolean | null>(null);
   const [awaiting, setAwaiting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
   const check = async () => {
     if (!bridge?.keysConfigured) return;
     try {
-      const map = await bridge.keysConfigured();
-      setConfigured(!!map?.[provider]);
-    } catch { /* leave as unknown — the button still offers to add */ }
+      const [cfg, grants] = await Promise.all([
+        bridge.keysConfigured(),
+        bridge.keysGrantedFor ? bridge.keysGrantedFor(slug) : Promise.resolve({} as Record<string, boolean>),
+      ]);
+      setSaved(!!cfg?.[provider]);
+      setGranted(!!grants?.[provider]);
+    } catch { /* leave as unknown — the button still offers to act */ }
   };
 
   useEffect(() => { check(); }, [bridge]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -172,8 +191,19 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
     const poll = async () => {
       if (done) return;
       try {
-        const map = await bridge.keysConfigured!();
-        if (map && map[provider] === true) { done = true; setAwaiting(false); setConfigured(true); }
+        // Done when THIS AGENT is granted — not merely when a key exists. A
+        // grant-only flow never changes keysConfigured (it was already true),
+        // so polling that alone would spin until the timeout on every grant.
+        const grants = bridge.keysGrantedFor ? await bridge.keysGrantedFor(slug) : null;
+        if (grants && grants[provider] === true) {
+          done = true; setAwaiting(false); setSaved(true); setGranted(true); return;
+        }
+        // Older desktop build with no keysGrantedFor: fall back to the provider
+        // boolean so an ADD still resolves instead of hanging.
+        if (!bridge.keysGrantedFor) {
+          const map = await bridge.keysConfigured!();
+          if (map && map[provider] === true) { done = true; setAwaiting(false); setSaved(true); }
+        }
       } catch { /* retry on next tick/event */ }
     };
     const unsub = bridge.onKeysChanged?.(() => poll());
@@ -184,7 +214,10 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
     return () => { done = true; clearInterval(interval); clearTimeout(expiry); if (unsub) unsub(); };
   }, [awaiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const addKey = async () => {
+  // ONE action for both modes: open the local window. The window itself decides
+  // whether to ask for a paste or only for authorization (it reads the same two
+  // booleans from main, which is the authority) — the remote page never does.
+  const openLocal = async () => {
     if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to add your key.'); return; }
     setNote(null);
     const r = await bridge.openKeySetup(provider, slug);
@@ -192,24 +225,29 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
     setAwaiting(true);
   };
 
-  if (configured) {
-    return <span className="text-[11px] text-emerald-600 dark:text-emerald-400 whitespace-nowrap">key configured</span>;
+  if (saved && granted) {
+    return <span className="text-[11px] text-emerald-600 dark:text-emerald-400 whitespace-nowrap">key ready</span>;
   }
   if (!bridge?.openKeySetup) {
     // Plain web / bridge not detected yet: never show a dead button.
     return note ? <span className="text-[11px] text-amber-700 dark:text-amber-300">{note}</span> : null;
   }
-  // While awaiting, this stays a BUTTON (relabelled "Reopen"), never a dead
+  // While awaiting, this stays a BUTTON (relabelled "reopen"), never a dead
   // <span> — closing the key window without saving previously left this row
   // with no control at all and a page reload as the only escape.
+  const label = awaiting
+    ? 'Waiting… — reopen'
+    : (saved ? 'Use saved key' : 'Add API key');
   return (
     <button
       type="button"
-      onClick={addKey}
-      title={awaiting ? 'Waiting for you to save the key. Closed the window? Click to reopen it.' : undefined}
+      onClick={openLocal}
+      title={awaiting
+        ? 'Waiting for you to confirm in the Implexa window. Closed it? Click to reopen.'
+        : (saved ? 'Your key is already saved — this only allows this agent to use it.' : undefined)}
       className={`flex-none text-xs whitespace-nowrap hover:underline ${awaiting ? 'text-ink-500' : 'text-brand-500'}`}
     >
-      {awaiting ? 'Waiting for save… — reopen' : 'Add API key'}
+      {label}
     </button>
   );
 }

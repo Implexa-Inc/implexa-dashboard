@@ -48,10 +48,14 @@ test('InlineAddKeyButton never renders a dead span while awaiting — the exact 
     'awaiting must NOT early-return a non-interactive <span> — that is precisely what left the row with no way back',
   );
   // The button must be reachable on the awaiting path: the only early returns
-  // allowed before it are `configured` (success) and no-bridge (plain web).
-  assert.match(body, /if \(configured\)\s*\{\s*return/, 'configured may early-return (success state)');
+  // allowed before it are the fully-ready state and no-bridge (plain web).
+  assert.match(body, /if \(saved && granted\)\s*\{\s*return/, 'the ready state may early-return (nothing to do)');
   assert.match(body, /if \(!bridge\?\.openKeySetup\)/, 'no-bridge may early-return (nothing to click)');
-  assert.match(body, /\{awaiting \? 'Waiting for save… — reopen' : 'Add API key'\}/, 'the awaiting state must relabel the SAME button, not replace it');
+  // The awaiting state must RELABEL the same button, never replace it. The label
+  // is computed across three states (add / grant-only / awaiting), so assert the
+  // awaiting branch specifically rather than one literal ternary.
+  assert.match(body, /const label = awaiting\s*\n?\s*\? 'Waiting… — reopen'/, 'awaiting relabels the same button');
+  assert.match(body, /: \(saved \? 'Use saved key' : 'Add API key'\)/, 'the non-awaiting label distinguishes grant-only from first-time add');
 });
 
 test('KeyRow keeps its Add-key control visible while awaiting', () => {
