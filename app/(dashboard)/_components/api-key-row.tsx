@@ -46,6 +46,22 @@ export function useDesktopBridge(): DesktopBridge | null {
 
 export type KeyItem = { provider: string; label: string; scope?: string; envVar?: string | null; createUrl?: string | null; configured?: boolean };
 
+// THE WAITING STATE MUST NEVER TRAP (2026-07-18 founder report; the same P1 the
+// #56 reviewer raised and I then reproduced here). Clicking "Add key" opens the
+// LOCAL key-entry window and flips `awaiting` — but if the user closes that
+// window WITHOUT saving, the desktop bridge sends no cancellation event, so
+// nothing ever cleared `awaiting`: the button vanished and the row sat on
+// "Waiting for save…" forever, with a full page reload the only way out.
+//
+// The real fix is a bridge-level cancel event, which needs a desktop release.
+// These two rules fix it with the CURRENT installed app and stay correct once
+// that event exists:
+//   1. The action stays CLICKABLE while awaiting (re-opens the window) — the
+//      user is never left without the control that got them here.
+//   2. The wait self-expires, so a walked-away-from row returns to normal on
+//      its own rather than lying about a save that is never coming.
+const KEY_WAIT_TIMEOUT_MS = 90 * 1000;
+
 export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string; onChanged: () => void }) {
   const bridge = useDesktopBridge();
   const [awaiting, setAwaiting] = useState(false);
@@ -73,7 +89,11 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
     };
     const unsub = bridge.onKeysChanged?.(() => check());
     const interval = setInterval(check, 3000);
-    return () => { done = true; clearInterval(interval); if (unsub) unsub(); };
+    // Self-expire: the user may have closed the window without saving, and the
+    // bridge has no cancel event to tell us. Give up waiting rather than claim a
+    // save is still coming.
+    const expiry = setTimeout(() => { done = true; setAwaiting(false); }, KEY_WAIT_TIMEOUT_MS);
+    return () => { done = true; clearInterval(interval); clearTimeout(expiry); if (unsub) unsub(); };
   }, [awaiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -87,15 +107,17 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
               : <span className="text-[11px] text-amber-700 dark:text-amber-300">not set</span>}
           </div>
           {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
-          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to save the key in the Implexa window…</p>}
+          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to save the key in the Implexa window — closed it? Hit Reopen.</p>}
         </div>
-        {!item.configured && !awaiting && (
+        {/* Deliberately NOT hidden while awaiting: closing the key window without
+            saving used to leave this row with no control at all. */}
+        {!item.configured && (
           <div className="flex-none flex items-center gap-1.5">
             {item.createUrl && (
               <a href={item.createUrl} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Create one</a>
             )}
             {bridge?.openKeySetup
-              ? <button type="button" onClick={addKey} className="btn-outline text-xs px-2.5 py-1">Add key</button>
+              ? <button type="button" onClick={addKey} className="btn-outline text-xs px-2.5 py-1">{awaiting ? 'Reopen' : 'Add key'}</button>
               : <span className="text-[11px] text-ink-500">Add it in the Implexa app</span>}
           </div>
         )}
@@ -156,7 +178,10 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
     };
     const unsub = bridge.onKeysChanged?.(() => poll());
     const interval = setInterval(poll, 3000);
-    return () => { done = true; clearInterval(interval); if (unsub) unsub(); };
+    // Self-expire — see KEY_WAIT_TIMEOUT_MS. Closing the key window without
+    // saving sends no event, so without this the row waits forever.
+    const expiry = setTimeout(() => { done = true; setAwaiting(false); }, KEY_WAIT_TIMEOUT_MS);
+    return () => { done = true; clearInterval(interval); clearTimeout(expiry); if (unsub) unsub(); };
   }, [awaiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addKey = async () => {
@@ -170,16 +195,21 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
   if (configured) {
     return <span className="text-[11px] text-emerald-600 dark:text-emerald-400 whitespace-nowrap">key configured</span>;
   }
-  if (awaiting) {
-    return <span className="text-[11px] text-ink-500 whitespace-nowrap">Waiting for save…</span>;
-  }
   if (!bridge?.openKeySetup) {
     // Plain web / bridge not detected yet: never show a dead button.
     return note ? <span className="text-[11px] text-amber-700 dark:text-amber-300">{note}</span> : null;
   }
+  // While awaiting, this stays a BUTTON (relabelled "Reopen"), never a dead
+  // <span> — closing the key window without saving previously left this row
+  // with no control at all and a page reload as the only escape.
   return (
-    <button type="button" onClick={addKey} className="flex-none text-xs text-brand-500 hover:underline whitespace-nowrap">
-      Add API key
+    <button
+      type="button"
+      onClick={addKey}
+      title={awaiting ? 'Waiting for you to save the key. Closed the window? Click to reopen it.' : undefined}
+      className={`flex-none text-xs whitespace-nowrap hover:underline ${awaiting ? 'text-ink-500' : 'text-brand-500'}`}
+    >
+      {awaiting ? 'Waiting for save… — reopen' : 'Add API key'}
     </button>
   );
 }
