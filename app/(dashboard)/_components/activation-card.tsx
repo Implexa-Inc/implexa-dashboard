@@ -96,6 +96,13 @@ type DesktopBridge = {
   checkTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean }>;
   installTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean; alreadyInstalled?: boolean; message?: string }>;
   grantLocalPermissions?: (tools: string[]) => Promise<{ ok: boolean; added?: string[]; addedDirs?: string[]; error?: string }>;
+  // LOCAL KEY VAULT (2026-07-17 review): this remote page never handles a key
+  // value. It can OPEN the packaged local key-entry window (openKeySetup) where
+  // the user types the key, and READ masked state; the web (no bridge) shows
+  // guidance. onKeysChanged fires after a save so the step can re-check.
+  openKeySetup?: (provider: string, agentSlug?: string) => Promise<{ ok: boolean; error?: string }>;
+  keysConfigured?: () => Promise<Record<string, boolean>>;
+  onKeysChanged?: (cb: (info: { provider: string }) => void) => () => void;
 };
 function desktopBridge(): DesktopBridge | null {
   if (typeof window === 'undefined') return null;
@@ -336,6 +343,84 @@ function ToolsList({ items }: { items: ToolItem[] }) {
   );
 }
 
+// ── API keys (LOCAL_KEY_VAULT_SPEC §3.1) ─────────────────────────────────────
+type KeyItem = { provider: string; label: string; scope?: string; envVar?: string | null; createUrl?: string | null; configured?: boolean };
+
+function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string; onChanged: () => void }) {
+  const bridge = useDesktopBridge();
+  const [awaiting, setAwaiting] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  // Open the LOCAL key-entry window (the value is typed there, never here), then
+  // re-check keysConfigured on the keys:changed event and flip the step to done.
+  const addKey = async () => {
+    if (!bridge?.openKeySetup) { setNote('Open the Implexa desktop app to add your key.'); return; }
+    setNote(null);
+    const r = await bridge.openKeySetup(item.provider, slug);
+    if (!r.ok) { setNote(r.error === 'vault_unavailable' ? 'This Mac can’t store keys securely (keychain unavailable).' : (r.error || 'Could not open key entry.')); return; }
+    setAwaiting(true);
+  };
+
+  useEffect(() => {
+    if (!awaiting || !bridge?.keysConfigured) return;
+    let done = false;
+    const check = async () => {
+      if (done) return;
+      try {
+        const map = await bridge.keysConfigured!();
+        if (map && map[item.provider] === true) { done = true; setAwaiting(false); onChanged(); }
+      } catch { /* retry on next tick/event */ }
+    };
+    const unsub = bridge.onKeysChanged?.(() => check());
+    const interval = setInterval(check, 3000);
+    return () => { done = true; clearInterval(interval); if (unsub) unsub(); };
+  }, [awaiting]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <li>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-ink-100">{item.label} API key{item.scope ? ` (${item.scope} only)` : ''}</span>
+            {item.configured
+              ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">configured on this Mac</span>
+              : <span className="text-[11px] text-amber-700 dark:text-amber-300">not set</span>}
+          </div>
+          {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
+          {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to save the key in the Implexa window…</p>}
+        </div>
+        {!item.configured && !awaiting && (
+          <div className="flex-none flex items-center gap-1.5">
+            {item.createUrl && (
+              <a href={item.createUrl} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Create one</a>
+            )}
+            {bridge?.openKeySetup
+              ? <button type="button" onClick={addKey} className="btn-outline text-xs px-2.5 py-1">Add key</button>
+              : <span className="text-[11px] text-ink-500">Add it in the Implexa app</span>}
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function KeysList({ items, slug, trustLine, onChanged }: { items: KeyItem[]; slug: string; trustLine?: string; onChanged: () => void }) {
+  const bridge = useDesktopBridge();
+  return (
+    <div className="mt-3 rounded-lg border border-ink-800 bg-ink-950/40 p-3">
+      {trustLine && <p className="text-xs text-ink-300 mb-2 leading-snug">🔒 {trustLine}</p>}
+      <ul className="space-y-3">
+        {items.map((it) => <KeyRow key={it.provider} item={it} slug={slug} onChanged={onChanged} />)}
+      </ul>
+      {!bridge?.openKeySetup && (
+        <p className="text-xs text-ink-500 mt-2 leading-snug">
+          Keys are stored locally on your Mac by the Implexa desktop app — open the app to add one. The agent still activates now; a key-dependent step will pause until it’s set.
+        </p>
+      )}
+    </div>
+  );
+}
+
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // "09:30" (24h, from <input type=time>) -> "9:30am" for the schedule NL the
@@ -524,6 +609,10 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
     // Always expandable (even when fully granted) so the user can see what's
     // pre-granted — incl. the default-on "Run commands" — and toggle it off.
     cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : (step.cta || 'View')}</button>;
+  } else if (step.id === 'api-keys' && ((step.data?.items ?? []) as unknown as KeyItem[]).length > 0) {
+    // Expandable whether todo (Add key) or done (View) — the paste/create flow is
+    // inline, never a navigation. Soft gate: this never blocks Activate.
+    cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : (step.cta || 'Add key')}</button>;
   } else if (isTodo && step.cta) {
     if (step.id === 'connections') {
       // Inline connect (no navigation): sign in + verify right here, for exactly
@@ -560,6 +649,14 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
       )}
       {step.id === 'tools' && open && (
         <ToolsList items={(step.data?.items ?? []) as unknown as ToolItem[]} />
+      )}
+      {step.id === 'api-keys' && open && (
+        <KeysList
+          items={(step.data?.items ?? []) as unknown as KeyItem[]}
+          slug={slug}
+          trustLine={(step.data as { trustLine?: string } | undefined)?.trustLine}
+          onChanged={onChanged}
+        />
       )}
       {step.id === 'schedule' && open && (
         <SchedulePicker slug={slug} onSaved={() => { setOpen(false); onChanged(); }} />

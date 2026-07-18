@@ -39,7 +39,7 @@ const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 2 * 60 * 1000;
 
 export type CapabilityAction = {
-  kind: 'switch_engine' | 'install_capability' | 'run_anyway';
+  kind: 'switch_engine' | 'install_capability' | 'run_anyway' | 'create_key' | 'paste_key';
   label: string;
   detail?: string;
   /** Present-tense copy for the polling wait state — see capability-preflight.js. */
@@ -47,6 +47,9 @@ export type CapabilityAction = {
   engine?: 'claude' | 'codex';
   capability?: string;
   url?: string | null;
+  /** API-key actions (LOCAL_KEY_VAULT_SPEC): which provider, and its env-var NAME. */
+  provider?: string;
+  envVar?: string | null;
 };
 
 export type CapabilityCardData = {
@@ -58,11 +61,31 @@ export type CapabilityCardData = {
   available?: string[];
   missing?: string[];
   actions: CapabilityAction[];
+  /** API-key card (capability:'apiKey'): the trust promise, shown prominently. */
+  trustLine?: string;
+  provider?: string;
+  envVar?: string | null;
   /** The agent the card is about. Carried on the payload (not passed in) because a
    *  CONTINUE is raised from a surface that only knows a runId — the backend
    *  resolved the slug, so it hands it over rather than making every caller re-find it. */
   slug?: string;
 };
+
+// The desktop preload bridge (dashboard-preload.js). Present only inside the
+// Implexa desktop app; undefined on plain web. CRITICAL (2026-07-17 review): this
+// remote page NEVER handles a key value. It can OPEN the local key-entry window
+// (openKeySetup) and READ masked state (keysConfigured); the value is typed in the
+// packaged file:// window, so nothing on app.implexa.ai ever sees it.
+type ImplexaDesktop = {
+  keysAvailable?: () => Promise<boolean>;
+  keysConfigured?: () => Promise<Record<string, boolean>>;
+  openKeySetup?: (provider: string, agentSlug?: string) => Promise<{ ok: boolean; error?: string }>;
+  onKeysChanged?: (cb: (info: { provider: string }) => void) => () => void;
+};
+function desktopBridge(): ImplexaDesktop | null {
+  if (typeof window === 'undefined') return null;
+  return (window as unknown as { implexaDesktop?: ImplexaDesktop }).implexaDesktop || null;
+}
 
 // Self-contained diagram of the exact click path — matches the founder's own
 // annotated screenshot intent (arrows to "Computer use" in the sidebar, then "Any
@@ -122,6 +145,9 @@ export default function CapabilityCard({ card, onRetry }: {
   const [pollTimedOut, setPollTimedOut] = useState(false);
   const [checking, setChecking] = useState(false);   // the MANUAL "Check now" click, not the background poll
   const [showHelp, setShowHelp] = useState(false);
+  // API-key flow: we opened the LOCAL key-entry window and are waiting for the key
+  // to be saved there (the value never touches this page).
+  const [awaitingKey, setAwaitingKey] = useState<string | null>(null);
   const pollRef = useRef<{ interval: ReturnType<typeof setInterval>; deadline: number } | null>(null);
   // Guards against the background poll and a manual "Check now" click both landing
   // on a true result within the same few hundred ms — without this, both would call
@@ -135,6 +161,26 @@ export default function CapabilityCard({ card, onRetry }: {
   }
   // Unmount safety — the modal can close (Esc/backdrop/×) mid-wait; don't leak the interval.
   useEffect(() => () => stopPolling(), []);
+
+  // While awaiting a key from the local entry window: re-check keysConfigured on
+  // the keys:changed event (and a short poll fallback), and re-run once the
+  // provider is configured. The value is never seen here — only the boolean flips.
+  useEffect(() => {
+    if (!awaitingKey) return;
+    const bridge = desktopBridge();
+    if (!bridge?.keysConfigured) return;
+    let done = false;
+    const check = async () => {
+      if (done) return;
+      try {
+        const map = await bridge.keysConfigured!();
+        if (map && map[awaitingKey] === true) { done = true; setAwaitingKey(null); await onRetry(); }
+      } catch { /* transient — the next tick or event retries */ }
+    };
+    const unsub = bridge.onKeysChanged?.(() => check());
+    const interval = setInterval(check, POLL_INTERVAL_MS);
+    return () => { done = true; clearInterval(interval); if (unsub) unsub(); };
+  }, [awaitingKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The one thing both the background poll and the manual "Check now" button do:
   // ask the backend once, and if it's true, stop and retry the run. Split out so a
@@ -182,9 +228,36 @@ export default function CapabilityCard({ card, onRetry }: {
     finally { setChecking(false); }
   }
 
+  // LOCAL KEY VAULT (2026-07-17 review): open the packaged key-entry window where
+  // the user types the key — the value is entered locally, encrypted into the OS
+  // keychain, and NEVER touches this remote page. We then poll keysConfigured (and
+  // listen for the keys:changed event) and re-run once the provider flips true.
+  async function openKeyEntry(provider: string) {
+    setErr('');
+    const bridge = desktopBridge();
+    if (!bridge?.openKeySetup) { setErr('Open the Implexa desktop app to add a key on this Mac.'); return; }
+    const res = await bridge.openKeySetup(provider, card.slug);
+    if (!res?.ok) {
+      setErr(res?.error === 'vault_unavailable'
+        ? 'This Mac can’t store keys securely (system keychain unavailable).'
+        : (res?.error || 'Could not open the key entry window.'));
+      return;
+    }
+    setAwaitingKey(provider);
+  }
+
   async function act(a: CapabilityAction) {
     setErr('');
     if (a.kind === 'run_anyway') { onRetry({ force: true }); return; }
+
+    // Both create_key and paste_key funnel to the LOCAL window. create_key also
+    // opens the provider's key page in a new tab (the human mints the key there).
+    if (a.kind === 'create_key') {
+      if (a.url) window.open(a.url, '_blank', 'noopener,noreferrer');
+      if (a.provider) openKeyEntry(a.provider);
+      return;
+    }
+    if (a.kind === 'paste_key') { if (a.provider) openKeyEntry(a.provider); return; }
 
     if (a.kind === 'install_capability') {
       // Hand off to the engine's own permission UI. The grant itself happens in
@@ -225,6 +298,12 @@ export default function CapabilityCard({ card, onRetry }: {
       <div className="text-ink-100">{card.message}</div>
       {card.why ? (
         <div className="mt-1 text-ink-400">{card.label} {card.why}.</div>
+      ) : null}
+      {/* THE TRUST PROMISE, prominent on the key card — the brand, not a footnote. */}
+      {card.trustLine ? (
+        <div className="mt-2 rounded-md border border-ink-800 bg-ink-900/40 p-2 text-xs text-ink-300">
+          🔒 {card.trustLine}
+        </div>
       ) : null}
 
       {waitingFor ? (
@@ -281,10 +360,33 @@ export default function CapabilityCard({ card, onRetry }: {
       ) : (
         <div className="mt-4 flex flex-col gap-2.5">
           {card.actions.map((a) => {
-            const key = a.kind + (a.engine || '');
+            const key = a.kind + (a.engine || a.provider || '');
             // Run anyway is deliberately the quiet one — it is the escape hatch, not
             // the recommendation.
             const primary = a.kind !== 'run_anyway';
+            // Key actions: on plain web (no desktop bridge) there is nowhere to
+            // store a key, so show guidance instead of a dead button.
+            if ((a.kind === 'paste_key' || a.kind === 'create_key')) {
+              const bridge = desktopBridge();
+              if (!bridge?.openKeySetup) {
+                if (a.kind === 'paste_key') {
+                  return (
+                    <div key={key} className="text-xs text-ink-400">
+                      Open the Implexa desktop app to add your key — it’s stored locally on your Mac, never on the web.
+                    </div>
+                  );
+                }
+                // create_key still useful on web (opens the provider page).
+              }
+              if (a.kind === 'paste_key' && awaitingKey) {
+                return (
+                  <div key={key} className="flex items-center gap-2 text-xs text-ink-300">
+                    <span className="h-3 w-3 flex-none animate-spin rounded-full border-2 border-ink-400 border-t-transparent" aria-hidden />
+                    Waiting for you to save the key in the Implexa window…
+                  </div>
+                );
+              }
+            }
             return (
               <div key={key}>
                 <button
