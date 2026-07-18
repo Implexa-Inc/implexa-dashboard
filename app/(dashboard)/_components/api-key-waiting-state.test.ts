@@ -60,16 +60,19 @@ test('InlineAddKeyButton never renders a dead span while awaiting — the exact 
 
 test('KeyRow keeps its Add-key control visible while awaiting', () => {
   const body = componentBody('KeyRow');
-  // The original hid the whole button cluster behind `!awaiting`.
+  // The original hid the whole button CLUSTER behind `!awaiting`. Anchored on the
+  // cluster's own div so it stays specific: other elements (e.g. the unverified
+  // "Check again" hint) may legitimately be awaiting-conditional — hiding a hint
+  // while the window is open is fine; hiding the only control is the trap.
   assert.doesNotMatch(
     body,
-    /&& !awaiting && \(/,
+    /!awaiting && \(\s*\n\s*<div className="flex-none/,
     'the control cluster must not be hidden by !awaiting — that strands the row mid-flow',
   );
   // Gated on readiness only (see the saved-AND-granted test below for why the
   // gate is `ready` rather than the provider boolean).
   assert.match(body, /\{!ready && \(/, 'the cluster is gated on readiness only');
-  assert.match(body, /\{awaiting \? 'Reopen' : \(needsGrantOnly \? 'Use saved key' : 'Add key'\)\}/,
+  assert.match(body, /\{awaiting \? 'Reopen' : \(\(needsGrantOnly \|\| verifyUnknown\) \? 'Use saved key' : 'Add key'\)\}/,
     'the button relabels to Reopen while awaiting, and distinguishes grant-only from first-time add');
 });
 
@@ -82,14 +85,14 @@ test('KeyRow (activation/setup) gates on saved AND granted-for-this-agent, not t
   // It must ASK for the per-agent grant…
   assert.match(body, /bridge\.keysGrantedFor\(slug\)/, 'KeyRow must read the per-agent grant');
   // …and derive readiness from BOTH booleans.
-  assert.match(body, /const ready = !!item\.configured && granted !== false;/, 'ready = saved AND not-denied for this agent');
+  assert.match(body, /const ready = !!item\.configured && granted !== false && !verifyFailed;/, 'ready = saved AND not-denied for this agent AND actually verified');
   assert.match(body, /const needsGrantOnly = !!item\.configured && granted === false;/, 'saved-but-ungranted is its own state');
   // The control must be gated on `ready`, NOT on item.configured — gating on the
   // provider boolean is exactly what hid the button from an ungranted agent.
   assert.match(body, /\{!ready && \(/, 'the control cluster is gated on ready, not item.configured');
   assert.doesNotMatch(body, /\{!item\.configured && \(\s*\n\s*<div className="flex-none/, 'must NOT gate the control cluster on the provider boolean alone');
   // And it must offer the grant-only action rather than inviting a re-paste.
-  assert.match(body, /needsGrantOnly \? 'Use saved key' : 'Add key'/, 'a saved-but-ungranted agent is offered "Use saved key"');
+  assert.match(body, /\(needsGrantOnly \|\| verifyUnknown\) \? 'Use saved key' : 'Add key'/, 'a saved-but-ungranted agent — and a saved-but-unverifiable one — are both offered "Use saved key"');
 });
 
 // A premature retry re-runs the agent BEFORE it can read the key — a keyless run
@@ -110,6 +113,27 @@ test('CapabilityCard retries only once THIS AGENT is granted, never on the provi
   assert.match(body, /if \(grants && grants\[awaitingKey\] === true\) \{ done = true; setAwaitingKey\(null\); await onRetry\(\); \}\s*\n\s*return;/,
     'the grant branch must early-return so a granted-false agent never falls through to the provider check');
   assert.match(body, /if \(bridge\.keysGrantedFor && card\.slug\)/, 'the fallback is used only when the per-agent read is unavailable');
+});
+
+// P2 (2026-07-18 review): an ABSENT bridge method and a FAILED call are different
+// facts. Collapsing both into granted=null made an IPC error render a saved key as
+// "ready" and hide the grant button — the same dead end, reachable through a
+// transient failure. Not a secret-access bypass (the local vault still denies an
+// ungranted key), but the UI strands the user with no way forward.
+test('KeyRow never renders "ready" when the per-agent check FAILED (vs. is absent)', () => {
+  const body = componentBody('KeyRow');
+  // The two cases must be tracked separately.
+  assert.match(body, /const \[verifyFailed, setVerifyFailed\] = useState\(false\)/, 'a failed check needs its own state, distinct from granted=null');
+  assert.match(body, /\.catch\(\(\) => \{ if \(alive\) \{ setGranted\(null\); setVerifyFailed\(true\); \} \}\)/,
+    'a rejected keysGrantedFor must set verifyFailed, not silently look like a legacy desktop');
+  // Absent method stays the legacy path — explicitly NOT a failure.
+  assert.match(body, /if \(!bridge\?\.keysGrantedFor\) \{ setGranted\(null\); setVerifyFailed\(false\); return; \}/,
+    'an absent method is a legitimate legacy fallback, not an error');
+  // And readiness must exclude the unverified case.
+  assert.match(body, /const ready = !!item\.configured && granted !== false && !verifyFailed;/,
+    '"don\'t know" must never render as "ready"');
+  // The user must be able to recover without a reload.
+  assert.match(body, /onClick=\{checkGrant\}/, 'the unverified state needs a re-check affordance');
 });
 
 test('both components expire the wait instead of polling forever', () => {

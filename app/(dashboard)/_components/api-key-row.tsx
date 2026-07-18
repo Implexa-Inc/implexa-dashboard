@@ -78,20 +78,44 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
   // null = not yet known (or an older desktop with no keysGrantedFor) — treated
   // as "assume granted" so this never regresses the pre-existing behaviour.
   const [granted, setGranted] = useState<boolean | null>(null);
+  // ABSENT METHOD ≠ FAILED CALL (2026-07-18 review, P2). Collapsing both into
+  // granted=null made an IPC error render a saved key as ready and HIDE the
+  // grant button — recreating the dead end during a transient failure. No
+  // secret-access bypass (the local vault still denies an ungranted key), but
+  // the UI would strand the user. A missing method is a legitimate legacy
+  // fallback; an error from a method that IS there means we simply don't know,
+  // and "don't know" must never render as "ready".
+  const [verifyFailed, setVerifyFailed] = useState(false);
+
+  const checkGrant = () => {
+    if (!bridge?.keysGrantedFor) { setGranted(null); setVerifyFailed(false); return; }
+    setVerifyFailed(false);
+    bridge.keysGrantedFor(slug)
+      .then((m) => { setGranted(!!m?.[item.provider]); setVerifyFailed(false); })
+      .catch(() => { setGranted(null); setVerifyFailed(true); });
+  };
 
   useEffect(() => {
     let alive = true;
-    if (!bridge?.keysGrantedFor) { setGranted(null); return; }
+    if (!bridge?.keysGrantedFor) { setGranted(null); setVerifyFailed(false); return; }
+    setVerifyFailed(false);
     bridge.keysGrantedFor(slug)
-      .then((m) => { if (alive) setGranted(!!m?.[item.provider]); })
-      .catch(() => { if (alive) setGranted(null); });
+      .then((m) => { if (alive) { setGranted(!!m?.[item.provider]); setVerifyFailed(false); } })
+      .catch(() => { if (alive) { setGranted(null); setVerifyFailed(true); } });
     return () => { alive = false; };
   }, [bridge, slug, item.provider]);
 
-  // Saved AND allowed for THIS agent. When granted is unknown (null) we fall back
-  // to the provider boolean alone, matching the old behaviour exactly.
-  const ready = !!item.configured && granted !== false;
+  // Saved AND allowed for THIS agent. granted=null means the bridge has no
+  // per-agent read at all (older desktop) → fall back to the provider boolean,
+  // matching the old behaviour exactly. verifyFailed means we HAVE the read and
+  // it errored → never claim ready; keep the control visible and retryable.
+  const ready = !!item.configured && granted !== false && !verifyFailed;
   const needsGrantOnly = !!item.configured && granted === false;
+  // A saved key we couldn't verify access for: opening the local window is always
+  // the correct action anyway — it reads authoritative state from main, so it
+  // shows the right mode (grant-only vs already-allowed) regardless of what this
+  // remote page failed to learn.
+  const verifyUnknown = !!item.configured && verifyFailed;
 
   // Open the LOCAL key-entry window (the value is typed there, never here), then
   // re-check keysConfigured on the keys:changed event and flip the step to done.
@@ -142,11 +166,21 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
             <span className="text-sm text-ink-100">{item.label} API key{item.scope ? ` (${item.scope} only)` : ''}</span>
             {ready
               ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400">ready for this agent</span>
-              : needsGrantOnly
-                ? <span className="text-[11px] text-amber-700 dark:text-amber-300">saved — not allowed for this agent yet</span>
-                : <span className="text-[11px] text-amber-700 dark:text-amber-300">not set</span>}
+              : verifyUnknown
+                ? <span className="text-[11px] text-amber-700 dark:text-amber-300">saved — couldn’t check this agent’s access</span>
+                : needsGrantOnly
+                  ? <span className="text-[11px] text-amber-700 dark:text-amber-300">saved — not allowed for this agent yet</span>
+                  : <span className="text-[11px] text-amber-700 dark:text-amber-300">not set</span>}
           </div>
           {note && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{note}</p>}
+          {/* Never silently resolve an unverified state to "ready" — say we don't
+              know, and make re-checking one click. */}
+          {verifyUnknown && !awaiting && (
+            <p className="text-xs text-ink-500 mt-0.5 leading-snug">
+              Couldn’t reach the Implexa app to check access.{' '}
+              <button type="button" onClick={checkGrant} className="text-brand-500 hover:underline">Check again</button>
+            </p>
+          )}
           {awaiting && <p className="text-xs text-ink-500 mt-0.5 leading-snug">Waiting for you to confirm in the Implexa window — closed it? Hit Reopen.</p>}
         </div>
         {/* Shown until this agent is actually READY (saved AND allowed) — not
@@ -158,7 +192,7 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
         {!ready && (
           <div className="flex-none flex items-center gap-1.5">
             {/* "Create one" only makes sense when there is no saved key yet. */}
-            {item.createUrl && !needsGrantOnly && (
+            {item.createUrl && !needsGrantOnly && !verifyUnknown && (
               <a href={item.createUrl} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Create one</a>
             )}
             {bridge?.openKeySetup
@@ -166,10 +200,15 @@ export function KeyRow({ item, slug, onChanged }: { item: KeyItem; slug: string;
                 <button
                   type="button"
                   onClick={addKey}
-                  title={needsGrantOnly ? 'Your key is already saved — this only allows this agent to use it.' : undefined}
+                  title={(needsGrantOnly || verifyUnknown)
+                    ? 'Your key is already saved — this only allows this agent to use it.'
+                    : undefined}
                   className="btn-outline text-xs px-2.5 py-1"
                 >
-                  {awaiting ? 'Reopen' : (needsGrantOnly ? 'Use saved key' : 'Add key')}
+                  {/* verifyUnknown reads as "Use saved key" too: a key IS saved, and
+                      the local window resolves the real mode from main — so this is
+                      correct whether the agent turns out to be granted or not. */}
+                  {awaiting ? 'Reopen' : ((needsGrantOnly || verifyUnknown) ? 'Use saved key' : 'Add key')}
                 </button>
               )
               : <span className="text-[11px] text-ink-500">Add it in the Implexa app</span>}
