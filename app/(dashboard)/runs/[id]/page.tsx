@@ -38,6 +38,7 @@ import NextAgentCards, { type Recommendation } from '../../_components/next-agen
 import RunFeedback, { type FeedbackQuestion } from '../../_components/run-feedback';
 import MakeRecurring from '../../_components/make-recurring';
 import RunChainSuggestions from '../../_components/run-chain-suggestions';
+import { EngineOverrideBanner } from '../../_components/engine-override-banner';
 
 export const dynamic = 'force-dynamic';
 
@@ -170,6 +171,21 @@ export default async function RunDetailPage({ params }: { params: { id: string }
       .select('executor, thread_id, workspace').eq('run_id', r.id).maybeSingle();
     executionContext = data || null;
   } catch { /* pre-migration run: use the legacy Claude recovery path */ }
+
+  // Engine-pin override disclosure (2026-07-18 review, Stage C #3 — deterministic,
+  // not a model instruction). original_preference (migration 0119) and
+  // selected_executor live on the run_requests row this run was claimed from, not
+  // on skill_runs itself — joined by run_id. Best-effort: 0118/0119 may not be
+  // applied yet (same class as 0116/0117), or this run predates the whole reroute
+  // mechanism (no run_requests row at all, e.g. a manual/legacy insert) — the
+  // banner component itself renders nothing when the fields are absent, so a
+  // degraded fetch here is silently safe, never a broken page.
+  let engineRouting: { original_preference?: string | null; selected_executor?: string | null; selection_reason?: string | null } | null = null;
+  try {
+    const { data } = await supabase.from('run_requests')
+      .select('original_preference, selected_executor, selection_reason').eq('run_id', r.id).maybeSingle();
+    engineRouting = data || null;
+  } catch { /* 0118/0119 not applied yet, or no run_requests row for this run — banner just stays hidden */ }
 
   // Resolve the agent this run belongs to. Used to have been a .find() over the
   // full listWorkflows() catalog — but that catalog is heavily cached (1h) and,
@@ -416,6 +432,12 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             )}
           </div>
         </header>
+
+        <EngineOverrideBanner
+          originalPreference={engineRouting?.original_preference}
+          selectedExecutor={engineRouting?.selected_executor}
+          selectionReason={engineRouting?.selection_reason}
+        />
 
         {/* Share — prominent on ANY completed run with a deliverable, so the owner
             can turn it into a public, forkable Run Card without hunting (founder
