@@ -3,7 +3,7 @@
 //
 // Deterministic disclosure (2026-07-18 review, Stage C #3): computeOverrideDisclosure
 // is the pure decision half of <EngineOverrideBanner /> — testable without a JSX
-// render pipeline. All 5 scenarios manually verified against the real component's
+// render pipeline. All scenarios manually verified against the real component's
 // JSX by inspection (auth middleware blocks an isolated browser preview of this
 // route without a real login, which is out of scope here).
 
@@ -47,4 +47,21 @@ test('an unrecognized engine id still discloses with the raw id as its own label
   const d = computeOverrideDisclosure('codex', 'some-future-engine', 'reason');
   assert.ok(d);
   assert.equal(d!.ranLabel, 'some-future-engine');
+});
+
+// P1 (Stage C review, 2nd round on #55) — "capacity failover copy is false". The
+// banner used to hardcode "X couldn't handle this capability, so it ran on Y
+// instead", but decideStaleReroute (execution-engine.service.js) can override a
+// hard pin for a purely CAPACITY reason — the primary engine is rate-limit-capped
+// or stuck, not incapable of the work (see execution-router.js's "is capped
+// until..."/"has more authoritative rate-limit headroom" reason strings). This
+// pure layer must pass selectionReason through verbatim rather than assuming or
+// asserting any specific cause — the banner renders whatever reason it's given,
+// capability or capacity, without editorializing.
+test('a capacity-based reroute (rate-limit cap, not a capability gap) discloses its real reason verbatim', () => {
+  const d = computeOverrideDisclosure('claude', 'codex', 'Claude is capped until 3:00pm; using Codex');
+  assert.ok(d);
+  assert.equal(d!.pinLabel, 'Claude');
+  assert.equal(d!.ranLabel, 'Codex');
+  assert.equal(d!.selectionReason, 'Claude is capped until 3:00pm; using Codex');
 });

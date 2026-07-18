@@ -14,6 +14,15 @@
  * The decision logic lives in engine-override-disclosure.ts (plain, no JSX) so
  * it's unit-testable with `node --test` (this repo's native-TS pattern) — Node's
  * built-in type stripping doesn't transform JSX, so it can't run from a .tsx file.
+ *
+ * Copy note (P1, Stage C review 2nd round on #55): do NOT hardcode a "the pinned
+ * engine couldn't handle this capability" narrative here. A pin override can be
+ * capability-based (excludeEngine — browser/computer-use routing) OR purely
+ * CAPACITY-based (decideStaleReroute in execution-engine.service.js overrides a
+ * hard pin when the primary engine is rate-limit-capped or stuck, not incapable —
+ * see execution-router.js's "is capped until..." reason strings). The headline
+ * states only the neutral fact (ran on X, not pinned Y); selectionReason (verbatim,
+ * whatever the router actually recorded) carries the real "why".
  */
 
 import { computeOverrideDisclosure } from './engine-override-disclosure';
@@ -37,12 +46,11 @@ export function EngineOverrideBanner({
     >
       <p className="text-sm text-ink-100">
         <span aria-hidden="true">⚠</span>{' '}
-        <strong>This run used {d.ranLabel}</strong>, not your pinned {d.pinLabel} — {d.pinLabel} couldn&apos;t handle
-        this capability, so it ran on {d.ranLabel} instead (billed to your {d.ranLabel} account).
+        <strong>This run used {d.ranLabel}</strong>, not your pinned {d.pinLabel} (billed to your {d.ranLabel} account).
       </p>
-      {d.selectionReason ? (
-        <p className="text-xs text-ink-400 mt-1">{d.selectionReason}</p>
-      ) : null}
+      <p className="text-xs text-ink-400 mt-1">
+        {d.selectionReason || `${d.pinLabel} wasn't available for this run.`}
+      </p>
     </div>
   );
 }
