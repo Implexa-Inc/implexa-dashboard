@@ -65,9 +65,12 @@ test('CONTRACT: the dashboard mirror matches the versioned rule (always runs)', 
 });
 
 // ── Layer 2: CROSS-REPO (skips loudly when the backend is absent) ─────────────
-test('the marker vocabularies are identical across the two runtimes', () => {
+test('the marker vocabularies are identical across the two runtimes', (t) => {
   const src = backendSrc();
-  if (!src) { console.warn('\n  ⚠ SKIPPED (layer 2): implexa-backend is not checked out beside this repo, so cross-repo parity was NOT verified. The contract test above still ran.\n'); return; }
+  // t.skip, not an early return: a silent `return` reports a PASS, which is how
+  // this file originally claimed cross-repo enforcement it never performed. Now
+  // the runner's own metadata says `skipped`, so CI counts the missing coverage.
+  if (!src) return t.skip('implexa-backend is not checked out beside this repo — cross-repo parity NOT verified (the contract test above still ran)');
 
   const mirror = readFileSync(join(import.meta.dirname, 'run-recovery.ts'), 'utf8');
   for (const [be, fe] of [['_TERMINAL_MARKERS', 'TERMINAL_MARKERS'], ['_PROGRESS_MARKERS', 'PROGRESS_MARKERS']]) {
@@ -75,9 +78,9 @@ test('the marker vocabularies are identical across the two runtimes', () => {
   }
 });
 
-test('the eligible-state list is identical — the mirror must never be stricter', () => {
+test('the eligible-state list is identical — the mirror must never be stricter', (t) => {
   const src = backendSrc();
-  if (!src) { console.warn('  ⚠ SKIPPED (layer 2): backend absent — cross-repo state parity NOT verified.'); return; }
+  if (!src) return t.skip('backend absent — cross-repo state parity NOT verified');
   // Backend expresses it inline in the guard.
   const m = src.match(/if \(!\[([^\]]*)\]\.includes\(runState\)\) return none\('not_recoverable_state'\)/);
   assert.ok(m, 'the backend state guard must still exist');
