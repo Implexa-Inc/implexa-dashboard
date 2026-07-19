@@ -50,7 +50,7 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, claudeTaskId, align = 'end', inFlight = null, revisePending = false }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -62,6 +62,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   nextRunAt?: string | null;
   /** Unanswered config questions — shown as an amber chip that scrolls to the setup card. */
   pendingQuestions?: number;
+  /** Required-only. Optional PREFERENCES must never block Run — that was the whole
+   *  point of splitting the tiers. Absent (older backend) → fall back to the
+   *  total, which is the pre-change behaviour. */
+  blockingQuestions?: number;
   /** Claude routine id — lets "Running…" deep-link the routine's page in Claude. */
   claudeTaskId?: string | null;
   /** 'end' on the detail page header; 'start' inside the activation card. */
@@ -76,6 +80,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
    *  lands; we poll router.refresh() so the button frees up without a reload. */
   revisePending?: boolean;
 }) {
+  // ONE gate expression. Optional preferences never stop a run.
+  const blocking = blockingQuestions ?? pendingQuestions;
   const [state, setState] = useState<RunState>(inFlight ?? 'idle');
   const [msg, setMsg] = useState(
     inFlight === 'running' ? 'Running in Claude Code…'
@@ -232,7 +238,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     if (state === 'queuing' || state === 'running') return;
     // Hard gate: never hand off a run that is missing required answers. Surface
     // the questions instead of producing a dead "nothing happened" run.
-    if (pendingQuestions > 0) { surfaceQuestions(); return; }
+    if (blocking > 0) { surfaceQuestions(); return; }
     // Run now ALWAYS opens the pre-run pop-up so you can add a note for this run
     // (and review setup until you've dismissed it for this agent).
     await openPreRun('queue');
@@ -432,7 +438,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <Link href="/inbox" className="btn-success text-sm px-4 py-2">
           ✓ Done — view result
         </Link>
-      ) : pendingQuestions > 0 ? (
+      ) : blocking > 0 ? (
         // Unanswered questions: the primary action IS answering them. The button
         // surfaces + flashes the question card rather than firing a dead run.
         <button
@@ -440,7 +446,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           onClick={surfaceQuestions}
           className="text-sm px-4 py-2 rounded-md border border-amber-500/60 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-medium"
         >
-          Answer {pendingQuestions} question{pendingQuestions === 1 ? '' : 's'} to run ↑
+          Answer {blocking} question{blocking === 1 ? '' : 's'} to run ↑
         </button>
       ) : (
         <button
@@ -458,7 +464,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       {/* Secondary: supervise the run live instead of hands-off. Goes through the
           same pop-up (so the note rides into the watched session). Shown only
           before queuing so the paths stay mutually exclusive (no double-run). */}
-      {isActive && !revisePending && pendingQuestions === 0 && (state === 'idle' || state === 'error') && (
+      {isActive && !revisePending && blocking === 0 && (state === 'idle' || state === 'error') && (
         <button
           type="button"
           onClick={openWatch}
