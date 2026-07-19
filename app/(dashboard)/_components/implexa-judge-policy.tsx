@@ -57,10 +57,10 @@ export function ImplexaJudgePolicy({ slug, compact = false }: { slug: string; co
             <span className="text-[10px] uppercase tracking-wide rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-violet-300">Optional</span>
           </div>
           <p className="text-xs text-ink-400 mt-1 leading-relaxed max-w-xl">
-            After every run, a fresh AI session checks the original request, agent criteria, memory, feedback, and actual artifacts—then tells you what passed, what failed, and the smallest next step.
+            After every run, a fresh AI session checks the original request, agent criteria, memory, feedback, and actual artifacts. If it finds a safe qualitative issue, Implexa fixes it automatically and checks the new result again—up to two repair passes.
           </p>
           <p className="text-[11px] text-ink-500 mt-1.5 leading-relaxed">
-            Implexa prefers the other engine (Claude reviews Codex, or Codex reviews Claude). If it isn&apos;t ready, a new session on the same engine reviews it. This uses your own subscription and is shown separately from evidence-based “Verified complete.”
+            Implexa prefers the other engine (Claude reviews Codex, or Codex reviews Claude); if it isn&apos;t ready, a new session on the same engine reviews it. Missing inputs, new permissions, approvals, and consequential actions come back to you instead of being guessed or repeated. Reviews and repairs use your own subscriptions and stay separate from evidence-based “Verified complete.”
           </p>
         </div>
         <button
@@ -76,7 +76,7 @@ export function ImplexaJudgePolicy({ slug, compact = false }: { slug: string; co
         </button>
       </div>
       <div className="mt-2 flex items-center gap-2 text-xs">
-        <span className={enabled ? 'text-emerald-400' : 'text-ink-500'}>{saving ? 'Saving…' : enabled ? '✓ Reviews every run' : 'Off'}</span>
+        <span className={enabled ? 'text-emerald-400' : 'text-ink-500'}>{saving ? 'Saving…' : enabled ? '✓ Reviews and safely repairs every run' : 'Off'}</span>
         {error && <span className="text-red-400">{error}</span>}
       </div>
     </section>

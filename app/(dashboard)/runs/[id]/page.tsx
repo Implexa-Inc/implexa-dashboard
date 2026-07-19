@@ -40,7 +40,7 @@ import RunFeedback, { type FeedbackQuestion } from '../../_components/run-feedba
 import MakeRecurring from '../../_components/make-recurring';
 import RunChainSuggestions from '../../_components/run-chain-suggestions';
 import { EngineOverrideBanner } from '../../_components/engine-override-banner';
-import { RunJudgmentCard, type RunJudgment } from '../../_components/run-judgment-card';
+import { RunJudgmentCard, type JudgeRepairRequest, type RunJudgment } from '../../_components/run-judgment-card';
 import { RunJudgmentPending } from '../../_components/run-judgment-pending';
 
 export const dynamic = 'force-dynamic';
@@ -305,12 +305,20 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   // Completion Controller above. A missing migration/policy simply renders no card.
   let judgment: RunJudgment | null = null;
   let judgmentPending = false;
+  let repairRequest: JudgeRepairRequest | null = null;
   try {
     const { data: jr } = await supabase.from('run_judgments')
-      .select('verdict, summary, criteria_results, evidence_refs, paths_taken, next_action, repair_prompt, worker_executor, worker_model, judge_executor, judge_model, deterministic_verification, created_at')
+      .select('id, verdict, summary, criteria_results, evidence_refs, paths_taken, next_action, repair_prompt, repair_round, repair_limit, worker_executor, worker_model, judge_executor, judge_model, deterministic_verification, created_at')
       .eq('run_id', params.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
     judgment = (jr as RunJudgment | null) || null;
   } catch { /* 0121 not applied, or no judgment — keep the run page intact */ }
+  if (judgment?.id && judgment.verdict === 'repair') {
+    try {
+      const { data: rr } = await supabase.from('run_requests')
+        .select('status, run_id').eq('judge_origin_judgment_id', judgment.id).limit(1).maybeSingle();
+      repairRequest = (rr as JudgeRepairRequest | null) || null;
+    } catch { /* 0122 not applied, or queue failed — the manual Continue fallback stays visible */ }
+  }
   if (!judgment) {
     try {
       const { data: jq } = await supabase.from('run_requests')
@@ -461,8 +469,11 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           selectionReason={engineRouting?.selection_reason}
         />
 
-        <RunJudgmentCard judgment={judgment} />
+        <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id} />
         {judgmentPending && <RunJudgmentPending />}
+        {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (
+          <RunJudgmentPending phase="repair" />
+        )}
 
         {/* Share — prominent on ANY completed run with a deliverable, so the owner
             can turn it into a public, forkable Run Card without hunting (founder
