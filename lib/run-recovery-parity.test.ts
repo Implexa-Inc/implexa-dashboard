@@ -1,15 +1,26 @@
 // node --test lib/run-recovery-parity.test.ts
 //
 // The recovery rule lives in TWO runtimes: the dashboard decides whether to SHOW
-// the salvage affordance, the backend decides whether to HONOUR it. Two copies is
-// a drift risk, so this pins the parts where drift would actually hurt.
+// the salvage affordance, the backend decides whether to HONOUR it.
 //
-// DIRECTION MATTERS. The server is the authority, and the mirror may only be
-// optimistic-or-equal: showing a button the server refuses is a recoverable
-// annoyance; hiding a button the server would have honoured strands the user in
-// exactly the dead end this feature removes. So the eligible-state list must
-// match, and the marker vocabularies must match — a mirror that considered FEWER
-// states recoverable would silently withhold the affordance.
+// TWO LAYERS, AND ONLY ONE OF THEM ALWAYS RUNS — read this before trusting it:
+//
+//   1. CONTRACT (always runs, standalone). The rule is pinned to a VERSIONED
+//      literal below. Editing lib/run-recovery.ts without editing the contract
+//      fails, in any checkout, including dashboard-only CI.
+//   2. CROSS-REPO (only when implexa-backend sits beside this repo). Compares the
+//      same values against the backend source.
+//
+// Layer 2 SKIPS in standalone CI. The first version of this file skipped silently
+// and still reported a pass, so it looked like enforced cross-repo parity and was
+// not — the same silent-skip failure that let two whole test files go unrun
+// earlier (see scripts/run-tests.mjs). Layer 1 exists so the skip costs coverage
+// of "did the backend change too", not coverage of "did the rule change", and the
+// skip now announces itself loudly instead of whispering.
+//
+// DIRECTION MATTERS in both layers: the mirror may only be optimistic-or-equal.
+// Showing a button the server refuses costs a click; hiding one the server would
+// have honoured strands the user in the exact dead end this feature removes.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,9 +42,32 @@ function literal(src: string, name: string): string {
   return m![1];
 }
 
+// ── Layer 1: THE CONTRACT ────────────────────────────────────────────────────
+// Bump CONTRACT_VERSION whenever the rule intentionally changes, and update the
+// backend in the same change. These literals are the agreement; the two runtimes
+// are implementations of it.
+const CONTRACT_VERSION = 1;
+const CONTRACT = {
+  terminal: "/\\b(verified|complete[d]?|finished|done|delivered|success(?:ful)?|passed|rendered|uploaded|published)\\b/i",
+  progress: "/(\\b\\d{1,3}\\s*%|\\bremaining\\b|\\bin progress\\b|\\brunning\\b|\\betas?\\b|~\\s*\\d+\\s*min|\\bstep \\d+\\/\\d+:\\s*(?:encode|render|upload)\\w*\\s+(?:running|started))/i",
+  states: ['stalled', 'failed'],
+};
+
+test('CONTRACT: the dashboard mirror matches the versioned rule (always runs)', () => {
+  assert.equal(CONTRACT_VERSION, 1, 'bump this deliberately when the rule changes');
+  const mirror = readFileSync(join(import.meta.dirname, 'run-recovery.ts'), 'utf8');
+  assert.equal(literal(mirror, 'TERMINAL_MARKERS'), CONTRACT.terminal, 'TERMINAL_MARKERS drifted from the contract');
+  assert.equal(literal(mirror, 'PROGRESS_MARKERS'), CONTRACT.progress, 'PROGRESS_MARKERS drifted from the contract');
+  assert.deepEqual([...RECOVERABLE_STATES].sort(), [...CONTRACT.states].sort(), 'eligible states drifted from the contract');
+  // Named so a future edit has to confront the reasoning, not just the diff.
+  assert.ok(!RECOVERABLE_STATES.includes('running'), 'a live run must never be finalizable — it may still report');
+  assert.ok(!RECOVERABLE_STATES.includes('completed'), 'a truthfully-closed run must never be re-finalized');
+});
+
+// ── Layer 2: CROSS-REPO (skips loudly when the backend is absent) ─────────────
 test('the marker vocabularies are identical across the two runtimes', () => {
   const src = backendSrc();
-  if (!src) { console.log('backend not checked out beside the dashboard — skipping'); return; }
+  if (!src) { console.warn('\n  ⚠ SKIPPED (layer 2): implexa-backend is not checked out beside this repo, so cross-repo parity was NOT verified. The contract test above still ran.\n'); return; }
 
   const mirror = readFileSync(join(import.meta.dirname, 'run-recovery.ts'), 'utf8');
   for (const [be, fe] of [['_TERMINAL_MARKERS', 'TERMINAL_MARKERS'], ['_PROGRESS_MARKERS', 'PROGRESS_MARKERS']]) {
@@ -43,7 +77,7 @@ test('the marker vocabularies are identical across the two runtimes', () => {
 
 test('the eligible-state list is identical — the mirror must never be stricter', () => {
   const src = backendSrc();
-  if (!src) return;
+  if (!src) { console.warn('  ⚠ SKIPPED (layer 2): backend absent — cross-repo state parity NOT verified.'); return; }
   // Backend expresses it inline in the guard.
   const m = src.match(/if \(!\[([^\]]*)\]\.includes\(runState\)\) return none\('not_recoverable_state'\)/);
   assert.ok(m, 'the backend state guard must still exist');
