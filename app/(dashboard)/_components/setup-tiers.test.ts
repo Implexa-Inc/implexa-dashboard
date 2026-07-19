@@ -190,3 +190,39 @@ test('the confirm asks rather than blocks, and points at the prior run', () => {
   assert.match(src, /will redo that work — and spend whatever it costs again/,
     'name the real cost; that is the whole reason to interrupt');
 });
+
+// P1 (2026-07-18, third review): a capability-card "Run anyway" retry LOST the
+// fingerprint. The first doQueue() prechecks and computes it locally; if capability
+// preflight 409s, CapabilityCard retries with { force: true } — and `force`
+// deliberately skips the precheck so the confirm cannot loop, which means the retry
+// has no other way to obtain one. The eventual request was stored unstamped and
+// could never trigger a future duplicate warning: leaky in exactly the case where
+// the user already hit friction and is most likely to re-run.
+test('the fingerprint survives a capability-409 "Run anyway" retry', () => {
+  const src = read('agent-actions.tsx');
+  // It must be remembered across attempts, not just live inside one doQueue call.
+  assert.match(src, /const lastFingerprint = useRef<string \| null>\(null\);/,
+    'the prechecked fingerprint needs a ref alongside lastNote');
+  assert.match(src, /lastFingerprint\.current = pre\.fingerprint;/,
+    'every precheck must record it');
+  // The capability retry must carry it through.
+  assert.match(
+    src,
+    /onRetry=\{\(o\) => doQueue\(lastNote\.current, \{ \.\.\.o, fingerprint: lastFingerprint\.current \}\)\}/,
+    'the capability card retry must pass the remembered fingerprint, or a forced run is stored unstamped',
+  );
+  assert.doesNotMatch(src, /onRetry=\{\(o\) => doQueue\(lastNote\.current, o\)\}/,
+    'passing the opts through bare is exactly what dropped it');
+  // And a forced call must fall back to the ref rather than to null.
+  assert.match(src, /let fingerprint = opts\?\.fingerprint \?\? lastFingerprint\.current \?\? null;/,
+    'force skips the precheck, so it must read the remembered value');
+});
+
+test('a NEW pre-run clears the remembered fingerprint', () => {
+  // Otherwise a stale fingerprint could be stamped onto a run whose note or files
+  // have since changed — a false duplicate match on genuinely different work.
+  const src = read('agent-actions.tsx');
+  const open = src.slice(src.indexOf('async function openPreRun'), src.indexOf('async function openPreRun') + 700);
+  assert.match(open, /lastFingerprint\.current = null;/,
+    'a fresh attempt must not inherit the previous attempt\'s fingerprint');
+});

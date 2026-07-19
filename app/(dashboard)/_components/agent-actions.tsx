@@ -130,6 +130,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [capCard, setCapCard] = useState<CapabilityCardData | null>(null);
   // The note the blocked attempt carried, so a retry after switching/granting keeps it.
   const lastNote = useRef<string | undefined>(undefined);
+  // The fingerprint computed by the LAST precheck, kept alongside lastNote because
+  // every retry path replays this run and must carry it. `force` deliberately skips
+  // the precheck (so the confirm cannot loop), which means a forced retry has no
+  // other way to obtain one — and a request stored without a fingerprint can never
+  // trigger a future duplicate warning. Retries that silently drop it make the
+  // backstop leaky in exactly the case where the user already hit friction.
+  const lastFingerprint = useRef<string | null>(null);
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
   // Mirrors `state`, readable inside the mount-once external-poll effect below
@@ -274,6 +281,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     if (state === 'queuing' || state === 'running') return;
     setPreRunMode(mode);
     setDontShowAgain(false);
+    // A fresh attempt: drop the previous fingerprint so a stale one can never be
+    // stamped onto a run whose note or files have since changed.
+    lastFingerprint.current = null;
     // ALWAYS load and keep the settings — before launching work the user must be
     // able to see and adjust what the agent will use. The preference only decides
     // whether the section starts collapsed.
@@ -371,10 +381,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     lastNote.current = note;
     // Check ONCE, before queuing. `force` is the user having already seen the
     // warning and said run anyway — never re-ask, or the confirm becomes a loop.
-    let fingerprint = opts?.fingerprint ?? null;
+    // On a forced retry prefer the explicit value, then the remembered one — never
+    // fall through to null just because this call skipped the precheck.
+    let fingerprint = opts?.fingerprint ?? lastFingerprint.current ?? null;
     if (!opts?.force) {
       const pre = await precheckDuplicate(note, runFiles);
       fingerprint = pre.fingerprint;
+      lastFingerprint.current = pre.fingerprint;
       if (pre.duplicate) {
         const d = pre.duplicate as { message: string; runId: string | null };
         setDupe({ message: d.message, runId: d.runId ?? null, fingerprint });
@@ -552,7 +565,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         {capCard && (
           <CapabilityCard
             card={capCard}
-            onRetry={(o) => doQueue(lastNote.current, o)}
+            // Carry the remembered fingerprint through the capability retry. Without
+            // it, a run that hit a capability gate and was then forced through would
+            // be stored unstamped and never recognised as a duplicate later.
+            onRetry={(o) => doQueue(lastNote.current, { ...o, fingerprint: lastFingerprint.current })}
           />
         )}
       </Modal>
