@@ -237,7 +237,7 @@ export function KeysList({ items, slug, trustLine, onChanged }: { items: KeyItem
 }
 
 // ── Inline "Add API Key" CTA, next to "Get it" ───────────────────────────────
-// A LIGHTER variant of KeyRow for the "What you'll need" panel (agent-requirements
+// A LIGHTER variant of KeyRow for the requirements panel (activation-requirements
 // .tsx): that panel is a plain informational list, one line per service, not the
 // activation card's expandable step — so this renders as a single small button
 // alongside "Get it ↗" rather than a full row with its own configured/not-set
