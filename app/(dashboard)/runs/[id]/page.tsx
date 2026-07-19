@@ -40,6 +40,8 @@ import RunFeedback, { type FeedbackQuestion } from '../../_components/run-feedba
 import MakeRecurring from '../../_components/make-recurring';
 import RunChainSuggestions from '../../_components/run-chain-suggestions';
 import { EngineOverrideBanner } from '../../_components/engine-override-banner';
+import { FinalizeRecoveredButton } from '../../_components/finalize-recovered-button';
+import { deriveRecoveredWork } from '@/lib/run-recovery';
 
 export const dynamic = 'force-dynamic';
 
@@ -388,6 +390,14 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   // path instead. Best-effort; never blocks the page.
   const workspaceRoot = await getWorkspaceRoot(session.access_token);
 
+  // Salvage affordance: this run may have DONE the work and died before reporting
+  // it (the founder's Remotion render, twice). The server re-checks this and is
+  // the authority; see lib/run-recovery.ts on why the mirror stays optimistic.
+  const recovered = deriveRecoveredWork({
+    runState: r.run_state, outputMarkdown: r.output_markdown,
+    progress, stepsState,
+  });
+
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
@@ -613,6 +623,21 @@ export default async function RunDetailPage({ params }: { params: { id: string }
                 >
                   View the run to see the reason{siblingRun.review_status === 'needs_input' || siblingRun.review_status === 'pending' ? ' (needs you)' : ''} →
                 </Link>
+              </div>
+            )}
+            {/* The run may have finished its work and died before reporting it —
+                the trace above is the evidence. Never auto-promoted: the user
+                reads it and decides. */}
+            {recovered.recoverable && (
+              <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-3">
+                <div className="text-sm font-semibold text-ink-100 mb-0.5">Work recovered — review and finalize</div>
+                <p className="text-sm text-ink-300 leading-relaxed">
+                  This run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and then stopped
+                  without recording a result. If the trace above shows the work finished, you can mark it done.
+                </p>
+                <div className="mt-3">
+                  <FinalizeRecoveredButton runId={r.id} looksComplete={recovered.looksComplete} />
+                </div>
               </div>
             )}
             <div className="mt-4 flex flex-wrap gap-3">
