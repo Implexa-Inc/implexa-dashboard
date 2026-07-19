@@ -21,9 +21,8 @@ import { getWorkflow, getMyWorkflow, listMyWorkflows } from '@/lib/workflow-cata
 import { remoteSafety } from '@/lib/remote-safety';
 import { getConnectionStatus, warningsForAgent } from '@/lib/connections';
 import { loadInboxItems } from '@/lib/inbox';
-import { detectRequirements } from '@/lib/requirements';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
-import AgentRequirements from '../../_components/agent-requirements';
+import AgentReadiness from '../../_components/agent-readiness';
 import AgentNameEditor from '../../_components/agent-name-editor';
 import { RemoteSafetyBadge } from '../../_components/remote-safety-badge';
 import { ConnectionAttentionBanner } from '../../_components/connection-attention-banner';
@@ -200,6 +199,19 @@ export default async function WorkflowDetailPage({
   const checklist = await getActivationChecklist(workflow.slug);
   const isActive = checklist?.state === 'active';
   const pendingQuestions = checklist?.pendingQuestions ?? 0;
+  // Required-only — the same predicate Run gates on, so Overview can never claim
+  // "ready" while Run would stop you. Falls back to the total on an older backend
+  // (before blockingQuestions existed), which is the pre-change behaviour.
+  const blockingQuestions = checklist?.blockingQuestions ?? pendingQuestions;
+  const optionalQuestions = checklist?.optionalQuestions ?? 0;
+  // The ONE authoritative requirements list, server-computed (the dashboard used
+  // to detect these itself from a hand-copied table that had already drifted).
+  // Server-side we only know whether a KEY EXISTS on the machine, never whether
+  // THIS agent is granted it (grants are local-only). So the Overview line reports
+  // the weaker, honest claim; the per-agent truth is resolved client-side inside
+  // the requirements panel, which keeps its row actionable until the grant lands.
+  const reqServices = checklist?.requirements?.services ?? [];
+  const missingServices = reqServices.filter((x) => !x.keyOnMachine).map((x) => x.name);
   // Setup-tab dot = the unanswered config questions you can clear in that tab.
   // (A signed-out account gets its own loud banner above the tabs.)
   const setupAttention = pendingQuestions > 0;
@@ -247,7 +259,6 @@ export default async function WorkflowDetailPage({
 
   // What the user needs on their side before running (paid services + the free
   // tools we auto-install), derived from the agent's steps.
-  const requirements = detectRequirements(workflow.steps);
 
   // The proof-layer grade (run_outcome_ledger, 0091). Owner view: pull their
   // private grade from the /me/agents feed (delivered N% over M real runs). Falls
@@ -282,8 +293,18 @@ export default async function WorkflowDetailPage({
 
   const overviewPanel = (
     <>
-      {/* What you'll need , prerequisites up front, before the run */}
-      <AgentRequirements req={requirements} slug={workflow.slug} />
+      {/* Readiness, not a shopping list. "What you'll need" is PROVISIONING and
+          now lives in Activate, where it can be finished and then collapse — it
+          used to sit here permanently, never reflecting satisfaction, offering
+          "Get it" for keys the user already had. */}
+      <AgentReadiness
+        slug={workflow.slug}
+        isActive={isActive}
+        blockingQuestions={blockingQuestions}
+        optionalQuestions={optionalQuestions}
+        requirementsSatisfied={missingServices.length === 0}
+        missingServices={missingServices}
+      />
 
       {/* Stat strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -513,6 +534,7 @@ export default async function WorkflowDetailPage({
             source={workflow.source}
             nextRunAt={checklist?.nextRunAt}
             pendingQuestions={checklist?.pendingQuestions}
+            blockingQuestions={checklist?.blockingQuestions}
             claudeTaskId={pausableRoutine?.claude_task_id}
             inFlight={inFlight}
             revisePending={revisePending}
@@ -609,6 +631,7 @@ export default async function WorkflowDetailPage({
                 source={workflow.source}
                 nextRunAt={checklist?.nextRunAt}
                 pendingQuestions={checklist?.pendingQuestions}
+                blockingQuestions={checklist?.blockingQuestions}
                 claudeTaskId={pausableRoutine?.claude_task_id}
                 inFlight={inFlight}
                 revisePending={revisePending}

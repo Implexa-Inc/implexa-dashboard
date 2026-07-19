@@ -51,6 +51,27 @@ export type ActivationVerification = {
   checks: VerificationCheck[];
 };
 export type ActivationState = 'created' | 'activating' | 'active' | 'needs_attention';
+/** Server-computed provisioning needs. The dashboard no longer detects these
+ *  itself — it used to, from a hand-copied table that had already drifted from
+ *  the backend's (different alt strings, a client-only provider column). */
+export type AgentRequirementsPayload = {
+  services: {
+    key: string; name: string; cost: string; url: string;
+    alt: string | null; provider: string | null;
+    /**
+     * A key for this provider exists on the newest-seen machine — NOT the same as
+     * "this agent may use it". Per-agent grants live in the local vault ACL and
+     * never reach the server, so this is deliberately the weaker claim. The client
+     * ANDs it with keysGrantedFor(slug); anything else re-creates the dead end
+     * PR #63 removed (row collapses, "Use saved key" hidden, no way to authorize).
+     */
+    keyOnMachine: boolean;
+    /** Other detected services this same key covers (Seedance rides HeyGen's). */
+    alsoCovers?: string[];
+  }[];
+  tools: { key: string; name: string; autoInstalls: boolean }[];
+};
+
 export type ActivationChecklist = {
   slug: string;
   name: string;
@@ -62,8 +83,16 @@ export type ActivationChecklist = {
   requiresLocal?: boolean;
   /** ISO of the next scheduled fire (active cron), or null/absent. */
   nextRunAt?: string | null;
-  /** Unanswered config questions (drives the "N to answer" chip). */
+  /** Unanswered config questions, ALL tiers (drives the "N to answer" chip). */
   pendingQuestions?: number;
+  /** Required-only — the same predicate Run gates on. Absent on an older backend. */
+  blockingQuestions?: number;
+  /** Preferences the user can still set; never block a run. */
+  optionalQuestions?: number;
+  /** readyToRun === blockingQuestions === 0. The promise activation may make. */
+  readyToRun?: boolean;
+  /** The ONE authoritative "what you'll need" list, server-computed. */
+  requirements?: AgentRequirementsPayload;
   /** Catalog source, threaded to the setup card / run command. */
   source?: string;
   canActivate: boolean;
@@ -99,6 +128,12 @@ export async function getActivationChecklist(slug: string): Promise<ActivationCh
       // The activation card gates Run on this: a generated agent with unanswered
       // config questions must surface them at the Run moment, not fire blind.
       pendingQuestions: Number(b.pendingQuestions ?? 0),
+      // Absent on an older backend → fall back to the total, which is exactly the
+      // pre-change behaviour (every question was required).
+      blockingQuestions: b.blockingQuestions === undefined ? undefined : Number(b.blockingQuestions),
+      optionalQuestions: Number(b.optionalQuestions ?? 0),
+      readyToRun: b.readyToRun === undefined ? undefined : !!b.readyToRun,
+      requirements: (b.requirements as AgentRequirementsPayload) ?? undefined,
       source: (b.source as string) ?? 'generated',
       canActivate: !!b.canActivate,
       stepsLeft: Number(b.stepsLeft ?? 0),

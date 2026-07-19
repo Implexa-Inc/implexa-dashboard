@@ -1,13 +1,14 @@
 {
   "name": "implexa-dashboard",
   "version": "0.1.0",
-  "description": "Implexa web dashboard — Next.js 14 App Router + Supabase Auth + Stripe Checkout",
+  "description": "Implexa web dashboard \u2014 Next.js 14 App Router + Supabase Auth + Stripe Checkout",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start --port 3001",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

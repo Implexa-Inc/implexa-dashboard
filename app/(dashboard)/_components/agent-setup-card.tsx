@@ -17,7 +17,13 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
-type Field = { key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[] };
+type Field = {
+  key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[];
+  /** A PREFERENCE — never blocks a run. */
+  optional?: boolean;
+  /** Used when the user doesn't answer. Its presence implies optional. */
+  default?: string | null;
+};
 
 // The desktop app exposes a native file picker; a plain browser cannot read a
 // local path, so a 'file' question degrades to a path field there.
@@ -55,6 +61,8 @@ type Setup = {
   missing: Field[];
   complete: boolean;
   needs_setup: boolean;
+  /** Required-only — the run gate. Absent on an older backend. */
+  ready_to_run?: boolean;
 };
 
 export default function AgentSetupCard({ slug, source = 'generated' }: { slug: string; source?: string }) {
@@ -141,7 +149,16 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
     }
   }
 
-  const allFilled = setup.schema.every((f) => (values[f.key] ?? '').toString().trim() !== '');
+  // REQUIRED-ONLY SAVE GATE. This used to demand every declared field, which
+  // made optional preferences effectively required: a user could answer all the
+  // real questions, leave one preference blank, and be unable to save at all —
+  // so Run stayed blocked on answers they HAD given. That defeated the entire
+  // point of splitting the tiers.
+  const isOptional = (f: Field) => !!f.optional || (f.default !== undefined && f.default !== null && f.default !== '');
+  const requiredFields = setup.schema.filter((f) => !isOptional(f));
+  const optionalFields = setup.schema.filter(isOptional);
+  const filled = (f: Field) => (values[f.key] ?? '').toString().trim() !== '';
+  const allFilled = requiredFields.every(filled);
   const inputCls = 'w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none';
 
   async function chooseFile(key: string) {
@@ -166,9 +183,23 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
       </p>
 
       <div className="space-y-4">
-        {setup.schema.map((f) => (
+        {[...requiredFields, ...optionalFields].map((f, i) => (
           <div key={f.key}>
-            <label className="block text-sm text-ink-200 mb-1.5">{f.question}</label>
+            {/* One visible break between "must answer" and "can tune". Without it
+                the tiers exist only in the data and the user still reads every
+                field as mandatory. */}
+            {i === requiredFields.length && optionalFields.length > 0 && (
+              <div className="pt-2 mb-3 border-t border-ink-800">
+                <div className="text-xs font-semibold uppercase tracking-wide text-ink-500 mt-3">Optional preferences</div>
+                <p className="text-xs text-ink-500 mt-0.5">
+                  These never block a run — leave them and the agent uses a sensible default.
+                </p>
+              </div>
+            )}
+            <label className="block text-sm text-ink-200 mb-1.5">
+              {f.question}
+              {isOptional(f) && <span className="ml-1.5 text-[11px] text-ink-500">optional</span>}
+            </label>
             {f.kind === 'choice' && f.options && f.options.length > 0 ? (
               <div className="space-y-2">
                 <select
@@ -251,6 +282,25 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
                 )}
               </>
             )}
+            {/* The two escapes a preference needs, so a blank field is a DECISION
+                the user made rather than an unfinished form staring at them.
+                Neither affects whether the agent can run. */}
+            {isOptional(f) && !filled(f) && (
+              <div className="flex items-center gap-3 mt-1.5">
+                {f.default ? (
+                  <button
+                    type="button"
+                    onClick={() => setValues((v) => ({ ...v, [f.key]: String(f.default) }))}
+                    className="text-xs text-brand-500 hover:underline"
+                  >
+                    Use default ({f.default})
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-ink-500">The agent will decide this itself.</span>
+                )}
+                <span className="text-[11px] text-ink-500">Skipping is fine — it won’t block a run.</span>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -277,7 +327,7 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
           onClick={save}
           disabled={saving || !allFilled}
           className={saving || !allFilled ? 'btn-outline text-sm px-4 py-2 opacity-50 cursor-not-allowed' : 'btn-success text-sm px-4 py-2'}
-          title={allFilled ? 'Save these answers' : 'Answer every question first'}
+          title={allFilled ? 'Save these answers' : 'Answer the required questions first'}
         >
           {saving ? 'Saving…' : 'Save answers'}
         </button>

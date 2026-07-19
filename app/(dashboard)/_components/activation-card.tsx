@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
 import AgentSetupCard from './agent-setup-card';
+import { ActivationRequirements } from './activation-requirements';
 import AgentFeedback from './agent-feedback';
 import AgentBrowserConnect from './agent-browser-connect';
 import { useDesktopBridge, desktopBridge, KeysList, type KeyItem } from './api-key-row';
@@ -93,7 +94,7 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
 // an onboarding wall of every account the user may never use.
 //
 // DesktopBridge / desktopBridge / useDesktopBridge moved to ./api-key-row
-// (2026-07-18) so the "What you'll need" panel (agent-requirements.tsx) can
+// (2026-07-18) so the requirements panel (activation-requirements.tsx) can
 // reuse the exact same bridge + key-vault UI instead of a second copy.
 
 type NeededConnection = { account?: string; label?: string; status?: string; identity?: string | null };
@@ -809,6 +810,10 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
                 they can never be missed (founder: "you could have shown the
                 questions during Run; I got lost in the middle"). The card
                 self-hides when the agent has none. */}
+            {/* PREPARE first (keys, accounts, tools), then MAKE IT YOURS
+                (the questions). Provisioning used to live permanently on Overview
+                and never collapse; it belongs here, where it gets finished. */}
+            <ActivationRequirements req={checklist.requirements} slug={checklist.slug} />
             <div id="agent-setup" className="scroll-mt-20 my-1">
               <AgentSetupCard slug={checklist.slug} source={checklist.source} />
             </div>
@@ -821,6 +826,7 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
                 requiresLocal={checklist.requiresLocal}
                 source={checklist.source}
                 pendingQuestions={checklist.pendingQuestions ?? 0}
+                blockingQuestions={checklist.blockingQuestions}
                 align="start"
               />
               {/* Granting/activating is itself the finished task — let the user
