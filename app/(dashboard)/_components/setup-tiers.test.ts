@@ -148,3 +148,45 @@ test('saved settings are COLLAPSED, never hidden, before a run', () => {
   assert.match(src, /\{!setupOpen && \(/, 'a collapsed summary must exist');
   assert.match(src, /Start with settings collapsed next time/, 'the opt-out collapses rather than hides');
 });
+
+// ── Duplicate-work backstop ──────────────────────────────────────────────────
+// The founder's concern: per-run inputs look like durable settings, so a Run that
+// reuses saved answers can silently redo work — a second paid render off the same
+// files. Field-lifetime classification is the prevention layer; this is detection,
+// shipped first because it needs no model judgement and protects agents that
+// already exist.
+test('the duplicate check runs BEFORE queueing, exactly once', () => {
+  const src = read('agent-actions.tsx');
+  assert.match(src, /if \(!opts\?\.force\) \{\s*\n\s*const pre = await precheckDuplicate\(note, runFiles\);/,
+    'the check must precede the queue call');
+  assert.match(src, /setDupe\(\{ message: d\.message, runId: d\.runId \?\? null, fingerprint \}\);\s*\n\s*return;/,
+    'a hit must stop and ask — nothing queued yet');
+  // force = the user already saw the warning. Re-asking would loop the confirm.
+  assert.match(src, /doQueue\(lastNote\.current, \{ force: true, fingerprint: fp \}\)/,
+    '"Run again anyway" must bypass the check and carry the fingerprint through');
+});
+
+test('the note survives the duplicate detour', () => {
+  const src = read('agent-actions.tsx');
+  const body = src.slice(src.indexOf('async function doQueue'), src.indexOf('async function doQueue') + 900);
+  const notePos = body.indexOf('lastNote.current = note;');
+  const checkPos = body.indexOf('const pre = await precheckDuplicate');
+  assert.ok(notePos !== -1 && checkPos !== -1);
+  assert.ok(notePos < checkPos,
+    'lastNote must be set BEFORE the early return, or "Run again anyway" replays with the note dropped');
+});
+
+test('the backstop fails OPEN — it can never block a run', () => {
+  const src = read('agent-actions.tsx');
+  assert.match(src, /\} catch \{ return \{ fingerprint: null, duplicate: null \}; \}/,
+    'a failed precheck must return no-duplicate, never throw into the Run path');
+});
+
+test('the confirm asks rather than blocks, and points at the prior run', () => {
+  const src = read('agent-actions.tsx');
+  assert.match(src, /title="Run this again\?"/);
+  assert.match(src, /Run again anyway/, 'the user must always be able to proceed');
+  assert.match(src, /See what that run produced →/, 'let them check before deciding');
+  assert.match(src, /will redo that work — and spend whatever it costs again/,
+    'name the real cost; that is the whole reason to interrupt');
+});

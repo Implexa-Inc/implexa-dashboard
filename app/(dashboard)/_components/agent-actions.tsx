@@ -114,6 +114,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [setupSaving, setSetupSaving] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [setupOpen, setSetupOpen] = useState(true);
+  // Duplicate-work backstop: the prior run this one would repeat, if any.
+  const [dupe, setDupe] = useState<{ message: string; runId: string | null; fingerprint: string | null } | null>(null);
   // Free-text note the user attaches to THIS run (a tweak/comment), rides into it.
   const [runNote, setRunNote] = useState('');
   // Per-run file attachments (absolute paths) via the native picker — shared with
@@ -343,12 +345,45 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // PRIMARY path: always queue. The drainer (or an open Claude session's hook)
   // runs it hands-off on the user's machine — same for every agent, so there's no
   // confusing split and no double-run. The result lands in the inbox.
-  async function doQueue(note?: string, opts?: { force?: boolean }) {
+  /**
+   * Ask the server whether these exact inputs already ran. ADVISORY — it returns
+   * the fingerprint to stamp on the request either way, and any failure returns
+   * nothing, because a backstop that can block Run is worse than no backstop.
+   */
+  async function precheckDuplicate(note: string | undefined, files: string[]) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const r = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/run-precheck`, {
+        jwt: session?.access_token, method: 'POST',
+        // Paths only for now — the desktop has no content-digest bridge yet, so the
+        // server reports digestQuality:'weak' and phrases its warning accordingly
+        // ("same file locations, contents not checked") rather than overclaiming.
+        body: { source, note: note || '', files: files.map((path) => ({ path })) },
+      });
+      return { fingerprint: (r?.fingerprint as string) ?? null, duplicate: r?.duplicate ?? null };
+    } catch { return { fingerprint: null, duplicate: null }; }
+  }
+
+  async function doQueue(note?: string, opts?: { force?: boolean; fingerprint?: string | null }) {
     if (state === 'queuing' || state === 'running') return;
+    // Remember the note BEFORE the duplicate check can early-return, or "Run again
+    // anyway" replays the run with the note dropped — silently different work.
+    lastNote.current = note;
+    // Check ONCE, before queuing. `force` is the user having already seen the
+    // warning and said run anyway — never re-ask, or the confirm becomes a loop.
+    let fingerprint = opts?.fingerprint ?? null;
+    if (!opts?.force) {
+      const pre = await precheckDuplicate(note, runFiles);
+      fingerprint = pre.fingerprint;
+      if (pre.duplicate) {
+        const d = pre.duplicate as { message: string; runId: string | null };
+        setDupe({ message: d.message, runId: d.runId ?? null, fingerprint });
+        return; // wait for the user; nothing is queued
+      }
+    }
     setState('queuing');
     setMsg('');
     setCapCard(null);
-    lastNote.current = note;
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await callBackend('/api/v2/me/run-requests', {
@@ -357,6 +392,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         body: {
           workflowSlug: slug, source: 'dashboard', kind: 'run',
           ...(note ? { note } : {}),
+          // Stamp what these inputs hash to, so the NEXT identical ask is recognised.
+          ...(fingerprint ? { inputFingerprint: fingerprint } : {}),
           // Carries the card's "Run anyway" through. We ask, we never forbid.
           ...(opts?.force ? { force: true } : {}),
         },
@@ -573,6 +610,44 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           className="btn-success text-sm px-5 py-2"
         >
           Track it under Active Agents →
+        </button>
+      </div>
+    </Modal>
+
+    {/* Duplicate-work confirm. Deliberately a QUESTION, never a block: repeating a
+        run is often exactly what the user wants (a failed render, changed upstream
+        data), and only they can tell. */}
+    <Modal
+      open={!!dupe}
+      onClose={() => setDupe(null)}
+      title="Run this again?"
+      maxWidth="max-w-md"
+    >
+      <p className="text-sm text-ink-300 leading-relaxed">{dupe?.message}</p>
+      <p className="text-sm text-ink-400 leading-relaxed mt-2">
+        Running it again will redo that work — and spend whatever it costs again.
+      </p>
+      {dupe?.runId && (
+        <Link href={`/runs/${dupe.runId}`} className="inline-block text-sm text-brand-500 hover:underline mt-2">
+          See what that run produced →
+        </Link>
+      )}
+      <div className="mt-4 flex items-center justify-end gap-3">
+        <button type="button" onClick={() => setDupe(null)} className="btn-outline text-sm px-4 py-2">
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const fp = dupe?.fingerprint ?? null;
+            setDupe(null);
+            // force: the user has seen the warning. Carry the fingerprint through so
+            // the repeat is still stamped and a THIRD identical run is caught too.
+            void doQueue(lastNote.current, { force: true, fingerprint: fp });
+          }}
+          className="btn-success text-sm px-5 py-2"
+        >
+          Run again anyway
         </button>
       </div>
     </Modal>
