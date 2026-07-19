@@ -28,18 +28,31 @@ import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-atta
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 
 type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
-type SetupField = { key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[] };
+type SetupField = {
+  key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[];
+  /** A PREFERENCE — must never block Run. */
+  optional?: boolean;
+  /** Used when unanswered. Its presence implies optional (same rule as the server). */
+  default?: string | null;
+};
+// ONE tier rule, matching normalizeConfigSchema on the server: a field is optional
+// when the author says so, or when it ships a usable default.
+const isOptionalField = (f: SetupField) =>
+  !!f.optional || (f.default !== undefined && f.default !== null && f.default !== '');
 
-// "Review setup before running" is shown the FIRST time you run an agent that has
-// setup questions, with a "don't show again for this agent" opt-out. Dismissal is
-// a per-device UI nudge (localStorage), keyed by agent slug — losing it on a new
-// device just re-shows the (harmless) confirm once.
-function setupReviewed(slug: string): boolean {
+// COLLAPSE preference for the pre-run settings review (per-device, keyed by slug).
+//
+// This used to mean HIDE: once ticked, future Run clicks showed only the per-run
+// note and the agent's saved answers vanished from the dialog. That is how a user
+// ends up re-running with stale inputs and getting duplicate work — they could no
+// longer see what the agent was about to use. Settings are now always PRESENT and
+// only start collapsed, so the information is one click away instead of gone.
+function setupCollapsed(slug: string): boolean {
   if (typeof window === 'undefined') return false;
-  try { return localStorage.getItem(`implexa:setup-reviewed:${slug}`) === '1'; } catch { return false; }
+  try { return localStorage.getItem(`implexa:setup-collapsed:${slug}`) === '1'; } catch { return false; }
 }
-function markSetupReviewed(slug: string) {
-  try { localStorage.setItem(`implexa:setup-reviewed:${slug}`, '1'); } catch { /* private mode / blocked */ }
+function markSetupCollapsed(slug: string) {
+  try { localStorage.setItem(`implexa:setup-collapsed:${slug}`, '1'); } catch { /* private mode / blocked */ }
 }
 
 const POLL_MS = 5000;
@@ -100,6 +113,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [setupValues, setSetupValues] = useState<Record<string, string>>({});
   const [setupSaving, setSetupSaving] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(true);
   // Free-text note the user attaches to THIS run (a tweak/comment), rides into it.
   const [runNote, setRunNote] = useState('');
   // Per-run file attachments (absolute paths) via the native picker — shared with
@@ -250,16 +264,21 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     await openPreRun('watch');
   }
 
+  // The ONE gate expression for the dialog. Optional preferences are excluded by
+  // construction, so no later edit can accidentally re-require them.
+  const blankRequired = setupFields.filter((f) => !isOptionalField(f) && (setupValues[f.key] ?? '').toString().trim() === '');
+
   async function openPreRun(mode: 'queue' | 'watch') {
     if (state === 'queuing' || state === 'running') return;
     setPreRunMode(mode);
     setDontShowAgain(false);
-    // Fetch the setup schema/answers. Show the setup fields until the user has
-    // dismissed the review for this agent.
-    const reviewed = setupReviewed(slug);
+    // ALWAYS load and keep the settings — before launching work the user must be
+    // able to see and adjust what the agent will use. The preference only decides
+    // whether the section starts collapsed.
     const { schema, answers } = await loadSetup();
-    setSetupFields(reviewed ? [] : schema);
-    setSetupValues(reviewed ? {} : Object.fromEntries(schema.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
+    setSetupFields(schema);
+    setSetupValues(Object.fromEntries(schema.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
+    setSetupOpen(!setupCollapsed(slug));
     // The per-run note + attachments are ONE-OFF (they ride the run-request, not the
     // saved standing note) — so they always start empty here, never pre-loaded from
     // the saved note. The standing note is edited in the Setup card, not this pop-up.
@@ -282,7 +301,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // Submit the pop-up: save any reviewed setup (+ remember the dismissal), then
   // either queue it hands-off or open a session to watch — carrying the note.
   async function submitPreRun() {
-    if (setupFields.some((f) => (setupValues[f.key] ?? '').toString().trim() === '')) return; // all required
+    // REQUIRED-ONLY. Blocking on every displayed field made an optional preference
+    // — correctly skippable during activation — required again at the first Run
+    // click, which silently undid the whole tier split one surface later.
+    if (blankRequired.length) return;
     setSetupSaving(true);
     setMsg('');
     try {
@@ -303,7 +325,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           method: 'POST',
           body: { answers: setupValues, source },
         });
-        if (dontShowAgain) markSetupReviewed(slug);
+        if (dontShowAgain) markSetupCollapsed(slug);
       }
       setShowSetupModal(false);
       // Carry the per-run note into the run: the queue path sends it as the run-request
@@ -572,10 +594,42 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           : 'It runs hands-off; the result lands in your inbox.'}
       </p>
       {setupFields.length > 0 && (
+        <div className="rounded-md border border-ink-800 bg-ink-950/40 px-3 py-2.5 mb-4">
+          {/* A COLLAPSE toggle, never a hide. The settings are always here so the
+              user can see what the agent is about to use — running with stale
+              inputs they could not see is how duplicate work happens. */}
+          <button
+            type="button"
+            onClick={() => setSetupOpen((o) => !o)}
+            className="w-full flex items-center justify-between gap-2 text-left"
+          >
+            <span className="text-xs font-semibold uppercase tracking-wide text-ink-400">
+              Review settings
+              {blankRequired.length > 0 && (
+                <span className="ml-2 normal-case text-[11px] text-amber-700 dark:text-amber-300">
+                  {blankRequired.length} needed
+                </span>
+              )}
+            </span>
+            <span className="text-xs text-ink-500">{setupOpen ? 'Hide' : 'Show'}</span>
+          </button>
+          {!setupOpen && (
+            <p className="text-[11px] text-ink-500 mt-1 truncate">
+              {setupFields.map((f) => `${f.question.replace(/\?$/, '')}: ${(setupValues[f.key] ?? '').toString().trim() || (f.default ? String(f.default) : '—')}`).join(' · ')}
+            </p>
+          )}
+        </div>
+      )}
+      {setupFields.length > 0 && setupOpen && (
         <div className="space-y-4">
           {setupFields.map((f) => (
             <div key={f.key}>
-              <label className="block text-sm text-ink-200 mb-1.5">{f.question}</label>
+              <label className="block text-sm text-ink-200 mb-1.5">
+                {f.question}
+                <span className={isOptionalField(f) ? 'ml-1.5 text-[11px] text-ink-500' : 'ml-1.5 text-[11px] text-amber-700 dark:text-amber-300'}>
+                  {isOptionalField(f) ? 'optional' : 'required'}
+                </span>
+              </label>
               {f.kind === 'choice' && f.options && f.options.length > 0 ? (
                 <select
                   value={setupValues[f.key] ?? ''}
@@ -593,6 +647,24 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                   placeholder={f.kind === 'file' ? 'Paste a file path or link' : 'Type your answer'}
                   className={`w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none${f.kind === 'file' ? ' font-mono text-xs' : ''}`}
                 />
+              )}
+              {/* An optional preference needs a visible way OUT, or a blank field
+                  still reads as an unfinished form the user must clear. */}
+              {isOptionalField(f) && (setupValues[f.key] ?? '').toString().trim() === '' && (
+                <div className="flex items-center gap-3 mt-1.5">
+                  {f.default ? (
+                    <button
+                      type="button"
+                      onClick={() => setSetupValues((v) => ({ ...v, [f.key]: String(f.default) }))}
+                      className="text-xs text-brand-500 hover:underline"
+                    >
+                      Use default ({f.default})
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-ink-500">The agent will decide this itself.</span>
+                  )}
+                  <span className="text-[11px] text-ink-500">Skipping won’t block this run.</span>
+                </div>
               )}
             </div>
           ))}
@@ -627,7 +699,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             onChange={(e) => setDontShowAgain(e.target.checked)}
             className="accent-brand-500 h-3.5 w-3.5"
           />
-          Skip the setup review for this agent next time (you can still add a note)
+          Start with settings collapsed next time (they stay one click away)
         </label>
       )}
       <div className="mt-4 flex items-center justify-end gap-3">
@@ -642,7 +714,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <button
           type="button"
           onClick={submitPreRun}
-          disabled={setupSaving || setupFields.some((f) => (setupValues[f.key] ?? '').toString().trim() === '')}
+          disabled={setupSaving || blankRequired.length > 0}
           className="btn-success text-sm px-5 py-2 disabled:opacity-50"
         >
           {setupSaving ? 'Saving…' : preRunMode === 'watch' ? 'Open in Claude →' : setupFields.length ? 'Save & run' : '▶ Run now'}

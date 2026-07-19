@@ -100,3 +100,51 @@ test('Overview reports readiness from the honest server claim', () => {
   assert.match(page, /blockingQuestions=\{checklist\?\.blockingQuestions\}/, 'the gate is threaded to the actions');
   assert.doesNotMatch(page, /allSatisfied/, 'the server no longer claims satisfaction — nothing may read it');
 });
+
+// P0 (2026-07-18, second review): the tier split stopped at activation. The
+// PRE-RUN dialog still fetched every schema field, knew nothing about
+// optional/default, and disabled "Save & run" if ANY displayed field was blank —
+// so a preference that was correctly skippable during activation became required
+// again at the first Run click. The split was undone one surface later.
+//
+// It also HID all saved settings once the user ticked "skip the setup review",
+// which is how an agent silently re-runs with stale inputs and produces duplicate
+// work: the user could no longer see what it was about to use.
+test('the PRE-RUN dialog blocks on required fields only', () => {
+  const src = read('agent-actions.tsx');
+  assert.doesNotMatch(
+    src,
+    /disabled=\{setupSaving \|\| setupFields\.some\(\(f\) => \(setupValues\[f\.key\] \?\? ''\)\.toString\(\)\.trim\(\) === ''\)\}/,
+    'blocking Run on EVERY displayed field re-requires optional preferences at run time',
+  );
+  assert.match(src, /const blankRequired = setupFields\.filter\(\(f\) => !isOptionalField\(f\) &&/,
+    'one derived list of blocking blanks, optional excluded by construction');
+  assert.match(src, /disabled=\{setupSaving \|\| blankRequired\.length > 0\}/, 'the Run button uses it');
+  assert.match(src, /if \(blankRequired\.length\) return;/, 'and so does the submit guard');
+});
+
+test('the pre-run dialog knows the tier contract and shows it', () => {
+  const src = read('agent-actions.tsx');
+  // Same rule as the server and the setup card — one definition of "optional".
+  assert.match(src, /const isOptionalField = \(f: SetupField\) =>\s*\n?\s*!!f\.optional \|\| \(f\.default !== undefined/,
+    'the dialog must use the same optional rule as normalizeConfigSchema');
+  assert.match(src, /optional\?: boolean;/, 'SetupField must carry optional');
+  assert.match(src, /default\?: string \| null;/, 'SetupField must carry default');
+  assert.match(src, /\{isOptionalField\(f\) \? 'optional' : 'required'\}/, 'each field is labelled with its tier');
+  assert.match(src, /Use default \(\{f\.default\}\)/, 'a defaulted preference offers one-tap accept');
+  assert.match(src, /Skipping won’t block this run\./, 'skipping must be stated as safe');
+});
+
+test('saved settings are COLLAPSED, never hidden, before a run', () => {
+  const src = read('agent-actions.tsx');
+  // The old flag emptied the fields entirely.
+  assert.doesNotMatch(src, /setSetupFields\(reviewed \? \[\] : schema\)/,
+    'hiding the settings is what let an agent re-run on stale inputs the user could not see');
+  assert.match(src, /setSetupFields\(schema\);/, 'the fields are always loaded');
+  assert.match(src, /setSetupOpen\(!setupCollapsed\(slug\)\)/, 'the preference only controls collapse');
+  assert.match(src, /Review settings/, 'there is a visible settings section');
+  // Collapsed still SHOWS the current values, so "what will it use?" is answerable
+  // without expanding.
+  assert.match(src, /\{!setupOpen && \(/, 'a collapsed summary must exist');
+  assert.match(src, /Start with settings collapsed next time/, 'the opt-out collapses rather than hides');
+});
