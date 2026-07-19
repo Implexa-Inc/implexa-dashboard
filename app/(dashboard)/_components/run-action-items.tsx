@@ -72,6 +72,134 @@ function humanConfirmationLabel(a: RunActionItem): string {
   return label ? `I completed: ${label}`.slice(0, 120) : 'I completed this';
 }
 
+/**
+ * ActionRow lives at MODULE level on purpose. It was previously declared inside
+ * RunActionItems, which gave it a new function identity on every parent render —
+ * so each keystroke in the setup <textarea> (setNotes → re-render) remounted the
+ * whole row, and autoFocus put the caret back at position 0. Every character
+ * landed at the front and typed text came out mirrored ("add a web search" →
+ * "hcraes sbew a dda"). Keep it top-level so the textarea survives re-renders.
+ */
+function ActionRow({
+  a, busy, actedLine, open, note,
+  onPrimaryClick, onAct, onDismiss, onNoteChange, onCloseSetup,
+}: {
+  a: RunActionItem;
+  busy: string | null;
+  actedLine: string | undefined;
+  open: boolean;
+  note: string;
+  onPrimaryClick: (a: RunActionItem) => void;
+  onAct: (a: RunActionItem) => void;
+  onDismiss: (a: RunActionItem) => void;
+  onNoteChange: (id: string, value: string) => void;
+  onCloseSetup: (id: string) => void;
+}) {
+  // Queued state is DURABLE: driven by the server status (acting = a continue
+  // run-request was spawned), not just local React state — so it survives a
+  // refresh. Without this the action re-rendered as a fresh clickable button
+  // after reload and looked like the click did nothing (founder hit this).
+  const serverQueued = a.status === 'acting';
+  const serverDone = a.status === 'done';
+  const human = isHumanAction(a);
+  const confirmation = actedLine
+    || (serverQueued ? `Queued — “${a.label}” runs hands-off. Watch it in Active Agents; the result lands on Home.` : null);
+  const ready = a.readiness === 'ready' || human;
+  // A done action: show a quiet "done" pill, never a live button.
+  if (serverDone && !actedLine) {
+    return (
+      <div className="flex items-center gap-2 py-2.5">
+        <span className="text-sm text-emerald-700 dark:text-emerald-300">✓ {a.label} — done</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-start gap-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onPrimaryClick(a)}
+            disabled={!!busy || !!confirmation}
+            className={`${ready ? 'btn-success' : 'btn-outline'} text-sm px-3.5 py-1.5 disabled:opacity-60`}
+          >
+            {busy === a.id
+              ? (human ? 'Saving…' : 'Queuing…')
+              : confirmation
+                ? (human ? '✓ Done' : '✓ Queued')
+                : (human ? humanConfirmationLabel(a) : a.label)}
+          </button>
+          {human && !confirmation && (
+            <span className="text-[10px] uppercase tracking-wide text-ink-500 font-medium">
+              human action
+            </span>
+          )}
+          {!ready && !confirmation && (
+            <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-medium">
+              needs setup
+            </span>
+          )}
+        </div>
+        {confirmation ? (
+          <div className="mt-1.5">
+            <p className="text-xs text-emerald-700 dark:text-emerald-300">{confirmation}</p>
+            {!human && (
+              <Link href="/workflows" className="mt-1 inline-block text-[11px] text-sky-600 dark:text-sky-400 hover:underline">
+                Watch in Active Agents →
+              </Link>
+            )}
+          </div>
+        ) : (
+          <>
+            {a.summary && <p className="mt-1 text-xs text-ink-400 leading-snug">{a.summary}</p>}
+            {!ready && a.blocker && <p className="mt-0.5 text-[11px] text-amber-600/90 dark:text-amber-400/80">{a.blocker}</p>}
+
+            {/* needs_setup panel — collect the missing info / confirm setup BEFORE
+                queuing, so a blocked action never fires blind. */}
+            {!human && !ready && open && (
+              <div className="mt-2.5 rounded-md border border-amber-500/25 bg-amber-500/[0.06] p-3">
+                <p className="text-[11px] text-ink-300">
+                  This needs you to set something up first. Add what it needs below (e.g. the blog slugs, a path,
+                  or a note), <span className="text-ink-400">or run it from a session where the setup is in place</span> — then it goes hands-off.
+                </p>
+                <textarea
+                  value={note}
+                  onChange={(e) => onNoteChange(a.id, e.target.value)}
+                  rows={2}
+                  autoFocus
+                  placeholder={a.blocker || 'Add the missing inputs or setup notes…'}
+                  className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-2.5 py-1.5 text-ink-100 placeholder:text-ink-600 focus:border-amber-500/50 focus:outline-none resize-y"
+                />
+                <div className="mt-2 flex items-center gap-3">
+                  <button type="button" onClick={() => onAct(a)} disabled={!!busy}
+                    className="btn-success text-sm px-3.5 py-1.5 disabled:opacity-60">
+                    {busy === a.id ? 'Queuing…' : 'Run it'}
+                  </button>
+                  <button type="button"
+                    onClick={() => onCloseSetup(a.id)}
+                    className="text-xs text-ink-500 hover:text-ink-300">Cancel</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      {!confirmation && (
+        <button
+          type="button"
+          onClick={() => onDismiss(a)}
+          disabled={!!busy}
+          title="Not needed"
+          aria-label="Dismiss this action"
+          className="shrink-0 text-ink-600 hover:text-ink-300 text-sm leading-none px-1 pt-2 disabled:opacity-50"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function RunActionItems({ runId, actions }: { runId: string; actions: RunActionItem[] }) {
   const supabase = createClient();
   // Local lifecycle: hide a dismissed action, flip an acted one to a confirmation.
@@ -147,113 +275,6 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
   const primary = showAll ? live : live.slice(0, PRIMARY);
   const moreCount = live.length - PRIMARY;
 
-  function Row({ a }: { a: RunActionItem }) {
-    // Queued state is DURABLE: driven by the server status (acting = a continue
-    // run-request was spawned), not just local React state — so it survives a
-    // refresh. Without this the action re-rendered as a fresh clickable button
-    // after reload and looked like the click did nothing (founder hit this).
-    const serverQueued = a.status === 'acting';
-    const serverDone = a.status === 'done';
-    const human = isHumanAction(a);
-    const confirmation = acted[a.id]
-      || (serverQueued ? `Queued — “${a.label}” runs hands-off. Watch it in Active Agents; the result lands on Home.` : null);
-    const ready = a.readiness === 'ready' || human;
-    const open = setupOpen.has(a.id);
-    // A done action: show a quiet "done" pill, never a live button.
-    if (serverDone && !acted[a.id]) {
-      return (
-        <div className="flex items-center gap-2 py-2.5">
-          <span className="text-sm text-emerald-700 dark:text-emerald-300">✓ {a.label} — done</span>
-        </div>
-      );
-    }
-    return (
-      <div className="flex items-start gap-3 py-2.5">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => primaryClick(a)}
-              disabled={!!busy || !!confirmation}
-              className={`${ready ? 'btn-success' : 'btn-outline'} text-sm px-3.5 py-1.5 disabled:opacity-60`}
-            >
-              {busy === a.id
-                ? (human ? 'Saving…' : 'Queuing…')
-                : confirmation
-                  ? (human ? '✓ Done' : '✓ Queued')
-                  : (human ? humanConfirmationLabel(a) : a.label)}
-            </button>
-            {human && !confirmation && (
-              <span className="text-[10px] uppercase tracking-wide text-ink-500 font-medium">
-                human action
-              </span>
-            )}
-            {!ready && !confirmation && (
-              <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-medium">
-                needs setup
-              </span>
-            )}
-          </div>
-          {confirmation ? (
-            <div className="mt-1.5">
-              <p className="text-xs text-emerald-700 dark:text-emerald-300">{confirmation}</p>
-              {!human && (
-                <Link href="/workflows" className="mt-1 inline-block text-[11px] text-sky-600 dark:text-sky-400 hover:underline">
-                  Watch in Active Agents →
-                </Link>
-              )}
-            </div>
-          ) : (
-            <>
-              {a.summary && <p className="mt-1 text-xs text-ink-400 leading-snug">{a.summary}</p>}
-              {!ready && a.blocker && <p className="mt-0.5 text-[11px] text-amber-600/90 dark:text-amber-400/80">{a.blocker}</p>}
-
-              {/* needs_setup panel — collect the missing info / confirm setup BEFORE
-                  queuing, so a blocked action never fires blind. */}
-              {!human && !ready && open && (
-                <div className="mt-2.5 rounded-md border border-amber-500/25 bg-amber-500/[0.06] p-3">
-                  <p className="text-[11px] text-ink-300">
-                    This needs you to set something up first. Add what it needs below (e.g. the blog slugs, a path,
-                    or a note), <span className="text-ink-400">or run it from a session where the setup is in place</span> — then it goes hands-off.
-                  </p>
-                  <textarea
-                    value={notes[a.id] || ''}
-                    onChange={(e) => setNotes((m) => ({ ...m, [a.id]: e.target.value }))}
-                    rows={2}
-                    autoFocus
-                    placeholder={a.blocker || 'Add the missing inputs or setup notes…'}
-                    className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-2.5 py-1.5 text-ink-100 placeholder:text-ink-600 focus:border-amber-500/50 focus:outline-none resize-y"
-                  />
-                  <div className="mt-2 flex items-center gap-3">
-                    <button type="button" onClick={() => act(a)} disabled={!!busy}
-                      className="btn-success text-sm px-3.5 py-1.5 disabled:opacity-60">
-                      {busy === a.id ? 'Queuing…' : 'Run it'}
-                    </button>
-                    <button type="button"
-                      onClick={() => setSetupOpen((s) => { const n = new Set(s); n.delete(a.id); return n; })}
-                      className="text-xs text-ink-500 hover:text-ink-300">Cancel</button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-        {!confirmation && (
-          <button
-            type="button"
-            onClick={() => dismiss(a)}
-            disabled={!!busy}
-            title="Not needed"
-            aria-label="Dismiss this action"
-            className="shrink-0 text-ink-600 hover:text-ink-300 text-sm leading-none px-1 pt-2 disabled:opacity-50"
-          >
-            ✕
-          </button>
-        )}
-      </div>
-    );
-  }
-
   return (
     <section className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
       <div className="flex items-baseline justify-between">
@@ -261,7 +282,21 @@ export default function RunActionItems({ runId, actions }: { runId: string; acti
         <span className="text-[11px] text-ink-500">{live.length} action{live.length === 1 ? '' : 's'} identified</span>
       </div>
       <div className="mt-1.5 divide-y divide-ink-800/70">
-        {primary.map((a) => <Row key={a.id} a={a} />)}
+        {primary.map((a) => (
+          <ActionRow
+            key={a.id}
+            a={a}
+            busy={busy}
+            actedLine={acted[a.id]}
+            open={setupOpen.has(a.id)}
+            note={notes[a.id] || ''}
+            onPrimaryClick={primaryClick}
+            onAct={act}
+            onDismiss={dismiss}
+            onNoteChange={(id, value) => setNotes((m) => ({ ...m, [id]: value }))}
+            onCloseSetup={(id) => setSetupOpen((s) => { const n = new Set(s); n.delete(id); return n; })}
+          />
+        ))}
       </div>
       {!showAll && moreCount > 0 && (
         <button
