@@ -21,6 +21,7 @@ import AgentSetupCard from './agent-setup-card';
 import { ActivationRequirements } from './activation-requirements';
 import AgentFeedback from './agent-feedback';
 import AgentBrowserConnect from './agent-browser-connect';
+import { ImplexaJudgePolicy } from './implexa-judge-policy';
 import { useDesktopBridge, desktopBridge, KeysList, type KeyItem } from './api-key-row';
 import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier } from '@/lib/activation';
 
@@ -773,6 +774,13 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
           />
         ))}
       </ul>
+
+      {/* Optional quality layer at activation, where the user is deciding how
+          this agent should run. It never blocks activation. The same control also
+          lives in Setup so the decision is reversible later. */}
+      <div className="mt-4">
+        <ImplexaJudgePolicy slug={checklist.slug} compact />
+      </div>
 
       <div className="mt-5 flex items-start gap-3">
         {isActive && allSavedGranted ? (

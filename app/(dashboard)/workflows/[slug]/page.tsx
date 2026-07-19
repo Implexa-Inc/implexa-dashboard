@@ -35,6 +35,7 @@ import BackLink from '../../_components/back-link';
 import AgentSetupCard from '../../_components/agent-setup-card';
 import AgentLearningsCard from '../../_components/agent-learnings-card';
 import AgentExecutorPreference from '../../_components/agent-executor-preference';
+import { ImplexaJudgePolicy } from '../../_components/implexa-judge-policy';
 import AgentFeedback from '../../_components/agent-feedback';
 import AgentEditButton from '../../_components/agent-edit-button';
 import StepRow from '../../_components/step-row';
@@ -515,6 +516,9 @@ export default async function WorkflowDetailPage({
   const setupPanel = (
     <>
       <AgentExecutorPreference slug={workflow.slug} />
+      <div className="mb-6">
+        <ImplexaJudgePolicy slug={workflow.slug} />
+      </div>
       {/* The agent's config interview — answer its questions here so it runs
        * unattended (no stopping to ask in Claude Code). Renders nothing when
        * the agent declares no questions. */}

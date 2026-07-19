@@ -30,14 +30,16 @@ import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import Modal from './modal';
 
 export default function RunContinueBox({
-  runId, agentName, pending = false,
+  runId, agentName, pending = false, initialNote = '',
 }: {
   runId: string;
   agentName: string;
   /** Run is held at an approval gate — tunes only the copy (it's still a continue). */
   pending?: boolean;
+  /** Optional evidence-grounded repair prompt from Implexa Judge. User reviews it before queueing. */
+  initialNote?: string;
 }) {
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(initialNote);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [msg, setMsg] = useState('');
