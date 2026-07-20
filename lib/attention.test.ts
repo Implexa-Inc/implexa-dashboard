@@ -106,8 +106,8 @@ test('every source failing silently feeds partial — not just /me/needs-you', (
   assert.match(src, /if \(status === null\) unavailableSources\.push/, 'connections-down (hides sign-ins) must feed partial');
   assert.match(src, /if \(schedRes\.error\) unavailableSources\.push/, 'schedule error (hides missed/unarmed) must feed partial');
   assert.match(src, /if \(stallRes\.error\) unavailableSources\.push/, 'stall error (hides stalled runs) must feed partial');
-  assert.match(src, /partial: unavailableSources\.length > 0/,
-    'partial must derive from the OR of all sources, not from attention.partial alone');
+  assert.match(src, /partial: attention\.partial \|\| unavailableSources\.length > 0/,
+    'partial must OR the endpoint flag with the local sources, not read either alone');
   assert.doesNotMatch(src, /partial:\s*attention\.partial\s*,/,
     'reading only the endpoint back into partial is the exact silent-source bug');
 });

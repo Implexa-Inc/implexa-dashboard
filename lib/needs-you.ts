@@ -246,7 +246,10 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
     // own (attention.partial ⟺ attention.unavailableSources non-empty), so a
     // single length check covers all five sources; truncated ORs the endpoint
     // ceiling with the two local ones.
-    partial: unavailableSources.length > 0,
+    // attention.partial is ORed in explicitly, not just relied on to have a
+    // matching unavailableSources entry: if the endpoint ever reports partial
+    // without naming a source, an all-clear must still be suppressed.
+    partial: attention.partial || unavailableSources.length > 0,
     truncated: attention.truncated || schedTruncated || stallTruncated,
     unavailableSources,
   };
