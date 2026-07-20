@@ -12,17 +12,12 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const DLG = read('app/(dashboard)/_components/judge-review-dialog.tsx');
 const STRIP = read('app/(dashboard)/_components/needs-you-strip.tsx');
 
-test('the typed action maps to a specific resolution reason, never a generic one', () => {
-  for (const [action, reason] of [
-    ['provide_information', 'provided_information'],
-    ['grant_permission', 'granted_permission'],
-    ['open_service', 'opened_service'],
-    ['review_result', 'reviewed'],
-  ]) {
-    const block = DLG.slice(DLG.indexOf(`${action}: {`), DLG.indexOf(`${action}: {`) + 260);
-    assert.match(block, new RegExp(`resolution: '${reason}'`),
-      `${action} must resolve as ${reason} — the calibration signal for whether blocks are actionable`);
-  }
+test('the client no longer asserts a resolution — the server derives it', () => {
+  // A second copy of the mapping here is the drift this workstream keeps paying
+  // for, and a client-asserted resolution made the calibration record
+  // unfalsifiable. Both now live only in the backend.
+  assert.doesNotMatch(DLG, /resolution:/, 'no client-side resolution mapping');
+  assert.match(DLG, /body:\s*\{ continuePrompt \}/, 'only the continuation is sent');
 });
 
 test('P1: a PREREQUISITE (grant/sign-in) has NO queue-nothing path — it must resume', () => {
@@ -58,9 +53,8 @@ test('only provide_information requires text (the answer IS the info)', () => {
 
 test('resolve hits the RESOLVE endpoint; feedback is delegated, not inlined', () => {
   assert.match(DLG, /judge-blocks\/\$\{encodeURIComponent\(judgmentId\)\}\/resolve/);
-  assert.match(DLG, /body:\s*\{ resolution: ui\.resolution, continuePrompt \}/);
-  assert.match(DLG, /<JudgeFeedbackControls judgmentId=\{judgmentId\} initial=\{item\.feedback \?\? null\}/,
-    'feedback is the reusable control, seeded with the saved rating');
+  assert.match(DLG, /<JudgeFeedbackControls judgmentId=\{judgmentId\} initial=\{feedback\}/,
+    'feedback is the reusable control, seeded with the card-owned rating');
   assert.doesNotMatch(DLG, /\/feedback`/, 'the dialog must not re-implement the feedback POST');
 });
 
@@ -91,8 +85,25 @@ test('the modal is a labelled dialog with a focusable container', () => {
 test('Escape dismisses, and focus is TRAPPED then RESTORED', () => {
   assert.match(DLG, /e\.key === 'Escape'.*stableClose\(\)/s, 'Escape closes');
   assert.match(DLG, /if \(e\.key !== 'Tab'\) return;/, 'Tab is intercepted for the trap');
-  assert.match(DLG, /e\.shiftKey && document\.activeElement === first.*last\.focus\(\)/s, 'shift-Tab wraps to the end');
-  assert.match(DLG, /document\.activeElement === last.*first\.focus\(\)/s, 'Tab wraps to the start');
+  assert.match(DLG, /e\.shiftKey && active === first.*last\.focus\(\)/s, 'shift-Tab wraps to the end');
+  assert.match(DLG, /active === last.*first\.focus\(\)/s, 'Tab wraps to the start');
   assert.match(DLG, /\(focusables\(\)\[0\] \|\| node\)\?\.focus\(\)/, 'initial focus enters the dialog');
   assert.match(DLG, /restoreFocusTo\.current\?\.focus\?\.\(\)/, 'focus returns to the trigger on close');
+});
+
+test('the focus trap CONTAINS focus that escaped the dialog', () => {
+  // Clicking a feedback button removes it from the DOM (replaced by saved-state
+  // text), so focus falls to <body> — neither first nor last. Without a
+  // containment fallback every later Tab walks the page behind the modal.
+  assert.match(DLG, /if \(!node \|\| !active \|\| !node\.contains\(active\)\)/,
+    'focus outside the dialog must be pulled back in');
+  assert.match(DLG, /\(e\.shiftKey \? last : first\)\.focus\(\)/, 'and land at the correct end');
+});
+
+test('the saved rating is owned by the CARD, so a reopen does not lose it', () => {
+  // The modal unmounts on close; a control-local rating would vanish and the
+  // reopened dialog would show blank buttons, inviting a second vote.
+  assert.match(DLG, /const \[feedback, setFeedback\] = useState\(item\.feedback \?\? null\)/);
+  assert.match(DLG, /onFeedbackSaved=\{setFeedback\}/, 'the control reports upward');
+  assert.match(DLG, /initial=\{feedback\} onSaved=\{onFeedbackSaved\}/, 'and is seeded from the card state');
 });

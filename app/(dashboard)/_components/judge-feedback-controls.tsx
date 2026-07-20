@@ -22,11 +22,19 @@ import { callBackend } from '@/lib/api';
 type Rating = 'accurate' | 'not_accurate';
 
 export default function JudgeFeedbackControls({
-  judgmentId, initial = null, className = '',
+  judgmentId, initial = null, className = '', onSaved,
 }: {
   judgmentId: string;
   initial?: Rating | null;
   className?: string;
+  /**
+   * Lets the OWNER hold the saved rating. Without this the control's state is
+   * purely local, so closing and immediately reopening the modal remounts it with
+   * the parent's stale `initial` and the rating looks unsaved — the same "blank
+   * buttons invite a second vote" problem the saved state exists to fix. A page
+   * refresh masked it because the server data had caught up by then.
+   */
+  onSaved?: (value: Rating) => void;
 }) {
   const supabase = createClient();
   const [saved, setSaved] = useState<Rating | null>(initial);
@@ -43,6 +51,7 @@ export default function JudgeFeedbackControls({
       }) as { ok?: boolean; error?: string };
       if (!res || res.ok !== true) { setError((res && res.error) || 'Could not save your feedback.'); setBusy(null); return; }
       setSaved(value); setEditing(false); setBusy(null);
+      onSaved?.(value); // hand it to the owner so a remount does not lose it
     } catch { setError('Could not save your feedback.'); setBusy(null); }
   }
 

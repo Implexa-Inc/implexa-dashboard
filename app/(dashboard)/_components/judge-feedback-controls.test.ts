@@ -25,6 +25,18 @@ test('a SAVED rating is shown, not blank buttons that invite a second vote', () 
   assert.match(CTRL, /setEditing\(true\)/, 'and an intentional change is allowed');
 });
 
+test('it REPORTS the save upward so an owner can survive a remount', () => {
+  // The dialog passes onSaved and holds the rating; if the control never calls it,
+  // closing and reopening the modal shows blank buttons again. Passing the prop is
+  // not enough — it has to be invoked, and only after a SUCCESSFUL save.
+  assert.match(CTRL, /onSaved\?\.\(value\)/, 'the control must invoke onSaved');
+  const rateFn = CTRL.slice(CTRL.indexOf('async function rate'), CTRL.indexOf('const showButtons'));
+  const failIdx = rateFn.indexOf('return;');
+  const callIdx = rateFn.indexOf('onSaved?.(value)');
+  assert.ok(callIdx > -1 && failIdx > -1 && callIdx > failIdx,
+    'onSaved fires only after the failure path has returned — never on a failed save');
+});
+
 test('it states the rating does NOT change the run', () => {
   assert.match(CTRL, /doesn.t change this run/i);
 });

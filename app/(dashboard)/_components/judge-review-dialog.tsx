@@ -34,10 +34,14 @@ import { callBackend } from '@/lib/api';
 import type { AttentionItem, RequiredAction } from '@/lib/attention';
 import JudgeFeedbackControls from './judge-feedback-controls';
 
-// The typed human requirement → the resolution reason, the primary button, and
-// whether a null (no-continuation) close is even allowed.
+// The typed human requirement → the primary button, and whether a null
+// (no-continuation) close is even allowed.
+//
+// The RESOLUTION REASON deliberately lives ONLY on the server now: it is derived
+// from the judgment's own human_requirement so a client cannot mislabel the
+// calibration record. Keeping a second copy here would be the same drift this
+// workstream keeps paying for.
 const ACTION_UI: Record<RequiredAction, {
-  resolution: string;
   primaryLabel: string;
   requireText: boolean;      // the answer IS the info — cannot continue empty
   resumePrompt: string;      // default continuation if the user leaves the box empty
@@ -45,21 +49,21 @@ const ACTION_UI: Record<RequiredAction, {
   allowClose: boolean;       // offer "I reviewed this — close" (null continuation)
 }> = {
   provide_information: {
-    resolution: 'provided_information', primaryLabel: 'Continue with this answer',
+    primaryLabel: 'Continue with this answer',
     requireText: true, resumePrompt: '', prefill: () => '', allowClose: false,
   },
   grant_permission: {
-    resolution: 'granted_permission', primaryLabel: 'I granted access — continue',
+    primaryLabel: 'I granted access — continue',
     requireText: false, resumePrompt: 'I’ve granted the access it needed. Please continue where you left off.',
     prefill: () => 'I’ve granted the access it needed. Please continue where you left off.', allowClose: false,
   },
   open_service: {
-    resolution: 'opened_service', primaryLabel: 'I’m signed in — continue',
+    primaryLabel: 'I’m signed in — continue',
     requireText: false, resumePrompt: 'I’m signed in now. Please continue where you left off.',
     prefill: () => 'I’m signed in now. Please continue where you left off.', allowClose: false,
   },
   review_result: {
-    resolution: 'reviewed', primaryLabel: 'Continue with this note',
+    primaryLabel: 'Continue with this note',
     requireText: false, resumePrompt: 'Please continue.', prefill: () => '', allowClose: true,
   },
 };
@@ -68,6 +72,11 @@ export default function JudgeReviewCard({ item }: { item: AttentionItem }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  // The saved rating lives HERE, not only inside the control: the modal unmounts
+  // on close, so a control-local value would be lost and an immediate reopen would
+  // show blank buttons (inviting a second, conflicting vote). `item.feedback` only
+  // catches up after a server refresh.
+  const [feedback, setFeedback] = useState(item.feedback ?? null);
 
   const who = item.agentName || item.agentSlug || 'An agent';
 
@@ -85,6 +94,8 @@ export default function JudgeReviewCard({ item }: { item: AttentionItem }) {
         <JudgeReviewModal
           item={item}
           who={who}
+          feedback={feedback}
+          onFeedbackSaved={setFeedback}
           onClose={() => setOpen(false)}
           onResolved={() => { setOpen(false); router.refresh(); }}
           restoreFocusTo={triggerRef}
@@ -95,11 +106,13 @@ export default function JudgeReviewCard({ item }: { item: AttentionItem }) {
 }
 
 function JudgeReviewModal({
-  item, who, onClose, onResolved, restoreFocusTo,
+  item, who, onClose, onResolved, restoreFocusTo, feedback, onFeedbackSaved,
 }: {
   item: AttentionItem; who: string;
   onClose: () => void; onResolved: () => void;
   restoreFocusTo: React.RefObject<HTMLElement>;
+  feedback: 'accurate' | 'not_accurate' | null;
+  onFeedbackSaved: (v: 'accurate' | 'not_accurate') => void;
 }) {
   const supabase = createClient();
   const judgmentId = item.sourceId;
@@ -126,8 +139,19 @@ function JudgeReviewModal({
       const els = focusables();
       if (!els.length) { e.preventDefault(); node?.focus(); return; }
       const first = els[0]; const last = els[els.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      // CONTAINMENT FALLBACK. Handling only first/last leaks: clicking a feedback
+      // button REMOVES it from the DOM (it is replaced by the saved-state text), so
+      // focus falls to <body> — which is neither first nor last, and every
+      // subsequent Tab then walks the page BEHIND the modal. If focus is anywhere
+      // outside the dialog, pull it back in.
+      const active = document.activeElement;
+      if (!node || !active || !node.contains(active)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+      }
+      if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
     }
     document.addEventListener('keydown', onKey);
     return () => {
@@ -146,7 +170,7 @@ function JudgeReviewModal({
     setBusy(which); setError(null);
     try {
       const res = await callBackend(`/api/v2/me/judge-blocks/${encodeURIComponent(judgmentId)}/resolve`, {
-        jwt: await jwt(), method: 'POST', body: { resolution: ui.resolution, continuePrompt },
+        jwt: await jwt(), method: 'POST', body: { continuePrompt },
       }) as { ok?: boolean; error?: string };
       // A failed enqueue must NOT close the card — the backend leaves the block
       // open on purpose, and the user needs to see why.
@@ -238,7 +262,7 @@ function JudgeReviewModal({
         </div>
 
         <div className="mt-4 pt-3 border-t border-ink-800">
-          <JudgeFeedbackControls judgmentId={judgmentId} initial={item.feedback ?? null} />
+          <JudgeFeedbackControls judgmentId={judgmentId} initial={feedback} onSaved={onFeedbackSaved} />
         </div>
       </div>
     </div>
