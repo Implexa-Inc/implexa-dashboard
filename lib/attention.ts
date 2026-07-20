@@ -63,6 +63,8 @@ export type AttentionItem = {
   createdAt: string | null;
   seenAt: string | null;
   resolvedAt: string | null;
+  /** Saved accuracy rating, so a reopened dialog shows it instead of blank buttons. */
+  feedback?: 'accurate' | 'not_accurate' | null;
 };
 
 export type Attention = {
