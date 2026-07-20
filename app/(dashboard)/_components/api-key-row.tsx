@@ -24,6 +24,21 @@ export type DesktopBridge = {
   grantLocalPermissions?: (tools: string[]) => Promise<{ ok: boolean; added?: string[]; addedDirs?: string[]; error?: string }>;
   openKeySetup?: (provider: string, agentSlug?: string) => Promise<{ ok: boolean; error?: string }>;
   keysConfigured?: () => Promise<Record<string, boolean>>;
+  // ── Vault settings surface (/settings/local-vault) — all optional: feature-
+  // detect each one (absent = older app, calm fallback; REJECTED = real failure,
+  // never render "ready"/"saved" off it). Reads are masked metadata only; the
+  // two request* calls are DE-PRIVILEGING actions decided in a NATIVE dialog
+  // owned by the desktop's main process — the page can ask, never perform.
+  keysAvailable?: () => Promise<boolean>;
+  keyProviders?: () => Promise<Record<string, { label: string; envVar?: string; scope?: string }>>;
+  listKeys?: () => Promise<Array<{
+    provider: string; label: string; envVar?: string | null; scope?: string | null;
+    configuredAt: string | null; lastUsedAt?: string | null;
+    grantedAgents: string[];
+    grants?: Array<{ agentSlug: string; grantedAt: string | null; lastUsedAt: string | null }>;
+  }>>;
+  requestRevokeGrant?: (provider: string, agentSlug: string) => Promise<{ ok: boolean; cancelled?: boolean; error?: string }>;
+  requestDeleteKey?: (provider: string) => Promise<{ ok: boolean; cancelled?: boolean; error?: string }>;
   // PER-AGENT grant booleans. keysConfigured is per-PROVIDER and therefore
   // cannot answer "may THIS agent use the saved key" — see the note on
   // InlineAddKeyButton for the dead end that caused.

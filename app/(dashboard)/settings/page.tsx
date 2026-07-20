@@ -86,6 +86,12 @@ export default async function SettingsHubPage() {
             description="See every device/session connected to your Implexa account — revoke any you don't recognize."
           />
           <SettingsCard
+            href="/settings/local-vault"
+            icon="🔐"
+            title="Local key vault"
+            description="Provider API keys (Runway, ElevenLabs, …) encrypted on your Mac — see what's saved and exactly which agents may use each."
+          />
+          <SettingsCard
             href="/settings/run-environment"
             icon="🖥️"
             title="Run environment"

@@ -29,3 +29,11 @@ export function appRunUrl(runId: string): string {
 export function appAgentUrl(slug: string): string {
   return `implexa://workflows/${encodeURIComponent(slug)}`;
 }
+
+/** The Local key vault page inside the desktop app (implexa://<path> routes to
+ * the in-app dashboard view at that path). Keys live on the Mac, so the web
+ * page can only manage them when the desktop app is running — this is the CTA
+ * the web-without-desktop state offers. */
+export function appLocalVaultUrl(): string {
+  return 'implexa://settings/local-vault';
+}
