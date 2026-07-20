@@ -75,6 +75,31 @@ export async function loadInboxItems(
     }
   }
 
+  // Implexa Judge verdicts for these runs. SEPARATE query for the same reason as
+  // recommendations above: pre-0121/0124 the table or its columns may not exist,
+  // and a missing-column error must cost the VERDICT only — never empty the inbox.
+  // Newest-first so the map keeps the latest verdict per run.
+  const judgmentByRun = new Map<string, NonNullable<InboxItem['judgment']>>();
+  if (runs.length) {
+    try {
+      const { data: jRows } = await supabase
+        .from('run_judgments')
+        .select('id, run_id, verdict, summary, next_action, created_at')
+        .in('run_id', runs.map((r) => r.id))
+        .order('created_at', { ascending: false });
+      for (const row of (jRows as { id: string; run_id: string; verdict: string; summary: string | null; next_action: string | null }[] | null) ?? []) {
+        if (!judgmentByRun.has(row.run_id)) {
+          judgmentByRun.set(row.run_id, {
+            id: row.id,
+            verdict: row.verdict as NonNullable<InboxItem['judgment']>['verdict'],
+            summary: row.summary,
+            next_action: row.next_action,
+          });
+        }
+      }
+    } catch { /* no verdicts rather than no inbox */ }
+  }
+
   return runs
     // Drop "resolver" rows — bookkeeping placeholders run_agent_now opens during a
     // continue while the real deliverable records on the linked continuation run.
@@ -99,6 +124,7 @@ export async function loadInboxItems(
       feedbackAnswers:   (r as { feedback_answers?: Record<string, string> | null }).feedback_answers ?? null,
       feedbackAt:        (r as { feedback_at?: string | null }).feedback_at ?? null,
       recommendations:   recsById.get(r.id) ?? null,
+      judgment:          judgmentByRun.get(r.id) ?? null,
     } satisfies InboxItem;
   });
 }

@@ -59,6 +59,20 @@ export type InboxItem = {
   feedbackAt:        string | null;
   /** Next-agent recommendations carried on this run's output (rec engine v1). */
   recommendations:   Recommendation[] | null;
+  /**
+   * The Implexa Judge verdict for this run, if one exists.
+   *
+   * The overlay is where people actually READ a result — but it never showed the
+   * verdict and never linked to /runs/<id>, so once the pop-up was open the review
+   * was unreachable ("I have no clue how to check it again"). A review nobody can
+   * find is a review that didn't happen.
+   */
+  judgment: {
+    id: string;
+    verdict: 'pass' | 'repair' | 'blocked' | 'uncertain';
+    summary: string | null;
+    next_action: string | null;
+  } | null;
 };
 
 // Traffic-light status so Results reads as a clear-it-to-zero todo list:
@@ -458,6 +472,47 @@ export default function InboxList({
             ) : (
               <p className="text-sm text-ink-400 italic">No deliverable recorded for this run.</p>
             )}
+
+            {/* The Judge verdict, WHERE THE RESULT IS ACTUALLY READ. It rendered only
+                on /runs/<id>, and this overlay had no link there — so once you opened
+                a result the review was unreachable. A review nobody can find is a
+                review that didn't happen. Compact here; the full card (criteria,
+                evidence, repair state, accuracy feedback) stays on the run page. */}
+            {openItem.judgment && (
+              <div className={`mt-3 rounded-lg border px-3 py-2.5 ${
+                openItem.judgment.verdict === 'pass' ? 'border-emerald-500/30 bg-emerald-500/5'
+                : openItem.judgment.verdict === 'blocked' ? 'border-orange-500/35 bg-orange-500/5'
+                : openItem.judgment.verdict === 'repair' ? 'border-amber-500/35 bg-amber-500/5'
+                : 'border-ink-700 bg-ink-900/40'}`}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] uppercase tracking-wide text-ink-500">Implexa Judge</span>
+                  <span className={`text-xs font-medium ${
+                    openItem.judgment.verdict === 'pass' ? 'text-emerald-300'
+                    : openItem.judgment.verdict === 'blocked' ? 'text-orange-300'
+                    : openItem.judgment.verdict === 'repair' ? 'text-amber-300' : 'text-ink-300'}`}>
+                    {openItem.judgment.verdict === 'pass' ? 'Passed review'
+                      : openItem.judgment.verdict === 'blocked' ? 'Blocked — needs you'
+                      : openItem.judgment.verdict === 'repair' ? 'Repair suggested' : 'Couldn’t confirm'}
+                  </span>
+                  <span className="text-[10px] text-ink-600">AI review · separate from “Verified complete”</span>
+                </div>
+                {openItem.judgment.summary && (
+                  <p className="text-xs text-ink-300 mt-1.5 whitespace-pre-wrap">{openItem.judgment.summary}</p>
+                )}
+                {openItem.judgment.next_action && openItem.judgment.verdict !== 'pass' && (
+                  <p className="text-[11px] text-ink-400 mt-1">{openItem.judgment.next_action}</p>
+                )}
+                <a href={`/runs/${openItem.id}`} className="text-[11px] text-brand-500 hover:underline mt-1.5 inline-block">
+                  Full review, evidence &amp; accuracy feedback →
+                </a>
+              </div>
+            )}
+
+            {/* Always reachable, verdict or not: the overlay previously had NO route
+                to the run permalink at all. */}
+            <a href={`/runs/${openItem.id}`} className="text-[11px] text-ink-500 hover:text-ink-300 underline mt-2 inline-block">
+              Open full run
+            </a>
 
             {/* Per-run feedback , the same focused-popout form, inline here too
                 so you can rate without leaving the output. */}

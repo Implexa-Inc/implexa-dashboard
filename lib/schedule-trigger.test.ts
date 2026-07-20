@@ -54,3 +54,25 @@ test('the Routines list excludes on_demand — it is not autopilot', () => {
   const f = readFileSync(join(process.cwd(), 'app', '(dashboard)', 'scheduled', 'page.tsx'), 'utf8');
   assert.match(f, /\.filter\(\(r\) => !isOnDemandRoutine\(r\)\)/);
 });
+
+// ── the Judge verdict must be reachable from where results are READ ──────────
+
+test('the inbox overlay surfaces the Judge verdict AND a run permalink', () => {
+  // The verdict rendered only on /runs/<id>, and the overlay linked nowhere — so
+  // once a result was open the review was unreachable. Founder, during the smoke
+  // test: "I have no clue how to check it again."
+  const overlay = readFileSync(join(process.cwd(), 'app', '(dashboard)', 'inbox', 'inbox-list.tsx'), 'utf8');
+  assert.match(overlay, /openItem\.judgment && \(/, 'the overlay must render the verdict');
+  assert.match(overlay, /Full review, evidence/, 'and route to the full card for the detail');
+  assert.match(overlay, /Open full run/, 'a permalink must exist even with no verdict');
+});
+
+test('a missing run_judgments table costs the VERDICT, never the inbox', () => {
+  // Same isolation the recommendations fetch uses: pre-0121 the table may not
+  // exist, and an inbox that empties itself is far worse than a missing badge.
+  const loader = readFileSync(join(process.cwd(), 'lib', 'inbox.ts'), 'utf8');
+  const block = loader.slice(loader.indexOf('const judgmentByRun'), loader.indexOf('return runs'));
+  assert.match(block, /try \{/, 'the judgment fetch must be isolated');
+  assert.match(block, /catch \{/);
+  assert.match(block, /\.from\('run_judgments'\)/);
+});
