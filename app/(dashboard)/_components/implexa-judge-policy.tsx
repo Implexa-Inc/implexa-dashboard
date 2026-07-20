@@ -103,7 +103,12 @@ export function ImplexaJudgePolicy({ slug, compact = false }: { slug: string; co
           onClick={() => setEnabled(!enabled)}
           className={`relative mt-0.5 h-6 w-11 flex-none rounded-full transition-colors disabled:opacity-50 ${enabled ? 'bg-emerald-500' : 'bg-ink-700'}`}
         >
-          <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          {/* left-0 is REQUIRED, not decorative. Without a horizontal anchor an
+              absolutely-positioned element falls back to its STATIC position, and a
+              <button> centers its content — so the knob started mid-track and
+              translate-x-5 shoved it past the right edge. Off looked half-on, and on
+              overflowed the pill. Anchor left, then translate from there. */}
+          <span className={`absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
           <span className="sr-only">{enabled ? 'Turn off Implexa Judge' : 'Add Implexa Judge'}</span>
         </button>
       </div>

@@ -40,6 +40,14 @@ test('Judge activation discloses bounded automatic repair and human escalation',
   assert.match(card, /Human action required/);
 });
 
+test('the toggle knob is ANCHORED — no static-position drift or overflow', () => {
+  // Without left-0 the knob falls back to its static position, and a <button>
+  // centers its content: off rendered half-on and on overflowed the pill.
+  assert.match(policy, /absolute left-0 top-0\.5 h-5 w-5/, 'the knob must be anchored to the track');
+  assert.match(policy, /enabled \? 'translate-x-\[22px\]' : 'translate-x-0\.5'/,
+    'w-11 track (44px) minus w-5 knob (20px) leaves 22px travel — equal 2px inset both ends');
+});
+
 test('turning Judge ON does not opt the user into SPENDING', () => {
   // 'every_run' is in the backend's AUTO_REPAIR_MODES: it queues repair
   // continuations that re-run the agent on the user's own Claude/Codex
