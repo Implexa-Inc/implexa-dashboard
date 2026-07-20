@@ -29,10 +29,43 @@ test('AI judgment is visibly separate from evidence-based verification', () => {
 });
 
 test('Judge activation discloses bounded automatic repair and human escalation', () => {
-  assert.match(policy, /fixes it automatically and checks the new result again—up to two repair passes/);
-  assert.match(policy, /Missing inputs, new permissions, approvals, and consequential actions come back to you/);
+  // The disclosure MOVED (2026-07-19) from the always-on description into the
+  // auto-repair opt-in, because that is the only mode it is true in. The
+  // requirement is unchanged: bounded passes + what escalates to a human must be
+  // stated where the user makes the choice.
+  assert.match(policy, /up to two repair passes/);
+  assert.match(policy, /Missing inputs, new permissions, approvals, and consequential actions/);
+  assert.match(policy, /come back to you/);
   assert.match(card, /Automatic repair stopped after/);
   assert.match(card, /Human action required/);
+});
+
+test('turning Judge ON does not opt the user into SPENDING', () => {
+  // 'every_run' is in the backend's AUTO_REPAIR_MODES: it queues repair
+  // continuations that re-run the agent on the user's own Claude/Codex
+  // subscription. Enabling a review feature must land on 'observe'.
+  assert.match(policy, /setEnabled = \(enabled: boolean\) => save\(enabled \? 'observe' : 'off'\)/,
+    'the switch must enable OBSERVE, never every_run');
+  assert.match(policy, /setAutoRepair/, 'auto-repair must be its own explicit control');
+});
+
+test('an OBSERVING policy renders as ON, not as Off', () => {
+  // The shipped version coerced anything that was not 'every_run' to 'off', so a
+  // policy that was actively reviewing every run displayed as disabled.
+  assert.match(policy, /const enabled = mode === 'observe' \|\| mode === 'every_run'/);
+  assert.doesNotMatch(policy, /const enabled = mode === 'every_run';/,
+    'reading only every_run as enabled is the bug that hid observe');
+});
+
+test('the always-on copy does not promise repairs that only happen in every_run', () => {
+  // Describing work the feature will not do is the same class of lie as an
+  // all-clear over an unread source.
+  assert.match(policy, /nothing is changed and nothing is re-run unless you turn on automatic repair/i);
+});
+
+test('the status line distinguishes reviewing from repairing', () => {
+  assert.match(policy, /Reviews every run and reports back/, 'observe must say what it actually does');
+  assert.match(policy, /Reviews every run and safely repairs/, 'and every_run must say the stronger thing');
 });
 
 test('the run page reads the judgment-origin request rather than guessing repair progress', () => {
