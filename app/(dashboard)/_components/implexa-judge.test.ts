@@ -103,20 +103,13 @@ test('a missing or unreadable Judge policy shows NO badge rather than breaking t
 
 // ── Pause must describe something that can actually happen ───────────────────
 
-test('Pause is offered ONLY for a routine that can fire on a clock', () => {
-  // Activation writes a scheduled_skills row for every activated agent, including
-  // on-demand ones (trigger_type 'on_demand', no cron). Gating Pause on status
-  // alone showed the control for agents that were never scheduled and would never
-  // fire — the user reads "Pause" as "this is running on a schedule".
-  assert.match(slugPage, /function isClockScheduled\(r: Routine\): boolean/);
-  assert.match(slugPage, /if \(r\.trigger_type === 'on_demand'\) return false;/,
-    'an on-demand row has nothing to pause');
-  assert.match(slugPage, /return !!\(r\.cron_expression \|\| r\.fire_at\);/,
-    'cron (recurring) or fire_at (one-time) is what makes it real');
-  // BOTH pause sites must use it — the catalog page and the schedule-only fallback.
-  assert.equal((slugPage.match(/&& isClockScheduled\(r\)\)/g) || []).length, 2,
-    'both the workflow page and the skill-only fallback must gate identically');
-  // and the columns it depends on must actually be selected
-  assert.equal((slugPage.match(/claude_task_id, trigger_type, fire_at'\)/g) || []).length, 2,
-    'both queries must select trigger_type + fire_at or the predicate reads undefined');
+test('Pause is gated on the SHARED predicate, wired at both sites', () => {
+  // The rule itself now lives in lib/schedule-trigger (behaviourally tested there,
+  // including the watch/until regression). Here we only pin that this page uses it
+  // — and uses it in BOTH places, since the fallback page renders Pause too.
+  assert.match(slugPage, /import \{ isPausableRoutine \} from '@\/lib\/schedule-trigger';/);
+  assert.equal((slugPage.match(/&& isPausableRoutine\(r\)\)/g) || []).length, 2,
+    'the catalog page and the schedule-only fallback must gate identically');
+  assert.doesNotMatch(slugPage, /r\.cron_expression \|\| r\.fire_at/,
+    'requiring a clock hid Pause for watch/until routines, which carry cron_expression = null');
 });

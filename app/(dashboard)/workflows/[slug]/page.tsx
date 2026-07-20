@@ -44,22 +44,9 @@ import { getActivationChecklist } from '@/lib/activation';
 import { getMyAgents } from '@/lib/agents-home';
 import { isRevisePending, newestVersionAt } from '@/lib/revise-pending';
 import GradeBadge from '../../_components/grade-badge';
+import { isPausableRoutine } from '@/lib/schedule-trigger';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * Can this routine actually FIRE on a clock? Activation writes a scheduled_skills
- * row for EVERY activated agent, including on-demand ones (trigger_type
- * 'on_demand', carrying a sentinel schedule_nl and no cron) — so status alone is
- * not "it is scheduled". Offering Pause on those told the user an agent was
- * running on a schedule when nothing would ever fire, and left them pausing a
- * thing that was already inert. Same family as the archive-that-lies problem:
- * a control must describe what it actually does.
- */
-function isClockScheduled(r: Routine): boolean {
-  if (r.trigger_type === 'on_demand') return false;
-  return !!(r.cron_expression || r.fire_at);
-}
 
 type Routine = {
   id: string;
@@ -137,7 +124,7 @@ export default async function WorkflowDetailPage({
     ]);
     const sched = (schedRows as Routine[]) || [];
     if (sched.length === 0) notFound();
-    const pausable = sched.find((r) => (r.status === 'active' || r.status === 'paused') && isClockScheduled(r)) || null;
+    const pausable = sched.find((r) => (r.status === 'active' || r.status === 'paused') && isPausableRoutine(r)) || null;
     const niceName = params.slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     return (
       <main className="min-h-screen px-4 py-10">
@@ -210,7 +197,7 @@ export default async function WorkflowDetailPage({
 
   const routines: Routine[] = (routineRows as Routine[]) || [];
   // The routine to Pause/Resume from the header (the live one, if any).
-  const pausableRoutine = routines.find((r) => (r.status === 'active' || r.status === 'paused') && isClockScheduled(r)) || null;
+  const pausableRoutine = routines.find((r) => (r.status === 'active' || r.status === 'paused') && isPausableRoutine(r)) || null;
 
   // Connection health for THIS agent: warn loudly if it needs an account that is
   // not reachable in the Implexa browser. Degrades to no banner when the read is

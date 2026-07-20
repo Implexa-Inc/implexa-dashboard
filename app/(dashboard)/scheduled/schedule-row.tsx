@@ -1,5 +1,7 @@
 'use client';
 
+import type { TriggerType } from '@/lib/schedule-trigger';
+
 /**
  * <ScheduleRow /> — one row in the scheduled-skills manage list.
  *
@@ -34,7 +36,7 @@ type ScheduledSkill = {
   skill_slug:       string;
   schedule_nl:      string;
   cron_expression:  string | null;
-  trigger_type?:    'cron' | 'watch' | 'until';
+  trigger_type?:    TriggerType;
   watch_condition?: { watch?: string; until?: string } | null;
   timezone:         string;
   destination:      { type: 'dashboard' | 'slack-webhook' | 'slack-plugin' | 'email'; target?: string };

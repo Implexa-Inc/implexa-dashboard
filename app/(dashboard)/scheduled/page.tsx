@@ -9,6 +9,7 @@
  * Empty state nudges the user to invoke /implexa:schedule from Claude Code.
  */
 
+import { type TriggerType, isOnDemandRoutine } from '@/lib/schedule-trigger';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
@@ -30,7 +31,7 @@ type ScheduledSkill = {
   skill_slug:       string;
   schedule_nl:      string;
   cron_expression:  string | null;
-  trigger_type?:    'cron' | 'watch' | 'until';
+  trigger_type?:    TriggerType;
   watch_condition?: { watch?: string; until?: string } | null;
   timezone:         string;
   destination:      { type: 'dashboard' | 'slack-webhook' | 'slack-plugin' | 'email'; target?: string };
@@ -65,7 +66,11 @@ export default async function ScheduledPage() {
     listWorkflows(),
   ]);
 
-  const items: ScheduledSkill[] = (schedules as ScheduledSkill[]) || [];
+  // on_demand rows are activation artifacts with no clock and no loop — nothing
+  // ever fires. This page is titled "Routines … runs a workflow on a schedule", so
+  // listing them here presents an agent as autopilot when it is not. Same lie the
+  // agent page told with its Pause button.
+  const items: ScheduledSkill[] = ((schedules as ScheduledSkill[]) || []).filter((r) => !isOnDemandRoutine(r));
   const workflowBySlug = new Map<string, RoutineWorkflow>(
     catalog.map((c) => [c.slug, { source: c.source, safety: remoteSafetyFromCard(c) }]),
   );
