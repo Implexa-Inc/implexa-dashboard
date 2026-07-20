@@ -47,11 +47,27 @@ import GradeBadge from '../../_components/grade-badge';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Can this routine actually FIRE on a clock? Activation writes a scheduled_skills
+ * row for EVERY activated agent, including on-demand ones (trigger_type
+ * 'on_demand', carrying a sentinel schedule_nl and no cron) — so status alone is
+ * not "it is scheduled". Offering Pause on those told the user an agent was
+ * running on a schedule when nothing would ever fire, and left them pausing a
+ * thing that was already inert. Same family as the archive-that-lies problem:
+ * a control must describe what it actually does.
+ */
+function isClockScheduled(r: Routine): boolean {
+  if (r.trigger_type === 'on_demand') return false;
+  return !!(r.cron_expression || r.fire_at);
+}
+
 type Routine = {
   id: string;
   skill_slug: string;
   schedule_nl: string;
-  cron_expression: string;
+  cron_expression: string | null;
+  trigger_type?: string | null;
+  fire_at?: string | null;
   status: 'active' | 'paused' | 'failed';
   last_run_at: string | null;
   run_count: number;
@@ -114,14 +130,14 @@ export default async function WorkflowDetailPage({
     const [{ data: schedRows }, skillRuns] = await Promise.all([
       supabase
         .from('scheduled_skills')
-        .select('id, skill_slug, schedule_nl, cron_expression, status, last_run_at, run_count, destination, claude_task_id')
+        .select('id, skill_slug, schedule_nl, cron_expression, status, last_run_at, run_count, destination, claude_task_id, trigger_type, fire_at')
         .eq('skill_slug', params.slug)
         .order('created_at', { ascending: false }),
       loadInboxItems(supabase, 20, params.slug),
     ]);
     const sched = (schedRows as Routine[]) || [];
     if (sched.length === 0) notFound();
-    const pausable = sched.find((r) => r.status === 'active' || r.status === 'paused') || null;
+    const pausable = sched.find((r) => (r.status === 'active' || r.status === 'paused') && isClockScheduled(r)) || null;
     const niceName = params.slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     return (
       <main className="min-h-screen px-4 py-10">
@@ -174,18 +190,27 @@ export default async function WorkflowDetailPage({
   // Schedule for this workflow (RLS-scoped) + this agent's runs as todo items so
   // the Runs tab reuses the same colored-todo + output pop-up + feedback machinery
   // as Home. This is what links the workflow to its routine and its output.
-  const [{ data: routineRows }, agentRuns] = await Promise.all([
+  const [{ data: routineRows }, agentRuns, judgePolicy] = await Promise.all([
     supabase
       .from('scheduled_skills')
-      .select('id, skill_slug, schedule_nl, cron_expression, status, last_run_at, run_count, destination, claude_task_id')
+      .select('id, skill_slug, schedule_nl, cron_expression, status, last_run_at, run_count, destination, claude_task_id, trigger_type, fire_at')
       .eq('skill_slug', workflow.slug)
       .order('created_at', { ascending: false }),
     loadInboxItems(supabase, 20, workflow.slug),
+    // Judge policy for THIS agent (RLS select-own scopes it to the caller). Read
+    // defensively: pre-0121/0124 the table or the 'observe' value may not exist,
+    // and a missing policy must degrade to "no badge", never break the page.
+    supabase
+      .from('user_agent_judge_policies')
+      .select('mode')
+      .eq('skill_slug', workflow.slug)
+      .maybeSingle()
+      .then((r) => (r && r.data ? r.data.mode : null), () => null),
   ]);
 
   const routines: Routine[] = (routineRows as Routine[]) || [];
   // The routine to Pause/Resume from the header (the live one, if any).
-  const pausableRoutine = routines.find((r) => r.status === 'active' || r.status === 'paused') || null;
+  const pausableRoutine = routines.find((r) => (r.status === 'active' || r.status === 'paused') && isClockScheduled(r)) || null;
 
   // Connection health for THIS agent: warn loudly if it needs an account that is
   // not reachable in the Implexa browser. Degrades to no banner when the read is
@@ -592,6 +617,29 @@ export default async function WorkflowDetailPage({
             {workflow.unproven && (
               <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-amber-700 dark:text-amber-300">
                 auto-generated · unproven
+              </span>
+            )}
+            {/* Judge state belongs beside the other "what is this agent" facts, so
+                you can see at a glance that a second model reviews this agent's runs
+                without opening Setup.
+                The two ON modes are NOT collapsed into one badge on purpose: observe
+                only reviews, every_run may queue a repair that RE-RUNS the agent on
+                your own subscription. A badge that said just "ON" for both would hide
+                the one that spends money. */}
+            {judgePolicy === 'observe' && (
+              <span
+                className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-violet-600 dark:text-violet-300"
+                title="Implexa Judge reviews every run of this agent and reports back. Nothing is changed or re-run."
+              >
+                Judge: on
+              </span>
+            )}
+            {judgePolicy === 'every_run' && (
+              <span
+                className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-violet-500/40 text-violet-600 dark:text-violet-300"
+                title="Implexa Judge reviews every run AND may automatically re-run this agent to repair what it safely can, on your own subscription."
+              >
+                Judge: on · repair
               </span>
             )}
           </div>

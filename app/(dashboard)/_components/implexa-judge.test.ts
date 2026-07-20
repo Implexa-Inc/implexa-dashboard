@@ -81,3 +81,42 @@ test('the run page reads the judgment-origin request rather than guessing repair
   assert.match(runPage, /<RunJudgmentPending phase="repair"/);
   assert.match(runPage, /repairRequest=\{repairRequest\}/);
 });
+
+// ── the agent-header Judge badge ─────────────────────────────────────────────
+
+const slugPage = readFileSync(join(process.cwd(), 'app', '(dashboard)', 'workflows', '[slug]', 'page.tsx'), 'utf8');
+
+test('the header badge distinguishes observe from every_run — one label would hide the spending mode', () => {
+  // every_run may RE-RUN the agent on the user's own subscription; observe never
+  // does. Collapsing both into "Judge: on" would hide the one that costs money.
+  assert.match(slugPage, /judgePolicy === 'observe'/);
+  assert.match(slugPage, /judgePolicy === 'every_run'/);
+  assert.match(slugPage, /Judge: on · repair/, 'the auto-repair mode must say so');
+  assert.doesNotMatch(slugPage, /judgePolicy !== 'off'/,
+    'a single !== off badge would collapse the two modes');
+});
+
+test('a missing or unreadable Judge policy shows NO badge rather than breaking the page', () => {
+  assert.match(slugPage, /\.maybeSingle\(\)\s*\n?\s*\.then\(\(r\) => \(r && r\.data \? r\.data\.mode : null\), \(\) => null\)/,
+    'the read degrades to null on both empty and error');
+});
+
+// ── Pause must describe something that can actually happen ───────────────────
+
+test('Pause is offered ONLY for a routine that can fire on a clock', () => {
+  // Activation writes a scheduled_skills row for every activated agent, including
+  // on-demand ones (trigger_type 'on_demand', no cron). Gating Pause on status
+  // alone showed the control for agents that were never scheduled and would never
+  // fire — the user reads "Pause" as "this is running on a schedule".
+  assert.match(slugPage, /function isClockScheduled\(r: Routine\): boolean/);
+  assert.match(slugPage, /if \(r\.trigger_type === 'on_demand'\) return false;/,
+    'an on-demand row has nothing to pause');
+  assert.match(slugPage, /return !!\(r\.cron_expression \|\| r\.fire_at\);/,
+    'cron (recurring) or fire_at (one-time) is what makes it real');
+  // BOTH pause sites must use it — the catalog page and the schedule-only fallback.
+  assert.equal((slugPage.match(/&& isClockScheduled\(r\)\)/g) || []).length, 2,
+    'both the workflow page and the skill-only fallback must gate identically');
+  // and the columns it depends on must actually be selected
+  assert.equal((slugPage.match(/claude_task_id, trigger_type, fire_at'\)/g) || []).length, 2,
+    'both queries must select trigger_type + fire_at or the predicate reads undefined');
+});
