@@ -18,6 +18,7 @@ import Link from 'next/link';
 import type { NeedsYou } from '@/lib/needs-you';
 import { attentionWarning, type AttentionItem } from '@/lib/attention';
 import FixNowButton from './fix-now-button';
+import JudgeReviewCard from './judge-review-dialog';
 
 function Item({ title, detail, href, cta, warn = false }: {
   title: string; detail: string; href: string; cta: string; warn?: boolean;
@@ -43,6 +44,12 @@ function Item({ title, detail, href, cta, warn = false }: {
  * result and find a question instead.
  */
 function AttentionCard({ item }: { item: AttentionItem }) {
+  // A Judge block is ACTIONABLE HERE: it opens the review/fix dialog that executes
+  // its typed action (continue with an edited fix, mark handled, rate accuracy).
+  // Held/stalled runs keep their existing behaviour — a link to the run, whose own
+  // approve/continue affordances own that flow.
+  if (item.sourceType === 'judge_block') return <JudgeReviewCard item={item} />;
+
   const who = item.agentName || item.agentSlug || 'An agent';
   const href = item.runId ? `/runs/${item.runId}` : `/workflows/${item.agentSlug || ''}`;
   return (
