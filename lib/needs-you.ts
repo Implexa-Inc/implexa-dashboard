@@ -72,9 +72,15 @@ export type NeedsYou = {
    * unreachable, or the backend hit its ceiling. NO SURFACE MAY RENDER AN
    * ALL-CLEAR WHILE THIS IS TRUE: "Nothing needs you" over an unread source is
    * the silent-stop failure this whole feature exists to remove.
+   *
+   * It ORs ALL FIVE sources: the /me/needs-you endpoint AND the four local reads
+   * (agents→grants, connections→sign-ins, schedules, stalls). Any one dark makes
+   * the list unverifiable.
    */
   partial: boolean;
   truncated: boolean;
+  /** Which sources could not be read, for the surface to name if it wants to. */
+  unavailableSources: string[];
 };
 
 type SchedRow = {
@@ -84,8 +90,14 @@ type SchedRow = {
 };
 type StalledRow = { id: string; skill_slug: string; ran_at: string; stalled_at: string | null };
 
+// Display ceilings for the two retained direct reads. We fetch ONE MORE than we
+// show, so a full page is distinguishable from an overflowing one: 101 schedules
+// or 11 stalls must announce themselves rather than silently dropping the tail.
+const SCHED_LIMIT = 100;
+const STALL_LIMIT = 10;
+
 export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> {
-  const [status, myAgents, { data: schedules }, attention, { data: stalledRows }] = await Promise.all([
+  const [status, myAgents, schedRes, attention, stallRes] = await Promise.all([
     getConnectionStatus(),
     getMyAgents(),
     supabase
@@ -93,7 +105,7 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
       .select('id, skill_slug, cron_expression, schedule_nl, status, last_run_at, claude_task_id')
       .in('status', ['active', 'failed'])
       .order('created_at', { ascending: false })
-      .limit(100),
+      .limit(SCHED_LIMIT + 1),
     // REPLACES the direct `review_status='pending'` read. The backend owns this
     // now, and covers strictly more: 'needs_input' holds as well as 'pending',
     // plus Judge blocks, each with the typed action that resolves it. Reading
@@ -113,8 +125,29 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
       .eq('run_state', 'stalled')
       .gte('ran_at', new Date(Date.now() - 24 * 3600 * 1000).toISOString())
       .order('ran_at', { ascending: false })
-      .limit(10),
+      .limit(STALL_LIMIT + 1),
   ]);
+
+  // EVERY source's availability feeds `partial`, not just the endpoint's. The
+  // four sources below fail SILENTLY — getMyAgents/getConnectionStatus return
+  // null, the two queries return an error — and each failure hides a whole class
+  // of work (grants, sign-ins, schedules, stalls). Leaving `partial` false while
+  // any of them is dark is the same false all-clear the endpoint goes to trouble
+  // to avoid, just relocated to the composition layer. On these authed pages null
+  // means "could not read", never "new user with nothing" (a zero-agent user gets
+  // a non-null empty structure), so treating null as unavailable does not nag.
+  const unavailableSources: string[] = [...attention.unavailableSources];
+  if (myAgents === null) unavailableSources.push('agents');       // → hides grants
+  if (status === null) unavailableSources.push('connections');    // → hides sign-ins
+  if (schedRes.error) unavailableSources.push('schedules');       // → hides missed/unarmed
+  if (stallRes.error) unavailableSources.push('stalled_runs');    // → hides stalled runs
+
+  // Overflow BEFORE slicing: a 101st schedule or 11th stall we never examined may
+  // itself be the thing needing a human, so "there might be more" must be told.
+  const schedTruncated = (schedRes.data?.length || 0) > SCHED_LIMIT;
+  const stallTruncated = (stallRes.data?.length || 0) > STALL_LIMIT;
+  const schedules = (schedRes.data || []).slice(0, SCHED_LIMIT);
+  const stalledRows = (stallRes.data || []).slice(0, STALL_LIMIT);
 
   const allMyAgents: MyAgent[] = myAgents ? [...myAgents.active, ...myAgents.needsActivation] : [];
   const nameBySlug = new Map(allMyAgents.map((a) => [a.slug, a.name]));
@@ -209,8 +242,12 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
   return {
     needGrant, missed, signIns, stalled, attentionItems, homeAttention, pendingReviews, homeCount, total,
     // Carried all the way to the surface so an empty list can never be mistaken
-    // for a verified all-clear.
-    partial: attention.partial,
-    truncated: attention.truncated,
+    // for a verified all-clear. unavailableSources already folds in the endpoint's
+    // own (attention.partial ⟺ attention.unavailableSources non-empty), so a
+    // single length check covers all five sources; truncated ORs the endpoint
+    // ceiling with the two local ones.
+    partial: unavailableSources.length > 0,
+    truncated: attention.truncated || schedTruncated || stallTruncated,
+    unavailableSources,
   };
 }

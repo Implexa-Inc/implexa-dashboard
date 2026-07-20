@@ -95,6 +95,37 @@ test('the duplicated approval read is GONE — one read model, not two', () => {
   assert.match(src, /getAttention\(\)/, 'held runs now come from the unified endpoint');
 });
 
+// ── 3b. partial ORs EVERY source, not only the endpoint ──────────────────────
+
+test('every source failing silently feeds partial — not just /me/needs-you', () => {
+  // Each of these four fails without throwing (null return / query error) and
+  // each hides a whole class of work. If partial stays false while any is dark,
+  // the surface renders a false all-clear over, e.g., a grant the user must give.
+  const src = read('lib/needs-you.ts');
+  assert.match(src, /if \(myAgents === null\) unavailableSources\.push/, 'agents-down (hides grants) must feed partial');
+  assert.match(src, /if \(status === null\) unavailableSources\.push/, 'connections-down (hides sign-ins) must feed partial');
+  assert.match(src, /if \(schedRes\.error\) unavailableSources\.push/, 'schedule error (hides missed/unarmed) must feed partial');
+  assert.match(src, /if \(stallRes\.error\) unavailableSources\.push/, 'stall error (hides stalled runs) must feed partial');
+  assert.match(src, /partial: unavailableSources\.length > 0/,
+    'partial must derive from the OR of all sources, not from attention.partial alone');
+  assert.doesNotMatch(src, /partial:\s*attention\.partial\s*,/,
+    'reading only the endpoint back into partial is the exact silent-source bug');
+});
+
+test('the retained schedule/stall limits carry truncation — fetch limit+1, slice, flag overflow', () => {
+  // Without this, the 101st schedule or 11th stall — which might itself be the
+  // thing needing a human — silently disappears while the list looks complete.
+  const src = read('lib/needs-you.ts');
+  assert.match(src, /\.limit\(SCHED_LIMIT \+ 1\)/, 'must over-fetch schedules to detect a full page');
+  assert.match(src, /\.limit\(STALL_LIMIT \+ 1\)/, 'must over-fetch stalls');
+  assert.match(src, /schedTruncated = \(schedRes\.data\?\.length \|\| 0\) > SCHED_LIMIT/);
+  assert.match(src, /stallTruncated = \(stallRes\.data\?\.length \|\| 0\) > STALL_LIMIT/);
+  assert.match(src, /\.slice\(0, SCHED_LIMIT\)/, 'and slice for display, or the extra row renders');
+  assert.match(src, /\.slice\(0, STALL_LIMIT\)/);
+  assert.match(src, /truncated: attention\.truncated \|\| schedTruncated \|\| stallTruncated/,
+    'the local overflows must reach the surface alongside the endpoint ceiling');
+});
+
 // ── 4. Every all-clear surface is gated ──────────────────────────────────────
 
 test('EVERY "nothing needs you" surface is gated on partial and truncated', () => {
@@ -105,6 +136,16 @@ test('EVERY "nothing needs you" surface is gated on partial and truncated', () =
     assert.match(src, /!\w+\.partial\s*&&\s*!\w+\.truncated/,
       `${p} must suppress its all-clear when the list is not verified complete`);
   }
+});
+
+test('Home inbox all-clear also requires an EMPTY Set-up strip', () => {
+  // The Home "Nothing needs you yet" sits directly below <NeedsYouStrip>. An
+  // empty INBOX does not mean nothing needs you — the strip above can hold
+  // grants, sign-ins, schedules, or Judge blocks. Gating only on items.length
+  // makes the page contradict itself.
+  const src = read('app/(dashboard)/overview/page.tsx');
+  assert.match(src, /items\.length === 0 && needsYou\.homeCount === 0 && !needsYou\.partial && !needsYou\.truncated/,
+    'the inbox all-clear must also require homeCount === 0');
 });
 
 test('the strip renders its warning even when it has NOTHING to list', () => {
