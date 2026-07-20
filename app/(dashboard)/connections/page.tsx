@@ -36,7 +36,12 @@ export default async function NeedsYouPage() {
           </p>
         </header>
 
-        {needsYou.total === 0 ? (
+        {/* The all-clear is a CLAIM, and it may only be made when the list was
+            actually verified complete. `partial`/`truncated` mean a source went
+            unread or the list was cut short — rendering "Nothing needs you" over
+            that is the silent-stop failure this page exists to prevent, so the
+            strip renders its honest warning instead. */}
+        {needsYou.total === 0 && !needsYou.partial && !needsYou.truncated ? (
           <div className="card text-center py-10">
             <div className="text-xl mb-1" aria-hidden>✓</div>
             <p className="text-ink-100 font-medium text-sm">Nothing needs you right now.</p>

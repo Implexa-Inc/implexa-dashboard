@@ -9,31 +9,78 @@
  *
  * Both Home and the still-live /connections route load from here, so there is a
  * single source of truth for "what is waiting on the user".
+ *
+ * COMPOSITION BOUNDARY (2026-07-19). Run-level attention — Judge blocks and runs
+ * held at a human gate — now comes from the backend's unified read
+ * (GET /me/needs-you) instead of a direct skill_runs query here. Everything else
+ * stays local, because the endpoint does NOT cover it:
+ *
+ *   • key/permission grants   (derived from the agent list)
+ *   • account sign-ins        (derived from connection reachability)
+ *   • missed/unarmed schedules(derived from scheduled_skills + cron)
+ *   • stalled runs            (still a direct read — the endpoint deliberately
+ *                              returns no stalls until recovery can say a human
+ *                              is genuinely needed; see PR #52)
+ *
+ * So this is a COMPOSITION boundary, not a proxy. Replacing it wholesale with the
+ * endpoint — which was the first proposed design — would have silently deleted
+ * the four bullets above.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getMyAgents, type MyAgent } from '@/lib/agents-home';
 import { looksOverdue } from '@/lib/routine-status';
 import { getConnectionStatus } from '@/lib/connections';
+import { getAttention, type AttentionItem } from '@/lib/attention';
 
 export type NeedGrant = { slug: string; name: string; reason: string };
 export type MissedSchedule = { id: string; slug: string; name: string; failed: boolean; neverArmed: boolean; when: string; claudeTaskId: string | null };
 export type SignIn = { domain: string; label: string; who: string; fixSlug: string; count: number };
 export type Stalled = { id: string; slug: string; name: string };
-/** A run held at a human-approval gate, awaiting the user's approve-&-continue. */
-export type Approval = { id: string; slug: string; name: string };
 
 export type NeedsYou = {
   needGrant: NeedGrant[];
   missed: MissedSchedule[];
   signIns: SignIn[];
   stalled: Stalled[];
-  approvals: Approval[];
+  /**
+   * RUN-LEVEL attention from the backend's unified read: Judge blocks AND runs
+   * held at a human gate, as their own card shape.
+   *
+   * Deliberately NOT flattened into the old `Approval` type. A Judge block is not
+   * an approval — it names a specific human requirement (provide information,
+   * grant permission, open a service) that "Review & approve" would misdescribe,
+   * and it resolves through a different endpoint. Forcing them into one shape
+   * would make the card lie about both what happened and what to do.
+   */
+  attentionItems: AttentionItem[];
+  /**
+   * The subset shown on HOME: Judge blocks only. Held runs are omitted because
+   * the Home Alerts section (RunningAgents alertsOnly) already owns them —
+   * listing both would double-list the same run. Judge blocks are NOT in Alerts
+   * (it polls /scheduled-skills/live, which has no notion of a verdict), so
+   * without this they would be invisible on the landing page.
+   */
+  homeAttention: AttentionItem[];
   pendingReviews: number;
   /** Count of the agent/account-level items shown on the Home strip. */
   homeCount: number;
   /** Total attention count (drives the /connections empty state). */
   total: number;
+  /**
+   * The list could not be verified complete — a source failed, the endpoint was
+   * unreachable, or the backend hit its ceiling. NO SURFACE MAY RENDER AN
+   * ALL-CLEAR WHILE THIS IS TRUE: "Nothing needs you" over an unread source is
+   * the silent-stop failure this whole feature exists to remove.
+   *
+   * It ORs ALL FIVE sources: the /me/needs-you endpoint AND the four local reads
+   * (agents→grants, connections→sign-ins, schedules, stalls). Any one dark makes
+   * the list unverifiable.
+   */
+  partial: boolean;
+  truncated: boolean;
+  /** Which sources could not be read, for the surface to name if it wants to. */
+  unavailableSources: string[];
 };
 
 type SchedRow = {
@@ -43,8 +90,14 @@ type SchedRow = {
 };
 type StalledRow = { id: string; skill_slug: string; ran_at: string; stalled_at: string | null };
 
+// Display ceilings for the two retained direct reads. We fetch ONE MORE than we
+// show, so a full page is distinguishable from an overflowing one: 101 schedules
+// or 11 stalls must announce themselves rather than silently dropping the tail.
+const SCHED_LIMIT = 100;
+const STALL_LIMIT = 10;
+
 export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> {
-  const [status, myAgents, { data: schedules }, { data: pendingRows }, { data: stalledRows }] = await Promise.all([
+  const [status, myAgents, schedRes, attention, stallRes] = await Promise.all([
     getConnectionStatus(),
     getMyAgents(),
     supabase
@@ -52,21 +105,49 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
       .select('id, skill_slug, cron_expression, schedule_nl, status, last_run_at, claude_task_id')
       .in('status', ['active', 'failed'])
       .order('created_at', { ascending: false })
-      .limit(100),
-    supabase
-      .from('skill_runs')
-      .select('id, skill_slug, ran_at')
-      .eq('review_status', 'pending')
-      .order('ran_at', { ascending: false })
-      .limit(20),
+      .limit(SCHED_LIMIT + 1),
+    // REPLACES the direct `review_status='pending'` read. The backend owns this
+    // now, and covers strictly more: 'needs_input' holds as well as 'pending',
+    // plus Judge blocks, each with the typed action that resolves it. Reading
+    // skill_runs here as well would create a second read model that can disagree
+    // with the first — the drift the backend derives (rather than copies) to avoid.
+    getAttention(),
+    // STAYS a direct read, deliberately. The backend read model passes
+    // `stalls: []` on purpose: a stall enters Needs You only once recovery says a
+    // human is genuinely needed, and that determination lives in the recovery work
+    // (PR #52) which is not merged. Dropping this query now would delete stall
+    // visibility from /connections in exchange for nothing — the same silent
+    // functionality loss as replacing the whole loader. It moves to the unified
+    // feed when the backend actually emits stalls, not before.
     supabase
       .from('skill_runs')
       .select('id, skill_slug, ran_at, stalled_at')
       .eq('run_state', 'stalled')
       .gte('ran_at', new Date(Date.now() - 24 * 3600 * 1000).toISOString())
       .order('ran_at', { ascending: false })
-      .limit(10),
+      .limit(STALL_LIMIT + 1),
   ]);
+
+  // EVERY source's availability feeds `partial`, not just the endpoint's. The
+  // four sources below fail SILENTLY — getMyAgents/getConnectionStatus return
+  // null, the two queries return an error — and each failure hides a whole class
+  // of work (grants, sign-ins, schedules, stalls). Leaving `partial` false while
+  // any of them is dark is the same false all-clear the endpoint goes to trouble
+  // to avoid, just relocated to the composition layer. On these authed pages null
+  // means "could not read", never "new user with nothing" (a zero-agent user gets
+  // a non-null empty structure), so treating null as unavailable does not nag.
+  const unavailableSources: string[] = [...attention.unavailableSources];
+  if (myAgents === null) unavailableSources.push('agents');       // → hides grants
+  if (status === null) unavailableSources.push('connections');    // → hides sign-ins
+  if (schedRes.error) unavailableSources.push('schedules');       // → hides missed/unarmed
+  if (stallRes.error) unavailableSources.push('stalled_runs');    // → hides stalled runs
+
+  // Overflow BEFORE slicing: a 101st schedule or 11th stall we never examined may
+  // itself be the thing needing a human, so "there might be more" must be told.
+  const schedTruncated = (schedRes.data?.length || 0) > SCHED_LIMIT;
+  const stallTruncated = (stallRes.data?.length || 0) > STALL_LIMIT;
+  const schedules = (schedRes.data || []).slice(0, SCHED_LIMIT);
+  const stalledRows = (stallRes.data || []).slice(0, STALL_LIMIT);
 
   const allMyAgents: MyAgent[] = myAgents ? [...myAgents.active, ...myAgents.needsActivation] : [];
   const nameBySlug = new Map(allMyAgents.map((a) => [a.slug, a.name]));
@@ -127,22 +208,49 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
     name: nameBySlug.get(r.skill_slug) || r.skill_slug,
   }));
 
-  // Runs held at a human-approval gate (review_status='pending'): actionable —
-  // the user reads the deliverable, approves, and the gated work continues.
-  const approvals: Approval[] = ((pendingRows as { id: string; skill_slug: string }[]) || []).map((r) => ({
-    id: r.id,
-    slug: r.skill_slug,
-    name: nameBySlug.get(r.skill_slug) || r.skill_slug,
-  }));
-  const pendingReviews = approvals.length;
+  // Run-level attention, straight from the backend's unified read. The agent name
+  // is resolved here because the card carries a slug, and only this loader has the
+  // slug→display-name map.
+  const attentionItems: AttentionItem[] = attention.items.map((it) => ({
+    ...it,
+    agentSlug: it.agentSlug,
+    agentName: it.agentSlug ? (nameBySlug.get(it.agentSlug) || it.agentSlug) : null,
+  })) as AttentionItem[];
+  const pendingReviews = attentionItems.filter((i) => i.sourceType === 'held_run').length;
   // Home now has a dedicated live "Alerts" section (RunningAgents alertsOnly)
   // that owns held-for-approval + stalled/failed runs, and a loud attention
   // banner for stalled ones. So the Home strip is ONLY the setup-level items
   // (a grant to give, an account to sign into, a missed schedule) — keeping
   // approvals/stalled here too produced a duplicate "needs you" section.
-  const homeCount = needGrant.length + missed.length + signIns.length;
-  // /connections (variant=full) still shows everything.
-  const total = homeCount + approvals.length + stalled.length;
+  // Judge blocks appear on HOME too. The Home "Alerts" section (RunningAgents
+  // alertsOnly) polls /scheduled-skills/live, which knows about held/stalled/
+  // failed runs and NOTHING about Judge — so without this a blocked verdict would
+  // be invisible on the page the user actually lands on. Held runs are excluded
+  // here precisely because Alerts already owns them; listing both would duplicate.
+  const homeAttention = attentionItems.filter((i) => i.sourceType === 'judge_block');
+  // setupCount is the shared base. total must NOT be homeCount + attentionItems:
+  // homeCount already folds in homeAttention (the Judge blocks), and
+  // attentionItems contains those SAME Judge blocks, so adding both counts every
+  // Judge block twice — a card that renders once but inflates the badge and, at
+  // the boundary, could keep /connections out of its empty state on nothing.
+  const setupCount = needGrant.length + missed.length + signIns.length;
+  const homeCount = setupCount + homeAttention.length;
+  // /connections (variant=full) shows everything: setup items + ALL run-level
+  // attention (Judge blocks AND held runs, once each) + stalls.
+  const total = setupCount + attentionItems.length + stalled.length;
 
-  return { needGrant, missed, signIns, stalled, approvals, pendingReviews, homeCount, total };
+  return {
+    needGrant, missed, signIns, stalled, attentionItems, homeAttention, pendingReviews, homeCount, total,
+    // Carried all the way to the surface so an empty list can never be mistaken
+    // for a verified all-clear. unavailableSources already folds in the endpoint's
+    // own (attention.partial ⟺ attention.unavailableSources non-empty), so a
+    // single length check covers all five sources; truncated ORs the endpoint
+    // ceiling with the two local ones.
+    // attention.partial is ORed in explicitly, not just relied on to have a
+    // matching unavailableSources entry: if the endpoint ever reports partial
+    // without naming a source, an all-clear must still be suppressed.
+    partial: attention.partial || unavailableSources.length > 0,
+    truncated: attention.truncated || schedTruncated || stallTruncated,
+    unavailableSources,
+  };
 }

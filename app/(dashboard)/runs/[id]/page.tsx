@@ -308,7 +308,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   let repairRequest: JudgeRepairRequest | null = null;
   try {
     const { data: jr } = await supabase.from('run_judgments')
-      .select('id, verdict, summary, criteria_results, evidence_refs, paths_taken, next_action, repair_prompt, repair_round, repair_limit, worker_executor, worker_model, judge_executor, judge_model, deterministic_verification, created_at')
+      .select('id, verdict, summary, criteria_results, evidence_refs, paths_taken, next_action, repair_prompt, repair_round, repair_limit, worker_executor, worker_model, judge_executor, judge_model, deterministic_verification, created_at, feedback')
       .eq('run_id', params.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
     judgment = (jr as RunJudgment | null) || null;
   } catch { /* 0121 not applied, or no judgment — keep the run page intact */ }

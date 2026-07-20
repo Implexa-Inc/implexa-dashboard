@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { judgeRepairState } from '@/lib/judge-repair-state';
+import JudgeFeedbackControls from './judge-feedback-controls';
 
 export type RunJudgment = {
   id?: string;
   verdict: 'pass' | 'repair' | 'blocked' | 'uncertain';
+  feedback?: 'accurate' | 'not_accurate' | null;
   summary: string;
   criteria_results?: Array<{ criterion?: string; met?: boolean | null; evidence?: string | null; reason?: string | null }> | null;
   evidence_refs?: string[] | null;
@@ -132,6 +134,16 @@ export function RunJudgmentCard({
         {judgment.worker_executor ? ` reviewed work from ${judgment.worker_executor}${judgment.worker_model ? ` · ${judgment.worker_model}` : ''}` : ''}.
         {' '}This model review is separate from evidence-based “Verified complete.”
       </p>
+
+      {/* Calibration on EVERY verdict, not just blocks. A wrong `pass` is the most
+          valuable signal observe mode can collect, and exposing feedback only on
+          blocks would bias the calibration set toward the one verdict that already
+          stops the loop. Needs the judgment id to target the row. */}
+      {judgment.id && (
+        <div className="mt-3 pt-3 border-t border-ink-800">
+          <JudgeFeedbackControls judgmentId={judgment.id} initial={judgment.feedback ?? null} />
+        </div>
+      )}
     </section>
   );
 }
