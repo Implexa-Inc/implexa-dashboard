@@ -124,7 +124,11 @@ export default async function OverviewPage() {
 
             {/* Inbox: every run as a colored todo, acted on in a pop-up */}
             <section className="mt-10">
-              {items.length === 0 ? (
+              {/* The empty inbox may only claim "nothing needs you" when the
+                  attention list was verified complete. If a source went unread,
+                  the strip above is already showing an honest warning and this
+                  celebratory all-clear would contradict it. */}
+              {items.length === 0 && !needsYou.partial && !needsYou.truncated ? (
                 <div className="card p-6 text-center">
                   <div className="text-2xl mb-2" aria-hidden="true">✓</div>
                   <p className="text-ink-100 font-medium">Nothing needs you yet.</p>
