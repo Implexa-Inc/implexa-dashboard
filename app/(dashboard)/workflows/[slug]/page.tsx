@@ -327,6 +327,27 @@ export default async function WorkflowDetailPage({
         <Stat label="Last run" value={rel(workflow.activity.last_run_at)} />
       </div>
 
+      {/* Build evidence — whether this agent was assembled from parts that
+          have actually delivered in real runs, not merely from semantic matches. */}
+      {workflow.build_evidence && workflow.build_evidence.status !== 'pending' && (
+        <div className="card mb-6">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-1">Build evidence</h2>
+          {Number(workflow.build_evidence.provenSteps || 0) > 0 ? (
+            <p className="text-sm text-ink-200">
+              Built from <span className="font-semibold text-ink-50">{workflow.build_evidence.provenSteps}</span> proven step{workflow.build_evidence.provenSteps === 1 ? '' : 's'}
+              {Number(workflow.build_evidence.verifiedSteps || 0) > 0 ? (
+                <> · <span className="text-emerald-600 dark:text-emerald-400">{workflow.build_evidence.verifiedSteps} verified</span></>
+              ) : null}
+              <span className="text-ink-500">. Unproven matches can still inspire steps, but they do not count as proof.</span>
+            </p>
+          ) : (
+            <p className="text-sm text-ink-400">
+              New agent — no proven run history yet. Implexa will learn from verified runs and feedback after this runs.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Track record — the proof-layer grade, graded on real runs (0091). */}
       {grade && (
         <div className="card mb-6 flex items-center justify-between gap-3 flex-wrap">
@@ -377,7 +398,11 @@ export default async function WorkflowDetailPage({
           <span className="text-xs text-ink-500">
             {workflow.steps.length} steps
             {boundCount > 0 && (
-              <span className="text-emerald-600 dark:text-emerald-400"> · {boundCount} from verified skills</span>
+              <span className="text-emerald-600 dark:text-emerald-400">
+                {' '}· {Number(workflow.build_evidence?.provenSteps || 0) > 0
+                  ? `${workflow.build_evidence?.provenSteps} from proven runs`
+                  : `${boundCount} bound skills`}
+              </span>
             )}
           </span>
         </div>
