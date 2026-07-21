@@ -65,7 +65,16 @@ type Setup = {
   ready_to_run?: boolean;
 };
 
-export default function AgentSetupCard({ slug, source = 'generated' }: { slug: string; source?: string }) {
+export default function AgentSetupCard({
+  slug,
+  source = 'generated',
+  onSaved,
+}: {
+  slug: string;
+  source?: string;
+  /** Parent checklist/CTA state depends on these answers; let it refresh too. */
+  onSaved?: () => void;
+}) {
   const supabase = createClient();
   const [setup, setSetup] = useState<Setup | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -141,6 +150,7 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
       setSetup(res as Setup);
       setNoteValue((res as Setup).note || '');
       setSaved(true);
+      onSaved?.();
       setTimeout(() => setSaved(false), 2500);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save. Try again.');

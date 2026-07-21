@@ -859,7 +859,7 @@ export function ActivationCard({
                 and never collapse; it belongs here, where it gets finished. */}
             <ActivationRequirements req={checklist.requirements} slug={checklist.slug} />
             <div id="agent-setup" className="scroll-mt-20 my-1">
-              <AgentSetupCard slug={checklist.slug} source={checklist.source} />
+              <AgentSetupCard slug={checklist.slug} source={checklist.source} onSaved={() => router.refresh()} />
             </div>
             <AgentFeedback slug={checklist.slug} name={checklist.name} />
             <div className="flex items-start gap-4 flex-wrap">
