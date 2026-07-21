@@ -236,3 +236,32 @@ test('a NEW pre-run clears the remembered fingerprint', () => {
   assert.match(open, /lastFingerprint\.current = null;/,
     'a fresh attempt must not inherit the previous attempt\'s fingerprint');
 });
+
+test('newly-built agents send the user to review steps before activation', () => {
+  const building = read('building-agents.tsx');
+  assert.match(
+    building,
+    /href=\{b\.workflowSlug \? `\/workflows\/\$\{encodeURIComponent\(b\.workflowSlug\)\}` : '\/workflows'\}/,
+    'the build-complete card must open the agent page, not the activation checklist',
+  );
+  assert.match(building, /Review agent/, 'the CTA should say review, not setup');
+  assert.doesNotMatch(building, /Set up & activate/, 'activation copy would push users past the actual steps');
+
+  const list = read('agents-list.tsx');
+  assert.match(
+    list,
+    /a\.section === 'not_activated' \? \(\s*\n\s*<Link href=\{detail\}[\s\S]{0,160}>\s*\n\s*Review\s*\n\s*<\/Link>/,
+    'draft rows should open the detail page first so the user sees the steps',
+  );
+  assert.doesNotMatch(
+    list,
+    /a\.section === 'not_activated' \? \(\s*\n\s*<Link href=\{`\/workflows\/\$\{encodeURIComponent\(a\.slug\)\}\/activate`\}/,
+    'draft rows must not deep-link straight into activation',
+  );
+
+  const home = read('agents-home.tsx');
+  const row = home.slice(home.indexOf('function NeedsRow'), home.indexOf('function ActiveRow'));
+  assert.match(row, /href=\{`\/workflows\/\$\{a\.slug\}`\}/, 'Home needs-activation rows review first');
+  assert.match(row, />Review<\/Link>/, 'Home needs-activation CTA should say Review');
+  assert.doesNotMatch(row, /\/activate/, 'Home needs-activation rows must not bypass the step view');
+});

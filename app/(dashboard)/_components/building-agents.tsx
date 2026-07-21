@@ -95,8 +95,8 @@ export default function BuildingAgents() {
             </div>
             {done ? (
               <div className="flex items-center gap-2 shrink-0">
-                <Link href={b.workflowSlug ? `/workflows/${encodeURIComponent(b.workflowSlug)}/activate` : '/workflows'} className="btn-success text-xs px-3 py-1.5">
-                  {b.workflowSlug ? 'Set up & activate' : 'See your agents'}
+                <Link href={b.workflowSlug ? `/workflows/${encodeURIComponent(b.workflowSlug)}` : '/workflows'} className="btn-success text-xs px-3 py-1.5">
+                  {b.workflowSlug ? 'Review agent' : 'See your agents'}
                 </Link>
                 <button
                   type="button"

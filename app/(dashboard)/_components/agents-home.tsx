@@ -27,7 +27,7 @@ function NeedsRow({ a }: { a: MyAgent }) {
         <span className="text-sm font-medium text-ink-100 truncate">{a.name}</span>
         <p className="text-xs text-ink-500 mt-0.5">{a.stepsLeft} step{a.stepsLeft === 1 ? '' : 's'} left</p>
       </div>
-      <Link href={`/workflows/${a.slug}/activate`} className="flex-none btn-success text-xs px-3 py-1.5">Continue</Link>
+      <Link href={`/workflows/${a.slug}`} className="flex-none btn-success text-xs px-3 py-1.5">Review</Link>
     </li>
   );
 }
