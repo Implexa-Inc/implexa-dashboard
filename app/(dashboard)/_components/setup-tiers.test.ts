@@ -45,6 +45,8 @@ test('preferences are visibly separated and individually escapable', () => {
   const src = read('agent-setup-card.tsx');
   assert.match(src, /Optional preferences/, 'the tiers must be visible, not just present in the data');
   assert.match(src, /These never block a run/, 'say so plainly — otherwise every field still reads as mandatory');
+  assert.match(src, /\{isOptional\(f\) \? 'optional' : 'required'\}/,
+    'required fields must be labelled too — otherwise an all-required agent still looks unclassified');
   // The two escapes, so a blank field is a decision rather than an unfinished form.
   assert.match(src, /Use default \(\{f\.default\}\)/, 'a defaulted preference needs a one-tap accept');
   assert.match(src, /Skipping is fine/, 'skipping must be stated as safe');
@@ -102,6 +104,18 @@ test('send/post permission is labelled as autopost-only and excluded from stall 
     'leaving send/post off means draft-and-hold, not "your run may stall"');
   assert.doesNotMatch(src, /const ungrantedOptional = tier2\.filter\(\(i\) => i\.optional && !optIns\[i\.group\]\)/,
     'the old optional-nudge predicate nagged for send/post and made it feel required');
+});
+
+test('connection workaround checkbox persists while the user moves around the agent page', () => {
+  const src = read('activation-card.tsx');
+  assert.match(src, /const workAroundStoreKey = `implexa:connection-workarounds:\$\{checklist\.slug\}`;/,
+    'workaround state must be scoped to the agent, not one global checkbox');
+  assert.match(src, /window\.localStorage\.getItem\(workAroundStoreKey\)/,
+    'the checkbox should restore after navigation/refresh');
+  assert.match(src, /window\.localStorage\.setItem\(workAroundStoreKey, JSON\.stringify\(\[\.\.\.next\]\)\)/,
+    'ticking the checkbox should save immediately, not wait for Activate');
+  assert.match(src, /window\.localStorage\.removeItem\(workAroundStoreKey\)/,
+    'unticking all workarounds should clear the persisted state');
 });
 
 test('Overview reports readiness from the honest server claim', () => {
