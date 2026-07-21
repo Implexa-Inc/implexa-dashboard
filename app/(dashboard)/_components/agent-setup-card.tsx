@@ -194,7 +194,11 @@ export default function AgentSetupCard({
 
       <div className="space-y-4">
         {[...requiredFields, ...optionalFields].map((f, i) => (
-          <div key={f.key}>
+          <div
+            key={f.key}
+            data-setup-required={isOptional(f) ? 'false' : 'true'}
+            data-setup-missing={filled(f) ? 'false' : 'true'}
+          >
             {/* One visible break between "must answer" and "can tune". Without it
                 the tiers exist only in the data and the user still reads every
                 field as mandatory. */}
