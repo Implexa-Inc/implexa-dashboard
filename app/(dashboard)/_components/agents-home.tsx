@@ -20,6 +20,14 @@ const DOT: Record<string, string> = {
   good: 'bg-emerald-500', warn: 'bg-amber-500', bad: 'bg-rose-500', idle: 'bg-ink-500',
 };
 
+function engineLabel(a: MyAgent): string | null {
+  const engine = String(a.lastRun?.executor || '').trim().toLowerCase();
+  if (!engine) return null;
+  const name = engine === 'codex' ? 'Codex' : engine === 'claude' ? 'Claude' : engine;
+  const model = String(a.lastRun?.model || '').trim();
+  return model ? `${name} · ${model}` : name;
+}
+
 function NeedsRow({ a }: { a: MyAgent }) {
   return (
     <li className="flex items-center justify-between gap-3 py-3 px-1">
@@ -54,6 +62,7 @@ function ActiveRow({ a }: { a: MyAgent }) {
     );
   }
   const s = activeRunStatus(a);
+  const engine = engineLabel(a);
   return (
     <li className="flex items-center justify-between gap-3 py-3 px-1">
       <div className="min-w-0 flex items-center gap-2.5">
@@ -62,6 +71,7 @@ function ActiveRow({ a }: { a: MyAgent }) {
           <span className="text-sm font-medium text-ink-100 truncate">{a.name}</span>
           <p className="text-xs text-ink-500 mt-0.5 flex items-center gap-2 flex-wrap">
             <span>{a.mode === 'on_demand' ? 'On-demand' : (a.scheduleNl || 'scheduled')} · <span className={TONE[s.tone]}>{s.label}</span></span>
+            {engine && <span className="text-sky-700 dark:text-sky-300" title={`Last run used ${engine}`}>{engine}</span>}
             <GradeBadge grade={a.grade} />
           </p>
         </div>

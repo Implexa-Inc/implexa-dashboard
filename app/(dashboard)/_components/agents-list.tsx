@@ -127,7 +127,14 @@ export type ListAgent = {
   pendingQuestions?: number;
   nextRunAt?: string | null;
   scheduleNl?: string | null;
-  lastRun?: { id?: string; status: string; runState: string | null; ranAt: string } | null;
+  lastRun?: {
+    id?: string;
+    status: string;
+    runState: string | null;
+    ranAt: string;
+    executor?: string | null;
+    model?: string | null;
+  } | null;
   grade?: { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null;
   /** True when this agent chains other agents (its name reads "A → B"). Shown as a ⛓ Chain tag. */
   isChain?: boolean;
@@ -176,12 +183,21 @@ function stateBadge(a: ListAgent): { label: string; cls: string } | null {
   return null;
 }
 
+function engineLabel(lastRun: ListAgent['lastRun']): string | null {
+  const engine = String(lastRun?.executor || '').trim().toLowerCase();
+  if (!engine) return null;
+  const name = engine === 'codex' ? 'Codex' : engine === 'claude' ? 'Claude' : engine;
+  const model = String(lastRun?.model || '').trim();
+  return model ? `${name} · ${model}` : name;
+}
+
 function Row({ a, onArchive, onDeactivate, onRename, busy, spotlight = false }: { a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busy: boolean; spotlight?: boolean }) {
   const detail = `/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`;
   // In the activity spotlight the row title opens the RUN status/live page; in the
   // roster it opens the agent's detail/setup page. Same agent, two doors.
   const titleHref = spotlight && a.lastRun?.id ? `/runs/${a.lastRun.id}` : detail;
   const badge = a.section !== 'not_activated' ? stateBadge(a) : null;
+  const engine = engineLabel(a.lastRun);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(a.name);
   const [saving, setSaving] = useState(false);
@@ -237,6 +253,14 @@ function Row({ a, onArchive, onDeactivate, onRename, busy, spotlight = false }: 
               <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/40 text-sky-700 dark:text-sky-300">Draft</span>
             )}
             {badge && <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>}
+            {engine && (
+              <span
+                className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-sky-500/30 text-sky-700 dark:text-sky-300"
+                title={`Last run used ${engine}`}
+              >
+                {engine}
+              </span>
+            )}
             <GradeBadge grade={a.grade} />
           </div>
           {/* status line */}

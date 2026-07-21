@@ -28,7 +28,14 @@ export type MyAgent = {
   scheduleNl: string | null;
   /** ISO of the next scheduled fire (active cron), or null. */
   nextRunAt?: string | null;
-  lastRun: { id?: string; status: string; runState: string | null; ranAt: string } | null;
+  lastRun: {
+    id?: string;
+    status: string;
+    runState: string | null;
+    ranAt: string;
+    executor?: string | null;
+    model?: string | null;
+  } | null;
 };
 export type MyAgents = { needsActivation: MyAgent[]; active: MyAgent[]; drafts: MyAgent[] };
 
