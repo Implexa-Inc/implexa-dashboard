@@ -125,6 +125,24 @@ test('Overview reports readiness from the honest server claim', () => {
   assert.doesNotMatch(page, /allSatisfied/, 'the server no longer claims satisfaction — nothing may read it');
 });
 
+test('the Overview readiness action opens Setup and focuses the missing required answer', () => {
+  const readiness = read('agent-readiness.tsx');
+  const setup = read('agent-setup-card.tsx');
+
+  assert.match(readiness, /^'use client';/, 'the action must execute in the browser, not render as a dead same-page link');
+  assert.match(readiness, /window\.dispatchEvent\(new CustomEvent\('implexa-open-tab', \{ detail: \{ key: 'setup' \} \}\)\)/,
+    'the action explicitly mounts the client-owned Setup tab');
+  assert.match(readiness, /onClick=\{openSetup\}/, 'the visible Answer action invokes the tab/focus behavior');
+  assert.doesNotMatch(readiness, /href=\{blocked \|\| optionalQuestions > 0 \?/,
+    'a same-page Link must not be reused for the unmounted Setup panel');
+  assert.match(readiness, /\[data-setup-required="true"\]\[data-setup-missing="true"\] input/,
+    'focus targets the first unanswered required field, not merely the top of the card');
+  assert.match(setup, /data-setup-required=\{isOptional\(f\) \? 'false' : 'true'\}/,
+    'each setup field exposes its required tier to the recovery action');
+  assert.match(setup, /data-setup-missing=\{filled\(f\) \? 'false' : 'true'\}/,
+    'each setup field exposes whether it still needs an answer');
+});
+
 // P0 (2026-07-18, second review): the tier split stopped at activation. The
 // PRE-RUN dialog still fetched every schema field, knew nothing about
 // optional/default, and disabled "Save & run" if ANY displayed field was blank —

@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * <AgentReadiness /> — the compact readiness line that REPLACED the permanent
  * "What you'll need" panel on Overview.
@@ -47,6 +49,42 @@ export default function AgentReadiness({
     ? 'border-amber-500/40 bg-amber-500/[0.06]'
     : 'border-emerald-500/40 bg-emerald-500/[0.07]';
 
+  function openSetup() {
+    // This action lives in Overview while the Setup panel is unmounted. A
+    // same-page Next Link can update the URL without giving AgentTabs a reason
+    // to mount that panel, leaving the only recovery action looking dead.
+    // Switch the client-owned tab explicitly, then find the first unanswered
+    // required field after the async setup card has loaded.
+    try {
+      window.history.replaceState(null, '', `/workflows/${encodeURIComponent(slug)}?tab=setup#agent-setup`);
+      window.dispatchEvent(new CustomEvent('implexa-open-tab', { detail: { key: 'setup' } }));
+    } catch { /* best effort; the retries below still handle an already-open panel */ }
+
+    let tries = 0;
+    const revealMissingAnswer = () => {
+      const setup = document.getElementById('agent-setup');
+      const field = setup?.querySelector<HTMLElement>(
+        '[data-setup-required="true"][data-setup-missing="true"] input, ' +
+        '[data-setup-required="true"][data-setup-missing="true"] select, ' +
+        '[data-setup-required="true"][data-setup-missing="true"] textarea',
+      );
+      if (field) {
+        field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        field.focus({ preventScroll: true });
+        try { window.dispatchEvent(new CustomEvent('implexa-flash-setup')); } catch { /* best effort */ }
+        return;
+      }
+      if (setup && !blocked) {
+        setup.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      // The Setup panel and its questions both mount asynchronously. Keep this
+      // bounded so a failed setup fetch cannot leave a permanent timer behind.
+      if (++tries < 20) window.setTimeout(revealMissingAnswer, 75);
+    };
+    window.setTimeout(revealMissingAnswer, 0);
+  }
+
   return (
     <div className={`rounded-lg border ${tone} px-4 py-3 mb-6 flex items-start justify-between gap-3 flex-wrap`}>
       <div className="min-w-0">
@@ -80,12 +118,19 @@ export default function AgentReadiness({
           </>
         )}
       </div>
-      <Link
-        href={blocked || optionalQuestions > 0 ? `/workflows/${slug}?tab=setup#agent-setup` : `/workflows/${slug}/activate`}
-        className="btn-outline text-sm px-4 py-2 flex-none"
-      >
-        {blocked ? `Answer ${blockingQuestions}` : needsKeys ? 'Finish setup' : 'Edit setup'}
-      </Link>
+      {blocked || optionalQuestions > 0 ? (
+        <button
+          type="button"
+          onClick={openSetup}
+          className="btn-outline text-sm px-4 py-2 flex-none"
+        >
+          {blocked ? `Answer ${blockingQuestions}` : 'Edit setup'}
+        </button>
+      ) : (
+        <Link href={`/workflows/${slug}/activate`} className="btn-outline text-sm px-4 py-2 flex-none">
+          Finish setup
+        </Link>
+      )}
     </div>
   );
 }
