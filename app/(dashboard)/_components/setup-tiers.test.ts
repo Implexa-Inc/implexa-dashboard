@@ -173,6 +173,26 @@ test('saved settings are COLLAPSED, never hidden, before a run', () => {
   assert.match(src, /Start with settings collapsed next time/, 'the opt-out collapses rather than hides');
 });
 
+test('saving setup answers refreshes the parent checklist and Run CTA', () => {
+  const setup = read('agent-setup-card.tsx');
+  assert.match(setup, /onSaved\?: \(\) => void;/,
+    'the setup card must expose a save callback for parent state');
+  assert.match(setup, /onSaved\?\.\(\);/,
+    'the callback must fire after the backend accepts the saved answers');
+
+  const activation = read('activation-card.tsx');
+  assert.match(
+    activation,
+    /<AgentSetupCard slug=\{checklist\.slug\} source=\{checklist\.source\} onSaved=\{\(\) => router\.refresh\(\)\} \/>/,
+    'the activation card must refresh its stale blockingQuestions prop after answers save',
+  );
+  assert.doesNotMatch(
+    activation,
+    /<AgentSetupCard slug=\{checklist\.slug\} source=\{checklist\.source\} \/>/,
+    'leaving the parent unwired reproduces “✓ all set” above “Answer N questions to run”',
+  );
+});
+
 // ── Duplicate-work backstop ──────────────────────────────────────────────────
 // The founder's concern: per-run inputs look like durable settings, so a Run that
 // reuses saved answers can silently redo work — a second paid render off the same
