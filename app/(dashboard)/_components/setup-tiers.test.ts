@@ -315,3 +315,29 @@ test('the Setup tab keeps the permissions/access editor after activation', () =>
   assert.match(card, /setupSurface && isActive && allSavedGranted \? null : isActive && allSavedGranted/,
     'an active setup card should not duplicate Run/questions/feedback — only access controls');
 });
+
+test('agent roster shows the last engine/model instead of hiding the executor that ran it', () => {
+  const list = read('agents-list.tsx');
+  assert.match(list, /executor\?: string \| null;/,
+    'the roster type must carry lastRun.executor from /me/agents');
+  assert.match(list, /model\?: string \| null;/,
+    'the roster type must carry lastRun.model from /me/agents');
+  assert.match(list, /function engineLabel\(lastRun: ListAgent\['lastRun'\]\)/,
+    'engine display should be a named helper, not an ad-hoc invisible field');
+  assert.match(list, /title=\{`Last run used \$\{engine\}`\}/,
+    'the chip should expose the exact engine/model used by the latest run');
+  assert.match(list, /\{engine && \(/,
+    'the engine chip must actually render on the row');
+
+  const home = read('agents-home.tsx');
+  assert.match(home, /function engineLabel\(a: MyAgent\)/,
+    'Home agent rows must share the same engine visibility');
+  assert.match(home, /title=\{`Last run used \$\{engine\}`\}/,
+    'Home should expose the exact engine/model used by the latest run too');
+
+  const feed = read('../../../lib/agents-home.ts');
+  assert.match(feed, /executor\?: string \| null;/,
+    'the dashboard feed type must not drop lastRun.executor before components see it');
+  assert.match(feed, /model\?: string \| null;/,
+    'the dashboard feed type must not drop lastRun.model before components see it');
+});
