@@ -198,7 +198,12 @@ export default function AgentSetupCard({ slug, source = 'generated' }: { slug: s
             )}
             <label className="block text-sm text-ink-200 mb-1.5">
               {f.question}
-              {isOptional(f) && <span className="ml-1.5 text-[11px] text-ink-500">optional</span>}
+              <span className={isOptional(f)
+                ? 'ml-1.5 text-[11px] text-ink-500'
+                : 'ml-1.5 text-[11px] text-amber-700 dark:text-amber-300'}
+              >
+                {isOptional(f) ? 'optional' : 'required'}
+              </span>
             </label>
             {f.kind === 'choice' && f.options && f.options.length > 0 ? (
               <div className="space-y-2">

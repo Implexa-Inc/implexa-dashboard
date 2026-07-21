@@ -605,9 +605,22 @@ export function ActivationCard({
   // Connections the user chose to "let Claude figure out an alternative" for (keyed
   // by account/label). Ticking all the unmet ones satisfies Connections so the
   // normal "Turn it on" goes green — no separate "anyway" button.
+  const workAroundStoreKey = `implexa:connection-workarounds:${checklist.slug}`;
   const [workedAround, setWorkedAround] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(workAroundStoreKey);
+      const arr = saved ? JSON.parse(saved) : [];
+      if (Array.isArray(arr)) setWorkedAround(new Set(arr.map((x) => String(x)).filter(Boolean)));
+    } catch { /* localStorage unavailable/corrupt: checkbox becomes session-only */ }
+  }, [workAroundStoreKey]);
   const toggleWorkAround = (key: string, on: boolean) => setWorkedAround((prev) => {
-    const next = new Set(prev); if (on) next.add(key); else next.delete(key); return next;
+    const next = new Set(prev); if (on) next.add(key); else next.delete(key);
+    try {
+      if (next.size) window.localStorage.setItem(workAroundStoreKey, JSON.stringify([...next]));
+      else window.localStorage.removeItem(workAroundStoreKey);
+    } catch { /* localStorage unavailable: still update this page */ }
+    return next;
   });
   // The build inferred a recurring cadence → we adopt it on activate (opt-out to
   // on-demand). suggestedCadence (e.g. "every monday at 9am") comes from the
