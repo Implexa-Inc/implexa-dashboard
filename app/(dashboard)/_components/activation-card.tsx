@@ -577,7 +577,17 @@ const STATE_BADGE: Record<ActivationChecklist['state'], { label: string; classes
   needs_attention: { label: 'Needs attention', classes: 'bg-amber-500/20 text-amber-700 dark:text-amber-300' },
 };
 
-export function ActivationCard({ checklist, proficiency }: { checklist: ActivationChecklist; proficiency?: 'novice' | 'beginner' | 'pro' | 'advanced' | null }) {
+export function ActivationCard({
+  checklist,
+  proficiency,
+  surface = 'activation',
+}: {
+  checklist: ActivationChecklist;
+  proficiency?: 'novice' | 'beginner' | 'pro' | 'advanced' | null;
+  /** setup = reusable permissions/access editor inside the agent Setup tab. */
+  surface?: 'activation' | 'setup';
+}) {
+  const setupSurface = surface === 'setup';
   // Guided = novice/beginner: friendlier "Turn it on" framing + a reassurance
   // line. Pro/advanced keep the terser "Activate". (audit #7)
   const guided = proficiency === 'novice' || proficiency === 'beginner';
@@ -735,11 +745,19 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
   }
 
   return (
-    <div className="card max-w-2xl">
+    <div className={setupSurface ? 'card mb-6' : 'card max-w-2xl'}>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-ink-50 truncate">{checklist.name}</h1>
-          {checklist.summary && <p className="text-sm text-ink-400 mt-1 leading-snug">{checklist.summary}</p>}
+          <h1 className="text-lg font-semibold text-ink-50 truncate">
+            {setupSurface ? 'Permissions & access' : checklist.name}
+          </h1>
+          {setupSurface ? (
+            <p className="text-sm text-ink-400 mt-1 leading-snug">
+              Review what this agent can use, and change optional access any time.
+            </p>
+          ) : checklist.summary ? (
+            <p className="text-sm text-ink-400 mt-1 leading-snug">{checklist.summary}</p>
+          ) : null}
           {checklist.requiresLocal && (
             <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-ink-400">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-500 flex-none" aria-hidden />
@@ -747,17 +765,17 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
             </p>
           )}
         </div>
-        <span className={`flex-none text-xs font-medium rounded-full px-2.5 py-1 ${badge.classes}`}>{badge.label}</span>
+        {!setupSurface && <span className={`flex-none text-xs font-medium rounded-full px-2.5 py-1 ${badge.classes}`}>{badge.label}</span>}
       </div>
 
-      {checklist.state !== 'active' && (
+      {!setupSurface && checklist.state !== 'active' && (
         <p className="text-xs text-ink-500 mb-1">
           {checklist.stepsLeft === 0 ? 'Ready to switch on.' : `${checklist.stepsLeft} step${checklist.stepsLeft === 1 ? '' : 's'} left`}
         </p>
       )}
 
       {/* Guided reassurance for novice/beginner: take the fear out of the steps. */}
-      {guided && checklist.state !== 'active' && (
+      {!setupSurface && guided && checklist.state !== 'active' && (
         <p className="text-xs text-ink-300 mb-2 rounded-md bg-brand-500/10 border border-brand-500/20 px-3 py-2 leading-relaxed">
           Don&apos;t worry about the details below; they&apos;re here if you want them. When the steps are green, hit <span className="font-medium text-ink-100">Turn it on</span> and your agent is live.
         </p>
@@ -783,12 +801,12 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
       {/* Optional quality layer at activation, where the user is deciding how
           this agent should run. It never blocks activation. The same control also
           lives in Setup so the decision is reversible later. */}
-      <div className="mt-4">
+      {!setupSurface && <div className="mt-4">
         <ImplexaJudgePolicy slug={checklist.slug} compact />
-      </div>
+      </div>}
 
       <div className="mt-5 flex items-start gap-3">
-        {isActive && allSavedGranted ? (
+        {setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
           // The moment of highest motivation must not dead-end at "Active."
           // (founder: "I activated this agent but what to do next, Im clueless").
           // Offer the first run right here; the schedule row above covers later.

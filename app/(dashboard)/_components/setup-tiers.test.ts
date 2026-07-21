@@ -265,3 +265,19 @@ test('newly-built agents send the user to review steps before activation', () =>
   assert.match(row, />Review<\/Link>/, 'Home needs-activation CTA should say Review');
   assert.doesNotMatch(row, /\/activate/, 'Home needs-activation rows must not bypass the step view');
 });
+
+test('the Setup tab keeps the permissions/access editor after activation', () => {
+  const page = read('../workflows/[slug]/page.tsx');
+  assert.match(page, /import \{ ActivationCard \} from '\.\.\/\.\.\/_components\/activation-card';/,
+    'the reusable activation checklist must be available to the Setup tab');
+  assert.match(page, /\{checklist && <ActivationCard checklist=\{checklist\} surface="setup" \/>\}/,
+    'Setup must render the permissions/access checklist instead of losing it after activation');
+
+  const card = read('activation-card.tsx');
+  assert.match(card, /surface\?: 'activation' \| 'setup';/,
+    'ActivationCard must have an explicit setup surface, not a second ad-hoc permissions UI');
+  assert.match(card, /setupSurface \? 'Permissions & access' : checklist\.name/,
+    'the setup surface should label the card as editable access, not as the activation page');
+  assert.match(card, /setupSurface && isActive && allSavedGranted \? null : isActive && allSavedGranted/,
+    'an active setup card should not duplicate Run/questions/feedback — only access controls');
+});
