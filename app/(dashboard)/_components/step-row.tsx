@@ -47,6 +47,11 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
   const isOrg = bound && step.ref && step.ref.source === 'org';
   const name = step.ref_summary?.name || (step.ref ? step.ref.slug : '');
   const noun = isAgent ? 'agent' : 'skill';
+  const pattern = step.proven_pattern;
+  const patternEvidence = pattern?.evidence;
+  const directEvidence = step.build_evidence && Number(step.build_evidence.provenRuns || 0) > 0
+    ? step.build_evidence
+    : null;
 
   return (
     <li className="flex gap-3 py-3">
@@ -80,10 +85,20 @@ export default function StepRow({ step, showBuildEvidence = false }: { step: Wor
         {bound && !step.same_as_step && step.ref_summary?.preview ? (
           <p className="mt-1.5 text-xs text-ink-500 leading-relaxed border-l border-ink-700 pl-3">{step.ref_summary.preview}</p>
         ) : null}
-        {showBuildEvidence && bound && step.build_evidence && Number(step.build_evidence.provenRuns || 0) > 0 ? (
+        {showBuildEvidence && pattern && patternEvidence && Number(patternEvidence.provenRuns || 0) > 0 ? (
+          <div className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
+            <p>
+              Adapted from delivered agent “{pattern.workflow.name}” · {patternEvidence.provenRuns} delivered run{patternEvidence.provenRuns === 1 ? '' : 's'}
+              {Number(patternEvidence.verifiedRuns || 0) > 0 ? ` · ${patternEvidence.verifiedRuns} verified` : ''}
+            </p>
+            {pattern.source_step_label ? (
+              <p className="mt-0.5 text-ink-500">Proven pattern: {pattern.source_step_label}</p>
+            ) : null}
+          </div>
+        ) : showBuildEvidence && bound && directEvidence ? (
           <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
-            Proven by {step.build_evidence.provenRuns} delivered run{step.build_evidence.provenRuns === 1 ? '' : 's'}
-            {Number(step.build_evidence.verifiedRuns || 0) > 0 ? ` · ${step.build_evidence.verifiedRuns} verified` : ''}
+            Proven by {directEvidence.provenRuns} delivered run{directEvidence.provenRuns === 1 ? '' : 's'}
+            {Number(directEvidence.verifiedRuns || 0) > 0 ? ` · ${directEvidence.verifiedRuns} verified` : ''}
           </p>
         ) : showBuildEvidence && bound ? (
           <p className="mt-1 text-xs text-ink-500">No proven run history yet</p>

@@ -335,9 +335,12 @@ export default async function WorkflowDetailPage({
           <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500 mb-1">Build evidence</h2>
           {Number(workflow.build_evidence.provenSteps || 0) > 0 ? (
             <p className="text-sm text-ink-200">
-              Built from <span className="font-semibold text-ink-50">{workflow.build_evidence.provenSteps}</span> proven step{workflow.build_evidence.provenSteps === 1 ? '' : 's'}
+              Real-run evidence on <span className="font-semibold text-ink-50">{workflow.build_evidence.provenSteps}</span> step{workflow.build_evidence.provenSteps === 1 ? '' : 's'}
               {Number(workflow.build_evidence.verifiedSteps || 0) > 0 ? (
                 <> · <span className="text-emerald-600 dark:text-emerald-400">{workflow.build_evidence.verifiedSteps} verified</span></>
+              ) : null}
+              {Number(workflow.build_evidence.patternSteps || 0) > 0 ? (
+                <> · <span className="text-emerald-600 dark:text-emerald-400">{workflow.build_evidence.patternSteps} adapted from delivered agents</span></>
               ) : null}
               <span className="text-ink-500">. Unproven matches can still inspire steps, but they do not count as proof.</span>
             </p>

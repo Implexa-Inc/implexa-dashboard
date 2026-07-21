@@ -15,10 +15,13 @@ import { join } from 'node:path';
 
 const page = readFileSync(join(import.meta.dirname, 'page.tsx'), 'utf8');
 const stepRow = readFileSync(join(import.meta.dirname, '../../_components/step-row.tsx'), 'utf8');
+const catalog = readFileSync(join(import.meta.dirname, '../../../../lib/workflow-catalog.ts'), 'utf8');
 
 test('workflow detail shows build evidence instead of claiming verified skills', () => {
   assert.match(page, /BUILD EVIDENCE/i, 'workflow detail must expose a Build evidence section');
   assert.match(page, /from proven runs/, 'step stats must say proven runs only when run proof exists');
+  assert.match(page, /Real-run evidence on/, 'workflow summary must describe evidence without claiming an adapted step itself already ran');
+  assert.match(page, /adapted from delivered agents/, 'workflow summary must distinguish proven process reuse from direct skill proof');
   assert.match(page, /bound skills/, 'step stats must fall back to bound skills when proof does not exist');
   assert.doesNotMatch(
     page,
@@ -29,6 +32,8 @@ test('workflow detail shows build evidence instead of claiming verified skills',
 
 test('step rows disclose whether each bound step has real run proof', () => {
   assert.match(stepRow, /Proven by/, 'bound steps with evidence must show a proof line');
+  assert.match(stepRow, /Adapted from delivered agent/, 'steps derived from a delivered agent must name that provenance');
+  assert.match(stepRow, /Proven pattern:/, 'the exact prior process step must remain visible');
   assert.match(stepRow, /No proven run history yet/, 'bound steps without evidence must be disclosed as unproven');
   assert.match(
     stepRow,
@@ -47,5 +52,13 @@ test('workflow detail passes the build-evidence gate into StepRow', () => {
     page,
     /showBuildEvidence=\{Boolean\(workflow\.build_evidence && workflow\.build_evidence\.status !== 'pending'\)\}/,
     'legacy agents without workflow.build_evidence must not render per-step "No proven run history yet" copy',
+  );
+});
+
+test('the workflow mapper carries backend proven-pattern provenance into StepRow', () => {
+  assert.match(
+    catalog,
+    /proven_pattern:[\s\S]*?s\?\.proven_pattern[\s\S]*?s\.proven_pattern[\s\S]*?: null/,
+    'stored provenance must cross the catalog mapper; a correct backend field wired to nothing is invisible',
   );
 });
