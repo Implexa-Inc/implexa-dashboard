@@ -62,6 +62,27 @@ export type WorkflowStepRefSummary = {
   preview: string | null;
 };
 
+export type WorkflowBuildEvidence = {
+  version?: number;
+  scope?: string;
+  source?: string;
+  provenRuns?: number;
+  verifiedRuns?: number;
+  deliveredRuns?: number;
+  partialRuns?: number;
+  failedRuns?: number;
+  ratedRuns?: number;
+  latestAt?: string | null;
+  proof?: 'verified' | 'delivered' | 'partial' | 'failed' | 'none' | string;
+  bindableSteps?: number;
+  boundSteps?: number;
+  provenSteps?: number;
+  verifiedSteps?: number;
+  unprovenBoundSteps?: number;
+  summary?: string;
+  status?: string;
+};
+
 export type WorkflowStep = {
   order: number;
   kind: string; // 'skill' | 'tool' | 'decision'
@@ -72,6 +93,7 @@ export type WorkflowStep = {
   same_as_step: number | null;
   gap: boolean;
   fallbacks: string[];
+  build_evidence: WorkflowBuildEvidence | null;
 };
 
 export type WorkflowActivity = {
@@ -110,6 +132,7 @@ export type WorkflowDetail = {
   updated_at: string | null;
   generated: boolean;
   unproven: boolean;
+  build_evidence: WorkflowBuildEvidence | null;
   activity: WorkflowActivity;
   version: number | null;
   versions: WorkflowVersionEntry[];
@@ -401,6 +424,10 @@ function mapWorkflowDetail(w: any, slug: string, source: string): WorkflowDetail
               typeof s?.same_as_step === 'number' ? s.same_as_step : null,
             gap: s?.gap === true,
             fallbacks: Array.isArray(s?.fallbacks) ? s.fallbacks : [],
+            build_evidence:
+              s?.build_evidence && typeof s.build_evidence === 'object'
+                ? s.build_evidence
+                : null,
           };
         })
       : [],
@@ -414,6 +441,10 @@ function mapWorkflowDetail(w: any, slug: string, source: string): WorkflowDetail
     updated_at: w.updated_at ?? null,
     generated: w.generated === true,
     unproven: w.unproven === true,
+    build_evidence:
+      w.build_evidence && typeof w.build_evidence === 'object'
+        ? w.build_evidence
+        : null,
     activity: {
       run_count: num(w.activity?.run_count),
       apply_count: num(w.activity?.apply_count),

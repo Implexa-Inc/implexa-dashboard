@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * <StepRow /> — one row in an agent's step chain. A bound step (a verified skill,
+ * <StepRow /> — one row in an agent's step chain. A bound step (a reusable skill,
  * the user's own skill, or a sub-agent in a chain) is CLICKABLE and opens a modal
  * with its details, instead of linking out to the marketing site in a browser
  * (which broke the in-app experience). A sub-agent step also offers "Open agent"
@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import Modal from './modal';
 
-export default function StepRow({ step }: { step: WorkflowStep }) {
+export default function StepRow({ step, showBuildEvidence = false }: { step: WorkflowStep; showBuildEvidence?: boolean }) {
   const [open, setOpen] = useState(false);
   const [content, setContent] = useState<string | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
@@ -80,6 +80,14 @@ export default function StepRow({ step }: { step: WorkflowStep }) {
         {bound && !step.same_as_step && step.ref_summary?.preview ? (
           <p className="mt-1.5 text-xs text-ink-500 leading-relaxed border-l border-ink-700 pl-3">{step.ref_summary.preview}</p>
         ) : null}
+        {showBuildEvidence && bound && step.build_evidence && Number(step.build_evidence.provenRuns || 0) > 0 ? (
+          <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
+            Proven by {step.build_evidence.provenRuns} delivered run{step.build_evidence.provenRuns === 1 ? '' : 's'}
+            {Number(step.build_evidence.verifiedRuns || 0) > 0 ? ` · ${step.build_evidence.verifiedRuns} verified` : ''}
+          </p>
+        ) : showBuildEvidence && bound ? (
+          <p className="mt-1 text-xs text-ink-500">No proven run history yet</p>
+        ) : null}
 
         {/* Bound step → clickable, opens a modal (no navigation, no browser). */}
         {bound && step.ref ? (
@@ -113,7 +121,7 @@ export default function StepRow({ step }: { step: WorkflowStep }) {
           open={open}
           onClose={() => setOpen(false)}
           title={name}
-          subtitle={isAgent ? 'Sub-agent in this chain' : isOrg ? 'Your captured skill' : 'Verified skill'}
+          subtitle={isAgent ? 'Sub-agent in this chain' : isOrg ? 'Your captured skill' : 'Reusable skill'}
           maxWidth="max-w-lg"
         >
           {step.ref_summary?.description && (
