@@ -98,7 +98,7 @@ test('the Run gate reads required-only, or the whole split is cosmetic', () => {
 
 test('send/post permission is labelled as autopost-only and excluded from stall nudges', () => {
   const src = read('activation-card.tsx');
-  assert.match(src, /it\.group === 'send' \? 'autopost only' : 'recommended'/,
+  assert.match(src, /it\.group === 'send' \? 'autopost only' : 'optional'/,
     'send/post is an optional autopilot switch, not a recommended stall-prevention grant');
   assert.match(src, /const ungrantedOptional = tier2\.filter\(\(i\) => i\.optional && i\.group !== 'send' && !optIns\[i\.group\]\)/,
     'leaving send/post off means draft-and-hold, not "your run may stall"');

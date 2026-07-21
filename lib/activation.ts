@@ -17,8 +17,12 @@ export type PermissionItem = {
   domains?: string[];
   /** Tier 0/1 are always granted; a Tier-2 is granted once the user opts in. */
   granted?: boolean;
-  /** An optional Tier-2 grant that never BLOCKS activation (recommended shell, autopost-only send). */
+  /** An optional Tier-2 grant that never BLOCKS activation (for example autopost). */
   optional?: boolean;
+  /** Required high-trust access must be granted before activation/run. */
+  required?: boolean;
+  /** v1 durable scope: this agent only, across runs, until explicitly revoked. */
+  grantScope?: 'agent_until_revoked' | 'automatic';
 };
 export type StepStatus = 'done' | 'todo' | 'auto';
 export type ActivationStep = {

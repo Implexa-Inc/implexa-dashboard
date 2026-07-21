@@ -12,10 +12,9 @@
 //   'stalled'   - started, ran past its expected window with no progress; the
 //                 watchdog flags it. The exact silent-stall class.
 //   'completed' - finished and delivered a result.
-//   'failed'    - finished in error. With the permission pre-grant in place, a
-//                 missing-permission case now surfaces HERE (a clear failed run
-//                 with a "blocked on a permission" reason) instead of as a
-//                 silent stall.
+//   'failed'    - finished in error. A required permission is now blocked before
+//                 claim and surfaced as Needs You; a real runtime denial that
+//                 escapes that boundary still lands here rather than as silence.
 //   'queued'    - registered, not yet started.
 //
 // INTEGRATION SLOT: the authoritative state is skill_runs.run_state, added by
