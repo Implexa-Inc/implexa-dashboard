@@ -33,6 +33,7 @@ import AgentTabs, { type TabDef } from '../../_components/agent-tabs';
 import InboxList from '../../inbox/inbox-list';
 import BackLink from '../../_components/back-link';
 import AgentSetupCard from '../../_components/agent-setup-card';
+import { ActivationCard } from '../../_components/activation-card';
 import AgentLearningsCard from '../../_components/agent-learnings-card';
 import AgentExecutorPreference from '../../_components/agent-executor-preference';
 import { ImplexaJudgePolicy } from '../../_components/implexa-judge-policy';
@@ -557,6 +558,7 @@ export default async function WorkflowDetailPage({
   const setupPanel = (
     <>
       <AgentExecutorPreference slug={workflow.slug} />
+      {checklist && <ActivationCard checklist={checklist} surface="setup" />}
       <div className="mb-6">
         <ImplexaJudgePolicy slug={workflow.slug} />
       </div>

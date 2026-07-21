@@ -94,6 +94,16 @@ test('the Run gate reads required-only, or the whole split is cosmetic', () => {
     'gating on the TOTAL would let an optional preference block Run');
 });
 
+test('send/post permission is labelled as autopost-only and excluded from stall nudges', () => {
+  const src = read('activation-card.tsx');
+  assert.match(src, /it\.group === 'send' \? 'autopost only' : 'recommended'/,
+    'send/post is an optional autopilot switch, not a recommended stall-prevention grant');
+  assert.match(src, /const ungrantedOptional = tier2\.filter\(\(i\) => i\.optional && i\.group !== 'send' && !optIns\[i\.group\]\)/,
+    'leaving send/post off means draft-and-hold, not "your run may stall"');
+  assert.doesNotMatch(src, /const ungrantedOptional = tier2\.filter\(\(i\) => i\.optional && !optIns\[i\.group\]\)/,
+    'the old optional-nudge predicate nagged for send/post and made it feel required');
+});
+
 test('Overview reports readiness from the honest server claim', () => {
   const page = read('../workflows/[slug]/page.tsx');
   assert.match(page, /filter\(\(x\) => !x\.keyOnMachine\)/, 'the page reads keyOnMachine, not a satisfied flag');
@@ -225,4 +235,49 @@ test('a NEW pre-run clears the remembered fingerprint', () => {
   const open = src.slice(src.indexOf('async function openPreRun'), src.indexOf('async function openPreRun') + 700);
   assert.match(open, /lastFingerprint\.current = null;/,
     'a fresh attempt must not inherit the previous attempt\'s fingerprint');
+});
+
+test('newly-built agents send the user to review steps before activation', () => {
+  const building = read('building-agents.tsx');
+  assert.match(
+    building,
+    /href=\{b\.workflowSlug \? `\/workflows\/\$\{encodeURIComponent\(b\.workflowSlug\)\}` : '\/workflows'\}/,
+    'the build-complete card must open the agent page, not the activation checklist',
+  );
+  assert.match(building, /Review agent/, 'the CTA should say review, not setup');
+  assert.doesNotMatch(building, /Set up & activate/, 'activation copy would push users past the actual steps');
+
+  const list = read('agents-list.tsx');
+  assert.match(
+    list,
+    /a\.section === 'not_activated' \? \(\s*\n\s*<Link href=\{detail\}[\s\S]{0,160}>\s*\n\s*Review\s*\n\s*<\/Link>/,
+    'draft rows should open the detail page first so the user sees the steps',
+  );
+  assert.doesNotMatch(
+    list,
+    /a\.section === 'not_activated' \? \(\s*\n\s*<Link href=\{`\/workflows\/\$\{encodeURIComponent\(a\.slug\)\}\/activate`\}/,
+    'draft rows must not deep-link straight into activation',
+  );
+
+  const home = read('agents-home.tsx');
+  const row = home.slice(home.indexOf('function NeedsRow'), home.indexOf('function ActiveRow'));
+  assert.match(row, /href=\{`\/workflows\/\$\{a\.slug\}`\}/, 'Home needs-activation rows review first');
+  assert.match(row, />Review<\/Link>/, 'Home needs-activation CTA should say Review');
+  assert.doesNotMatch(row, /\/activate/, 'Home needs-activation rows must not bypass the step view');
+});
+
+test('the Setup tab keeps the permissions/access editor after activation', () => {
+  const page = read('../workflows/[slug]/page.tsx');
+  assert.match(page, /import \{ ActivationCard \} from '\.\.\/\.\.\/_components\/activation-card';/,
+    'the reusable activation checklist must be available to the Setup tab');
+  assert.match(page, /\{checklist && <ActivationCard checklist=\{checklist\} surface="setup" \/>\}/,
+    'Setup must render the permissions/access checklist instead of losing it after activation');
+
+  const card = read('activation-card.tsx');
+  assert.match(card, /surface\?: 'activation' \| 'setup';/,
+    'ActivationCard must have an explicit setup surface, not a second ad-hoc permissions UI');
+  assert.match(card, /setupSurface \? 'Permissions & access' : checklist\.name/,
+    'the setup surface should label the card as editable access, not as the activation page');
+  assert.match(card, /setupSurface && isActive && allSavedGranted \? null : isActive && allSavedGranted/,
+    'an active setup card should not duplicate Run/questions/feedback — only access controls');
 });

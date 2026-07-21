@@ -257,8 +257,8 @@ function Row({ a, onArchive, onDeactivate, onRename, busy, spotlight = false }: 
 
         <div className="flex-none flex items-center gap-1.5">
           {a.section === 'not_activated' ? (
-            <Link href={`/workflows/${encodeURIComponent(a.slug)}/activate`} className="btn-success text-xs px-3 py-1.5 whitespace-nowrap">
-              Activate
+            <Link href={detail} className="btn-success text-xs px-3 py-1.5 whitespace-nowrap">
+              Review
             </Link>
           ) : a.needsIntervention ? (
             <Link href={detail} className="text-xs px-3 py-1.5 rounded-md border border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 transition-colors whitespace-nowrap font-medium">
