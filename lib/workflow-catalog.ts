@@ -78,6 +78,7 @@ export type WorkflowBuildEvidence = {
   boundSteps?: number;
   provenSteps?: number;
   verifiedSteps?: number;
+  patternSteps?: number;
   unprovenBoundSteps?: number;
   summary?: string;
   status?: string;
@@ -94,6 +95,14 @@ export type WorkflowStep = {
   gap: boolean;
   fallbacks: string[];
   build_evidence: WorkflowBuildEvidence | null;
+  proven_pattern: {
+    workflow: { source: string; slug: string; name: string };
+    source_step_order: number | null;
+    source_step_label: string;
+    ref: { source: string; slug: string } | null;
+    relevance: number | null;
+    evidence: WorkflowBuildEvidence;
+  } | null;
 };
 
 export type WorkflowActivity = {
@@ -427,6 +436,10 @@ function mapWorkflowDetail(w: any, slug: string, source: string): WorkflowDetail
             build_evidence:
               s?.build_evidence && typeof s.build_evidence === 'object'
                 ? s.build_evidence
+                : null,
+            proven_pattern:
+              s?.proven_pattern && typeof s.proven_pattern === 'object' && s.proven_pattern.workflow
+                ? s.proven_pattern
                 : null,
           };
         })
