@@ -94,6 +94,16 @@ test('the Run gate reads required-only, or the whole split is cosmetic', () => {
     'gating on the TOTAL would let an optional preference block Run');
 });
 
+test('send/post permission is labelled as autopost-only and excluded from stall nudges', () => {
+  const src = read('activation-card.tsx');
+  assert.match(src, /it\.group === 'send' \? 'autopost only' : 'recommended'/,
+    'send/post is an optional autopilot switch, not a recommended stall-prevention grant');
+  assert.match(src, /const ungrantedOptional = tier2\.filter\(\(i\) => i\.optional && i\.group !== 'send' && !optIns\[i\.group\]\)/,
+    'leaving send/post off means draft-and-hold, not "your run may stall"');
+  assert.doesNotMatch(src, /const ungrantedOptional = tier2\.filter\(\(i\) => i\.optional && !optIns\[i\.group\]\)/,
+    'the old optional-nudge predicate nagged for send/post and made it feel required');
+});
+
 test('Overview reports readiness from the honest server claim', () => {
   const page = read('../workflows/[slug]/page.tsx');
   assert.match(page, /filter\(\(x\) => !x\.keyOnMachine\)/, 'the page reads keyOnMachine, not a satisfied flag');

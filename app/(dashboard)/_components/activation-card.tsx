@@ -61,7 +61,11 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-ink-100">{it.label}</span>
                 <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${spec.classes}`}>{spec.label}</span>
-                {it.optional && <span className="text-[10px] text-ink-500">recommended</span>}
+                {it.optional && (
+                  <span className="text-[10px] text-ink-500">
+                    {it.group === 'send' ? 'autopost only' : 'recommended'}
+                  </span>
+                )}
               </div>
               {it.detail && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{it.detail}</p>}
             </div>
@@ -708,8 +712,9 @@ export function ActivationCard({ checklist, proficiency }: { checklist: Activati
     : STATE_BADGE[checklist.state];
 
   // A recommended (optional) Tier-2 grant the user hasn't allowed yet, while the
-  // agent is already active — nudge them to allow it so runs don't stall.
-  const ungrantedOptional = tier2.filter((i) => i.optional && !optIns[i.group]);
+  // agent is already active — nudge them to allow it so runs don't stall. Send/post
+  // is different: off means "draft/hold for approval", not a stall risk.
+  const ungrantedOptional = tier2.filter((i) => i.optional && i.group !== 'send' && !optIns[i.group]);
   const showStallNudge = isActive && allSavedGranted && ungrantedOptional.length > 0;
 
   // Toggling a grant updates local state. On an ALREADY-ACTIVE agent there is no
