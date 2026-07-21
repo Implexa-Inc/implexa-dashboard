@@ -30,9 +30,22 @@ test('workflow detail shows build evidence instead of claiming verified skills',
 test('step rows disclose whether each bound step has real run proof', () => {
   assert.match(stepRow, /Proven by/, 'bound steps with evidence must show a proof line');
   assert.match(stepRow, /No proven run history yet/, 'bound steps without evidence must be disclosed as unproven');
+  assert.match(
+    stepRow,
+    /showBuildEvidence && bound/,
+    'per-step proof copy must be gated by workflow-level build evidence; legacy agents have no per-step build evidence blob even when their Track Record is real',
+  );
   assert.doesNotMatch(
     stepRow,
     /verified skill/i,
     'a bound step is reusable, but not automatically verified by real runs',
+  );
+});
+
+test('workflow detail passes the build-evidence gate into StepRow', () => {
+  assert.match(
+    page,
+    /showBuildEvidence=\{Boolean\(workflow\.build_evidence && workflow\.build_evidence\.status !== 'pending'\)\}/,
+    'legacy agents without workflow.build_evidence must not render per-step "No proven run history yet" copy',
   );
 });

@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import Modal from './modal';
 
-export default function StepRow({ step }: { step: WorkflowStep }) {
+export default function StepRow({ step, showBuildEvidence = false }: { step: WorkflowStep; showBuildEvidence?: boolean }) {
   const [open, setOpen] = useState(false);
   const [content, setContent] = useState<string | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
@@ -80,12 +80,12 @@ export default function StepRow({ step }: { step: WorkflowStep }) {
         {bound && !step.same_as_step && step.ref_summary?.preview ? (
           <p className="mt-1.5 text-xs text-ink-500 leading-relaxed border-l border-ink-700 pl-3">{step.ref_summary.preview}</p>
         ) : null}
-        {bound && step.build_evidence && Number(step.build_evidence.provenRuns || 0) > 0 ? (
+        {showBuildEvidence && bound && step.build_evidence && Number(step.build_evidence.provenRuns || 0) > 0 ? (
           <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
             Proven by {step.build_evidence.provenRuns} delivered run{step.build_evidence.provenRuns === 1 ? '' : 's'}
             {Number(step.build_evidence.verifiedRuns || 0) > 0 ? ` · ${step.build_evidence.verifiedRuns} verified` : ''}
           </p>
-        ) : bound ? (
+        ) : showBuildEvidence && bound ? (
           <p className="mt-1 text-xs text-ink-500">No proven run history yet</p>
         ) : null}
 

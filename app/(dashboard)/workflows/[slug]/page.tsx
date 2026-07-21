@@ -411,7 +411,11 @@ export default async function WorkflowDetailPage({
         ) : (
           <ul className="divide-y divide-ink-800">
             {workflow.steps.map((s) => (
-              <StepRow key={`${s.order}-${s.label.slice(0, 16)}`} step={s} />
+              <StepRow
+                key={`${s.order}-${s.label.slice(0, 16)}`}
+                step={s}
+                showBuildEvidence={Boolean(workflow.build_evidence && workflow.build_evidence.status !== 'pending')}
+              />
             ))}
           </ul>
         )}
