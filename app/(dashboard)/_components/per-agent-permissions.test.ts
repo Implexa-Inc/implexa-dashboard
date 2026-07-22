@@ -23,6 +23,22 @@ test('bottom required-permission CTA grants instead of only focusing another con
     'the bottom CTA must not be a focus-only no-op');
 });
 
+test('permissions row reflects a local required grant immediately', () => {
+  assert.match(src, /permissionLocallyComplete = step\.id === 'permissions'/,
+    'the parent row must derive completion from local opt-in state');
+  assert.match(src, /const effectiveStatus = permissionLocallyComplete \? 'done' : step\.status/,
+    'local completion should flip the row checkmark before the server refresh returns');
+  assert.match(src, /<StatusDot status=\{effectiveStatus\} \/>/,
+    'the row dot must render the locally-derived status');
+});
+
+test('saved permission note is shown inside the permissions section', () => {
+  assert.match(src, /permissionNote\?: string \| null/);
+  assert.match(src, /permissionNote=\{localGrantNote\}/);
+  assert.match(src, /step\.id === 'permissions'[\s\S]{0,260}permissionNote &&/,
+    'the confirmation belongs next to the permission controls, not below the fold');
+});
+
 test('the remote dashboard never writes a global Claude allowlist', () => {
   assert.doesNotMatch(src, /writeLocalAllowlist/);
   assert.doesNotMatch(src, /grantLocalPermissions\(/);

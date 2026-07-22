@@ -494,7 +494,7 @@ function SchedulePicker({ slug, onSaved }: { slug: string; onSaved: () => void }
   );
 }
 
-function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, savingGroup, workedAround, onToggleWorkAround }: {
+function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, savingGroup, workedAround, onToggleWorkAround, permissionNote }: {
   step: ActivationStep;
   slug: string;
   optIns: Record<string, boolean>;
@@ -502,18 +502,23 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
   onChanged: () => void;
   defaultOpen?: boolean;
   savingGroup?: string | null;
+  permissionNote?: string | null;
   workedAround: Set<string>;
   onToggleWorkAround: (key: string, on: boolean) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
-  const isTodo = step.status === 'todo';
+  const items = (step.data?.items ?? []) as PermissionItem[];
+  const requiredItems = step.id === 'permissions' ? items.filter((it) => it.tier === 2 && !it.optional) : [];
+  const permissionLocallyComplete = step.id === 'permissions' && requiredItems.length > 0 && requiredItems.every((it) => optIns[it.group]);
+  const effectiveStatus = permissionLocallyComplete ? 'done' : step.status;
+  const isTodo = effectiveStatus === 'todo';
 
   // Resolve the CTA target/behavior per step.
   let cta: React.ReactNode = null;
   if (step.id === 'schedule') {
     // Inline picker (the fix): toggle a panel, never navigate away. Available
     // when todo ("Set schedule") and when done ("Change").
-    const label = step.status === 'done' ? 'Change' : (step.cta || 'Set schedule');
+    const label = effectiveStatus === 'done' ? 'Change' : (step.cta || 'Set schedule');
     cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : label}</button>;
   } else if (step.id === 'tools' && ((step.data?.items ?? []) as unknown as ToolItem[]).length > 0) {
     // Always offered (status is 'auto'): in the app each tool gets a one-click
@@ -537,18 +542,17 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
     }
   }
 
-  const items = (step.data?.items ?? []) as PermissionItem[];
   const needed = (step.data?.needed ?? []) as NeededConnection[];
 
   return (
     <li className="py-3.5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
-          <StatusDot status={step.status} />
+          <StatusDot status={effectiveStatus} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-ink-100">{step.title}</span>
-              {step.status === 'auto' && <span className="text-[10px] uppercase tracking-wide text-ink-500">auto</span>}
+              {effectiveStatus === 'auto' && <span className="text-[10px] uppercase tracking-wide text-ink-500">auto</span>}
             </div>
             <p className="text-xs text-ink-400 mt-0.5 leading-snug">{step.detail}</p>
           </div>
@@ -556,7 +560,12 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
         {cta && <div className="flex-none">{cta}</div>}
       </div>
       {step.id === 'permissions' && open && items.length > 0 && (
-        <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} savingGroup={savingGroup} />
+        <>
+          <PermissionList items={items} optIns={optIns} onToggle={onToggleOptIn} savingGroup={savingGroup} />
+          {permissionNote && (
+            <p className="mt-2 text-[11px] text-emerald-600 dark:text-emerald-400 leading-snug">{permissionNote}</p>
+          )}
+        </>
       )}
       {step.id === 'connections' && open && needed.length > 0 && (
         <ConnectionsList items={needed} onChanged={onChanged} workedAround={workedAround} onToggleWorkAround={onToggleWorkAround} slug={slug} />
@@ -809,6 +818,7 @@ export function ActivationCard({
             onToggleOptIn={toggleOptIn}
             onChanged={() => router.refresh()}
             savingGroup={savingGroup}
+            permissionNote={localGrantNote}
             workedAround={workedAround}
             onToggleWorkAround={toggleWorkAround}
             defaultOpen={(needsGrant && s.id === 'permissions') || (showStallNudge && s.id === 'permissions') || (s.id === 'connections' && s.status === 'todo')}
@@ -952,9 +962,6 @@ export function ActivationCard({
           </>
         )}
       </div>
-      {localGrantNote && (
-        <p className="mt-2 text-[11px] text-emerald-600 dark:text-emerald-400 leading-snug">{localGrantNote}</p>
-      )}
     </div>
   );
 }
