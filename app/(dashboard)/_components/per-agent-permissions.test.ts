@@ -13,6 +13,16 @@ test('required high-trust access is visibly agent-scoped and blocks the activati
     'the required-permission branch must precede the Activate branch');
 });
 
+test('bottom required-permission CTA grants instead of only focusing another control', () => {
+  assert.match(src, /function allowFirstRequiredPermission\(\)/);
+  assert.match(src, /toggleOptIn\(missing\.group, true\)/,
+    'the large CTA must actually grant the first missing required permission');
+  assert.match(src, /onClick=\{allowFirstRequiredPermission\}/,
+    'the visible "Allow required permission" button must use the grant helper');
+  assert.doesNotMatch(src, /onClick=\{focusRequiredPermission\}/,
+    'the bottom CTA must not be a focus-only no-op');
+});
+
 test('the remote dashboard never writes a global Claude allowlist', () => {
   assert.doesNotMatch(src, /writeLocalAllowlist/);
   assert.doesNotMatch(src, /grantLocalPermissions\(/);

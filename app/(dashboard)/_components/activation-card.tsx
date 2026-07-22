@@ -702,9 +702,10 @@ export function ActivationCard({
   const ready = !isActive && allLocalGranted && (checklist.canActivate || connectionsResolved);
   const anyWorkedAround = unmetConns.some((c) => workedAround.has(connKey(c)));
 
-  function focusRequiredPermission() {
+  function allowFirstRequiredPermission() {
     const missing = requiredTier2.find((item) => !optIns[item.group]);
     if (!missing) return;
+    toggleOptIn(missing.group, true);
     const selector = `[data-permission-action="${CSS.escape(missing.group)}"]`;
     const button = document.querySelector<HTMLButtonElement>(selector);
     button?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -915,7 +916,7 @@ export function ActivationCard({
           <div className="flex flex-col gap-2">
             <button
               type="button"
-              onClick={focusRequiredPermission}
+              onClick={allowFirstRequiredPermission}
               className="btn-outline border-amber-500/50 text-amber-700 dark:text-amber-300"
             >
               Allow required permission
