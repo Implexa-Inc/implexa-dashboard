@@ -236,6 +236,12 @@ test('saving setup answers refreshes the parent checklist and Run CTA', () => {
     'the setup card must expose a save callback for parent state');
   assert.match(setup, /onSaved\?\.\(\);/,
     'the callback must fire after the backend accepts the saved answers');
+  assert.match(setup, /import \{ useRouter \} from 'next\/navigation';/,
+    'the setup card itself must be able to refresh server-derived CTA state');
+  assert.match(setup, /const router = useRouter\(\);/,
+    'saving answers must not rely only on parents remembering to pass a callback');
+  assert.match(setup, /onSaved\?\.\(\);\s*\n[\s\S]{0,800}?router\.refresh\(\);/,
+    'the route refresh must happen after the backend accepts saved answers so sibling Run CTAs update immediately');
 
   const activation = read('activation-card.tsx');
   assert.match(

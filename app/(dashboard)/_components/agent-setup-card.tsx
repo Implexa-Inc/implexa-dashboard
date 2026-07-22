@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
@@ -76,6 +77,7 @@ export default function AgentSetupCard({
   onSaved?: () => void;
 }) {
   const supabase = createClient();
+  const router = useRouter();
   const [setup, setSetup] = useState<Setup | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   // The agent's standing free-text note (saved; honored on every run).
@@ -151,6 +153,13 @@ export default function AgentSetupCard({
       setNoteValue((res as Setup).note || '');
       setSaved(true);
       onSaved?.();
+      // The Run/Activate CTA usually lives beside this card and reads
+      // server-computed readiness (`blockingQuestions`, `readyToRun`). The card
+      // can update itself to "✓ all set" from the POST response, but siblings
+      // keep stale props until the route refreshes. Make the card self-refresh
+      // so every placement flips "Answer N questions" → "Run now" immediately,
+      // even if a future parent forgets to pass `onSaved`.
+      router.refresh();
       setTimeout(() => setSaved(false), 2500);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save. Try again.');
