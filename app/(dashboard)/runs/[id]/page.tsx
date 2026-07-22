@@ -319,12 +319,18 @@ export default async function RunDetailPage({ params }: { params: { id: string }
       repairRequest = (rr as JudgeRepairRequest | null) || null;
     } catch { /* 0122 not applied, or queue failed — the manual Continue fallback stays visible */ }
   }
+  // 'cancelled' is included alongside pending/consumed so the client can tell a
+  // request that is genuinely still in flight apart from one that will NEVER
+  // produce a verdict — without this, a cancelled request looked identical to
+  // an active one and the page had no way to stop showing "reviewing".
+  let judgeRequestStatus: 'pending' | 'consumed' | 'cancelled' | null = null;
   if (!judgment) {
     try {
       const { data: jq } = await supabase.from('run_requests')
         .select('status').eq('judge_target_run_id', params.id)
-        .in('status', ['pending', 'consumed']).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        .in('status', ['pending', 'consumed', 'cancelled']).order('created_at', { ascending: false }).limit(1).maybeSingle();
       judgmentPending = !!jq;
+      judgeRequestStatus = (jq && jq.status) || null;
     } catch { /* 0121 not applied — no pending state */ }
   }
 
@@ -470,9 +476,9 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         />
 
         <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id} />
-        {judgmentPending && <RunJudgmentPending />}
+        {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} />}
         {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (
-          <RunJudgmentPending phase="repair" />
+          <RunJudgmentPending phase="repair" requestStatus={(repairRequest?.status as 'pending' | 'consumed') || null} />
         )}
 
         {/* Share — prominent on ANY completed run with a deliverable, so the owner

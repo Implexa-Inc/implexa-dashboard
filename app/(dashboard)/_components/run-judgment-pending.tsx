@@ -3,17 +3,67 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-export function RunJudgmentPending({ phase = 'review' }: { phase?: 'review' | 'repair' }) {
+type JudgeRequestStatus = 'pending' | 'consumed' | 'cancelled' | null;
+
+// A real video Judge review (artifact inspection, media probes, transcript
+// comparison) can easily run past a couple of minutes. The old fixed 24-poll
+// (2-minute) window stopped calling router.refresh() after that and never
+// resumed — the page froze on "reviewing" even once a verdict genuinely
+// existed, until the user manually reloaded (the exact bug reported: a run
+// with a recorded `uncertain` verdict still showing "Judge is reviewing").
+//
+// Fixed: poll INDEFINITELY while the request is still pending/consumed — the
+// server component re-checks run_judgments on every refresh, so the moment a
+// verdict lands, the next poll naturally stops rendering this component at
+// all. Backs off from 5s to 20s after the first two minutes so a
+// longer-running review doesn't hammer the server forever.
+const FAST_POLL_MS = 5000;
+const SLOW_POLL_MS = 20000;
+const FAST_POLL_WINDOW_MS = 2 * 60 * 1000;
+
+export function RunJudgmentPending({
+  phase = 'review',
+  requestStatus = null,
+}: {
+  phase?: 'review' | 'repair';
+  /** The underlying run_requests status, so a genuinely CANCELLED request (which
+   *  will never produce a verdict) renders a terminal message and stops polling,
+   *  instead of looking identical to one still actively in flight. */
+  requestStatus?: JudgeRequestStatus;
+}) {
   const router = useRouter();
+  const cancelled = requestStatus === 'cancelled';
+
   useEffect(() => {
-    let polls = 0;
-    const timer = setInterval(() => {
-      polls += 1;
-      router.refresh();
-      if (polls >= 24) clearInterval(timer); // two-minute live window; navigation later re-reads normally
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [router]);
+    if (cancelled) return; // terminal — nothing to poll for, it will never resolve
+    let elapsed = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const interval = elapsed < FAST_POLL_WINDOW_MS ? FAST_POLL_MS : SLOW_POLL_MS;
+      timer = setTimeout(() => {
+        elapsed += interval;
+        router.refresh();
+        tick();
+      }, interval);
+    };
+    tick();
+    return () => clearTimeout(timer);
+  }, [router, cancelled]);
+
+  if (cancelled) {
+    return (
+      <div className="mb-6 rounded-xl border border-ink-700 bg-ink-900/40 px-4 py-3" role="status">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-ink-500" aria-hidden />
+          <span className="text-sm font-medium text-ink-200">
+            {phase === 'repair' ? 'The repair attempt was cancelled' : 'Implexa Judge review was cancelled'}
+          </span>
+        </div>
+        <p className="text-xs text-ink-500 mt-1">No verdict will be produced for this request.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="mb-6 rounded-xl border border-violet-500/25 bg-violet-500/5 px-4 py-3" role="status">
       <div className="flex items-center gap-2">

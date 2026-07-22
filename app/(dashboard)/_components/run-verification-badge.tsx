@@ -7,8 +7,17 @@
  * code, its output artifact), NOT a model grading the prose. That distinction is
  * the founder-locked stance and it lives in the tooltip copy verbatim.
  *
+ * LABEL IS "Delivered", NOT "Verified" (2026-07-21 fix). A real run showed
+ * "Verified" on this badge at the same time Implexa Judge's own verdict was
+ * `uncertain` — plain "Verified" reads as "Judge approved this", but this badge
+ * has never meant that; it means the deliverable EXISTS, a narrower and
+ * different claim. Renaming removes the collision instead of asking the user to
+ * reconcile two badges that sound like they disagree. The Judge verdict is a
+ * separate card (see RunJudgmentCard) precisely so the two claims never merge
+ * into one word.
+ *
  * Only the three post-completion verdicts render here:
- *   verified_complete       → green "Verified"  (evidence the deliverable exists)
+ *   verified_complete       → green "Delivered"  (evidence the deliverable exists)
  *   incomplete_recoverable  → amber "May be incomplete" (force-closed / no finish signal)
  *   complete_unverified     → muted "Unverified" (delivered, but can't be confirmed)
  * A 'failed' verification is intentionally NOT rendered — <RunStateBadge> already
@@ -29,11 +38,11 @@ export type VerificationStatus =
 
 const SPEC: Record<string, { label: string; classes: string; dot: string; tip: string; icon?: 'check' }> = {
   verified_complete: {
-    label: 'Verified',
+    label: 'Delivered',
     icon: 'check',
     classes: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-emerald-500/25',
     dot: 'bg-emerald-500 dark:bg-emerald-400',
-    tip: 'Implexa confirmed this run produced its deliverable — checked from the run’s own output and exit, not a model’s opinion of the text.',
+    tip: 'Implexa confirmed this run produced its deliverable — checked from the run’s own output and exit, not a model’s opinion of the text. This is separate from Implexa Judge review, shown in its own card below.',
   },
   incomplete_recoverable: {
     label: 'May be incomplete',
