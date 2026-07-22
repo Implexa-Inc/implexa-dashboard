@@ -101,6 +101,19 @@ test('browser account setup is a reusable verified access method, never an unche
     'browser-only work explains why the API-key prompt is absent');
 });
 
+test('provider access remains visible in Setup and never hides behind the active-CTA branch', () => {
+  const src = read('activation-card.tsx');
+  const marker = '<div className="mt-5 flex items-start gap-3">';
+  const split = src.indexOf(marker);
+  assert.ok(split > 0, 'the lifecycle CTA branch must remain identifiable');
+  const beforeCta = src.slice(0, split);
+  const afterCta = src.slice(split);
+  assert.match(beforeCta, /<ActivationRequirements req=\{checklist\.requirements\} slug=\{checklist\.slug\} onChanged=\{\(\) => router\.refresh\(\)\} \/>/,
+    'requirements must render before the lifecycle CTA branches, including Setup for active agents');
+  assert.doesNotMatch(afterCta, /<ActivationRequirements req=/,
+    'a second, branch-gated render would reproduce the hidden-Setup regression');
+});
+
 test('the Run gate reads required-only, or the whole split is cosmetic', () => {
   const src = read('agent-actions.tsx');
   assert.match(src, /const blocking = blockingQuestions \?\? pendingQuestions;/,

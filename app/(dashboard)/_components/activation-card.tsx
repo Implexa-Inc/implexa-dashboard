@@ -833,6 +833,13 @@ export function ActivationCard({
         <ImplexaJudgePolicy slug={checklist.slug} compact />
       </div>}
 
+      {/* Provider access is provisioning, not a post-activation reward. Keep it
+          outside the lifecycle CTA branches so an existing agent can see and
+          repair its real browser/key route from Setup as well as first-run. */}
+      <div className="mt-4">
+        <ActivationRequirements req={checklist.requirements} slug={checklist.slug} onChanged={() => router.refresh()} />
+      </div>
+
       <div className="mt-5 flex items-start gap-3">
         {setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
           // The moment of highest motivation must not dead-end at "Active."
@@ -869,10 +876,6 @@ export function ActivationCard({
                 they can never be missed (founder: "you could have shown the
                 questions during Run; I got lost in the middle"). The card
                 self-hides when the agent has none. */}
-            {/* PREPARE first (keys, accounts, tools), then MAKE IT YOURS
-                (the questions). Provisioning used to live permanently on Overview
-                and never collapse; it belongs here, where it gets finished. */}
-            <ActivationRequirements req={checklist.requirements} slug={checklist.slug} onChanged={() => router.refresh()} />
             <div id="agent-setup" className="scroll-mt-20 my-1">
               <AgentSetupCard slug={checklist.slug} source={checklist.source} onSaved={() => router.refresh()} />
             </div>
