@@ -63,8 +63,8 @@ test('requirement satisfaction requires the PER-AGENT grant for an API route, wh
   );
   assert.match(src, /const browserReady = \(s: \(typeof services\)\[number\]\) => s\.browserSession\?\.status === 'reachable';/,
     'a browser route is satisfied only by a verified reachable account, never a checkbox');
-  assert.match(src, /s\.apiKeyRequired === false \? browserReady\(s\) : apiReady\(s\);/,
-    'a browser-only workflow must not be held hostage by an API-key prompt, while a workflow needing both remains conservative');
+  assert.match(src, /if \(s\.apiKeyRequired === false\) return browserReady\(s\);\s*return apiReady\(s\) && \(!s\.browserSession \|\| browserReady\(s\)\);/,
+    'a browser-only workflow must not be held hostage by an API-key prompt, while a workflow needing both requires both routes');
   // The server's weaker field must not be mistaken for satisfaction anywhere.
   assert.doesNotMatch(src, /filter\(\(s\) => s\.satisfied\)/, 'there is no server-side `satisfied` to trust');
   // Unknown grant state must never collapse a row.
@@ -81,13 +81,13 @@ test('a saved-but-ungranted row stays actionable and stops selling a second key'
   assert.match(src, /Key already saved on this Mac\. No paste needed — just allow this agent to use it\./,
     'tell the user it is an authorization, not a purchase');
   // The founder's original complaint: "key ready" next to "Get it ↗".
-  assert.match(src, /\{!needsGrantOnly && !browserOnly && \(\s*\n\s*<a href=\{s\.url\}/,
+  assert.match(src, /\{!keyReady && !needsGrantOnly && !browserOnly && \(\s*\n\s*<a href=\{s\.url\}/,
     'never offer "Get it" for a key that already exists');
-  assert.match(src, /\{!needsGrantOnly && !browserOnly && \(\s*\n\s*<span className="text-\[11px\] px-1\.5/,
+  assert.match(src, /\{!isReady && !needsGrantOnly && !browserOnly && \(\s*\n\s*<span className="text-\[11px\] px-1\.5/,
     'never show a cost badge for a key that already exists');
   // And the key control is always rendered for a vault-backed provider, so the
   // grant path can never be hidden.
-  assert.match(src, /\{s\.provider && !browserOnly && <InlineAddKeyButton provider=\{s\.provider\} slug=\{slug\} \/>\}/,
+  assert.match(src, /\{s\.provider && !browserOnly && !keyReady && <InlineAddKeyButton provider=\{s\.provider\} slug=\{slug\} \/>\}/,
     'the key/grant control must remain available for an API route, but not misrepresent browser-only work as requiring a key');
 });
 
@@ -112,6 +112,14 @@ test('provider access remains visible in Setup and never hides behind the active
     'requirements must render before the lifecycle CTA branches, including Setup for active agents');
   assert.doesNotMatch(afterCta, /<ActivationRequirements req=/,
     'a second, branch-gated render would reproduce the hidden-Setup regression');
+});
+
+test('provider rows remain inspectable after they are ready', () => {
+  const src = read('activation-requirements.tsx');
+  assert.match(src, /\{services\.map\(\(s\) => \{/,
+    'all provider rows must render; showing only outstanding rows hides the access method once it is ready');
+  assert.match(src, /✓ signed in/, 'a verified browser route must identify itself rather than disappear into a generic all-set message');
+  assert.match(src, /✓ key allowed/, 'a granted local API key must identify its scoped status');
 });
 
 test('the Run gate reads required-only, or the whole split is cosmetic', () => {

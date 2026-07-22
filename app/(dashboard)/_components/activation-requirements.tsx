@@ -120,11 +120,13 @@ export function ActivationRequirements({ req, slug, onChanged }: {
   const browserReady = (s: (typeof services)[number]) => s.browserSession?.status === 'reachable';
   // New payloads say which route the workflow actually executes. Old payloads
   // retain the historical API-key behavior for a calm rolling upgrade.
-  const satisfied = (s: (typeof services)[number]) =>
+  const satisfied = (s: (typeof services)[number]) => {
     // A verified browser session is an alternative only when the builder has
     // declared the provider browser-only. If a future workflow needs both an
     // API and browser access, do not overstate readiness from either alone.
-    s.apiKeyRequired === false ? browserReady(s) : apiReady(s);
+    if (s.apiKeyRequired === false) return browserReady(s);
+    return apiReady(s) && (!s.browserSession || browserReady(s));
+  };
 
   const outstanding = services.filter((s) => !satisfied(s));
   const ready = services.filter(satisfied);
@@ -133,22 +135,24 @@ export function ActivationRequirements({ req, slug, onChanged }: {
     <div className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
       <div className="text-xs font-semibold uppercase tracking-wide text-ink-500 mb-3">What this agent needs</div>
 
-      {outstanding.length === 0 ? (
-        <p className="text-sm text-emerald-600 dark:text-emerald-400">Everything’s set up for this agent.</p>
-      ) : (
-        <ul className="space-y-3">
-          {outstanding.map((s) => {
+      {outstanding.length === 0 && (
+        <p className="text-sm text-emerald-600 dark:text-emerald-400 mb-3">Everything’s set up for this agent.</p>
+      )}
+      <ul className="space-y-3">
+          {services.map((s) => {
             // The key exists but THIS agent isn't allowed it yet — a grant, not a
             // purchase. Never send the user off to buy a second key.
             const needsGrantOnly = !!s.provider && s.keyOnMachine;
             const browserOnly = s.apiKeyRequired === false && !!s.browserSession;
+            const keyReady = apiReady(s);
+            const isReady = satisfied(s);
             return (
               <li key={s.key} className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm text-ink-100">{s.name}</span>
                     {/* Cost is only news if they still have to go get it. */}
-                    {!needsGrantOnly && !browserOnly && (
+                    {!isReady && !needsGrantOnly && !browserOnly && (
                       <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 uppercase tracking-wide">
                         {s.cost}
                       </span>
@@ -158,6 +162,8 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                     <p className="text-xs text-ink-500 mt-0.5">
                       This workflow uses {s.name} in your local browser — no API key needed.
                     </p>
+                  ) : keyReady ? (
+                    <p className="text-xs text-ink-500 mt-0.5">Key saved on this Mac and allowed for this agent.</p>
                   ) : needsGrantOnly ? (
                     <p className="text-xs text-ink-500 mt-0.5">
                       Key already saved on this Mac. No paste needed — just allow this agent to use it.
@@ -170,10 +176,11 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                 </div>
                 <div className="flex-none flex items-center gap-1.5">
                   {s.browserSession && <BrowserSessionAccess session={s.browserSession} onVerified={() => onChanged?.()} />}
-                  {s.provider && !browserOnly && <InlineAddKeyButton provider={s.provider} slug={slug} />}
+                  {s.provider && !browserOnly && !keyReady && <InlineAddKeyButton provider={s.provider} slug={slug} />}
+                  {keyReady && <span className="text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">✓ key allowed</span>}
                   {/* Suppress "Get it" once a key exists — that was the original
                       complaint: being invited to buy something you already own. */}
-                  {!needsGrantOnly && !browserOnly && (
+                  {!keyReady && !needsGrantOnly && !browserOnly && (
                     <a href={s.url} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Get it ↗</a>
                   )}
                 </div>
@@ -181,7 +188,6 @@ export function ActivationRequirements({ req, slug, onChanged }: {
             );
           })}
         </ul>
-      )}
 
       {ready.length > 0 && outstanding.length > 0 && (
         <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-3">Ready: {ready.map((s) => s.name).join(', ')}</p>
