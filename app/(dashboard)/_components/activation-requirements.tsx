@@ -118,14 +118,18 @@ export function ActivationRequirements({ req, slug, onChanged }: {
   const apiReady = (s: (typeof services)[number]) =>
     !!s.provider && s.keyOnMachine && grants?.[s.provider] === true;
   const browserReady = (s: (typeof services)[number]) => s.browserSession?.status === 'reachable';
+  const accessMode = (s: (typeof services)[number]) =>
+    s.accessMode ?? (s.apiKeyRequired === false ? 'browser' : s.apiKeyRequired === true ? 'api' : 'unknown');
   // New payloads say which route the workflow actually executes. Old payloads
   // retain the historical API-key behavior for a calm rolling upgrade.
   const satisfied = (s: (typeof services)[number]) => {
     // A verified browser session is an alternative only when the builder has
     // declared the provider browser-only. If a future workflow needs both an
     // API and browser access, do not overstate readiness from either alone.
-    if (s.apiKeyRequired === false) return browserReady(s);
-    return apiReady(s) && (!s.browserSession || browserReady(s));
+    const mode = accessMode(s);
+    if (mode === 'browser') return browserReady(s);
+    if (mode === 'api_and_browser') return apiReady(s) && browserReady(s);
+    return apiReady(s);
   };
 
   const outstanding = services.filter((s) => !satisfied(s));
@@ -143,7 +147,9 @@ export function ActivationRequirements({ req, slug, onChanged }: {
             // The key exists but THIS agent isn't allowed it yet — a grant, not a
             // purchase. Never send the user off to buy a second key.
             const needsGrantOnly = !!s.provider && s.keyOnMachine;
-            const browserOnly = s.apiKeyRequired === false && !!s.browserSession;
+            const mode = accessMode(s);
+            const browserOnly = mode === 'browser' && !!s.browserSession;
+            const unknownAccess = mode === 'unknown';
             const keyReady = apiReady(s);
             const isReady = satisfied(s);
             return (
@@ -161,6 +167,10 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                   {browserOnly && s.browserSession ? (
                     <p className="text-xs text-ink-500 mt-0.5">
                       This workflow uses {s.name} in your local browser — no API key needed.
+                    </p>
+                  ) : unknownAccess ? (
+                    <p className="text-xs text-ink-500 mt-0.5">
+                      This workflow names {s.name}, but has not proved whether it uses an API key or a signed-in browser. Use an API key unless this agent is revised to declare browser access.
                     </p>
                   ) : keyReady ? (
                     <p className="text-xs text-ink-500 mt-0.5">Key saved on this Mac and allowed for this agent.</p>

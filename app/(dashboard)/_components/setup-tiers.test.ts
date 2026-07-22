@@ -63,8 +63,10 @@ test('requirement satisfaction requires the PER-AGENT grant for an API route, wh
   );
   assert.match(src, /const browserReady = \(s: \(typeof services\)\[number\]\) => s\.browserSession\?\.status === 'reachable';/,
     'a browser route is satisfied only by a verified reachable account, never a checkbox');
-  assert.match(src, /if \(s\.apiKeyRequired === false\) return browserReady\(s\);\s*return apiReady\(s\) && \(!s\.browserSession \|\| browserReady\(s\)\);/,
-    'a browser-only workflow must not be held hostage by an API-key prompt, while a workflow needing both requires both routes');
+  assert.match(src, /const accessMode = \(s: \(typeof services\)\[number\]\) =>\s*\n?\s*s\.accessMode \?\? \(s\.apiKeyRequired === false \? 'browser' : s\.apiKeyRequired === true \? 'api' : 'unknown'\);/,
+    'the dashboard must honor explicit accessMode and treat missing/nullable legacy booleans as unknown');
+  assert.match(src, /if \(mode === 'browser'\) return browserReady\(s\);[\s\S]*?if \(mode === 'api_and_browser'\) return apiReady\(s\) && browserReady\(s\);[\s\S]*?return apiReady\(s\);/,
+    'browser-only, api-only, combined, and unknown access must have separate readiness rules');
   // The server's weaker field must not be mistaken for satisfaction anywhere.
   assert.doesNotMatch(src, /filter\(\(s\) => s\.satisfied\)/, 'there is no server-side `satisfied` to trust');
   // Unknown grant state must never collapse a row.
@@ -88,7 +90,7 @@ test('a saved-but-ungranted row stays actionable and stops selling a second key'
   // And the key control is always rendered for a vault-backed provider, so the
   // grant path can never be hidden.
   assert.match(src, /\{s\.provider && !browserOnly && !keyReady && <InlineAddKeyButton provider=\{s\.provider\} slug=\{slug\} \/>\}/,
-    'the key/grant control must remain available for an API route, but not misrepresent browser-only work as requiring a key');
+    'the key/grant control must remain available for API and unknown routes, but not misrepresent browser-only work as requiring a key');
 });
 
 test('browser account setup is a reusable verified access method, never an unchecked claim', () => {
@@ -99,6 +101,8 @@ test('browser account setup is a reusable verified access method, never an unche
   assert.match(src, /out\?\.ok && out\.reachable/, 'only a successful authenticated probe may mark the route complete');
   assert.match(src, /This workflow uses \{s\.name\} in your local browser — no API key needed\./,
     'browser-only work explains why the API-key prompt is absent');
+  assert.match(src, /has not proved whether it uses an API key or a signed-in browser/,
+    'unknown provider access must not claim browser login is sufficient');
 });
 
 test('provider access remains visible in Setup and never hides behind the active-CTA branch', () => {

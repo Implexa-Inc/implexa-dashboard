@@ -62,8 +62,13 @@ export type AgentRequirementsPayload = {
   services: {
     key: string; name: string; cost: string; url: string;
     alt: string | null; provider: string | null;
-    /** True only when this workflow actually calls the provider API. */
-    apiKeyRequired?: boolean;
+    /**
+     * Explicit provider access route. Unknown means the provider is detected, but
+     * the workflow did not prove whether API key or browser login is the route.
+     */
+    accessMode?: 'api' | 'browser' | 'api_and_browser' | 'unknown' | null;
+    /** Backward-compatible mirror: true=API, false=browser, null=unknown. */
+    apiKeyRequired?: boolean | null;
     /** A verified local browser session is an access route for this workflow. */
     browserSession?: {
       required: boolean;
