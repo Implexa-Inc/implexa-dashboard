@@ -288,9 +288,13 @@ function ComputerUseSetup({ onReady }: { onReady: (ready: boolean) => void }) {
             </span>
             {!granted(state?.accessibility) && <button type="button" onClick={() => open('accessibility')} className="btn-outline text-xs px-2.5 py-1">Open settings</button>}
           </div>
-          <button type="button" onClick={check} disabled={checking} className="text-xs text-brand-500 hover:underline disabled:opacity-60">
-            {checking ? 'Checking…' : 'I granted both — check again'}
-          </button>
+          {state?.ready ? (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">✓ Ready for Codex Computer Use</p>
+          ) : (
+            <button type="button" onClick={check} disabled={checking} className="text-xs text-brand-500 hover:underline disabled:opacity-60">
+              {checking ? 'Checking…' : 'I granted both — check again'}
+            </button>
+          )}
         </div>
       ) : (
         <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">Open this agent in the Implexa desktop app to grant and verify these Mac permissions.</p>

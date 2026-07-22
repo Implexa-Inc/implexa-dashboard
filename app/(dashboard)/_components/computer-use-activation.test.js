@@ -14,6 +14,7 @@ test('Computer Use is an activation prerequisite with honest Implexa/macOS copy'
   assert.match(CARD, /Screen Recording/);
   assert.match(CARD, /Accessibility/);
   assert.match(CARD, /macOS may say “<strong className="font-semibold text-ink-200">Implexa<\/strong> wants to record this computer’s screen”/);
+  assert.match(CARD, /Ready for Codex Computer Use/);
   assert.match(CARD, /computerUseSatisfied/);
   assert.match(CARD, /Set up required Computer Use/);
 });
