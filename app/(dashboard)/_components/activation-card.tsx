@@ -19,6 +19,7 @@ import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
 import AgentSetupCard from './agent-setup-card';
 import { ActivationRequirements } from './activation-requirements';
+import CapabilityGapsNotice from './capability-gaps-notice';
 import AgentFeedback from './agent-feedback';
 import AgentBrowserConnect from './agent-browser-connect';
 import { ImplexaJudgePolicy } from './implexa-judge-policy';
@@ -946,6 +947,12 @@ export function ActivationCard({
       <div className="mt-4">
         <ActivationRequirements req={checklist.requirements} slug={checklist.slug} onChanged={() => router.refresh()} />
       </div>
+
+      {/* Capabilities with NO viable tool (server-derived from capability_setup).
+          requirements above cannot show these — a gap has no step reflecting a
+          working tool. Never blocks activation; a required gap only explains why
+          "ready to run" is withheld. */}
+      <CapabilityGapsNotice gaps={checklist.capabilityGaps} />
 
       <div className="mt-5 flex items-start gap-3">
         {setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
