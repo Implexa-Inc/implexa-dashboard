@@ -55,23 +55,32 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
       {items.map((it) => {
         const spec = TIER_PRESENTATION[it.tier];
         const isOptIn = it.tier === 2;
+        const required = isOptIn && !it.optional;
         return (
-          <li key={it.group} className="flex items-start justify-between gap-3">
+          <li
+            key={it.group}
+            data-permission-group={it.group}
+            className={`flex items-start justify-between gap-3 rounded-md p-2 ${required && !optIns[it.group] ? 'border border-amber-500/35 bg-amber-500/5' : ''}`}
+          >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-ink-100">{it.label}</span>
-                <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${spec.classes}`}>{spec.label}</span>
-                {it.optional && (
-                  <span className="text-[10px] text-ink-500">
-                    {it.group === 'send' ? 'autopost only' : 'recommended'}
-                  </span>
-                )}
+                <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${spec.classes}`}>
+                  {required ? 'Required' : it.optional ? 'Optional' : spec.label}
+                </span>
+                {it.optional && <span className="text-[10px] text-ink-500">{it.group === 'send' ? 'autopost only' : 'optional'}</span>}
               </div>
               {it.detail && <p className="text-xs text-ink-500 mt-0.5 leading-snug">{it.detail}</p>}
+              {required && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1 leading-snug">
+                  Grant once to this agent. It stays available for its future runs until you revoke it.
+                </p>
+              )}
             </div>
             {isOptIn ? (
               <button
                 type="button"
+                data-permission-action={it.group}
                 disabled={savingGroup === it.group}
                 onClick={() => onToggle(it.group, !optIns[it.group])}
                 className={`flex-none text-xs font-medium rounded-md px-2.5 py-1 transition-colors disabled:opacity-60 ${
@@ -80,7 +89,7 @@ function PermissionList({ items, optIns, onToggle, savingGroup }: {
                     : 'border border-ink-700 text-ink-400 hover:text-ink-200'
                 }`}
               >
-                {savingGroup === it.group ? 'Saving…' : optIns[it.group] ? 'Allowed' : 'Allow'}
+                {savingGroup === it.group ? 'Saving…' : optIns[it.group] ? 'Allowed for this agent' : required ? 'Allow for this agent' : 'Allow'}
               </button>
             ) : (
               <span className="flex-none text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">granted</span>
@@ -512,7 +521,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
     cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : 'View'}</button>;
   } else if (step.id === 'permissions' && ((step.data?.items ?? []) as PermissionItem[]).length > 0) {
     // Always expandable (even when fully granted) so the user can see what's
-    // pre-granted — incl. the default-on "Run commands" — and toggle it off.
+    // automatic vs. explicitly granted to this agent, and revoke it.
     cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : (step.cta || 'View')}</button>;
   } else if (step.id === 'api-keys' && ((step.data?.items ?? []) as unknown as KeyItem[]).length > 0) {
     // Expandable whether todo (Add key) or done (View) — the paste/create flow is
@@ -636,38 +645,9 @@ export function ActivationCard({
   const [localGrantNote, setLocalGrantNote] = useState<string | null>(null);
   const [savingGroup, setSavingGroup] = useState<string | null>(null);
 
-  // A backend opt-in records INTENT, but a scheduled run executes in Claude Code
-  // on this machine and still PROMPTS for the tool — which, unattended, kills the
-  // run ("permission stream closed"). So when shell is granted, write the tool to
-  // the local Claude Code allowlist via the desktop bridge, so scheduled runs
-  // stop prompting. Map: the 'shell' permission group -> the Bash tool.
-  async function writeLocalAllowlist(opts: Record<string, boolean>) {
-    const bridge = desktopBridge();
-    if (!bridge?.grantLocalPermissions) return; // web (no app) — nothing local to write
-    const tools = new Set<string>();
-    for (const i of tier2) {
-      if (!opts[i.group]) continue;
-      // 'shell' -> Bash. A local-work agent that gets shell almost always also
-      // writes files (logs, renders), so grant the file-write tools too — and
-      // the desktop then widens additionalDirectories so those writes don't
-      // stall on "path outside allowed working directories".
-      if (i.group === 'shell') { tools.add('Bash'); tools.add('Write'); tools.add('Edit'); tools.add('MultiEdit'); }
-      // 'files_w' -> the file-write tools (desktop widens the work dirs).
-      if (i.group === 'files_w') { tools.add('Write'); tools.add('Edit'); tools.add('MultiEdit'); }
-    }
-    if (!tools.size) return;
-    try {
-      const r = await bridge.grantLocalPermissions([...tools]);
-      if (r?.ok && ((r.added && r.added.length) || (r.addedDirs && r.addedDirs.length))) {
-        const bits: string[] = [];
-        if (r.added && r.added.length) bits.push(r.added.join(', '));
-        if (r.addedDirs && r.addedDirs.length) bits.push('its working folders');
-        setLocalGrantNote(`Granted ${bits.join(' + ')} in your Claude Code, so scheduled runs won’t stall on a permission prompt.`);
-      }
-    } catch { /* best effort: the run still works if the user clicks Always allow once */ }
-  }
-
-  // Persist the given opt-ins to the backend + write the local allowlist. Used
+  // Persist the given opt-ins to the backend. The desktop enforces this exact
+  // agent's policy at spawn time; never widen ~/.claude/settings.json globally.
+  // Used
   // both by the Activate/Grant button and by an auto-save on toggle for an
   // already-active agent (which has no Activate button to save behind).
   async function persistGrants(opts: Record<string, boolean>, workAround = false, onDemand = false) {
@@ -676,7 +656,9 @@ export function ActivationCard({
     await callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/activate`, {
       jwt, method: 'POST', body: { optIns: opts, ...(workAround ? { workAround: true } : {}), ...(onDemand ? { onDemand: true } : {}) },
     });
-    await writeLocalAllowlist(opts);
+    if (requiredTier2.some((item) => opts[item.group])) {
+      setLocalGrantNote('Saved for this agent only. The grant applies to future runs until you revoke it.');
+    }
   }
 
   // workAround → soft-activate past an unmet connection. onDemand → opt OUT of
@@ -696,8 +678,8 @@ export function ActivationCard({
     }
   }
 
-  // OPTIONAL Tier-2 grants (e.g. the recommended "Run commands") never block
-  // activation — only required ones gate the Activate button.
+  // Optional Tier-2 grants (today: unattended send/post) never block activation.
+  // Manifest-declared shell/external access is required and gates activation.
   const requiredTier2 = tier2.filter((i) => !i.optional);
   const allSavedGranted = requiredTier2.every((i) => (i as PermissionItem & { granted?: boolean }).granted) || savedLocally;
   const allLocalGranted = requiredTier2.every((i) => optIns[i.group]); // saved + just-toggled
@@ -720,6 +702,15 @@ export function ActivationCard({
   const ready = !isActive && allLocalGranted && (checklist.canActivate || connectionsResolved);
   const anyWorkedAround = unmetConns.some((c) => workedAround.has(connKey(c)));
 
+  function focusRequiredPermission() {
+    const missing = requiredTier2.find((item) => !optIns[item.group]);
+    if (!missing) return;
+    const selector = `[data-permission-action="${CSS.escape(missing.group)}"]`;
+    const button = document.querySelector<HTMLButtonElement>(selector);
+    button?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => button?.focus(), 250);
+  }
+
   // Honest hands-free contract: an active agent only earns the green "Active"
   // badge once its Class-2 grants are verified. A browser agent on a machine that
   // hasn't paired Chrome is active-but-unverified — show an amber "needs a check"
@@ -740,18 +731,31 @@ export function ActivationCard({
   const ungrantedOptional = tier2.filter((i) => i.optional && i.group !== 'send' && !optIns[i.group]);
   const showStallNudge = isActive && allSavedGranted && ungrantedOptional.length > 0;
 
-  // Toggling a grant updates local state. On an ALREADY-ACTIVE agent there is no
-  // Activate button to save behind, so persist immediately (and write the local
-  // allowlist) — otherwise "Allowed" wouldn't stick. During initial activation
-  // (not yet active) we defer to the Activate button as before.
+  // Toggling a grant updates local state. On an already-active agent persist the
+  // one capability through the dedicated grant endpoint. This is what makes
+  // revocation real: the activation endpoint only turns an agent on and must not
+  // double as a misleading grant store.
   function toggleOptIn(group: string, on: boolean) {
     const next = { ...optIns, [group]: on };
+    const permission = tier2.find((item) => item.group === group);
     setOptIns(next);
     if (isActive) {
       setSavingGroup(group);
       setError(null);
-      persistGrants(next)
-        .then(() => router.refresh())
+      supabase.auth.getSession()
+        .then(({ data }) => callBackend(`/api/v2/agents/${encodeURIComponent(checklist.slug)}/permissions/${encodeURIComponent(group)}`, {
+          jwt: data.session?.access_token,
+          method: 'POST',
+          body: { granted: on },
+        }))
+        .then(() => {
+          setLocalGrantNote(on
+            ? 'Allowed for this agent only, across future runs, until you revoke it.'
+            : permission && !permission.optional
+              ? 'Revoked for this agent. The agent is now inactive, and any recurring schedule is paused until you grant it and activate again.'
+              : 'Autopilot access is off for this agent. Draft-and-hold work stays active.');
+          router.refresh();
+        })
         .catch(() => { setError('Could not save that grant. Try again.'); setOptIns((s) => ({ ...s, [group]: !on })); })
         .finally(() => setSavingGroup(null));
     }
@@ -907,6 +911,19 @@ export function ActivationCard({
               <span className="text-xs text-ink-500">Allow the highlighted permission above, then grant.</span>
             ) : null}
           </>
+        ) : !allLocalGranted ? (
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={focusRequiredPermission}
+              className="btn-outline border-amber-500/50 text-amber-700 dark:text-amber-300"
+            >
+              Allow required permission
+            </button>
+            <span className="text-xs text-amber-700 dark:text-amber-300 max-w-md leading-snug">
+              This agent cannot deliver its final output without the highlighted permission. Grant it once to this agent, or leave the agent inactive.
+            </span>
+          </div>
         ) : (
           <>
             <button
@@ -922,8 +939,6 @@ export function ActivationCard({
               <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>
             ) : !ready && unmetConns.length > 0 ? (
               <span className="text-xs text-ink-500">Sign in above, or tick “let Claude figure out an alternative”.</span>
-            ) : !ready && tier2.length > 0 && !allLocalGranted ? (
-              <span className="text-xs text-ink-500">Allow the highlighted permission first.</span>
             ) : suggestedCadence ? (
               // Recurring agent → activates on its inferred clock by default, with a
               // one-tap opt-out to on-demand.
