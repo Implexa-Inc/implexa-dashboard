@@ -55,7 +55,7 @@ test('InlineAddKeyButton never renders a dead span while awaiting — the exact 
   // is computed across three states (add / grant-only / awaiting), so assert the
   // awaiting branch specifically rather than one literal ternary.
   assert.match(body, /const label = awaiting\s*\n?\s*\? 'Waiting… — reopen'/, 'awaiting relabels the same button');
-  assert.match(body, /: \(saved \? 'Use saved key' : 'Add API key'\)/, 'the non-awaiting label distinguishes grant-only from first-time add');
+  assert.match(body, /: \(saved \? 'Allow saved key' : 'Add API key'\)/, 'the non-awaiting label distinguishes grant-only from first-time add');
 });
 
 test('KeyRow keeps its Add-key control visible while awaiting', () => {

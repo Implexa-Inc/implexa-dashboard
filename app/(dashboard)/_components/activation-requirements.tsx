@@ -84,7 +84,9 @@ export function ActivationRequirements({ req, slug }: { req: AgentRequirementsPa
                     )}
                   </div>
                   {needsGrantOnly ? (
-                    <p className="text-xs text-ink-500 mt-0.5">Key already saved on this Mac — allow this agent to use it.</p>
+                    <p className="text-xs text-ink-500 mt-0.5">
+                      Key already saved on this Mac. No paste needed — just allow this agent to use it.
+                    </p>
                   ) : s.alsoCovers?.length ? (
                     <p className="text-xs text-ink-500 mt-0.5">Also covers {s.alsoCovers.join(', ')}</p>
                   ) : s.alt ? (

@@ -74,7 +74,7 @@ test('a saved-but-ungranted row stays actionable and stops selling a second key'
   const src = read('activation-requirements.tsx');
   assert.match(src, /const needsGrantOnly = !!s\.provider && s\.keyOnMachine;/,
     'the grant-only state must be named');
-  assert.match(src, /Key already saved on this Mac — allow this agent to use it\./,
+  assert.match(src, /Key already saved on this Mac\. No paste needed — just allow this agent to use it\./,
     'tell the user it is an authorization, not a purchase');
   // The founder's original complaint: "key ready" next to "Get it ↗".
   assert.match(src, /\{!needsGrantOnly && \(\s*\n\s*<a href=\{s\.url\}/,

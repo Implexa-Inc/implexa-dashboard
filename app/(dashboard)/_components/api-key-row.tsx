@@ -341,7 +341,7 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
   // with no control at all and a page reload as the only escape.
   const label = awaiting
     ? 'Waiting… — reopen'
-    : (saved ? 'Use saved key' : 'Add API key');
+    : (saved ? 'Allow saved key' : 'Add API key');
   return (
     <button
       type="button"
@@ -349,7 +349,7 @@ export function InlineAddKeyButton({ provider, slug }: { provider: string; slug:
       title={awaiting
         ? 'Waiting for you to confirm in the Implexa window. Closed it? Click to reopen.'
         : (saved ? 'Your key is already saved — this only allows this agent to use it.' : undefined)}
-      className={`flex-none text-xs whitespace-nowrap hover:underline ${awaiting ? 'text-ink-500' : 'text-brand-500'}`}
+      className={`btn-outline flex-none text-xs whitespace-nowrap px-2.5 py-1 ${awaiting ? 'text-ink-500' : 'text-brand-500'}`}
     >
       {label}
     </button>
