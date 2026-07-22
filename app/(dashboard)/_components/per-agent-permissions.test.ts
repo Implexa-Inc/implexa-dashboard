@@ -26,7 +26,7 @@ test('bottom required-permission CTA grants instead of only focusing another con
 test('permissions row reflects a local required grant immediately', () => {
   assert.match(src, /permissionLocallyComplete = step\.id === 'permissions'/,
     'the parent row must derive completion from local opt-in state');
-  assert.match(src, /const effectiveStatus = permissionLocallyComplete \? 'done' : step\.status/,
+  assert.match(src, /step\.id === 'computer-use'\s*\? \(computerUseLocallyComplete \? 'done' : 'todo'\)/,
     'local completion should flip the row checkmark before the server refresh returns');
   assert.match(src, /<StatusDot status=\{effectiveStatus\} \/>/,
     'the row dot must render the locally-derived status');

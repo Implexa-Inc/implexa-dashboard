@@ -17,6 +17,13 @@
 import { useEffect, useState } from 'react';
 
 export type DesktopBridge = {
+  computerUsePermissionsStatus?: () => Promise<{
+    supported: boolean;
+    screenRecording: string;
+    accessibility: string;
+    ready: boolean;
+  }>;
+  openComputerUsePermissions?: (pane: 'screenRecording' | 'accessibility') => Promise<{ ok: boolean; code?: string }>;
   connectAccount?: (domain: string) => Promise<{ ok: boolean; message?: string }>;
   verifyAccount?: (domain: string) => Promise<{ ok: boolean; reachable?: boolean; identity?: string | null; message?: string }>;
   checkTool?: (key: string) => Promise<{ ok: boolean; installed?: boolean }>;
