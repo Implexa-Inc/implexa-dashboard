@@ -272,7 +272,7 @@ function ComputerUseSetup({ onReady }: { onReady: (ready: boolean) => void }) {
     <div className="mt-3 rounded-lg border border-amber-500/35 bg-amber-500/5 p-3">
       <p className="text-sm font-medium text-ink-100">Required before this agent can operate HeyGen or Runway</p>
       <p className="text-xs text-ink-400 mt-1 leading-snug">
-        This workflow uses Codex Computer Use to operate signed-in web apps. macOS may say “Implexa wants to record this computer’s screen” because Implexa launches the local runner; it does not share your screen with Implexa&apos;s servers.
+        This workflow uses Codex Computer Use to operate signed-in web apps. macOS may say “<strong className="font-semibold text-ink-200">Implexa</strong> wants to record this computer’s screen” because Implexa launches the local runner; it does not share your screen with Implexa&apos;s servers.
       </p>
       {nativeAvailable ? (
         <div className="mt-3 space-y-2 text-xs">
