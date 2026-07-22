@@ -872,7 +872,7 @@ export function ActivationCard({
             {/* PREPARE first (keys, accounts, tools), then MAKE IT YOURS
                 (the questions). Provisioning used to live permanently on Overview
                 and never collapse; it belongs here, where it gets finished. */}
-            <ActivationRequirements req={checklist.requirements} slug={checklist.slug} />
+            <ActivationRequirements req={checklist.requirements} slug={checklist.slug} onChanged={() => router.refresh()} />
             <div id="agent-setup" className="scroll-mt-20 my-1">
               <AgentSetupCard slug={checklist.slug} source={checklist.source} onSaved={() => router.refresh()} />
             </div>

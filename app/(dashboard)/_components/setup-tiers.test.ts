@@ -53,14 +53,18 @@ test('preferences are visibly separated and individually escapable', () => {
   assert.match(src, /\{isOptional\(f\) && !filled\(f\) && \(/, 'the affordances show only for an unanswered preference');
 });
 
-test('requirement satisfaction requires the PER-AGENT grant, not just a saved key', () => {
+test('requirement satisfaction requires the PER-AGENT grant for an API route, while a verified browser route can satisfy browser-only work', () => {
   const src = read('activation-requirements.tsx');
-  // Both halves, in one predicate.
+  // API key route: both halves, never merely the machine boolean.
   assert.match(
     src,
-    /const satisfied = \(s: \(typeof services\)\[number\]\) =>\s*\n?\s*!!s\.provider && s\.keyOnMachine && grants\?\.\[s\.provider\] === true;/,
-    'satisfied MUST be keyOnMachine AND granted-for-this-agent — the server cannot see grants',
+    /const apiReady = \(s: \(typeof services\)\[number\]\) =>\s*\n?\s*!!s\.provider && s\.keyOnMachine && grants\?\.\[s\.provider\] === true;/,
+    'an API route MUST be keyOnMachine AND granted-for-this-agent — the server cannot see grants',
   );
+  assert.match(src, /const browserReady = \(s: \(typeof services\)\[number\]\) => s\.browserSession\?\.status === 'reachable';/,
+    'a browser route is satisfied only by a verified reachable account, never a checkbox');
+  assert.match(src, /s\.apiKeyRequired === false \? browserReady\(s\) : apiReady\(s\);/,
+    'a browser-only workflow must not be held hostage by an API-key prompt, while a workflow needing both remains conservative');
   // The server's weaker field must not be mistaken for satisfaction anywhere.
   assert.doesNotMatch(src, /filter\(\(s\) => s\.satisfied\)/, 'there is no server-side `satisfied` to trust');
   // Unknown grant state must never collapse a row.
@@ -77,14 +81,24 @@ test('a saved-but-ungranted row stays actionable and stops selling a second key'
   assert.match(src, /Key already saved on this Mac\. No paste needed — just allow this agent to use it\./,
     'tell the user it is an authorization, not a purchase');
   // The founder's original complaint: "key ready" next to "Get it ↗".
-  assert.match(src, /\{!needsGrantOnly && \(\s*\n\s*<a href=\{s\.url\}/,
+  assert.match(src, /\{!needsGrantOnly && !browserOnly && \(\s*\n\s*<a href=\{s\.url\}/,
     'never offer "Get it" for a key that already exists');
-  assert.match(src, /\{!needsGrantOnly && \(\s*\n\s*<span className="text-\[11px\] px-1\.5/,
+  assert.match(src, /\{!needsGrantOnly && !browserOnly && \(\s*\n\s*<span className="text-\[11px\] px-1\.5/,
     'never show a cost badge for a key that already exists');
   // And the key control is always rendered for a vault-backed provider, so the
   // grant path can never be hidden.
-  assert.match(src, /\{s\.provider && <InlineAddKeyButton provider=\{s\.provider\} slug=\{slug\} \/>\}/,
-    'the key/grant control must render for every vault-backed provider');
+  assert.match(src, /\{s\.provider && !browserOnly && <InlineAddKeyButton provider=\{s\.provider\} slug=\{slug\} \/>\}/,
+    'the key/grant control must remain available for an API route, but not misrepresent browser-only work as requiring a key');
+});
+
+test('browser account setup is a reusable verified access method, never an unchecked claim', () => {
+  const src = read('activation-requirements.tsx');
+  assert.match(src, /function BrowserSessionAccess/, 'browser sign-in is a reusable service-row component');
+  assert.match(src, /bridge\.connectAccount\(session\.domain\)/, 'the provider domain is opened only through the desktop bridge');
+  assert.match(src, /bridge\.verifyAccount\(session\.domain\)/, 'the account must be verified after sign-in');
+  assert.match(src, /out\?\.ok && out\.reachable/, 'only a successful authenticated probe may mark the route complete');
+  assert.match(src, /This workflow uses \{s\.name\} in your local browser — no API key needed\./,
+    'browser-only work explains why the API-key prompt is absent');
 });
 
 test('the Run gate reads required-only, or the whole split is cosmetic', () => {

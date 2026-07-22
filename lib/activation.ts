@@ -62,6 +62,17 @@ export type AgentRequirementsPayload = {
   services: {
     key: string; name: string; cost: string; url: string;
     alt: string | null; provider: string | null;
+    /** True only when this workflow actually calls the provider API. */
+    apiKeyRequired?: boolean;
+    /** A verified local browser session is an access route for this workflow. */
+    browserSession?: {
+      required: boolean;
+      domain: string;
+      label: string;
+      status: 'reachable' | 'unreachable' | 'unknown';
+      identity?: string | null;
+      verifiedAt?: string | null;
+    } | null;
     /**
      * A key for this provider exists on the newest-seen machine — NOT the same as
      * "this agent may use it". Per-agent grants live in the local vault ACL and
