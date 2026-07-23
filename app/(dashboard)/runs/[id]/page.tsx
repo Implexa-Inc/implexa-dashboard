@@ -315,7 +315,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   if (judgment?.id && judgment.verdict === 'repair') {
     try {
       const { data: rr } = await supabase.from('run_requests')
-        .select('status, run_id').eq('judge_origin_judgment_id', judgment.id).limit(1).maybeSingle();
+        .select('status, run_id, created_at').eq('judge_origin_judgment_id', judgment.id).limit(1).maybeSingle();
       repairRequest = (rr as JudgeRepairRequest | null) || null;
     } catch { /* 0122 not applied, or queue failed — the manual Continue fallback stays visible */ }
   }
@@ -324,13 +324,22 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   // produce a verdict — without this, a cancelled request looked identical to
   // an active one and the page had no way to stop showing "reviewing".
   let judgeRequestStatus: 'pending' | 'consumed' | 'cancelled' | null = null;
+  let judgeRequestCreatedAt: string | null = null;
   if (!judgment) {
     try {
+      // created_at is fetched so the client can stop polling on its own after a
+      // reasonable ceiling, even if the underlying request never reaches a
+      // terminal status — a worker session that crashes right after CLAIMING
+      // the request (consumed) but before ever calling recordJudgment leaves it
+      // stuck there with no failure marker at all (run_requests has no
+      // 'failed' status), and without a deadline the browser would refresh
+      // every 20s forever.
       const { data: jq } = await supabase.from('run_requests')
-        .select('status').eq('judge_target_run_id', params.id)
+        .select('status, created_at').eq('judge_target_run_id', params.id)
         .in('status', ['pending', 'consumed', 'cancelled']).order('created_at', { ascending: false }).limit(1).maybeSingle();
       judgmentPending = !!jq;
       judgeRequestStatus = (jq && jq.status) || null;
+      judgeRequestCreatedAt = (jq && jq.created_at) || null;
     } catch { /* 0121 not applied — no pending state */ }
   }
 
@@ -476,9 +485,9 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         />
 
         <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id} />
-        {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} />}
+        {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
         {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (
-          <RunJudgmentPending phase="repair" requestStatus={(repairRequest?.status as 'pending' | 'consumed') || null} />
+          <RunJudgmentPending phase="repair" requestStatus={(repairRequest?.status as 'pending' | 'consumed') || null} createdAt={repairRequest?.created_at || null} />
         )}
 
         {/* Share — prominent on ANY completed run with a deliverable, so the owner

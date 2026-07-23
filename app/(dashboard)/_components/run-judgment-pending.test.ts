@@ -30,16 +30,41 @@ test('polling backs off from fast to slow instead of running forever at one cade
 
 test('a genuinely CANCELLED judge request stops polling and shows a terminal message, not indefinite "reviewing"', () => {
   assert.match(comp, /requestStatus\s*===\s*'cancelled'/);
-  assert.match(comp, /if \(cancelled\) return;/, 'the poll effect must bail out early for a cancelled request');
+  assert.match(comp, /if \(cancelled \|\| stalled\) return;/, 'the poll effect must bail out early for a cancelled OR stalled request');
   assert.match(comp, /No verdict will be produced for this request\./);
 });
 
-test('the run page fetches judge-request status including cancelled, and threads it into BOTH pending banners', () => {
+// ── Stall ceiling (review follow-up): run_requests has no 'failed' status —
+// a worker crashing right after CLAIMING (consumed) the request leaves it
+// stuck there forever with no terminal marker at all. Without a client-side
+// deadline, an open tab would call router.refresh() every 20s indefinitely.
+test('a request outstanding past the stall ceiling stops polling and shows its own message — not indefinite "reviewing"', () => {
+  assert.match(comp, /STALL_CEILING_MS\s*=\s*20\s*\*\s*60\s*\*\s*1000/, '20 minutes, not a shorter window that would fire on a genuinely slow review');
+  assert.match(comp, /const ageMs\s*=\s*createdAt\s*\?\s*Date\.now\(\)\s*-\s*new Date\(createdAt\)\.getTime\(\)\s*:\s*0;/);
+  assert.match(comp, /const stalled\s*=\s*!cancelled\s*&&\s*ageMs\s*>\s*STALL_CEILING_MS;/,
+    'stalled must be independent of (not overridden by) the cancelled state');
+  assert.match(comp, /taking unusually long/i);
+  assert.doesNotMatch(comp, /taking unusually long[\s\S]{0,400}Implexa Judge is reviewing this run/,
+    'the stalled message must REPLACE the reviewing banner, not render alongside it');
+});
+
+test('with no createdAt (older callers / migration not applied), age is treated as zero — never stalled by default', () => {
+  // createdAt is optional; a caller that cannot supply it must not have every
+  // request immediately read as infinitely aged and stalled.
+  assert.match(comp, /createdAt\s*\?\s*Date\.now\(\)\s*-\s*new Date\(createdAt\)\.getTime\(\)\s*:\s*0/);
+});
+
+test('the run page fetches judge-request status AND created_at, and threads both into BOTH pending banners', () => {
   assert.match(runPage, /\.in\('status', \['pending', 'consumed', 'cancelled'\]\)/,
     'without cancelled in the query, the page can never distinguish a dead request from a live one');
+  assert.match(runPage, /\.select\('status, created_at'\)\.eq\('judge_target_run_id', params\.id\)/,
+    'created_at must be selected, or the client has no way to compute a stall ceiling');
   assert.match(runPage, /judgeRequestStatus\s*=\s*\(jq && jq\.status\)/);
-  assert.match(runPage, /<RunJudgmentPending requestStatus=\{judgeRequestStatus\} \/>/,
-    'the primary review banner must receive the real status, not render blind');
-  assert.match(runPage, /<RunJudgmentPending phase="repair" requestStatus=\{/,
-    'the repair-phase banner must also receive status, or it inherits the same stale-poll bug');
+  assert.match(runPage, /judgeRequestCreatedAt\s*=\s*\(jq && jq\.created_at\)/);
+  assert.match(runPage, /<RunJudgmentPending requestStatus=\{judgeRequestStatus\} createdAt=\{judgeRequestCreatedAt\} \/>/,
+    'the primary review banner must receive BOTH the real status and its age, not render blind');
+  assert.match(runPage, /\.select\('status, run_id, created_at'\)\.eq\('judge_origin_judgment_id', judgment\.id\)/,
+    'the repair request query must also carry created_at, or the repair banner is exempt from the same stall protection');
+  assert.match(runPage, /<RunJudgmentPending phase="repair" requestStatus=\{[^}]+\} createdAt=\{repairRequest\?\.created_at \|\| null\} \/>/,
+    'the repair-phase banner must also receive status + age, or it inherits the same unbounded-poll risk');
 });

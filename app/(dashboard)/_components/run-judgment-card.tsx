@@ -25,6 +25,7 @@ export type RunJudgment = {
 export type JudgeRepairRequest = {
   status?: string | null;
   run_id?: string | null;
+  created_at?: string | null;
 };
 
 const STYLE: Record<RunJudgment['verdict'], { label: string; border: string; text: string; bg: string }> = {
