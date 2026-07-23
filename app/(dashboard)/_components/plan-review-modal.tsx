@@ -35,6 +35,17 @@ function optionsFor(cap: PlanCapability): ToolChoice[] {
   return out;
 }
 
+// The OTHER capability labels this capability's selected tool ALSO fills. The
+// backend treats a tool preference as cross-capability (choosing Veed for the
+// avatar also moves final assembly to Veed), so the row must say so — otherwise
+// a change silently affects a capability the user didn't touch.
+function alsoHandledLabels(caps: PlanCapability[], cap: PlanCapability): string[] {
+  if (!cap.selectedToolId) return [];
+  return caps
+    .filter((c) => c.id !== cap.id && c.selectedToolId === cap.selectedToolId)
+    .map((c) => c.label);
+}
+
 export default function PlanReviewModal({
   intent, mode, cron, timezone, onCancel, onCreated,
 }: {
@@ -142,6 +153,14 @@ export default function PlanReviewModal({
                             {cap.recommendedTool.costNote ? ` · ${cap.recommendedTool.costNote}` : ''}
                           </p>
                         ) : null}
+                        {(() => {
+                          const also = alsoHandledLabels(plan.capabilities, cap);
+                          return also.length ? (
+                            <p className="text-[11px] text-sky-600 dark:text-sky-400 mt-1 leading-snug">
+                              {cap.recommendedTool?.label ?? 'This tool'} also handles {also.join(' and ')}.
+                            </p>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="flex-none">
                         {options.length > 0 ? (

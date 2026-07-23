@@ -51,6 +51,15 @@ test('a capability gap is shown explicitly, never a silent substitute', () => {
   assert.match(modal, /No tool available/, 'the gap is stated in plain words');
 });
 
+test('a cross-capability tool choice is disclosed (backend treats prefs as cross-capability)', () => {
+  // The row must say when its selected tool ALSO fills another capability, so a
+  // change never silently moves a capability the user did not touch.
+  assert.match(modal, /function alsoHandledLabels\(caps: PlanCapability\[\], cap: PlanCapability\)/,
+    'a helper must compute the OTHER capabilities the selected tool covers');
+  assert.match(modal, /c\.selectedToolId === cap\.selectedToolId/, 'shared by the same selected tool id');
+  assert.match(modal, /also handles \{also\.join\(' and '\)\}/, 'and the row renders the disclosure');
+});
+
 const SURFACES = ['talk-to-implexa', 'create-fab', 'next-agent-cards', 'suggested-shelf'];
 for (const name of SURFACES) {
   test(`Create surface "${name}" routes through the plan review (not a direct build POST)`, () => {
