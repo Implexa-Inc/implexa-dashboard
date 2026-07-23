@@ -49,7 +49,16 @@ export function RunJudgmentPending({
 }) {
   const router = useRouter();
   const cancelled = requestStatus === 'cancelled';
-  const ageMs = createdAt ? Date.now() - new Date(createdAt).getTime() : 0;
+  // A missing createdAt means "no age known" — treated as fresh (0ms), not
+  // stalled, since older callers may not supply it at all. An INVALID
+  // createdAt (a malformed string) is different: Date.now() - NaN = NaN, and
+  // NaN > STALL_CEILING_MS is ALWAYS false in JS — so a corrupt timestamp
+  // used to silently bypass the ceiling entirely and poll forever, the exact
+  // failure mode this component exists to prevent. Fail CLOSED instead: an
+  // unparseable timestamp is treated as already stalled, not as ageless.
+  const parsedAgeMs = createdAt ? Date.now() - new Date(createdAt).getTime() : 0;
+  const invalidCreatedAt = createdAt != null && Number.isNaN(parsedAgeMs);
+  const ageMs = invalidCreatedAt ? Infinity : parsedAgeMs;
   const stalled = !cancelled && ageMs > STALL_CEILING_MS;
 
   useEffect(() => {

@@ -40,7 +40,7 @@ test('a genuinely CANCELLED judge request stops polling and shows a terminal mes
 // deadline, an open tab would call router.refresh() every 20s indefinitely.
 test('a request outstanding past the stall ceiling stops polling and shows its own message — not indefinite "reviewing"', () => {
   assert.match(comp, /STALL_CEILING_MS\s*=\s*20\s*\*\s*60\s*\*\s*1000/, '20 minutes, not a shorter window that would fire on a genuinely slow review');
-  assert.match(comp, /const ageMs\s*=\s*createdAt\s*\?\s*Date\.now\(\)\s*-\s*new Date\(createdAt\)\.getTime\(\)\s*:\s*0;/);
+  assert.match(comp, /const parsedAgeMs\s*=\s*createdAt\s*\?\s*Date\.now\(\)\s*-\s*new Date\(createdAt\)\.getTime\(\)\s*:\s*0;/);
   assert.match(comp, /const stalled\s*=\s*!cancelled\s*&&\s*ageMs\s*>\s*STALL_CEILING_MS;/,
     'stalled must be independent of (not overridden by) the cancelled state');
   assert.match(comp, /taking unusually long/i);
@@ -52,6 +52,28 @@ test('with no createdAt (older callers / migration not applied), age is treated 
   // createdAt is optional; a caller that cannot supply it must not have every
   // request immediately read as infinitely aged and stalled.
   assert.match(comp, /createdAt\s*\?\s*Date\.now\(\)\s*-\s*new Date\(createdAt\)\.getTime\(\)\s*:\s*0/);
+});
+
+// ── Fail CLOSED on a corrupt timestamp (review follow-up) ────────────────────
+// Date.now() - NaN = NaN, and NaN > STALL_CEILING_MS is ALWAYS false in JS —
+// so a malformed createdAt used to silently bypass the ceiling and poll
+// forever, the exact failure mode this component exists to prevent. An
+// invalid (non-null, unparseable) timestamp must be treated as ALREADY
+// stalled, not as ageless — distinct from a genuinely MISSING createdAt,
+// which stays ageless (0ms) since older callers may not supply it at all.
+test('an INVALID createdAt is treated as already stalled (fail closed), not silently unstalled forever', () => {
+  assert.match(comp, /const invalidCreatedAt = createdAt != null && Number\.isNaN\(parsedAgeMs\);/,
+    'a corrupt (non-null) timestamp must be distinguished from a genuinely missing one');
+  assert.match(comp, /const ageMs = invalidCreatedAt \? Infinity : parsedAgeMs;/,
+    'an invalid timestamp must compute as maximally aged, not as zero/ageless');
+});
+
+test('the invalid-timestamp fix does not change behavior for a genuinely missing createdAt', () => {
+  // Re-runs the exact scenario from the fake-behavior perspective: this pins
+  // that `createdAt != null` (not just `createdAt`) gates invalidCreatedAt, so
+  // `createdAt === null` still short-circuits parsedAgeMs to 0 and never
+  // trips invalidCreatedAt.
+  assert.match(comp, /const parsedAgeMs = createdAt \? Date\.now\(\) - new Date\(createdAt\)\.getTime\(\) : 0;/);
 });
 
 test('the run page fetches judge-request status AND created_at, and threads both into BOTH pending banners', () => {
