@@ -18,6 +18,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { SuggestedAgent } from '@/lib/workflow-catalog';
+import PlanReviewModal from './plan-review-modal';
 
 type BuildState = 'idle' | 'queuing' | 'queued' | 'error';
 
@@ -29,23 +30,18 @@ function buildHandoffPrompt(intent: string) {
 
 function BuildButton({ intent }: { intent: string }) {
   const [state, setState] = useState<BuildState>('idle');
+  // Non-null → the plan review is open; the build is enqueued only on accept.
+  const [planOpen, setPlanOpen] = useState(false);
 
-  async function build() {
+  // Open the plan review; the build modal creates it on accept (with the
+  // confirmed toolPreferences).
+  function build() {
     if (state === 'queuing' || state === 'queued') return;
-    setState('queuing');
-    try {
-      const res = await fetch('/api/agents/create', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ intent }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) { setState('error'); return; }
-      // Hands-off: the drainer builds it. No Claude session is opened here.
-      setState('queued');
-    } catch {
-      setState('error');
-    }
+    setPlanOpen(true);
+  }
+  function onPlanCreated() {
+    setPlanOpen(false);
+    setState('queued'); // hands-off: the drainer builds it. No Claude session opened here.
   }
 
   // Secondary opt-in: shape the queued build interactively in Claude.
@@ -63,6 +59,13 @@ function BuildButton({ intent }: { intent: string }) {
 
   return (
     <div className="flex flex-col items-start gap-1">
+      {planOpen && (
+        <PlanReviewModal
+          intent={intent}
+          onCancel={() => setPlanOpen(false)}
+          onCreated={onPlanCreated}
+        />
+      )}
       <button
         type="button"
         onClick={build}

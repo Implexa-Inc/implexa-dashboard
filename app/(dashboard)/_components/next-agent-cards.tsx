@@ -21,6 +21,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import PlanReviewModal from './plan-review-modal';
 
 // One next-agent recommendation, the shape of a skill_runs.recommendations[] entry
 // (RECOMMENDATION_ENGINE_PLAN.md §1.5 / §6). Schedule fields are optional — an
@@ -77,6 +78,9 @@ export default function NextAgentCards({
   // Local copy so a build/dismiss can optimistically drop a card.
   const [recs, setRecs] = useState<Recommendation[]>(() => (recommendations ?? []).slice(0, 3));
   const [state, setState] = useState<Record<string, CardState>>({});
+  // The recommendation whose plan the user is reviewing (schedule shaping rides
+  // along). Non-null → the plan modal is open; the build is enqueued on accept.
+  const [planRec, setPlanRec] = useState<Recommendation | null>(null);
   // Which cards are expanded to show the full rationale + the build prompt — the
   // collapsed card line-clamps the rationale, so without this there was no way to
   // read the whole thing.
@@ -95,38 +99,23 @@ export default function NextAgentCards({
     return session?.access_token ?? undefined;
   }
 
-  async function build(rec: Recommendation) {
+  // Open the plan review for this recommendation. Nothing is enqueued until the
+  // user accepts the plan (the modal creates the build, carrying the schedule
+  // shaping + confirmed toolPreferences).
+  function build(rec: Recommendation) {
     if (state[rec.id] === 'queuing' || state[rec.id] === 'built') return;
-    setState((s) => ({ ...s, [rec.id]: 'queuing' }));
-    try {
-      // Same build bus as the suggested shelf / conversation box. Pass the
-      // schedule so the built agent lands pre-shaped (backend ignores unknowns).
-      const res = await fetch('/api/agents/create', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          intent: rec.intent,
-          mode: rec.mode ?? undefined,
-          cron: rec.cron ?? undefined,
-          timezone: rec.timezone ?? undefined,
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) { setState((s) => ({ ...s, [rec.id]: 'error' })); return; }
+    setPlanRec(rec);
+  }
 
-      // Hands-off: the always-on drainer builds it on the user's own Claude/Codex.
-      // No session is opened (building needs no approval). Power users can still
-      // open the build interactively via shapeInClaude below.
-      setState((s) => ({ ...s, [rec.id]: 'built' }));
-      // Mark this recommendation built server-side, then drop the card.
-      const token = await jwt();
-      callBackend(`/api/v2/runs/${encodeURIComponent(runId)}/recommendations/${encodeURIComponent(rec.id)}/built`, {
-        jwt: token, method: 'POST',
-      }).catch(() => { /* fire-and-forget; the build is already queued */ });
-      setTimeout(() => remove(rec.id), 700);
-    } catch {
-      setState((s) => ({ ...s, [rec.id]: 'error' }));
-    }
+  // The plan modal enqueued the build. Do the post-queue bookkeeping.
+  function onPlanCreated(rec: Recommendation) {
+    setPlanRec(null);
+    setState((s) => ({ ...s, [rec.id]: 'built' }));
+    jwt().then((token) => callBackend(
+      `/api/v2/runs/${encodeURIComponent(runId)}/recommendations/${encodeURIComponent(rec.id)}/built`,
+      { jwt: token, method: 'POST' },
+    )).catch(() => { /* fire-and-forget; the build is already queued */ });
+    setTimeout(() => remove(rec.id), 700);
   }
 
   async function dismiss(rec: Recommendation) {
@@ -139,6 +128,16 @@ export default function NextAgentCards({
 
   return (
     <section className="mt-6">
+      {planRec && (
+        <PlanReviewModal
+          intent={planRec.intent}
+          mode={planRec.mode ?? undefined}
+          cron={planRec.cron ?? undefined}
+          timezone={planRec.timezone ?? undefined}
+          onCancel={() => setPlanRec(null)}
+          onCreated={() => onPlanCreated(planRec)}
+        />
+      )}
       <div className="mb-3">
         <h2 className="text-sm font-medium text-ink-300 uppercase tracking-wider">Next agents to build</h2>
       </div>

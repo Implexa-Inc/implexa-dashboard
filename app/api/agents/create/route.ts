@@ -28,12 +28,23 @@ export async function POST(request: Request) {
   let mode: string | undefined;
   let cron: string | undefined;
   let timezone: string | undefined;
+  // The CONFIRMED plan-review tool choices, forwarded so the build honors them
+  // (backend persists them on the build request → drainer's generate_workflow).
+  let toolPreferences: string[] | undefined;
+  let toolUnavailable: string[] | undefined;
+  const cleanList = (v: unknown): string[] | undefined => (
+    Array.isArray(v)
+      ? v.filter((s): s is string => typeof s === 'string' && !!s.trim()).slice(0, 6)
+      : undefined
+  );
   try {
     const body = await request.json();
     intent = String(body?.intent || '').trim();
     if (body?.mode) mode = String(body.mode);
     if (body?.cron) cron = String(body.cron);
     if (body?.timezone) timezone = String(body.timezone);
+    toolPreferences = cleanList(body?.toolPreferences);
+    toolUnavailable = cleanList(body?.toolUnavailable);
   } catch {
     /* empty body handled below */
   }
@@ -48,7 +59,7 @@ export async function POST(request: Request) {
         'content-type': 'application/json',
         authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ kind: 'build', intent, source: 'dashboard', mode, cron, timezone }),
+      body: JSON.stringify({ kind: 'build', intent, source: 'dashboard', mode, cron, timezone, toolPreferences, toolUnavailable }),
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });

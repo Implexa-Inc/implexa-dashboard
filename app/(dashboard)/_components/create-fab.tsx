@@ -15,6 +15,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import PlanReviewModal from './plan-review-modal';
 
 type State = 'idle' | 'sending' | 'queued' | 'error';
 
@@ -24,6 +25,9 @@ export default function CreateFab() {
   const [intent, setIntent] = useState('');
   const [state, setState] = useState<State>('idle');
   const [error, setError] = useState<string | null>(null);
+  // Non-null → the plan review is open for this intent; the build is enqueued
+  // only when the user accepts.
+  const [planIntent, setPlanIntent] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -38,28 +42,30 @@ export default function CreateFab() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
-  async function submit() {
+  // Open the plan review; the build is enqueued only when the user accepts it.
+  function submit() {
     const text = intent.trim();
     if (!text || state === 'sending') return;
-    setState('sending'); setError(null);
-    try {
-      const res = await fetch('/api/agents/create', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ intent: text }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) throw new Error(data?.error || 'Could not queue the build.');
-      setState('queued');
-      setTimeout(() => { setOpen(false); setIntent(''); setState('idle'); router.refresh(); }, 1600);
-    } catch (e) {
-      setState('error');
-      setError(e instanceof Error ? e.message : 'Could not queue the build.');
-    }
+    setError(null);
+    setPlanIntent(text);
+  }
+
+  // The plan modal enqueued the build (with confirmed toolPreferences).
+  function onPlanCreated() {
+    setPlanIntent(null);
+    setState('queued');
+    setTimeout(() => { setOpen(false); setIntent(''); setState('idle'); router.refresh(); }, 1600);
   }
 
   return (
     <div className="fixed bottom-6 right-6 z-40 print:hidden">
+      {planIntent && (
+        <PlanReviewModal
+          intent={planIntent}
+          onCancel={() => setPlanIntent(null)}
+          onCreated={onPlanCreated}
+        />
+      )}
       {open && (
         <div className="absolute bottom-14 right-0 w-[min(92vw,26rem)] card !p-4 shadow-2xl border border-ink-700">
           {state === 'queued' ? (
