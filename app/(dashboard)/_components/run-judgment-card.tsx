@@ -25,6 +25,7 @@ export type RunJudgment = {
 export type JudgeRepairRequest = {
   status?: string | null;
   run_id?: string | null;
+  created_at?: string | null;
 };
 
 const STYLE: Record<RunJudgment['verdict'], { label: string; border: string; text: string; bg: string }> = {
@@ -132,7 +133,7 @@ export function RunJudgmentCard({
       <p className="mt-3 text-[11px] text-ink-500">
         {judgment.judge_executor ? `${judgment.judge_executor}${judgment.judge_model ? ` · ${judgment.judge_model}` : ''}` : 'Fresh review session'}
         {judgment.worker_executor ? ` reviewed work from ${judgment.worker_executor}${judgment.worker_model ? ` · ${judgment.worker_model}` : ''}` : ''}.
-        {' '}This model review is separate from evidence-based “Verified complete.”
+        {' '}This model review is separate from the evidence-based “Delivered” badge above.
       </p>
 
       {/* Calibration on EVERY verdict, not just blocks. A wrong `pass` is the most

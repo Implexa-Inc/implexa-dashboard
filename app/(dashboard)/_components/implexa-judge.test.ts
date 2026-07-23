@@ -25,7 +25,14 @@ test('Judge copy discloses cross-engine preference, fresh fallback, and subscrip
 
 test('AI judgment is visibly separate from evidence-based verification', () => {
   assert.match(card, /AI review/);
-  assert.match(card, /separate from evidence-based “Verified complete.”/);
+  // "Verified complete" was the badge's OLD label (2026-07-21 rename to
+  // "Delivered" — plain "Verified" read as "Judge approved this" when in fact
+  // Judge and the delivery badge are different axes; a run showed "Verified"
+  // at the same time Judge's own verdict was `uncertain`). This card's own
+  // disclaimer must reference the CURRENT badge wording, or the page ends up
+  // pointing at a phrase that no longer exists anywhere on it.
+  assert.match(card, /separate from the evidence-based “Delivered” badge/);
+  assert.doesNotMatch(card, /Verified complete/);
 });
 
 test('Judge activation discloses bounded automatic repair and human escalation', () => {
