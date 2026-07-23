@@ -82,9 +82,10 @@ test('a saved-but-ungranted row stays actionable and stops selling a second key'
     'the grant-only state must be named');
   assert.match(src, /Key already saved on this Mac\. No paste needed — just allow this agent to use it\./,
     'tell the user it is an authorization, not a purchase');
-  // The founder's original complaint: "key ready" next to "Get it ↗".
-  assert.match(src, /\{!keyReady && !needsGrantOnly && !browserOnly && \(\s*\n\s*<a href=\{s\.url\}/,
-    'never offer "Get it" for a key that already exists');
+  // The founder's original complaint: "key ready" next to "Get it ↗". Also
+  // guarded on s.url (2026-07-23): a stack-derived browser tool can have url:null.
+  assert.match(src, /\{!keyReady && !needsGrantOnly && !browserOnly && s\.url && \(\s*\n\s*<a href=\{s\.url\}/,
+    'never offer "Get it" for a key that already exists, nor a null-href link');
   assert.match(src, /\{!isReady && !needsGrantOnly && !browserOnly && \(\s*\n\s*<span className="text-\[11px\] px-1\.5/,
     'never show a cost badge for a key that already exists');
   // And the key control is always rendered for a vault-backed provider, so the

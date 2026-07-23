@@ -148,7 +148,11 @@ export function ActivationRequirements({ req, slug, onChanged }: {
             // purchase. Never send the user off to buy a second key.
             const needsGrantOnly = !!s.provider && s.keyOnMachine;
             const mode = accessMode(s);
-            const browserOnly = mode === 'browser' && !!s.browserSession;
+            // A browser-route tool needs a signed-in session, not a key — whether
+            // or not the backend registered a verifiable session for it. Veed (no
+            // provider, no session widget) still belongs here: it must read
+            // "uses your browser", never a cost badge + "Get it" link.
+            const browserOnly = mode === 'browser';
             const unknownAccess = mode === 'unknown';
             const keyReady = apiReady(s);
             const isReady = satisfied(s);
@@ -164,7 +168,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                       </span>
                     )}
                   </div>
-                  {browserOnly && s.browserSession ? (
+                  {browserOnly ? (
                     <p className="text-xs text-ink-500 mt-0.5">
                       This workflow uses {s.name} in your local browser — no API key needed.
                     </p>
@@ -190,7 +194,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                   {keyReady && <span className="text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">✓ key allowed</span>}
                   {/* Suppress "Get it" once a key exists — that was the original
                       complaint: being invited to buy something you already own. */}
-                  {!keyReady && !needsGrantOnly && !browserOnly && (
+                  {!keyReady && !needsGrantOnly && !browserOnly && s.url && (
                     <a href={s.url} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Get it ↗</a>
                   )}
                 </div>

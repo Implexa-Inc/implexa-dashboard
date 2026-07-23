@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { SuggestedAgent } from '@/lib/workflow-catalog';
 import { macDownloadUrl } from '@/lib/app-links';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments, ATTACH_BUILD_MARKER } from './run-attachments';
+import PlanReviewModal from './plan-review-modal';
 
 /**
  * The conversation box: "you talk to Implexa". One codebase, two contexts.
@@ -76,6 +77,9 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
   // hand it off interactively after the hands-off queue has cleared the input.
   const [queuedIntent, setQueuedIntent] = useState('');
   const [queuedImages, setQueuedImages] = useState<string[]>([]);
+  // The composed intent whose plan the user is reviewing. Non-null → the plan
+  // modal is open; the build is enqueued only when they accept it.
+  const [planIntent, setPlanIntent] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -130,55 +134,46 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
 
   const removeImage = (i: number) => setImages((prev) => prev.filter((_, idx) => idx !== i));
 
-  const submit = async () => {
+  // Step 1 of Create: open the plan review. Nothing is enqueued yet — the user
+  // sees the tools and confirms (or changes them) before any build is created.
+  const submit = () => {
     const t = intent.trim();
     if (!t || state === 'sending' || state === 'opening') return;
-    setState('sending');
     setMsg('');
-    try {
-      // Bake any attached file PATHS into the build intent (same plumbing run-setup
-      // uses for a run): the drainer's generate_workflow reads them back from the
-      // request's `intent` when it composes the agent. No-op when nothing's attached.
-      const buildIntent = composeNoteWithFiles(t, runFiles, ATTACH_BUILD_MARKER);
-      const res = await fetch('/api/agents/create', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ intent: buildIntent }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) {
-        setState('error');
-        setMsg(data?.error === 'not signed in' ? 'Please sign in first.' : 'Could not queue that. Try again.');
-        return;
-      }
-      const sentImages = images.map((im) => im.dataUrl);
-      setIntent('');
-      setImages([]);
-      resetFiles();
-      const bridge = typeof window !== 'undefined' ? window.implexaDesktop : undefined;
-      // Not connected to any Claude/Codex yet → the agent is SAVED but nothing
-      // can build it. Don't show a false "queued, open your Claude" (the founder
-      // hit exactly this dead-end: clicked Build, nothing happened). Warn instead
-      // and point to the app, which sets up the runtime that does the building.
-      if (!connected && !bridge?.handoffAgent) {
-        setState('queued');
-        setMsg('');
-        setShowConnect(true);
-        return;
-      }
-      // HANDS-OFF (primary): the build is queued on the run-request bus and the
-      // always-on drainer composes it via generate_workflow on the user's own
-      // Claude/Codex — no session to open, no human approval needed (building is
-      // unattended). Remember the intent so the secondary "shape it in Claude"
-      // opt-in can still hand it off interactively for power users.
-      setQueuedIntent(buildIntent);
-      setQueuedImages(sentImages);
+    // Bake any attached file PATHS into the build intent (same plumbing run-setup
+    // uses for a run): the drainer's generate_workflow reads them back from the
+    // request's `intent` when it composes the agent. No-op when nothing's attached.
+    const buildIntent = composeNoteWithFiles(t, runFiles, ATTACH_BUILD_MARKER);
+    setPlanIntent(buildIntent);
+  };
+
+  // Step 2: the plan modal already enqueued the build (with the confirmed
+  // toolPreferences). Run the post-queue UI transitions the direct POST used to.
+  const onPlanCreated = () => {
+    const buildIntent = planIntent || '';
+    const sentImages = images.map((im) => im.dataUrl);
+    setPlanIntent(null);
+    setIntent('');
+    setImages([]);
+    resetFiles();
+    const bridge = typeof window !== 'undefined' ? window.implexaDesktop : undefined;
+    // Not connected to any Claude/Codex yet → the agent is SAVED but nothing
+    // can build it. Don't show a false "queued, open your Claude" (the founder
+    // hit exactly this dead-end). Warn instead and point to the app.
+    if (!connected && !bridge?.handoffAgent) {
       setState('queued');
-      setMsg('Queued. Your agent will appear under Your agents when the runner builds it (usually a few minutes).');
-    } catch {
-      setState('error');
-      setMsg('Could not queue that. Try again.');
+      setMsg('');
+      setShowConnect(true);
+      return;
     }
+    // HANDS-OFF (primary): the build is queued on the run-request bus and the
+    // always-on drainer composes it via generate_workflow on the user's own
+    // Claude/Codex. Remember the intent so the secondary "shape it in Claude"
+    // opt-in can still hand it off interactively for power users.
+    setQueuedIntent(buildIntent);
+    setQueuedImages(sentImages);
+    setState('queued');
+    setMsg('Queued. Your agent will appear under Your agents when the runner builds it (usually a few minutes).');
   };
 
   // Secondary opt-in: open the user's Claude with the queued build prefilled so a
@@ -213,6 +208,13 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
 
   return (
     <section>
+      {planIntent && (
+        <PlanReviewModal
+          intent={planIntent}
+          onCancel={() => setPlanIntent(null)}
+          onCreated={onPlanCreated}
+        />
+      )}
       <div className="card p-6 sm:p-8">
         <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
           {hasAgents ? 'Build an agent' : 'Build your first agent'}
