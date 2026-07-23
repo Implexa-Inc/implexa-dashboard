@@ -19,6 +19,7 @@ import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
 import AgentSetupCard from './agent-setup-card';
 import { ActivationRequirements } from './activation-requirements';
+import CapabilityGapsNotice from './capability-gaps-notice';
 import AgentFeedback from './agent-feedback';
 import AgentBrowserConnect from './agent-browser-connect';
 import { ImplexaJudgePolicy } from './implexa-judge-policy';
@@ -831,12 +832,18 @@ export function ActivationCard({
   // and the one-tap browser grant, never a green light it hasn't earned. Absent
   // verification (older backend) defaults to verified so the badge never regresses.
   const verification = checklist.verification ?? { verified: true, checks: [] };
-  const verifiedHandsFree = isActive && verification.verified && computerUseSatisfied;
+  // readyToRun===false means a required capability has no viable tool (see
+  // CapabilityGapsNotice above) — the same honesty rule as the Class-2 grant
+  // check below: don't claim "runs hands-free" when part of the result can't
+  // be delivered. undefined (older backend) never blocks, matching the rest
+  // of this file's absent-field-means-verified convention.
+  const capabilityReady = checklist.readyToRun !== false;
+  const verifiedHandsFree = isActive && verification.verified && computerUseSatisfied && capabilityReady;
   const browserCheck = verification.checks.find((c) => c.key === 'browser' && c.status !== 'ok');
   const computerUseCheck = verification.checks.find((c) => c.key === 'computer_use');
   // Override the green "Active" chip ONLY for a genuinely-active-but-unverified
   // agent — never mask 'needs_attention' or a not-yet-activated state.
-  const badge = (checklist.state === 'active' && (!verification.verified || !computerUseSatisfied))
+  const badge = (checklist.state === 'active' && (!verification.verified || !computerUseSatisfied || !capabilityReady))
     ? { label: 'Active · needs a check', classes: 'bg-amber-500/20 text-amber-700 dark:text-amber-300' }
     : STATE_BADGE[checklist.state];
 
@@ -947,6 +954,12 @@ export function ActivationCard({
         <ActivationRequirements req={checklist.requirements} slug={checklist.slug} onChanged={() => router.refresh()} />
       </div>
 
+      {/* Capabilities with NO viable tool (server-derived from capability_setup).
+          requirements above cannot show these — a gap has no step reflecting a
+          working tool. Never blocks activation; a required gap only explains why
+          "ready to run" is withheld. */}
+      <CapabilityGapsNotice gaps={checklist.capabilityGaps} />
+
       <div className="mt-5 flex items-start gap-3">
         {setupSurface && isActive && allSavedGranted ? null : isActive && allSavedGranted ? (
           // The moment of highest motivation must not dead-end at "Active."
@@ -975,6 +988,11 @@ export function ActivationCard({
                     domains={browserCheck.domains ?? []}
                   />
                 </div>
+              </div>
+            ) : !capabilityReady ? (
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/25 px-3 py-2.5">
+                <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">Active — can&apos;t yet deliver part of its result</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5 leading-snug">See the gap above. A run will still work, just without that part, until it&apos;s resolved.</p>
               </div>
             ) : (
               <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Active. Take it for its first run:</span>

@@ -92,6 +92,13 @@ export type AgentRequirementsPayload = {
   tools: { key: string; name: string; autoInstalls: boolean }[];
 };
 
+export type CapabilityGap = {
+  capability: string;
+  capabilityLabel: string;
+  reason: string | null;
+  requiredness: 'required_to_deliver' | 'recommended';
+};
+
 export type ActivationChecklist = {
   slug: string;
   name: string;
@@ -109,8 +116,16 @@ export type ActivationChecklist = {
   blockingQuestions?: number;
   /** Preferences the user can still set; never block a run. */
   optionalQuestions?: number;
-  /** readyToRun === blockingQuestions === 0. The promise activation may make. */
+  /** readyToRun === blockingQuestions === 0 && blockingCapabilityGaps === 0. */
   readyToRun?: boolean;
+  /**
+   * Capabilities this agent needs but has NO viable tool for (every candidate
+   * unavailable, or a stated preference contradicted itself). Server-derived
+   * from metadata.capability_setup; requirements (below) can't express it,
+   * since a gap has no step reflecting a working tool. Never blocks activation;
+   * a required gap only makes readyToRun honest.
+   */
+  capabilityGaps?: CapabilityGap[];
   /** The ONE authoritative "what you'll need" list, server-computed. */
   requirements?: AgentRequirementsPayload;
   /** Catalog source, threaded to the setup card / run command. */
@@ -153,6 +168,11 @@ export async function getActivationChecklist(slug: string): Promise<ActivationCh
       blockingQuestions: b.blockingQuestions === undefined ? undefined : Number(b.blockingQuestions),
       optionalQuestions: Number(b.optionalQuestions ?? 0),
       readyToRun: b.readyToRun === undefined ? undefined : !!b.readyToRun,
+      // Absent on an older backend → [], so the section simply doesn't render.
+      capabilityGaps: Array.isArray(b.capabilityGaps)
+        ? (b.capabilityGaps as unknown[]).filter((g): g is CapabilityGap =>
+            !!g && typeof (g as CapabilityGap).capability === 'string')
+        : [],
       requirements: (b.requirements as AgentRequirementsPayload) ?? undefined,
       source: (b.source as string) ?? 'generated',
       canActivate: !!b.canActivate,
