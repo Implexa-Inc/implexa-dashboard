@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import PlanReviewModal from './plan-review-modal';
+import CreateDecisionGate from './create-decision-gate';
 
 type State = 'idle' | 'sending' | 'queued' | 'error';
 
@@ -60,7 +60,7 @@ export default function CreateFab() {
   return (
     <div className="fixed bottom-6 right-6 z-40 print:hidden">
       {planIntent && (
-        <PlanReviewModal
+        <CreateDecisionGate
           intent={planIntent}
           onCancel={() => setPlanIntent(null)}
           onCreated={onPlanCreated}

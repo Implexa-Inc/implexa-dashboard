@@ -62,11 +62,21 @@ test('a cross-capability tool choice is disclosed (backend treats prefs as cross
 
 const SURFACES = ['talk-to-implexa', 'create-fab', 'next-agent-cards', 'suggested-shelf'];
 for (const name of SURFACES) {
-  test(`Create surface "${name}" routes through the plan review (not a direct build POST)`, () => {
+  test(`Create surface "${name}" routes through the CreateDecisionGate (not a direct build POST)`, () => {
     const src = readFileSync(join(dir, `${name}.tsx`), 'utf8');
-    assert.match(src, /PlanReviewModal/, `${name} must render the plan-review modal`);
-    // The old pattern posted straight to /api/agents/create on submit. That call
-    // now lives ONLY inside the modal (via createAgentBuild), never inline here.
-    assert.doesNotMatch(src, /fetch\('\/api\/agents\/create'/, `${name} must not POST the build directly — the modal does, after accept`);
+    // Every surface now goes through the capability-aware gate, which decides
+    // direct/disclose/decide — NOT the old always-a-modal PlanReviewModal.
+    assert.match(src, /CreateDecisionGate/, `${name} must render the CreateDecisionGate`);
+    // The build POST lives ONLY inside the gate/editor (via createAgentBuild),
+    // never inline on the surface.
+    assert.doesNotMatch(src, /fetch\('\/api\/agents\/create'/, `${name} must not POST the build directly`);
   });
 }
+
+// The heading must not overclaim: deterministic defaults are a "Suggested setup",
+// not a plan a model deliberated over — only once the user changes a tool.
+test('the full editor heading reads "Suggested setup" until the user changes a tool', () => {
+  assert.match(modal, /hasChanges \? 'Your plan' : 'Suggested setup'/,
+    'the eyebrow must not say "Here’s the plan" for untouched deterministic defaults');
+  assert.doesNotMatch(modal, /Here’s the plan/, 'the overclaiming heading must be gone');
+});

@@ -24,13 +24,38 @@ export type PlanCapability = {
   unresolved?: { reason: string };
 };
 
+/** The Create UX mode the deterministic backend assigns to this request. */
+export type DecisionMode = 'direct' | 'disclose' | 'decide';
+
+export type DecisionOption = { id: string; label: string; detail?: string };
+
+/** The SMALLEST relevant question, present only when decisionMode === 'decide'. */
+export type PlanDecision = {
+  kind: 'video_format' | 'source' | 'gap';
+  capability?: string;
+  question: string;
+  reason?: string;
+  needsConnection?: boolean;
+  options: DecisionOption[];
+};
+
+/** A compact, non-blocking confirmation (disclose mode, and post-build). */
+export type PlanDisclosure = { capability?: string; text: string };
+
 export type AgentPlan = {
   intent: string;
   proposedName: string;
   proposedDescription: string;
+  // The headline of the capability-aware Create fix: how the Create action
+  // should behave. 'direct'/'disclose' enqueue immediately; only 'decide' opens
+  // a focused question.
+  decisionMode: DecisionMode;
+  decision: PlanDecision | null;
+  disclosures: PlanDisclosure[];
   capabilities: PlanCapability[];
   toolPreferences: string[];
   toolUnavailable: string[];
+  availableSources?: string[];
   overridesApplied: { tool: string; toolLabel: string; capabilities: string[] }[];
   unresolvedOverrides: string[];
   draftSteps: { order: number; capability: string; label: string; modelOnly: boolean }[];

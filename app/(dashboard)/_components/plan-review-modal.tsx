@@ -104,10 +104,13 @@ export default function PlanReviewModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Review the agent plan">
       <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border border-ink-800 bg-ink-950 p-6 shadow-2xl">
-        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">Here’s the plan</div>
+        {/* "Suggested setup" until the user actually changes a tool — these are
+            deterministic defaults, not choices a model deliberated over, so the
+            heading must not overclaim (2026-07-23 fix spec). */}
+        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">{hasChanges ? 'Your plan' : 'Suggested setup'}</div>
         <h2 className="text-lg font-semibold text-ink-100">{plan?.proposedName || 'Your new agent'}</h2>
         <p className="mt-1 text-sm text-ink-400 leading-snug">
-          Review the tools this agent will use. Accept the recommended plan in one click, or change any tool.
+          Review the tools this agent will use. Accept the recommended setup in one click, or change any tool.
         </p>
 
         {error && (
