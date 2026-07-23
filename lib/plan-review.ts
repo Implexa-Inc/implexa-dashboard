@@ -52,6 +52,10 @@ export type AgentPlan = {
   decisionMode: DecisionMode;
   decision: PlanDecision | null;
   disclosures: PlanDisclosure[];
+  /** Trusted preferences a direct/disclose build MUST carry so a disclosed choice
+   *  (e.g. "Using your Outlook") is actually honored — a specific connected source
+   *  or a persisted preference, never a generic vendor default. */
+  autoToolPreferences: string[];
   capabilities: PlanCapability[];
   toolPreferences: string[];
   toolUnavailable: string[];

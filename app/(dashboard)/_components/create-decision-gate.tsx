@@ -77,7 +77,13 @@ export default function CreateDecisionGate({
         if (settled.current) return;
         settled.current = true;
         // direct: silent immediate build. disclose: same, plus the confirmation.
-        await enqueue(p.decisionMode === 'disclose' ? { disclosures: p.disclosures } : {});
+        // BOTH must carry autoToolPreferences — the trusted source the preview
+        // disclosed ("Using your Outlook") has to ride the build, or the headless
+        // builder re-derives a default (the P0 the disclose promise depends on).
+        await enqueue({
+          toolPreferences: p.autoToolPreferences,
+          ...(p.decisionMode === 'disclose' ? { disclosures: p.disclosures } : {}),
+        });
       } catch (e) {
         if (alive) { setError(e instanceof Error ? e.message : 'Could not build the plan.'); setPhase('error'); }
       }
@@ -86,21 +92,29 @@ export default function CreateDecisionGate({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intent]);
 
+  // Any trusted auto-preference (e.g. a single connected inbox) must ride EVERY
+  // build path, even a decide the user answers about a DIFFERENT capability —
+  // otherwise answering "faceless" would drop the connected Gmail the preview
+  // already resolved. Dedupe, explicit choice first.
+  function withAuto(prefs: string[] = []): string[] {
+    return Array.from(new Set([...prefs, ...(plan?.autoToolPreferences || [])]));
+  }
+
   // ── decide: map a chosen option to a build ──────────────────────────────────
   function chooseOption(opt: DecisionOption) {
     const kind = plan?.decision?.kind;
     if (kind === 'source') {
       // The option id is a real tool/source id — rides as a confirmed preference.
-      void enqueue({ toolPreferences: [opt.id] });
+      void enqueue({ toolPreferences: withAuto([opt.id]) });
     } else if (kind === 'video_format') {
       // Format isn't a vendor — fold the product choice into the intent so the
       // deterministic build honors it (the classifier reads the words).
       const suffix = opt.id === 'faceless'
         ? ' — make it faceless (no avatar or presenter).'
         : ' — use a talking-head avatar presenter.';
-      void enqueue({ buildIntent: `${intent}${suffix}` });
+      void enqueue({ buildIntent: `${intent}${suffix}`, toolPreferences: withAuto() });
     } else {
-      void enqueue({});
+      void enqueue({ toolPreferences: withAuto() });
     }
   }
 
@@ -112,6 +126,7 @@ export default function CreateDecisionGate({
         mode={mode}
         cron={cron}
         timezone={timezone}
+        basePreferences={plan?.autoToolPreferences || []}
         onCancel={() => setPhase('decide')}
         onCreated={() => onCreated()}
       />
@@ -170,7 +185,7 @@ export default function CreateDecisionGate({
 
       {isGap && (
         <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" disabled={creating} onClick={() => enqueue({})} className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60">
+          <button type="button" disabled={creating} onClick={() => enqueue({ toolPreferences: withAuto() })} className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60">
             {creating ? 'Queuing…' : 'Build anyway'}
           </button>
           <span className="self-center text-xs text-ink-500">It’ll flag the gap instead of substituting a different tool.</span>

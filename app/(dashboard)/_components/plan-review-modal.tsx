@@ -47,7 +47,7 @@ function alsoHandledLabels(caps: PlanCapability[], cap: PlanCapability): string[
 }
 
 export default function PlanReviewModal({
-  intent, mode, cron, timezone, onCancel, onCreated,
+  intent, mode, cron, timezone, onCancel, onCreated, basePreferences = [],
 }: {
   intent: string;
   mode?: string;
@@ -55,6 +55,11 @@ export default function PlanReviewModal({
   timezone?: string;
   onCancel: () => void;
   onCreated: () => void;
+  /** Trusted preferences (a connected source the preview already resolved) that
+   *  must ride the build even if the user opens this editor and accepts without
+   *  touching that row — otherwise the full-editor path re-drops the P0 source.
+   *  An explicit change is applied AFTER (last wins), so the user still overrides. */
+  basePreferences?: string[];
 }) {
   const [plan, setPlan] = useState<AgentPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,9 +69,11 @@ export default function PlanReviewModal({
   const [chosen, setChosen] = useState<Record<string, ToolChoice>>({});
   const reqId = useRef(0);
 
-  const toolPreferences = Array.from(
-    new Map(Object.values(chosen).map((t) => [t.id, preferenceFor(t.label)])).values(),
-  );
+  // Base trusted prefs first, the user's explicit picks LAST (override wins).
+  const toolPreferences = Array.from(new Set([
+    ...basePreferences,
+    ...new Map(Object.values(chosen).map((t) => [t.id, preferenceFor(t.label)])).values(),
+  ]));
 
   const load = useCallback(async (prefs: string[]) => {
     const mine = ++reqId.current;
