@@ -416,6 +416,13 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         .select('id, review_status, run_state')
         .neq('id', r.id)
         .not('output_markdown', 'is', null)
+        // MUST be a run that EXPLAINS A STOP, never a prior SUCCESS (2026-07-23
+        // incident). Without this, a broken Continue with no output linked to the
+        // agent's last GOOD run — so "view the reason" opened a completed
+        // deliverable and implied the work had happened. It hadn't. A completed
+        // run's output is a deliverable, not an explanation of why THIS run
+        // stopped; only a non-completed sibling can be that.
+        .neq('run_state', 'completed')
         .order('ran_at', { ascending: false })
         .limit(1);
       q = r.scheduled_skill_id

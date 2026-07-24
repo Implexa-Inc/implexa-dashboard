@@ -393,20 +393,50 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
               {card}
               {showStuck && (
                 <div className="mt-1.5 ml-7 rounded-md border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5">
-                  <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-snug">
-                    {c.status === 'needs_attention'
-                      ? 'This run stalled — most likely it’s waiting on a permission it couldn’t answer on its own.'
-                      : 'On the same step a while — if it’s waiting on a permission to continue, you can approve it now.'}
-                  </p>
-                  <StuckRunButton
-                    engine={c.executor || 'claude'}
-                    threadId={c.executorThreadId}
-                    workspace={c.executorWorkspace}
-                    runId={c.runId}
-                    claudeTaskId={c.claudeTaskId}
-                    permissionCapability="browser"
-                    className="mt-2"
-                  />
+                  {/* HONEST STATE, NOT A GUESS (2026-07-23 incident). This box used to
+                      assert "most likely it's waiting on a permission" for EVERY
+                      needs_attention run and always offer browser permissions. A real
+                      stall was a broken Continue that never ran — Implexa Manager had
+                      diagnosed it correctly, and this hard-coded heuristic buried that
+                      behind an action that could not possibly help.
+                      The two signals are NOT the same thing:
+                        • `stuck`  — SOFT: a running run whose heartbeat went stale. A
+                          pending permission prompt genuinely is the common cause, so
+                          the approve shortcut is a fair offer.
+                        • needs_attention — HARD: something already determined this run
+                          needs a human. Guessing over that determination is how the
+                          user gets sent to the wrong place. Point at the diagnosis. */}
+                  {c.status === 'needs_attention' ? (
+                    <>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-snug">
+                        This run stopped and needs you. Open it to see what Implexa found and what it needs —
+                        the reason is on the run itself.
+                      </p>
+                      {c.runId && (
+                        <Link
+                          href={`/runs/${c.runId}`}
+                          className="mt-2 inline-block rounded-md border border-amber-500/40 px-3 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+                        >
+                          See what it needs
+                        </Link>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-snug">
+                        On the same step a while — if it’s waiting on a permission to continue, you can approve it now.
+                      </p>
+                      <StuckRunButton
+                        engine={c.executor || 'claude'}
+                        threadId={c.executorThreadId}
+                        workspace={c.executorWorkspace}
+                        runId={c.runId}
+                        claudeTaskId={c.claudeTaskId}
+                        permissionCapability="browser"
+                        className="mt-2"
+                      />
+                    </>
+                  )}
                 </div>
               )}
               {showQueuedWait && (
