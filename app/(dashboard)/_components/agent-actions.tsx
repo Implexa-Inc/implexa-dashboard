@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend, BackendError } from '@/lib/api';
 import Modal from './modal';
+import SetupChoiceField from './setup-choice-field';
 import { firstRunPermsSeen, markFirstRunPermsSeen } from './first-run-permissions-note';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
@@ -722,14 +723,18 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 </span>
               </label>
               {f.kind === 'choice' && f.options && f.options.length > 0 ? (
-                <select
+                // THE SAME control the Setup card uses (2026-07-24). This dialog
+                // used to render ONLY the canned options — so a saved "Other"
+                // answer matched nothing, showed blank, and on Run got POSTed back
+                // over the user's real answer. One shared field, so it can't drift.
+                <SetupChoiceField
                   value={setupValues[f.key] ?? ''}
-                  onChange={(e) => setSetupValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                  className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
-                >
-                  <option value="">Choose…</option>
-                  {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
+                  options={f.options}
+                  onChange={(next) => setSetupValues((v) => ({ ...v, [f.key]: next }))}
+                  ariaLabel={f.question}
+                  selectClassName="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
+                  inputClassName="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
+                />
               ) : (
                 <input
                   type="text"

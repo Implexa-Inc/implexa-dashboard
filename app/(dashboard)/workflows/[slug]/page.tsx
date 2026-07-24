@@ -39,6 +39,7 @@ import AgentExecutorPreference from '../../_components/agent-executor-preference
 import { ImplexaJudgePolicy } from '../../_components/implexa-judge-policy';
 import AgentFeedback from '../../_components/agent-feedback';
 import AgentEditButton from '../../_components/agent-edit-button';
+import ReviseLandedPoller from '../../_components/revise-landed-poller';
 import StepRow from '../../_components/step-row';
 import ExtendChain from '../../_components/extend-chain';
 import { getActivationChecklist } from '@/lib/activation';
@@ -684,6 +685,11 @@ export default async function WorkflowDetailPage({
                   <p className="text-xs text-violet-700 dark:text-violet-300 leading-snug">
                     <span className="font-medium">Rewrite in progress.</span> Your Claude is updating this agent’s
                     steps with your edit. Running is paused until it lands — every future run then uses the new version.
+                    {/* A revise lands ASYNCHRONOUSLY (the drainer calls revise_workflow
+                        minutes later). Without this the page kept showing the OLD steps
+                        until a manual reload — the banner was the only thing that ever
+                        updated. Re-running the server render is the check. */}
+                    <ReviseLandedPoller revisePending={revisePending} />
                   </p>
                 </div>
               )}

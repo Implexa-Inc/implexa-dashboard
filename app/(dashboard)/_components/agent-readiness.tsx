@@ -118,6 +118,15 @@ export default function AgentReadiness({
           </>
         )}
       </div>
+      {/* THE CTA MUST NOT CONTRADICT THE HEADLINE (founder, 2026-07-24: "Ready to
+          run dialog with a Finish Setup is paradoxical").
+          The fall-through branch used to render "Finish setup" — but note the
+          early return above: when nothing is blocked and no key is missing, this
+          card only renders AT ALL for an ACTIVE agent. So that branch was
+          unreachable except in exactly the state where there is nothing left to
+          finish, telling a ready, activated agent's owner to go finish setting it
+          up. Ready keeps a way IN to the provisioning detail, worded as what it
+          actually is — a review, not unfinished work. */}
       {blocked || optionalQuestions > 0 ? (
         <button
           type="button"
@@ -128,7 +137,7 @@ export default function AgentReadiness({
         </button>
       ) : (
         <Link href={`/workflows/${slug}/activate`} className="btn-outline text-sm px-4 py-2 flex-none">
-          Finish setup
+          Review setup
         </Link>
       )}
     </div>

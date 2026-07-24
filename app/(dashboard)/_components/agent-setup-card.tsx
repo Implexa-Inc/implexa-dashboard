@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import SetupChoiceField from './setup-choice-field';
 
 type Field = {
   key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[];
@@ -86,8 +87,6 @@ export default function AgentSetupCard({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Which choice fields are in "type your own" mode (none of the presets fit).
-  const [otherMode, setOtherMode] = useState<Record<string, boolean>>({});
   // Brief highlight when Run surfaces the questions, so the eye lands here.
   const [flash, setFlash] = useState(false);
   const [inDesktop, setInDesktop] = useState(false);
@@ -124,13 +123,9 @@ export default function AgentSetupCard({
           else if (f.kind === 'choice' && (f.options || []).includes(def)) a[f.key] = def; // pre-select if it's an option
         }
         setValues(a);
-        // A saved choice answer that isn't one of the presets is a custom value:
-        // start that field in "type your own" mode so the typed answer shows.
-        const om: Record<string, boolean> = {};
-        for (const f of s.schema) {
-          if (f.kind === 'choice' && a[f.key] && !(f.options || []).includes(a[f.key])) om[f.key] = true;
-        }
-        setOtherMode(om);
+        // (Other-mode is now derived inside SetupChoiceField from the value
+        // itself — a saved answer that is not one of the presets IS a custom
+        // value — so there is no separate otherMode state to seed here.)
       } catch {
         if (!cancelled) setSetup({ schema: [], answers: {}, missing: [], complete: true, needs_setup: false });
       } finally {
@@ -229,36 +224,17 @@ export default function AgentSetupCard({
               </span>
             </label>
             {f.kind === 'choice' && f.options && f.options.length > 0 ? (
-              <div className="space-y-2">
-                <select
-                  value={otherMode[f.key] ? '__other__' : (values[f.key] ?? '')}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '__other__') {
-                      setOtherMode((m) => ({ ...m, [f.key]: true }));
-                      setValues((v) => ({ ...v, [f.key]: '' })); // wait for typed input
-                    } else {
-                      setOtherMode((m) => ({ ...m, [f.key]: false }));
-                      setValues((v) => ({ ...v, [f.key]: val }));
-                    }
-                  }}
-                  className={inputCls}
-                >
-                  <option value="">Choose…</option>
-                  {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                  <option value="__other__">Other (type your own)…</option>
-                </select>
-                {otherMode[f.key] && (
-                  <input
-                    type="text"
-                    value={values[f.key] ?? ''}
-                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                    placeholder="Type your answer"
-                    autoFocus
-                    className={inputCls}
-                  />
-                )}
-              </div>
+              // Shared with the pre-Run dialog (agent-actions) so the two can't
+              // diverge — the divergence was the bug: this card had Other, that
+              // one didn't, and the run overwrote the saved Other answer.
+              <SetupChoiceField
+                value={values[f.key] ?? ''}
+                options={f.options}
+                onChange={(next) => setValues((v) => ({ ...v, [f.key]: next }))}
+                ariaLabel={f.question}
+                selectClassName={inputCls}
+                inputClassName={inputCls}
+              />
             ) : f.kind === 'file' ? (
               // File input: in the desktop app, a native picker captures the
               // absolute path (like Claude's own file picker). In a plain browser
