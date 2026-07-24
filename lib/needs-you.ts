@@ -112,13 +112,19 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
     // skill_runs here as well would create a second read model that can disagree
     // with the first — the drift the backend derives (rather than copies) to avoid.
     getAttention(),
-    // STAYS a direct read, deliberately. The backend read model passes
-    // `stalls: []` on purpose: a stall enters Needs You only once recovery says a
-    // human is genuinely needed, and that determination lives in the recovery work
-    // (PR #52) which is not merged. Dropping this query now would delete stall
-    // visibility from /connections in exchange for nothing — the same silent
-    // functionality loss as replacing the whole loader. It moves to the unified
-    // feed when the backend actually emits stalls, not before.
+    // ⚠️ STALE PREMISE, CORRECTED 2026-07-23. This used to say the backend passes
+    // `stalls: []` because the recovery work "(PR #52) is not merged". PR #52 is
+    // indeed still open, but the Stalled Run Manager shipped SEPARATELY: the
+    // backend read model now genuinely emits stalls, each carrying the Manager's
+    // TYPED diagnosis (reason / requiredAction / actionDetail) — see
+    // needs-you.service.js `recoveryStalls`.
+    //
+    // So this direct read is now a SECOND read model beside the backend's — the
+    // exact drift the comment above warns about — and it surfaces raw stalls with
+    // none of the Manager's diagnosis attached. Kept for now so stall visibility
+    // isn't dropped mid-flight, but it should collapse into getAttention(): that
+    // is the one that can say WHY a run needs you instead of just THAT it does.
+    // Tracked as the follow-up to this fix; not silently left as if intentional.
     supabase
       .from('skill_runs')
       .select('id, skill_slug, ran_at, stalled_at')
