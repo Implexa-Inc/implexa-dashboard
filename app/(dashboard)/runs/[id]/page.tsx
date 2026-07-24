@@ -40,6 +40,8 @@ import RunFeedback, { type FeedbackQuestion } from '../../_components/run-feedba
 import MakeRecurring from '../../_components/make-recurring';
 import RunChainSuggestions from '../../_components/run-chain-suggestions';
 import { EngineOverrideBanner } from '../../_components/engine-override-banner';
+import { FinalizeRecoveredButton } from '../../_components/finalize-recovered-button';
+import { deriveRecoveredWork } from '@/lib/run-recovery';
 import { RunJudgmentCard, type JudgeRepairRequest, type RunJudgment } from '../../_components/run-judgment-card';
 import { RunJudgmentPending } from '../../_components/run-judgment-pending';
 
@@ -231,6 +233,28 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     const raw = (ss as { steps_state?: RunStep[] } | null)?.steps_state;
     if (Array.isArray(raw)) stepsState = raw as RunStep[];
   } catch { /* column not present yet — checklist simply doesn't render */ }
+
+  // Has a DIFFERENT automatic recovery already delivered the real answer for
+  // this run? (2026-07-24 fix.) A successfully-recovered run's PARENT row stays
+  // stalled/failed with an empty output_markdown forever — its heartbeat is
+  // refused once superseded — so without this check it would look perpetually
+  // "recoverable" here even though the continuation already did the real work.
+  // Same defensive own-query pattern as progress/stepsState above.
+  let alreadyRecoveredElsewhere = false;
+  try {
+    const { data: rec } = await supabase
+      .from('run_recovery_attempts')
+      .select('id').eq('target_run_id', params.id).eq('status', 'recovered').limit(1).maybeSingle();
+    alreadyRecoveredElsewhere = !!rec;
+  } catch { /* table not present yet — nothing to gate on, the server re-checks anyway */ }
+
+  // Salvage affordance: this run may have DONE the work and died before reporting
+  // it (the founder's Remotion render, twice). The server re-checks this AND the
+  // already-recovered-elsewhere fact under lock; see lib/run-recovery.ts on why
+  // the mirror stays optimistic.
+  const recovered = alreadyRecoveredElsewhere
+    ? { recoverable: false, looksComplete: false, lastNote: null, stepCount: 0 }
+    : deriveRecoveredWork({ runState: r.run_state, outputMarkdown: r.output_markdown, progress, stepsState });
 
   // Next-agent recommendations (recommendation engine v1, RECOMMENDATION_ENGINE_PLAN
   // §1.5). Fetched defensively in its OWN query — the skill_runs.recommendations
@@ -670,6 +694,26 @@ export default async function RunDetailPage({ params }: { params: { id: string }
                 >
                   View the run to see the reason{siblingRun.review_status === 'needs_input' || siblingRun.review_status === 'pending' ? ' (needs you)' : ''} →
                 </Link>
+              </div>
+            )}
+            {/* The run may have finished its work and died before reporting it —
+                the trace above (or the step checklist) is the evidence. Never
+                auto-promoted: the user reads it and decides. Withheld entirely
+                when a DIFFERENT automatic recovery already delivered the real
+                answer for this run (alreadyRecoveredElsewhere) — the server would
+                refuse it anyway, but showing the button over a stale trace when
+                the real result already exists elsewhere is worse than showing
+                nothing. */}
+            {recovered.recoverable && (
+              <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-3">
+                <div className="text-sm font-semibold text-ink-100 mb-0.5">Work recovered — review and finalize</div>
+                <p className="text-sm text-ink-300 leading-relaxed">
+                  This run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and then stopped
+                  without recording a result. If the trace above shows the work finished, you can mark it done.
+                </p>
+                <div className="mt-3">
+                  <FinalizeRecoveredButton runId={r.id} looksComplete={recovered.looksComplete} />
+                </div>
               </div>
             )}
             <div className="mt-4 flex flex-wrap gap-3">
