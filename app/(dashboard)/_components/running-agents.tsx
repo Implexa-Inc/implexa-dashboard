@@ -59,6 +59,18 @@ type LiveCard = {
   executor?: 'claude' | 'codex' | null;
   executorThreadId?: string | null;
   executorWorkspace?: string | null;
+  /** What the Stalled Run Manager actually FOUND for this run, when it has
+   *  diagnosed it. null = not diagnosed (yet, or pre-0125) — render that as
+   *  "we don't know yet", NEVER as a guessed cause (2026-07-23 incident). */
+  attention?: {
+    status: string | null;
+    summary: string | null;
+    /** Only set when the Manager concluded a human is needed AND the blocker is
+     *  actionable — 'none'/'unknown' arrive as null so no dead button is shown. */
+    blockerType: string | null;
+    blockerMessage: string | null;
+    nextAction: string | null;
+  } | null;
 };
 
 const POLL_MS = 15000;
@@ -408,16 +420,38 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
                           user gets sent to the wrong place. Point at the diagnosis. */}
                   {c.status === 'needs_attention' ? (
                     <>
-                      <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-snug">
-                        This run stopped and needs you. Open it to see what Implexa found and what it needs —
-                        the reason is on the run itself.
-                      </p>
+                      {/* SHOW what the Manager found, when it found something. The
+                          previous pass stopped GUESSING a cause but still made the
+                          user open the run to learn anything — the diagnosis existed
+                          and simply wasn't carried. `attention` is null until the
+                          Manager has diagnosed it, and that stays honestly unknown
+                          rather than reverting to a guess. */}
+                      {c.attention?.summary ? (
+                        <>
+                          <p className="text-[11px] font-medium text-amber-800 dark:text-amber-200 leading-snug">
+                            {c.attention.summary}
+                          </p>
+                          {c.attention.blockerMessage && (
+                            <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300 leading-snug">
+                              Needs you: {c.attention.blockerMessage}
+                            </p>
+                          )}
+                          {c.attention.nextAction && (
+                            <p className="mt-1 text-[11px] text-ink-500 leading-snug">{c.attention.nextAction}</p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-snug">
+                          This run stopped and needs you. Open it to see what Implexa found and what it needs —
+                          the reason is on the run itself.
+                        </p>
+                      )}
                       {c.runId && (
                         <Link
                           href={`/runs/${c.runId}`}
                           className="mt-2 inline-block rounded-md border border-amber-500/40 px-3 py-1.5 text-[11px] font-medium text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
                         >
-                          See what it needs
+                          {c.attention?.summary ? 'Open the run' : 'See what it needs'}
                         </Link>
                       )}
                     </>
