@@ -47,7 +47,7 @@ function alsoHandledLabels(caps: PlanCapability[], cap: PlanCapability): string[
 }
 
 export default function PlanReviewModal({
-  intent, mode, cron, timezone, onCancel, onCreated,
+  intent, mode, cron, timezone, onCancel, onCreated, basePreferences = [],
 }: {
   intent: string;
   mode?: string;
@@ -55,6 +55,11 @@ export default function PlanReviewModal({
   timezone?: string;
   onCancel: () => void;
   onCreated: () => void;
+  /** Trusted preferences (a connected source the preview already resolved) that
+   *  must ride the build even if the user opens this editor and accepts without
+   *  touching that row — otherwise the full-editor path re-drops the P0 source.
+   *  An explicit change is applied AFTER (last wins), so the user still overrides. */
+  basePreferences?: string[];
 }) {
   const [plan, setPlan] = useState<AgentPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,9 +69,11 @@ export default function PlanReviewModal({
   const [chosen, setChosen] = useState<Record<string, ToolChoice>>({});
   const reqId = useRef(0);
 
-  const toolPreferences = Array.from(
-    new Map(Object.values(chosen).map((t) => [t.id, preferenceFor(t.label)])).values(),
-  );
+  // Base trusted prefs first, the user's explicit picks LAST (override wins).
+  const toolPreferences = Array.from(new Set([
+    ...basePreferences,
+    ...new Map(Object.values(chosen).map((t) => [t.id, preferenceFor(t.label)])).values(),
+  ]));
 
   const load = useCallback(async (prefs: string[]) => {
     const mine = ++reqId.current;
@@ -104,10 +111,13 @@ export default function PlanReviewModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Review the agent plan">
       <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border border-ink-800 bg-ink-950 p-6 shadow-2xl">
-        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">Here’s the plan</div>
+        {/* "Suggested setup" until the user actually changes a tool — these are
+            deterministic defaults, not choices a model deliberated over, so the
+            heading must not overclaim (2026-07-23 fix spec). */}
+        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-500">{hasChanges ? 'Your plan' : 'Suggested setup'}</div>
         <h2 className="text-lg font-semibold text-ink-100">{plan?.proposedName || 'Your new agent'}</h2>
         <p className="mt-1 text-sm text-ink-400 leading-snug">
-          Review the tools this agent will use. Accept the recommended plan in one click, or change any tool.
+          Review the tools this agent will use. Accept the recommended setup in one click, or change any tool.
         </p>
 
         {error && (

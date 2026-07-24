@@ -21,7 +21,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
-import PlanReviewModal from './plan-review-modal';
+import CreateDecisionGate from './create-decision-gate';
 
 // One next-agent recommendation, the shape of a skill_runs.recommendations[] entry
 // (RECOMMENDATION_ENGINE_PLAN.md §1.5 / §6). Schedule fields are optional — an
@@ -129,7 +129,7 @@ export default function NextAgentCards({
   return (
     <section className="mt-6">
       {planRec && (
-        <PlanReviewModal
+        <CreateDecisionGate
           intent={planRec.intent}
           mode={planRec.mode ?? undefined}
           cron={planRec.cron ?? undefined}

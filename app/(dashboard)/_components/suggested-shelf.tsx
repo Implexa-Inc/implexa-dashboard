@@ -18,7 +18,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { SuggestedAgent } from '@/lib/workflow-catalog';
-import PlanReviewModal from './plan-review-modal';
+import CreateDecisionGate from './create-decision-gate';
 
 type BuildState = 'idle' | 'queuing' | 'queued' | 'error';
 
@@ -60,7 +60,7 @@ function BuildButton({ intent }: { intent: string }) {
   return (
     <div className="flex flex-col items-start gap-1">
       {planOpen && (
-        <PlanReviewModal
+        <CreateDecisionGate
           intent={intent}
           onCancel={() => setPlanOpen(false)}
           onCreated={onPlanCreated}

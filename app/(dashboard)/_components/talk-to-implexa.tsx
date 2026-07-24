@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { SuggestedAgent } from '@/lib/workflow-catalog';
 import { macDownloadUrl } from '@/lib/app-links';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments, ATTACH_BUILD_MARKER } from './run-attachments';
-import PlanReviewModal from './plan-review-modal';
+import CreateDecisionGate from './create-decision-gate';
 
 /**
  * The conversation box: "you talk to Implexa". One codebase, two contexts.
@@ -149,8 +149,12 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
 
   // Step 2: the plan modal already enqueued the build (with the confirmed
   // toolPreferences). Run the post-queue UI transitions the direct POST used to.
-  const onPlanCreated = () => {
+  const onPlanCreated = (info?: { disclosures?: { text: string }[] }) => {
     const buildIntent = planIntent || '';
+    // A `disclose` build carries a compact confirmation ("Using your signed-in
+    // Gmail. Change in Setup.") — fold it into the queued message rather than a
+    // separate toast, so it survives this component unmounting.
+    const discloseNote = (info?.disclosures || []).map((d) => d.text).join(' ');
     const sentImages = images.map((im) => im.dataUrl);
     setPlanIntent(null);
     setIntent('');
@@ -173,7 +177,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
     setQueuedIntent(buildIntent);
     setQueuedImages(sentImages);
     setState('queued');
-    setMsg('Queued. Your agent will appear under Your agents when the runner builds it (usually a few minutes).');
+    setMsg(`Queued.${discloseNote ? ` ${discloseNote}` : ''} Your agent will appear under Your agents when the runner builds it (usually a few minutes).`);
   };
 
   // Secondary opt-in: open the user's Claude with the queued build prefilled so a
@@ -209,7 +213,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
   return (
     <section>
       {planIntent && (
-        <PlanReviewModal
+        <CreateDecisionGate
           intent={planIntent}
           onCancel={() => setPlanIntent(null)}
           onCreated={onPlanCreated}
