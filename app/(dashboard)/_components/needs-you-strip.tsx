@@ -100,14 +100,21 @@ export default function NeedsYouStrip({
         </p>
       )}
 
+      {/* HONEST STATE, NOT A GUESS (2026-07-23 incident, second surface). This
+          asserted "most likely waiting on a permission prompt" for every stalled
+          run and sent the user to the agent page. These rows come from the RAW
+          stall read, which carries no diagnosis at all — so there is nothing here
+          to justify naming a cause. A real stall was a Continue that never ran;
+          the permission advice was unactionable and the agent page showed none of
+          it. Link the RUN, where the Manager's diagnosis actually lives. */}
       {full && data.stalled.map((r) => (
         <Item
           key={`stalled-${r.id}`}
           warn
-          title={`${r.name} — stuck mid-run`}
-          detail="It started but stalled, most likely waiting on a permission prompt it can't answer unattended. Open Claude, approve (or deny) the prompt it's stuck on, and pre-approve that permission so the next run doesn't stall."
-          href={`/workflows/${r.slug}`}
-          cta="Open agent"
+          title={`${r.name} — stopped mid-run`}
+          detail="It started and then stopped without finishing. Open the run to see what Implexa found and what it needs."
+          href={`/runs/${r.id}`}
+          cta="See what it needs"
         />
       ))}
 
