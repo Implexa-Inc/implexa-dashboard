@@ -54,9 +54,10 @@ test('the NeedsYou strip links the RUN (where the diagnosis is), not the agent p
 test('a needs_attention run points at its own diagnosis instead of guessing', () => {
   const i = running.indexOf("c.status === 'needs_attention' ? (");
   assert.notEqual(i, -1, 'needs_attention must take its own branch');
-  // Slice to the ternary's `) : (` so this reads ONLY the needs_attention arm —
-  // the else arm legitimately keeps StuckRunButton for the soft-stuck case.
-  const branch = running.slice(i, running.indexOf(') : (', i));
+  // Slice to where the ELSE arm unmistakably begins (its soft-stuck copy), not to
+  // the first `) : (` — the needs_attention arm now contains its own nested
+  // ternary (diagnosed vs not), so the first `) : (` ends the slice far too early.
+  const branch = running.slice(i, running.indexOf('On the same step a while', i));
   assert.match(branch, /needs you/i, 'it states the honest fact: it stopped and needs you');
   assert.match(branch, /\/runs\/\$\{c\.runId\}/, 'and links the run, where the real reason lives');
   assert.doesNotMatch(branch, /StuckRunButton/,
@@ -79,4 +80,30 @@ test('the run page never links a prior SUCCESSFUL run as "the reason"', () => {
   assert.match(block, /\.neq\('run_state', 'completed'\)/,
     'a completed run\'s output is a deliverable, not an explanation of why THIS run stopped — '
     + 'linking it is what made a never-run Continue look like it had succeeded');
+});
+
+// ── The follow-up: SHOW the diagnosis, don't just stop guessing ───────────────
+// The previous pass removed the false permission claim but still made the user
+// open the run to learn anything — the Manager's diagnosis existed and simply
+// wasn't carried to the card. Now it is (backend: listLiveStatus `attention`).
+test('a diagnosed needs_attention card RENDERS the Manager\'s summary', () => {
+  assert.match(running, /c\.attention\?\.summary \?/,
+    'the card must branch on whether a real diagnosis exists');
+  assert.match(running, /\{c\.attention\.summary\}/, 'and render it');
+});
+
+test('an actionable blocker and its next action are shown when present', () => {
+  assert.match(running, /Needs you: \{c\.attention\.blockerMessage\}/,
+    'the exact dependency the Manager named');
+  assert.match(running, /\{c\.attention\.nextAction\}/, 'and what to do about it');
+});
+
+test('an UNDIAGNOSED run stays honestly unknown — it must not fall back to a guess', () => {
+  const i = running.indexOf("c.attention?.summary ? (");
+  assert.notEqual(i, -1);
+  const branch = running.slice(i, running.indexOf('{c.runId && (', i));
+  assert.match(branch, /This run stopped and needs you/,
+    'no diagnosis yet → say so plainly');
+  assert.doesNotMatch(branch, /most likely/i,
+    'the undiagnosed path must never reintroduce a guessed cause');
 });
