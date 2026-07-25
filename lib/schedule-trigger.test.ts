@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isPausableRoutine, isOnDemandRoutine } from './schedule-trigger.ts';
+import { isPausableRoutine, isOnDemandRoutine, cronToPickerState } from './schedule-trigger.ts';
 
 test('on_demand is the ONLY thing with nothing to pause', () => {
   assert.equal(isPausableRoutine({ trigger_type: 'on_demand', cron_expression: null, fire_at: null }), false);
@@ -53,6 +53,33 @@ test('the TYPE models every value the database allows (0073)', () => {
 test('the Routines list excludes on_demand — it is not autopilot', () => {
   const f = readFileSync(join(process.cwd(), 'app', '(dashboard)', 'scheduled', 'page.tsx'), 'utf8');
   assert.match(f, /\.filter\(\(r\) => !isOnDemandRoutine\(r\)\)/);
+});
+
+// ── cronToPickerState: the "edit opens on the ACTUAL schedule" fix ───────────
+
+test('THE BUG: noon daily hydrates to 12:00, not the hard-coded 09:00', () => {
+  // "daily at 12pm" → cron 0 12 * * *. The editor must open on 12:00.
+  assert.deepEqual(cronToPickerState('0 12 * * *'), { freq: 'day', time: '12:00', weekday: 1 });
+});
+
+test('every picker-emitted cron shape round-trips to its picker state', () => {
+  assert.deepEqual(cronToPickerState('0 9 * * *'), { freq: 'day', time: '09:00', weekday: 1 });
+  assert.deepEqual(cronToPickerState('30 6 * * *'), { freq: 'day', time: '06:30', weekday: 1 });
+  assert.deepEqual(cronToPickerState('0 9 * * 1-5'), { freq: 'weekday', time: '09:00', weekday: 1 });
+  assert.deepEqual(cronToPickerState('0 14 * * 3'), { freq: 'week', time: '14:00', weekday: 3 });
+  assert.deepEqual(cronToPickerState('0 0 * * 0'), { freq: 'week', time: '00:00', weekday: 0 });
+  assert.equal(cronToPickerState('0 * * * *')?.freq, 'hour');
+});
+
+test('a cron the picker cannot represent returns null (caller falls back to defaults, never a WRONG prefill)', () => {
+  assert.equal(cronToPickerState('0 9 1 * *'), null);      // day-of-month
+  assert.equal(cronToPickerState('0 9 * 6 *'), null);      // specific month
+  assert.equal(cronToPickerState('*/15 9 * * *'), null);   // minute step the picker has no control for
+  assert.equal(cronToPickerState('0 9 * * 1,3,5'), null);  // dow list
+  assert.equal(cronToPickerState('0 25 * * *'), null);     // out-of-range hour
+  assert.equal(cronToPickerState(''), null);
+  assert.equal(cronToPickerState(null), null);
+  assert.equal(cronToPickerState('nonsense'), null);
 });
 
 // ── the Judge verdict must be reachable from where results are READ ──────────
