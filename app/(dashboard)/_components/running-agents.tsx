@@ -116,7 +116,13 @@ function elapsedMs(iso: string | null): number {
   return iso ? Math.max(0, Date.now() - new Date(iso).getTime()) : 0;
 }
 
-export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boolean } = {}) {
+export default function RunningAgents({ alertsOnly = false, bare = false, onCount }: {
+  alertsOnly?: boolean;
+  /** Nested inside a parent that owns the heading (see TodayFeed). */
+  bare?: boolean;
+  /** Reports the number of live items rendered, so the parent can own the all-clear. */
+  onCount?: (n: number) => void;
+} = {}) {
   const supabase = createClient();
   const [cards, setCards] = useState<LiveCard[] | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -185,6 +191,7 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   // Native desktop notifications fire from here (the dashboard runs inside the
   // Electron webview, so the Notification API reaches the OS). We seed on the first
   // poll so pre-existing states don't storm, then notify only on NEW transitions.
+  const onCountRef = useRef<((n: number) => void) | undefined>(undefined);
   const notified = useRef<Set<string>>(new Set());
   const seeded = useRef(false);
 
@@ -233,7 +240,6 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!cards) return null;
   // On Home we show only the cards that need you (yellow/red); on the Agents page
   // we show everything live. On Home (alertsOnly) we ALSO keep a just-FINISHED run
   // around for ~30 min as a "Done — view result" receipt, so a run you kicked off
@@ -247,17 +253,38 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   const doneAt = (c: LiveCard) => c.finishedAt || c.since;
   const recentlyDone = (c: LiveCard) =>
     c.status === 'finished' && !!doneAt(c) && (Date.now() - new Date(doneAt(c)!).getTime()) < RECENT_DONE_MS;
-  const list = (alertsOnly ? cards.filter((c) => ALERT_STATUSES.has(c.status) || recentlyDone(c)) : cards)
+  // Computed from `cards ?? []` BEFORE the early returns so the count effect below
+  // is never skipped by a conditional hook — an un-loaded feed reports 0, which is
+  // exactly right (nothing to show yet), and a real count follows on the next poll.
+  const list = (alertsOnly ? (cards ?? []).filter((c) => ALERT_STATUSES.has(c.status) || recentlyDone(c)) : (cards ?? []))
     .filter((c) => !(c.runId && dismissed.has(c.runId)))
     .filter((c) => !(c.requestId && cancelledReqIds.has(c.requestId)));
+
+  // Report how many LIVE items this is showing, so a parent that owns the section
+  // heading + all-clear (TodayFeed) can tell "nothing needs you" apart from
+  // "nothing needs you EXCEPT the live alerts rendered right above this line" —
+  // the self-contradicting page state the Home redesign exists to remove. Held in
+  // a ref so an unmemoized parent callback can't loop the effect.
+  onCountRef.current = onCount;
+  useEffect(() => { onCountRef.current?.(list.length); }, [list.length]);
+
+  if (!cards) return null;
   if (list.length === 0) return null; // invisible at rest
   const shown = showAll ? list : list.slice(0, 5);
 
   return (
-    <section className="mb-8">
-      <div className="flex items-baseline gap-2 mb-3">
-        <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Active Agents'} ({list.length})</h2>
-      </div>
+    <section className={bare ? '' : 'mb-8'}>
+      {/* `bare` (2026-07-24 Home redesign): nested inside <TodayFeed>, which owns
+          the single "Today" heading. Home used to stack THREE headed sections
+          (Alerts / Set up / Results) that each answered "what needs me?" with a
+          different keying model — the page could even render its own "nothing
+          needs you" all-clear while a section above it listed work. One heading,
+          one answer. Standalone callers keep their own heading. */}
+      {!bare && (
+        <div className="flex items-baseline gap-2 mb-3">
+          <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Active Agents'} ({list.length})</h2>
+        </div>
+      )}
       <div className="space-y-2">
         {shown.map((c) => {
           const s = STATUS[c.status] ?? STATUS.running;

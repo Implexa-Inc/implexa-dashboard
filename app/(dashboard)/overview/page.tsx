@@ -1,28 +1,39 @@
 /**
- * /overview , Home. The one todo inbox (the 2-section redesign).
+ * /overview — Home, the manager's desk. THREE zones, in the order a manager
+ * actually thinks (2026-07-24 redesign):
  *
- * Home is now a single surface: describe an agent at the top, then your one
- * todo list below , every run as a colored todo (red = take action, amber =
- * give feedback, green = done), each acted on in a pop-up (output, feedback,
- * review) without leaving the page. This absorbs the old Results feed; the
- * "agents are everywhere" confusion (Home / Agents / Results / Needs you) is
- * gone , there are two places now: Home (this todo) and Your Agents.
+ *   BUILD    — what should I delegate next? (describe it, or take a suggestion)
+ *   TODAY    — what do my agents need from me? (ONE list, one all-clear)
+ *   RESULTS  — what did they produce? (recent finished runs; /inbox is the archive)
  *
- * Server-rendered, RLS-scoped to the caller. The todo + its next-action chips +
- * the pop-ups all live in InboxList; Home and the still-live /inbox route share
- * one loader (lib/inbox) so there is a single source of truth for "needs you".
+ * WHAT CHANGED AND WHY. Home had grown to eight stacked blocks, three of which
+ * ("Alerts", "Set up", the todo Inbox) all answered "what needs me?" using three
+ * different keying models — per-run live, per-agent/account/schedule, and per-run
+ * server-rendered. They were hand-deduped against each other, but the reader
+ * still had to check three places, and the page could render its own "Nothing
+ * needs you" all-clear directly beneath a section listing real work.
+ *
+ * <TodayFeed> is now the single answer to that question and the only thing
+ * allowed to claim the all-clear (it is a client component precisely so it can
+ * see BOTH the live alert count and the server-known setup count). Results makes
+ * a narrower, non-overlapping statement about deliverables only, so the two can
+ * never contradict each other.
+ *
+ * Server-rendered, RLS-scoped to the caller. Home and /inbox still share one
+ * loader (lib/inbox) so there is a single source of truth for run results.
  */
 
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { loadInboxItems } from '@/lib/inbox';
 import { loadNeedsYou } from '@/lib/needs-you';
+import { attentionWarning } from '@/lib/attention';
 import { getProficiency, isGuided } from '@/lib/proficiency';
 import { isExecutorConnected } from '@/lib/connection';
 import { listWorkflows, listMyWorkflows, listSuggestedAgents } from '@/lib/workflow-catalog';
-import NeedsYouStrip from '../_components/needs-you-strip';
-import RunningAgents from '../_components/running-agents';
+import TodayFeed from '../_components/today-feed';
 import FirstWinMoment from '../_components/first-win-moment';
 import InboxList from '../inbox/inbox-list';
 import FirstRunMagic from '../_components/first-run-magic';
@@ -77,11 +88,10 @@ export default async function OverviewPage() {
   // component self-clears via localStorage once seen).
   const hasSucceededRun = items.some((it) => it.state?.state === 'completed');
 
-  // (Stalled / failed runs surface in the run-based Alerts list below — see
-  // <RunningAgents alertsOnly /> — which is per-run, dismissible, and suppresses
-  // a failure/stall the agent has already recovered from. The old always-on
-  // <RunAttentionBanner> duplicated that and never cleared a stale failure, so
-  // it was removed.)
+  // (Stalled / failed runs surface inside <TodayFeed> — per-run, dismissible, and
+  // suppressing a failure/stall the agent has already recovered from. The old
+  // always-on <RunAttentionBanner> duplicated that and never cleared a stale
+  // failure, so it was removed.)
 
   return (
     <main className="min-h-screen px-6 lg:px-12 py-14">
@@ -111,32 +121,34 @@ export default async function OverviewPage() {
             />
 
 
-            {/* Alerts: agents that need you right now (held for approval,
-                stalled, failed), polled from /scheduled-skills/live — each links
-                into the run. Invisible when nothing needs you. */}
-            <div className="mt-8">
-              <RunningAgents alertsOnly />
-            </div>
+            {/* ZONE 2 — TODAY. The one "what needs me?" surface: live run-keyed
+                alerts (held, needs-attention with the Manager's diagnosis, failed,
+                queued) plus the setup blockers no run represents (grants,
+                sign-ins, missed schedules, Judge verdicts). Owns the all-clear. */}
+            <TodayFeed
+              data={needsYou}
+              warning={attentionWarning({ partial: needsYou.partial, truncated: needsYou.truncated, live: !needsYou.partial })}
+              className="mt-8"
+            />
 
-            {/* Set up: grants to give, accounts to sign into, missed schedules —
-                each with one action. (Approvals/stalled now live in Alerts.) */}
-            <NeedsYouStrip data={needsYou} variant="home" className="mt-8" />
-
-            {/* Inbox: every run as a colored todo, acted on in a pop-up */}
+            {/* ZONE 3 — RESULTS. Deliverables only, newest first. Its empty state
+                makes a statement about RESULTS, never about whether anything needs
+                you — that is Today's to make, and the two must not be able to
+                contradict each other (they did, on the old page). */}
             <section className="mt-10">
-              {/* The empty inbox may only claim "nothing needs you" when the
-                  Inbox is empty AND the Set-up strip directly above is empty AND
-                  the attention list was verified complete. Without the homeCount
-                  check, this celebratory all-clear renders WHILE the strip above
-                  it shows grants, sign-ins, schedules, or Judge blocks — the page
-                  contradicting itself. `partial`/`truncated` cover the unread-
-                  source case. */}
-              {items.length === 0 && needsYou.homeCount === 0 && !needsYou.partial && !needsYou.truncated ? (
+              <div className="flex items-baseline justify-between gap-3 mb-3">
+                <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">Results</h2>
+                {items.length > 0 && (
+                  <Link href="/inbox" className="text-xs text-ink-500 hover:text-ink-300 hover:underline">
+                    View all →
+                  </Link>
+                )}
+              </div>
+              {items.length === 0 ? (
                 <div className="card p-6 text-center">
-                  <div className="text-2xl mb-2" aria-hidden="true">✓</div>
-                  <p className="text-ink-100 font-medium">Nothing needs you yet.</p>
-                  <p className="text-ink-400 text-sm mt-1">
-                    Describe an agent above. When it runs, its work shows up here as a todo.
+                  <p className="text-ink-300 text-sm">No results yet.</p>
+                  <p className="text-ink-500 text-sm mt-1">
+                    Describe an agent above. When it runs, what it produced shows up here.
                   </p>
                 </div>
               ) : (

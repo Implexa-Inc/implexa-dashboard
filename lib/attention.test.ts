@@ -129,23 +129,38 @@ test('the retained schedule/stall limits carry truncation — fetch limit+1, sli
 // ── 4. Every all-clear surface is gated ──────────────────────────────────────
 
 test('EVERY "nothing needs you" surface is gated on partial and truncated', () => {
-  for (const p of ['app/(dashboard)/connections/page.tsx', 'app/(dashboard)/overview/page.tsx']) {
+  // Home's all-clear MOVED (2026-07-24 three-zone redesign): the claim now lives
+  // in <TodayFeed>, the one component that can see both the live and server
+  // counts. The rule is unchanged and follows it here — an unverifiable read must
+  // still suppress the claim.
+  for (const p of [
+    'app/(dashboard)/connections/page.tsx',
+    'app/(dashboard)/_components/today-feed.tsx',
+  ]) {
     const src = read(p);
     const claim = /Nothing needs you/.test(src);
     assert.ok(claim, `${p} still makes an all-clear claim (update this test if that changed)`);
-    assert.match(src, /!\w+\.partial\s*&&\s*!\w+\.truncated/,
+    assert.match(src, /!\w+\.partial\s*&&\s*!\w+\.truncated|&& !warning/,
       `${p} must suppress its all-clear when the list is not verified complete`);
   }
 });
 
-test('Home inbox all-clear also requires an EMPTY Set-up strip', () => {
-  // The Home "Nothing needs you yet" sits directly below <NeedsYouStrip>. An
-  // empty INBOX does not mean nothing needs you — the strip above can hold
-  // grants, sign-ins, schedules, or Judge blocks. Gating only on items.length
-  // makes the page contradict itself.
-  const src = read('app/(dashboard)/overview/page.tsx');
-  assert.match(src, /items\.length === 0 && needsYou\.homeCount === 0 && !needsYou\.partial && !needsYou\.truncated/,
-    'the inbox all-clear must also require homeCount === 0');
+test('Home makes its all-clear in exactly ONE place, and only knowing BOTH counts', () => {
+  // WAS: "Home inbox all-clear also requires an EMPTY Set-up strip" — the inbox
+  // claim had to also check needsYou.homeCount, because the Set-up strip sat
+  // right above it. The redesign removes the contradiction at the root: Home has
+  // one needs-you surface, and its claim is STRONGER than the old one — the old
+  // gate was server-only and could still fire beneath live client-rendered
+  // alerts. TodayFeed knows the live count too.
+  const page = read('app/(dashboard)/overview/page.tsx');
+  assert.doesNotMatch(page, /Nothing needs you/,
+    'the page itself must no longer make this claim — TodayFeed owns it');
+
+  const feed = read('app/(dashboard)/_components/today-feed.tsx');
+  assert.match(feed, /const nothingAtAll = setupCount === 0 && liveCount === 0;/,
+    'server setup count AND live alert count — either alone can render a false all-clear');
+  assert.match(feed, /setupCount = data\.needGrant\.length \+ data\.signIns\.length \+ data\.missed\.length \+ data\.homeAttention\.length/,
+    'every non-run-keyed row Today renders must be in the count that gates the claim');
 });
 
 test('the strip renders its warning even when it has NOTHING to list', () => {
