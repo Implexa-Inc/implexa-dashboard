@@ -457,12 +457,22 @@ function humanizeLocal(local: string): string {
  * the input before every user's plugin enforces it would let an unmet condition
  * run every time — worse than not offering it. So it stays a "coming next" note.
  */
-function SchedulePicker({ slug, onSaved }: { slug: string; onSaved: () => void }) {
+export type SchedulePickerInitial = {
+  mode?: Mode;
+  freq?: Freq;
+  time?: string;
+  weekday?: number;
+};
+
+export function SchedulePicker({ slug, onSaved, initial }: { slug: string; onSaved: () => void; initial?: SchedulePickerInitial }) {
   const supabase = createClient();
-  const [mode, setMode] = useState<Mode>('recurring');
-  const [freq, setFreq] = useState<Freq>('day');
-  const [time, setTime] = useState('09:00');
-  const [weekday, setWeekday] = useState(1); // Monday
+  // Hydrate from an existing routine when editing (initial), else the plain
+  // create-time defaults. This is what makes "Edit" open on the ACTUAL schedule
+  // (e.g. daily at 12pm) instead of a hard-coded 9am.
+  const [mode, setMode] = useState<Mode>(initial?.mode ?? 'recurring');
+  const [freq, setFreq] = useState<Freq>(initial?.freq ?? 'day');
+  const [time, setTime] = useState(initial?.time ?? '09:00');
+  const [weekday, setWeekday] = useState(initial?.weekday ?? 1); // Monday
   const [fireAtLocal, setFireAtLocal] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);

@@ -33,6 +33,7 @@ import AgentTabs, { type TabDef } from '../../_components/agent-tabs';
 import InboxList from '../../inbox/inbox-list';
 import BackLink from '../../_components/back-link';
 import AgentSetupCard from '../../_components/agent-setup-card';
+import ScheduleManager from '../../_components/schedule-manager';
 import { ActivationCard } from '../../_components/activation-card';
 import AgentLearningsCard from '../../_components/agent-learnings-card';
 import AgentExecutorPreference from '../../_components/agent-executor-preference';
@@ -200,6 +201,9 @@ export default async function WorkflowDetailPage({
   const routines: Routine[] = (routineRows as Routine[]) || [];
   // The routine to Pause/Resume from the header (the live one, if any).
   const pausableRoutine = routines.find((r) => (r.status === 'active' || r.status === 'paused') && isPausableRoutine(r)) || null;
+  // The routine the inline ScheduleManager edits: the live clock if any (regardless
+  // of status, so a 'failed' one is still editable), else null → on-demand agent.
+  const scheduleRoutine = pausableRoutine || routines.find((r) => isPausableRoutine(r)) || null;
 
   // Connection health for THIS agent: warn loudly if it needs an account that is
   // not reachable in the Implexa browser. Degrades to no banner when the read is
@@ -456,52 +460,17 @@ export default async function WorkflowDetailPage({
         </div>
       )}
 
-      {/* Schedule - the loop wiring (runs now live in the Runs tab) */}
+      {/* Schedule — edit / pause / make-on-demand inline, no navigating away. */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium uppercase tracking-wide text-ink-500">Schedule</h2>
-          <Link href={`/workflows/${workflow.slug}/activate`} className="text-xs text-brand-500 hover:underline">manage</Link>
+          {scheduleRoutine && (
+            <span className="text-xs text-ink-400">
+              {scheduleRoutine.run_count} run{scheduleRoutine.run_count === 1 ? '' : 's'} · last {rel(scheduleRoutine.last_run_at)}
+            </span>
+          )}
         </div>
-        {routines.length === 0 ? (
-          <p className="text-sm text-ink-500">
-            Runs on-demand (the Run now button above). To run it automatically, add a schedule on its{' '}
-            <Link href={`/workflows/${workflow.slug}/activate`} className="text-brand-500 hover:underline">activation page</Link>.
-          </p>
-        ) : (
-          <ul className="space-y-3 text-sm">
-            {routines.map((r) => (
-              <li key={r.id}>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-ink-200">{r.schedule_nl}</span>
-                  <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
-                    r.status === 'active'
-                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                      : r.status === 'paused'
-                        ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                        : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
-                  }`}>{r.status}</span>
-                </div>
-                <div className="text-xs text-ink-400 mt-0.5">
-                  {r.run_count} run{r.run_count === 1 ? '' : 's'} · last {rel(r.last_run_at)}
-                  {/* Undocumented Claude route (verified 2026-06-12) — keep the
-                      dashboard as the fallback path beside it. */}
-                  {r.claude_task_id && (
-                    <>
-                      {' · '}
-                      <a
-                        href={`claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(r.claude_task_id)}`}
-                        className="text-brand-500 hover:underline"
-                        title="Opens this routine in the Claude desktop app (toggle, history, Run now)."
-                      >
-                        Open in Claude ↗
-                      </a>
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ScheduleManager slug={workflow.slug} agentName={workflow.name} routine={scheduleRoutine} />
       </div>
 
       {/* Changelog */}

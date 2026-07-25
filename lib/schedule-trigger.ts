@@ -45,3 +45,38 @@ export function isOnDemandRoutine(r: TriggerRow): boolean {
 export function isPausableRoutine(r: TriggerRow): boolean {
   return !isOnDemandRoutine(r);
 }
+
+/**
+ * The state a recurring <SchedulePicker> should OPEN with when editing an
+ * existing routine — parsed from its stored `cron_expression`, so the editor
+ * reflects the real schedule instead of a hard-coded 09:00/daily default (the
+ * "shows 9am while the agent runs at noon" bug). Deliberately handles ONLY the
+ * cron shapes the picker itself emits (see buildNl in activation-card):
+ *   0 H * * *     → every day at H
+ *   0 H * * 1-5   → every weekday at H
+ *   0 H * * D     → weekly on day D at H   (0=Sun … 6=Sat)
+ *   0 * * * *     → every hour
+ * Anything else (a hand-written cron the picker can't represent) returns null,
+ * and the caller falls back to the plain defaults — editing still works, it just
+ * isn't pre-filled, which is strictly better than showing a WRONG pre-fill.
+ */
+export type PickerState = { freq: 'day' | 'weekday' | 'week' | 'hour'; time: string; weekday: number };
+
+export function cronToPickerState(cron: string | null | undefined): PickerState | null {
+  if (!cron || typeof cron !== 'string') return null;
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length < 5) return null;
+  const [min, hr, dom, mon, dow] = parts;
+  // Only the picker's own shapes: minute-of-hour fixed, day-of-month + month wild.
+  if (dom !== '*' || mon !== '*') return null;
+  // Hourly: minute wild (or 0) with a wild hour — the picker has no minute control.
+  if (hr === '*') return { freq: 'hour', time: '09:00', weekday: 1 };
+  const h = Number(hr);
+  const m = Number(min);
+  if (!Number.isInteger(h) || h < 0 || h > 23 || !Number.isInteger(m) || m < 0 || m > 59) return null;
+  const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  if (dow === '1-5') return { freq: 'weekday', time, weekday: 1 };
+  if (/^[0-6]$/.test(dow)) return { freq: 'week', time, weekday: Number(dow) };
+  if (dow === '*') return { freq: 'day', time, weekday: 1 };
+  return null; // a dow list/range the picker can't express
+}
