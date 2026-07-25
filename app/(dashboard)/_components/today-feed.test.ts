@@ -43,6 +43,20 @@ test('an UNAVAILABLE live read is announced, not silently treated as calm', () =
     'a failed live read must say so, in the same voice as the server-side warning');
 });
 
+test('a MALFORMED 2xx is unavailable too — a success is not proof we understood it', () => {
+  // The third variant of this bug: callBackend only throws on a non-2xx, so a
+  // dropped/renamed/re-shaped `items` field (or an empty 200 body) arrived as an
+  // ordinary success and `Array.isArray(...) ? ... : []` made it a confident
+  // empty list. The full matrix is proven behaviourally in lib/live-feed.test.ts;
+  // this pins that the component actually ROUTES through that guard.
+  assert.match(running, /const items = parseLiveItems<LiveCard>\(res\);/,
+    'shape validation must be the single home in lib/live-feed, not re-inlined here');
+  assert.match(running, /if \(items === null\) \{ if \(alive\) setFailed\(true\); return; \}/,
+    'an unreadable body must mark the read unavailable, not fall through to setCards');
+  assert.doesNotMatch(running, /Array\.isArray\(res\?\.items\)/,
+    'the inline coercion that laundered malformed into empty must not come back');
+});
+
 test('RunningAgents reports STATE, and a failed fetch is unavailable — never an empty list', () => {
   assert.match(running, /const liveStatus: LiveState\['status'\] = failed \? 'unavailable' : cards === null \? 'loading' : 'ready';/);
   assert.match(running, /onStateRef\.current\?\.\(\{ status: liveStatus, count: list\.length \}\)/,

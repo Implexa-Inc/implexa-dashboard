@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { parseLiveItems } from '@/lib/live-feed';
 import Modal from './modal';
 import StuckRunButton from './stuck-run-button';
 
@@ -239,7 +240,14 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
         const { data: { session } } = await supabase.auth.getSession();
         const res = await callBackend('/api/v2/scheduled-skills/live', { jwt: session?.access_token });
         if (!alive) return;
-        const items = Array.isArray(res?.items) ? (res.items as LiveCard[]) : [];
+        // A 2xx is NOT proof we understood the answer. callBackend only throws on
+        // a non-2xx status, so an empty/non-JSON body, a dropped `items` field, or
+        // a shape change all arrive here as "success" — and the old
+        // `Array.isArray(...) ? ... : []` turned every one of them into a
+        // confident empty list, which is exactly what the all-clear reads.
+        // Unreadable is unavailable, not empty. (See lib/live-feed.)
+        const items = parseLiveItems<LiveCard>(res);
+        if (items === null) { if (alive) setFailed(true); return; }
         setCards(items);
         setFailed(false);
         maybeNotify(items);
