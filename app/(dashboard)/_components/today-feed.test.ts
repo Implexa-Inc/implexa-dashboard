@@ -14,34 +14,59 @@ const feed = readFileSync(join(dir, 'today-feed.tsx'), 'utf8');
 const page = readFileSync(join(dir, '..', 'overview', 'page.tsx'), 'utf8');
 const running = readFileSync(join(dir, 'running-agents.tsx'), 'utf8');
 
-test('the all-clear requires BOTH the live count and the server setup count to be zero', () => {
-  // The old page claimed all-clear from server data alone, so it could render
-  // "Nothing needs you" directly beneath a client-rendered list of live alerts.
-  assert.match(feed, /const nothingAtAll = setupCount === 0 && liveCount === 0;/,
-    'both counts, or the claim is not knowable');
+// ── UNKNOWN IS NOT EMPTY ─────────────────────────────────────────────────────
+// The first cut of this gated the all-clear on `liveCount === 0` with the count
+// initialised to 0 — so during the first poll, and after any failed poll, an
+// unknown live state read as an empty one and Home could say "Nothing needs you"
+// over real work. Exactly the collapse lib/attention.ts's header forbids
+// ("unavailable is NOT empty"), reintroduced one layer up. The live read is now
+// three-valued and the claim requires it to be READY.
+
+test('the all-clear requires the live read to be READY — not merely to count zero', () => {
+  assert.match(feed, /const liveKnown = live\.status === 'ready';/,
+    'loading and unavailable are unknown, and unknown may never satisfy an all-clear');
+  assert.match(feed, /const nothingAtAll = blockingCount === 0 && liveKnown && live\.count === 0;/,
+    'server blockers empty AND live read ready AND live empty — all three');
   assert.match(feed, /\{nothingAtAll && !warning && \(/,
-    'and an unverifiable read must suppress the all-clear entirely');
+    'and an unverifiable server read must suppress it entirely');
 });
 
-test('the live count comes from RunningAgents itself, not a server guess', () => {
-  assert.match(feed, /<RunningAgents alertsOnly bare onCount=\{setLiveCount\} \/>/);
-  assert.match(running, /onCountRef\.current\?\.\(list\.length\)/,
-    'RunningAgents must report the count it actually rendered');
+test('a LOADING live read cannot produce an all-clear (the first-paint window)', () => {
+  // Initial state must be 'loading', not a zero count that looks ready.
+  assert.match(feed, /useState<LiveState>\(\{ status: 'loading', count: 0 \}\)/,
+    'the feed starts UNKNOWN; a 0 here without the status would read as ready-and-empty');
 });
 
-test('the count effect sits BEFORE the early returns — an empty feed still reports 0', () => {
-  const effectAt = running.indexOf('onCountRef.current?.(list.length)');
+test('an UNAVAILABLE live read is announced, not silently treated as calm', () => {
+  assert.match(feed, /const liveUnavailable = live\.status === 'unavailable';/);
+  assert.match(feed, /\{liveUnavailable && \([\s\S]{0,400}couldn&apos;t check your live runs/,
+    'a failed live read must say so, in the same voice as the server-side warning');
+});
+
+test('RunningAgents reports STATE, and a failed fetch is unavailable — never an empty list', () => {
+  assert.match(running, /const liveStatus: LiveState\['status'\] = failed \? 'unavailable' : cards === null \? 'loading' : 'ready';/);
+  assert.match(running, /onStateRef\.current\?\.\(\{ status: liveStatus, count: list\.length \}\)/,
+    'status travels WITH the count, or the count is unreadable');
+  // The original bug: `catch { setCards([]) }` made failure indistinguishable
+  // from emptiness. Failure must set the flag, not fabricate an empty result.
+  assert.match(running, /catch \{[\s\S]{0,700}if \(alive\) setFailed\(true\);/);
+  assert.doesNotMatch(running, /catch \{ if \(alive\) setCards\(\[\]\); \}/,
+    'a failed live read must never be laundered into an empty one');
+});
+
+test('the state effect sits BEFORE the early returns (React rule + no stale parent state)', () => {
+  const effectAt = running.indexOf('onStateRef.current?.({ status: liveStatus');
   const earlyReturnAt = running.indexOf('if (!cards) return null;');
   assert.notEqual(effectAt, -1);
   assert.notEqual(earlyReturnAt, -1);
   assert.ok(effectAt < earlyReturnAt,
-    'a hook after a conditional return is a React violation AND would strand the parent at a stale count');
+    'a hook after a conditional return is a React violation AND would strand the parent at a stale state');
 });
 
-test('setupCount covers every non-run-keyed blocker Today renders', () => {
+test('blockingCount covers every row Today renders', () => {
   // If a row type is rendered but missing from the count, the all-clear can fire
   // while that row is on screen — the exact contradiction being removed.
-  assert.match(feed, /const setupCount = data\.needGrant\.length \+ data\.signIns\.length \+ data\.missed\.length \+ data\.homeAttention\.length;/);
+  assert.match(feed, /const blockingCount =\s*\n?\s*data\.needGrant\.length \+ data\.signIns\.length \+ data\.missed\.length \+ data\.homeAttention\.length;/);
   for (const rendered of ['data.homeAttention.map', 'data.needGrant.map', 'data.signIns.map', 'data.missed.map']) {
     assert.ok(feed.includes(rendered), `${rendered} is rendered, so it must be counted`);
   }

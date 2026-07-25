@@ -116,15 +116,25 @@ function elapsedMs(iso: string | null): number {
   return iso ? Math.max(0, Date.now() - new Date(iso).getTime()) : 0;
 }
 
-export default function RunningAgents({ alertsOnly = false, bare = false, onCount }: {
+/**
+ * What the live read currently KNOWS. Three-valued on purpose: a parent that
+ * gates an all-clear on this must be able to tell "there is nothing live" from
+ * "we don't know yet" and from "we couldn't find out" — collapsing those into a
+ * count of 0 is how a false "Nothing needs you" gets rendered over real work.
+ */
+export type LiveState = { status: 'loading' | 'ready' | 'unavailable'; count: number };
+
+export default function RunningAgents({ alertsOnly = false, bare = false, onState }: {
   alertsOnly?: boolean;
   /** Nested inside a parent that owns the heading (see TodayFeed). */
   bare?: boolean;
-  /** Reports the number of live items rendered, so the parent can own the all-clear. */
-  onCount?: (n: number) => void;
+  /** Reports what the live read knows, so the parent can own the all-clear honestly. */
+  onState?: (s: LiveState) => void;
 } = {}) {
   const supabase = createClient();
   const [cards, setCards] = useState<LiveCard[] | null>(null);
+  /** The live read failed. Distinct from "no cards" — see the catch in load(). */
+  const [failed, setFailed] = useState(false);
   const [showAll, setShowAll] = useState(false);
   // Cards the user cleared — shared key with the run detail page's "Hide from
   // alerts". Keyed by runId so a fresh run of the same agent re-appears. A ✕ on
@@ -191,7 +201,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onCoun
   // Native desktop notifications fire from here (the dashboard runs inside the
   // Electron webview, so the Notification API reaches the OS). We seed on the first
   // poll so pre-existing states don't storm, then notify only on NEW transitions.
-  const onCountRef = useRef<((n: number) => void) | undefined>(undefined);
+  const onStateRef = useRef<((s: LiveState) => void) | undefined>(undefined);
   const notified = useRef<Set<string>>(new Set());
   const seeded = useRef(false);
 
@@ -231,8 +241,18 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onCoun
         if (!alive) return;
         const items = Array.isArray(res?.items) ? (res.items as LiveCard[]) : [];
         setCards(items);
+        setFailed(false);
         maybeNotify(items);
-      } catch { if (alive) setCards([]); }
+      } catch {
+        // UNAVAILABLE IS NOT EMPTY. This used to `setCards([])`, which made a
+        // failed read indistinguishable from "nothing is live" — and a parent
+        // counting cards would then report a confident 0. Flag the failure and
+        // LEAVE the last known cards alone: the parent can say "we couldn't
+        // check", and a transient blip doesn't blank a list that was correct a
+        // second ago. (A first-load failure keeps cards null → nothing rendered,
+        // and the parent's warning is the only thing that shows.)
+        if (alive) setFailed(true);
+      }
     }
     load();
     const t = setInterval(load, POLL_MS);
@@ -253,20 +273,26 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onCoun
   const doneAt = (c: LiveCard) => c.finishedAt || c.since;
   const recentlyDone = (c: LiveCard) =>
     c.status === 'finished' && !!doneAt(c) && (Date.now() - new Date(doneAt(c)!).getTime()) < RECENT_DONE_MS;
-  // Computed from `cards ?? []` BEFORE the early returns so the count effect below
-  // is never skipped by a conditional hook — an un-loaded feed reports 0, which is
-  // exactly right (nothing to show yet), and a real count follows on the next poll.
+  // Computed from `cards ?? []` BEFORE the early returns so the state effect below
+  // is never skipped by a conditional hook. The COUNT here is only meaningful
+  // alongside `liveStatus` — while cards is null it is 0 because there is nothing
+  // to show YET, which is emphatically not the same fact as "there is nothing".
   const list = (alertsOnly ? (cards ?? []).filter((c) => ALERT_STATUSES.has(c.status) || recentlyDone(c)) : (cards ?? []))
     .filter((c) => !(c.runId && dismissed.has(c.runId)))
     .filter((c) => !(c.requestId && cancelledReqIds.has(c.requestId)));
 
-  // Report how many LIVE items this is showing, so a parent that owns the section
-  // heading + all-clear (TodayFeed) can tell "nothing needs you" apart from
-  // "nothing needs you EXCEPT the live alerts rendered right above this line" —
-  // the self-contradicting page state the Home redesign exists to remove. Held in
-  // a ref so an unmemoized parent callback can't loop the effect.
-  onCountRef.current = onCount;
-  useEffect(() => { onCountRef.current?.(list.length); }, [list.length]);
+  // Report what the live read KNOWS, so a parent that owns the all-clear
+  // (TodayFeed) can distinguish nothing-live from not-known-yet from
+  // couldn't-check. Reporting a bare number let "unknown" masquerade as "zero" —
+  // the same unavailable-is-not-empty collapse lib/attention.ts exists to
+  // prevent, and the reason a false "Nothing needs you" could render during the
+  // first poll or after a failed one. Held in a ref so an unmemoized parent
+  // callback can't loop the effect.
+  const liveStatus: LiveState['status'] = failed ? 'unavailable' : cards === null ? 'loading' : 'ready';
+  onStateRef.current = onState;
+  useEffect(() => {
+    onStateRef.current?.({ status: liveStatus, count: list.length });
+  }, [liveStatus, list.length]);
 
   if (!cards) return null;
   if (list.length === 0) return null; // invisible at rest

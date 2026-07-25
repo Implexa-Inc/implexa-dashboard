@@ -38,7 +38,7 @@ import Link from 'next/link';
 // the server and passed in as a prop for the same reason.
 import type { NeedsYou } from '@/lib/needs-you';
 import type { AttentionItem } from '@/lib/attention';
-import RunningAgents from './running-agents';
+import RunningAgents, { type LiveState } from './running-agents';
 import FixNowButton from './fix-now-button';
 import JudgeReviewCard from './judge-review-dialog';
 
@@ -71,10 +71,25 @@ export default function TodayFeed({ data, warning, className = '' }: {
   warning: string | null;
   className?: string;
 }) {
-  const [liveCount, setLiveCount] = useState(0);
+  const [live, setLive] = useState<LiveState>({ status: 'loading', count: 0 });
 
-  const setupCount = data.needGrant.length + data.signIns.length + data.missed.length + data.homeAttention.length;
-  const nothingAtAll = setupCount === 0 && liveCount === 0;
+  // Everything Today renders that BLOCKS the user. Named for what it gates, not
+  // for where it came from: it deliberately mixes keying (homeAttention is
+  // run-keyed Judge work; the rest is agent/account/schedule-keyed) because to
+  // the reader they are one question. Every row type rendered below must be in
+  // this count, or the all-clear can fire while that row is on screen.
+  const blockingCount =
+    data.needGrant.length + data.signIns.length + data.missed.length + data.homeAttention.length;
+
+  // THE ALL-CLEAR IS A CLAIM ABOUT KNOWLEDGE, NOT A COUNT OF ZEROS. It may only
+  // be made when every source was actually read: the server-side needs-you feed
+  // (`warning` covers partial/truncated) AND the live run feed, which is only
+  // trustworthy at status==='ready'. 'loading' and 'unavailable' are unknown, and
+  // unknown is not empty — treating them as zero is what let a false "Nothing
+  // needs you" render during the first poll or after a failed one.
+  const liveKnown = live.status === 'ready';
+  const nothingAtAll = blockingCount === 0 && liveKnown && live.count === 0;
+  const liveUnavailable = live.status === 'unavailable';
 
   return (
     <section className={className}>
@@ -92,12 +107,23 @@ export default function TodayFeed({ data, warning, className = '' }: {
         </p>
       )}
 
+      {/* The live read failed — say so rather than letting its absence read as
+          calm. Same rule, same voice as the server-side `warning` above. */}
+      {liveUnavailable && (
+        <p
+          role="status"
+          className="text-xs text-amber-700 dark:text-amber-300 border border-amber-500/40 rounded-md px-3 py-2 mb-3"
+        >
+          We couldn&apos;t check your live runs just now, so this list may be incomplete. It retries on its own.
+        </p>
+      )}
+
       {/* Live, run-keyed: held for approval, needs attention (with the Manager's
           own diagnosis), failed, queued, and a just-finished receipt. */}
-      <RunningAgents alertsOnly bare onCount={setLiveCount} />
+      <RunningAgents alertsOnly bare onState={setLive} />
 
-      {(setupCount > 0) && (
-        <div className={`space-y-3 ${liveCount > 0 ? 'mt-3' : ''}`}>
+      {(blockingCount > 0) && (
+        <div className={`space-y-3 ${live.count > 0 ? 'mt-3' : ''}`}>
           {/* Judge verdicts that need a person — actioned in place. */}
           {data.homeAttention.map((it) => (
             <JudgeRow key={it.attentionId} item={it} />
@@ -140,7 +166,8 @@ export default function TodayFeed({ data, warning, className = '' }: {
       )}
 
       {/* The all-clear, and the ONLY place on Home that may claim it. Requires
-          BOTH counts to be zero AND the read to have been verifiable. */}
+          every source to have been READ (server feed verifiable + live feed
+          ready), and only then that both are empty. */}
       {nothingAtAll && !warning && (
         <div className="card p-6 text-center">
           <div className="text-2xl mb-2" aria-hidden="true">✓</div>

@@ -157,10 +157,16 @@ test('Home makes its all-clear in exactly ONE place, and only knowing BOTH count
     'the page itself must no longer make this claim — TodayFeed owns it');
 
   const feed = read('app/(dashboard)/_components/today-feed.tsx');
-  assert.match(feed, /const nothingAtAll = setupCount === 0 && liveCount === 0;/,
-    'server setup count AND live alert count — either alone can render a false all-clear');
-  assert.match(feed, /setupCount = data\.needGrant\.length \+ data\.signIns\.length \+ data\.missed\.length \+ data\.homeAttention\.length/,
-    'every non-run-keyed row Today renders must be in the count that gates the claim');
+  // The claim is about KNOWLEDGE, not just counts: the live read must be READY
+  // (not loading, not unavailable) before an empty count means anything. A bare
+  // `liveCount === 0` let unknown masquerade as empty — the same
+  // unavailable-is-not-empty collapse this file's header exists to prevent.
+  assert.match(feed, /const nothingAtAll = blockingCount === 0 && liveKnown && live\.count === 0;/,
+    'server blockers empty AND live read READY AND live empty — any one alone renders a false all-clear');
+  assert.match(feed, /const liveKnown = live\.status === 'ready';/,
+    "'loading' and 'unavailable' are unknown, and unknown may never satisfy an all-clear");
+  assert.match(feed, /blockingCount =\s*\n?\s*data\.needGrant\.length \+ data\.signIns\.length \+ data\.missed\.length \+ data\.homeAttention\.length/,
+    'every row Today renders must be in the count that gates the claim');
 });
 
 test('the strip renders its warning even when it has NOTHING to list', () => {
