@@ -82,6 +82,23 @@ test('a cron the picker cannot represent returns null (caller falls back to defa
   assert.equal(cronToPickerState('nonsense'), null);
 });
 
+// ── Make-on-demand must go through the backend, never a raw row delete ───────
+
+test('ScheduleManager "Make on-demand" converts via the backend, not scheduled_skills.delete()', () => {
+  // A raw delete drops activation_state (de-activates the agent) and cannot set
+  // claude_task_dirty, so a vendor Claude task keeps firing. It MUST POST
+  // trigger:'on_demand' so the backend converts in place + reaps the Claude task.
+  const src = readFileSync(join(process.cwd(), 'app', '(dashboard)', '_components', 'schedule-manager.tsx'), 'utf8');
+  const fn = src.slice(src.indexOf('async function makeOnDemand'), src.indexOf('function onSaved'));
+  assert.ok(fn.length > 0, 'makeOnDemand must exist');
+  assert.doesNotMatch(fn, /scheduled_skills'\)\s*\.delete\(\)/,
+    'must NOT raw-delete the row — that de-activates the agent and orphans the Claude task');
+  assert.match(fn, /\/api\/v2\/agents\/\$\{encodeURIComponent\(slug\)\}\/schedule/,
+    'must call the schedule endpoint');
+  assert.match(fn, /trigger: 'on_demand'/,
+    'must request the in-place on_demand conversion');
+});
+
 // ── the Judge verdict must be reachable from where results are READ ──────────
 
 test('the inbox overlay surfaces the Judge verdict AND a run permalink', () => {

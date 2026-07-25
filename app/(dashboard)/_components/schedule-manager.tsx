@@ -19,9 +19,9 @@
  */
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { callBackend } from '@/lib/api';
 import { SchedulePicker, type SchedulePickerInitial } from './activation-card';
 import { cronToPickerState, isPausableRoutine } from '@/lib/schedule-trigger';
 
@@ -75,14 +75,28 @@ export default function ScheduleManager({
 
   async function makeOnDemand() {
     if (!routine) return;
-    if (!confirm(`Run "${agentName}" on demand only? This removes the schedule — it will run only when you click Run now. Past output stays in Runs.`)) return;
+    if (!confirm(`Run "${agentName}" on demand only? This drops the schedule — it stays active and runs only when you click Run now. Past output stays in Runs.`)) return;
     setErr(null);
     setBusy('ondemand');
-    const { error } = await supabase.from('scheduled_skills').delete().eq('id', routine.id);
-    setBusy(null);
-    if (error) { setErr(error.message); return; }
-    setEditing(false);
-    router.refresh();
+    // Go through the backend, NOT a raw scheduled_skills.delete(): deleting the row
+    // would de-activate the agent (activation_state lives on it) and orphan a Claude
+    // native task (a DELETE can't set claude_task_dirty). setAgentSchedule(trigger:
+    // 'on_demand') converts in place, keeps the agent active, and flags the Claude
+    // task for the desktop to disable.
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/schedule`, {
+        jwt: session?.access_token,
+        method: 'POST',
+        body: { trigger: 'on_demand' },
+      });
+      setEditing(false);
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not switch to on-demand. Try again.');
+    } finally {
+      setBusy(null);
+    }
   }
 
   function onSaved() {
