@@ -114,7 +114,12 @@ export default function ScheduleManager({
           Runs on-demand (the Run now button above){editing ? '.' : ' — no automatic schedule yet.'}
         </p>
         {editing ? (
-          <SchedulePicker slug={slug} onSaved={onSaved} />
+          <>
+            <SchedulePicker slug={slug} onSaved={onSaved} />
+            <button type="button" onClick={() => { setEditing(false); setErr(null); }} className={`${btn} mt-2`}>
+              Cancel
+            </button>
+          </>
         ) : (
           <button type="button" onClick={() => setEditing(true)} className={`${btn} mt-2`}>
             Add a schedule
