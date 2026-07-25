@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { parseLiveItems } from '@/lib/live-feed';
 import Modal from './modal';
 import StuckRunButton from './stuck-run-button';
 
@@ -116,9 +117,25 @@ function elapsedMs(iso: string | null): number {
   return iso ? Math.max(0, Date.now() - new Date(iso).getTime()) : 0;
 }
 
-export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boolean } = {}) {
+/**
+ * What the live read currently KNOWS. Three-valued on purpose: a parent that
+ * gates an all-clear on this must be able to tell "there is nothing live" from
+ * "we don't know yet" and from "we couldn't find out" — collapsing those into a
+ * count of 0 is how a false "Nothing needs you" gets rendered over real work.
+ */
+export type LiveState = { status: 'loading' | 'ready' | 'unavailable'; count: number };
+
+export default function RunningAgents({ alertsOnly = false, bare = false, onState }: {
+  alertsOnly?: boolean;
+  /** Nested inside a parent that owns the heading (see TodayFeed). */
+  bare?: boolean;
+  /** Reports what the live read knows, so the parent can own the all-clear honestly. */
+  onState?: (s: LiveState) => void;
+} = {}) {
   const supabase = createClient();
   const [cards, setCards] = useState<LiveCard[] | null>(null);
+  /** The live read failed. Distinct from "no cards" — see the catch in load(). */
+  const [failed, setFailed] = useState(false);
   const [showAll, setShowAll] = useState(false);
   // Cards the user cleared — shared key with the run detail page's "Hide from
   // alerts". Keyed by runId so a fresh run of the same agent re-appears. A ✕ on
@@ -185,6 +202,7 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   // Native desktop notifications fire from here (the dashboard runs inside the
   // Electron webview, so the Notification API reaches the OS). We seed on the first
   // poll so pre-existing states don't storm, then notify only on NEW transitions.
+  const onStateRef = useRef<((s: LiveState) => void) | undefined>(undefined);
   const notified = useRef<Set<string>>(new Set());
   const seeded = useRef(false);
 
@@ -222,10 +240,27 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
         const { data: { session } } = await supabase.auth.getSession();
         const res = await callBackend('/api/v2/scheduled-skills/live', { jwt: session?.access_token });
         if (!alive) return;
-        const items = Array.isArray(res?.items) ? (res.items as LiveCard[]) : [];
+        // A 2xx is NOT proof we understood the answer. callBackend only throws on
+        // a non-2xx status, so an empty/non-JSON body, a dropped `items` field, or
+        // a shape change all arrive here as "success" — and the old
+        // `Array.isArray(...) ? ... : []` turned every one of them into a
+        // confident empty list, which is exactly what the all-clear reads.
+        // Unreadable is unavailable, not empty. (See lib/live-feed.)
+        const items = parseLiveItems<LiveCard>(res);
+        if (items === null) { if (alive) setFailed(true); return; }
         setCards(items);
+        setFailed(false);
         maybeNotify(items);
-      } catch { if (alive) setCards([]); }
+      } catch {
+        // UNAVAILABLE IS NOT EMPTY. This used to `setCards([])`, which made a
+        // failed read indistinguishable from "nothing is live" — and a parent
+        // counting cards would then report a confident 0. Flag the failure and
+        // LEAVE the last known cards alone: the parent can say "we couldn't
+        // check", and a transient blip doesn't blank a list that was correct a
+        // second ago. (A first-load failure keeps cards null → nothing rendered,
+        // and the parent's warning is the only thing that shows.)
+        if (alive) setFailed(true);
+      }
     }
     load();
     const t = setInterval(load, POLL_MS);
@@ -233,7 +268,6 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!cards) return null;
   // On Home we show only the cards that need you (yellow/red); on the Agents page
   // we show everything live. On Home (alertsOnly) we ALSO keep a just-FINISHED run
   // around for ~30 min as a "Done — view result" receipt, so a run you kicked off
@@ -247,17 +281,44 @@ export default function RunningAgents({ alertsOnly = false }: { alertsOnly?: boo
   const doneAt = (c: LiveCard) => c.finishedAt || c.since;
   const recentlyDone = (c: LiveCard) =>
     c.status === 'finished' && !!doneAt(c) && (Date.now() - new Date(doneAt(c)!).getTime()) < RECENT_DONE_MS;
-  const list = (alertsOnly ? cards.filter((c) => ALERT_STATUSES.has(c.status) || recentlyDone(c)) : cards)
+  // Computed from `cards ?? []` BEFORE the early returns so the state effect below
+  // is never skipped by a conditional hook. The COUNT here is only meaningful
+  // alongside `liveStatus` — while cards is null it is 0 because there is nothing
+  // to show YET, which is emphatically not the same fact as "there is nothing".
+  const list = (alertsOnly ? (cards ?? []).filter((c) => ALERT_STATUSES.has(c.status) || recentlyDone(c)) : (cards ?? []))
     .filter((c) => !(c.runId && dismissed.has(c.runId)))
     .filter((c) => !(c.requestId && cancelledReqIds.has(c.requestId)));
+
+  // Report what the live read KNOWS, so a parent that owns the all-clear
+  // (TodayFeed) can distinguish nothing-live from not-known-yet from
+  // couldn't-check. Reporting a bare number let "unknown" masquerade as "zero" —
+  // the same unavailable-is-not-empty collapse lib/attention.ts exists to
+  // prevent, and the reason a false "Nothing needs you" could render during the
+  // first poll or after a failed one. Held in a ref so an unmemoized parent
+  // callback can't loop the effect.
+  const liveStatus: LiveState['status'] = failed ? 'unavailable' : cards === null ? 'loading' : 'ready';
+  onStateRef.current = onState;
+  useEffect(() => {
+    onStateRef.current?.({ status: liveStatus, count: list.length });
+  }, [liveStatus, list.length]);
+
+  if (!cards) return null;
   if (list.length === 0) return null; // invisible at rest
   const shown = showAll ? list : list.slice(0, 5);
 
   return (
-    <section className="mb-8">
-      <div className="flex items-baseline gap-2 mb-3">
-        <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Active Agents'} ({list.length})</h2>
-      </div>
+    <section className={bare ? '' : 'mb-8'}>
+      {/* `bare` (2026-07-24 Home redesign): nested inside <TodayFeed>, which owns
+          the single "Today" heading. Home used to stack THREE headed sections
+          (Alerts / Set up / Results) that each answered "what needs me?" with a
+          different keying model — the page could even render its own "nothing
+          needs you" all-clear while a section above it listed work. One heading,
+          one answer. Standalone callers keep their own heading. */}
+      {!bare && (
+        <div className="flex items-baseline gap-2 mb-3">
+          <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">{alertsOnly ? 'Alerts' : 'Active Agents'} ({list.length})</h2>
+        </div>
+      )}
       <div className="space-y-2">
         {shown.map((c) => {
           const s = STATUS[c.status] ?? STATUS.running;

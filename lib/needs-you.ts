@@ -30,6 +30,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getMyAgents, type MyAgent } from '@/lib/agents-home';
 import { looksOverdue } from '@/lib/routine-status';
+import { isArmed, isNeverArmed } from '@/lib/schedule-arming';
 import { getConnectionStatus } from '@/lib/connections';
 import { getAttention, type AttentionItem } from '@/lib/attention';
 
@@ -87,6 +88,8 @@ type SchedRow = {
   id: string; skill_slug: string; cron_expression: string | null;
   schedule_nl: string | null; status: string; last_run_at: string | null;
   claude_task_id: string | null;
+  /** 'implexa' = the backend cron evaluator fires it; anything else (incl. null) = a native Claude routine. */
+  scheduler_owner: string | null;
 };
 type StalledRow = { id: string; skill_slug: string; ran_at: string; stalled_at: string | null };
 
@@ -102,7 +105,12 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
     getMyAgents(),
     supabase
       .from('scheduled_skills')
-      .select('id, skill_slug, cron_expression, schedule_nl, status, last_run_at, claude_task_id')
+      // scheduler_owner is load-bearing, not decoration: an implexa-owned
+      // schedule is fired by the BACKEND cron evaluator and is deliberately
+      // never armed as a native Claude routine, so its claude_task_id is null
+      // FOREVER and by design. Without this column the never-armed check below
+      // reads that as broken setup. See isNeverArmed.
+      .select('id, skill_slug, cron_expression, schedule_nl, status, last_run_at, claude_task_id, scheduler_owner')
       .in('status', ['active', 'failed'])
       .order('created_at', { ascending: false })
       .limit(SCHED_LIMIT + 1),
@@ -173,12 +181,20 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
   // fire, so it's not a "missed run" (a one-time failure) — it's incomplete setup.
   // Surface it as "finish arming" REGARDLESS of overdue, and don't let an unarmed
   // routine masquerade as a recurring missed-schedule alarm forever.
-  const isNeverArmed = (r: SchedRow) => r.status === 'active' && !r.claude_task_id;
+  // Arming rules live in lib/schedule-arming (pure + unit-tested) — an
+  // implexa-owned schedule is fired by the backend cron evaluator and is never
+  // "unarmed", however null its claude_task_id is. See that file for the incident.
+  // Overdue applies to ANY armed schedule — native or implexa-owned. Gating it on
+  // claude_task_id alone was the mirror-image bug: an implexa-owned schedule that
+  // genuinely stopped firing could never be reported (a false all-clear on exactly
+  // the rows the backend scheduler now owns).
+  const isOverdue = (r: SchedRow) =>
+    r.status === 'active' && isArmed(r) && looksOverdue(r.cron_expression || '', r.last_run_at);
   const missed: MissedSchedule[] = sched
     .filter((r) =>
       r.status === 'failed'
-      || isNeverArmed(r)                                                              // setup incomplete
-      || (r.status === 'active' && r.claude_task_id && looksOverdue(r.cron_expression || '', r.last_run_at)))  // armed but missed
+      || isNeverArmed(r)   // setup incomplete (native routines only)
+      || isOverdue(r))     // armed — by either scheduler — and missed
     .map((r) => ({
       id: r.id,
       slug: r.skill_slug,
