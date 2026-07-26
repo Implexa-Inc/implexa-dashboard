@@ -138,6 +138,8 @@ export type ListAgent = {
   grade?: { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null;
   /** True when this agent chains other agents (its name reads "A → B"). Shown as a ⛓ Chain tag. */
   isChain?: boolean;
+  /** Starred by the user — floats to a "Favorites" section at the top. */
+  favorite?: boolean;
 };
 
 // A chain agent's name is the leaf names joined by an arrow (createChainWorkflow).
@@ -191,7 +193,7 @@ function engineLabel(lastRun: ListAgent['lastRun']): string | null {
   return model ? `${name} · ${model}` : name;
 }
 
-function Row({ a, onArchive, onDeactivate, onRename, busy, spotlight = false }: { a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busy: boolean; spotlight?: boolean }) {
+function Row({ a, onArchive, onDeactivate, onRename, onToggleFavorite, busy, spotlight = false }: { a: ListAgent; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busy: boolean; spotlight?: boolean }) {
   const detail = `/workflows/${encodeURIComponent(a.slug)}?source=${encodeURIComponent(a.source)}`;
   // In the activity spotlight the row title opens the RUN status/live page; in the
   // roster it opens the agent's detail/setup page. Same agent, two doors.
@@ -215,6 +217,17 @@ function Row({ a, onArchive, onDeactivate, onRename, busy, spotlight = false }: 
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap group">
+            {/* Star: favorite this agent so it floats to the top (persists per-user). */}
+            <button
+              type="button"
+              onClick={() => onToggleFavorite(a)}
+              aria-label={a.favorite ? `Unfavorite ${a.name}` : `Add ${a.name} to favorites`}
+              aria-pressed={!!a.favorite}
+              title={a.favorite ? 'Favorited — click to remove' : 'Add as favorite'}
+              className={`text-base leading-none transition-colors ${a.favorite ? 'text-amber-400 hover:text-amber-300' : 'text-ink-600 hover:text-amber-400'}`}
+            >
+              {a.favorite ? '★' : '☆'}
+            </button>
             {editing ? (
               <input
                 autoFocus
@@ -317,7 +330,7 @@ function Row({ a, onArchive, onDeactivate, onRename, busy, spotlight = false }: 
   );
 }
 
-function Section({ title, agents, onArchive, onDeactivate, onRename, busySlug, spotlight = false, subtitle }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; busySlug: string | null; spotlight?: boolean; subtitle?: string }) {
+function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFavorite, busySlug, spotlight = false, subtitle }: { title: string; agents: ListAgent[]; onArchive: (a: ListAgent) => void; onDeactivate: (a: ListAgent) => void; onRename: (slug: string, name: string) => Promise<void>; onToggleFavorite: (a: ListAgent) => void; busySlug: string | null; spotlight?: boolean; subtitle?: string }) {
   if (agents.length === 0) return null;
   return (
     <section className="mb-8">
@@ -325,7 +338,7 @@ function Section({ title, agents, onArchive, onDeactivate, onRename, busySlug, s
         {title} <span className="text-ink-500">({agents.length})</span>
         {subtitle && <span className="ml-2 normal-case tracking-normal text-ink-500 font-normal">{subtitle}</span>}
       </h2>
-      <ul className="space-y-3">{agents.map((a) => <Row key={`${spotlight ? 'act' : 'row'}-${a.slug}`} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} busy={busySlug === a.slug} spotlight={spotlight} />)}</ul>
+      <ul className="space-y-3">{agents.map((a) => <Row key={`${spotlight ? 'act' : 'row'}-${a.slug}`} a={a} onArchive={onArchive} onDeactivate={onDeactivate} onRename={onRename} onToggleFavorite={onToggleFavorite} busy={busySlug === a.slug} spotlight={spotlight} />)}</ul>
     </section>
   );
 }
@@ -343,6 +356,24 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
   const [error, setError] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [showPaused, setShowPaused] = useState(false);
+  const [query, setQuery] = useState('');
+
+  // Star / un-star. Optimistic (flip in place), best-effort backend — a favorite
+  // is a pure display marker, so a failed write just reverts the star, never an
+  // error banner that blocks the list.
+  async function toggleFavorite(a: ListAgent) {
+    const next = !a.favorite;
+    const prev = list;
+    setList(list.map((x) => (x.slug === a.slug ? { ...x, favorite: next } : x)));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await callBackend('/api/v2/me/workflows/favorite', {
+        jwt: session?.access_token, method: next ? 'POST' : 'DELETE', body: { slug: a.slug },
+      });
+    } catch {
+      setList(prev); // revert the star; no blocking error for a favorite toggle
+    }
+  }
 
   const activeCat = params.get('cat') || '';
 
@@ -463,19 +494,33 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
   // a warning inside a collapsed section is a warning nobody reads.
   const liveArchived = arch.filter((a) => a.isLive).length;
 
-  const shown = activeCat ? list.filter((a) => a.category.key === activeCat) : list;
-  const scheduled = shown.filter((a) => a.section === 'scheduled');
-  const onDemand = shown.filter((a) => a.section === 'on_demand');
-  const notActivated = shown.filter((a) => a.section === 'not_activated');
-  const paused = shown.filter((a) => a.section === 'paused');
-  // The full activated roster (scheduled + on-demand together, scheduler-tagged).
+  // Search: match the typed query against the agent name + its category label, so
+  // a big roster narrows instantly (client-side; no round trip). Combined with the
+  // category chips (both must match).
+  const q = query.trim().toLowerCase();
+  const byCat = activeCat ? list.filter((a) => a.category.key === activeCat) : list;
+  const shown = q
+    ? byCat.filter((a) => a.name.toLowerCase().includes(q) || a.category.label.toLowerCase().includes(q))
+    : byCat;
+  // Favorites float to their own section at the very top (and are removed from the
+  // sections below so a starred agent shows once). Newest-starred not tracked here;
+  // order follows the roster.
+  const favorites = shown.filter((a) => a.favorite);
+  const scheduled = shown.filter((a) => a.section === 'scheduled' && !a.favorite);
+  const onDemand = shown.filter((a) => a.section === 'on_demand' && !a.favorite);
+  const notActivated = shown.filter((a) => a.section === 'not_activated' && !a.favorite);
+  const paused = shown.filter((a) => a.section === 'paused' && !a.favorite);
+  // The full activated roster (scheduled + on-demand together, scheduler-tagged) —
+  // favorites are pulled into their own section above, so exclude them here.
   const activated = [...scheduled, ...onDemand];
   // Activity spotlight: agents running right now OR that ran in the last 24h.
   // This OVERLAPS the roster on purpose — it's a live-pulse lens on the same
-  // agents (its rows open the RUN status page, not the agent page). Running
+  // agents (its rows open the RUN status page, not the agent page). Includes
+  // FAVORITES too (a running favorite still belongs in the live pulse). Running
   // first, then most-recent.
   const RECENT_MS = 24 * 60 * 60 * 1000;
-  const recentlyActive = activated
+  const recentlyActive = shown
+    .filter((a) => a.section === 'scheduled' || a.section === 'on_demand')
     .filter((a) => a.lastRun && (a.lastRun.runState === 'running' || (!!a.lastRun.ranAt && Date.now() - new Date(a.lastRun.ranAt).getTime() < RECENT_MS)))
     .sort((x, y) => {
       const xr = x.lastRun?.runState === 'running' ? 1 : 0;
@@ -493,6 +538,21 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
   return (
     <>
       {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
+
+      {/* Search — instant client-side filter over the whole roster by name/category. */}
+      {list.length > 4 && (
+        <div className="relative mb-4">
+          <span aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 text-sm">⌕</span>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search agents…"
+            aria-label="Search agents"
+            className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm pl-8 pr-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
+          />
+        </div>
+      )}
 
       {categories.length > 1 && (
         <div className="flex flex-wrap items-center gap-2 mb-7">
@@ -521,17 +581,22 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
           scheduled + on-demand, scheduler-tagged — rows open the agent page). The
           two overlap on purpose: same agents, two doors. Then Need activation, then
           Paused. Scheduling is surfaced as a per-row ⏰ tag, not a list split. */}
-      <Section title="Running & recently ran" subtitle="live activity · opens the run" agents={recentlyActive} onArchive={archive} onDeactivate={deactivate} onRename={rename} busySlug={busySlug} spotlight />
-      <Section title="Active agents" agents={activated} onArchive={archive} onDeactivate={deactivate} onRename={rename} busySlug={busySlug} />
-      <Section title="Need activation" agents={notActivated} onArchive={archive} onDeactivate={deactivate} onRename={rename} busySlug={busySlug} />
+      <Section title="★ Favorites" subtitle="your starred agents" agents={favorites} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
+      <Section title="Running & recently ran" subtitle="live activity · opens the run" agents={recentlyActive} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} spotlight />
+      <Section title="Active agents" agents={activated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
+      <Section title="Need activation" agents={notActivated} onArchive={archive} onDeactivate={deactivate} onRename={rename} onToggleFavorite={toggleFavorite} busySlug={busySlug} />
 
       {shown.length === 0 && (
         <div className="card text-center py-10">
-          <p className="text-ink-100 font-medium text-sm">{activeCat ? 'No agents in this category.' : 'No agents yet.'}</p>
+          <p className="text-ink-100 font-medium text-sm">
+            {q ? 'No agents match your search.' : activeCat ? 'No agents in this category.' : 'No agents yet.'}
+          </p>
           <p className="text-xs text-ink-500 mt-1">
-            {activeCat
-              ? <button type="button" onClick={() => setCat('')} className="text-brand-500 hover:underline">Clear filter</button>
-              : <>Describe one on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link> and Implexa builds it.</>}
+            {q
+              ? <button type="button" onClick={() => setQuery('')} className="text-brand-500 hover:underline">Clear search</button>
+              : activeCat
+                ? <button type="button" onClick={() => setCat('')} className="text-brand-500 hover:underline">Clear filter</button>
+                : <>Describe one on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link> and Implexa builds it.</>}
           </p>
         </div>
       )}
