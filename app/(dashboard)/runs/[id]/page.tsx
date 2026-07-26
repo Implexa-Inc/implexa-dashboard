@@ -22,6 +22,7 @@ import { desktopAppLive, appRunUrl } from '@/lib/app-links';
 import { getWorkflow, getMyWorkflow } from '@/lib/workflow-catalog';
 import { deriveRunState, runLiveness, type RunRow, type RunProgress, type RunStep } from '@/lib/run-state';
 import RunStepChecklist from '../../_components/run-step-checklist';
+import StepTraceRefresh from '../../_components/step-trace-refresh';
 import { RunStateBadge } from '../../_components/run-state-badge';
 import { RunVerificationBadge, type VerificationStatus } from '../../_components/run-verification-badge';
 import BackLink from '../../_components/back-link';
@@ -619,6 +620,9 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               {info.state === 'running' && (
                 <span className="text-[10px] uppercase tracking-wide font-semibold text-sky-700 dark:text-sky-300 bg-sky-500/15 rounded px-1.5 py-0.5">live</span>
               )}
+              {/* The trace is server-rendered and doesn't auto-update mid-run —
+                  give a manual refresh so a long run isn't stuck on stale steps. */}
+              <StepTraceRefresh />
             </div>
             <ol className="space-y-2">
               {steps.map((e, i) => {
