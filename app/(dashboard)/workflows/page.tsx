@@ -15,7 +15,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { listMyWorkflows, listDismissedWorkflows } from '@/lib/workflow-catalog';
+import { listMyWorkflows, listDismissedWorkflows, listFavoriteSlugs } from '@/lib/workflow-catalog';
 import { getMyAgents } from '@/lib/agents-home';
 import { categorizeAgent } from '@/lib/agent-category';
 import AgentsList, { type ListAgent, type ArchivedAgent } from '../_components/agents-list';
@@ -34,11 +34,13 @@ export default async function WorkflowsPage() {
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const [feed, mine, dismissed] = await Promise.all([
+  const [feed, mine, dismissed, favoriteSlugs] = await Promise.all([
     getMyAgents(),
     listMyWorkflows(),
     listDismissedWorkflows(),
+    listFavoriteSlugs(),
   ]);
+  const favSet = new Set(favoriteSlugs);
   const archived: ArchivedAgent[] = dismissed.map((d) => ({ slug: d.slug, name: d.name, source: d.source }));
 
   // slug -> library metadata (source + description for categorization).
@@ -138,7 +140,7 @@ export default async function WorkflowsPage() {
             5-status pulsing-dot cards. Invisible when nothing is running. */}
         <RunningAgents />
 
-        <AgentsList agents={list} archived={archived} />
+        <AgentsList agents={list.map((a) => ({ ...a, favorite: favSet.has(a.slug) }))} archived={archived} />
 
         {/* Agent Chains, folded in as an in-page suggestion (Codex's design
             audit, 2026-07-01) rather than its own nav tab — "Agent Chains"

@@ -51,7 +51,8 @@ test('the pre-Run dialog no longer overwrites a saved answer with a blank canned
   // The dialog still POSTs setupValues on Run (that is intended — you can change
   // an answer there). The fix is that setupValues now HOLDS the custom answer via
   // the shared field, so the POST re-saves the real value, not a dropped one.
-  assert.match(preRun, /body: \{ answers: setupValues, source \}/, 'the write-back still exists');
+  assert.match(preRun, /body: \{ answers: \{ \.\.\.setupValues, __agent_note: standingNote\.trim\(\) \}, source \}/,
+    'the write-back still spreads setupValues (now alongside the standing note)');
   assert.match(preRun, /onChange=\{\(next\) => setSetupValues\(\(v\) => \(\{ \.\.\.v, \[f\.key\]: next \}\)\)\}/,
     'and setupValues is fed by the shared field, so it carries the custom answer instead of losing it');
 });

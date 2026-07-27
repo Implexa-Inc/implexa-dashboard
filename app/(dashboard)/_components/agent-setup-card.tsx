@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import SetupChoiceField from './setup-choice-field';
+import { setAgentNoteDraft } from '@/lib/agent-note-draft';
 
 type Field = {
   key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[];
@@ -107,6 +108,7 @@ export default function AgentSetupCard({
         const s = res as Setup;
         setSetup(s);
         setNoteValue(s.note || '');
+        setAgentNoteDraft(slug, s.note || ''); // seed the shared draft from the saved note
         const a = { ...(s.answers || {}) };
         // Pre-fill unanswered questions we can infer from the browser (login
         // email, system timezone), editable, so the user starts from a sensible
@@ -146,6 +148,7 @@ export default function AgentSetupCard({
       });
       setSetup(res as Setup);
       setNoteValue((res as Setup).note || '');
+      setAgentNoteDraft(slug, (res as Setup).note || ''); // draft now matches the saved note
       setSaved(true);
       onSaved?.();
       // The Run/Activate CTA usually lives beside this card and reads
@@ -318,7 +321,9 @@ export default function AgentSetupCard({
         </p>
         <textarea
           value={noteValue}
-          onChange={(e) => setNoteValue(e.target.value)}
+          // Mirror the live (possibly unsaved) note into the shared draft so the
+          // Run-now pop-up shows it even if the user clicks Run before Save.
+          onChange={(e) => { setNoteValue(e.target.value); setAgentNoteDraft(slug, e.target.value); }}
           rows={3}
           placeholder="e.g. keep the b-roll punchy; never use stock-looking footage; aim for under 30s"
           className={inputCls + ' resize-y'}

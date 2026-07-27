@@ -25,6 +25,7 @@ import { callBackend, BackendError } from '@/lib/api';
 import Modal from './modal';
 import SetupChoiceField from './setup-choice-field';
 import { firstRunPermsSeen, markFirstRunPermsSeen } from './first-run-permissions-note';
+import { getAgentNoteDraft, clearAgentNoteDraft } from '@/lib/agent-note-draft';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 
@@ -119,6 +120,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [dupe, setDupe] = useState<{ message: string; runId: string | null; fingerprint: string | null } | null>(null);
   // Free-text note the user attaches to THIS run (a tweak/comment), rides into it.
   const [runNote, setRunNote] = useState('');
+  // The agent's STANDING note ("Notes for this agent", honored every run). Shown in
+  // the pop-up so it's visibly in effect and not lost when the user edits it in
+  // Setup and hits Run before Save; saved on submit. Distinct from runNote above.
+  const [standingNote, setStandingNote] = useState('');
+  const [loadedStandingNote, setLoadedStandingNote] = useState('');
   // Per-run file attachments (absolute paths) via the native picker — shared with
   // the Continue box. Their paths are baked into the note so the hands-off run reads them.
   const { files: runFiles, setFiles: setRunFiles, canAttach, attachFile, removeFile } = useRunAttachments();
@@ -288,10 +294,17 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // ALWAYS load and keep the settings — before launching work the user must be
     // able to see and adjust what the agent will use. The preference only decides
     // whether the section starts collapsed.
-    const { schema, answers } = await loadSetup();
+    const { schema, answers, note } = await loadSetup();
     setSetupFields(schema);
     setSetupValues(Object.fromEntries(schema.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
     setSetupOpen(!setupCollapsed(slug));
+    // Seed the standing note: prefer the live (possibly unsaved) draft the Setup
+    // card mirrored, so a note typed-but-not-saved before clicking Run is carried;
+    // else the saved note. loadedStandingNote tracks the SAVED baseline for dirty
+    // detection on submit.
+    const draft = getAgentNoteDraft(slug);
+    setLoadedStandingNote(note);
+    setStandingNote(draft !== undefined ? draft : note);
     // The per-run note + attachments are ONE-OFF (they ride the run-request, not the
     // saved standing note) — so they always start empty here, never pre-loaded from
     // the saved note. The standing note is edited in the Setup card, not this pop-up.
@@ -329,15 +342,18 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // `intent` and passes it to run_agent_now, which combines it with the standing
       // note for the run. Net: the saved note stays clean; this applies to just this run.
       const perRunNote = composeNoteWithFiles(runNote, runFiles);
-      // Save ONLY reviewed setup answers (when the setup-review was shown) — never the
-      // standing note here, so per-run additions can't mutate it. The standing note is
-      // edited in the Setup card.
-      if (setupFields.length) {
+      // Persist reviewed setup answers AND the (explicit, clearly-labeled) standing
+      // note — the ONE-OFF runNote above is still never written to the standing note.
+      // Saving the standing note here is what stops a note typed in Setup (or edited
+      // in this pop-up) from being lost when the user clicks Run before Save.
+      const noteDirty = standingNote.trim() !== loadedStandingNote.trim();
+      if (setupFields.length || noteDirty) {
         await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup`, {
           jwt: session?.access_token,
           method: 'POST',
-          body: { answers: setupValues, source },
+          body: { answers: { ...setupValues, __agent_note: standingNote.trim() }, source },
         });
+        clearAgentNoteDraft(slug); // persisted — drop the cross-component draft
         if (dontShowAgain) markSetupCollapsed(slug);
       }
       setShowSetupModal(false);
@@ -767,9 +783,25 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         </div>
       )}
 
-      {/* Per-run note: always available, rides into THIS run only (distinct from
-          the Setup-tab "Change how this agent works" box, which is permanent). */}
+      {/* Standing note: the agent's "Notes for this agent" (honored on EVERY run).
+          Shown here so it's visibly in effect and an edit made in Setup right before
+          clicking Run isn't lost. Saving here writes the standing note — distinct
+          from the one-off field below. */}
       <div className={setupFields.length ? 'mt-4' : ''}>
+        <label className="block text-sm text-ink-200 mb-1">Notes for this agent <span className="text-ink-500 font-normal">(every run)</span></label>
+        <p className="text-[11px] text-ink-500 mb-1.5">Standing instructions the agent follows on every run. Editing here updates them for good.</p>
+        <textarea
+          value={standingNote}
+          onChange={(e) => setStandingNote(e.target.value)}
+          rows={3}
+          placeholder="e.g. keep the b-roll punchy; never use stock-looking footage; the judge verifies each shot"
+          className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
+        />
+      </div>
+
+      {/* Per-run note: always available, rides into THIS run only (distinct from
+          the standing note above). */}
+      <div className="mt-4">
         <label className="block text-sm text-ink-200 mb-1">Anything to add for this run? <span className="text-ink-500 font-normal">(just this run)</span></label>
         <p className="text-[11px] text-ink-500 mb-1.5">Steers this one run only — it doesn’t change the agent. To change it for every run, use “Change how this agent works” in Setup.</p>
         <textarea

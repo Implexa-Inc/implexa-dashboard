@@ -314,6 +314,31 @@ export async function listDismissedWorkflows(): Promise<DismissedAgent[]> {
   }
 }
 
+/**
+ * listFavoriteSlugs() - the signed-in user's STARRED agent slugs, so the agent
+ * list can float favorites to the top. GET /api/v2/me/workflows/favorites,
+ * owner-scoped. Degrades to [] on any failure (a favorites hiccup must never
+ * break the list).
+ */
+export async function listFavoriteSlugs(): Promise<string[]> {
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return [];
+  try {
+    const res = await fetch(`${BACKEND}/api/v2/me/workflows/favorites`, {
+      headers: { authorization: `Bearer ${session.access_token}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { favorites?: string[] };
+    return Array.isArray(body.favorites) ? body.favorites : [];
+  } catch {
+    return [];
+  }
+}
+
 export type SuggestedAgent = {
   kind: 'recommended' | 'popular';
   title: string;
