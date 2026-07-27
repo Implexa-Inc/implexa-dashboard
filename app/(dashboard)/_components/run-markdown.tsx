@@ -23,6 +23,7 @@ import { useCallback, useMemo, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
+import { stripNextAgentsTail } from '@/lib/next-agents-tail';
 
 // Extensions we treat as a file path. Readable text files OPEN in the default
 // app; binaries (and folders) REVEAL in Finder.
@@ -291,6 +292,9 @@ export default function RunMarkdown({
   markdown: string;
   workspaceRoot?: string | null;
 }) {
+  // Drop the delivery-only "Next agents to build" tail — the interactive cards
+  // below render the same ideas with a real Build button.
+  const src = stripNextAgentsTail(markdown);
   // Agents write file deliverables as markdown links — [REEL_BRIEF.md](~/Implexa
   // Agents/.../REEL_BRIEF.md). The path has a SPACE ("Implexa Agents"), which
   // CommonMark won't accept as a bare link destination, so the whole link rendered
@@ -299,13 +303,13 @@ export default function RunMarkdown({
   // parses into a real link node, which the `a` renderer below turns into a
   // clickable file chip. Only touches non-URL, not-already-wrapped destinations.
   const prepared = useMemo(
-    () => markdown.replace(/\]\(([^)<>]*?)\)/g, (m, dest: string) => {
+    () => src.replace(/\]\(([^)<>]*?)\)/g, (m, dest: string) => {
       const d = dest.trim();
       if (!d || !/\s/.test(d)) return m;                       // no space → fine as-is
       if (/^https?:\/\//i.test(d) || /^mailto:/i.test(d)) return m; // real URL → leave
       return `](<${d}>)`;
     }),
-    [markdown],
+    [src],
   );
   const artifactDir = useMemo(() => deriveArtifactDir(prepared), [prepared]);
   const components: Components = {
