@@ -48,11 +48,9 @@ import { RunJudgmentPending } from '../../_components/run-judgment-pending';
 
 export const dynamic = 'force-dynamic';
 
-// A held deliverable that names a step the AGENT runs ON APPROVAL (render/publish/
-// deploy) → "Approve & finish". Otherwise it's deliver-only ("posted by hand",
-// a draft you act on) → "Mark as done". Intentionally STRICT (deferred-work phrases,
-// not generic "post"/"publish" mentions) so a draft you post yourself isn't mistaken
-// for agent work. Shared verbatim with the inbox overlay's detection.
+// A legacy held deliverable that names a step the AGENT runs ON APPROVAL
+// (render/publish/deploy) → continue it. Structured `steps_state` takes precedence
+// below: a pending checklist step is authoritative evidence that work remains.
 // Phrasings that mean "this run is HELD before a consequential/costly step it runs
 // ON APPROVAL" → show "Approve & finish" (fire the step), not "Mark as done" (which
 // would discard it). Tested against markdown with emphasis stripped (see below), so
@@ -542,6 +540,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               agentName={name}
               reviewStatus={pending ? 'pending' : 'needs_input'}
               hasShipStep={hasShipStep}
+              stepsState={stepsState}
               claudeTaskId={claudeTaskId}
               skillSlug={r.skill_slug}
             />

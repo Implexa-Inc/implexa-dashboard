@@ -27,6 +27,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
+import { deriveHeldRunPrimaryAction } from '@/lib/held-run-action';
+import type { RunStep } from '@/lib/run-state';
 
 const CLAUDE_CODE_MAX = 13000;
 
@@ -35,6 +37,7 @@ export default function RunActions({
   agentName,
   reviewStatus,
   hasShipStep,
+  stepsState,
   claudeTaskId,
   skillSlug,
 }: {
@@ -44,6 +47,8 @@ export default function RunActions({
   reviewStatus: 'pending' | 'needs_input';
   /** Approving triggers a consequential step (post/publish/render) vs deliver-only. */
   hasShipStep: boolean;
+  /** Canonical checklist. Any pending/running step means approval resumes agent work. */
+  stepsState?: RunStep[] | null;
   claudeTaskId?: string | null;
   /** The agent's slug — enables the "also edit the agent for future runs" opt-in
    *  on the changes box (a permanent revise alongside the one-off continue). */
@@ -52,6 +57,12 @@ export default function RunActions({
   const router = useRouter();
   const supabase = createClient();
   const needsInput = reviewStatus === 'needs_input';
+  const primaryAction = deriveHeldRunPrimaryAction({
+    reviewStatus,
+    stepsState,
+    hasDeferredWorkSignal: hasShipStep,
+  });
+  const resumesWork = primaryAction === 'continue' || primaryAction === 'approve_finish';
   // Opt-in: bake the requested change into the agent (kind='revise') so it holds
   // for every future run, not just this re-run. Default off.
   const [editAgent, setEditAgent] = useState(false);
@@ -151,9 +162,13 @@ export default function RunActions({
     window.location.href = `claude://code/new?q=${encodeURIComponent(prompt.slice(0, CLAUDE_CODE_MAX))}`;
   }
 
-  const primaryLabel = needsInput
+  const primaryLabel = primaryAction === 'answer'
     ? 'Answer & continue'
-    : hasShipStep ? 'Approve & finish' : 'Mark as done';
+    : primaryAction === 'continue'
+      ? 'Continue the work'
+      : primaryAction === 'approve_finish'
+        ? 'Approve & finish'
+        : 'Mark as done';
 
   return (
     <section className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
@@ -161,8 +176,8 @@ export default function RunActions({
       <p className="text-sm text-ink-200">
         {needsInput
           ? <>This run <span className="text-ink-50 font-medium">needs your input</span> to finish.</>
-          : hasShipStep
-            ? <>Ready for your approval. <span className="text-ink-400">Approving finishes it hands-off — nothing ships until you do.</span></>
+          : resumesWork
+            ? <>Ready for your approval. <span className="text-ink-400">Continuing resumes the remaining work hands-off — nothing happens until you do.</span></>
             : <>Ready. <span className="text-ink-400">Use it as you like, then mark it done.</span></>}
       </p>
 
@@ -172,7 +187,7 @@ export default function RunActions({
         {needsInput ? (
           // needs-input: the changes box below is the action; the primary lives there.
           <span className="text-xs text-ink-500">Add what it needs below ↓</span>
-        ) : hasShipStep ? (
+        ) : resumesWork ? (
           <button type="button" onClick={approveFinish} disabled={!!busy}
             className="btn-success text-sm px-4 py-2 disabled:opacity-60">
             {busy === 'approve' ? 'Approving…' : primaryLabel}
@@ -197,7 +212,7 @@ export default function RunActions({
         <span className="ml-auto inline-flex items-center gap-4 text-xs">
           {confirmDismiss ? (
             <span className="inline-flex items-center gap-2 text-ink-400">
-              {hasShipStep ? "Dismiss without finishing?" : 'Dismiss this?'}
+              {resumesWork ? "Dismiss without finishing?" : 'Dismiss this?'}
               <button type="button" onClick={dismiss} disabled={!!busy}
                 className="font-medium text-rose-600 dark:text-rose-300 hover:underline disabled:opacity-50">
                 {busy === 'dismiss' ? 'Dismissing…' : 'Yes'}
@@ -259,7 +274,7 @@ export default function RunActions({
             <a href={`claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(claudeTaskId)}`}
               className="text-brand-500 hover:underline w-fit">Open the routine in Claude ↗</a>
           )}
-          {hasShipStep && (
+          {resumesWork && (
             <button type="button" onClick={markDone} disabled={!!busy} className="text-ink-400 hover:text-ink-200 text-left w-fit">
               Mark done without finishing (I&apos;ll use it myself)
             </button>

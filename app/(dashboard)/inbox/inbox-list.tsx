@@ -25,7 +25,7 @@ import Modal from '../_components/modal';
 import { RunStateBadge } from '../_components/run-state-badge';
 import { RunVerificationBadge, type VerificationStatus } from '../_components/run-verification-badge';
 import { categorizeAgent } from '@/lib/agent-category';
-import type { RunStateInfo } from '@/lib/run-state';
+import type { RunStateInfo, RunStep } from '@/lib/run-state';
 import NextAgentCards, { type Recommendation } from '../_components/next-agent-cards';
 import RunFeedback, { type FeedbackQuestion } from '../_components/run-feedback';
 import RunActions from '../_components/run-actions';
@@ -50,6 +50,8 @@ export type InboxItem = {
   output_markdown: string | null;
   ran_at:          string;
   pending:         boolean;
+  /** Canonical checklist, used to distinguish a held continuation from a final draft. */
+  stepsState:       RunStep[] | null;
   state:           RunStateInfo;
   /** Completion Controller verdict (0102): did the run produce its deliverable? */
   verification:    VerificationStatus;
@@ -543,6 +545,7 @@ export default function InboxList({
                   agentName={openItem.name}
                   reviewStatus="pending"
                   hasShipStep={SHIP_RE.test(openItem.output_markdown || '')}
+                  stepsState={openItem.stepsState}
                 />
               ) : (
                 <RunContinueBox runId={openItem.id} agentName={openItem.name} pending={false} />
