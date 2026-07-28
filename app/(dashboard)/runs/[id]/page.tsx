@@ -45,6 +45,7 @@ import { FinalizeRecoveredButton } from '../../_components/finalize-recovered-bu
 import { deriveRecoveredWork } from '@/lib/run-recovery';
 import { RunJudgmentCard, type JudgeRepairRequest, type RunJudgment } from '../../_components/run-judgment-card';
 import { RunJudgmentPending } from '../../_components/run-judgment-pending';
+import VerifiedArtifacts, { type VerifiedArtifact } from '../../_components/verified-artifacts';
 
 export const dynamic = 'force-dynamic';
 
@@ -175,6 +176,33 @@ export default async function RunDetailPage({ params }: { params: { id: string }
       .select('executor, thread_id, workspace').eq('run_id', r.id).maybeSingle();
     executionContext = data || null;
   } catch { /* pre-migration run: use the legacy Claude recovery path */ }
+
+  // A path written in output_markdown is only a worker claim. This separate,
+  // owner-scoped read exposes files only after the desktop resolved the declared
+  // workspace, rejected escapes/symlinks, and hashed the result. The absolute
+  // validated path is passed to the desktop bridge for Open/Finder; the UI shows
+  // the relative name so a local home path is not treated as deliverable prose.
+  let verifiedArtifacts: VerifiedArtifact[] = [];
+  try {
+    const { data, error } = await supabase.from('run_artifacts')
+      .select('relative_path, validated_path, role, size_bytes')
+      .eq('run_id', r.id)
+      .eq('status', 'validated')
+      .order('validated_at', { ascending: true });
+    if (!error && Array.isArray(data)) {
+      verifiedArtifacts = data
+        .filter((artifact) => typeof artifact.relative_path === 'string' && typeof artifact.validated_path === 'string')
+        .map((artifact) => ({
+          relativePath: artifact.relative_path,
+          validatedPath: artifact.validated_path,
+          role: typeof artifact.role === 'string' ? artifact.role : null,
+          sizeBytes: typeof artifact.size_bytes === 'number' ? artifact.size_bytes : null,
+        }))
+        // The delivered file is the user action; receipts and source remain
+        // available as evidence but must not bury the actual MP4/document.
+        .sort((a, b) => artifactRolePriority(a.role) - artifactRolePriority(b.role) || a.relativePath.localeCompare(b.relativePath));
+    }
+  } catch { /* Layer 2 is additive; an unavailable table must never break the run page. */ }
 
   // Engine-pin override disclosure (2026-07-18 review, Stage C #3 — deterministic,
   // not a model instruction). original_preference (migration 0119) and
@@ -656,6 +684,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             <div className="prose prose-sm max-w-none rounded-lg border border-ink-800 bg-ink-950/60 p-5">
               <RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot} />
             </div>
+            <VerifiedArtifacts artifacts={verifiedArtifacts} />
             {/* (Share moved to the top of the run view — see the amber "Share this
                 run" button under the header. The growth-loop Run Card lives there.) */}
           </>
@@ -817,4 +846,12 @@ export default async function RunDetailPage({ params }: { params: { id: string }
       </div>
     </main>
   );
+}
+
+function artifactRolePriority(role: string | null): number {
+  if (role === 'final_output') return 0;
+  if (role === 'receipt') return 1;
+  if (role === 'qa_report') return 2;
+  if (role === 'source') return 3;
+  return 4;
 }
