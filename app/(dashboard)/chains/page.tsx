@@ -25,7 +25,10 @@ export default async function ChainsPage() {
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const [feed, mine] = await Promise.all([getMyAgents(), listMyWorkflows()]);
+  const [feedRes, mine] = await Promise.all([getMyAgents(), listMyWorkflows()]);
+  // Chain suggestions degrade to the library alone when the feed is unavailable -- they
+  // are suggestions, so a thinner list is acceptable; a WRONG list is not.
+  const feed = feedRes.status === 'ready' ? feedRes : null;
 
   // Build a slug→{source,name} agent list (active + library), deduped — the input
   // ChainSuggestions ranks pipelines over.

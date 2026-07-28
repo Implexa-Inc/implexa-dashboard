@@ -286,7 +286,8 @@ export default async function WorkflowDetailPage({
   let grade: { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null = null;
   try {
     const mine = await getMyAgents();
-    const owned = mine ? [...mine.active, ...mine.needsActivation].find((x) => x.slug === params.slug) : null;
+    // Unavailable feed -> no grade shown. Omitting a grade is honest; inventing one is not.
+    const owned = mine.status === 'ready' ? [...mine.active, ...mine.needsActivation].find((x) => x.slug === params.slug) : null;
     grade = owned?.grade ?? null;
     if (!grade) {
       const API = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai').replace(/\/$/, '');

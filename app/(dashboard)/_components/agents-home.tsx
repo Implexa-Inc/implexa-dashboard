@@ -83,7 +83,10 @@ function ActiveRow({ a }: { a: MyAgent }) {
 
 export async function AgentsHome() {
   const data = await getMyAgents();
-  if (!data) return null;
+  // Render nothing when the feed is unavailable. This component is a SUMMARY; an empty
+  // summary reads as "nothing to show", which is wrong but not actionable-wrong. The
+  // roster page (workflows) is where the honest error state belongs.
+  if (data.status !== 'ready') return null;
   const { needsActivation, active } = data;
   if (needsActivation.length === 0 && active.length === 0) return null;
 
