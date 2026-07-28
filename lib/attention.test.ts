@@ -102,7 +102,12 @@ test('every source failing silently feeds partial — not just /me/needs-you', (
   // each hides a whole class of work. If partial stays false while any is dark,
   // the surface renders a false all-clear over, e.g., a grant the user must give.
   const src = read('lib/needs-you.ts');
-  assert.match(src, /if \(myAgents === null\) unavailableSources\.push/, 'agents-down (hides grants) must feed partial');
+  // Matches the INTENT, not one spelling of the condition: getMyAgents() returned
+  // `null` on failure until 2026-07-28, when it became a discriminated
+  // { status: 'ready' | 'unavailable' } so a failed read could stop being rendered as
+  // "48 agents need activation". The guard is that agents-down still feeds partial --
+  // however that condition is written.
+  assert.match(src, /if \(myAgents[^)]*\) unavailableSources\.push\('agents'\)/, 'agents-down (hides grants) must feed partial');
   assert.match(src, /if \(status === null\) unavailableSources\.push/, 'connections-down (hides sign-ins) must feed partial');
   assert.match(src, /if \(schedRes\.error\) unavailableSources\.push/, 'schedule error (hides missed/unarmed) must feed partial');
   assert.match(src, /if \(stallRes\.error\) unavailableSources\.push/, 'stall error (hides stalled runs) must feed partial');

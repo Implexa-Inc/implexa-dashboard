@@ -151,7 +151,7 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
   // means "could not read", never "new user with nothing" (a zero-agent user gets
   // a non-null empty structure), so treating null as unavailable does not nag.
   const unavailableSources: string[] = [...attention.unavailableSources];
-  if (myAgents === null) unavailableSources.push('agents');       // → hides grants
+  if (myAgents.status !== 'ready') unavailableSources.push('agents');   // → hides grants
   if (status === null) unavailableSources.push('connections');    // → hides sign-ins
   if (schedRes.error) unavailableSources.push('schedules');       // → hides missed/unarmed
   if (stallRes.error) unavailableSources.push('stalled_runs');    // → hides stalled runs
@@ -163,7 +163,7 @@ export async function loadNeedsYou(supabase: SupabaseClient): Promise<NeedsYou> 
   const schedules = (schedRes.data || []).slice(0, SCHED_LIMIT);
   const stalledRows = (stallRes.data || []).slice(0, STALL_LIMIT);
 
-  const allMyAgents: MyAgent[] = myAgents ? [...myAgents.active, ...myAgents.needsActivation] : [];
+  const allMyAgents: MyAgent[] = myAgents.status === 'ready' ? [...myAgents.active, ...myAgents.needsActivation] : [];
   const nameBySlug = new Map(allMyAgents.map((a) => [a.slug, a.name]));
 
   const needGrant: NeedGrant[] = allMyAgents

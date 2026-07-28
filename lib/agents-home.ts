@@ -39,28 +39,7 @@ export type MyAgent = {
 };
 export type MyAgents = { needsActivation: MyAgent[]; active: MyAgent[]; drafts: MyAgent[] };
 
-export async function getMyAgents(): Promise<MyAgents | null> {
-  const { createClient } = await import('@/lib/supabase/server');
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) return null;
-  try {
-    const res = await fetch(`${BACKEND}/api/v2/me/agents`, {
-      headers: { authorization: `Bearer ${session.access_token}` },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return null;
-    const b = (await res.json()) as Record<string, unknown>;
-    return {
-      needsActivation: Array.isArray(b.needsActivation) ? (b.needsActivation as MyAgent[]) : [],
-      active: Array.isArray(b.active) ? (b.active as MyAgent[]) : [],
-      drafts: Array.isArray(b.drafts) ? (b.drafts as MyAgent[]) : [],
-    };
-  } catch {
-    return null;
-  }
-}
+export * from './agents-feed-core';
 
 /** Compact run-status for an active agent's row, one CTA each. */
 export function activeRunStatus(a: MyAgent): { label: string; tone: 'good' | 'warn' | 'bad' | 'idle'; cta: string; href: string } {

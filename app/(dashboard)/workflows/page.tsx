@@ -54,8 +54,23 @@ export default async function WorkflowsPage() {
   const list: ListAgent[] = [];
   const seen = new Set<string>();
 
+  // ── THE FEED IS THE ONLY SOURCE OF "IS THIS ACTIVATED?" ─────────────────────
+  //
+  // P0 (2026-07-28). When getMyAgents() failed, this page received null, matched no
+  // agents from the feed, and the library loop below then classified EVERY agent as
+  // `not_activated` -- rendering "Saved as a draft - turn it on whenever you're ready"
+  // across the whole roster. The founder saw 48 agents needing activation while the
+  // backend was returning 33 active / 1 needs-activation / 16 drafts and the database
+  // was untouched. A failed READ was presented as a confident, alarming, actionable
+  // STATUS, telling the user to re-activate agents that were never off.
+  //
+  // Absence of data is not evidence of absence of activation. When the feed is
+  // unavailable the page now says so and renders NO activation classification at all.
+  const feedReady = feed.status === 'ready';
+  const feedAgents = feedReady ? [...feed.active, ...feed.needsActivation] : [];
+
   // From the activation feed: active (scheduled / on-demand) + mid-activation.
-  for (const a of [...(feed?.active ?? []), ...(feed?.needsActivation ?? [])]) {
+  for (const a of feedAgents) {
     if (seen.has(a.slug)) continue;
     seen.add(a.slug);
     const activated = a.state === 'active';
@@ -79,7 +94,12 @@ export default async function WorkflowsPage() {
   }
 
   // Built but never activated (in the library, no activation row).
-  for (const w of mine) {
+  //
+  // GUARDED ON feedReady: without the feed we cannot know whether a library agent is
+  // activated, and "not_activated" is a CLAIM, not a default. Skipping this loop leaves
+  // the roster empty and the banner below explains why -- an empty page with a clear
+  // reason beats a full page of confident falsehoods.
+  for (const w of feedReady ? mine : []) {
     if (seen.has(w.slug)) continue;
     seen.add(w.slug);
     list.push({
@@ -131,6 +151,30 @@ export default async function WorkflowsPage() {
               agents had no way INTO building/finding one from this page. */}
           <Link href="/create" className="flex-none btn-primary text-sm px-4 py-2 whitespace-nowrap">+ Create agent</Link>
         </header>
+
+        {/* THE HONEST UNAVAILABLE STATE (P0, 2026-07-28).
+            Previously a failed feed rendered the whole roster as "needs activation".
+            Now the page says what it does not know, and says nothing about activation. */}
+        {!feedReady && (
+          <div
+            role="status"
+            className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+          >
+            <p className="font-medium">Couldn&apos;t load agent status</p>
+            <p className="mt-1 text-amber-200/80">
+              {feed.reason === 'timeout'
+                ? 'The status check took too long to respond.'
+                : feed.reason === 'no_session'
+                  ? 'Your session expired.'
+                  : 'The status service is unavailable right now.'}{' '}
+              Your agents are unchanged and still running on their schedules &mdash; this page just
+              can&apos;t show their current state.
+            </p>
+            <Link href="/workflows" className="mt-2 inline-block underline hover:no-underline">
+              Retry
+            </Link>
+          </div>
+        )}
 
         {/* Quiet, dismissible tips on getting hands-off agents (keep Claude
             running, schedule browser agents, run from your phone). */}
