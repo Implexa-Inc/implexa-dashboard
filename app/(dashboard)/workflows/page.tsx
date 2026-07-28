@@ -61,7 +61,11 @@ export default async function WorkflowsPage() {
     .eq('status', 'paused')
     .eq('trigger_type', 'cron');
 
-  const { agents: list, feedReady } = buildRoster({
+  // Only `agents` is read here: the unavailable banner below tests `feed.status`
+  // directly, because a boolean flag does not narrow the discriminated union and TS
+  // needs the tag to expose `feed.reason`. buildRoster still returns feedReady for
+  // callers that want the flag without the union.
+  const { agents: list } = buildRoster({
     feed,
     mine,
     paused: pausedRows ?? [],
