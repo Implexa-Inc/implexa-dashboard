@@ -50,6 +50,9 @@ export type RunRow = {
   source?: string;
   output_markdown?: string | null;
   review_status?: string | null;
+  // Why a held run needs the human. This is persisted by backend migration 0139;
+  // absence means a legacy run and must use the conservative compatibility path.
+  hold_kind?: 'approval_before_action' | 'review_delivered_result' | 'needs_input' | null;
   // optional base columns some surfaces request via extraColumns (e.g. /runs):
   scheduled_skill_id?: string | null;
   orchestration_id?: string | null;

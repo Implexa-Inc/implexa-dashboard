@@ -62,6 +62,11 @@ const ACTION_UI: Record<RequiredAction, {
     requireText: false, resumePrompt: 'I’m signed in now. Please continue where you left off.',
     prefill: () => 'I’m signed in now. Please continue where you left off.', allowClose: false,
   },
+  continue_work: {
+    primaryLabel: 'Continue the work',
+    requireText: false, resumePrompt: 'I approve the staged work. Continue with the remaining steps.',
+    prefill: () => 'I approve the staged work. Continue with the remaining steps.', allowClose: false,
+  },
   review_result: {
     primaryLabel: 'Continue with this note',
     requireText: false, resumePrompt: 'Please continue.', prefill: () => '', allowClose: true,

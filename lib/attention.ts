@@ -24,6 +24,7 @@ export type RequiredAction =
   | 'provide_information'
   | 'grant_permission'
   | 'open_service'
+  | 'continue_work'
   | 'review_result';
 
 export type AttentionSource = 'judge_block' | 'held_run' | 'stalled_run';

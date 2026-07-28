@@ -14,6 +14,24 @@ test('approval before paid generation continues when the structured checklist ha
   }), 'continue');
 });
 
+test('persisted approval_before_action continues even when the reported phase ended at the gate', () => {
+  assert.equal(deriveHeldRunPrimaryAction({
+    reviewStatus: 'pending',
+    holdKind: 'approval_before_action',
+    stepsState: [{ index: 1, label: 'Write the approval-ready audit', status: 'done' }],
+    hasDeferredWorkSignal: false,
+  }), 'continue');
+});
+
+test('persisted delivered-result review never creates unnecessary work', () => {
+  assert.equal(deriveHeldRunPrimaryAction({
+    reviewStatus: 'pending',
+    holdKind: 'review_delivered_result',
+    stepsState: [{ index: 1, label: 'Deliver completed report', status: 'done' }],
+    hasDeferredWorkSignal: true,
+  }), 'mark_done');
+});
+
 test('a truly finished deliver-only hold remains mark done', () => {
   assert.equal(deriveHeldRunPrimaryAction({
     reviewStatus: 'pending',

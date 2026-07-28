@@ -13,6 +13,8 @@ test('the refresh control re-fetches the server component (router.refresh) insid
   assert.match(CMP, /router\.refresh\(\)/, 'refresh re-runs the server render, repainting the trace');
   assert.match(CMP, /useTransition/, 'wrapped in a transition so it can show a pending/spin state');
   assert.match(CMP, /animate-spin/, 'the icon spins while refetching');
+  assert.match(CMP, /'Refresh'/, 'the control has a visible label, not an icon-only hit target');
+  assert.doesNotMatch(CMP, /ml-auto/, 'refresh stays beside the trace status instead of being stranded at the far edge');
 });
 
 test('the Step trace header renders the refresh control', () => {
