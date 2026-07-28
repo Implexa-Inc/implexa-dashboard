@@ -17,10 +17,12 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { listMyWorkflows, listDismissedWorkflows, listFavoriteSlugs } from '@/lib/workflow-catalog';
 import { getMyAgents } from '@/lib/agents-home';
+import { buildRoster } from '@/lib/agents-roster';
 import { categorizeAgent } from '@/lib/agent-category';
-import AgentsList, { type ListAgent, type ArchivedAgent } from '../_components/agents-list';
+import AgentsList, { type ArchivedAgent } from '../_components/agents-list';
 import RunningAgents from '../_components/running-agents';
 import ManageTips from '../_components/manage-tips';
+import RetryButton from '../_components/retry-button';
 import ChainSuggestions from '../_components/chain-suggestions';
 
 export const dynamic = 'force-dynamic';
@@ -43,97 +45,28 @@ export default async function WorkflowsPage() {
   const favSet = new Set(favoriteSlugs);
   const archived: ArchivedAgent[] = dismissed.map((d) => ({ slug: d.slug, name: d.name, source: d.source }));
 
-  // slug -> library metadata (source + description for categorization).
-  const meta = new Map(mine.map((w) => [w.slug, w]));
-  const parts = (slug: string, name: string) => {
-    const m = meta.get(slug);
-    return [name, m?.description, m?.primary_outcome, m?.vertical];
-  };
-  const sourceFor = (slug: string) => meta.get(slug)?.source || 'generated';
-
-  const list: ListAgent[] = [];
-  const seen = new Set<string>();
-
-  // ── THE FEED IS THE ONLY SOURCE OF "IS THIS ACTIVATED?" ─────────────────────
+  // ── WHO DECIDES "IS THIS ACTIVATED?" ─────────────────────────────────────────
   //
-  // P0 (2026-07-28). When getMyAgents() failed, this page received null, matched no
-  // agents from the feed, and the library loop below then classified EVERY agent as
-  // `not_activated` -- rendering "Saved as a draft - turn it on whenever you're ready"
-  // across the whole roster. The founder saw 48 agents needing activation while the
-  // backend was returning 33 active / 1 needs-activation / 16 drafts and the database
-  // was untouched. A failed READ was presented as a confident, alarming, actionable
-  // STATUS, telling the user to re-activate agents that were never off.
+  // The merge lives in lib/agents-roster.ts as a PURE function so the invariant can be
+  // tested by calling it, not by regexing this file. The invariant: `not_activated` is
+  // a CLAIM, and may only be made from a READY feed.
   //
-  // Absence of data is not evidence of absence of activation. When the feed is
-  // unavailable the page now says so and renders NO activation classification at all.
-  const feedReady = feed.status === 'ready';
-  const feedAgents = feedReady ? [...feed.active, ...feed.needsActivation] : [];
-
-  // From the activation feed: active (scheduled / on-demand) + mid-activation.
-  for (const a of feedAgents) {
-    if (seen.has(a.slug)) continue;
-    seen.add(a.slug);
-    const activated = a.state === 'active';
-    const section: ListAgent['section'] = !activated
-      ? 'not_activated'
-      : a.mode === 'scheduled' ? 'scheduled' : 'on_demand';
-    list.push({
-      slug: a.slug,
-      name: a.name,
-      source: sourceFor(a.slug),
-      section,
-      category: categorizeAgent(parts(a.slug, a.name)),
-      needsIntervention: a.needsIntervention,
-      interventionReason: a.interventionReason,
-      pendingQuestions: a.pendingQuestions,
-      nextRunAt: a.nextRunAt,
-      scheduleNl: a.scheduleNl,
-      lastRun: a.lastRun,
-      grade: a.grade,
-    });
-  }
-
-  // Built but never activated (in the library, no activation row).
-  //
-  // GUARDED ON feedReady: without the feed we cannot know whether a library agent is
-  // activated, and "not_activated" is a CLAIM, not a default. Skipping this loop leaves
-  // the roster empty and the banner below explains why -- an empty page with a clear
-  // reason beats a full page of confident falsehoods.
-  for (const w of feedReady ? mine : []) {
-    if (seen.has(w.slug)) continue;
-    seen.add(w.slug);
-    list.push({
-      slug: w.slug,
-      name: w.name,
-      source: w.source,
-      section: 'not_activated',
-      category: categorizeAgent([w.name, w.description, w.primary_outcome, w.vertical]),
-      lastRun: null,
-    });
-  }
-
-  // Paused recurring agents — their clock is off so the active feed excludes them.
-  // Query the user's own scheduled_skills directly (RLS-scoped) and add a collapsed
-  // "Paused" section. On-demand agents have no clock to pause, so only cron ones.
+  // P0 (2026-07-28). This page used to classify every library agent as `not_activated`
+  // whenever the feed failed, rendering "Saved as a draft" across the whole roster while
+  // the backend was returning 33 active / 1 needs-activation / 16 drafts and nothing had
+  // been deactivated.
   const { data: pausedRows } = await supabase
     .from('scheduled_skills')
     .select('skill_slug, status, trigger_type')
     .eq('status', 'paused')
     .eq('trigger_type', 'cron');
-  for (const p of (pausedRows ?? [])) {
-    if (!p.skill_slug || seen.has(p.skill_slug)) continue;
-    seen.add(p.skill_slug);
-    const m = meta.get(p.skill_slug);
-    const name = m?.name || p.skill_slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-    list.push({
-      slug: p.skill_slug,
-      name,
-      source: sourceFor(p.skill_slug),
-      section: 'paused',
-      category: categorizeAgent(parts(p.skill_slug, name)),
-      lastRun: null,
-    });
-  }
+
+  const { agents: list, feedReady } = buildRoster({
+    feed,
+    mine,
+    paused: pausedRows ?? [],
+    categorize: categorizeAgent,
+  });
 
   return (
     <main className="min-h-screen px-4 py-12">
@@ -155,7 +88,7 @@ export default async function WorkflowsPage() {
         {/* THE HONEST UNAVAILABLE STATE (P0, 2026-07-28).
             Previously a failed feed rendered the whole roster as "needs activation".
             Now the page says what it does not know, and says nothing about activation. */}
-        {!feedReady && (
+        {feed.status !== 'ready' && (
           <div
             role="status"
             className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
@@ -167,12 +100,10 @@ export default async function WorkflowsPage() {
                 : feed.reason === 'no_session'
                   ? 'Your session expired.'
                   : 'The status service is unavailable right now.'}{' '}
-              Your agents are unchanged and still running on their schedules &mdash; this page just
-              can&apos;t show their current state.
+              This status check didn&apos;t change your agents or schedules. We can&apos;t confirm
+              their current state right now.
             </p>
-            <Link href="/workflows" className="mt-2 inline-block underline hover:no-underline">
-              Retry
-            </Link>
+            <RetryButton />
           </div>
         )}
 

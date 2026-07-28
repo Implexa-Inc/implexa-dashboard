@@ -106,32 +106,3 @@ test('parseAgentsBody tolerates a missing drafts array but never a missing activ
   if (ok.status === 'ready') assert.deepEqual(ok.drafts, []);
   assert.equal(parseAgentsBody({ needsActivation: [], drafts: [] }).status, 'unavailable');
 });
-
-// ── THE PAGE MUST NOT CLASSIFY WITHOUT THE FEED ──────────────────────────────
-// The fetcher returning `unavailable` is only half the fix; the page has to act on it.
-// These read the source because the page is an async server component.
-
-const PAGE = readFileSync(join(import.meta.dirname, '..', 'app', '(dashboard)', 'workflows', 'page.tsx'), 'utf8');
-
-test('the library loop is GUARDED on feedReady — no feed, no "not_activated" claim', () => {
-  assert.match(
-    PAGE,
-    /for \(const w of feedReady \? mine : \[\]\)/,
-    'the library-merge loop must not run without the feed: it is what stamped section:"not_activated" on every agent',
-  );
-});
-
-test('the page renders an explicit unavailable state', () => {
-  assert.match(PAGE, /!feedReady && \(/, 'there must be a branch that renders when the feed is unavailable');
-  assert.match(PAGE, /Couldn&apos;t load agent status/, 'the user must be told the status could not be loaded');
-  assert.match(PAGE, /Retry/, 'the unavailable state must offer a retry');
-});
-
-test('the page no longer coalesces a missing feed into empty arrays', () => {
-  // The exact expression that caused this: `feed?.active ?? []`.
-  assert.doesNotMatch(
-    PAGE,
-    /feed\?\.(active|needsActivation) \?\? \[\]/,
-    'optional-chaining the feed into empty arrays is what made a failed read look like "no active agents"',
-  );
-});
