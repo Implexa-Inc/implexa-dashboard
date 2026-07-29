@@ -49,6 +49,19 @@ import VerifiedArtifacts, { type VerifiedArtifact } from '../../_components/veri
 
 export const dynamic = 'force-dynamic';
 
+type StageTimelineItem = {
+  id: string;
+  key: string;
+  position: number;
+  state: 'planned' | 'awaiting_approval' | 'runnable' | 'running' | 'succeeded' | 'failed' | 'blocked' | 'cancelled';
+  dependencies?: string[];
+  outputs?: Array<{ name?: string; required?: boolean }>;
+  executor?: string | null;
+  attemptCount?: number;
+  reason?: string | null;
+  lastError?: string | null;
+};
+
 // A legacy held deliverable that names a step the AGENT runs ON APPROVAL
 // (render/publish/deploy) → continue it. Structured `steps_state` takes precedence
 // below: a pending checklist step is authoritative evidence that work remains.
@@ -101,6 +114,55 @@ function closeReasonMessage(reason: string | null): string | null {
 
 function humanize(slug: string): string {
   return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function humanizeStage(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function stageTone(state: StageTimelineItem['state']): string {
+  if (state === 'succeeded') return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300';
+  if (state === 'running') return 'bg-sky-500/15 text-sky-700 dark:text-sky-300';
+  if (state === 'failed' || state === 'blocked') return 'bg-amber-500/15 text-amber-700 dark:text-amber-300';
+  if (state === 'cancelled') return 'bg-ink-700 text-ink-300';
+  if (state === 'awaiting_approval') return 'bg-violet-500/15 text-violet-700 dark:text-violet-300';
+  if (state === 'runnable') return 'bg-brand-500/15 text-brand-700 dark:text-brand-300';
+  return 'bg-ink-900 text-ink-500';
+}
+
+function StageTimeline({ stages }: { stages: StageTimelineItem[] }) {
+  if (!stages.length) return null;
+  return (
+    <div className="mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xs font-semibold text-ink-300">Staged plan</span>
+        <span className="text-[11px] text-ink-500 ml-auto">{stages.filter((s) => s.state === 'succeeded').length}/{stages.length} complete</span>
+      </div>
+      <ol className="space-y-2">
+        {stages.map((stage) => (
+          <li key={stage.id || stage.key} className="flex items-start gap-2.5 text-sm">
+            <span className={`mt-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${stageTone(stage.state)}`}>
+              {stage.state.replace(/_/g, ' ')}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[11px] font-mono text-ink-600 shrink-0">{stage.position}</span>
+                <span className="text-ink-100 truncate">{humanizeStage(stage.key)}</span>
+              </div>
+              <div className="mt-0.5 text-[11px] text-ink-500 truncate">
+                {stage.executor ? `${stage.executor}` : 'executor pending'}
+                {stage.attemptCount ? ` · attempt ${stage.attemptCount}` : ''}
+                {stage.dependencies?.length ? ` · after ${stage.dependencies.map(humanizeStage).join(', ')}` : ''}
+              </div>
+              {(stage.reason || stage.lastError) && (
+                <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">{stage.lastError || stage.reason}</div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
 }
 
 function rel(iso: string): string {
@@ -168,6 +230,16 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         </div>
       </main>
     );
+  }
+
+  let stageTimeline: StageTimelineItem[] = [];
+  let stageTimelineUnavailable = false;
+  try {
+    const detail = await callBackend(`/api/v2/runs/${encodeURIComponent(params.id)}`, { jwt: session.access_token });
+    const stages = detail?.run?.stagePlan?.stages;
+    if (Array.isArray(stages)) stageTimeline = stages as StageTimelineItem[];
+  } catch {
+    stageTimelineUnavailable = true;
   }
 
   let executionContext: { executor?: 'claude' | 'codex'; thread_id?: string | null; workspace?: string | null } | null = null;
@@ -636,6 +708,13 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             structured step state (a chain/workflow via record_run_heartbeat). */}
         {(stepsState.length > 0 || info.state === 'running') && (
           <RunStepChecklist runId={r.id} initialSteps={stepsState} live={info.state === 'running'} />
+        )}
+
+        {stageTimeline.length > 0 && <StageTimeline stages={stageTimeline} />}
+        {stageTimelineUnavailable && (
+          <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] p-4 text-sm text-amber-700 dark:text-amber-300">
+            The staged plan is temporarily unavailable. The run output below is unchanged.
+          </div>
         )}
 
         {/* Live step trace: where the run is / where it got stuck. Only when the
