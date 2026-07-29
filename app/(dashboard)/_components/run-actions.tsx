@@ -36,6 +36,7 @@ export default function RunActions({
   runId,
   agentName,
   reviewStatus,
+  holdKind,
   hasShipStep,
   stepsState,
   claudeTaskId,
@@ -45,6 +46,8 @@ export default function RunActions({
   agentName: string;
   /** 'pending' = approve-ready hold · 'needs_input' = blocked on a question. */
   reviewStatus: 'pending' | 'needs_input';
+  /** Persisted backend contract for what this hold authorizes; absent for legacy runs. */
+  holdKind?: 'approval_before_action' | 'review_delivered_result' | 'needs_input' | null;
   /** Approving triggers a consequential step (post/publish/render) vs deliver-only. */
   hasShipStep: boolean;
   /** Canonical checklist. Any pending/running step means approval resumes agent work. */
@@ -59,6 +62,7 @@ export default function RunActions({
   const needsInput = reviewStatus === 'needs_input';
   const primaryAction = deriveHeldRunPrimaryAction({
     reviewStatus,
+    holdKind,
     stepsState,
     hasDeferredWorkSignal: hasShipStep,
   });

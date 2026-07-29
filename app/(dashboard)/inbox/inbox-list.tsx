@@ -52,6 +52,8 @@ export type InboxItem = {
   pending:         boolean;
   /** Canonical checklist, used to distinguish a held continuation from a final draft. */
   stepsState:       RunStep[] | null;
+  /** Persisted server contract for a held run; absent only on legacy rows. */
+  holdKind:         'approval_before_action' | 'review_delivered_result' | 'needs_input' | null;
   state:           RunStateInfo;
   /** Completion Controller verdict (0102): did the run produce its deliverable? */
   verification:    VerificationStatus;
@@ -544,6 +546,7 @@ export default function InboxList({
                   runId={openItem.id}
                   agentName={openItem.name}
                   reviewStatus="pending"
+                  holdKind={openItem.holdKind}
                   hasShipStep={SHIP_RE.test(openItem.output_markdown || '')}
                   stepsState={openItem.stepsState}
                 />

@@ -16,8 +16,10 @@ test('held primary action derives from structured remaining work, not only markd
     'a structured continuation must call approveFinish, not markDone');
 });
 
-test('both held-run surfaces carry the canonical checklist into RunActions', () => {
+test('both held-run surfaces carry the canonical hold contract into RunActions', () => {
   assert.match(detail, /<RunActions[\s\S]*?stepsState=\{stepsState\}/);
-  assert.match(loader, /extraColumns: 'feedback_questions, feedback_answers, feedback_at, steps_state'/);
+  assert.match(detail, /<RunActions[\s\S]*?holdKind=\{holdKind\}/);
+  assert.match(loader, /extraColumns: 'feedback_questions, feedback_answers, feedback_at, steps_state, hold_kind'/);
   assert.match(inbox, /stepsState=\{openItem\.stepsState\}/);
+  assert.match(inbox, /holdKind=\{openItem\.holdKind\}/);
 });

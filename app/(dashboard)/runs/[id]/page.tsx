@@ -170,6 +170,17 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     );
   }
 
+  // 0139 is additive. Read the explicit hold contract separately so a dashboard
+  // deploy before its migration still renders the legacy-safe action rather than
+  // making the whole run page disappear on an unknown-column error.
+  let holdKind: RunRow['hold_kind'] = null;
+  try {
+    const { data } = await supabase.from('skill_runs').select('hold_kind').eq('id', r.id).maybeSingle();
+    if (data?.hold_kind === 'approval_before_action' || data?.hold_kind === 'review_delivered_result' || data?.hold_kind === 'needs_input') {
+      holdKind = data.hold_kind;
+    }
+  } catch { /* pre-0139: fall back to the legacy compatibility classifier */ }
+
   let executionContext: { executor?: 'claude' | 'codex'; thread_id?: string | null; workspace?: string | null } | null = null;
   try {
     const { data } = await supabase.from('run_execution_contexts')
@@ -567,6 +578,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               runId={r.id}
               agentName={name}
               reviewStatus={pending ? 'pending' : 'needs_input'}
+              holdKind={holdKind}
               hasShipStep={hasShipStep}
               stepsState={stepsState}
               claudeTaskId={claudeTaskId}

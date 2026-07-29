@@ -50,7 +50,7 @@ export async function loadInboxItems(
       slug,
       // The improvement-loop columns: the run's own feedback questions + the
       // user's answers, so each result can show one-tap feedback (migration 0074).
-      extraColumns: 'feedback_questions, feedback_answers, feedback_at, steps_state',
+      extraColumns: 'feedback_questions, feedback_answers, feedback_at, steps_state, hold_kind',
     }),
     listWorkflows(),
   ]);
@@ -119,6 +119,7 @@ export async function loadInboxItems(
       ran_at:          r.ran_at,
       pending:         r.review_status === 'pending',
       stepsState:      Array.isArray(r.steps_state) ? r.steps_state : null,
+      holdKind:        r.hold_kind === 'approval_before_action' || r.hold_kind === 'review_delivered_result' || r.hold_kind === 'needs_input' ? r.hold_kind : null,
       state:           deriveRunState(r),
       verification:    (r.verification_status ?? null) as InboxItem['verification'],
       feedbackQuestions: (r as { feedback_questions?: FeedbackQuestion[] | null }).feedback_questions ?? null,

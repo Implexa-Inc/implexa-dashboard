@@ -14,6 +14,24 @@ test('approval before paid generation continues when the structured checklist ha
   }), 'continue');
 });
 
+test('persisted approval_before_action continues even when the reported phase ended at the gate', () => {
+  assert.equal(deriveHeldRunPrimaryAction({
+    reviewStatus: 'pending',
+    holdKind: 'approval_before_action',
+    stepsState: [{ index: 1, label: 'Write the approval-ready audit', status: 'done' }],
+    hasDeferredWorkSignal: false,
+  }), 'continue');
+});
+
+test('persisted delivered-result review never creates unnecessary work', () => {
+  assert.equal(deriveHeldRunPrimaryAction({
+    reviewStatus: 'pending',
+    holdKind: 'review_delivered_result',
+    stepsState: [{ index: 1, label: 'Deliver completed report', status: 'done' }],
+    hasDeferredWorkSignal: true,
+  }), 'mark_done');
+});
+
 test('a truly finished deliver-only hold remains mark done', () => {
   assert.equal(deriveHeldRunPrimaryAction({
     reviewStatus: 'pending',
@@ -26,6 +44,15 @@ test('legacy held runs retain the explicit deferred-work fallback', () => {
   assert.equal(deriveHeldRunPrimaryAction({
     reviewStatus: 'pending', stepsState: [], hasDeferredWorkSignal: true,
   }), 'approve_finish');
+});
+
+test('a persisted null hold kind uses the legacy checklist instead of inventing a terminal action', () => {
+  assert.equal(deriveHeldRunPrimaryAction({
+    reviewStatus: 'pending',
+    holdKind: null,
+    stepsState: [{ index: 2, label: 'Generate approved b-roll', status: 'pending' }],
+    hasDeferredWorkSignal: false,
+  }), 'continue');
 });
 
 test('needs-input remains a request for an answer, never an approval', () => {
