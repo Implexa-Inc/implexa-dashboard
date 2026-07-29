@@ -46,6 +46,15 @@ test('legacy held runs retain the explicit deferred-work fallback', () => {
   }), 'approve_finish');
 });
 
+test('a persisted null hold kind uses the legacy checklist instead of inventing a terminal action', () => {
+  assert.equal(deriveHeldRunPrimaryAction({
+    reviewStatus: 'pending',
+    holdKind: null,
+    stepsState: [{ index: 2, label: 'Generate approved b-roll', status: 'pending' }],
+    hasDeferredWorkSignal: false,
+  }), 'continue');
+});
+
 test('needs-input remains a request for an answer, never an approval', () => {
   assert.equal(deriveHeldRunPrimaryAction({
     reviewStatus: 'needs_input', stepsState: [{ index: 1, label: 'Question', status: 'pending' }], hasDeferredWorkSignal: true,
