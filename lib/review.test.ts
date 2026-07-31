@@ -484,8 +484,23 @@ test('REPRO: lineage must contain the requested run, with unique version ids', (
     { runId: 'run-1', label: 'Original' }, { runId: 'run-1', label: 'Revision 1' },
   ] } };
   assert.equal(parseReviewPacketResponse(dupes, 'run-1'), null, 'two rows claiming to be the same version');
-  // an empty lineage is allowed — it means "no revisions", not "wrong run"
-  assert.notEqual(parseReviewPacketResponse({ ...boundPacket(), lineage: { rootRunId: 'run-1', versions: [] } }, 'run-1'), null);
+});
+
+test('REPRO: an EMPTY lineage is malformed when sources.lineage is ready', () => {
+  // A successful lineage always contains at least the run being viewed, as "Original".
+  // Accepting empty here rendered a confident "No revisions yet." over a computation
+  // that had actually failed or come back mis-shaped.
+  const readyButEmpty = { ...boundPacket(), lineage: { rootRunId: 'run-1', versions: [] } };
+  assert.equal(parseReviewPacketResponse(readyButEmpty, 'run-1'), null);
+
+  // Empty IS honest when lineage could not be computed — that is what unavailable means.
+  const unavailable = {
+    ...boundPacket(),
+    lineage: { rootRunId: null, versions: [] },
+    sources: { ...okPacketSources, lineage: 'unavailable' },
+  };
+  assert.notEqual(parseReviewPacketResponse(unavailable, 'run-1'), null,
+    'an unavailable lineage legitimately carries no versions');
 });
 
 // ── every field the UI actually renders ─────────────────────────────────────

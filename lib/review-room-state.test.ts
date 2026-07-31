@@ -83,3 +83,84 @@ test('the accept disclaimer keeps human review distinct from Judge and verificat
   assert.match(ACCEPT_DISCLAIMER, /doesn't change the Judge verdict/i);
   assert.match(ACCEPT_DISCLAIMER, /verified/i);
 });
+
+// ── artifact scoping ────────────────────────────────────────────────────────
+//
+// The live stress fixture carries 28 artifacts. Every issue belongs to exactly one of
+// them, and the surface must respect that: an issue about video B shown over video A
+// is anchored to bytes that are not on screen.
+
+import { issuesForArtifact, artifactForIssue, isIssueStale, issueClickTarget } from './review-room-state.ts';
+
+const SHA_A = 'a'.repeat(64);
+const SHA_B = 'b'.repeat(64);
+const artifacts = [
+  { id: 'artA', relativePath: 'out/videoA.mp4', sha256: SHA_A, status: 'validated' },
+  { id: 'artB', relativePath: 'out/videoB.mp4', sha256: SHA_B, status: 'validated' },
+];
+const iss = (over: Record<string, unknown> = {}) => ({
+  id: 'i1', artifactId: 'artA', status: 'draft',
+  anchor: { type: 'media_time', artifactSha256: SHA_A, timeStartMs: 5000 },
+  ...over,
+}) as never;
+
+test('REPRO: only the selected artifact\'s issues reach that artifact surface', () => {
+  const all = [iss({ id: 'a1', artifactId: 'artA' }), iss({ id: 'b1', artifactId: 'artB' }), iss({ id: 'whole', artifactId: null })];
+  assert.deepEqual(issuesForArtifact(all, 'artA').map((i: any) => i.id), ['a1'],
+    "video B's issue must not be drawn on video A's timeline");
+  assert.deepEqual(issuesForArtifact(all, 'artB').map((i: any) => i.id), ['b1']);
+  // a whole-run comment has no position on any one timeline
+  assert.deepEqual(issuesForArtifact(all, 'artA').map((i: any) => i.id).includes('whole'), false);
+  assert.deepEqual(issuesForArtifact(all, null), []);
+});
+
+test('REPRO: staleness is measured against the issue\'s OWN artifact', () => {
+  // An issue on B, viewed while A is selected, is NOT stale — its own file is unchanged.
+  const onB = iss({ artifactId: 'artB', anchor: { type: 'media_time', artifactSha256: SHA_B, timeStartMs: 1 } });
+  assert.equal(isIssueStale(onB, artifacts), false,
+    'comparing against the selected artifact would flag a current comment as stale on every file switch');
+
+  // genuinely stale: its own artifact's digest moved
+  const changed = iss({ artifactId: 'artA', anchor: { type: 'media_time', artifactSha256: 'c'.repeat(64), timeStartMs: 1 } });
+  assert.equal(isIssueStale(changed, artifacts), true);
+
+  // its artifact is no longer validated
+  assert.equal(isIssueStale(iss(), [{ id: 'artA', relativePath: 'x', sha256: SHA_A, status: 'declared' }]), true);
+  // it names an artifact this packet does not contain
+  assert.equal(isIssueStale(iss({ artifactId: 'gone' }), artifacts), true);
+  // a whole-run comment cannot go stale against a file
+  assert.equal(isIssueStale(iss({ artifactId: null }), artifacts), false);
+});
+
+test('REPRO: clicking an issue for another file SWITCHES before seeking', () => {
+  const onB = iss({ artifactId: 'artB', anchor: { type: 'media_time', artifactSha256: SHA_B, timeStartMs: 9000 } });
+  const t = issueClickTarget(onB, 'artA');
+  assert.equal(t.needsSwitch, true, 'seeking now would move the WRONG player to that timestamp');
+  assert.equal(t.artifactId, 'artB');
+  assert.equal(t.seekMs, 9000);
+
+  // same artifact: seek directly
+  const sameFile = issueClickTarget(iss({ artifactId: 'artA' }), 'artA');
+  assert.equal(sameFile.needsSwitch, false);
+  assert.equal(sameFile.seekMs, 5000);
+
+  // a non-media anchor has nothing to seek to
+  const textIssue = issueClickTarget(iss({ anchor: { type: 'text_selection', startOffset: 3 } }), 'artA');
+  assert.equal(textIssue.seekMs, null);
+});
+
+test('the rail can name the file each issue belongs to', () => {
+  assert.equal(artifactForIssue(iss({ artifactId: 'artB' }), artifacts)!.relativePath, 'out/videoB.mp4');
+  assert.equal(artifactForIssue(iss({ artifactId: null }), artifacts), null);
+  assert.equal(artifactForIssue(iss({ artifactId: 'gone' }), artifacts), null);
+});
+
+test('the 28-artifact case: issues stay partitioned across many files', () => {
+  const many = Array.from({ length: 28 }, (_, n) => ({ id: `art${n}`, relativePath: `out/f${n}.mp4`, sha256: SHA_A, status: 'validated' }));
+  const all = many.map((a, n) => iss({ id: `i${n}`, artifactId: a.id }));
+  for (let n = 0; n < 28; n += 1) {
+    const scoped = issuesForArtifact(all, `art${n}`);
+    assert.equal(scoped.length, 1, `art${n} must see exactly its own issue`);
+    assert.equal((scoped[0] as any).id, `i${n}`);
+  }
+});

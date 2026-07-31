@@ -356,16 +356,26 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
     if (sel !== null && sel !== undefined && !artifactIds.has(String(sel))) return null;
   }
 
+  // Sources first: the lineage rule below depends on whether lineage was READABLE.
+  const sources = parseSources(body.sources, PACKET_SOURCE_KEYS);
+  if (!sources) return null;
+
   if (!isObject(body.lineage)) return null;
   const versions = (body.lineage as Record<string, unknown>).versions;
   if (!Array.isArray(versions) || !versions.every(isValidVersion)) return null;
-  // The lineage is the version switcher. If it does not contain the run being viewed,
-  // the switcher cannot mark "you are here" and offers only OTHER runs — and duplicate
-  // ids would render two rows claiming to be the same version.
-  if (versions.length > 0) {
-    const versionIds = (versions as Array<Record<string, unknown>>).map((v) => String(v.runId));
-    if (new Set(versionIds).size !== versionIds.length) return null;
+  const versionIds = (versions as Array<Record<string, unknown>>).map((v) => String(v.runId));
+  // Duplicate ids would render two rows claiming to be the same version.
+  if (new Set(versionIds).size !== versionIds.length) return null;
+  // A SUCCESSFUL lineage always contains at least the run being viewed, as "Original".
+  // So an EMPTY versions array is only honest when lineage was not readable — when the
+  // source says `ready`, empty is malformed, and rendering it produced a confident
+  // "No revisions yet." over a computation that actually failed or was mis-shaped.
+  // (An empty array cannot include the run id, so this single check also rejects the
+  // empty-while-ready case — no separate length guard, which would be decorative.)
+  if (sources.lineage === 'ready') {
     if (!versionIds.includes(runId)) return null;
+  } else if (versionIds.length > 0 && !versionIds.includes(runId)) {
+    return null;
   }
 
   if (!isObject(body.verification)) return null;
@@ -374,9 +384,6 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
 
   // judgment is legitimately null; when present every field the UI renders must be there.
   if (!(body.judgment === null || isValidJudgment(body.judgment))) return null;
-
-  const sources = parseSources(body.sources, PACKET_SOURCE_KEYS);
-  if (!sources) return null;
 
   return {
     ok: true,

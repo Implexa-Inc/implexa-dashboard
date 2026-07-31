@@ -79,3 +79,71 @@ export function reviewRoomActions(input: {
  */
 export const ACCEPT_DISCLAIMER =
   "Accepting records your judgement. It doesn't change the Judge verdict or mean the files were verified.";
+
+// ── artifact scoping ────────────────────────────────────────────────────────
+//
+// A run can carry many artifacts (the live stress fixture has 28). An issue belongs to
+// exactly ONE of them, and the surface must respect that: an issue about video B shown
+// over video A is anchored to bytes that are not on screen. Its timestamp seeks the
+// wrong file, its marker sits on the wrong timeline, and its staleness is computed
+// against a digest it was never made against — which can report a perfectly current
+// comment as stale, or hide a genuinely stale one.
+
+export type ScopableIssue = {
+  id: string;
+  artifactId?: string | null;
+  anchor?: Record<string, unknown> | null;
+  status?: string;
+};
+export type ScopableArtifact = { id: string; relativePath?: string; sha256?: string | null; status?: string | null };
+
+/**
+ * The issues that belong to ONE artifact — the only ones a viewer of that artifact may
+ * render markers for, seek to, or highlight.
+ *
+ * A whole-file issue with no artifactId belongs to the run rather than to any one file,
+ * so it is deliberately excluded from every artifact surface: drawing it on an
+ * arbitrary timeline would invent a location it never had.
+ */
+export function issuesForArtifact<T extends ScopableIssue>(issues: T[], artifactId: string | null): T[] {
+  if (!artifactId) return [];
+  return issues.filter((i) => i.artifactId === artifactId);
+}
+
+/** The artifact an issue was actually made against, or null when it names none. */
+export function artifactForIssue<A extends ScopableArtifact>(issue: ScopableIssue, artifacts: A[]): A | null {
+  if (!issue.artifactId) return null;
+  return artifacts.find((a) => a.id === issue.artifactId) ?? null;
+}
+
+/**
+ * Staleness measured against the issue's OWN artifact, never the one on screen.
+ *
+ * Comparing against the selected artifact is how a current comment gets flagged stale
+ * merely because the user switched files.
+ */
+export function isIssueStale<A extends ScopableArtifact>(issue: ScopableIssue, artifacts: A[]): boolean {
+  const own = artifactForIssue(issue, artifacts);
+  // No artifact reference: a whole-run comment cannot go stale against a file.
+  if (!issue.artifactId) return false;
+  if (!own) return true; // it named an artifact this packet does not contain
+  if (own.status !== 'validated') return true;
+  const anchorSha = issue.anchor && typeof issue.anchor === 'object' ? (issue.anchor as { artifactSha256?: unknown }).artifactSha256 : undefined;
+  if (typeof anchorSha !== 'string') return true;
+  return anchorSha !== own.sha256;
+}
+
+/**
+ * What clicking an issue must do. Seeking without switching would move the WRONG
+ * player, so the target artifact is named explicitly and the caller switches first.
+ */
+export function issueClickTarget(issue: ScopableIssue, selectedArtifactId: string | null): {
+  artifactId: string | null;
+  needsSwitch: boolean;
+  seekMs: number | null;
+} {
+  const anchor = (issue.anchor ?? {}) as Record<string, unknown>;
+  const seekMs = anchor.type === 'media_time' ? (Number(anchor.timeStartMs) || 0) : null;
+  const artifactId = issue.artifactId ?? null;
+  return { artifactId, needsSwitch: !!artifactId && artifactId !== selectedArtifactId, seekMs };
+}

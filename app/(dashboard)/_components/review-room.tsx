@@ -29,7 +29,10 @@ import {
   buildMediaAnchor, buildTextAnchor, buildArtifactAnchor, anchorError, bodyError,
   anchorLabel, formatMs, sortIssues, isAnchorStale, type ReviewAnchor,
 } from '@/lib/review-anchor';
-import { reviewRoomActions, ACCEPT_DISCLAIMER } from '@/lib/review-room-state';
+import {
+  reviewRoomActions, ACCEPT_DISCLAIMER,
+  issuesForArtifact, artifactForIssue, isIssueStale, issueClickTarget,
+} from '@/lib/review-room-state';
 
 type Props = {
   runId: string;
@@ -85,6 +88,9 @@ export default function ReviewRoom(props: Props) {
   const [draftBody, setDraftBody] = useState('');
   const [textContent, setTextContent] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // A seek requested for an artifact that is not on screen: the switch remounts the
+  // media element, so the position is applied once the new one is ready.
+  const [pendingSeekMs, setPendingSeekMs] = useState<number | null>(null);
 
   const drafts = useMemo(() => issues.filter((i) => i.status === 'draft'), [issues]);
   const ordered = useMemo(() => sortIssues(issues), [issues]);
@@ -95,6 +101,13 @@ export default function ReviewRoom(props: Props) {
     draftCount: drafts.length,
     isApprovalHold,
   });
+  const visible = useMemo(() => ordered.filter((i) => i.status !== 'dismissed'), [ordered]);
+  // ONLY this artifact's issues may be drawn on it. An issue about another file has no
+  // position on this timeline, and rendering it there invents one.
+  const surfaceIssues = useMemo(
+    () => issuesForArtifact(visible, selectedId),
+    [visible, selectedId],
+  );
   const frozen = !acts.canEditIssues && session?.state !== 'accepted' && !isApprovalHold;
   const accepted = session?.state === 'accepted';
 
@@ -107,6 +120,12 @@ export default function ReviewRoom(props: Props) {
     if (prevToken) { revokePreview(prevToken); tokenRef.current = null; }
     setPreviewUrl(null);
     setTextContent(null);
+    // Per-artifact draft state does not survive a switch: a position captured in the
+    // previous file would anchor the next comment to a moment in a different video.
+    setPausedAtMs(null);
+    setRangeEndMs(null);
+    setSelection(null);
+    setComposerOpen(false);
 
     const base = decidePreview({
       artifact,
@@ -210,6 +229,28 @@ export default function ReviewRoom(props: Props) {
     setPausedAtMs(ms);
   }, []);
 
+  /**
+   * Clicking an issue. If it belongs to another artifact we SWITCH FIRST and seek once
+   * the new player exists — seeking now would move the wrong file to that timestamp.
+   */
+  const goToIssue = useCallback((issue: ReviewIssue) => {
+    const target = issueClickTarget(issue, selectedId);
+    if (target.needsSwitch && target.artifactId) {
+      setSelectedId(target.artifactId);
+      setPendingSeekMs(target.seekMs);
+      return;
+    }
+    if (target.seekMs !== null) seekTo(target.seekMs);
+  }, [selectedId, seekTo]);
+
+  // Apply a seek that was requested before this artifact was on screen.
+  useEffect(() => {
+    if (pendingSeekMs === null) return;
+    if (!previewUrl || !mediaRef.current) return;
+    seekTo(pendingSeekMs);
+    setPendingSeekMs(null);
+  }, [pendingSeekMs, previewUrl, seekTo]);
+
   // ── actions ───────────────────────────────────────────────────────────────
   const onSubmit = useCallback(async () => {
     setBusy(true); setError(null); setNotice(null);
@@ -265,7 +306,7 @@ export default function ReviewRoom(props: Props) {
           previewUrl={previewUrl}
           textContent={textContent}
           mediaRef={mediaRef}
-          issues={ordered.filter((i) => i.status !== 'dismissed')}
+          issues={surfaceIssues}
           onPause={(sec) => setPausedAtMs(Math.round(sec * 1000))}
           onSelectText={(s) => { setSelection(s); setComposerOpen(true); }}
           onSeek={seekTo}
@@ -360,23 +401,31 @@ export default function ReviewRoom(props: Props) {
           <p className="mt-2 text-xs text-ink-500">No issues yet. Pause and add feedback.</p>
         ) : (
           <ul className="mt-3 space-y-2">
-            {ordered.filter((i) => i.status !== 'dismissed').map((i) => {
-              const stale = isAnchorStale(i.anchor as { artifactSha256?: string }, artifact);
+            {visible.map((i) => {
+              // Measured against the issue's OWN artifact. Comparing to the selected one
+              // flags a current comment as stale merely because the user switched files.
+              const stale = isIssueStale(i, artifacts);
+              const own = artifactForIssue(i, artifacts);
+              const elsewhere = !!i.artifactId && i.artifactId !== selectedId;
               return (
                 <li key={i.id} className="rounded border border-ink-800 p-2">
                   <div className="flex items-center gap-2 text-xs">
                     <button
                       type="button"
-                      onClick={() => {
-                        const a = i.anchor as Record<string, unknown>;
-                        if (a?.type === 'media_time') seekTo(Number(a.timeStartMs) || 0);
-                      }}
+                      onClick={() => goToIssue(i)}
                       className="font-mono text-sky-400 hover:underline"
                     >
                       {anchorLabel(i.anchor as Record<string, unknown>)}
                     </button>
                     <span className="rounded bg-ink-800 px-1 py-0.5 text-ink-400">{i.kind}</span>
                     <span className="ml-auto text-ink-500">{i.status}</span>
+                  </div>
+                  {/* WHICH FILE this issue is about. With many artifacts, a timestamp
+                      alone is ambiguous — and the rail deliberately shows every issue
+                      rather than hiding the ones for other files. */}
+                  <div className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-500">
+                    <span className="truncate">{own ? own.relativePath : 'Whole run'}</span>
+                    {elsewhere && <span className="shrink-0 text-sky-400">· opens another file</span>}
                   </div>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink-200">{i.body}</p>
                   {stale && (
