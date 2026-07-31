@@ -139,3 +139,166 @@ test('the live judge_repair_unattended row keeps its distinct classification', (
   assert.match(reasonLabel(real.reason), /nothing is fixing it/i);
   assert.equal(primaryActionLabel(real), 'Review result');
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RESPONSE BOUNDARY. A 200 is not a contract.
+//
+// The readers used to COERCE whatever arrived into a valid-looking status —
+// `items: null` became `[]`, a missing `sources` became `{}` — and with no source keys
+// there is nothing to report as unavailable, so a malformed 200 rendered a confident
+// "Nothing is waiting for your review." Every guarantee above was undone one layer
+// below it. Parsing is now rejection.
+// ═════════════════════════════════════════════════════════════════════════════
+
+import { parseReviewQueueResponse, parseReviewPacketResponse, QUEUE_SOURCE_KEYS, PACKET_SOURCE_KEYS } from './review.ts';
+
+const okSources = Object.fromEntries(QUEUE_SOURCE_KEYS.map((k) => [k, 'ready']));
+const goodQueue = () => ({ ok: true, items: [], truncated: false, total: 0, visibleCount: 0, sources: { ...okSources } });
+
+const okPacketSources = Object.fromEntries(PACKET_SOURCE_KEYS.map((k) => [k, 'ready']));
+const goodPacket = () => ({
+  ok: true,
+  run: { id: 'run-1', slug: 's', runState: 'completed', status: 'completed', reviewStatus: 'pending', holdKind: null, startedAt: null },
+  lineage: { rootRunId: 'run-1', versions: [] },
+  artifacts: [], judgment: null, verification: { receipts: [] }, session: null, issues: [],
+  sources: { ...okPacketSources },
+});
+
+test('a well-formed queue response parses', () => {
+  const q = parseReviewQueueResponse(goodQueue());
+  assert.notEqual(q, null);
+  assert.equal(q!.live, true);
+  assert.equal(canClaimAllClear(q!), true, 'a genuinely empty, fully-sourced queue may say all-clear');
+});
+
+test('REPRO: { ok: true, items: null, sources: {} } is UNAVAILABLE, not a live empty', () => {
+  const parsed = parseReviewQueueResponse({ ok: true, items: null, sources: {} });
+  assert.equal(parsed, null, 'a malformed 200 must not become a live status');
+  // and the reader turns that into the honest empty
+  const asStatus = parsed ?? { items: [], truncated: false, total: null, visibleCount: 0, sources: { review_endpoint: 'unavailable' as const }, live: false };
+  assert.equal(asStatus.live, false);
+  assert.equal(canClaimAllClear(asStatus), false, 'this is exactly the false all-clear the surface exists to prevent');
+});
+
+test('every mandatory queue field is required', () => {
+  const cases: Array<[string, unknown]> = [
+    ['items missing',      { ...goodQueue(), items: undefined }],
+    ['items null',         { ...goodQueue(), items: null }],
+    ['items not an array', { ...goodQueue(), items: {} }],
+    ['sources missing',    { ...goodQueue(), sources: undefined }],
+    ['sources empty',      { ...goodQueue(), sources: {} }],
+    ['sources not object', { ...goodQueue(), sources: [] }],
+    ['truncated missing',  { ...goodQueue(), truncated: undefined }],
+    ['visibleCount missing', { ...goodQueue(), visibleCount: undefined }],
+    ['total undefined',    { ...goodQueue(), total: undefined }],
+    ['ok false',           { ...goodQueue(), ok: false }],
+    ['ok missing',         { ...goodQueue(), ok: undefined }],
+    ['not an object',      'nope'],
+    ['null body',          null],
+  ];
+  for (const [why, body] of cases) {
+    assert.equal(parseReviewQueueResponse(body), null, `${why} must be rejected`);
+  }
+});
+
+test('a missing CONTRACTED source key is rejected; unknown extra keys are allowed', () => {
+  for (const key of QUEUE_SOURCE_KEYS) {
+    const body = goodQueue();
+    delete (body.sources as Record<string, unknown>)[key];
+    assert.equal(parseReviewQueueResponse(body), null, `dropping ${key} must be rejected — its absence is exactly how a gap hides`);
+  }
+  // forward compatible: the backend must be free to add a source
+  const extra = { ...goodQueue(), sources: { ...okSources, someFutureSource: 'ready' } };
+  assert.notEqual(parseReviewQueueResponse(extra), null);
+});
+
+test('an unknown source STATE is rejected, not passed through', () => {
+  // A consumer testing `=== "unavailable"` would read "degraded" as healthy.
+  for (const bad of ['degraded', 'partial', '', true, null, 1]) {
+    const body = { ...goodQueue(), sources: { ...okSources, holds: bad } };
+    assert.equal(parseReviewQueueResponse(body as never), null, `state ${JSON.stringify(bad)} must be rejected`);
+  }
+  for (const good of ['ready', 'unavailable', 'disabled']) {
+    const body = { ...goodQueue(), sources: { ...okSources, holds: good } };
+    assert.notEqual(parseReviewQueueResponse(body as never), null);
+  }
+});
+
+test('total may be null (a source cap fired) but never absent', () => {
+  assert.notEqual(parseReviewQueueResponse({ ...goodQueue(), total: null }), null);
+  assert.notEqual(parseReviewQueueResponse({ ...goodQueue(), total: 12 }), null);
+  assert.equal(parseReviewQueueResponse({ ...goodQueue(), total: '12' } as never), null);
+});
+
+// ── packet ──────────────────────────────────────────────────────────────────
+
+test('a well-formed packet response parses', () => {
+  const p = parseReviewPacketResponse(goodPacket());
+  assert.notEqual(p, null);
+  assert.equal(p!.live, true);
+  assert.equal(p!.run!.id, 'run-1');
+});
+
+test('REPRO: a packet with a valid run but everything else missing is UNAVAILABLE', () => {
+  // An "actionable empty review" — real run id, no artifacts, no issues, nothing marked
+  // unavailable — tells the user their agent delivered nothing. That is a different and
+  // much worse claim than "we could not load this".
+  const parsed = parseReviewPacketResponse({ ok: true, run: { id: 'valid-run', slug: 's' } });
+  assert.equal(parsed, null);
+});
+
+test('every mandatory packet field is required', () => {
+  const cases: Array<[string, unknown]> = [
+    ['run missing',        { ...goodPacket(), run: undefined }],
+    ['run null',           { ...goodPacket(), run: null }],
+    ['run without id',     { ...goodPacket(), run: { slug: 's' } }],
+    ['artifacts missing',  { ...goodPacket(), artifacts: undefined }],
+    ['artifacts null',     { ...goodPacket(), artifacts: null }],
+    ['issues missing',     { ...goodPacket(), issues: undefined }],
+    ['lineage missing',    { ...goodPacket(), lineage: undefined }],
+    ['lineage without versions', { ...goodPacket(), lineage: { rootRunId: 'r' } }],
+    ['verification missing', { ...goodPacket(), verification: undefined }],
+    ['verification without receipts', { ...goodPacket(), verification: {} }],
+    ['sources missing',    { ...goodPacket(), sources: undefined }],
+    ['sources empty',      { ...goodPacket(), sources: {} }],
+    ['judgment a string',  { ...goodPacket(), judgment: 'pass' }],
+    ['session a string',   { ...goodPacket(), session: 'draft' }],
+    ['ok false',           { ...goodPacket(), ok: false }],
+  ];
+  for (const [why, body] of cases) {
+    assert.equal(parseReviewPacketResponse(body), null, `${why} must be rejected`);
+  }
+});
+
+test('judgment and session are legitimately null, and that still parses', () => {
+  assert.notEqual(parseReviewPacketResponse({ ...goodPacket(), judgment: null, session: null }), null);
+  assert.notEqual(parseReviewPacketResponse({ ...goodPacket(), judgment: { verdict: 'pass' }, session: { id: 's', state: 'draft' } }), null);
+});
+
+test('a missing CONTRACTED packet source key is rejected', () => {
+  for (const key of PACKET_SOURCE_KEYS) {
+    const body = goodPacket();
+    delete (body.sources as Record<string, unknown>)[key];
+    assert.equal(parseReviewPacketResponse(body), null, `dropping ${key} must be rejected`);
+  }
+});
+
+test('the LIVE payload shape parses — the parser matches production, not just the spec', () => {
+  // Copied from the deployed endpoint.
+  const live = {
+    ok: true, items: [], truncated: false, visibleCount: 12, total: 12,
+    sources: { acceptance: 'ready', deliveredOutputs: 'ready', holds: 'ready', issueCounts: 'ready', judgments: 'ready', sessions: 'ready' },
+  };
+  assert.notEqual(parseReviewQueueResponse(live), null, 'the real payload must satisfy the parser');
+
+  const livePacket = {
+    ok: true,
+    run: { id: '695352a5-2f9f-45d6-b6f7-188a7e6f1c5a', slug: 'ig-reel', runState: 'completed', status: 'completed', reviewStatus: 'none', holdKind: null, startedAt: null },
+    lineage: { rootRunId: '8fe1a734-d124-49a4-9011-5bd91a98aa40', versions: [{ runId: 'a', label: 'Original', runState: null, startedAt: null }] },
+    artifacts: [{ id: 'a1', runId: 'r', relativePath: 'out/x.mp4', role: 'final_output', status: 'validated', sha256: 'a'.repeat(64), sizeBytes: 1, mtime: null, validatedAt: null }],
+    judgment: { id: 'j', verdict: 'pass', summary: 's', nextAction: null, createdAt: null },
+    verification: { receipts: [] }, session: null, issues: [],
+    sources: { artifacts: 'ready', issues: 'ready', judgment: 'ready', lineage: 'ready', run: 'ready', session: 'ready', verification: 'ready' },
+  };
+  assert.notEqual(parseReviewPacketResponse(livePacket), null, 'the real packet must satisfy the parser');
+});

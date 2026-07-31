@@ -142,6 +142,105 @@ async function sessionToken(): Promise<string | null> {
   return session?.access_token ?? null;
 }
 
+// ── response parsers ────────────────────────────────────────────────────────
+//
+// A 200 IS NOT A CONTRACT. The readers below used to coerce whatever arrived into a
+// valid-looking status: `items: null` became `[]`, a missing `sources` became `{}`.
+// The result was the exact lie this whole surface exists to prevent — with no source
+// keys there is nothing to report as unavailable, so `{ ok: true, items: null,
+// sources: {} }` rendered a confident "Nothing is waiting for your review."
+//
+// So parsing is now REJECTION, not coercion: a response that does not carry the shape
+// we contracted for is unavailable, and unavailable is loud. Extra keys are allowed —
+// the backend must be free to add sources without breaking older clients — but every
+// key we currently depend on must be present and three-valued.
+
+const SOURCE_STATES = new Set<SourceState>(['ready', 'unavailable', 'disabled']);
+
+/** Sources the queue is contracted to report. Extra keys are permitted. */
+export const QUEUE_SOURCE_KEYS = ['holds', 'judgments', 'sessions', 'acceptance', 'issueCounts', 'deliveredOutputs'] as const;
+/** Sources the packet is contracted to report. Extra keys are permitted. */
+export const PACKET_SOURCE_KEYS = ['run', 'lineage', 'artifacts', 'judgment', 'verification', 'session', 'issues'] as const;
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+/**
+ * Every contracted key present AND a legal three-valued state. An unknown state string
+ * is rejected rather than passed through: a consumer testing `=== 'unavailable'` would
+ * silently treat `"degraded"` as healthy.
+ */
+function parseSources(raw: unknown, required: readonly string[]): Record<string, SourceState> | null {
+  if (!isObject(raw)) return null;
+  for (const key of required) {
+    if (!(key in raw)) return null;
+  }
+  const out: Record<string, SourceState> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (!SOURCE_STATES.has(v as SourceState)) return null;
+    out[k] = v as SourceState;
+  }
+  return out;
+}
+
+/**
+ * Parse a queue response. Returns null when the payload is not the shape we contracted
+ * for, so the caller can return QUEUE_UNAVAILABLE rather than a live-looking empty.
+ */
+export function parseReviewQueueResponse(body: unknown): ReviewQueue | null {
+  if (!isObject(body) || body.ok !== true) return null;
+  // MANDATORY. `items: null` is malformed, not "no items".
+  if (!Array.isArray(body.items)) return null;
+  const sources = parseSources(body.sources, QUEUE_SOURCE_KEYS);
+  if (!sources) return null;
+  // `total` is legitimately null (a per-source cap fired and the count was never
+  // observed), but it must be null or a number — never absent-and-guessed.
+  if (!(body.total === null || typeof body.total === 'number')) return null;
+  if (typeof body.visibleCount !== 'number') return null;
+  if (typeof body.truncated !== 'boolean') return null;
+  return {
+    items: body.items as ReviewQueueItem[],
+    truncated: body.truncated,
+    total: body.total as number | null,
+    visibleCount: body.visibleCount,
+    sources,
+    live: true,
+  };
+}
+
+/**
+ * Parse a packet response. Returns null on a malformed shape so the caller can return
+ * PACKET_UNAVAILABLE — an "actionable empty review" (a real run id, no artifacts, no
+ * issues, nothing marked unavailable) would tell the user their agent delivered
+ * nothing, which is a different and much worse claim than "we could not load this".
+ */
+export function parseReviewPacketResponse(body: unknown): ReviewPacket | null {
+  if (!isObject(body) || body.ok !== true) return null;
+  if (!isObject(body.run) || typeof body.run.id !== 'string' || !body.run.id) return null;
+  if (!Array.isArray(body.artifacts)) return null;
+  if (!Array.isArray(body.issues)) return null;
+  if (!isObject(body.lineage) || !Array.isArray((body.lineage as Record<string, unknown>).versions)) return null;
+  if (!isObject(body.verification) || !Array.isArray((body.verification as Record<string, unknown>).receipts)) return null;
+  // judgment and session are legitimately null; anything else must be an object.
+  if (!(body.judgment === null || isObject(body.judgment))) return null;
+  if (!(body.session === null || isObject(body.session))) return null;
+  const sources = parseSources(body.sources, PACKET_SOURCE_KEYS);
+  if (!sources) return null;
+  return {
+    ok: true,
+    run: body.run as ReviewPacket['run'],
+    lineage: body.lineage as ReviewPacket['lineage'],
+    artifacts: body.artifacts as ReviewArtifact[],
+    judgment: body.judgment as ReviewPacket['judgment'],
+    verification: body.verification as ReviewPacket['verification'],
+    session: body.session as ReviewSession,
+    issues: body.issues as ReviewIssue[],
+    sources,
+    live: true,
+  };
+}
+
 export async function getReviewQueue(): Promise<ReviewQueue> {
   const jwt = await sessionToken();
   // Not signed in is not a failure to report: nothing can be awaiting review.
@@ -154,16 +253,8 @@ export async function getReviewQueue(): Promise<ReviewQueue> {
     });
     if (!res.ok) return QUEUE_UNAVAILABLE;
     const body = await res.json();
-    if (!body?.ok) return QUEUE_UNAVAILABLE;
-    return {
-      items: Array.isArray(body.items) ? body.items : [],
-      truncated: !!body.truncated,
-      // Preserve null. Coercing to 0 would turn "unknown" into a confident count.
-      total: typeof body.total === 'number' ? body.total : null,
-      visibleCount: typeof body.visibleCount === 'number' ? body.visibleCount : (body.items || []).length,
-      sources: (body.sources && typeof body.sources === 'object') ? body.sources : {},
-      live: true,
-    };
+    // Reject, do not coerce. A malformed 200 is a read we could not make.
+    return parseReviewQueueResponse(body) ?? QUEUE_UNAVAILABLE;
   } catch {
     return QUEUE_UNAVAILABLE;
   }
@@ -180,19 +271,9 @@ export async function getReviewPacket(runId: string): Promise<ReviewPacket> {
     });
     if (!res.ok) return PACKET_UNAVAILABLE;
     const body = await res.json();
-    if (!body?.ok) return PACKET_UNAVAILABLE;
-    return {
-      ok: true,
-      run: body.run ?? null,
-      lineage: body.lineage ?? { rootRunId: null, versions: [] },
-      artifacts: Array.isArray(body.artifacts) ? body.artifacts : [],
-      judgment: body.judgment ?? null,
-      verification: body.verification ?? { receipts: [] },
-      session: body.session ?? null,
-      issues: Array.isArray(body.issues) ? body.issues : [],
-      sources: (body.sources && typeof body.sources === 'object') ? body.sources : {},
-      live: true,
-    };
+    // Reject, do not coerce. Defaulting the missing pieces would render an
+    // "actionable empty review" over a response we did not understand.
+    return parseReviewPacketResponse(body) ?? PACKET_UNAVAILABLE;
   } catch {
     return PACKET_UNAVAILABLE;
   }
