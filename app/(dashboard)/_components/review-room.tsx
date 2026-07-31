@@ -6,7 +6,8 @@
  * DESIGN RULES THIS COMPONENT ENFORCES:
  *
  *  * A local file is opened ONLY through the desktop's authorized token URL. No path
- *    is ever received, stored, or rendered; `isSafePreviewUrl` gates every `src`.
+ *    is ever received, stored, or rendered; `parsePreviewUrl` gates every `src`
+ *    AND yields the token to revoke, so the two can never name different capabilities.
  *  * Every "cannot preview" reason gets its own words and its own buttons. An
  *    unsupported codec renders an explanation, never an empty black player.
  *  * Pausing captures the exact position (currentTime * 1000, rounded) against the
@@ -22,7 +23,7 @@ import { useRouter } from 'next/navigation';
 import type { ReviewArtifact, ReviewIssue, ReviewSession, SourceState } from '@/lib/review';
 import {
   decidePreview, interpretPreviewResult, requestPreview, revokePreview,
-  desktopPreviewSupported, inDesktopApp, isSafePreviewUrl,
+  desktopPreviewSupported, inDesktopApp, parsePreviewUrl,
   previewText, previewTextTruncated,
   type PreviewDecision,
 } from '@/lib/review-preview';
@@ -150,14 +151,20 @@ export default function ReviewRoom(props: Props) {
       const next = interpretPreviewResult(result, base.kind);
       setDecision({ artifactId: artifact.id, value: next });
       if (next.state !== 'ready') return;
-      const url = (result as { url?: string; token?: string }).url;
-      const token = (result as { token?: string }).token ?? null;
-      // Belt and braces: never put anything but an opaque protocol URL in a src.
-      if (!isSafePreviewUrl(url)) {
+      const url = (result as { url?: string }).url;
+      // ONE SOURCE FOR THE TOKEN: the URL we are actually going to load.
+      //
+      // Previously the token was read from a separate `result.token` field, so a
+      // malformed bridge response could put token B in the URL while cleanup revoked
+      // token A — displaying one capability and releasing another, leaving the displayed
+      // one live until it expired. Deriving it from the parsed URL makes that
+      // unrepresentable rather than merely unlikely.
+      const parsed = parsePreviewUrl(url);
+      if (!parsed) {
         setDecision({ artifactId: artifact.id, value: { ...next, state: 'unavailable', message: 'The preview link was not in an expected form, so it was not opened.' } });
         return;
       }
-      tokenRef.current = token;
+      tokenRef.current = parsed.token;
       setPreview({ url: url!, artifactId: artifact.id });
       if (base.kind === 'text') {
         // The text comes back ON THE BRIDGE RESPONSE, not from the preview URL.
