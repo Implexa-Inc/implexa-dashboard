@@ -184,6 +184,71 @@ function parseSources(raw: unknown, required: readonly string[]): Record<string,
   return out;
 }
 
+const KNOWN_REASONS = new Set<string>(['new_result', 'in_review', 'judge', 'judge_repair_unattended', 'judge_repair_exhausted', 'approval']);
+
+const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+const isNullableString = (v: unknown) => v === null || v === undefined || typeof v === 'string';
+const isNullableNumber = (v: unknown) => v === null || typeof v === 'number';
+
+/**
+ * A queue ROW must carry the fields the row actually uses. `items: [{}]` passed the
+ * old Array.isArray check and rendered an agent called "undefined" linking to
+ * /review/undefined — a dead row that looks like real review work.
+ *
+ * `reason` is required but NOT restricted to the known set: the backend must stay free
+ * to add a classification without breaking older clients. Unknown values are surfaced
+ * honestly by reasonLabel rather than silently downgraded to "New result".
+ */
+function isValidQueueItem(v: unknown): v is ReviewQueueItem {
+  if (!isObject(v)) return false;
+  // links
+  if (!isId(v.rootRunId) || !isId(v.latestRunId)) return false;
+  // classification
+  if (typeof v.reason !== 'string' || !v.reason) return false;
+  if (!isNullableString(v.slug) || !isNullableString(v.holdKind) || !isNullableString(v.judgeVerdict)) return false;
+  // counts and lineage — null is meaningful ("we could not count"), undefined is not
+  if (!isNullableNumber(v.unresolvedIssueCount)) return false;
+  if (!isNullableNumber(v.versionCount)) return false;
+  if (typeof v.lineageAvailable !== 'boolean') return false;
+  if (!isNullableString(v.latestAt)) return false;
+  return true;
+}
+
+/** An artifact must carry what the preview and the anchor digest need. */
+function isValidArtifact(v: unknown): boolean {
+  if (!isObject(v)) return false;
+  if (!isId(v.id) || !isId(v.runId)) return false;
+  if (typeof v.relativePath !== 'string' || !v.relativePath) return false;
+  if (typeof v.status !== 'string' || !v.status) return false;
+  if (!isNullableString(v.sha256) || !isNullableString(v.role)) return false;
+  // A validated artifact without a digest cannot anchor feedback; that is malformed,
+  // not merely unanchorable.
+  if (v.status === 'validated' && typeof v.sha256 !== 'string') return false;
+  return true;
+}
+
+/** An issue must carry what the rail renders and what an edit/dismiss targets. */
+function isValidIssue(v: unknown): boolean {
+  if (!isObject(v)) return false;
+  if (!isId(v.id) || !isId(v.sessionId) || !isId(v.runId)) return false;
+  if (typeof v.kind !== 'string' || !v.kind) return false;
+  if (typeof v.body !== 'string') return false;
+  if (typeof v.status !== 'string' || !v.status) return false;
+  // the anchor drives seeking and staleness; an absent one is not "no location"
+  if (!isObject(v.anchor)) return false;
+  return true;
+}
+
+/** A lineage version is a link target. */
+function isValidVersion(v: unknown): boolean {
+  return isObject(v) && isId(v.runId) && typeof v.label === 'string' && !!v.label;
+}
+
+/** A session drives every lifecycle action, so it needs an id and a state. */
+function isValidSession(v: unknown): boolean {
+  return isObject(v) && isId(v.id) && typeof v.state === 'string' && !!v.state;
+}
+
 /**
  * Parse a queue response. Returns null when the payload is not the shape we contracted
  * for, so the caller can return QUEUE_UNAVAILABLE rather than a live-looking empty.
@@ -192,6 +257,10 @@ export function parseReviewQueueResponse(body: unknown): ReviewQueue | null {
   if (!isObject(body) || body.ok !== true) return null;
   // MANDATORY. `items: null` is malformed, not "no items".
   if (!Array.isArray(body.items)) return null;
+  // ...and every ROW must be usable. One malformed row poisons the whole read rather
+  // than being dropped: silently discarding it would under-report review work, which
+  // is the same class of lie as an empty list.
+  if (!body.items.every(isValidQueueItem)) return null;
   const sources = parseSources(body.sources, QUEUE_SOURCE_KEYS);
   if (!sources) return null;
   // `total` is legitimately null (a per-source cap fired and the count was never
@@ -215,16 +284,23 @@ export function parseReviewQueueResponse(body: unknown): ReviewQueue | null {
  * issues, nothing marked unavailable) would tell the user their agent delivered
  * nothing, which is a different and much worse claim than "we could not load this".
  */
-export function parseReviewPacketResponse(body: unknown): ReviewPacket | null {
+export function parseReviewPacketResponse(body: unknown, expectedRunId?: string): ReviewPacket | null {
   if (!isObject(body) || body.ok !== true) return null;
-  if (!isObject(body.run) || typeof body.run.id !== 'string' || !body.run.id) return null;
-  if (!Array.isArray(body.artifacts)) return null;
-  if (!Array.isArray(body.issues)) return null;
-  if (!isObject(body.lineage) || !Array.isArray((body.lineage as Record<string, unknown>).versions)) return null;
+  if (!isObject(body.run) || !isId(body.run.id)) return null;
+  // IDENTITY. A valid-looking packet for a DIFFERENT run is the worst shape here: the
+  // page would render run B's artifacts, lineage and issues under run A's heading, and
+  // every action the user then took would target the wrong run. Refuse rather than
+  // display someone else's work as this one.
+  if (expectedRunId && body.run.id !== expectedRunId) return null;
+  if (!Array.isArray(body.artifacts) || !body.artifacts.every(isValidArtifact)) return null;
+  if (!Array.isArray(body.issues) || !body.issues.every(isValidIssue)) return null;
+  if (!isObject(body.lineage)) return null;
+  const versions = (body.lineage as Record<string, unknown>).versions;
+  if (!Array.isArray(versions) || !versions.every(isValidVersion)) return null;
   if (!isObject(body.verification) || !Array.isArray((body.verification as Record<string, unknown>).receipts)) return null;
   // judgment and session are legitimately null; anything else must be an object.
   if (!(body.judgment === null || isObject(body.judgment))) return null;
-  if (!(body.session === null || isObject(body.session))) return null;
+  if (!(body.session === null || isValidSession(body.session))) return null;
   const sources = parseSources(body.sources, PACKET_SOURCE_KEYS);
   if (!sources) return null;
   return {
@@ -273,7 +349,7 @@ export async function getReviewPacket(runId: string): Promise<ReviewPacket> {
     const body = await res.json();
     // Reject, do not coerce. Defaulting the missing pieces would render an
     // "actionable empty review" over a response we did not understand.
-    return parseReviewPacketResponse(body) ?? PACKET_UNAVAILABLE;
+    return parseReviewPacketResponse(body, runId) ?? PACKET_UNAVAILABLE;
   } catch {
     return PACKET_UNAVAILABLE;
   }
@@ -326,8 +402,11 @@ export function reasonLabel(reason: ReviewReason | string): string {
     case 'judge_repair_unattended': return 'Needs changes — nothing is fixing it';
     case 'judge': return 'Judge flagged this';
     case 'in_review': return 'In review';
-    case 'new_result':
-    default: return 'New result';
+    case 'new_result': return 'New result';
+    // An unknown classification from a newer backend must NOT be downgraded to
+    // "New result" — that is the same silent demotion the backend's own precedence
+    // rules exist to prevent. Say plainly that it needs a look.
+    default: return 'Needs review';
   }
 }
 
