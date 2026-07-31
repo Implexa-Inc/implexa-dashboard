@@ -12,8 +12,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   previewKind, desktopPreviewSupported, inDesktopApp, decidePreview,
-  interpretPreviewResult, isSafePreviewUrl,
+  interpretPreviewResult, isSafePreviewUrl, parsePreviewUrl,
 } from './review-preview.ts';
+
+const TOKEN = 'a'.repeat(24);
+const GOOD = `implexa-artifact://preview/${TOKEN}`;
 
 const validated = (path: string) => ({ status: 'validated', relativePath: path });
 
@@ -92,8 +95,11 @@ test('a changed file is its own state, distinct from unavailable', () => {
 });
 
 test('a ready preview only accepts an opaque protocol URL', () => {
-  const ok = interpretPreviewResult({ ok: true, url: 'implexa-artifact://preview/abc123' }, 'video');
+  // The token must be long enough to be a real capability — 'abc123' is guessable, and
+  // the strict parser refuses it.
+  const ok = interpretPreviewResult({ ok: true, url: GOOD }, 'video');
   assert.equal(ok.state, 'ready');
+  assert.notEqual(interpretPreviewResult({ ok: true, url: 'implexa-artifact://preview/abc123' }, 'video').state, 'ready');
 
   // anything path-shaped is refused as ready
   for (const url of ['/Users/me/final.mp4', 'file:///Users/me/final.mp4', 'https://evil/x', '']) {
@@ -102,11 +108,69 @@ test('a ready preview only accepts an opaque protocol URL', () => {
   }
 });
 
-test('isSafePreviewUrl rejects every path-bearing form', () => {
-  assert.equal(isSafePreviewUrl('implexa-artifact://preview/opaque'), true);
-  assert.equal(isSafePreviewUrl('file:///Users/me/a.mp4'), false);
-  assert.equal(isSafePreviewUrl('/Users/me/a.mp4'), false);
-  assert.equal(isSafePreviewUrl('implexa-artifact:///Users/me/a.mp4'), false);
-  assert.equal(isSafePreviewUrl(null), false);
-  assert.equal(isSafePreviewUrl(undefined), false);
+test('REPRO: the URL guard is an ALLOWLIST, not a /Users/ denylist', () => {
+  // The first version blocked only the literal "/Users/" and accepted everything else,
+  // and the ONLY negative case tested was /Users/ — so the test passed while every
+  // other path root sailed through. These are the shapes that used to be accepted.
+  const wasAccepted = [
+    'implexa-artifact:///home/me/a.mp4',
+    'implexa-artifact:///var/folders/x/final.mp4',
+    'implexa-artifact:///tmp/a.mp4',
+    'implexa-artifact://preview/../../etc/passwd',
+    'implexa-artifact://C:\\Users\\me\\a.mp4',
+    'implexa-artifact://preview/tok/../..',
+    'implexa-artifact://preview/tok%2F..%2Fetc',
+  ];
+  for (const u of wasAccepted) {
+    assert.equal(isSafePreviewUrl(u), false, `${u} must be refused — a guard is only as good as its allowlist`);
+  }
+});
+
+test('only the exact opaque preview shape is accepted, and it yields its token', () => {
+  assert.equal(isSafePreviewUrl(GOOD), true);
+  assert.deepEqual(parsePreviewUrl(GOOD), { token: TOKEN });
+
+  for (const u of [
+    'implexa-artifact://preview/short',              // too short to be a real capability
+    'implexa-artifact://preview/',                   // no token
+    'implexa-artifact://preview',                    // no path
+    'implexa-artifact://other/' + 'a'.repeat(24),    // wrong segment
+    `implexa-artifact://preview/${TOKEN}/extra`,     // trailing segment
+    `implexa-artifact://preview/${TOKEN}?x=1`,       // query
+    `implexa-artifact://preview/${TOKEN}#f`,         // fragment
+    `IMPLEXA-ARTIFACT://preview/${TOKEN}`,           // scheme case
+    'file:///Users/me/a.mp4', '/Users/me/a.mp4', 'https://evil/x', '', null, undefined, 42, {},
+  ]) {
+    assert.equal(isSafePreviewUrl(u as never), false, `${String(u)} must not be accepted`);
+    assert.equal(parsePreviewUrl(u as never), null);
+  }
+});
+
+test('BOTH parsers agree — interpretPreviewResult uses the same allowlist', () => {
+  // Previously interpretPreviewResult accepted any string starting with the scheme
+  // while the renderer applied a different rule, so the two could disagree about the
+  // same value. There is now one parser.
+  assert.equal(interpretPreviewResult({ ok: true, url: GOOD }, 'video').state, 'ready');
+  for (const u of ['implexa-artifact:///home/me/a.mp4', 'implexa-artifact://preview/../../etc/passwd', 'implexa-artifact://preview/short']) {
+    const d = interpretPreviewResult({ ok: true, url: u }, 'video');
+    assert.notEqual(d.state, 'ready', `${u} must not be reported ready`);
+    assert.equal(isSafePreviewUrl(u), false, 'and the renderer must agree');
+  }
+});
+
+test('the extension parser reads the FINAL SEGMENT and a clean extension', () => {
+  // NOT a repro. The original (KIND_BY_EXT[...] ?? 'unsupported') was already an
+  // allowlist BY CONSTRUCTION — an odd remainder simply missed the map. Mutating either
+  // guard here still passes, and that is the honest result: this hardening makes the
+  // intent explicit and keeps the parser safe if the map is ever replaced by a looser
+  // lookup, but it is defence in depth, not a bug fix. The real P1 was the URL guard.
+  assert.equal(previewKind('a.mp4/../../etc/passwd'), 'unsupported');
+  assert.equal(previewKind('out/final.mp4'), 'video');
+  assert.equal(previewKind('C:\\clips\\a.mp4'), 'video', 'windows separators resolve to the basename too');
+  assert.equal(previewKind('.mp4'), 'unsupported', 'a dotfile has a name, not an extension');
+  assert.equal(previewKind('final.'), 'unsupported');
+  assert.equal(previewKind('noext'), 'unsupported');
+  assert.equal(previewKind('..'), 'unsupported');
+  assert.equal(previewKind('x.mp4.exe'), 'unsupported', 'only the real trailing extension counts');
+  assert.equal(previewKind('a.m p4'), 'unsupported', 'a non-alphanumeric extension is not acted on');
 });

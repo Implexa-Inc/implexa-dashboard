@@ -57,11 +57,29 @@ const KIND_BY_EXT: Record<string, PreviewKind> = {
   pdf: 'pdf',
 };
 
+/**
+ * Which viewer a file needs, decided from its FINAL PATH SEGMENT only.
+ *
+ * DEFENCE IN DEPTH, not a bug fix. The original was already safe by construction: it
+ * looked the remainder up in KIND_BY_EXT, so anything odd simply missed the map and
+ * returned 'unsupported'. Mutating the two checks below does not fail a test, and that
+ * is reported honestly rather than dressed up. They stay because they make the intent
+ * explicit and keep the parser safe if that map is ever replaced by a looser lookup.
+ *
+ * The desktop remains the MIME authority; this only decides which viewer to draw.
+ */
 export function previewKind(relativePath: string | null | undefined): PreviewKind {
-  const p = String(relativePath || '');
-  const dot = p.lastIndexOf('.');
-  if (dot < 0) return 'unsupported';
-  return KIND_BY_EXT[p.slice(dot + 1).toLowerCase()] ?? 'unsupported';
+  const raw = String(relativePath || '');
+  // Both separators, so a Windows-shaped value cannot smuggle a segment through.
+  const base = raw.split(/[/\\]/).pop() ?? '';
+  if (!base || base === '.' || base === '..') return 'unsupported';
+  const dot = base.lastIndexOf('.');
+  // dot === 0 is a dotfile (".mp4"), which has a name but no extension.
+  if (dot <= 0 || dot === base.length - 1) return 'unsupported';
+  const ext = base.slice(dot + 1).toLowerCase();
+  // Anything but plain alphanumerics is not an extension we will act on.
+  if (!/^[a-z0-9]{1,8}$/.test(ext)) return 'unsupported';
+  return KIND_BY_EXT[ext] ?? 'unsupported';
 }
 
 /** Does THIS build of the desktop app expose the preview bridge? */
@@ -155,7 +173,10 @@ export function decidePreview(args: {
 export function interpretPreviewResult(result: unknown, kind: PreviewKind): PreviewDecision {
   const r = result as { ok?: boolean; url?: string; state?: string; error?: string } | null | undefined;
 
-  if (r && r.ok && typeof r.url === 'string' && r.url.startsWith('implexa-artifact://')) {
+  // Uses THE parser, not a second weaker copy of it. Previously this accepted any
+  // string starting with the scheme while the renderer applied a different (also
+  // porous) rule — two parsers that could disagree about the same value.
+  if (r && r.ok && parsePreviewUrl(r.url) !== null) {
     return { state: 'ready', kind, message: '', offerOpenInDesktop: false, offerExternal: true };
   }
   if (r && r.state === 'changed_since_validation') {
@@ -197,9 +218,35 @@ export async function revokePreview(token: string | null | undefined): Promise<v
 }
 
 /**
+ * THE preview-URL parser. One implementation, used by every consumer.
+ *
+ * ALLOWLIST, NOT DENYLIST. The first version blocked the literal string "/Users/" and
+ * accepted everything else, so `implexa-artifact:///home/me/a.mp4`,
+ * `implexa-artifact:///var/folders/x/final.mp4`,
+ * `implexa-artifact://preview/../../etc/passwd` and a Windows path all sailed through.
+ * A guard that enumerates the bad shapes is only ever as good as the author's
+ * imagination; this one enumerates the single GOOD shape instead:
+ *
+ *     implexa-artifact://preview/<opaque-token>
+ *
+ * where the token is url-safe base64/hex — no separators, no dots, no traversal, no
+ * percent-encoding, nothing that could carry a path. Anything else is refused.
+ *
+ * Returns the token so the caller can revoke it, or null when the URL is not one of
+ * ours. Two parsers of the same value can disagree; there is now only one.
+ */
+const PREVIEW_URL_RE = /^implexa-artifact:\/\/preview\/([A-Za-z0-9_-]{16,512})$/;
+
+export function parsePreviewUrl(url: unknown): { token: string } | null {
+  if (typeof url !== 'string') return null;
+  const m = PREVIEW_URL_RE.exec(url);
+  return m ? { token: m[1] } : null;
+}
+
+/**
  * A path must never reach this layer. Exported so the renderer can assert it on any
  * value it is about to put in a `src`, and so the test suite can prove the rule.
  */
 export function isSafePreviewUrl(url: unknown): boolean {
-  return typeof url === 'string' && url.startsWith('implexa-artifact://') && !url.includes('/Users/') && !/^file:/i.test(url);
+  return parsePreviewUrl(url) !== null;
 }
