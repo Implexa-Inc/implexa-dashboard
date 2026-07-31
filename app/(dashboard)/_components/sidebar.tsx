@@ -52,6 +52,15 @@ const PRIMARY_NAV: NavItem[] = [
   // design audit, adopted). "Browse agents" moved INTO the Agents page as
   // "Starter agents"; "Agent Chains" surfaces as an in-page suggestion once the
   // user has 2+ agents. Routes stay live for deep links; only the nav item hides.
+  // Review Room (REVIEW_ROOM_V0 Sec.7.1). Visible: it is a place the user must be able
+  // to reach, not a fold-in like Results.
+  //
+  // DELIBERATELY NO badgeKey. Every other badge here is useUnreadBadge — localStorage
+  // "new since you last visited" semantics. Review's count means UNRESOLVED REVIEW
+  // WORK, which is a different fact: visiting the page does not resolve anything, so a
+  // seen-based badge would clear itself while the work remained. Wiring the real count
+  // needs a live queue read and is tracked separately rather than shipped wrong.
+  { href: '/review',       label: 'Review',         icon: 'activity',  matchPrefix: true },
   { href: '/browse',       label: 'Browse agents',  icon: 'skills',    matchPrefix: true, hidden: true },
   { href: '/chains',       label: 'Agent Chains',   icon: 'link',      matchPrefix: true, hidden: true },
   // Results folded into Home (the one todo). Route stays live for deep links
