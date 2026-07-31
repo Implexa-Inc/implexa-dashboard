@@ -215,20 +215,42 @@ test('all three must agree — no two-out-of-three shortcut', () => {
   assert.equal(shouldApplySeek({ pending: null, selectedArtifactId: 'artB', readyPreviewArtifactId: 'artB' }), false);
 });
 
-test('a pending seek that can never be satisfied is dropped, not held', () => {
-  // its artifact failed to preview at all
+test('REPRO: a FAILED artifact A must not cancel a pending seek for B', () => {
+  // The second instance of the same stale-state race, one variable over: the render
+  // that carries selected=B still carries A's failure decision, and a cleanup effect
+  // reading it in that flush cancelled B's perfectly valid request. B then opened
+  // without seeking to its issue.
   assert.equal(shouldDropPendingSeek({
-    pending: { artifactId: 'artB', seekMs: 1 }, selectedArtifactId: 'artB', previewFailed: true,
-  }), true, 'holding it would fire on some unrelated later load');
-  // the user moved on
+    pending: { artifactId: 'artB', seekMs: 9000 },
+    selectedArtifactId: 'artB',
+    failedArtifactId: 'artA',
+  }), false, "A's failure says nothing about B");
+});
+
+test('a pending seek is retained while its OWN artifact is still loading', () => {
   assert.equal(shouldDropPendingSeek({
-    pending: { artifactId: 'artB', seekMs: 1 }, selectedArtifactId: 'artC', previewFailed: false,
-  }), true);
-  // still loading its own artifact — keep waiting
-  assert.equal(shouldDropPendingSeek({
-    pending: { artifactId: 'artB', seekMs: 1 }, selectedArtifactId: 'artB', previewFailed: false,
+    pending: { artifactId: 'artB', seekMs: 1 }, selectedArtifactId: 'artB', failedArtifactId: null,
   }), false);
-  assert.equal(shouldDropPendingSeek({ pending: null, selectedArtifactId: 'artB', previewFailed: true }), false);
+});
+
+test('a pending seek is dropped when its OWN artifact fails', () => {
+  assert.equal(shouldDropPendingSeek({
+    pending: { artifactId: 'artB', seekMs: 1 }, selectedArtifactId: 'artB', failedArtifactId: 'artB',
+  }), true, 'it can never load, and holding it would fire on some unrelated later load');
+});
+
+test("REPRO: B's failure must not decide C's fate", () => {
+  // pending for C, selected C, but a stale failure decision still names B
+  assert.equal(shouldDropPendingSeek({
+    pending: { artifactId: 'artC', seekMs: 1 }, selectedArtifactId: 'artC', failedArtifactId: 'artB',
+  }), false);
+});
+
+test('a pending seek is dropped when the user moves to a different artifact', () => {
+  assert.equal(shouldDropPendingSeek({
+    pending: { artifactId: 'artB', seekMs: 1 }, selectedArtifactId: 'artC', failedArtifactId: null,
+  }), true, 'the request is moot either way');
+  assert.equal(shouldDropPendingSeek({ pending: null, selectedArtifactId: 'artB', failedArtifactId: 'artB' }), false);
 });
 
 test('LIFECYCLE REPLAY: the batched switch->load sequence seeks the NEW player exactly once', () => {
@@ -265,4 +287,50 @@ test('LIFECYCLE REPLAY: the batched switch->load sequence seeks the NEW player e
   // 4. a later loadedmetadata (e.g. a re-render) must not seek again
   mediaReady();
   assert.equal(seeks.length, 1, 'exactly once');
+});
+
+test('LIFECYCLE REPLAY: switching from a FAILED A to issue-linked B still seeks B', () => {
+  // The full sequence the reviewer traced, replayed deterministically. A MODEL of the
+  // ordering, not the React runtime (no DOM renderer here) — see the PR's residual gates.
+  let selected = 'artA';
+  let ready: string | null = null;                 // A never loaded
+  let failed: string | null = 'artA';              // A's preview failed
+  let pending: { artifactId: string; seekMs: number } | null = null;
+  const seeks: Array<{ artifact: string | null; ms: number }> = [];
+
+  const cleanup = () => {
+    if (shouldDropPendingSeek({ pending, selectedArtifactId: selected, failedArtifactId: failed })) pending = null;
+  };
+  const mediaReady = () => {
+    if (shouldApplySeek({ pending, selectedArtifactId: selected, readyPreviewArtifactId: ready })) {
+      seeks.push({ artifact: ready, ms: pending!.seekMs });
+      pending = null;
+    }
+  };
+
+  // 1. click an issue on B while A is showing its failure
+  selected = 'artB';
+  pending = { artifactId: 'artB', seekMs: 4200 };
+  // 2. the intermediate flush — `failed` still names A
+  cleanup();
+  assert.notEqual(pending, null, "A's stale failure must not cancel B's request");
+  // 3. B's decision lands (loading), then B loads
+  failed = null; cleanup();
+  assert.notEqual(pending, null);
+  ready = 'artB'; mediaReady();
+  assert.deepEqual(seeks, [{ artifact: 'artB', ms: 4200 }], 'B seeks to its issue');
+  assert.equal(pending, null);
+});
+
+test('LIFECYCLE REPLAY: when B itself fails, its request is dropped rather than left hanging', () => {
+  let selected = 'artB';
+  let failed: string | null = null;
+  let pending: { artifactId: string; seekMs: number } | null = { artifactId: 'artB', seekMs: 1000 };
+  const cleanup = () => {
+    if (shouldDropPendingSeek({ pending, selectedArtifactId: selected, failedArtifactId: failed })) pending = null;
+  };
+  cleanup();
+  assert.notEqual(pending, null, 'still loading');
+  failed = 'artB'; cleanup();
+  assert.equal(pending, null, 'B can never load, so the request must not survive to fire on a later one');
 });

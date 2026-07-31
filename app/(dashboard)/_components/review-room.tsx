@@ -69,7 +69,10 @@ export default function ReviewRoom(props: Props) {
   });
   const artifact = useMemo(() => artifacts.find((a) => a.id === selectedId) ?? null, [artifacts, selectedId]);
 
-  const [decision, setDecision] = useState<PreviewDecision | null>(null);
+  // BOUND to its artifact, for the same reason `preview` is: an unbound decision is
+  // read by the cleanup effect in the flush where selection has already moved on, and
+  // artifact A's failure then cancels artifact B's pending seek.
+  const [decision, setDecision] = useState<{ artifactId: string | null; value: PreviewDecision } | null>(null);
   // The URL is BOUND to the artifact it was minted for. A bare string cannot tell
   // you which file is on screen, which is what made the seek race possible.
   const [preview, setPreview] = useState<{ url: string; artifactId: string } | null>(null);
@@ -135,20 +138,20 @@ export default function ReviewRoom(props: Props) {
       inDesktop: inDesktopApp(),
       bridgeSupported: desktopPreviewSupported(),
     });
-    setDecision(base);
+    setDecision({ artifactId: artifact?.id ?? null, value: base });
     if (base.state !== 'loading' || !artifact) return;
 
     (async () => {
       const result = await requestPreview(runId, artifact.id);
       if (cancelled) return;
       const next = interpretPreviewResult(result, base.kind);
-      setDecision(next);
+      setDecision({ artifactId: artifact.id, value: next });
       if (next.state !== 'ready') return;
       const url = (result as { url?: string; token?: string }).url;
       const token = (result as { token?: string }).token ?? null;
       // Belt and braces: never put anything but an opaque protocol URL in a src.
       if (!isSafePreviewUrl(url)) {
-        setDecision({ ...next, state: 'unavailable', message: 'The preview link was not in an expected form, so it was not opened.' });
+        setDecision({ artifactId: artifact.id, value: { ...next, state: 'unavailable', message: 'The preview link was not in an expected form, so it was not opened.' } });
         return;
       }
       tokenRef.current = token;
@@ -159,7 +162,7 @@ export default function ReviewRoom(props: Props) {
           const t = await r.text();
           if (!cancelled) setTextContent(t);
         } catch {
-          if (!cancelled) setDecision({ ...next, state: 'unavailable', message: 'Implexa could not read this file for review just now. That does not mean the file is gone.' });
+          if (!cancelled) setDecision({ artifactId: artifact.id, value: { ...next, state: 'unavailable', message: 'Implexa could not read this file for review just now. That does not mean the file is gone.' } });
         }
       }
     })();
@@ -266,8 +269,12 @@ export default function ReviewRoom(props: Props) {
   // A pending seek that can never be satisfied is dropped rather than held: retaining it
   // would fire on some unrelated later load.
   useEffect(() => {
-    const failed = !!decision && decision.state !== 'ready' && decision.state !== 'loading';
-    if (shouldDropPendingSeek({ pending: pendingSeek, selectedArtifactId: selectedId, previewFailed: failed })) {
+    // A decision only speaks for the artifact it was made about. While a stale one from
+    // the previous artifact is still in state, it names THAT artifact — so it cannot
+    // cancel a request for the newly selected one.
+    const terminal = !!decision && decision.value.state !== 'ready' && decision.value.state !== 'loading';
+    const failedArtifactId = terminal ? decision!.artifactId : null;
+    if (shouldDropPendingSeek({ pending: pendingSeek, selectedArtifactId: selectedId, failedArtifactId })) {
       setPendingSeek(null);
     }
   }, [pendingSeek, selectedId, decision]);
@@ -323,7 +330,9 @@ export default function ReviewRoom(props: Props) {
         )}
 
         <ArtifactSurface
-          decision={decision}
+          // A decision for a DIFFERENT artifact must not be rendered over this one —
+          // otherwise A's failure message shows while B is loading.
+          decision={decision && decision.artifactId === selectedId ? decision.value : null}
           previewUrl={preview?.url ?? null}
           onMediaReady={onMediaReady}
           mediaKey={selectedId ?? 'none'}

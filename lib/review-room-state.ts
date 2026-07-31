@@ -189,11 +189,22 @@ export function shouldApplySeek(args: {
 export function shouldDropPendingSeek(args: {
   pending: PendingSeek;
   selectedArtifactId: string | null;
-  /** true when preview creation for `selectedArtifactId` failed outright. */
-  previewFailed: boolean;
+  /**
+   * WHICH artifact's preview terminally failed, not merely "something failed".
+   *
+   * A bare boolean repeats the very race this module exists to close, one variable
+   * over: when switching from a FAILED artifact A to issue-linked B, the render that
+   * carries selected=B still carries A's failure decision, and a cleanup effect reading
+   * it in that flush would drop B's perfectly valid pending seek before B ever loads.
+   * Binding the failure to its artifact means only A's failure can cancel A's request.
+   */
+  failedArtifactId: string | null;
 }): boolean {
-  const { pending, selectedArtifactId, previewFailed } = args;
+  const { pending, selectedArtifactId, failedArtifactId } = args;
   if (!pending) return false;
-  if (pending.artifactId !== selectedArtifactId) return true;   // user moved on
-  return previewFailed;                                          // it can never load
+  // The user moved somewhere else entirely; the request is moot either way.
+  if (pending.artifactId !== selectedArtifactId) return true;
+  // Its OWN preview failed, so it can never load. Another artifact's failure says
+  // nothing about this one.
+  return failedArtifactId !== null && failedArtifactId === pending.artifactId;
 }
