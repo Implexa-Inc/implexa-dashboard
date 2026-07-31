@@ -159,7 +159,9 @@ const okPacketSources = Object.fromEntries(PACKET_SOURCE_KEYS.map((k) => [k, 're
 const goodPacket = () => ({
   ok: true,
   run: { id: 'run-1', slug: 's', runState: 'completed', status: 'completed', reviewStatus: 'pending', holdKind: null, startedAt: null },
-  lineage: { rootRunId: 'run-1', versions: [] },
+  // Realistic: the lineage contains the run being viewed — the page derives its
+  // "you are here" label by finding it there.
+  lineage: { rootRunId: 'run-1', versions: [{ runId: 'run-1', label: 'Original', runState: null, startedAt: null }] },
   artifacts: [], judgment: null, verification: { receipts: [] }, session: null, issues: [],
   sources: { ...okPacketSources },
 });
@@ -272,7 +274,12 @@ test('every mandatory packet field is required', () => {
 
 test('judgment and session are legitimately null, and that still parses', () => {
   assert.notEqual(parseReviewPacketResponse({ ...goodPacket(), judgment: null, session: null }), null);
-  assert.notEqual(parseReviewPacketResponse({ ...goodPacket(), judgment: { verdict: 'pass' }, session: { id: 's', state: 'draft' } }), null);
+  // When present they must be FULLY shaped — the UI renders every one of these fields.
+  assert.notEqual(parseReviewPacketResponse({
+    ...goodPacket(),
+    judgment: { id: 'j1', verdict: 'pass', summary: 'looks good', nextAction: null, createdAt: null },
+    session: { id: 's1', runId: 'run-1', state: 'draft', selectedArtifactId: null },
+  }), null);
 });
 
 test('a missing CONTRACTED packet source key is rejected', () => {
@@ -294,13 +301,17 @@ test('the LIVE payload shape parses — the parser matches production, not just 
   const livePacket = {
     ok: true,
     run: { id: '695352a5-2f9f-45d6-b6f7-188a7e6f1c5a', slug: 'ig-reel', runState: 'completed', status: 'completed', reviewStatus: 'none', holdKind: null, startedAt: null },
-    lineage: { rootRunId: '8fe1a734-d124-49a4-9011-5bd91a98aa40', versions: [{ runId: 'a', label: 'Original', runState: null, startedAt: null }] },
-    artifacts: [{ id: 'a1', runId: 'r', relativePath: 'out/x.mp4', role: 'final_output', status: 'validated', sha256: 'a'.repeat(64), sizeBytes: 1, mtime: null, validatedAt: null }],
+    lineage: { rootRunId: '8fe1a734-d124-49a4-9011-5bd91a98aa40', versions: [
+      { runId: '8fe1a734-d124-49a4-9011-5bd91a98aa40', label: 'Original', runState: null, startedAt: null },
+      { runId: '695352a5-2f9f-45d6-b6f7-188a7e6f1c5a', label: 'Revision 10', runState: null, startedAt: null },
+    ] },
+    artifacts: [{ id: 'a1', runId: '695352a5-2f9f-45d6-b6f7-188a7e6f1c5a', relativePath: 'out/x.mp4', role: 'final_output', status: 'validated', sha256: 'a'.repeat(64), sizeBytes: 1, mtime: null, validatedAt: null }],
     judgment: { id: 'j', verdict: 'pass', summary: 's', nextAction: null, createdAt: null },
     verification: { receipts: [] }, session: null, issues: [],
     sources: { artifacts: 'ready', issues: 'ready', judgment: 'ready', lineage: 'ready', run: 'ready', session: 'ready', verification: 'ready' },
   };
-  assert.notEqual(parseReviewPacketResponse(livePacket), null, 'the real packet must satisfy the parser');
+  assert.notEqual(parseReviewPacketResponse(livePacket, '695352a5-2f9f-45d6-b6f7-188a7e6f1c5a'), null,
+    'the real packet must satisfy the parser, identity check included');
 });
 
 // ── nested field validation: the containers were checked, the contents were not ──
@@ -364,7 +375,13 @@ test('an unknown reason is accepted (forward compatible) but never downgraded', 
 test('REPRO: a valid-looking packet for a DIFFERENT run is UNAVAILABLE', () => {
   // Otherwise run B's artifacts, lineage and issues render under run A's heading, and
   // every action the user takes targets the wrong run.
-  const packetForB = { ...goodPacket(), run: { ...goodPacket().run, id: 'run-B' } };
+  // Internally CONSISTENT packet for run B — its own lineage names run B. The only
+  // thing wrong with it is that we asked for run A.
+  const packetForB = {
+    ...goodPacket(),
+    run: { ...goodPacket().run, id: 'run-B' },
+    lineage: { rootRunId: 'run-B', versions: [{ runId: 'run-B', label: 'Original', runState: null, startedAt: null }] },
+  };
   assert.equal(parseReviewPacketResponse(packetForB, 'run-A'), null, 'identity mismatch must be refused');
   // and the matching case still parses
   assert.notEqual(parseReviewPacketResponse(packetForB, 'run-B'), null);
@@ -404,4 +421,117 @@ test('a fully-populated valid packet still parses with all nested shapes present
   assert.notEqual(p, null);
   assert.equal(p!.artifacts.length, 1);
   assert.equal(p!.issues.length, 1);
+});
+
+// ── nested records must be BOUND to the requested run ───────────────────────
+//
+// Validating each record in isolation is not enough: a well-formed record belonging to
+// a DIFFERENT run (or a different session of this run) renders under this run's
+// heading, and every action taken on it targets the wrong thing.
+
+const boundPacket = () => ({
+  ...goodPacket(),
+  artifacts: [{ id: 'a1', runId: 'run-1', relativePath: 'out/x.mp4', role: 'final_output', status: 'validated', sha256: 'a'.repeat(64), sizeBytes: 1, mtime: null, validatedAt: null }],
+  session: { id: 's1', runId: 'run-1', state: 'draft', selectedArtifactId: 'a1' },
+  issues: [{ id: 'i1', sessionId: 's1', runId: 'run-1', artifactId: 'a1', kind: 'timing', anchor: { version: 1, type: 'artifact', artifactSha256: 'a'.repeat(64) }, body: 'fix', status: 'draft', submittedRequestId: null, createdAt: null }],
+});
+
+test('the bound packet parses — the binding rules do not reject legitimate data', () => {
+  assert.notEqual(parseReviewPacketResponse(boundPacket(), 'run-1'), null);
+});
+
+test('REPRO: an artifact, session or issue from ANOTHER run is rejected', () => {
+  const cases: Array<[string, unknown]> = [
+    ['artifact.runId is another run', { ...boundPacket(), artifacts: [{ ...boundPacket().artifacts[0], runId: 'run-B' }] }],
+    ['session.runId is another run',  { ...boundPacket(), session: { ...boundPacket().session, runId: 'run-B' } }],
+    ['issue.runId is another run',    { ...boundPacket(), issues: [{ ...boundPacket().issues[0], runId: 'run-B' }] }],
+    ['session has no runId at all',   { ...boundPacket(), session: { id: 's1', state: 'draft' } }],
+  ];
+  for (const [why, body] of cases) {
+    assert.equal(parseReviewPacketResponse(body, 'run-1'), null, `${why} must be rejected`);
+  }
+});
+
+test('REPRO: an issue from another SESSION of this run is rejected', () => {
+  const body = { ...boundPacket(), issues: [{ ...boundPacket().issues[0], sessionId: 's-other' }] };
+  assert.equal(parseReviewPacketResponse(body, 'run-1'), null,
+    'editing or dismissing it would mutate feedback that was never written in this session');
+});
+
+test('REPRO: issues cannot exist when there is no session', () => {
+  const body = { ...boundPacket(), session: null };
+  assert.equal(parseReviewPacketResponse(body, 'run-1'), null,
+    'a rail of issues with no session cannot be edited, submitted or accepted');
+  // and a genuinely session-less packet with no issues is fine
+  assert.notEqual(parseReviewPacketResponse({ ...boundPacket(), session: null, issues: [] }, 'run-1'), null);
+});
+
+test('REPRO: a referenced artifact id must exist in the packet', () => {
+  const orphanIssue = { ...boundPacket(), issues: [{ ...boundPacket().issues[0], artifactId: 'a-missing' }] };
+  assert.equal(parseReviewPacketResponse(orphanIssue, 'run-1'), null,
+    'an issue anchored to an absent artifact can never be seeked to or highlighted');
+  const orphanSel = { ...boundPacket(), session: { ...boundPacket().session, selectedArtifactId: 'a-missing' } };
+  assert.equal(parseReviewPacketResponse(orphanSel, 'run-1'), null);
+  // a whole-file issue with no artifact reference is legitimate
+  assert.notEqual(parseReviewPacketResponse({ ...boundPacket(), issues: [{ ...boundPacket().issues[0], artifactId: null }] }, 'run-1'), null);
+});
+
+test('REPRO: lineage must contain the requested run, with unique version ids', () => {
+  const missing = { ...boundPacket(), lineage: { rootRunId: 'run-0', versions: [{ runId: 'run-0', label: 'Original' }] } };
+  assert.equal(parseReviewPacketResponse(missing, 'run-1'), null,
+    'the version switcher could not mark "you are here" and would offer only other runs');
+  const dupes = { ...boundPacket(), lineage: { rootRunId: 'run-1', versions: [
+    { runId: 'run-1', label: 'Original' }, { runId: 'run-1', label: 'Revision 1' },
+  ] } };
+  assert.equal(parseReviewPacketResponse(dupes, 'run-1'), null, 'two rows claiming to be the same version');
+  // an empty lineage is allowed — it means "no revisions", not "wrong run"
+  assert.notEqual(parseReviewPacketResponse({ ...boundPacket(), lineage: { rootRunId: 'run-1', versions: [] } }, 'run-1'), null);
+});
+
+// ── every field the UI actually renders ─────────────────────────────────────
+
+test('REPRO: judgment: {} is rejected — it rendered "Judge: undefined"', () => {
+  assert.equal(parseReviewPacketResponse({ ...boundPacket(), judgment: {} }, 'run-1'), null);
+  const partial: Array<[string, unknown]> = [
+    ['no verdict', { id: 'j', summary: 's' }],
+    ['empty verdict', { id: 'j', verdict: '', summary: 's' }],
+    ['no summary', { id: 'j', verdict: 'pass' }],
+    ['no id', { verdict: 'pass', summary: 's' }],
+  ];
+  for (const [why, judgment] of partial) {
+    assert.equal(parseReviewPacketResponse({ ...boundPacket(), judgment }, 'run-1'), null, `judgment ${why} must be rejected`);
+  }
+  assert.notEqual(parseReviewPacketResponse({ ...boundPacket(), judgment: { id: 'j', verdict: 'pass', summary: 'ok', nextAction: null, createdAt: null } }, 'run-1'), null);
+});
+
+test('REPRO: verification.receipts: [{}] is rejected — it rendered "undefined: undefined"', () => {
+  assert.equal(parseReviewPacketResponse({ ...boundPacket(), verification: { receipts: [{}] } }, 'run-1'), null);
+  for (const receipt of [{ id: 'r' }, { id: 'r', adapterKind: 'video_qa' }, { adapterKind: 'video_qa', status: 'pass' }, { id: 'r', adapterKind: '', status: 'pass' }]) {
+    assert.equal(parseReviewPacketResponse({ ...boundPacket(), verification: { receipts: [receipt] } }, 'run-1'), null);
+  }
+  assert.notEqual(parseReviewPacketResponse({ ...boundPacket(), verification: { receipts: [{ id: 'r', adapterKind: 'video_qa', status: 'pass', createdAt: null }] } }, 'run-1'), null);
+});
+
+// ── a real digest ───────────────────────────────────────────────────────────
+
+test('REPRO: a validated artifact with sha256: "" is rejected', () => {
+  // "" is a string and passed the old typeof check. It anchors nothing: every issue
+  // made against it would compare equal to an empty digest and never read as stale.
+  for (const sha256 of ['', 'not-a-digest', 'a'.repeat(63), 'a'.repeat(65), 'g'.repeat(64), null, undefined]) {
+    const body = { ...boundPacket(), artifacts: [{ ...boundPacket().artifacts[0], sha256 }] };
+    assert.equal(parseReviewPacketResponse(body, 'run-1'), null, `validated artifact with sha256=${JSON.stringify(sha256)} must be rejected`);
+  }
+  // a real digest passes, in either case
+  for (const sha256 of ['a'.repeat(64), 'A1B2'.repeat(16)]) {
+    const body = { ...boundPacket(), artifacts: [{ ...boundPacket().artifacts[0], sha256 }] };
+    assert.notEqual(parseReviewPacketResponse(body, 'run-1'), null);
+  }
+});
+
+test('a DECLARED artifact may have no digest — it is not evidence yet', () => {
+  const declared = { ...boundPacket(), artifacts: [{ id: 'a1', runId: 'run-1', relativePath: 'x.mp4', role: null, status: 'declared', sha256: null }] };
+  assert.notEqual(parseReviewPacketResponse(declared, 'run-1'), null);
+  // ...but a junk digest is still malformed
+  const junk = { ...boundPacket(), artifacts: [{ id: 'a1', runId: 'run-1', relativePath: 'x.mp4', role: null, status: 'declared', sha256: 'nope' }] };
+  assert.equal(parseReviewPacketResponse(junk, 'run-1'), null);
 });

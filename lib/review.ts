@@ -187,6 +187,9 @@ function parseSources(raw: unknown, required: readonly string[]): Record<string,
 const KNOWN_REASONS = new Set<string>(['new_result', 'in_review', 'judge', 'judge_repair_unattended', 'judge_repair_exhausted', 'approval']);
 
 const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+/** A real SHA-256. `sha256: ""` is a string, and it anchors nothing. */
+const SHA256_RE = /^[a-f0-9]{64}$/i;
+const isDigest = (v: unknown): v is string => typeof v === 'string' && SHA256_RE.test(v);
 const isNullableString = (v: unknown) => v === null || v === undefined || typeof v === 'string';
 const isNullableNumber = (v: unknown) => v === null || typeof v === 'number';
 
@@ -215,22 +218,35 @@ function isValidQueueItem(v: unknown): v is ReviewQueueItem {
 }
 
 /** An artifact must carry what the preview and the anchor digest need. */
-function isValidArtifact(v: unknown): boolean {
+function isValidArtifact(v: unknown, runId: string): boolean {
   if (!isObject(v)) return false;
   if (!isId(v.id) || !isId(v.runId)) return false;
+  // BOUND TO THIS RUN. An artifact carrying another run's id would render under this
+  // run's heading and be anchored against as if it were this run's deliverable.
+  if (v.runId !== runId) return false;
   if (typeof v.relativePath !== 'string' || !v.relativePath) return false;
   if (typeof v.status !== 'string' || !v.status) return false;
-  if (!isNullableString(v.sha256) || !isNullableString(v.role)) return false;
-  // A validated artifact without a digest cannot anchor feedback; that is malformed,
-  // not merely unanchorable.
-  if (v.status === 'validated' && typeof v.sha256 !== 'string') return false;
+  if (!isNullableString(v.role)) return false;
+  // A VALIDATED artifact must carry a REAL digest. `sha256: ""` is a string and passes
+  // a typeof check, but it anchors nothing: every issue made against it would compare
+  // equal to an empty digest and never register as stale.
+  if (v.status === 'validated') {
+    if (!isDigest(v.sha256)) return false;
+  } else if (!(v.sha256 === null || v.sha256 === undefined || isDigest(v.sha256))) {
+    return false;
+  }
   return true;
 }
 
 /** An issue must carry what the rail renders and what an edit/dismiss targets. */
-function isValidIssue(v: unknown): boolean {
+function isValidIssue(v: unknown, runId: string, sessionId: string | null): boolean {
   if (!isObject(v)) return false;
   if (!isId(v.id) || !isId(v.sessionId) || !isId(v.runId)) return false;
+  // BOUND. An issue from another run — or another session of this run — would appear in
+  // this rail, and editing or dismissing it would mutate feedback the user never wrote
+  // here. A packet with no session cannot legitimately carry issues at all.
+  if (v.runId !== runId) return false;
+  if (sessionId === null || v.sessionId !== sessionId) return false;
   if (typeof v.kind !== 'string' || !v.kind) return false;
   if (typeof v.body !== 'string') return false;
   if (typeof v.status !== 'string' || !v.status) return false;
@@ -245,8 +261,34 @@ function isValidVersion(v: unknown): boolean {
 }
 
 /** A session drives every lifecycle action, so it needs an id and a state. */
-function isValidSession(v: unknown): boolean {
-  return isObject(v) && isId(v.id) && typeof v.state === 'string' && !!v.state;
+function isValidSession(v: unknown, runId: string): boolean {
+  if (!isObject(v) || !isId(v.id) || typeof v.state !== 'string' || !v.state) return false;
+  // Every lifecycle action derives from this session; one belonging to another run
+  // would submit or accept the wrong work.
+  if (!isId(v.runId) || v.runId !== runId) return false;
+  return true;
+}
+
+/**
+ * The UI renders `Judge: {verdict}` and the summary beneath it. `judgment: {}` passed
+ * the old isObject check and rendered "Judge: undefined".
+ */
+function isValidJudgment(v: unknown): boolean {
+  if (!isObject(v)) return false;
+  if (!isId(v.id)) return false;
+  if (typeof v.verdict !== 'string' || !v.verdict) return false;
+  if (typeof v.summary !== 'string') return false;
+  if (!isNullableString(v.nextAction) || !isNullableString(v.createdAt)) return false;
+  return true;
+}
+
+/** The UI renders `{adapterKind}: {status}`. `receipts: [{}]` rendered "undefined: undefined". */
+function isValidReceipt(v: unknown): boolean {
+  if (!isObject(v)) return false;
+  if (!isId(v.id)) return false;
+  if (typeof v.adapterKind !== 'string' || !v.adapterKind) return false;
+  if (typeof v.status !== 'string' || !v.status) return false;
+  return true;
 }
 
 /**
@@ -292,17 +334,50 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
   // every action the user then took would target the wrong run. Refuse rather than
   // display someone else's work as this one.
   if (expectedRunId && body.run.id !== expectedRunId) return null;
-  if (!Array.isArray(body.artifacts) || !body.artifacts.every(isValidArtifact)) return null;
-  if (!Array.isArray(body.issues) || !body.issues.every(isValidIssue)) return null;
+  const runId = body.run.id;
+
+  // SESSION FIRST — every issue must belong to it, so it has to be resolved before
+  // they can be checked.
+  if (!(body.session === null || isValidSession(body.session, runId))) return null;
+  const sessionId = body.session === null ? null : (body.session as Record<string, unknown>).id as string;
+
+  if (!Array.isArray(body.artifacts) || !body.artifacts.every((a) => isValidArtifact(a, runId))) return null;
+  const artifactIds = new Set((body.artifacts as Array<Record<string, unknown>>).map((a) => String(a.id)));
+
+  if (!Array.isArray(body.issues) || !body.issues.every((i) => isValidIssue(i, runId, sessionId))) return null;
+  // REFERENTIAL INTEGRITY. An issue anchored to an artifact the packet does not contain
+  // renders a rail entry that can never be seeked to or highlighted — a comment
+  // pointing at nothing.
+  for (const i of body.issues as Array<Record<string, unknown>>) {
+    if (i.artifactId !== null && i.artifactId !== undefined && !artifactIds.has(String(i.artifactId))) return null;
+  }
+  if (body.session !== null) {
+    const sel = (body.session as Record<string, unknown>).selectedArtifactId;
+    if (sel !== null && sel !== undefined && !artifactIds.has(String(sel))) return null;
+  }
+
   if (!isObject(body.lineage)) return null;
   const versions = (body.lineage as Record<string, unknown>).versions;
   if (!Array.isArray(versions) || !versions.every(isValidVersion)) return null;
-  if (!isObject(body.verification) || !Array.isArray((body.verification as Record<string, unknown>).receipts)) return null;
-  // judgment and session are legitimately null; anything else must be an object.
-  if (!(body.judgment === null || isObject(body.judgment))) return null;
-  if (!(body.session === null || isValidSession(body.session))) return null;
+  // The lineage is the version switcher. If it does not contain the run being viewed,
+  // the switcher cannot mark "you are here" and offers only OTHER runs — and duplicate
+  // ids would render two rows claiming to be the same version.
+  if (versions.length > 0) {
+    const versionIds = (versions as Array<Record<string, unknown>>).map((v) => String(v.runId));
+    if (new Set(versionIds).size !== versionIds.length) return null;
+    if (!versionIds.includes(runId)) return null;
+  }
+
+  if (!isObject(body.verification)) return null;
+  const receipts = (body.verification as Record<string, unknown>).receipts;
+  if (!Array.isArray(receipts) || !receipts.every(isValidReceipt)) return null;
+
+  // judgment is legitimately null; when present every field the UI renders must be there.
+  if (!(body.judgment === null || isValidJudgment(body.judgment))) return null;
+
   const sources = parseSources(body.sources, PACKET_SOURCE_KEYS);
   if (!sources) return null;
+
   return {
     ok: true,
     run: body.run as ReviewPacket['run'],
