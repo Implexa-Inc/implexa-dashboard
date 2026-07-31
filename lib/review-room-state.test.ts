@@ -164,3 +164,105 @@ test('the 28-artifact case: issues stay partitioned across many files', () => {
     assert.equal((scoped[0] as any).id, `i${n}`);
   }
 });
+
+// ── the cross-artifact seek race ────────────────────────────────────────────
+
+import { shouldApplySeek, shouldDropPendingSeek } from './review-room-state.ts';
+
+test('REPRO: a pending seek is NOT applied while the old artifact is still on screen', () => {
+  // The exact intermediate render: selection has moved to B, but the preview still
+  // belongs to A because setPreview(null) is not visible yet in the same flush.
+  assert.equal(shouldApplySeek({
+    pending: { artifactId: 'artB', seekMs: 9000 },
+    selectedArtifactId: 'artB',
+    readyPreviewArtifactId: 'artA',
+  }), false, "this is the frame where the old code seeked A to B's timestamp and cleared the request");
+
+  // and once B's preview is genuinely loaded, it applies
+  assert.equal(shouldApplySeek({
+    pending: { artifactId: 'artB', seekMs: 9000 },
+    selectedArtifactId: 'artB',
+    readyPreviewArtifactId: 'artB',
+  }), true);
+});
+
+test('REPRO: a further switch cannot apply B\'s timestamp to C', () => {
+  // user clicked an issue on B, then manually switched to C before B loaded
+  assert.equal(shouldApplySeek({
+    pending: { artifactId: 'artB', seekMs: 9000 },
+    selectedArtifactId: 'artC',
+    readyPreviewArtifactId: 'artC',
+  }), false, 'identity travels with the request precisely so this cannot happen');
+});
+
+test('all three must agree — no two-out-of-three shortcut', () => {
+  const cases: Array<[string, string | null, string | null, boolean]> = [
+    // pendingFor, selected, ready, expected
+    ['artB', 'artB', 'artB', true],
+    ['artB', 'artB', 'artA', false],   // preview still the old file
+    ['artB', 'artA', 'artB', false],   // selection moved away
+    ['artB', 'artA', 'artA', false],   // request is stale
+    ['artB', 'artB', null,   false],   // nothing loaded yet
+    ['artB', null,   'artB', false],
+  ];
+  for (const [pendingFor, selected, ready, expected] of cases) {
+    assert.equal(
+      shouldApplySeek({ pending: { artifactId: pendingFor, seekMs: 1 }, selectedArtifactId: selected, readyPreviewArtifactId: ready }),
+      expected,
+      `pending=${pendingFor} selected=${selected} ready=${ready}`,
+    );
+  }
+  assert.equal(shouldApplySeek({ pending: null, selectedArtifactId: 'artB', readyPreviewArtifactId: 'artB' }), false);
+});
+
+test('a pending seek that can never be satisfied is dropped, not held', () => {
+  // its artifact failed to preview at all
+  assert.equal(shouldDropPendingSeek({
+    pending: { artifactId: 'artB', seekMs: 1 }, selectedArtifactId: 'artB', previewFailed: true,
+  }), true, 'holding it would fire on some unrelated later load');
+  // the user moved on
+  assert.equal(shouldDropPendingSeek({
+    pending: { artifactId: 'artB', seekMs: 1 }, selectedArtifactId: 'artC', previewFailed: false,
+  }), true);
+  // still loading its own artifact — keep waiting
+  assert.equal(shouldDropPendingSeek({
+    pending: { artifactId: 'artB', seekMs: 1 }, selectedArtifactId: 'artB', previewFailed: false,
+  }), false);
+  assert.equal(shouldDropPendingSeek({ pending: null, selectedArtifactId: 'artB', previewFailed: true }), false);
+});
+
+test('LIFECYCLE REPLAY: the batched switch->load sequence seeks the NEW player exactly once', () => {
+  // A deterministic replay of the render/effect ordering the component goes through.
+  // NOTE: this is a MODEL of the sequence, not the React runtime — this repo has no DOM
+  // renderer, so the assembled component is still only exercised by hand (see the PR's
+  // residual gates). What it does pin is that the GATE rejects the intermediate frame
+  // and accepts exactly one later one.
+  let selected = 'artA';
+  let ready: string | null = 'artA';           // A's preview is loaded
+  let pending: { artifactId: string; seekMs: number } | null = null;
+  const seeks: Array<{ artifact: string | null; ms: number }> = [];
+
+  const mediaReady = () => {
+    if (shouldApplySeek({ pending, selectedArtifactId: selected, readyPreviewArtifactId: ready })) {
+      seeks.push({ artifact: ready, ms: pending!.seekMs });
+      pending = null;
+    }
+  };
+
+  // 1. click an issue belonging to B: selection and request are batched together
+  selected = 'artB';
+  pending = { artifactId: 'artB', seekMs: 9000 };
+  // 2. the intermediate frame — preview state still says A
+  mediaReady();
+  assert.deepEqual(seeks, [], 'must NOT seek while A is still the loaded preview');
+  assert.notEqual(pending, null, 'and must NOT clear the request');
+  // 3. the preview lifecycle clears, then B loads
+  ready = null; mediaReady();
+  assert.deepEqual(seeks, []);
+  ready = 'artB'; mediaReady();
+  assert.deepEqual(seeks, [{ artifact: 'artB', ms: 9000 }], 'seeks the NEW player, once');
+  assert.equal(pending, null);
+  // 4. a later loadedmetadata (e.g. a re-render) must not seek again
+  mediaReady();
+  assert.equal(seeks.length, 1, 'exactly once');
+});

@@ -147,3 +147,53 @@ export function issueClickTarget(issue: ScopableIssue, selectedArtifactId: strin
   const artifactId = issue.artifactId ?? null;
   return { artifactId, needsSwitch: !!artifactId && artifactId !== selectedArtifactId, seekMs };
 }
+
+// ── cross-artifact seeking ──────────────────────────────────────────────────
+//
+// Switching artifact and then seeking is a THREE-WAY agreement, and getting it wrong is
+// invisible: the wrong video moves, or nothing moves and the request is silently lost.
+//
+// The race this exists to close: `setSelectedId(B)` and the pending seek are batched, so
+// the very next render still carries artifact A's preview URL and media element. An
+// effect that only checks "is there a URL and a ref?" reads A's — because a
+// `setPreviewUrl(null)` scheduled by an earlier effect in the SAME flush is not visible
+// to a later one — seeks A to B's timestamp, and clears the request. B then loads with
+// nothing left to do.
+//
+// So a pending seek carries its artifact identity, and is applied only when the
+// selection, the READY preview, and the request all name the same artifact.
+
+export type PendingSeek = { artifactId: string; seekMs: number } | null;
+
+export function shouldApplySeek(args: {
+  pending: PendingSeek;
+  selectedArtifactId: string | null;
+  /** Which artifact the CURRENTLY LOADED preview belongs to — not merely "a URL exists". */
+  readyPreviewArtifactId: string | null;
+}): boolean {
+  const { pending, selectedArtifactId, readyPreviewArtifactId } = args;
+  if (!pending) return false;
+  // The equality chain already covers "nothing loaded": a pending seek always names a
+  // real artifact, so comparing it against null is false. A separate null guard here
+  // would be decorative — verified by mutation.
+  return pending.artifactId === selectedArtifactId && selectedArtifactId === readyPreviewArtifactId;
+}
+
+/**
+ * A pending seek that can never be satisfied must be dropped, not held forever.
+ *
+ * If the preview for its artifact FAILED, the file will never appear, so retaining the
+ * request would leave a silent promise that fires on some unrelated later load. If the
+ * user has since selected a different artifact, the request is equally moot.
+ */
+export function shouldDropPendingSeek(args: {
+  pending: PendingSeek;
+  selectedArtifactId: string | null;
+  /** true when preview creation for `selectedArtifactId` failed outright. */
+  previewFailed: boolean;
+}): boolean {
+  const { pending, selectedArtifactId, previewFailed } = args;
+  if (!pending) return false;
+  if (pending.artifactId !== selectedArtifactId) return true;   // user moved on
+  return previewFailed;                                          // it can never load
+}

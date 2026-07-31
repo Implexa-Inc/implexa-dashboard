@@ -32,6 +32,7 @@ import {
 import {
   reviewRoomActions, ACCEPT_DISCLAIMER,
   issuesForArtifact, artifactForIssue, isIssueStale, issueClickTarget,
+  shouldApplySeek, shouldDropPendingSeek, type PendingSeek,
 } from '@/lib/review-room-state';
 
 type Props = {
@@ -69,7 +70,9 @@ export default function ReviewRoom(props: Props) {
   const artifact = useMemo(() => artifacts.find((a) => a.id === selectedId) ?? null, [artifacts, selectedId]);
 
   const [decision, setDecision] = useState<PreviewDecision | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // The URL is BOUND to the artifact it was minted for. A bare string cannot tell
+  // you which file is on screen, which is what made the seek race possible.
+  const [preview, setPreview] = useState<{ url: string; artifactId: string } | null>(null);
   const tokenRef = useRef<string | null>(null);
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
 
@@ -88,9 +91,9 @@ export default function ReviewRoom(props: Props) {
   const [draftBody, setDraftBody] = useState('');
   const [textContent, setTextContent] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  // A seek requested for an artifact that is not on screen: the switch remounts the
-  // media element, so the position is applied once the new one is ready.
-  const [pendingSeekMs, setPendingSeekMs] = useState<number | null>(null);
+  // A seek requested for an artifact that is not on screen. It carries the artifact id
+  // so it can never be applied to a different file.
+  const [pendingSeek, setPendingSeek] = useState<PendingSeek>(null);
 
   const drafts = useMemo(() => issues.filter((i) => i.status === 'draft'), [issues]);
   const ordered = useMemo(() => sortIssues(issues), [issues]);
@@ -118,7 +121,7 @@ export default function ReviewRoom(props: Props) {
     // Switching artifact or version revokes the previous token immediately rather than
     // leaving a live capability pointing at a file the user is no longer reviewing.
     if (prevToken) { revokePreview(prevToken); tokenRef.current = null; }
-    setPreviewUrl(null);
+    setPreview(null);
     setTextContent(null);
     // Per-artifact draft state does not survive a switch: a position captured in the
     // previous file would anchor the next comment to a moment in a different video.
@@ -149,7 +152,7 @@ export default function ReviewRoom(props: Props) {
         return;
       }
       tokenRef.current = token;
-      setPreviewUrl(url!);
+      setPreview({ url: url!, artifactId: artifact.id });
       if (base.kind === 'text') {
         try {
           const r = await fetch(url!);
@@ -237,19 +240,37 @@ export default function ReviewRoom(props: Props) {
     const target = issueClickTarget(issue, selectedId);
     if (target.needsSwitch && target.artifactId) {
       setSelectedId(target.artifactId);
-      setPendingSeekMs(target.seekMs);
+      // Identity travels WITH the request, so a further switch before B loads cannot
+      // apply B's timestamp to C.
+      setPendingSeek(target.seekMs === null ? null : { artifactId: target.artifactId, seekMs: target.seekMs });
       return;
     }
     if (target.seekMs !== null) seekTo(target.seekMs);
   }, [selectedId, seekTo]);
 
-  // Apply a seek that was requested before this artifact was on screen.
+  /**
+   * Apply the pending seek WHEN THE NEW PLAYER REPORTS READY (loadedmetadata), not from
+   * an effect that races the preview lifecycle. The three-way agreement is checked here:
+   * the request, the selection, and the loaded preview must all name the same artifact.
+   */
+  const onMediaReady = useCallback(() => {
+    if (!shouldApplySeek({
+      pending: pendingSeek,
+      selectedArtifactId: selectedId,
+      readyPreviewArtifactId: preview?.artifactId ?? null,
+    })) return;
+    seekTo(pendingSeek!.seekMs);
+    setPendingSeek(null);
+  }, [pendingSeek, selectedId, preview, seekTo]);
+
+  // A pending seek that can never be satisfied is dropped rather than held: retaining it
+  // would fire on some unrelated later load.
   useEffect(() => {
-    if (pendingSeekMs === null) return;
-    if (!previewUrl || !mediaRef.current) return;
-    seekTo(pendingSeekMs);
-    setPendingSeekMs(null);
-  }, [pendingSeekMs, previewUrl, seekTo]);
+    const failed = !!decision && decision.state !== 'ready' && decision.state !== 'loading';
+    if (shouldDropPendingSeek({ pending: pendingSeek, selectedArtifactId: selectedId, previewFailed: failed })) {
+      setPendingSeek(null);
+    }
+  }, [pendingSeek, selectedId, decision]);
 
   // ── actions ───────────────────────────────────────────────────────────────
   const onSubmit = useCallback(async () => {
@@ -303,7 +324,9 @@ export default function ReviewRoom(props: Props) {
 
         <ArtifactSurface
           decision={decision}
-          previewUrl={previewUrl}
+          previewUrl={preview?.url ?? null}
+          onMediaReady={onMediaReady}
+          mediaKey={selectedId ?? 'none'}
           textContent={textContent}
           mediaRef={mediaRef}
           issues={surfaceIssues}
@@ -521,9 +544,14 @@ export default function ReviewRoom(props: Props) {
 /** The viewer. Every non-ready state renders words and buttons, never a dead player. */
 function ArtifactSurface({
   decision, previewUrl, textContent, mediaRef, issues, onPause, onSelectText, onSeek,
+  onMediaReady, mediaKey,
 }: {
   decision: PreviewDecision | null;
   previewUrl: string | null;
+  /** Fired on loadedmetadata — the only safe moment to apply a cross-artifact seek. */
+  onMediaReady: () => void;
+  /** Remounts the element per artifact, so loadedmetadata fires for the NEW file. */
+  mediaKey: string;
   textContent: string | null;
   mediaRef: React.MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
   issues: ReviewIssue[];
@@ -567,10 +595,14 @@ function ArtifactSurface({
     return (
       <div>
         <Tag
+          // KEYED BY ARTIFACT. Without this React reuses the element across a switch and
+          // loadedmetadata may never fire for the new file, so a pending seek would hang.
+          key={mediaKey}
           ref={mediaRef as never}
           src={previewUrl}
           controls
           className={decision.kind === 'video' ? 'w-full rounded bg-black' : 'w-full'}
+          onLoadedMetadata={onMediaReady}
           onPause={(e) => onPause((e.currentTarget as HTMLMediaElement).currentTime)}
         />
         {markers.length > 0 && (
