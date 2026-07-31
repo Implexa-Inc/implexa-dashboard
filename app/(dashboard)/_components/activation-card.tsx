@@ -242,6 +242,13 @@ type ComputerUsePermissionState = {
   ready: boolean;
 };
 
+type ComputerUseManagedHealth = {
+  supported: boolean;
+  status: string;
+  failureCode: string | null;
+  features: { checkHealth: boolean; restartIfIdle: boolean; openPermissions: boolean; managedRuntime: boolean };
+};
+
 // Computer Use is an OS-level capability of the packaged Implexa app (it is the
 // app that launches Codex), while the workflow permission itself remains scoped
 // to this agent. Put the macOS explanation here, before the first run, so the
@@ -249,6 +256,7 @@ type ComputerUsePermissionState = {
 function ComputerUseSetup({ onReady }: { onReady: (ready: boolean) => void }) {
   const bridge = useDesktopBridge();
   const [state, setState] = useState<ComputerUsePermissionState | null>(null);
+  const [managedHealth, setManagedHealth] = useState<ComputerUseManagedHealth | null>(null);
   const [checking, setChecking] = useState(false);
 
   const check = async () => {
@@ -258,6 +266,10 @@ function ComputerUseSetup({ onReady }: { onReady: (ready: boolean) => void }) {
       const next = await bridge.computerUsePermissionsStatus();
       setState(next);
       onReady(!!next?.ready);
+      if (bridge.checkComputerUseHealth) {
+        const health = await bridge.checkComputerUseHealth({ targetApp: 'com.google.Chrome' });
+        setManagedHealth(health);
+      }
     } finally { setChecking(false); }
   };
   useEffect(() => { void check(); }, [bridge]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -290,11 +302,31 @@ function ComputerUseSetup({ onReady }: { onReady: (ready: boolean) => void }) {
             {!granted(state?.accessibility) && <button type="button" onClick={() => open('accessibility')} className="btn-outline text-xs px-2.5 py-1">Open settings</button>}
           </div>
           {state?.ready ? (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">✓ Ready for Codex Computer Use</p>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">✓ macOS permissions granted</p>
           ) : (
             <button type="button" onClick={check} disabled={checking} className="text-xs text-brand-500 hover:underline disabled:opacity-60">
               {checking ? 'Checking…' : 'I granted both — check again'}
             </button>
+          )}
+          {state?.ready && (
+            <div className="rounded-md border border-ink-700/50 bg-ink-900/30 p-2.5 space-y-1.5">
+              <p className="text-xs text-ink-300">
+                Computer control health is checked inside the Codex run before its first app action. This is not a desktop pre-dispatch health check.
+              </p>
+              {managedHealth?.features.restartIfIdle !== true && (
+                <p className="text-[11px] text-ink-500">
+                  Automatic recovery is unavailable because the current Computer Use runtime does not expose a safe managed restart.
+                </p>
+              )}
+              <button
+                type="button"
+                disabled
+                title="A safe managed restart is not supported by the current Computer Use runtime"
+                className="btn-outline text-xs px-2.5 py-1 opacity-50 cursor-not-allowed"
+              >
+                Restart computer control
+              </button>
+            </div>
           )}
         </div>
       ) : (
