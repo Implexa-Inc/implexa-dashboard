@@ -209,6 +209,30 @@ export async function requestPreview(runId: string, artifactId: string): Promise
   }
 }
 
+/**
+ * The text body of a text-like artifact, taken FROM THE BRIDGE RESPONSE.
+ *
+ * Not fetched from the preview URL: Chromium refuses fetch() to a non-http(s) scheme
+ * from an http(s) page before any handler runs, so reading the body that way fails for
+ * every text artifact. Media/image elements are no-cors and unaffected, which is exactly
+ * why the gap was invisible — the videos worked.
+ *
+ * Returns null when the desktop did not supply text, so the caller can say "could not
+ * read this" rather than render an empty pane that looks like an empty file. An empty
+ * STRING is a legitimate answer (the artifact really is empty) and is preserved.
+ */
+export function previewText(result: unknown): string | null {
+  const r = result as { ok?: boolean; text?: unknown } | null | undefined;
+  if (!r || r.ok !== true) return null;
+  return typeof r.text === 'string' ? r.text : null;
+}
+
+/** Was that text clipped at the desktop's cap? A clipped file must never look whole. */
+export function previewTextTruncated(result: unknown): boolean {
+  const r = result as { textTruncated?: unknown } | null | undefined;
+  return r?.textTruncated === true;
+}
+
 export async function revokePreview(token: string | null | undefined): Promise<void> {
   if (!token) return;
   const w = (typeof window !== 'undefined' ? window : undefined) as WindowWithBridge | undefined;

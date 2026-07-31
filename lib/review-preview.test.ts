@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import {
   previewKind, desktopPreviewSupported, inDesktopApp, decidePreview,
   interpretPreviewResult, isSafePreviewUrl, parsePreviewUrl,
+  previewText, previewTextTruncated,
 } from './review-preview.ts';
 
 const TOKEN = 'a'.repeat(24);
@@ -173,4 +174,43 @@ test('the extension parser reads the FINAL SEGMENT and a clean extension', () =>
   assert.equal(previewKind('..'), 'unsupported');
   assert.equal(previewKind('x.mp4.exe'), 'unsupported', 'only the real trailing extension counts');
   assert.equal(previewKind('a.m p4'), 'unsupported', 'a non-alphanumeric extension is not acted on');
+});
+
+// ── text arrives on the BRIDGE RESPONSE, not from the preview URL ────────────
+//
+// Desktop #42 finding: this used to be `fetch(previewUrl)`, which can never work —
+// Chromium refuses fetch() to a non-http(s) scheme from an http(s) page before any
+// handler runs. Media/image elements are no-cors and unaffected, so every
+// markdown/json/txt/csv preview failed while the videos looked fine.
+
+test('previewText reads the text the desktop supplied', () => {
+  assert.equal(previewText({ ok: true, text: '# hello' }), '# hello');
+});
+
+test('an EMPTY string is a real answer and is preserved, not turned into a failure', () => {
+  // An empty artifact is empty. Collapsing that to null would tell the reviewer we
+  // could not read the file, which is a different and false statement.
+  assert.equal(previewText({ ok: true, text: '' }), '');
+});
+
+test('missing or non-string text is null, so the caller can say it could not be read', () => {
+  for (const r of [
+    { ok: true },                       // desktop supplied none
+    { ok: true, text: null },
+    { ok: true, text: 42 },
+    { ok: true, text: { a: 1 } },
+    { ok: false, text: 'x' },           // the preview itself failed
+    null, undefined, 'nope',
+  ]) {
+    assert.equal(previewText(r), null, `should be null: ${JSON.stringify(r)}`);
+  }
+});
+
+test('truncation is reported only when the desktop actually says so', () => {
+  assert.equal(previewTextTruncated({ ok: true, text: 'x', textTruncated: true }), true);
+  assert.equal(previewTextTruncated({ ok: true, text: 'x', textTruncated: false }), false);
+  assert.equal(previewTextTruncated({ ok: true, text: 'x' }), false);
+  // Never inferred from a truthy value — a clipped-file notice must be a fact.
+  assert.equal(previewTextTruncated({ ok: true, textTruncated: 'yes' }), false);
+  assert.equal(previewTextTruncated(null), false);
 });

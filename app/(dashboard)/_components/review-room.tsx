@@ -23,6 +23,7 @@ import type { ReviewArtifact, ReviewIssue, ReviewSession, SourceState } from '@/
 import {
   decidePreview, interpretPreviewResult, requestPreview, revokePreview,
   desktopPreviewSupported, inDesktopApp, isSafePreviewUrl,
+  previewText, previewTextTruncated,
   type PreviewDecision,
 } from '@/lib/review-preview';
 import {
@@ -93,6 +94,7 @@ export default function ReviewRoom(props: Props) {
   const [draftKind, setDraftKind] = useState<string>('content');
   const [draftBody, setDraftBody] = useState('');
   const [textContent, setTextContent] = useState<string | null>(null);
+  const [textTruncated, setTextTruncated] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   // A seek requested for an artifact that is not on screen. It carries the artifact id
   // so it can never be applied to a different file.
@@ -126,6 +128,7 @@ export default function ReviewRoom(props: Props) {
     if (prevToken) { revokePreview(prevToken); tokenRef.current = null; }
     setPreview(null);
     setTextContent(null);
+    setTextTruncated(false);
     // Per-artifact draft state does not survive a switch: a position captured in the
     // previous file would anchor the next comment to a moment in a different video.
     setPausedAtMs(null);
@@ -157,13 +160,18 @@ export default function ReviewRoom(props: Props) {
       tokenRef.current = token;
       setPreview({ url: url!, artifactId: artifact.id });
       if (base.kind === 'text') {
-        try {
-          const r = await fetch(url!);
-          const t = await r.text();
-          if (!cancelled) setTextContent(t);
-        } catch {
+        // The text comes back ON THE BRIDGE RESPONSE, not from the preview URL.
+        //
+        // This used to be `fetch(url)`, which can never work: Chromium refuses fetch()
+        // to a non-http(s) scheme from an http(s) page before any handler runs, so every
+        // markdown/json/txt/csv preview failed with an opaque "Failed to fetch". Media
+        // and image elements are no-cors and unaffected, which is why it looked fine.
+        const text = previewText(result);
+        if (text === null) {
           if (!cancelled) setDecision({ artifactId: artifact.id, value: { ...next, state: 'unavailable', message: 'Implexa could not read this file for review just now. That does not mean the file is gone.' } });
+          return;
         }
+        if (!cancelled) { setTextContent(text); setTextTruncated(previewTextTruncated(result)); }
       }
     })();
 
@@ -337,6 +345,7 @@ export default function ReviewRoom(props: Props) {
           onMediaReady={onMediaReady}
           mediaKey={selectedId ?? 'none'}
           textContent={textContent}
+          textTruncated={textTruncated}
           mediaRef={mediaRef}
           issues={surfaceIssues}
           onPause={(sec) => setPausedAtMs(Math.round(sec * 1000))}
@@ -552,7 +561,7 @@ export default function ReviewRoom(props: Props) {
 
 /** The viewer. Every non-ready state renders words and buttons, never a dead player. */
 function ArtifactSurface({
-  decision, previewUrl, textContent, mediaRef, issues, onPause, onSelectText, onSeek,
+  decision, previewUrl, textContent, textTruncated, mediaRef, issues, onPause, onSelectText, onSeek,
   onMediaReady, mediaKey,
 }: {
   decision: PreviewDecision | null;
@@ -562,6 +571,7 @@ function ArtifactSurface({
   /** Remounts the element per artifact, so loadedmetadata fires for the NEW file. */
   mediaKey: string;
   textContent: string | null;
+  textTruncated: boolean;
   mediaRef: React.MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
   issues: ReviewIssue[];
   onPause: (seconds: number) => void;
@@ -642,7 +652,7 @@ function ArtifactSurface({
   }
 
   if (decision.kind === 'text') {
-    return (
+    const body = (
       <pre
         className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded bg-ink-950 p-3 text-sm text-ink-200"
         onMouseUp={() => {
@@ -657,6 +667,16 @@ function ArtifactSurface({
         {textContent ?? ''}
       </pre>
     );
+    return textTruncated ? (
+      <div>
+        {body}
+        {/* A clipped file must never read as a whole one — a reviewer would otherwise
+            sign off on an ending they were never shown. */}
+        <p className="mt-2 text-xs text-ink-400">
+          Showing the first 2 MB of this file. The rest is not displayed here.
+        </p>
+      </div>
+    ) : body;
   }
 
   // pdf and anything else that reached ready
