@@ -23,6 +23,28 @@ export type DesktopBridge = {
     accessibility: string;
     ready: boolean;
   }>;
+  checkComputerUseHealth?: (options?: { targetApp?: string }) => Promise<{
+    supported: boolean;
+    status: 'ready' | 'permission_missing' | 'helper_unhealthy' | 'capture_unavailable' | 'target_app_unavailable' | 'unavailable';
+    failureCode: string | null;
+    checkedAt: string;
+    latencyMs: number;
+    repairAttempted: boolean;
+    repairSucceeded: boolean;
+    features: {
+      checkHealth: boolean;
+      restartIfIdle: boolean;
+      openPermissions: boolean;
+      managedRuntime: boolean;
+    };
+  }>;
+  restartComputerUse?: () => Promise<{
+    ok: boolean;
+    code?: string | null;
+    status: string;
+    repairAttempted: boolean;
+    repairSucceeded: boolean;
+  }>;
   openComputerUsePermissions?: (pane: 'screenRecording' | 'accessibility') => Promise<{ ok: boolean; code?: string }>;
   connectAccount?: (domain: string) => Promise<{ ok: boolean; message?: string }>;
   verifyAccount?: (domain: string) => Promise<{ ok: boolean; reachable?: boolean; identity?: string | null; message?: string }>;

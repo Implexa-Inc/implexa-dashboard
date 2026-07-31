@@ -14,9 +14,25 @@ test('Computer Use is an activation prerequisite with honest Implexa/macOS copy'
   assert.match(CARD, /Screen Recording/);
   assert.match(CARD, /Accessibility/);
   assert.match(CARD, /macOS may say “<strong className="font-semibold text-ink-200">Implexa<\/strong> wants to record this computer’s screen”/);
-  assert.match(CARD, /Ready for Codex Computer Use/);
+  assert.match(CARD, /macOS permissions granted/);
   assert.match(CARD, /computerUseSatisfied/);
   assert.match(CARD, /Set up required Computer Use/);
+});
+
+test('permissions never overclaim runtime health and unsupported recovery is honest', () => {
+  assert.doesNotMatch(CARD, /Ready for Codex Computer Use/);
+  assert.match(CARD, /This is not a desktop pre-dispatch health check/);
+  assert.match(CARD, /current Computer Use runtime does not expose a safe managed restart/);
+  assert.match(CARD, /managedHealth\?\.features\.restartIfIdle !== true/);
+  const labelAt = CARD.indexOf('Restart computer control');
+  assert.notEqual(labelAt, -1);
+  const buttonAt = CARD.lastIndexOf('<button', labelAt);
+  assert.notEqual(buttonAt, -1);
+  const openingTag = CARD.slice(buttonAt, CARD.indexOf('>', buttonAt) + 1);
+  assert.match(openingTag, /\sdisabled(?:\s|>)/);
+  assert.doesNotMatch(openingTag, /onClick=/);
+  assert.doesNotMatch(CARD, /restartComputerUse\(/,
+    'restart must remain disconnected until the runtime exposes atomic restartIfIdle');
 });
 
 test('Computer Use readiness is local-desktop evidence, not a remote dashboard claim', () => {
