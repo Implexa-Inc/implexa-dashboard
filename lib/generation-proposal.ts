@@ -580,6 +580,10 @@ export function parseGenerationProposalResponse(
   // must match the receipt's. A bare `status: 'completed'` proves nothing.
   if (progress === 'completed') {
     if (!receipt || receipt.digest === null) return null;
+    // Coverage is re-stated as a count and then PROVEN per task by the loop's
+    // find(): rows are ⊆ tasks and deduped, so mutating this line alone does not
+    // fail a test (verified by mutation) — kept, like the backend's own copy of
+    // it, as an explicit statement and a guard against the loop ever loosening.
     if (receipt.tasks.length !== compiled.taskCount) return null;
     for (const task of compiled.tasks) {
       const row = receipt.tasks.find((r) => r.taskId === task.taskId);
@@ -587,6 +591,9 @@ export function parseGenerationProposalResponse(
       const created = createdByTask.get(task.taskId);
       const succeeded = succeededByTask.get(task.taskId);
       if (!created || !succeeded) return null;
+      // The created-side agreement is implied by the succeeded-side check plus
+      // the event pairing above (created.provider === succeeded.provider), so it
+      // too survives mutation untested — stated anyway, as the backend states it.
       if (row.providerTaskId !== created.providerTaskId) return null;
       if (row.providerTaskId !== succeeded.providerTaskId) return null;
       if (row.artifactSha256 !== succeeded.artifactSha256) return null;

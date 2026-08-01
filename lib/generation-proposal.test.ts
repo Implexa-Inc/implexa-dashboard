@@ -302,8 +302,13 @@ test('only contracted event types with their type-specific statuses parse', () =
   });
   // the legal pair
   assert.ok(parse(base([createdEvent(t1, providerId(0))], 60)));
-  // an unknown event type
+  // an unknown event type — in BOTH status dressings, so the type allowlist is
+  // what rejects it, not a status check downstream of it
   assert.equal(parse(base([{ ...createdEvent(t1, providerId(0)), event_type: 'task_retried' }], 60)), null);
+  assert.equal(
+    parse(base([createdEvent(t1, providerId(0)), { ...succeededEvent(t1, providerId(0), artifactShaFor(0)), event_type: 'task_retried' }], 60)),
+    null,
+  );
   // type/status mismatch in both directions
   assert.equal(parse(base([{ ...createdEvent(t1, providerId(0)), status: 'succeeded' }], 60)), null);
   const success = succeededEvent(t1, providerId(0), artifactShaFor(0));
@@ -525,6 +530,15 @@ test('self-contradictory availability is refused', () => {
   const emptyAvailable = statusBody(FAST_COMPILED);
   (emptyAvailable.proposal as Dict).tasks = [];
   assert.equal(parse(emptyAvailable), null);
+  // ...and the FULLY-stripped variant: an internally-consistent empty graph
+  // (production's shape) claiming to be available. Every coherence check
+  // passes; only the approvable-must-propose-something rule can refuse it.
+  const hollowAvailable = statusBody(PRODUCTION_COMPILED, { availability: true, unavailable_reason: null });
+  const hollowProposal = hollowAvailable.proposal as Dict;
+  hollowProposal.availability = true;
+  hollowProposal.unavailable_reason = null;
+  hollowProposal.required_missing_capabilities = [];
+  assert.equal(parse(hollowAvailable), null);
 });
 
 test('malformed artifact digests in events are refused', () => {
