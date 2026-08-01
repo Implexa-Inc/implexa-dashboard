@@ -1,16 +1,8 @@
 /**
- * lib/generation-proposal.fixtures.ts — EXACT compiled proposals for the parser
- * tests, generated from the backend generation-quality compiler
- * (compiler_version generation-quality.v1, contract_version 2026-08-01) on
- * 2026-08-01, post-review revision of backend PR #130: Professional now
- * compiles UNAVAILABLE (missing_required_professional_execution_capabilities)
- * while retaining its full task graph, pins, and review requirements for
- * preview; Production remains unavailable with an empty graph. Every digest is
- * the compiler's real output, not hand-written. Regenerate against #130's
- * merged head before declaring the transport binding reconciled.
- *
- * The moments mirror the founder smoke: fast mode compiles exactly 3 tasks at 60
- * credits each — 180 credits maximum.
+ * EXACT compiler fixtures generated from backend PR #130 head
+ * 19fc508091134b09a4a61799d411a18eccdef332 (generation-quality.v1 / 2026-08-01).
+ * Run with IMPLEXA_BACKEND_DIR=/path/to/implexa-backend npm run fixtures:generation.
+ * The generator refuses any other backend HEAD.
  */
 
 export const FAST_COMPILED = {
