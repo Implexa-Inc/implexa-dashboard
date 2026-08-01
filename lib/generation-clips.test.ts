@@ -83,6 +83,14 @@ test('an unreadable artifact source is its own state — clips are not quietly f
   assert.match(String(rows[0].noArtifactReason), /couldn't load/i);
 });
 
+test('a dead artifact source is never joined against — even if stale artifacts are passed', () => {
+  // The caller handed over artifacts it also said it could not read. Linking a
+  // clip through them would present an unverified read as this clip's file.
+  const result = clipRows(vm, [artifact()], false);
+  const rows = result.state === 'artifacts_unavailable' ? result.rows : [];
+  assert.equal(rows[0].artifactId, null);
+});
+
 test('no receipt means no results yet — not an empty list of results', () => {
   assert.deepEqual(clipRows({ tasks: vm.tasks, receipt: null }, [artifact()], true), { state: 'no_results_yet' });
   assert.deepEqual(
