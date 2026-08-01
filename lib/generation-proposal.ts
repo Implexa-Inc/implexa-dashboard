@@ -332,6 +332,24 @@ function parseCompiled(v: unknown): CompiledCore | null {
   if (!Array.isArray(v.review_requirements) || !v.review_requirements.every((r) => isId(r))) return null;
   // Review requirements describe the graph, so they exist exactly when it does.
   if ((tasks.length > 0) !== (v.review_requirements.length > 0)) return null;
+
+  // MODE GATES FOR THIS CONTRACT VERSION. Professional is deliberately a rich
+  // preview: its distinct tasks, pins, stages and costs remain visible, but the
+  // mode cannot become approvable until Judge + segmented assembly are real.
+  // Production is the separate static zero-task gate; it must never borrow the
+  // Professional graph under a stronger label.
+  if (v.quality_mode === 'professional') {
+    if (availability !== false
+      || v.unavailable_reason !== 'missing_required_professional_execution_capabilities'
+      || tasks.length === 0) return null;
+  }
+  if (v.quality_mode === 'production') {
+    if (availability !== false
+      || v.unavailable_reason !== 'missing_required_production_capabilities'
+      || tasks.length !== 0 || stageKinds.length !== 0
+      || provider !== null || model !== null || sum !== 0
+      || v.review_requirements.length !== 0) return null;
+  }
   if (!isDigest(v.proposal_digest)) return null;
 
   return {
@@ -393,14 +411,13 @@ function parseEvent(v: unknown, taskIds: ReadonlySet<string>): GenerationTaskEve
   // is not a record the backend projection can emit; treating it as either one
   // would count progress that was never durably stated.
   //
-  // A succeeded event's artifact digest is NOT required here: the backend
-  // validates the underlying event on `artifact_sha256` but projects `sha256`,
-  // so a mid-flight read can legally carry a success whose projected artifact is
-  // empty. The COMPLETED evidence chain still demands the digest and its match —
-  // tolerance in flight, strictness at the claim.
+  // Backend 19fc508 accepts a succeeded record only with artifact_sha256 and
+  // projects it as artifact.sha256. Therefore a projected success without that
+  // digest is malformed even mid-flight; accepting it would invent evidence the
+  // record-time contract cannot contain.
   if (v.event_type === 'task_created') {
     if (v.status !== 'created') return null;
-  } else if (v.status !== 'succeeded') return null;
+  } else if (v.status !== 'succeeded' || artifactSha256 === null) return null;
 
   return {
     taskId: v.task_id, eventType: v.event_type,

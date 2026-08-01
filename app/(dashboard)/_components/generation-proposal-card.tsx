@@ -91,7 +91,7 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
       // NOT `body.ok`. Success is claimed only when the response parses under
       // THE parser, names THIS proposal, and reads lifecycle 'approved'. A
       // malformed or foreign `{ok:true}` is an answer we could not verify.
-      const read = interpretActionResponse('approve', body, ref.proposalId);
+      const read = interpretActionResponse('approve', res.ok, body, ref.proposalId);
       if (read.outcome === 'confirmed') {
         setFlight((s) => settleApproval(s, 'success'));
         setNotice(approvalConfirmationCopy(vm));
@@ -126,7 +126,7 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
       const body = await res.json().catch(() => null);
       // Same rule as approve: cancellation is announced only when the response
       // parses, names this proposal, and reads lifecycle 'cancelled'.
-      const read = interpretActionResponse('cancel', body, vm.proposalId);
+      const read = interpretActionResponse('cancel', res.ok, body, vm.proposalId);
       if (read.outcome === 'confirmed') { setNotice('Proposal cancelled. Nothing was authorized.'); router.refresh(); return; }
       if (read.outcome === 'refused') { setError(approvalErrorCopy(read.code)); router.refresh(); return; }
       setError('We could not confirm whether this cancellation went through. Reload to see the current state.');

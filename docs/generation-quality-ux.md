@@ -22,6 +22,11 @@ Production is disabled behind **two independent gates** (static build flag +
 compiled `availability`); deleting either leaves the other (mutation-verified).
 An unavailable proposal that carries a task graph renders as a **no-money
 preview**: the plan is shown, and no approve/cancel control exists at all.
+The parser additionally **pins each mode's contracted shape**: a Professional
+document must be exactly unavailable-with-graph under its own reason, and a
+Production document exactly the zero-task shape under its own — so a response
+claiming "Professional, available" cannot parse at this contract version, no
+matter what the rest of it says.
 
 ## Proposal card (`awaiting_approval` only)
 
@@ -111,10 +116,10 @@ in-code per repo convention, each provably subsumed by a tested neighbor).
   `/api/v2/generation-proposals` endpoint yet (all parser evidence is from the
   PR's own compiler output and versioned contract, reconciled at head
   `19fc508`).
-- Known backend seam, flagged to Session A: succeeded task events are
-  validated on `event.artifact_sha256` but projected via `sha256`; the client
-  therefore tolerates a success without a projected artifact digest in flight,
-  while the completed chain still demands the digest match end-to-end.
+- ~~Known backend seam~~ resolved at backend `19fc508`: `sanitizeArtifact` now
+  falls back to `artifact_sha256`, so every server-validated success projects
+  its digest — and the client accordingly requires a digest on every succeeded
+  event, not just at the completed claim.
 - No surface creates proposals yet (that flow arrives with the producing
   agent/desktop work). `QualityModeSelector` is mounted on the proposal card in
   its honest degenerate form — only the proposal's own compiled mode is

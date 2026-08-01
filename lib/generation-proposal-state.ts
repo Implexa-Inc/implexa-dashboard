@@ -143,16 +143,17 @@ export type ActionInterpretation =
 
 export function interpretActionResponse(
   action: 'approve' | 'cancel',
+  responseOk: boolean,
   body: unknown,
   expectedProposalId: string,
 ): ActionInterpretation {
   const asRecord = body && typeof body === 'object' && !Array.isArray(body)
     ? (body as Record<string, unknown>) : null;
-  if (asRecord && asRecord.ok !== true) {
+  if (!responseOk || (asRecord && asRecord.ok !== true)) {
     // `unavailable` marks a read/write the backend could not verify — including
     // an approve that may have landed. That is not a refusal.
-    if (asRecord.unavailable === true) return { outcome: 'unconfirmed' };
-    if (typeof asRecord.error === 'string' && asRecord.error) return { outcome: 'refused', code: asRecord.error };
+    if (asRecord?.unavailable === true) return { outcome: 'unconfirmed' };
+    if (typeof asRecord?.error === 'string' && asRecord.error) return { outcome: 'refused', code: asRecord.error };
     return { outcome: 'unconfirmed' };
   }
   const vm = parseGenerationProposalResponse(body, expectedProposalId);
@@ -180,7 +181,11 @@ export function approvalErrorCopy(code: string): string {
     case 'authorization_mismatch':
       return "The approval did not match this proposal, so it was refused. Nothing was authorized.";
     default:
-      return `The approval was refused (${code}). Nothing was authorized.`;
+      // An unknown code (e.g. internal_error) is a refusal we cannot interpret.
+      // Unlike the named codes above, it does NOT prove nothing landed — a
+      // server error after the atomic approve can surface this way — so the
+      // no-authorization claim is not made here.
+      return `The request was refused (${code}). Reload to see this proposal's current state.`;
   }
 }
 

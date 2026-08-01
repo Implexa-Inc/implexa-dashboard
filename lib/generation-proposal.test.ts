@@ -182,6 +182,17 @@ test('professional fixture parses as UNAVAILABLE while retaining its graph for p
   assert.deepEqual(vm.reviewRequirements, ['per_asset_judge', 'clip_level_repair_eligible', 'segmented_assembly', 'user_review']);
 });
 
+test('professional can never cross into an approvable lifecycle, even with its full graph', () => {
+  const armed = statusBody(PROFESSIONAL_COMPILED);
+  const proposal = armed.proposal as Dict;
+  proposal.availability = true;
+  proposal.unavailable_reason = null;
+  proposal.required_missing_capabilities = [];
+  armed.availability = true;
+  armed.unavailable_reason = null;
+  assert.equal(parse(armed), null);
+});
+
 test('a professional proposal under an approvable lifecycle is refused', () => {
   // unavailable-with-tasks is a PREVIEW shape. The same document claiming
   // awaiting_approval would put an approve button on an unenforceable pipeline.
@@ -198,6 +209,17 @@ test('production fixture parses as unavailable with the machine-readable reason'
   assert.deepEqual(vm.requiredMissingCapabilities, ['video.judge.per_asset', 'video.orchestration.segmented_assembly']);
   assert.equal(vm.taskCount, 0);
   assert.equal(vm.lifecycle, 'unavailable');
+});
+
+test('Production remains a zero-task static gate and cannot carry the Professional graph', () => {
+  const disguised = clone(PROFESSIONAL_COMPILED) as Dict;
+  disguised.quality_mode = 'production';
+  disguised.unavailable_reason = 'missing_required_production_capabilities';
+  const body = statusBody(disguised, {
+    lifecycle_state: 'unavailable', progress_state: 'unavailable',
+    unavailable_reason: 'missing_required_production_capabilities',
+  });
+  assert.equal(parse(body), null);
 });
 
 test('unknown ADDITIVE fields are allowed at every level', () => {
@@ -551,6 +573,16 @@ test('malformed artifact digests in events are refused', () => {
   assert.equal(parse(badEvent), null);
 });
 
+test('task_succeeded without the backend-required artifact digest is refused mid-flight', () => {
+  const success = succeededEvent('hook-primary', providerId(0), ARTIFACT_SHA);
+  success.artifact = null;
+  const body = approvedBody(FAST_COMPILED, 'claimed', 'generating', {
+    task_progress: [createdEvent('hook-primary', providerId(0)), success],
+    cost: { total_credits: 60, maximum_credits: 180 },
+  });
+  assert.equal(parse(body), null);
+});
+
 test('an unparseable expiry is refused', () => {
   assert.equal(parse(statusBody(FAST_COMPILED, { expires_at: 'whenever' })), null);
   assert.equal(parse(statusBody(FAST_COMPILED, { expires_at: null })), null);
@@ -594,7 +626,7 @@ test('ok:false and non-object bodies never parse', () => {
 // lifecycle the action claims to have produced.
 
 test('approve is confirmed only by a parsed, own-identity, approved read', () => {
-  const good = interpretActionResponse('approve', approvedBody(FAST_COMPILED, 'pending', 'pending'), PROPOSAL_ID);
+  const good = interpretActionResponse('approve', true, approvedBody(FAST_COMPILED, 'pending', 'pending'), PROPOSAL_ID);
   assert.equal(good.outcome, 'confirmed');
   assert.equal(good.outcome === 'confirmed' ? good.vm.lifecycle : null, 'approved');
 });
@@ -602,43 +634,54 @@ test('approve is confirmed only by a parsed, own-identity, approved read', () =>
 test('THE BYPASS CASE: a malformed ok:true is never announced as approved', () => {
   const malformed = approvedBody(FAST_COMPILED, 'pending', 'pending');
   delete (malformed.proposal as Dict).tasks;
-  assert.deepEqual(interpretActionResponse('approve', malformed, PROPOSAL_ID), { outcome: 'unconfirmed' });
-  assert.deepEqual(interpretActionResponse('approve', { ok: true }, PROPOSAL_ID), { outcome: 'unconfirmed' });
+  assert.deepEqual(interpretActionResponse('approve', true, malformed, PROPOSAL_ID), { outcome: 'unconfirmed' });
+  assert.deepEqual(interpretActionResponse('approve', true, { ok: true }, PROPOSAL_ID), { outcome: 'unconfirmed' });
 });
 
 test('an approved read for a DIFFERENT proposal never confirms this one', () => {
   const foreign = approvedBody(FAST_COMPILED, 'pending', 'pending');
-  assert.deepEqual(interpretActionResponse('approve', foreign, 'some-other-proposal'), { outcome: 'unconfirmed' });
+  assert.deepEqual(interpretActionResponse('approve', true, foreign, 'some-other-proposal'), { outcome: 'unconfirmed' });
+});
+
+test('HTTP failure can never confirm an otherwise valid approved payload', () => {
+  const approved = approvedBody(FAST_COMPILED, 'pending', 'pending');
+  assert.deepEqual(interpretActionResponse('approve', false, approved, PROPOSAL_ID), { outcome: 'unconfirmed' });
 });
 
 test('a valid read in the WRONG lifecycle is unconfirmed, not success', () => {
   // The server answered, but the proposal is still awaiting approval — announcing
   // approval now would claim an authorization that does not exist.
-  assert.deepEqual(interpretActionResponse('approve', statusBody(FAST_COMPILED), PROPOSAL_ID), { outcome: 'unconfirmed' });
+  assert.deepEqual(interpretActionResponse('approve', true, statusBody(FAST_COMPILED), PROPOSAL_ID), { outcome: 'unconfirmed' });
   // ...and a cancel that reads anything but cancelled is equally unconfirmed.
   assert.deepEqual(
-    interpretActionResponse('cancel', approvedBody(FAST_COMPILED, 'pending', 'pending'), PROPOSAL_ID),
+    interpretActionResponse('cancel', true, approvedBody(FAST_COMPILED, 'pending', 'pending'), PROPOSAL_ID),
     { outcome: 'unconfirmed' },
   );
 });
 
 test('cancel is confirmed only by a cancelled read', () => {
   const cancelled = statusBody(FAST_COMPILED, { lifecycle_state: 'cancelled', progress_state: 'cancelled' });
-  const read = interpretActionResponse('cancel', cancelled, PROPOSAL_ID);
+  const read = interpretActionResponse('cancel', true, cancelled, PROPOSAL_ID);
   assert.equal(read.outcome, 'confirmed');
+});
+
+test('cancel also requires HTTP success and this proposal identity', () => {
+  const cancelled = statusBody(FAST_COMPILED, { lifecycle_state: 'cancelled', progress_state: 'cancelled' });
+  assert.deepEqual(interpretActionResponse('cancel', false, cancelled, PROPOSAL_ID), { outcome: 'unconfirmed' });
+  assert.deepEqual(interpretActionResponse('cancel', true, cancelled, 'some-other-proposal'), { outcome: 'unconfirmed' });
 });
 
 test('refusals carry their machine code; unverifiable answers do not become refusals', () => {
   assert.deepEqual(
-    interpretActionResponse('approve', { ok: false, error: 'stale_proposal' }, PROPOSAL_ID),
+    interpretActionResponse('approve', false, { ok: false, error: 'stale_proposal' }, PROPOSAL_ID),
     { outcome: 'refused', code: 'stale_proposal' },
   );
   // `unavailable` marks an answer the backend could not verify — possibly a
   // landed approve. It must read as unconfirmed, never as a refusal.
   assert.deepEqual(
-    interpretActionResponse('approve', { ok: false, error: 'proposal_read_failed', unavailable: true }, PROPOSAL_ID),
+    interpretActionResponse('approve', false, { ok: false, error: 'proposal_read_failed', unavailable: true }, PROPOSAL_ID),
     { outcome: 'unconfirmed' },
   );
-  assert.deepEqual(interpretActionResponse('approve', null, PROPOSAL_ID), { outcome: 'unconfirmed' });
-  assert.deepEqual(interpretActionResponse('approve', 'ok', PROPOSAL_ID), { outcome: 'unconfirmed' });
+  assert.deepEqual(interpretActionResponse('approve', false, null, PROPOSAL_ID), { outcome: 'unconfirmed' });
+  assert.deepEqual(interpretActionResponse('approve', true, 'ok', PROPOSAL_ID), { outcome: 'unconfirmed' });
 });
