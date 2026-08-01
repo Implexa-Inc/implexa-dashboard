@@ -10,6 +10,7 @@
     "lint": "next lint",
     "test": "node scripts/run-tests.mjs",
     "test:generation-contract-mutations": "node scripts/mutation-test-generation-proposal.mjs",
+    "test:generation-entry-mutations": "node scripts/mutation-test-generation-entry.mjs",
     "fixtures:generation": "node scripts/regenerate-generation-proposal-fixtures.mjs"
   },
   "dependencies": {

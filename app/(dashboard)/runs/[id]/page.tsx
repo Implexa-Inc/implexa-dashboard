@@ -46,6 +46,7 @@ import { deriveRecoveredWork } from '@/lib/run-recovery';
 import { RunJudgmentCard, type JudgeRepairRequest, type RunJudgment } from '../../_components/run-judgment-card';
 import { RunJudgmentPending } from '../../_components/run-judgment-pending';
 import VerifiedArtifacts, { type VerifiedArtifact } from '../../_components/verified-artifacts';
+import { isValidatedVideoOutput } from '@/lib/generation-entry-eligibility';
 
 export const dynamic = 'force-dynamic';
 
@@ -565,6 +566,22 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         {r.run_state === 'completed' && r.output_markdown && (
           <div className="mb-6">
             <RunShareButton runId={r.id} />
+          </div>
+        )}
+
+        {/* First quality-mode entry point: only offer B-roll generation beside a
+            desktop-validated video deliverable. A markdown path is a worker claim,
+            not evidence that there is a video to build from. The proposal itself
+            is still no-spend; the next page requires an explicit approval. */}
+        {r.output_markdown && verifiedArtifacts.some(isValidatedVideoOutput) && (
+          <div className="mb-6 rounded-lg border border-sky-500/30 bg-sky-500/[0.07] p-4">
+            <p className="text-sm font-medium text-ink-100">Add a B-roll moment</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-400">
+              Name one 2–10 second window, compare Quick, Professional, and Production, then review the exact maximum before approving anything paid.
+            </p>
+            <Link href={`/runs/${encodeURIComponent(r.id)}/generate-broll`} className="mt-3 inline-flex btn-primary px-4 py-2 text-sm">
+              Generate B-roll
+            </Link>
           </div>
         )}
 
