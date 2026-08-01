@@ -34,7 +34,7 @@ import {
 import {
   reviewRoomActions, ACCEPT_DISCLAIMER,
   issuesForArtifact, artifactForIssue, isIssueStale, issueClickTarget,
-  shouldApplySeek, shouldDropPendingSeek, type PendingSeek,
+  resolveInitialArtifact, shouldApplySeek, shouldDropPendingSeek, type PendingSeek,
 } from '@/lib/review-room-state';
 import {
   finalRenderControl, preferredReviewArtifact, previewRequestIdentity, reviewableArtifacts,
@@ -50,6 +50,12 @@ type Props = {
   session: ReviewSession;
   sources: Record<string, SourceState>;
   isApprovalHold: boolean;
+  /**
+   * Open on this artifact (e.g. a generated-clip deep link). Honored only when it
+   * names an artifact present in this packet; otherwise the preferred artifact is
+   * used as before.
+   */
+  initialArtifactId?: string | null;
 };
 
 const ISSUE_KINDS = ['timing', 'content', 'visual', 'audio', 'missing', 'replacement', 'other'] as const;
@@ -75,7 +81,11 @@ export default function ReviewRoom(props: Props) {
   const allArtifacts = useMemo(() => reviewableArtifacts(artifacts, production), [artifacts, production]);
   const validated = useMemo(() => allArtifacts.filter((a) => a.status === 'validated'), [allArtifacts]);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
-    return preferredReviewArtifact(artifacts, production)?.id ?? null;
+    return resolveInitialArtifact(
+      props.initialArtifactId ?? null,
+      reviewableArtifacts(artifacts, production),
+      preferredReviewArtifact(artifacts, production)?.id ?? null,
+    );
   });
   const artifact = useMemo(() => allArtifacts.find((a) => a.id === selectedId) ?? null, [allArtifacts, selectedId]);
   const selectedSegment = useMemo(() => segmentForArtifact(production, selectedId), [production, selectedId]);

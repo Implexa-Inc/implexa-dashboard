@@ -148,6 +148,22 @@ export function issueClickTarget(issue: ScopableIssue, selectedArtifactId: strin
   return { artifactId, needsSwitch: !!artifactId && artifactId !== selectedArtifactId, seekMs };
 }
 
+/**
+ * The artifact the room should open on when a link asked for one (e.g. a
+ * generated-clip deep link `?artifact=`). The request is honored ONLY when it
+ * names an artifact actually present in this packet — a stale or foreign id must
+ * not leave the room stuck on "nothing selected", and must never be trusted as an
+ * identity the packet did not confirm.
+ */
+export function resolveInitialArtifact<A extends ScopableArtifact>(
+  requestedId: string | null | undefined,
+  reviewable: A[],
+  fallbackId: string | null,
+): string | null {
+  if (requestedId && reviewable.some((a) => a.id === requestedId)) return requestedId;
+  return fallbackId;
+}
+
 // ── cross-artifact seeking ──────────────────────────────────────────────────
 //
 // Switching artifact and then seeking is a THREE-WAY agreement, and getting it wrong is
