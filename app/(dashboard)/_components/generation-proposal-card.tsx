@@ -25,7 +25,8 @@ import {
   editReset, formatWindow, proposalActions, requestedByLine, settleApproval,
   type ApprovalFlight, type EditableProposalRef,
 } from '@/lib/generation-proposal-state';
-import { qualityModeLabel } from '@/lib/quality-mode';
+import { qualityModeLabel, QUALITY_MODES, type QualityMode } from '@/lib/quality-mode';
+import QualityModeSelector, { type ModeCompilation } from './quality-mode-selector';
 
 type Props = {
   vm: GenerationProposalViewModel;
@@ -146,6 +147,36 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
           <p className="mt-0.5">Expires {new Date(vm.expiresAt).toLocaleString()}</p>
         </div>
       </header>
+
+      {/* The quality selector, populated ONLY with what was actually compiled:
+          this proposal's own mode. The other modes render disabled with honest
+          copy — offering them live would promise behavior nobody compiled, and
+          choosing a different mode is an Edit (a NEW proposal), not a toggle.
+          Production additionally shows the translated backend reason. */}
+      <div className="mt-4">
+        <QualityModeSelector
+          value={vm.qualityMode}
+          onChange={() => { /* only the compiled mode is selectable; a different mode requires Edit */ }}
+          compiledByMode={Object.fromEntries(QUALITY_MODES.map((mode) => [
+            mode,
+            mode === vm.qualityMode
+              ? {
+                  availability: vm.availability,
+                  unavailableReason: vm.unavailableReason,
+                  requiredMissingCapabilities: vm.requiredMissingCapabilities,
+                  densityLabel: vm.densityLabel,
+                  generationsPerMoment: vm.generationsPerMoment,
+                  stageKinds: vm.stageKinds,
+                  reviewRequirements: vm.reviewRequirements,
+                }
+              : null,
+          ])) as Record<QualityMode, ModeCompilation>}
+        />
+        <p className="mt-1.5 text-[11px] text-ink-500">
+          To use a different quality mode, choose Edit — it produces a new proposal
+          for that mode with its own approval.
+        </p>
+      </div>
 
       {/* Every clip, verbatim: window, exact prompt, duration/ratio, credits. */}
       <ul className="mt-3 space-y-2">
