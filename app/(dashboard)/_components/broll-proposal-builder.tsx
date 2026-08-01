@@ -5,22 +5,22 @@ import { useRouter } from 'next/navigation';
 import QualityModeSelector from './quality-mode-selector';
 import type { QualityMode } from '@/lib/quality-mode';
 import {
-  parseGenerationCreateResponse, parseGenerationPreviewSet,
+  beginProposalCreate, parseGenerationCreateResponse, parseGenerationPreviewSet,
   proposalEntryError, validateGenerationMoment,
   type GenerationMomentInput, type GenerationPreviewSet,
 } from '@/lib/generation-proposal-entry';
 
 type Props = { runId: string; agentSubject: string; agentName: string };
 
-async function action(body: Record<string, unknown>): Promise<{ ok: boolean; body: unknown }> {
+async function action(body: Record<string, unknown>): Promise<{ ok: boolean; status: number | null; body: unknown }> {
   try {
     const res = await fetch('/api/generation-proposals', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
-    return { ok: res.ok, body: await res.json().catch(() => null) };
+    return { ok: res.ok, status: res.status, body: await res.json().catch(() => null) };
   } catch {
-    return { ok: false, body: { unavailable: true } };
+    return { ok: false, status: null, body: { unavailable: true } };
   }
 }
 
@@ -60,7 +60,7 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName }:
     }));
     const failed = responses.find(([, result]) => !result.ok);
     if (failed) {
-      setPhase('idle'); setError(proposalEntryError(failed[1].ok, failed[1].body)); return;
+      setPhase('idle'); setError(proposalEntryError(failed[1].ok, failed[1].body, 'preview', failed[1].status)); return;
     }
     const bodies = Object.fromEntries(responses.map(([m, result]) => [m, result.body])) as Record<QualityMode, unknown>;
     const parsed = parseGenerationPreviewSet(bodies, { agentSubject, sourceRunId: runId, moment });
@@ -73,8 +73,7 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName }:
   }
 
   async function createProposal() {
-    if (createFlight.current || phase !== 'ready' || !previews || previews[mode].availability !== true) return;
-    createFlight.current = true;
+    if (!beginProposalCreate(createFlight, phase, !!previews, previews?.[mode].availability === true)) return;
     setPhase('creating'); setError(null);
     const result = await action({
       action: 'create', agentSubject, sourceRunId: runId, qualityMode: mode,
@@ -82,7 +81,7 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName }:
     });
     if (!result.ok) {
       createFlight.current = false;
-      setPhase('ready'); setError(proposalEntryError(result.ok, result.body)); return;
+      setPhase('ready'); setError(proposalEntryError(result.ok, result.body, 'create', result.status)); return;
     }
     const created = parseGenerationCreateResponse(result.body, {
       agentSubject, sourceRunId: runId, qualityMode: mode, moment,

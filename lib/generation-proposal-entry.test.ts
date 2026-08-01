@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseGenerationCreateResponse, parseGenerationPreviewResponse,
+  beginProposalCreate, parseGenerationCreateResponse, parseGenerationPreviewResponse,
   parseGenerationPreviewSet, proposalEntryError, validateGenerationMoment,
 } from './generation-proposal-entry.ts';
 import { FAST_COMPILED, PROFESSIONAL_COMPILED, PRODUCTION_COMPILED } from './generation-proposal.fixtures.ts';
@@ -79,6 +79,11 @@ test('mode comparison refuses a partial preview set', () => {
   assert.equal(parseGenerationPreviewSet(set, {
     agentSubject: 'cinematic-b-roll-generator', sourceRunId: RUN_ID, moment: MOMENT,
   }), null);
+
+  const missingProduction = { fast: preview('fast'), professional: preview('professional'), production: null };
+  assert.equal(parseGenerationPreviewSet(missingProduction as any, {
+    agentSubject: 'cinematic-b-roll-generator', sourceRunId: RUN_ID, moment: MOMENT,
+  }), null);
 });
 
 test('preview is bound to this run, agent, mode, prompt, and timestamp', () => {
@@ -87,6 +92,7 @@ test('preview is bound to this run, agent, mode, prompt, and timestamp', () => {
     (b: any) => { b.identity.agent_subject = 'another-agent'; },
     (b: any) => { b.proposal.quality_mode = 'professional'; },
     (b: any) => { b.proposal.tasks[0].prompt_text = 'Different work'; },
+    (b: any) => { b.proposal.tasks[0].timestamp.start_seconds = 1; },
     (b: any) => { b.proposal.tasks[0].timestamp.end_seconds = 6; },
     (b: any) => { b.availability = false; },
     (b: any) => { b.proposal_id = PROPOSAL_ID; },
@@ -94,6 +100,9 @@ test('preview is bound to this run, agent, mode, prompt, and timestamp', () => {
     const body = preview('fast'); mutate(body);
     assert.equal(parseGenerationPreviewResponse(body, expected('fast')), null);
   }
+
+  assert.equal(parseGenerationPreviewResponse(preview('fast'), expected('production')), null);
+  assert.equal(parseGenerationPreviewResponse(preview('production'), expected('fast')), null);
 });
 
 test('create accepts only the persisted identity and availability-derived state', () => {
@@ -105,6 +114,7 @@ test('create accepts only the persisted identity and availability-derived state'
     (b: any) => { b.identity.proposal_id = USER_ID; },
     (b: any) => { b.identity.proposal_digest = 'b'.repeat(64); },
     (b: any) => { b.identity.authorization_id = USER_ID; },
+    (b: any) => { b.identity.authorization_digest = 'b'.repeat(64); },
     (b: any) => { b.state = 'unavailable'; },
     (b: any) => { b.expires_at = b.created_at; },
     (b: any) => { b.proposal.tasks[0].moment_id = 'other'; },
@@ -126,4 +136,22 @@ test('entry errors distinguish unavailable from affirmative refusal', () => {
   assert.match(proposalEntryError(false, { unavailable: true }), /reliable answer/);
   assert.equal(proposalEntryError(false, { error: 'invalid_moments' }), 'The proposal was refused (invalid_moments).');
   assert.match(proposalEntryError(true, { ok: true }), /unexpected form/);
+  assert.match(proposalEntryError(false, { error: 'internal_error' }, 'create', 500), /couldn't confirm whether/);
+  assert.match(proposalEntryError(false, { unavailable: true }, 'create', null), /Reload this run/);
+  assert.equal(
+    proposalEntryError(false, { error: 'invalid_moments' }, 'create', 400),
+    'The proposal was refused (invalid_moments).',
+  );
+});
+
+test('the proposal create latch admits exactly one synchronous flight', () => {
+  const flight = { current: false };
+  assert.equal(beginProposalCreate(flight, 'ready', true, true), true);
+  assert.equal(flight.current, true);
+  assert.equal(beginProposalCreate(flight, 'ready', true, true), false);
+  for (const args of [
+    ['idle', true, true], ['ready', false, true], ['ready', true, false],
+  ] as const) {
+    assert.equal(beginProposalCreate({ current: false }, ...args), false);
+  }
 });

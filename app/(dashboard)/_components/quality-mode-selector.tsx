@@ -19,7 +19,7 @@
 
 import { useId } from 'react';
 import {
-  QUALITY_MODES, isModeSelectable, unavailableModeCopy, qualityModeOption,
+  QUALITY_MODES, qualityModeSelectorState, unavailableModeCopy, qualityModeOption,
   modeDifferenceRows, type QualityMode,
 } from '@/lib/quality-mode';
 
@@ -46,6 +46,7 @@ type Props = {
 
 export default function QualityModeSelector({ value, onChange, compiledByMode, disabled }: Props) {
   const groupId = useId();
+  const selectorState = qualityModeSelectorState(compiledByMode);
   return (
     <fieldset disabled={disabled} className="min-w-0">
       <legend className="text-sm font-medium text-ink-200">Quality</legend>
@@ -53,7 +54,7 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
         {QUALITY_MODES.map((mode) => {
           const option = qualityModeOption(mode);
           const compiled = compiledByMode[mode];
-          const selectable = isModeSelectable(mode, compiled);
+          const selectable = selectorState[mode].selectable;
           const selected = value === mode;
           const differences = modeDifferenceRows(compiled);
           // Production is unavailable in this build even before any compilation

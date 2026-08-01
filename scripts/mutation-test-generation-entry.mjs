@@ -11,12 +11,14 @@ const files = [
   'lib/generation-proposal-entry.ts', 'lib/generation-proposal-entry.test.ts',
   'lib/generation-proposal-actions.ts', 'lib/generation-proposal-actions.test.ts',
   'lib/generation-entry-eligibility.ts', 'lib/generation-entry-eligibility.test.ts',
-  'lib/generation-proposal.ts', 'lib/generation-proposal.fixtures.ts', 'lib/quality-mode.ts',
+  'lib/generation-proposal.ts', 'lib/generation-proposal.fixtures.ts',
+  'lib/quality-mode.ts', 'lib/quality-mode.test.ts',
 ];
 const tests = [
   'lib/generation-proposal-entry.test.ts',
   'lib/generation-proposal-actions.test.ts',
   'lib/generation-entry-eligibility.test.ts',
+  'lib/quality-mode.test.ts',
 ];
 
 const mutations = [
@@ -35,18 +37,42 @@ const mutations = [
   ['preview-binding', 'timestamp end response binding removed', 'lib/generation-proposal-entry.ts',
     '      || task.window.endSeconds !== expected.moment.endSeconds',
     '      || false'],
+  ['preview-binding', 'timestamp start response binding removed', 'lib/generation-proposal-entry.ts',
+    '      || task.window.startSeconds !== expected.moment.startSeconds',
+    '      || false'],
+  ['preview-binding', 'explicit mode response binding removed', 'lib/generation-proposal-entry.ts',
+    '    || compiled.qualityMode !== expected.qualityMode) return false;',
+    '    || false) return false;'],
   ['comparison', 'partial mode comparison accepted', 'lib/generation-proposal-entry.ts',
     '  return fast && professional && production ? { fast, professional, production } : null;',
     '  return fast ? { fast, professional: professional || fast, production: production || fast } : null;'],
+  ['comparison', 'production leg is not parsed', 'lib/generation-proposal-entry.ts',
+    "  const production = parseGenerationPreviewResponse(bodies.production, { ...expected, qualityMode: 'production' });",
+    '  const production = fast;'],
   ['create-binding', 'availability-derived lifecycle ignored', 'lib/generation-proposal-entry.ts',
     '  if (body.state !== expectedState) return null;',
     '  if (false && body.state !== expectedState) return null;'],
   ['create-binding', 'preexisting authorization accepted', 'lib/generation-proposal-entry.ts',
     '    || (identity.authorization_id ?? null) !== null',
     '    || false'],
+  ['create-binding', 'preexisting authorization digest accepted', 'lib/generation-proposal-entry.ts',
+    '    || (identity.authorization_digest ?? null) !== null',
+    '    || false'],
+  ['single-flight', 'create single-flight guard removed', 'lib/generation-proposal-entry.ts',
+    "  if (flight.current || phase !== 'ready' || !hasPreviews || !selectedAvailable) return false;",
+    "  if (false || phase !== 'ready' || !hasPreviews || !selectedAvailable) return false;"],
   ['eligibility', 'source MP4 gets paid entry affordance', 'lib/generation-entry-eligibility.ts',
     "  return artifact.role === 'final_output' &&",
     '  return'],
+  ['eligibility', 'declared video is accepted by direct route', 'lib/generation-entry-eligibility.ts',
+    "    return artifact.status === 'validated'",
+    '    return true'],
+  ['eligibility', 'artifact read failure becomes confident ineligibility', 'lib/generation-entry-eligibility.ts',
+    "  if (readError || !Array.isArray(rows)) return 'unavailable';",
+    "  if (!Array.isArray(rows)) return 'unavailable';"],
+  ['selector-wiring', 'selector bypasses canonical Production gate', 'lib/quality-mode.ts',
+    '    { selectable: isModeSelectable(mode, compiledByMode[mode]) },',
+    '    { selectable: compiledByMode[mode]?.availability === true },'],
 ];
 
 let killed = 0;
@@ -72,4 +98,4 @@ for (const [boundary, name, file, from, to] of mutations) {
   }
 }
 
-console.log(`Mutation result: ${killed}/${mutations.length} killed across 5 boundaries.`);
+console.log(`Mutation result: ${killed}/${mutations.length} killed across 7 boundaries.`);

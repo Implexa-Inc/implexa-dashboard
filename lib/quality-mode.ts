@@ -79,6 +79,16 @@ export function isModeSelectable(
   return true;
 }
 
+/** Build the selector's per-mode state through the one canonical gate. */
+export function qualityModeSelectorState(
+  compiledByMode: Record<QualityMode, { availability: boolean } | null>,
+): Record<QualityMode, { selectable: boolean }> {
+  return Object.fromEntries(QUALITY_MODES.map((mode) => [
+    mode,
+    { selectable: isModeSelectable(mode, compiledByMode[mode]) },
+  ])) as Record<QualityMode, { selectable: boolean }>;
+}
+
 /** Human words for the machine-readable capability keys Production is missing. */
 const CAPABILITY_WORDS: Record<string, string> = {
   'video.judge.per_asset': 'per-clip judging',

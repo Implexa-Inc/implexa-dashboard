@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  QUALITY_MODES, capabilityWords, isModeSelectable, isQualityMode,
+  QUALITY_MODES, capabilityWords, isModeSelectable, isQualityMode, qualityModeSelectorState,
   modeDifferenceRows, unavailableModeCopy, qualityModeLabel, qualityModeOption,
 } from './quality-mode.ts';
 
@@ -59,6 +59,19 @@ test('fast and professional are selectable exactly when compiled available', () 
   assert.equal(isModeSelectable('fast', { availability: true }), true);
   assert.equal(isModeSelectable('professional', { availability: true }), true);
   assert.equal(isModeSelectable('fast', { availability: false }), false);
+});
+
+test('the selector state routes all three rendered modes through the canonical gate', () => {
+  const state = qualityModeSelectorState({
+    fast: { availability: true },
+    professional: { availability: false },
+    production: { availability: true },
+  });
+  assert.deepEqual(state, {
+    fast: { selectable: true },
+    professional: { selectable: false },
+    production: { selectable: false },
+  });
 });
 
 // ── unavailable-reason translation ──────────────────────────────────────────

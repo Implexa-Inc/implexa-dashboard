@@ -40,6 +40,7 @@ export type CreatedGenerationProposal = {
 };
 
 export type GenerationPreviewSet = Record<QualityMode, CompiledGenerationProposal>;
+export type ProposalCreateFlight = { current: boolean };
 
 function object(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -156,7 +157,28 @@ export function validateGenerationMoment(input: GenerationMomentInput): string |
   return null;
 }
 
-export function proposalEntryError(responseOk: boolean, body: unknown): string {
+/** The synchronous latch is set before the first await, so two clicks share one flight. */
+export function beginProposalCreate(
+  flight: ProposalCreateFlight,
+  phase: string,
+  hasPreviews: boolean,
+  selectedAvailable: boolean,
+): boolean {
+  if (flight.current || phase !== 'ready' || !hasPreviews || !selectedAvailable) return false;
+  flight.current = true;
+  return true;
+}
+
+export function proposalEntryError(
+  responseOk: boolean,
+  body: unknown,
+  operation: 'preview' | 'create' = 'preview',
+  responseStatus: number | null = null,
+): string {
+  if (operation === 'create' && !responseOk
+    && (responseStatus === null || responseStatus >= 500 || (object(body) && body.unavailable === true))) {
+    return "Implexa couldn't confirm whether the proposal was created. Reload this run before trying again; do not approve from this response.";
+  }
   if (object(body) && body.unavailable === true) return 'The generation service did not give a reliable answer. Nothing should be approved from this response.';
   if (object(body) && typeof body.error === 'string' && body.error) return `The proposal was refused (${body.error}).`;
   return responseOk
