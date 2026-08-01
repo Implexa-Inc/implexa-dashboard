@@ -254,7 +254,12 @@ function parseCompiled(v: unknown): CompiledCore | null {
     const task = parseTask(raw);
     if (!task) return null;
     // A duplicated task id would double-count credits and make every event and
-    // receipt row ambiguous about which clip it describes.
+    // receipt row ambiguous about which clip it describes. DEFENSE IN DEPTH, not
+    // the only line: any duplicate also collapses the credits map below and fails
+    // the per_task_credits agreement — mutating THIS check alone does not fail a
+    // test (verified by mutation), and that is reported honestly rather than
+    // dressed up. It stays because it states the intent where the ids are read,
+    // and keeps the parser safe if the credits agreement is ever loosened.
     if (taskIds.has(task.taskId)) return null;
     taskIds.add(task.taskId);
     tasks.push(task);

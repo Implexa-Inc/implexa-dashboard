@@ -311,6 +311,9 @@ test('self-contradictory availability is refused', () => {
   // envelope says available, document says not
   const body = statusBody(FAST_COMPILED, { availability: false, unavailable_reason: 'x' });
   assert.equal(parse(body), null);
+  // availability alone flipped, everything else agreeing — the envelope's own
+  // statement must still match the compiled document
+  assert.equal(parse(statusBody(FAST_COMPILED, { availability: false })), null);
   // available document under an unavailable lifecycle
   const lifecycleDrift = statusBody(FAST_COMPILED, { lifecycle_state: 'unavailable', progress_state: 'unavailable' });
   assert.equal(parse(lifecycleDrift), null);
