@@ -334,3 +334,20 @@ test('LIFECYCLE REPLAY: when B itself fails, its request is dropped rather than 
   failed = 'artB'; cleanup();
   assert.equal(pending, null, 'B can never load, so the request must not survive to fire on a later one');
 });
+
+// ── initial artifact selection (clip deep links) ────────────────────────────
+
+import { resolveInitialArtifact } from './review-room-state.ts';
+
+test('a clip deep link opens on its artifact only when the packet contains it', () => {
+  const reviewable = [{ id: 'artA' }, { id: 'artB' }];
+  assert.equal(resolveInitialArtifact('artB', reviewable, 'artA'), 'artB');
+});
+
+test('a stale or foreign deep-link id falls back to the preferred artifact', () => {
+  const reviewable = [{ id: 'artA' }];
+  // A requested id the packet does not confirm is never trusted as a selection.
+  assert.equal(resolveInitialArtifact('artZ', reviewable, 'artA'), 'artA');
+  assert.equal(resolveInitialArtifact(null, reviewable, 'artA'), 'artA');
+  assert.equal(resolveInitialArtifact('artZ', [], null), null);
+});

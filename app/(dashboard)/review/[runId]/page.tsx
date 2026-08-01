@@ -20,7 +20,10 @@ export const dynamic = 'force-dynamic';
  * Accepting a result says a human accepted it. It does not mean Judge passed, and it
  * does not mean anything was verified.
  */
-export default async function ReviewRoomPage({ params }: { params: { runId: string } }) {
+export default async function ReviewRoomPage({ params, searchParams }: {
+  params: { runId: string };
+  searchParams?: { artifact?: string };
+}) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
@@ -97,6 +100,9 @@ export default async function ReviewRoomPage({ params }: { params: { runId: stri
         session={packet.session}
         sources={packet.sources}
         isApprovalHold={isApprovalHold}
+        // A generated-clip deep link (?artifact=) opens on that clip. The id is
+        // honored only if the packet actually contains it.
+        initialArtifactId={typeof searchParams?.artifact === 'string' ? searchParams.artifact : null}
       />
 
       {/* Distinct authorities, kept visually and semantically separate. */}
