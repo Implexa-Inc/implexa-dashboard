@@ -358,6 +358,30 @@ test('an unparseable expiry is refused', () => {
   assert.equal(parse(statusBody(FAST_COMPILED, { expires_at: null })), null);
 });
 
+test('the contract hard bounds are enforced: over 10 tasks or 1200 credits is refused', () => {
+  const body = statusBody(FAST_COMPILED);
+  const proposal = body.proposal as Dict;
+  const tasks = proposal.tasks as Dict[];
+  // 11 internally-consistent tasks — everything agrees except the schema bound
+  const grown: Dict[] = [];
+  for (let i = 0; i < 11; i++) grown.push({ ...clone(tasks[0]), task_id: `t${i}`, credits: 60 });
+  proposal.tasks = grown;
+  proposal.task_count = 11;
+  proposal.per_task_credits = grown.map((t) => ({ task_id: t.task_id, credits: 60 }));
+  proposal.maximum_credits = 11 * 60;
+  (body.cost as Dict).maximum_credits = 11 * 60;
+  assert.equal(parse(body), null);
+
+  // and the credit bound alone, with a legal task count
+  const rich = statusBody(FAST_COMPILED);
+  const richProposal = rich.proposal as Dict;
+  for (const t of richProposal.tasks as Dict[]) t.credits = 500;
+  richProposal.per_task_credits = (richProposal.tasks as Dict[]).map((t) => ({ task_id: t.task_id, credits: 500 }));
+  richProposal.maximum_credits = 1500;
+  (rich.cost as Dict).maximum_credits = 1500;
+  assert.equal(parse(rich), null);
+});
+
 test('ok:false and non-object bodies never parse', () => {
   assert.equal(parse(null), null);
   assert.equal(parse([]), null);

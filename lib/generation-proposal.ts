@@ -296,6 +296,10 @@ function parseCompiled(v: unknown): CompiledCore | null {
   // `maximum_credits: null` or a mismatched total is a proposal we refuse to show.
   const sum = tasks.reduce((acc, t) => acc + t.credits, 0);
   if (v.maximum_credits !== sum) return null;
+  // The contract's hard bounds (generation-proposal-v1.schema.json): at most 10
+  // tasks, at most 1200 credits. The compiler cannot emit more; a response that
+  // does is not the compiler's.
+  if (tasks.length > 10 || sum > 1200) return null;
 
   if (!Array.isArray(v.review_requirements) || !v.review_requirements.every((r) => isId(r))) return null;
   if (!isDigest(v.proposal_digest)) return null;
