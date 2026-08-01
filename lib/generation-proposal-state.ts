@@ -16,10 +16,11 @@
  *      interpolated between them.
  */
 
-import type {
-  GenerationProposalViewModel, GenerationProgress, GenerationTaskVM,
-  GenerationTaskEventVM, GenerationReceiptTaskVM,
-} from './generation-proposal';
+import {
+  parseGenerationProposalResponse,
+  type GenerationProposalViewModel, type GenerationProgress, type GenerationTaskVM,
+  type GenerationTaskEventVM, type GenerationReceiptTaskVM,
+} from './generation-proposal.ts';
 
 // ── approval actions ────────────────────────────────────────────────────────
 
@@ -124,6 +125,43 @@ export function editReset(_current: EditableProposalRef): EditableProposalRef {
   return { proposalId: null, proposalVersion: null, proposalDigest: null };
 }
 
+// ── action response interpretation ──────────────────────────────────────────
+//
+// THE SAME PARSER GUARDS BOTH DIRECTIONS. Approve and cancel return the full
+// proposal read, and a `{ok:true}` that fails the parser — or parses as a
+// DIFFERENT proposal, or as a lifecycle other than the one the action claims —
+// is not a confirmation. It is an answer we could not verify, and the surface
+// says "couldn't confirm" and re-reads rather than announcing success.
+
+export type ActionInterpretation =
+  /** The response parsed, named this proposal, and is in the expected lifecycle. */
+  | { outcome: 'confirmed'; vm: GenerationProposalViewModel }
+  /** The backend affirmatively refused, with its machine-readable code. */
+  | { outcome: 'refused'; code: string }
+  /** No verifiable answer: malformed, foreign, wrong lifecycle, or unreachable. */
+  | { outcome: 'unconfirmed' };
+
+export function interpretActionResponse(
+  action: 'approve' | 'cancel',
+  body: unknown,
+  expectedProposalId: string,
+): ActionInterpretation {
+  const asRecord = body && typeof body === 'object' && !Array.isArray(body)
+    ? (body as Record<string, unknown>) : null;
+  if (asRecord && asRecord.ok !== true) {
+    // `unavailable` marks a read/write the backend could not verify — including
+    // an approve that may have landed. That is not a refusal.
+    if (asRecord.unavailable === true) return { outcome: 'unconfirmed' };
+    if (typeof asRecord.error === 'string' && asRecord.error) return { outcome: 'refused', code: asRecord.error };
+    return { outcome: 'unconfirmed' };
+  }
+  const vm = parseGenerationProposalResponse(body, expectedProposalId);
+  if (!vm) return { outcome: 'unconfirmed' };
+  const expectedLifecycle = action === 'approve' ? 'approved' : 'cancelled';
+  if (vm.lifecycle !== expectedLifecycle) return { outcome: 'unconfirmed' };
+  return { outcome: 'confirmed', vm };
+}
+
 /** Honest copy for approval refusals, keyed by the backend's machine-readable code. */
 export function approvalErrorCopy(code: string): string {
   switch (code) {
@@ -164,9 +202,11 @@ export type ClipProgress = {
 };
 
 /**
- * Per-clip outcomes derived ONLY from durable records — receipt rows first (they
- * are the finalized statement), then the latest status-bearing task event. Nothing
- * is inferred from wall-clock time or from the run merely being in `generating`.
+ * Per-clip outcomes derived ONLY from durable records. The event stream states
+ * two facts per clip — started (`task_created`) and succeeded (`task_succeeded`);
+ * failure and unknownness are stated only by receipt rows, which are the
+ * finalized outcome and override event-derived state. Nothing is inferred from
+ * wall-clock time or from the run merely being in `generating`.
  */
 export function deriveClipProgress(vm: Pick<GenerationProposalViewModel, 'tasks' | 'events' | 'receipt'>): ClipProgress {
   const byTask = new Map<string, 'succeeded' | 'failed' | 'unknown' | 'started' | 'none'>();
@@ -175,8 +215,8 @@ export function deriveClipProgress(vm: Pick<GenerationProposalViewModel, 'tasks'
   for (const event of vm.events) {
     const prior = byTask.get(event.taskId);
     if (prior === undefined) continue; // parser guarantees membership; stay safe anyway
-    if (event.status === 'succeeded' || event.status === 'failed' || event.status === 'unknown') {
-      byTask.set(event.taskId, event.status);
+    if (event.status === 'succeeded') {
+      byTask.set(event.taskId, 'succeeded');
     } else if (event.status === 'created' && prior === 'none') {
       byTask.set(event.taskId, 'started');
     }
@@ -277,17 +317,22 @@ export function progressPresentation(
 }
 
 /**
- * The credit line. NEVER a dollar line: this contract supplies credits only, and a
- * charge figure the backend did not state is not ours to invent. `chargedCredits`
- * is rendered only once the backend has durably recorded it.
+ * The credit line. NEVER a dollar line: this contract supplies credits only, and
+ * a charge figure the backend did not state is not ours to invent.
+ * `incurredCredits` is the backend's own sum over clips whose START is on
+ * record (verified against the events by the parser) — spend attaches to a clip
+ * starting, not to approval.
  */
-export function creditsLine(vm: Pick<GenerationProposalViewModel, 'maximumCredits' | 'chargedCredits' | 'progress' | 'dollars'>): string {
+export function creditsLine(vm: Pick<GenerationProposalViewModel, 'maximumCredits' | 'incurredCredits' | 'progress' | 'dollars'>): string {
   // vm.dollars is typed null under contract 2026-08-01; if a future contract adds
   // a backend-supplied figure it must be threaded here — never computed.
   if (vm.progress === 'completed') {
-    return `${vm.chargedCredits} credits recorded for this generation (authorized up to ${vm.maximumCredits}).`;
+    return `${vm.incurredCredits} credits recorded for this generation (authorized up to ${vm.maximumCredits}).`;
   }
-  return `Up to ${vm.maximumCredits} credits authorized. No final charge is recorded yet.`;
+  if (vm.incurredCredits > 0) {
+    return `${vm.incurredCredits} of up to ${vm.maximumCredits} authorized credits incurred so far, based on clips that have started.`;
+  }
+  return `Up to ${vm.maximumCredits} credits authorized. No clip has started, so no credits are recorded as incurred yet.`;
 }
 
 /**

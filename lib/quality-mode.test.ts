@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   QUALITY_MODES, capabilityWords, isModeSelectable, isQualityMode,
-  modeDifferenceRows, productionUnavailableCopy, qualityModeLabel, qualityModeOption,
+  modeDifferenceRows, unavailableModeCopy, qualityModeLabel, qualityModeOption,
 } from './quality-mode.ts';
 
 // ── labels are display, values are identity ─────────────────────────────────
@@ -63,17 +63,28 @@ test('fast and professional are selectable exactly when compiled available', () 
 
 // ── unavailable-reason translation ──────────────────────────────────────────
 
-test('the known machine reason is translated into the missing capabilities', () => {
-  const copy = productionUnavailableCopy('missing_required_production_capabilities', [
+test('the production machine reason is translated into the missing capabilities', () => {
+  const copy = unavailableModeCopy('production', 'missing_required_production_capabilities', [
     'video.judge.per_asset', 'video.orchestration.segmented_assembly',
   ]);
+  assert.match(copy, /^Production mode/);
   assert.match(copy, /per-clip judging/);
   assert.match(copy, /segmented assembly/);
   assert.match(copy, /isn't available yet/i);
 });
 
+test("the professional machine reason says described-but-not-enforced, not 'not built'", () => {
+  const copy = unavailableModeCopy('professional', 'missing_required_professional_execution_capabilities', [
+    'video.judge.per_asset', 'video.orchestration.segmented_assembly',
+  ]);
+  assert.match(copy, /^Professional mode/);
+  assert.match(copy, /not genuinely enforced/i);
+  assert.match(copy, /can't be promised/i);
+  assert.ok(!/not built yet\.$/.test(copy), 'described-but-unenforced is a different fact from not-built');
+});
+
 test('an unknown machine reason is surfaced verbatim, not hidden', () => {
-  assert.match(productionUnavailableCopy('some_new_reason', []), /some_new_reason/);
+  assert.match(unavailableModeCopy('production', 'some_new_reason', []), /some_new_reason/);
 });
 
 test('an unknown capability key is shown verbatim, not given an invented name', () => {
@@ -81,7 +92,7 @@ test('an unknown capability key is shown verbatim, not given an invented name', 
 });
 
 test('with no compiled reason, copy claims only what we know', () => {
-  const copy = productionUnavailableCopy(null, []);
+  const copy = unavailableModeCopy('production', null, []);
   assert.match(copy, /isn't available in this build/i);
   assert.ok(!/needs/.test(copy), 'must not invent a cause');
 });

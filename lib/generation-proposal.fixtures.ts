@@ -2,9 +2,12 @@
  * lib/generation-proposal.fixtures.ts — EXACT compiled proposals for the parser
  * tests, generated from the backend generation-quality compiler
  * (compiler_version generation-quality.v1, contract_version 2026-08-01) on
- * 2026-08-01 against the pre-merge Wave 1 Session A worktree. Regenerate from the
- * merged backend PR fixtures before declaring the transport binding reconciled;
- * every digest below is the compiler's real output, not hand-written.
+ * 2026-08-01, post-review revision of backend PR #130: Professional now
+ * compiles UNAVAILABLE (missing_required_professional_execution_capabilities)
+ * while retaining its full task graph, pins, and review requirements for
+ * preview; Production remains unavailable with an empty graph. Every digest is
+ * the compiler's real output, not hand-written. Regenerate against #130's
+ * merged head before declaring the transport binding reconciled.
  *
  * The moments mirror the founder smoke: fast mode compiles exactly 3 tasks at 60
  * credits each — 180 credits maximum.
@@ -141,9 +144,12 @@ export const PROFESSIONAL_COMPILED = {
   "compiler_version": "generation-quality.v1",
   "capability_key": "video.generate_broll",
   "quality_mode": "professional",
-  "availability": true,
-  "unavailable_reason": null,
-  "required_missing_capabilities": [],
+  "availability": false,
+  "unavailable_reason": "missing_required_professional_execution_capabilities",
+  "required_missing_capabilities": [
+    "video.judge.per_asset",
+    "video.orchestration.segmented_assembly"
+  ],
   "stages": [
     {
       "id": "analyze",
@@ -350,7 +356,7 @@ export const PROFESSIONAL_COMPILED = {
     "segmented_assembly",
     "user_review"
   ],
-  "proposal_digest": "34b7d1b2c040821706d4910a9d1e7546377f188d48f04e8480f89da6792379e5"
+  "proposal_digest": "714b6db2bd0c0ee6d1fd5aad0068db7a5a63ec7419246cc8ab49dac5c9aa0325"
 } as const;
 
 export const PRODUCTION_COMPILED = {

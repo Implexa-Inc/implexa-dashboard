@@ -10,7 +10,7 @@
 
 import type { GenerationProposalViewModel } from '@/lib/generation-proposal';
 import { creditsLine, deriveClipProgress, progressPresentation } from '@/lib/generation-proposal-state';
-import { productionUnavailableCopy, qualityModeLabel } from '@/lib/quality-mode';
+import { unavailableModeCopy, qualityModeLabel } from '@/lib/quality-mode';
 
 const TONE_CLASSES: Record<string, string> = {
   ok: 'bg-emerald-500/15 text-emerald-300',
@@ -36,7 +36,7 @@ export default function GenerationProgressCard({ vm }: { vm: GenerationProposalV
 
       {vm.progress === 'unavailable' && vm.unavailableReason && (
         <p className="mt-2 text-xs text-amber-300">
-          {productionUnavailableCopy(vm.unavailableReason, vm.requiredMissingCapabilities)}
+          {unavailableModeCopy(vm.qualityMode, vm.unavailableReason, vm.requiredMissingCapabilities)}
         </p>
       )}
 

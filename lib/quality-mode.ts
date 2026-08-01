@@ -92,26 +92,35 @@ export function capabilityWords(key: string): string {
 }
 
 /**
- * Honest user copy for WHY Production is unavailable, translated from the exact
- * machine-readable reason the backend supplied. An unknown reason code is surfaced,
- * not hidden behind generic copy — the code is the truth we actually have.
+ * Honest user copy for WHY a mode is unavailable, translated from the exact
+ * machine-readable reason the backend supplied. Not Production-specific:
+ * Professional compiles unavailable too (its Judge/repair/assembly pipeline is
+ * described but not yet enforced), with its own reason code. An unknown reason
+ * code is surfaced, not hidden behind generic copy — the code is the truth we
+ * actually have.
  */
-export function productionUnavailableCopy(
+export function unavailableModeCopy(
+  mode: QualityMode | string,
   reason: string | null,
   requiredMissingCapabilities: readonly string[],
 ): string {
+  const label = isQualityMode(mode) ? qualityModeOption(mode).label : String(mode);
+  const parts = requiredMissingCapabilities.map(capabilityWords);
+  const caps = parts.length ? parts.join(' and ') : 'capabilities that are not built yet';
   if (reason === 'missing_required_production_capabilities') {
-    const parts = requiredMissingCapabilities.map(capabilityWords);
-    const needs = parts.length
-      ? parts.join(' and ')
-      : 'capabilities that are not built yet';
-    return `Production mode isn't available yet — it needs ${needs}, which ${parts.length === 1 ? "isn't" : "aren't"} built yet.`;
+    return `${label} mode isn't available yet — it needs ${caps}, which ${parts.length === 1 ? "isn't" : "aren't"} built yet.`;
+  }
+  if (reason === 'missing_required_professional_execution_capabilities') {
+    // The distinction matters: the pipeline is DESCRIBED but not ENFORCED. Saying
+    // "not built" would understate it; saying nothing would let the description
+    // read as a promise.
+    return `${label} mode isn't available yet — ${caps} ${parts.length === 1 ? 'is' : 'are'} described in its plan but not genuinely enforced, so its results can't be promised yet.`;
   }
   if (reason) {
-    return `Production mode isn't available (${reason}).`;
+    return `${label} mode isn't available (${reason}).`;
   }
   // No compiled reason in hand. Say the honest minimum; do not invent a cause.
-  return "Production mode isn't available in this build yet.";
+  return `${label} mode isn't available in this build yet.`;
 }
 
 /**

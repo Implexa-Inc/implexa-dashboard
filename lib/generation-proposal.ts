@@ -1,13 +1,15 @@
 /**
- * lib/generation-proposal.ts — the client for the paid-generation proposal API.
+ * lib/generation-proposal.ts — the PURE parser and view model for the
+ * paid-generation proposal API. (The server-side fetch lives in
+ * lib/generation-proposal-read.ts; this module is also consumed by client
+ * components, which verify approve/cancel responses with the same parser.)
  *
  * CONTRACT: /api/v2/generation-proposals (backend `generation-quality.v1`,
- * contract_version 2026-08-01). Consumed shapes were read off the backend
- * quality-compiler and proposal service, not invented here. TRANSPORT-BINDING
- * STATUS: the backend PR carrying this contract is not merged at the time of
- * writing; the parser below is pinned to the exact compiled fixtures produced by
- * that compiler and must be re-reconciled against the merged PR's versioned
- * fixtures before this surface is declared live. See docs/generation-quality-ux.md.
+ * contract_version 2026-08-01, post-review revision of backend PR #130 —
+ * Professional compiles unavailable-with-graph, completed demands the full
+ * evidence chain). TRANSPORT-BINDING STATUS: pinned to the exact compiled
+ * fixtures of that revision; re-reconcile against #130's merged head before
+ * declaring this surface live. See docs/generation-quality-ux.md.
  *
  * THE RULES, same as lib/review.ts and for the same reason — except here the
  * surface is authorizing PAID work, so a coerced parse doesn't just lie about
@@ -66,21 +68,38 @@ export type GenerationTaskVM = {
   credits: number;
 };
 
+/**
+ * A durable task event. The contract admits exactly two event types, each with
+ * its type-specific status — `task_created` carries `created`, `task_succeeded`
+ * carries `succeeded` plus the produced artifact's digest — at most one of each
+ * per task, and always a provider task id. Anything else is not a record the
+ * backend's own projection can emit.
+ */
 export type GenerationTaskEventVM = {
   taskId: string;
-  eventType: string;
-  providerTaskId: string | null;
-  status: 'created' | 'succeeded' | 'failed' | 'unknown' | null;
+  eventType: 'task_created' | 'task_succeeded';
+  providerTaskId: string;
+  status: 'created' | 'succeeded';
+  /** Present exactly when eventType is task_succeeded. */
   artifactSha256: string | null;
   createdAt: string | null;
 };
 
 export type GenerationReceiptTaskVM = {
   taskId: string;
-  providerTaskId: string | null;
-  promptDigest: string | null;
+  providerTaskId: string;
+  /** Always present and always equal to the proposal task's prompt digest. */
+  promptDigest: string;
   status: 'succeeded' | 'failed' | 'unknown';
   artifactSha256: string | null;
+};
+
+export type GenerationReceiptVM = {
+  /** The receipt is BOUND to its authorization; both ids must agree with it. */
+  authorizationId: string;
+  authorizationDigest: string;
+  digest: string | null;
+  tasks: GenerationReceiptTaskVM[];
 };
 
 export type GenerationAuthorizationVM = {
@@ -131,8 +150,13 @@ export type GenerationProposalViewModel = {
   tasks: GenerationTaskVM[];
   taskCount: number;
   maximumCredits: number;
-  /** Credits the backend recorded as actually consumed. 0 until completion is durable. */
-  chargedCredits: number;
+  /**
+   * Credits incurred so far: the backend computes this as the sum of credits of
+   * tasks whose `task_created` event is on record — spend attaches to a clip
+   * STARTING, not to approval and not to completion. The parser re-derives the
+   * same sum from the events and refuses a response where the two disagree.
+   */
+  incurredCredits: number;
   /**
    * Always null under contract 2026-08-01: the backend supplies credits only.
    * A dollar figure may ONLY ever come from a backend field — never client math.
@@ -142,7 +166,7 @@ export type GenerationProposalViewModel = {
   expiresAt: string;
   authorization: GenerationAuthorizationVM | null;
   events: GenerationTaskEventVM[];
-  receipt: { digest: string | null; tasks: GenerationReceiptTaskVM[] } | null;
+  receipt: GenerationReceiptVM | null;
 };
 
 // ── validators ──────────────────────────────────────────────────────────────
@@ -160,7 +184,6 @@ const isNonNegInt = (v: unknown): v is number => typeof v === 'number' && Number
 const LIFECYCLES = new Set<GenerationLifecycle>(['awaiting_approval', 'approved', 'cancelled', 'expired', 'unavailable']);
 const PROGRESS_STATES = new Set<GenerationProgress>(['awaiting_approval', 'pending', 'generating', 'completed', 'failed', 'unknown', 'expired', 'cancelled', 'unavailable']);
 const AUTH_STATUSES = new Set<AuthorizationStatus>(['pending', 'claimed', 'completed', 'failed', 'unknown', 'expired']);
-const EVENT_STATUSES = new Set(['created', 'succeeded', 'failed', 'unknown']);
 const RECEIPT_STATUSES = new Set(['succeeded', 'failed', 'unknown']);
 const QUALITY_MODES = new Set(['fast', 'professional', 'production']);
 
@@ -265,18 +288,23 @@ function parseCompiled(v: unknown): CompiledCore | null {
     tasks.push(task);
   }
 
+  // An APPROVABLE proposal must propose something; an unavailable one may still
+  // CARRY a task graph as a preview (Professional does, until per-asset judging
+  // and segmented assembly are genuinely enforced) or carry nothing (Production).
+  // What is not negotiable: the graph travels whole. Tasks without pins, density,
+  // stages, or review requirements would show clips with no statement of what
+  // runs them — and pins without tasks would name a provider for no work.
+  if (availability && tasks.length === 0) return null;
   let provider: string | null = null;
   let model: string | null = null;
-  if (availability) {
-    // A live proposal must say what it runs and where feedback goes.
-    if (tasks.length === 0) return null;
+  if (tasks.length > 0) {
     if (stageKinds.length === 0) return null;
     if (gpm === null || densityLabel === null) return null;
     if (!isObject(v.pins) || !isId(v.pins.provider) || !isId(v.pins.model)) return null;
     provider = v.pins.provider; model = v.pins.model;
   } else {
-    // An unavailable proposal authorizes nothing, so it must propose nothing.
-    if (tasks.length !== 0) return null;
+    if (stageKinds.length !== 0) return null;
+    if (gpm !== null || densityLabel !== null) return null;
     if (v.pins !== null && v.pins !== undefined) return null;
   }
 
@@ -302,6 +330,8 @@ function parseCompiled(v: unknown): CompiledCore | null {
   if (tasks.length > 10 || sum > 1200) return null;
 
   if (!Array.isArray(v.review_requirements) || !v.review_requirements.every((r) => isId(r))) return null;
+  // Review requirements describe the graph, so they exist exactly when it does.
+  if ((tasks.length > 0) !== (v.review_requirements.length > 0)) return null;
   if (!isDigest(v.proposal_digest)) return null;
 
   return {
@@ -336,13 +366,19 @@ function parseAuthorization(v: unknown): GenerationAuthorizationVM | null {
   };
 }
 
+/**
+ * Parse ONE task event against the contract's closed vocabulary: two event
+ * types, each with its type-specific status, always a provider task id. An
+ * event about a task this proposal does not contain describes someone else's
+ * work — rendering it would attribute foreign progress to this run's clips.
+ */
 function parseEvent(v: unknown, taskIds: ReadonlySet<string>): GenerationTaskEventVM | null {
   if (!isObject(v)) return null;
-  // An event about a task this proposal does not contain describes someone else's
-  // work. Rendering it would attribute foreign progress to this run's clips.
   if (!isId(v.task_id) || !taskIds.has(v.task_id)) return null;
-  if (!isId(v.event_type)) return null;
-  if (!(v.status === null || (typeof v.status === 'string' && EVENT_STATUSES.has(v.status)))) return null;
+  if (v.event_type !== 'task_created' && v.event_type !== 'task_succeeded') return null;
+  if (!isId(v.provider_task_id)) return null;
+  if (!isNullableString(v.created_at ?? null)) return null;
+
   const artifact = v.artifact;
   let artifactSha256: string | null = null;
   if (artifact !== null && artifact !== undefined) {
@@ -352,11 +388,24 @@ function parseEvent(v: unknown, taskIds: ReadonlySet<string>): GenerationTaskEve
       artifactSha256 = artifact.sha256;
     }
   }
-  if (!isNullableString(v.provider_task_id ?? null) || !isNullableString(v.created_at ?? null)) return null;
+
+  // TYPE-SPECIFIC STATUS. A `task_created` claiming `succeeded` (or vice versa)
+  // is not a record the backend projection can emit; treating it as either one
+  // would count progress that was never durably stated.
+  //
+  // A succeeded event's artifact digest is NOT required here: the backend
+  // validates the underlying event on `artifact_sha256` but projects `sha256`,
+  // so a mid-flight read can legally carry a success whose projected artifact is
+  // empty. The COMPLETED evidence chain still demands the digest and its match —
+  // tolerance in flight, strictness at the claim.
+  if (v.event_type === 'task_created') {
+    if (v.status !== 'created') return null;
+  } else if (v.status !== 'succeeded') return null;
+
   return {
     taskId: v.task_id, eventType: v.event_type,
-    providerTaskId: (v.provider_task_id as string | null) ?? null,
-    status: (v.status as GenerationTaskEventVM['status']),
+    providerTaskId: v.provider_task_id,
+    status: v.status,
     artifactSha256,
     createdAt: (v.created_at as string | null) ?? null,
   };
@@ -365,9 +414,11 @@ function parseEvent(v: unknown, taskIds: ReadonlySet<string>): GenerationTaskEve
 function parseReceipt(
   v: unknown,
   tasksById: ReadonlyMap<string, GenerationTaskVM>,
-): { digest: string | null; tasks: GenerationReceiptTaskVM[] } | null | false {
+): GenerationReceiptVM | null | false {
   if (v === null || v === undefined) return null;
   if (!isObject(v) || !Array.isArray(v.tasks)) return false;
+  // A receipt is BOUND to its authorization or it is nobody's receipt.
+  if (!isId(v.authorization_id) || !isDigest(v.authorization_digest)) return false;
   if (!(v.receipt_digest === null || isDigest(v.receipt_digest))) return false;
   const out: GenerationReceiptTaskVM[] = [];
   const seen = new Set<string>();
@@ -379,11 +430,11 @@ function parseReceipt(
     if (seen.has(raw.task_id)) return false;
     seen.add(raw.task_id);
     if (typeof raw.status !== 'string' || !RECEIPT_STATUSES.has(raw.status)) return false;
-    if (!(raw.prompt_digest === null || isDigest(raw.prompt_digest))) return false;
-    // A receipt row carrying a DIFFERENT prompt digest than the task it names is a
-    // receipt for work this proposal never authorized.
-    if (raw.prompt_digest !== null && raw.prompt_digest !== tasksById.get(raw.task_id)!.promptDigest) return false;
-    if (!isNullableString(raw.provider_task_id ?? null)) return false;
+    if (!isId(raw.provider_task_id)) return false;
+    // Every row must carry ITS TASK'S prompt digest. A missing digest — or a
+    // different one — is a receipt for work this proposal never authorized.
+    if (!isDigest(raw.prompt_digest)) return false;
+    if (raw.prompt_digest !== tasksById.get(raw.task_id)!.promptDigest) return false;
     const artifact = raw.artifact;
     let artifactSha256: string | null = null;
     if (artifact !== null && artifact !== undefined) {
@@ -395,13 +446,18 @@ function parseReceipt(
     }
     out.push({
       taskId: raw.task_id,
-      providerTaskId: (raw.provider_task_id as string | null) ?? null,
-      promptDigest: (raw.prompt_digest as string | null) ?? null,
+      providerTaskId: raw.provider_task_id,
+      promptDigest: raw.prompt_digest,
       status: raw.status as GenerationReceiptTaskVM['status'],
       artifactSha256,
     });
   }
-  return { digest: (v.receipt_digest as string | null) ?? null, tasks: out };
+  return {
+    authorizationId: v.authorization_id,
+    authorizationDigest: v.authorization_digest,
+    digest: (v.receipt_digest as string | null) ?? null,
+    tasks: out,
+  };
 }
 
 /**
@@ -447,10 +503,11 @@ export function parseGenerationProposalResponse(
 
   if (!isId(body.expires_at) || Number.isNaN(Date.parse(body.expires_at))) return null;
 
-  // cost is display-only and must restate the compiled maximum, not offer a rival.
+  // cost must restate the compiled maximum, not offer a rival. total_credits is
+  // checked against the events below, once they are parsed.
   if (!isObject(body.cost)) return null;
   if (body.cost.maximum_credits !== compiled.maximumCredits) return null;
-  if (!isNonNegInt(body.cost.total_credits) || body.cost.total_credits > compiled.maximumCredits) return null;
+  if (!isNonNegInt(body.cost.total_credits)) return null;
 
   const authorization = body.authorization === null || body.authorization === undefined
     ? null
@@ -476,18 +533,65 @@ export function parseGenerationProposalResponse(
   if (!Array.isArray(body.task_progress)) return null;
   const taskIds = new Set(compiled.tasks.map((t) => t.taskId));
   const events: GenerationTaskEventVM[] = [];
+  const eventKeys = new Set<string>();
+  const createdByTask = new Map<string, GenerationTaskEventVM>();
+  const succeededByTask = new Map<string, GenerationTaskEventVM>();
   for (const raw of body.task_progress) {
     const event = parseEvent(raw, taskIds);
     if (!event) return null;
+    // At most ONE event of each type per task. A second `task_succeeded` for the
+    // same clip is either a replay or someone else's — both are refused.
+    const key = `${event.taskId}:${event.eventType}`;
+    if (eventKeys.has(key)) return null;
+    eventKeys.add(key);
+    (event.eventType === 'task_created' ? createdByTask : succeededByTask).set(event.taskId, event);
     events.push(event);
+  }
+  // A success must PAIR with its start: same task, same provider task id. An
+  // unpaired success is an outcome for work nothing on record ever began.
+  for (const [taskId, succeeded] of succeededByTask) {
+    const created = createdByTask.get(taskId);
+    if (!created || created.providerTaskId !== succeeded.providerTaskId) return null;
   }
   // Events can only exist under an authorization that could have produced them.
   if (events.length > 0 && !authorization) return null;
 
+  // MONEY AGREES WITH EVENTS. The backend computes total_credits as the credits
+  // of every task whose start is on record; re-derive and refuse a rival figure —
+  // in either direction, spend understated is as false as spend invented.
+  const incurred = compiled.tasks.reduce((sum, t) => sum + (createdByTask.has(t.taskId) ? t.credits : 0), 0);
+  if (body.cost.total_credits !== incurred) return null;
+
   const tasksById = new Map(compiled.tasks.map((t) => [t.taskId, t]));
   const receipt = parseReceipt(body.receipt, tasksById);
   if (receipt === false) return null;
-  if (receipt !== null && !authorization) return null;
+  if (receipt !== null) {
+    if (!authorization) return null;
+    // The receipt names the authorization it settles. A receipt bound to a
+    // different authorization settles different work.
+    if (receipt.authorizationId !== authorization.id) return null;
+    if (receipt.authorizationDigest !== authorization.digest) return null;
+  }
+
+  // COMPLETED IS AN EVIDENCE CLAIM, NOT A STATUS FLAG. Before this surface says
+  // "finished", every piece of the chain must be on record: a digested receipt
+  // covering EVERY task, every row succeeded with its artifact, and each row's
+  // provider id agreeing with both of that task's events, whose artifact digest
+  // must match the receipt's. A bare `status: 'completed'` proves nothing.
+  if (progress === 'completed') {
+    if (!receipt || receipt.digest === null) return null;
+    if (receipt.tasks.length !== compiled.taskCount) return null;
+    for (const task of compiled.tasks) {
+      const row = receipt.tasks.find((r) => r.taskId === task.taskId);
+      if (!row || row.status !== 'succeeded' || row.artifactSha256 === null) return null;
+      const created = createdByTask.get(task.taskId);
+      const succeeded = succeededByTask.get(task.taskId);
+      if (!created || !succeeded) return null;
+      if (row.providerTaskId !== created.providerTaskId) return null;
+      if (row.providerTaskId !== succeeded.providerTaskId) return null;
+      if (row.artifactSha256 !== succeeded.artifactSha256) return null;
+    }
+  }
 
   return {
     proposalId,
@@ -511,59 +615,9 @@ export function parseGenerationProposalResponse(
     reviewRequirements: compiled.reviewRequirements,
     tasks: compiled.tasks, taskCount: compiled.taskCount,
     maximumCredits: compiled.maximumCredits,
-    chargedCredits: body.cost.total_credits as number,
+    incurredCredits: body.cost.total_credits as number,
     dollars: null,
     expiresAt: body.expires_at,
     authorization, events, receipt,
   };
-}
-
-// ── read status wrapper ─────────────────────────────────────────────────────
-
-/**
- * Three-valued read, following lib/attention.ts / lib/review.ts. `not_found` is a
- * real answer (the backend affirmatively said this proposal does not exist for
- * this user); `unavailable` is the absence of an answer. Rendering them the same
- * would tell a user their pending charge vanished when we merely couldn't read it.
- */
-export type GenerationProposalRead =
-  | { state: 'ready'; vm: GenerationProposalViewModel }
-  | { state: 'not_found' }
-  | { state: 'unavailable' };
-
-const BACKEND = (
-  process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai'
-).replace(/\/$/, '');
-
-async function sessionToken(): Promise<string | null> {
-  const { createClient } = await import('@/lib/supabase/server');
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token ?? null;
-}
-
-export async function getGenerationProposal(proposalId: string): Promise<GenerationProposalRead> {
-  const jwt = await sessionToken();
-  if (!jwt) return { state: 'unavailable' };
-  try {
-    const res = await fetch(`${BACKEND}/api/v2/generation-proposals/${encodeURIComponent(proposalId)}`, {
-      headers: { authorization: `Bearer ${jwt}` },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(10000),
-    });
-    if (res.status === 404) {
-      const body = await res.json().catch(() => null);
-      // Only the backend's own affirmative answer counts as not-found. A bare 404
-      // (wrong deploy, missing route) is a read we could not make.
-      if (body && (body as { error?: unknown }).error === 'proposal_not_found') return { state: 'not_found' };
-      return { state: 'unavailable' };
-    }
-    if (!res.ok) return { state: 'unavailable' };
-    const body = await res.json();
-    const vm = parseGenerationProposalResponse(body, proposalId);
-    // Reject, do not coerce. A malformed 200 is a read we could not make.
-    return vm ? { state: 'ready', vm } : { state: 'unavailable' };
-  } catch {
-    return { state: 'unavailable' };
-  }
 }

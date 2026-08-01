@@ -19,7 +19,7 @@
 
 import { useId } from 'react';
 import {
-  QUALITY_MODES, isModeSelectable, productionUnavailableCopy, qualityModeOption,
+  QUALITY_MODES, isModeSelectable, unavailableModeCopy, qualityModeOption,
   modeDifferenceRows, type QualityMode,
 } from '@/lib/quality-mode';
 
@@ -56,6 +56,11 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
           const selectable = isModeSelectable(mode, compiled);
           const selected = value === mode;
           const differences = modeDifferenceRows(compiled);
+          // Production is unavailable in this build even before any compilation
+          // is seen; other modes are marked unavailable only when their own
+          // compilation says so.
+          const compiledUnavailable = compiled !== null && compiled.availability !== true;
+          const markedUnavailable = compiledUnavailable || mode === 'production';
           return (
             <label
               key={mode}
@@ -76,7 +81,7 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
               <span className="flex items-center gap-2">
                 <span aria-hidden className={`h-3 w-3 shrink-0 rounded-full border ${selected ? 'border-ink-100 bg-ink-100' : 'border-ink-600'}`} />
                 <span className="text-sm font-medium text-ink-100">{option.label}</span>
-                {mode === 'production' && (
+                {markedUnavailable && (
                   <span className="ml-auto rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-300">
                     Not available yet
                   </span>
@@ -84,14 +89,19 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
               </span>
               <span className="mt-1 text-xs text-ink-400">{option.description}</span>
 
-              {mode === 'production' ? (
+              {/* An unavailable mode explains itself with the translated backend
+                  reason. Its compiled differences (Professional keeps its graph
+                  for preview) still render beneath — described, not promised. */}
+              {markedUnavailable && (
                 <span className="mt-2 text-[11px] leading-snug text-amber-300/90">
-                  {productionUnavailableCopy(
+                  {unavailableModeCopy(
+                    mode,
                     compiled?.unavailableReason ?? null,
                     compiled?.requiredMissingCapabilities ?? [],
                   )}
                 </span>
-              ) : differences.length > 0 ? (
+              )}
+              {differences.length > 0 ? (
                 <dl className="mt-2 space-y-0.5">
                   {differences.map((row) => (
                     <div key={row.term} className="flex gap-1.5 text-[11px] text-ink-500">
@@ -100,13 +110,13 @@ export default function QualityModeSelector({ value, onChange, compiledByMode, d
                     </div>
                   ))}
                 </dl>
-              ) : (
+              ) : !markedUnavailable ? (
                 // No compiled proposal for this mode yet: say so instead of
                 // describing behavior nobody compiled.
                 <span className="mt-2 text-[11px] text-ink-600">
                   Details appear once this mode is compiled for your request.
                 </span>
-              )}
+              ) : null}
             </label>
           );
         })}

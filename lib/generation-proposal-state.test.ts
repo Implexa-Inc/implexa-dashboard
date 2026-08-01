@@ -124,8 +124,20 @@ const tasks = [
   { taskId: 't2', momentId: 'b', variant: 'primary', window: { startSeconds: 5, endSeconds: 10 }, model: 'm', promptText: 'p', promptDigest: 'a'.repeat(64), ratio: '720:1280', durationSeconds: 5, credits: 60 },
   { taskId: 't3', momentId: 'c', variant: 'primary', window: { startSeconds: 10, endSeconds: 15 }, model: 'm', promptText: 'p', promptDigest: 'a'.repeat(64), ratio: '720:1280', durationSeconds: 5, credits: 60 },
 ];
-const event = (taskId: string, status: 'created' | 'succeeded' | 'failed' | 'unknown' | null) => ({
-  taskId, eventType: 'e', providerTaskId: null, status, artifactSha256: null, createdAt: null,
+const PROVIDER = '11111111-0000-4000-8000-000000000000';
+const event = (taskId: string, status: 'created' | 'succeeded') => ({
+  taskId,
+  eventType: (status === 'created' ? 'task_created' : 'task_succeeded') as 'task_created' | 'task_succeeded',
+  providerTaskId: PROVIDER,
+  status,
+  artifactSha256: status === 'succeeded' ? 'b'.repeat(64) : null,
+  createdAt: null,
+});
+const receiptTask = (taskId: string, status: 'succeeded' | 'failed' | 'unknown') => ({
+  taskId, providerTaskId: PROVIDER, promptDigest: 'a'.repeat(64), status, artifactSha256: status === 'succeeded' ? 'b'.repeat(64) : null,
+});
+const receiptOf = (rows: ReturnType<typeof receiptTask>[]) => ({
+  authorizationId: 'auth-1', authorizationDigest: 'c'.repeat(64), digest: 'd'.repeat(64), tasks: rows,
 });
 
 test('zero events is reported as zero events, never as a complete zero', () => {
@@ -151,12 +163,12 @@ test('progress counts only durable events — nothing interpolated', () => {
 test('receipt rows are the finalized outcome and override event state', () => {
   const clips = deriveClipProgress({
     tasks,
-    events: [event('t1', 'succeeded')],
-    receipt: { digest: null, tasks: [
-      { taskId: 't1', providerTaskId: null, promptDigest: null, status: 'failed', artifactSha256: null },
-      { taskId: 't2', providerTaskId: null, promptDigest: null, status: 'succeeded', artifactSha256: null },
-      { taskId: 't3', providerTaskId: null, promptDigest: null, status: 'unknown', artifactSha256: null },
-    ] },
+    events: [event('t1', 'created'), event('t1', 'succeeded')],
+    receipt: receiptOf([
+      receiptTask('t1', 'failed'),
+      receiptTask('t2', 'succeeded'),
+      receiptTask('t3', 'unknown'),
+    ]),
   });
   assert.equal(clips.failed, 1);
   assert.equal(clips.succeeded, 1);
@@ -198,14 +210,23 @@ test('pending says waiting for Desktop and does not claim generation started', (
 // ── money honesty ───────────────────────────────────────────────────────────
 
 test('the credit line never mentions dollars and never claims payment pre-completion', () => {
-  const line = creditsLine({ maximumCredits: 180, chargedCredits: 0, progress: 'pending', dollars: null });
+  const line = creditsLine({ maximumCredits: 180, incurredCredits: 0, progress: 'pending', dollars: null });
   assert.ok(!line.includes('$'));
   assert.ok(!/paid|charged/i.test(line));
   assert.match(line, /up to 180 credits/i);
+  assert.match(line, /no clip has started/i);
+});
+
+test('mid-flight incurred spend is stated as incurred, tied to started clips', () => {
+  const line = creditsLine({ maximumCredits: 180, incurredCredits: 60, progress: 'generating', dollars: null });
+  assert.match(line, /60 of up to 180/);
+  assert.match(line, /clips that have started/i);
+  assert.ok(!line.includes('$'));
+  assert.ok(!/paid/i.test(line));
 });
 
 test('completed shows the recorded figure as recorded, still no dollars', () => {
-  const line = creditsLine({ maximumCredits: 180, chargedCredits: 180, progress: 'completed', dollars: null });
+  const line = creditsLine({ maximumCredits: 180, incurredCredits: 180, progress: 'completed', dollars: null });
   assert.match(line, /180 credits recorded/);
   assert.ok(!line.includes('$'));
 });

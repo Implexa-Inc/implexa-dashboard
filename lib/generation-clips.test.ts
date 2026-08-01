@@ -24,10 +24,12 @@ const vm = {
     { taskId: 't2', momentId: 'build', variant: 'primary', window: { startSeconds: 20, endSeconds: 25 }, model: 'm', promptText: 'p', promptDigest: SHA_A, ratio: '720:1280', durationSeconds: 5, credits: 60 },
   ],
   receipt: {
-    digest: null,
+    authorizationId: 'auth-1',
+    authorizationDigest: 'c'.repeat(64),
+    digest: 'd'.repeat(64),
     tasks: [
-      { taskId: 't1', providerTaskId: null, promptDigest: null, status: 'succeeded' as const, artifactSha256: SHA_A },
-      { taskId: 't2', providerTaskId: null, promptDigest: null, status: 'failed' as const, artifactSha256: null },
+      { taskId: 't1', providerTaskId: '11111111-0000-4000-8000-000000000000', promptDigest: SHA_A, status: 'succeeded' as const, artifactSha256: SHA_A },
+      { taskId: 't2', providerTaskId: '22222222-0000-4000-8000-000000000000', promptDigest: SHA_A, status: 'failed' as const, artifactSha256: null },
     ],
   },
 };
@@ -94,7 +96,7 @@ test('a dead artifact source is never joined against — even if stale artifacts
 test('no receipt means no results yet — not an empty list of results', () => {
   assert.deepEqual(clipRows({ tasks: vm.tasks, receipt: null }, [artifact()], true), { state: 'no_results_yet' });
   assert.deepEqual(
-    clipRows({ tasks: vm.tasks, receipt: { digest: null, tasks: [] } }, [artifact()], true),
+    clipRows({ tasks: vm.tasks, receipt: { authorizationId: 'auth-1', authorizationDigest: 'c'.repeat(64), digest: null, tasks: [] } }, [artifact()], true),
     { state: 'no_results_yet' },
   );
 });

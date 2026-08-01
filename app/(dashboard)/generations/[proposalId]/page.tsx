@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getMyAgents } from '@/lib/agents-home';
-import { getGenerationProposal } from '@/lib/generation-proposal';
+import { getGenerationProposal } from '@/lib/generation-proposal-read';
 import { getReviewPacket } from '@/lib/review';
 import { requestedByLine } from '@/lib/generation-proposal-state';
 import GenerationProposalCard from '../../_components/generation-proposal-card';
@@ -89,7 +89,10 @@ export default async function GenerationProposalPage({ params }: { params: { pro
       <div className="space-y-4">
         <GenerationProgressCard vm={vm} />
 
-        {vm.lifecycle === 'awaiting_approval' && (
+        {/* Awaiting approval renders the live card; an unavailable proposal that
+            still carries its task graph (Professional preview) renders the same
+            card in its no-money preview form. */}
+        {(vm.lifecycle === 'awaiting_approval' || (vm.lifecycle === 'unavailable' && vm.taskCount > 0)) && (
           <GenerationProposalCard
             vm={vm}
             agentName={agentName}

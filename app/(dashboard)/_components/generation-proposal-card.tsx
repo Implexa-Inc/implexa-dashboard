@@ -22,10 +22,11 @@ import { useRouter } from 'next/navigation';
 import type { GenerationProposalViewModel } from '@/lib/generation-proposal';
 import {
   approvalConfirmationCopy, approvalErrorCopy, beginApproval, buildApprovalRequest,
-  editReset, formatWindow, proposalActions, requestedByLine, settleApproval,
+  editReset, formatWindow, interpretActionResponse, proposalActions, requestedByLine,
+  settleApproval,
   type ApprovalFlight, type EditableProposalRef,
 } from '@/lib/generation-proposal-state';
-import { qualityModeLabel, QUALITY_MODES, type QualityMode } from '@/lib/quality-mode';
+import { qualityModeLabel, unavailableModeCopy, QUALITY_MODES, type QualityMode } from '@/lib/quality-mode';
 import QualityModeSelector, { type ModeCompilation } from './quality-mode-selector';
 
 type Props = {
@@ -54,6 +55,10 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
 
   const acts = useMemo(() => proposalActions(vm, Date.now()), [vm]);
   const edited = ref.proposalId === null;
+  // An unavailable proposal that still carries its task graph (Professional,
+  // until its pipeline is genuinely enforced) renders as a PREVIEW: the plan is
+  // shown, and no money action exists at all — not even disabled.
+  const previewOnly = vm.availability !== true;
 
   const onApprove = useCallback(async () => {
     const { next, shouldSend } = beginApproval(flight);
@@ -82,22 +87,26 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
           idempotencyKey: req.idempotencyKey,
         }),
       });
-      const body = await res.json().catch(() => ({ ok: false, error: 'unreadable_response' }));
-      if (body?.ok) {
+      const body = await res.json().catch(() => null);
+      // NOT `body.ok`. Success is claimed only when the response parses under
+      // THE parser, names THIS proposal, and reads lifecycle 'approved'. A
+      // malformed or foreign `{ok:true}` is an answer we could not verify.
+      const read = interpretActionResponse('approve', body, ref.proposalId);
+      if (read.outcome === 'confirmed') {
         setFlight((s) => settleApproval(s, 'success'));
         setNotice(approvalConfirmationCopy(vm));
         router.refresh();
         return;
       }
-      if (body?.unavailable) {
-        // The approve may or may not have landed. Honest words + a re-read; the
-        // idempotency key makes a deliberate retry safe.
-        setError('We could not confirm whether this approval went through. Reload to see the current state — retrying with this same card cannot approve it twice.');
+      if (read.outcome === 'refused') {
+        setError(approvalErrorCopy(read.code));
         setFlight((s) => settleApproval(s, 'retryable_error'));
         router.refresh();
         return;
       }
-      setError(approvalErrorCopy(String(body?.error || 'proposal_transition_failed')));
+      // The approve may or may not have landed. Honest words + a re-read; the
+      // idempotency key makes a deliberate retry safe.
+      setError('We could not confirm whether this approval went through. Reload to see the current state — retrying with this same card cannot approve it twice.');
       setFlight((s) => settleApproval(s, 'retryable_error'));
       router.refresh();
     } catch {
@@ -114,9 +123,14 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action: 'cancel', proposalId: vm.proposalId }),
       });
-      const body = await res.json().catch(() => ({ ok: false, error: 'unreadable_response' }));
-      if (body?.ok) { setNotice('Proposal cancelled. Nothing was authorized.'); router.refresh(); return; }
-      setError(approvalErrorCopy(String(body?.error || 'proposal_transition_failed')));
+      const body = await res.json().catch(() => null);
+      // Same rule as approve: cancellation is announced only when the response
+      // parses, names this proposal, and reads lifecycle 'cancelled'.
+      const read = interpretActionResponse('cancel', body, vm.proposalId);
+      if (read.outcome === 'confirmed') { setNotice('Proposal cancelled. Nothing was authorized.'); router.refresh(); return; }
+      if (read.outcome === 'refused') { setError(approvalErrorCopy(read.code)); router.refresh(); return; }
+      setError('We could not confirm whether this cancellation went through. Reload to see the current state.');
+      router.refresh();
     } catch {
       setError('We could not reach Implexa to cancel this.');
     } finally { setCancelBusy(false); }
@@ -210,7 +224,14 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
       {error && <p role="alert" className="mt-3 text-xs text-red-300">{error}</p>}
       {notice && <p role="status" className="mt-3 text-xs text-emerald-300">{notice}</p>}
 
-      {acts.blockedReason && !edited && (
+      {previewOnly && (
+        <p className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">
+          {unavailableModeCopy(vm.qualityMode, vm.unavailableReason, vm.requiredMissingCapabilities)}
+          {' '}This is a preview of the plan — it cannot be approved or run.
+        </p>
+      )}
+
+      {!previewOnly && acts.blockedReason && !edited && (
         <p className="mt-3 text-xs text-amber-300">{acts.blockedReason}</p>
       )}
       {edited && (
@@ -220,36 +241,40 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
         </p>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={busy || edited || !acts.canApprove || flight.phase === 'settled'}
-          onClick={onApprove}
-          className="rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-950 disabled:opacity-40"
-        >
-          {acts.approveLabel}
-        </button>
-        {acts.canEdit && (
-          <button
-            type="button" disabled={busy} onClick={onEdit}
-            className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 disabled:opacity-40"
-          >
-            Edit
-          </button>
-        )}
-        {acts.canCancel && !edited && (
-          <button
-            type="button" disabled={busy || cancelBusy} onClick={onCancel}
-            className="rounded-md border border-ink-800 px-3 py-2 text-sm text-ink-400 hover:text-red-300 disabled:opacity-40"
-          >
-            Cancel
-          </button>
-        )}
-      </div>
-      <p className="mt-2 text-[11px] leading-snug text-ink-500">
-        Approving authorizes this exact set of clips and nothing else. It is not a
-        payment — usage is recorded as the work actually runs.
-      </p>
+      {!previewOnly && (
+        <>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={busy || edited || !acts.canApprove || flight.phase === 'settled'}
+              onClick={onApprove}
+              className="rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-950 disabled:opacity-40"
+            >
+              {acts.approveLabel}
+            </button>
+            {acts.canEdit && (
+              <button
+                type="button" disabled={busy} onClick={onEdit}
+                className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 disabled:opacity-40"
+              >
+                Edit
+              </button>
+            )}
+            {acts.canCancel && !edited && (
+              <button
+                type="button" disabled={busy || cancelBusy} onClick={onCancel}
+                className="rounded-md border border-ink-800 px-3 py-2 text-sm text-ink-400 hover:text-red-300 disabled:opacity-40"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+          <p className="mt-2 text-[11px] leading-snug text-ink-500">
+            Approving authorizes this exact set of clips and nothing else. It is not a
+            payment — usage is recorded as the work actually runs.
+          </p>
+        </>
+      )}
     </section>
   );
 }
