@@ -92,6 +92,7 @@ export default async function ReviewRoomPage({ params }: { params: { runId: stri
         runId={packet.run.id}
         agentName={agentName}
         artifacts={packet.artifacts}
+        production={packet.production}
         issues={packet.issues}
         session={packet.session}
         sources={packet.sources}

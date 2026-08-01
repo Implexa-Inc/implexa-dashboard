@@ -113,6 +113,27 @@ export type ReviewSession = {
   acceptedAt: string | null;
 } | null;
 
+export type ReviewProductionSegment = {
+  id: string;
+  label: string;
+  ordinal: number;
+  state: 'pending' | 'rendering' | 'qa_failed' | 'preview_ready';
+  writableRange: { startFrame: number; endFrameExclusive: number };
+  previewRange: { startFrame: number; endFrameExclusive: number } | null;
+  writableOffsetFrames: number | null;
+  artifact: ReviewArtifact | null;
+};
+
+export type ReviewProduction = {
+  id: string;
+  qualityMode: 'professional';
+  planDigest: string;
+  fps: number;
+  totalFrames: number;
+  finalRender: { ready: boolean; reasons: string[] };
+  segments: ReviewProductionSegment[];
+} | null;
+
 export type ReviewPacket = {
   ok: boolean;
   run: {
@@ -123,6 +144,7 @@ export type ReviewPacket = {
   artifacts: ReviewArtifact[];
   judgment: { id: string; verdict: string; summary: string; nextAction: string | null; createdAt: string | null } | null;
   verification: { receipts: Array<{ id: string; adapterKind: string; status: string; createdAt: string }> };
+  production: ReviewProduction;
   session: ReviewSession;
   issues: ReviewIssue[];
   sources: Record<string, SourceState>;
@@ -131,7 +153,7 @@ export type ReviewPacket = {
 
 const PACKET_UNAVAILABLE: ReviewPacket = {
   ok: false, run: null, lineage: { rootRunId: null, versions: [] }, artifacts: [],
-  judgment: null, verification: { receipts: [] }, session: null, issues: [],
+  judgment: null, verification: { receipts: [] }, production: null, session: null, issues: [],
   sources: { review_packet: 'unavailable' }, live: false,
 };
 
@@ -160,7 +182,7 @@ const SOURCE_STATES = new Set<SourceState>(['ready', 'unavailable', 'disabled'])
 /** Sources the queue is contracted to report. Extra keys are permitted. */
 export const QUEUE_SOURCE_KEYS = ['holds', 'judgments', 'sessions', 'acceptance', 'issueCounts', 'deliveredOutputs'] as const;
 /** Sources the packet is contracted to report. Extra keys are permitted. */
-export const PACKET_SOURCE_KEYS = ['run', 'lineage', 'artifacts', 'judgment', 'verification', 'session', 'issues'] as const;
+export const PACKET_SOURCE_KEYS = ['run', 'lineage', 'artifacts', 'judgment', 'verification', 'production', 'session', 'issues'] as const;
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -234,6 +256,57 @@ function isValidArtifact(v: unknown, runId: string): boolean {
     if (!isDigest(v.sha256)) return false;
   } else if (!(v.sha256 === null || v.sha256 === undefined || isDigest(v.sha256))) {
     return false;
+  }
+  return true;
+}
+
+const SEGMENT_STATES = new Set(['pending', 'rendering', 'qa_failed', 'preview_ready']);
+
+function isValidFrameRange(v: unknown): v is { startFrame: number; endFrameExclusive: number } {
+  return isObject(v)
+    && Number.isInteger(v.startFrame)
+    && Number.isInteger(v.endFrameExclusive)
+    && Number(v.startFrame) >= 0
+    && Number(v.endFrameExclusive) > Number(v.startFrame);
+}
+
+function isValidProxyArtifact(v: unknown): v is ReviewArtifact {
+  if (!isObject(v) || !isId(v.id) || !isId(v.runId)) return false;
+  if (typeof v.relativePath !== 'string' || !v.relativePath) return false;
+  return v.role === 'review_proxy' && v.status === 'validated' && isDigest(v.sha256);
+}
+
+function isValidProduction(v: unknown): v is NonNullable<ReviewProduction> {
+  if (!isObject(v) || !isId(v.id) || v.qualityMode !== 'professional' || !isDigest(v.planDigest)) return false;
+  if (!(typeof v.fps === 'number' && Number.isFinite(v.fps) && v.fps > 0)) return false;
+  if (!(Number.isInteger(v.totalFrames) && Number(v.totalFrames) > 0)) return false;
+  if (!isObject(v.finalRender) || typeof v.finalRender.ready !== 'boolean') return false;
+  if (!Array.isArray(v.finalRender.reasons) || !v.finalRender.reasons.every((r) => typeof r === 'string' && r.length > 0)) return false;
+  if (!Array.isArray(v.segments) || v.segments.length === 0) return false;
+
+  const ids = new Set<string>();
+  const ordinals = new Set<number>();
+  for (const segment of v.segments) {
+    if (!isObject(segment) || !isId(segment.id) || typeof segment.label !== 'string' || !segment.label) return false;
+    if (!Number.isInteger(segment.ordinal) || Number(segment.ordinal) < 0) return false;
+    if (ids.has(segment.id) || ordinals.has(Number(segment.ordinal))) return false;
+    ids.add(segment.id);
+    ordinals.add(Number(segment.ordinal));
+    if (!SEGMENT_STATES.has(String(segment.state)) || !isValidFrameRange(segment.writableRange)) return false;
+
+    if (segment.state === 'pending') {
+      if (segment.previewRange !== null || segment.writableOffsetFrames !== null || segment.artifact !== null) return false;
+    } else {
+      if (!isValidFrameRange(segment.previewRange) || !Number.isInteger(segment.writableOffsetFrames)) return false;
+      if (Number(segment.writableOffsetFrames) < 0) return false;
+      const writable = segment.writableRange;
+      const preview = segment.previewRange;
+      if (preview.startFrame > writable.startFrame || preview.endFrameExclusive < writable.endFrameExclusive) return false;
+      if (Number(segment.writableOffsetFrames) !== writable.startFrame - preview.startFrame) return false;
+      if (segment.state === 'preview_ready') {
+        if (!isValidProxyArtifact(segment.artifact)) return false;
+      } else if (segment.artifact !== null) return false;
+    }
   }
   return true;
 }
@@ -384,6 +457,7 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
 
   // judgment is legitimately null; when present every field the UI renders must be there.
   if (!(body.judgment === null || isValidJudgment(body.judgment))) return null;
+  if (!(body.production === null || isValidProduction(body.production))) return null;
 
   return {
     ok: true,
@@ -392,6 +466,7 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
     artifacts: body.artifacts as ReviewArtifact[],
     judgment: body.judgment as ReviewPacket['judgment'],
     verification: body.verification as ReviewPacket['verification'],
+    production: body.production as ReviewProduction,
     session: body.session as ReviewSession,
     issues: body.issues as ReviewIssue[],
     sources,
