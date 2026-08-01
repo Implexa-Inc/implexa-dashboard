@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ReviewArtifact, ReviewIssue, ReviewSession, SourceState } from '@/lib/review';
+import type { ReviewArtifact, ReviewIssue, ReviewProduction, ReviewSession, SourceState } from '@/lib/review';
 import {
   decidePreview, interpretPreviewResult, requestPreview, revokePreview,
   desktopPreviewSupported, inDesktopApp, parsePreviewUrl,
@@ -36,11 +36,16 @@ import {
   issuesForArtifact, artifactForIssue, isIssueStale, issueClickTarget,
   shouldApplySeek, shouldDropPendingSeek, type PendingSeek,
 } from '@/lib/review-room-state';
+import {
+  finalRenderControl, preferredReviewArtifact, previewRequestIdentity, reviewableArtifacts,
+  segmentForArtifact, segmentPlaybackClock,
+} from '@/lib/segmented-review';
 
 type Props = {
   runId: string;
   agentName: string;
   artifacts: ReviewArtifact[];
+  production: ReviewProduction;
   issues: ReviewIssue[];
   session: ReviewSession;
   sources: Record<string, SourceState>;
@@ -59,17 +64,23 @@ async function reviewAction(payload: Record<string, unknown>) {
   return { status: res.status, body } as { status: number; body: Record<string, any> };
 }
 
+function formatSignedMs(ms: number): string {
+  return `${ms < 0 ? '-' : ''}${formatMs(Math.abs(ms))}`;
+}
+
 export default function ReviewRoom(props: Props) {
   const router = useRouter();
-  const { runId, artifacts, sources, isApprovalHold } = props;
+  const { runId, artifacts, production, sources, isApprovalHold } = props;
 
-  // Prefer the delivered result; fall back to the first validated artifact.
-  const validated = useMemo(() => artifacts.filter((a) => a.status === 'validated'), [artifacts]);
+  const allArtifacts = useMemo(() => reviewableArtifacts(artifacts, production), [artifacts, production]);
+  const validated = useMemo(() => allArtifacts.filter((a) => a.status === 'validated'), [allArtifacts]);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
-    const final = validated.find((a) => a.role === 'final_output');
-    return (final || validated[0])?.id ?? null;
+    return preferredReviewArtifact(artifacts, production)?.id ?? null;
   });
-  const artifact = useMemo(() => artifacts.find((a) => a.id === selectedId) ?? null, [artifacts, selectedId]);
+  const artifact = useMemo(() => allArtifacts.find((a) => a.id === selectedId) ?? null, [allArtifacts, selectedId]);
+  const selectedSegment = useMemo(() => segmentForArtifact(production, selectedId), [production, selectedId]);
+  const proxyPreview = selectedSegment !== null;
+  const renderControl = useMemo(() => finalRenderControl(production), [production]);
 
   // BOUND to its artifact, for the same reason `preview` is: an unbound decision is
   // read by the cleanup effect in the flush where selection has already moved on, and
@@ -89,6 +100,7 @@ export default function ReviewRoom(props: Props) {
 
   // draft composer
   const [pausedAtMs, setPausedAtMs] = useState<number | null>(null);
+  const [playheadMs, setPlayheadMs] = useState(0);
   const [rangeEndMs, setRangeEndMs] = useState<number | null>(null);
   const [selection, setSelection] = useState<{ start: number; end: number; quote: string } | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -117,7 +129,7 @@ export default function ReviewRoom(props: Props) {
     () => issuesForArtifact(visible, selectedId),
     [visible, selectedId],
   );
-  const frozen = !acts.canEditIssues && session?.state !== 'accepted' && !isApprovalHold;
+  const frozen = proxyPreview || (!acts.canEditIssues && session?.state !== 'accepted' && !isApprovalHold);
   const accepted = session?.state === 'accepted';
 
   // ── preview lifecycle ─────────────────────────────────────────────────────
@@ -133,6 +145,7 @@ export default function ReviewRoom(props: Props) {
     // Per-artifact draft state does not survive a switch: a position captured in the
     // previous file would anchor the next comment to a moment in a different video.
     setPausedAtMs(null);
+    setPlayheadMs(0);
     setRangeEndMs(null);
     setSelection(null);
     setComposerOpen(false);
@@ -146,7 +159,8 @@ export default function ReviewRoom(props: Props) {
     if (base.state !== 'loading' || !artifact) return;
 
     (async () => {
-      const result = await requestPreview(runId, artifact.id);
+      const identity = previewRequestIdentity(artifact);
+      const result = await requestPreview(identity.runId, identity.artifactId);
       if (cancelled) return;
       const next = interpretPreviewResult(result, base.kind);
       setDecision({ artifactId: artifact.id, value: next });
@@ -324,11 +338,62 @@ export default function ReviewRoom(props: Props) {
   }, [ensureSession, router]);
 
   const issuesUnavailable = sources.issues === 'unavailable';
+  const playbackClock = production && selectedSegment
+    ? segmentPlaybackClock(production, selectedSegment, playheadMs)
+    : null;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
       {/* ── artifact surface ─────────────────────────────────────────────── */}
       <section className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        {production && (
+          <div className="mb-4 border-b border-ink-800 pb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-medium text-ink-100">Segment review</h2>
+                <p className="mt-0.5 text-xs text-ink-500">Professional preview pass</p>
+              </div>
+              <button
+                type="button"
+                disabled
+                title={renderControl.reason ?? 'Final assembly is not enabled in this first slice.'}
+                className="rounded-md border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Final render
+              </button>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-1 sm:grid-cols-6" aria-label="Production segments">
+              {production.segments.map((segment) => {
+                const selected = segment.artifact?.id === selectedId;
+                const ready = segment.state === 'preview_ready' && segment.artifact;
+                const tone = segment.state === 'qa_failed'
+                  ? 'border-red-500/50 text-red-300'
+                  : segment.state === 'preview_ready'
+                    ? 'border-emerald-500/50 text-emerald-300'
+                    : segment.state === 'rendering'
+                      ? 'border-sky-500/50 text-sky-300'
+                      : 'border-ink-800 text-ink-500';
+                return (
+                  <button
+                    key={segment.id}
+                    type="button"
+                    disabled={!ready}
+                    onClick={() => ready && setSelectedId(segment.artifact!.id)}
+                    aria-pressed={selected}
+                    className={`min-w-0 rounded border px-2 py-2 text-left ${tone} ${selected ? 'bg-ink-800' : 'bg-ink-950'} disabled:cursor-not-allowed`}
+                  >
+                    <span className="block truncate text-xs font-medium">{segment.ordinal + 1}. {segment.label}</span>
+                    <span className="mt-0.5 block truncate text-[11px]">{segment.state.replace('_', ' ')}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {!renderControl.enabled && renderControl.reason && (
+              <p className="mt-2 text-xs text-ink-500">Final render unavailable: {renderControl.reason}</p>
+            )}
+          </div>
+        )}
+
         {validated.length > 1 && (
           <label className="mb-3 block text-xs text-ink-400">
             File
@@ -356,15 +421,26 @@ export default function ReviewRoom(props: Props) {
           mediaRef={mediaRef}
           issues={surfaceIssues}
           onPause={(sec) => setPausedAtMs(Math.round(sec * 1000))}
+          onTimeUpdate={(sec) => setPlayheadMs(Math.round(sec * 1000))}
           onSelectText={(s) => { setSelection(s); setComposerOpen(true); }}
           onSeek={seekTo}
         />
 
         {artifact && (
-          <p className="mt-3 truncate text-xs text-ink-500">
-            {artifact.relativePath}
-            {artifact.sha256 && <span className="ml-2 font-mono">sha256 {artifact.sha256.slice(0, 12)}…</span>}
-          </p>
+          <div className="mt-3 text-xs text-ink-500">
+            <p className="truncate">
+              {proxyPreview && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-300">Review proxy</span>}
+              {artifact.relativePath}
+              {artifact.sha256 && <span className="ml-2 font-mono">sha256 {artifact.sha256.slice(0, 12)}…</span>}
+            </p>
+            {playbackClock && (
+              <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-ink-400">
+                <span>Segment {formatSignedMs(playbackClock.segmentMs)}</span>
+                <span>Global {formatMs(playbackClock.globalMs)}</span>
+                <span>Writable starts at {formatMs(playbackClock.writableOffsetMs)}</span>
+              </p>
+            )}
+          </div>
         )}
 
         {/* Persistent, keyboard-reachable. Not a modal that ambushes every pause. */}
@@ -439,6 +515,11 @@ export default function ReviewRoom(props: Props) {
       {/* ── issue rail ───────────────────────────────────────────────────── */}
       <aside className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
         <h2 className="text-sm font-medium text-ink-200">Review issues</h2>
+        {proxyPreview && (
+          <p className="mt-2 text-xs text-sky-300">
+            This is a validated segment proxy. Segment feedback, approval, and repair are not enabled in this first slice.
+          </p>
+        )}
 
         {issuesUnavailable ? (
           // NOT an empty rail: we could not read them.
@@ -446,7 +527,9 @@ export default function ReviewRoom(props: Props) {
             We couldn&apos;t load this review&apos;s issues. This list is not empty — it&apos;s unknown.
           </p>
         ) : ordered.filter((i) => i.status !== 'dismissed').length === 0 ? (
-          <p className="mt-2 text-xs text-ink-500">No issues yet. Pause and add feedback.</p>
+          <p className="mt-2 text-xs text-ink-500">
+            {proxyPreview ? 'No parent-run issues are attached to this proxy.' : 'No issues yet. Pause and add feedback.'}
+          </p>
         ) : (
           <ul className="mt-3 space-y-2">
             {visible.map((i) => {
@@ -499,7 +582,9 @@ export default function ReviewRoom(props: Props) {
         {notice && <p role="status" className="mt-3 text-xs text-emerald-300">{notice}</p>}
 
         <div className="mt-4 space-y-2 border-t border-ink-800 pt-4">
-          {acts.statusLine && !acts.canSubmit && !acts.canAccept && !acts.showApproveNextAction ? (
+          {proxyPreview ? (
+            <p className="text-xs text-ink-500">Final render remains unavailable while required segments are unresolved.</p>
+          ) : acts.statusLine && !acts.canSubmit && !acts.canAccept && !acts.showApproveNextAction ? (
             <p className="text-xs text-emerald-300">{acts.statusLine}</p>
           ) : accepted ? (
             <p className="text-xs text-emerald-300">You accepted this result.</p>
@@ -569,12 +654,13 @@ export default function ReviewRoom(props: Props) {
 /** The viewer. Every non-ready state renders words and buttons, never a dead player. */
 function ArtifactSurface({
   decision, previewUrl, textContent, textTruncated, mediaRef, issues, onPause, onSelectText, onSeek,
-  onMediaReady, mediaKey,
+  onMediaReady, onTimeUpdate, mediaKey,
 }: {
   decision: PreviewDecision | null;
   previewUrl: string | null;
   /** Fired on loadedmetadata — the only safe moment to apply a cross-artifact seek. */
   onMediaReady: () => void;
+  onTimeUpdate: (seconds: number) => void;
   /** Remounts the element per artifact, so loadedmetadata fires for the NEW file. */
   mediaKey: string;
   textContent: string | null;
@@ -629,6 +715,7 @@ function ArtifactSurface({
           controls
           className={decision.kind === 'video' ? 'w-full rounded bg-black' : 'w-full'}
           onLoadedMetadata={onMediaReady}
+          onTimeUpdate={(e) => onTimeUpdate((e.currentTarget as HTMLMediaElement).currentTime)}
           onPause={(e) => onPause((e.currentTarget as HTMLMediaElement).currentTime)}
         />
         {markers.length > 0 && (

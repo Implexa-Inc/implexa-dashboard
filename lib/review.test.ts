@@ -162,7 +162,7 @@ const goodPacket = () => ({
   // Realistic: the lineage contains the run being viewed — the page derives its
   // "you are here" label by finding it there.
   lineage: { rootRunId: 'run-1', versions: [{ runId: 'run-1', label: 'Original', runState: null, startedAt: null }] },
-  artifacts: [], judgment: null, verification: { receipts: [] }, session: null, issues: [],
+  artifacts: [], judgment: null, verification: { receipts: [] }, production: null, session: null, issues: [],
   sources: { ...okPacketSources },
 });
 
@@ -241,6 +241,54 @@ test('a well-formed packet response parses', () => {
   assert.equal(p!.run!.id, 'run-1');
 });
 
+const goodProduction = () => ({
+  id: 'production-1', qualityMode: 'professional', planDigest: 'b'.repeat(64), fps: 30, totalFrames: 25566,
+  finalRender: { ready: false, reasons: ['segment-02 is unresolved'] },
+  segments: [
+    {
+      id: 'segment-01', label: 'Opening', ordinal: 0, state: 'preview_ready',
+      writableRange: { startFrame: 0, endFrameExclusive: 3600 },
+      previewRange: { startFrame: 0, endFrameExclusive: 3660 }, writableOffsetFrames: 0,
+      artifact: { id: 'proxy-1', runId: 'worker-run-1', relativePath: '.implexa/segments/segment-01.mp4', role: 'review_proxy', status: 'validated', sha256: 'a'.repeat(64), sizeBytes: 1, mtime: null, validatedAt: null },
+    },
+    {
+      id: 'segment-02', label: 'Middle', ordinal: 1, state: 'pending',
+      writableRange: { startFrame: 3600, endFrameExclusive: 7200 },
+      previewRange: null, writableOffsetFrames: null, artifact: null,
+    },
+  ],
+});
+
+test('a segment proxy is separately bound to its worker run and parses without entering the parent artifact ledger', () => {
+  const parsed = parseReviewPacketResponse({ ...goodPacket(), production: goodProduction() }, 'run-1');
+  assert.notEqual(parsed, null);
+  assert.equal(parsed!.artifacts.length, 0);
+  assert.equal(parsed!.production!.segments[0].artifact!.runId, 'worker-run-1');
+  assert.equal(parsed!.production!.finalRender.ready, false);
+});
+
+test('malformed segment projections fail closed at the Review Room boundary', () => {
+  const base = goodProduction();
+  const cases: Array<[string, unknown]> = [
+    ['preview-ready without proxy evidence', { ...base, segments: [{ ...base.segments[0], artifact: null }, base.segments[1]] }],
+    ['proxy without validated digest', { ...base, segments: [{ ...base.segments[0], artifact: { ...base.segments[0].artifact, sha256: null } }, base.segments[1]] }],
+    ['duplicate segment id', { ...base, segments: [base.segments[0], { ...base.segments[1], id: 'segment-01' }] }],
+    ['incorrect writable offset', { ...base, segments: [{ ...base.segments[0], writableOffsetFrames: 12 }, base.segments[1]] }],
+    ['pending segment carrying an artifact', { ...base, segments: [base.segments[0], { ...base.segments[1], artifact: base.segments[0].artifact }] }],
+  ];
+  for (const [why, production] of cases) {
+    assert.equal(parseReviewPacketResponse({ ...goodPacket(), production }), null, why);
+  }
+});
+
+test('rendering and qa-failed attempts retain bounded preview geometry without claiming a validated proxy', () => {
+  for (const state of ['rendering', 'qa_failed'] as const) {
+    const production = goodProduction();
+    production.segments[0] = { ...production.segments[0], state, artifact: null };
+    assert.notEqual(parseReviewPacketResponse({ ...goodPacket(), production }), null, state);
+  }
+});
+
 test('REPRO: a packet with a valid run but everything else missing is UNAVAILABLE', () => {
   // An "actionable empty review" — real run id, no artifacts, no issues, nothing marked
   // unavailable — tells the user their agent delivered nothing. That is a different and
@@ -307,8 +355,8 @@ test('the LIVE payload shape parses — the parser matches production, not just 
     ] },
     artifacts: [{ id: 'a1', runId: '695352a5-2f9f-45d6-b6f7-188a7e6f1c5a', relativePath: 'out/x.mp4', role: 'final_output', status: 'validated', sha256: 'a'.repeat(64), sizeBytes: 1, mtime: null, validatedAt: null }],
     judgment: { id: 'j', verdict: 'pass', summary: 's', nextAction: null, createdAt: null },
-    verification: { receipts: [] }, session: null, issues: [],
-    sources: { artifacts: 'ready', issues: 'ready', judgment: 'ready', lineage: 'ready', run: 'ready', session: 'ready', verification: 'ready' },
+    verification: { receipts: [] }, production: null, session: null, issues: [],
+    sources: { artifacts: 'ready', issues: 'ready', judgment: 'ready', lineage: 'ready', production: 'ready', run: 'ready', session: 'ready', verification: 'ready' },
   };
   assert.notEqual(parseReviewPacketResponse(livePacket, '695352a5-2f9f-45d6-b6f7-188a7e6f1c5a'), null,
     'the real packet must satisfy the parser, identity check included');
