@@ -11,7 +11,11 @@ const dashboardRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const backendRoot = resolve(process.env.IMPLEXA_BACKEND_DIR || join(dashboardRoot, '..', 'implexa-backend'));
 const actualHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: backendRoot, encoding: 'utf8' }).trim();
 if (actualHead !== EXPECTED_BACKEND_HEAD) {
-  throw new Error(`Refusing fixture generation: backend HEAD ${actualHead} != ${EXPECTED_BACKEND_HEAD}`);
+  throw new Error(
+    `Refusing fixture generation: backend HEAD ${actualHead} != ${EXPECTED_BACKEND_HEAD}. `
+    + `Point IMPLEXA_BACKEND_DIR at a checkout of that commit (e.g. the Wave 1 Session A `
+    + `worktree) — the default ${backendRoot} may be on an unrelated branch.`,
+  );
 }
 
 const require = createRequire(import.meta.url);
