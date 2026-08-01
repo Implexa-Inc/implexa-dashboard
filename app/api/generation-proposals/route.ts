@@ -5,7 +5,7 @@ import { resolveProposalAction } from '@/lib/generation-proposal-actions';
 /**
  * POST /api/generation-proposals  { action, ... }
  *
- * The dashboard's write path into the generation-proposal API, shaped exactly
+ * The dashboard's preview/create/approve/cancel path into the generation-proposal API, shaped exactly
  * like /api/review and for the same reason: one route, an explicit action
  * allowlist, no generic passthrough carrying the user's JWT. The session token
  * stays server-side. No provider secret, signed URL, authorization internal, or

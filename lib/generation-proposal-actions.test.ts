@@ -1,6 +1,6 @@
 // node --test lib/generation-proposal-actions.test.ts
 //
-// The proposal write-path allowlist: exactly two actions, each mapping to exactly
+// The proposal write-path allowlist: exactly four actions, each mapping to exactly
 // one upstream call carrying exactly the fields the backend contracted for.
 
 import { test } from 'node:test';
@@ -9,6 +9,37 @@ import { resolveProposalAction } from './generation-proposal-actions.ts';
 
 const PROPOSAL_ID = '4c1d16a8-9f7e-4b7a-8a55-2e9d0f6b3c21';
 const DIGEST = 'a'.repeat(64);
+const RUN_ID = '52f93684-6cd5-49b1-b183-671e9fcfb4a5';
+const MOMENT = [{ id: 'moment-1', prompt: 'Aerial route map at sunrise', startSeconds: 4, endSeconds: 9 }];
+
+test('preview/create map one bounded browser moment into the compiler contract', () => {
+  for (const action of ['preview', 'create']) {
+    const target = resolveProposalAction(action, {
+      agentSubject: 'cinematic-b-roll-generator', sourceRunId: RUN_ID,
+      qualityMode: 'fast', moments: MOMENT,
+      injected: 'never-forwarded', sourceRequestId: 'never-forwarded',
+    });
+    assert.ok(typeof target !== 'string');
+    assert.equal(target.path, action === 'preview'
+      ? '/api/v2/generation-proposals/preview' : '/api/v2/generation-proposals');
+    assert.deepEqual(target.body, {
+      capabilityKey: 'video.generate_broll', qualityMode: 'fast',
+      agentSubject: 'cinematic-b-roll-generator', sourceRunId: RUN_ID,
+      moments: [{ id: 'moment-1', prompt: 'Aerial route map at sunrise', start_seconds: 4, end_seconds: 9, ratio: '720:1280' }],
+    });
+  }
+});
+
+test('preview/create refuse unbounded, malformed, or foreign-shaped inputs', () => {
+  const good = { agentSubject: 'cinematic-b-roll-generator', sourceRunId: RUN_ID, qualityMode: 'fast', moments: MOMENT };
+  assert.equal(typeof resolveProposalAction('preview', { ...good, moments: [] }), 'string');
+  assert.equal(typeof resolveProposalAction('preview', { ...good, moments: [...MOMENT, ...MOMENT] }), 'string');
+  assert.equal(typeof resolveProposalAction('preview', { ...good, sourceRunId: 'nope' }), 'string');
+  assert.equal(typeof resolveProposalAction('preview', { ...good, agentSubject: '../other' }), 'string');
+  assert.equal(typeof resolveProposalAction('preview', { ...good, qualityMode: 'ultra' }), 'string');
+  assert.equal(typeof resolveProposalAction('preview', { ...good, moments: [{ ...MOMENT[0], endSeconds: 20 }] }), 'string');
+  assert.equal(typeof resolveProposalAction('preview', { ...good, moments: [{ ...MOMENT[0], prompt: '' }] }), 'string');
+});
 
 test('approve maps to one upstream call with the identity verbatim and the key as a header', () => {
   const target = resolveProposalAction('approve', {

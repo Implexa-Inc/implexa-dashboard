@@ -227,7 +227,7 @@ function parseTask(v: unknown): GenerationTaskVM | null {
   };
 }
 
-type CompiledCore = Pick<GenerationProposalViewModel,
+export type CompiledGenerationProposal = Pick<GenerationProposalViewModel,
   | 'contractVersion' | 'compilerVersion' | 'capabilityKey' | 'qualityMode'
   | 'availability' | 'unavailableReason' | 'requiredMissingCapabilities'
   | 'provider' | 'model' | 'stageKinds' | 'densityLabel' | 'generationsPerMoment'
@@ -240,7 +240,7 @@ type CompiledCore = Pick<GenerationProposalViewModel,
  * per_task_credits vs tasks). The backend computed all of these from the same
  * tasks; if they disagree, we are not looking at what the backend compiled.
  */
-function parseCompiled(v: unknown): CompiledCore | null {
+export function parseCompiledGenerationProposal(v: unknown): CompiledGenerationProposal | null {
   if (!isObject(v)) return null;
   if (!isId(v.contract_version) || !isId(v.compiler_version) || !isId(v.capability_key)) return null;
   if (typeof v.quality_mode !== 'string' || !QUALITY_MODES.has(v.quality_mode)) return null;
@@ -493,7 +493,7 @@ export function parseGenerationProposalResponse(
   if (expectedProposalId && body.proposal_id !== expectedProposalId) return null;
   const proposalId = body.proposal_id;
 
-  const compiled = parseCompiled(body.proposal);
+  const compiled = parseCompiledGenerationProposal(body.proposal);
   if (!compiled) return null;
 
   // The identity block must agree with itself and with the compiled document.
