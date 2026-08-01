@@ -1,25 +1,27 @@
 # Quality-mode, paid-generation approval, progress, and clip review — UX & contract note
 
 Wave 1 Session B (dashboard-only). Backend contract: **`generation-quality.v1`,
-`contract_version 2026-08-01`**, consumed from backend PR #130
-(`docs/contracts/generation-proposal-v1.schema.json` + `.examples.json`).
-Parser fixtures in `lib/generation-proposal.fixtures.ts` are the backend
-compiler's byte-exact output (digests included), generated from the same code
-that PR commits.
+`contract_version 2026-08-01`**, consumed from backend PR #130 at its
+post-review head `19fc508` ("fail closed on incomplete generation evidence";
+`docs/contracts/generation-proposal-v1.schema.json` + `.examples.json`). Parser
+fixtures in `lib/generation-proposal.fixtures.ts` are the backend compiler's
+byte-exact output (digests included), verified identical to that commit.
 
 ## Modes
 
-| UI label | Backend value | Copy |
+| UI label | Backend value | Availability |
 |---|---|---|
-| Quick | `fast` | "Faster, lower-density generation with essential validation." |
-| Professional | `professional` | "Higher-density planning, per-asset review, and repair-ready output." |
-| Production | `production` | Disabled. Backend reason translated: "Production mode isn't available yet — it needs per-clip judging and segmented assembly, which aren't built yet." |
+| Quick | `fast` | Available. "Faster, lower-density generation with essential validation." |
+| Professional | `professional` | **Unavailable** (`missing_required_professional_execution_capabilities`): its Judge/repair/assembly pipeline is *described but not enforced*, so it compiles unavailable **with its full task graph retained for preview**. Copy says so — "described in its plan but not genuinely enforced, so its results can't be promised yet." |
+| Production | `production` | Unavailable (`missing_required_production_capabilities`), empty graph. "…needs per-clip judging and segmented assembly, which aren't built yet." |
 
 Only the backend **value** is ever persisted or sent. Mode *differences*
 (density, pipeline stages, review requirements, credits) are displayed verbatim
 from the backend-compiled proposal — the dashboard computes none of them.
 Production is disabled behind **two independent gates** (static build flag +
 compiled `availability`); deleting either leaves the other (mutation-verified).
+An unavailable proposal that carries a task graph renders as a **no-money
+preview**: the plan is shown, and no approve/cancel control exists at all.
 
 ## Proposal card (`awaiting_approval` only)
 
@@ -33,7 +35,11 @@ figure, so none is rendered anywhere.**
   id + version + digest verbatim with one Idempotency-Key minted per mounted
   card; a double-click sends exactly one request (pure reducer, tested); a
   deliberate retry reuses the same key. Success copy states *authorization*,
-  never payment.
+  never payment. **The response is never trusted on `ok` alone**: approve and
+  cancel run the reply through the same strict parser with the expected
+  proposal id and require lifecycle `approved`/`cancelled` respectively
+  (`interpretActionResponse`); anything else — malformed 200, foreign identity,
+  wrong lifecycle, `unavailable` — renders "couldn't confirm" and re-reads.
 - **Edit** — destroys the local approval identity (`editReset`) before
   navigating to the source run; the old payload cannot be approved from an
   edited card. A new proposal/version/digest must come from the backend.
@@ -54,6 +60,18 @@ mismatch, digest drift, foreign task/receipt row, or contract-bound violation
 (>10 tasks, >1200 credits) **fails the parse**, and the page renders "We
 couldn't load this proposal" — never empty, never all-clear. `not_found` is a
 separate state, shown only on the backend's affirmative `proposal_not_found`.
+
+**`completed` is an evidence claim, not a status flag.** The parser refuses a
+completed read unless the whole chain is on record: a digested receipt bound to
+the authorization (id + digest), exactly one row per proposal task, every row
+`succeeded` with its artifact digest and matching prompt digest, and a
+`task_created` + `task_succeeded` event pair per task agreeing with the row on
+provider task ids and with each other on the artifact digest. Events admit only
+those two contracted types with their type-specific statuses, at most one per
+(task, type), successes paired to starts. `cost.total_credits` must equal the
+credits of started tasks — the parser re-derives the sum from the events and
+refuses understatement and overstatement alike (`incurredCredits`; spend
+attaches to a clip *starting*).
 
 ## Clip results
 
@@ -81,15 +99,22 @@ accepted; unknown *states* fail closed.
 
 `npm test` (node:test, no DOM renderer — these are pure lifecycle/parser tests,
 not assembled React render tests), `tsc --noEmit`, `next build`. Load-bearing
-guards were mutation-tested by hand (31 mutations; all killed after two test
-gaps were closed; one intentionally shadowed defense-in-depth duplicate-id
-guard is documented in-code per repo convention).
+guards were mutation-tested by hand across both passes (48 mutations; all
+killed after four test gaps found by the passes were closed; three
+intentionally shadowed defense-in-depth checks — duplicate task ids, receipt
+row-count coverage, row↔created-event provider agreement — are documented
+in-code per repo convention, each provably subsumed by a tested neighbor).
 
 ## Residual gates before calling this live end-to-end
 
 - Backend PR #130 must merge and deploy; this UI has not run against a live
   `/api/v2/generation-proposals` endpoint yet (all parser evidence is from the
-  PR's own compiler output and versioned contract).
+  PR's own compiler output and versioned contract, reconciled at head
+  `19fc508`).
+- Known backend seam, flagged to Session A: succeeded task events are
+  validated on `event.artifact_sha256` but projected via `sha256`; the client
+  therefore tolerates a success without a projected artifact digest in flight,
+  while the completed chain still demands the digest match end-to-end.
 - No surface creates proposals yet (that flow arrives with the producing
   agent/desktop work). `QualityModeSelector` is mounted on the proposal card in
   its honest degenerate form — only the proposal's own compiled mode is
