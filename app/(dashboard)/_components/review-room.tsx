@@ -23,7 +23,7 @@ import { useRouter } from 'next/navigation';
 import type { ReviewArtifact, ReviewIssue, ReviewProduction, ReviewSession, SourceState } from '@/lib/review';
 import {
   decidePreview, interpretPreviewResult, requestPreview, revokePreview,
-  desktopPreviewSupported, inDesktopApp, parsePreviewUrl,
+  desktopPreviewSupported, desktopReviewHref, inDesktopApp, parsePreviewUrl,
   previewText, previewTextTruncated,
   type PreviewDecision,
 } from '@/lib/review-preview';
@@ -420,6 +420,7 @@ export default function ReviewRoom(props: Props) {
         )}
 
         <ArtifactSurface
+          runId={runId}
           // A decision for a DIFFERENT artifact must not be rendered over this one —
           // otherwise A's failure message shows while B is loading.
           decision={decision && decision.artifactId === selectedId ? decision.value : null}
@@ -663,9 +664,10 @@ export default function ReviewRoom(props: Props) {
 
 /** The viewer. Every non-ready state renders words and buttons, never a dead player. */
 function ArtifactSurface({
-  decision, previewUrl, textContent, textTruncated, mediaRef, issues, onPause, onSelectText, onSeek,
+  runId, decision, previewUrl, textContent, textTruncated, mediaRef, issues, onPause, onSelectText, onSeek,
   onMediaReady, onTimeUpdate, mediaKey,
 }: {
+  runId: string;
   decision: PreviewDecision | null;
   previewUrl: string | null;
   /** Fired on loadedmetadata — the only safe moment to apply a cross-artifact seek. */
@@ -688,9 +690,9 @@ function ArtifactSurface({
       <div className="rounded border border-ink-800 bg-ink-950 p-6 text-center">
         <p className="text-sm text-ink-200">{decision.message}</p>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
-          {decision.offerOpenInDesktop && (
+          {decision.offerOpenInDesktop && desktopReviewHref(runId) && (
             <a
-              href="implexa://review"
+              href={desktopReviewHref(runId)!}
               className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950"
             >
               Open in Implexa Desktop

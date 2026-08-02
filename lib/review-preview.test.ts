@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import {
   previewKind, desktopPreviewSupported, inDesktopApp, decidePreview,
   interpretPreviewResult, isSafePreviewUrl, parsePreviewUrl,
-  previewText, previewTextTruncated,
+  previewText, previewTextTruncated, desktopReviewHref,
 } from './review-preview.ts';
 
 const TOKEN = 'a'.repeat(24);
@@ -50,6 +50,14 @@ test('an ordinary browser is told to open the desktop app, and is never handed a
   assert.equal(d.state, 'desktop_required');
   assert.equal(d.offerOpenInDesktop, true);
   assert.doesNotMatch(d.message, /\/Users\/|\/home\/|file:/, 'no filesystem hint may leak into the copy');
+});
+
+test('REPRO: browser-to-Desktop handoff preserves the exact review run', () => {
+  const runId = 'd36143db-b53e-463e-b959-148f722705ea';
+  assert.equal(desktopReviewHref(runId), `implexa://review/${runId}`);
+  assert.equal(desktopReviewHref('../settings'), null);
+  assert.equal(desktopReviewHref('d36143db-b53e-463e-b959-148f722705ea/../../settings'), null);
+  assert.equal(desktopReviewHref('not-a-run'), null);
 });
 
 test('feature detection reads the bridge FUNCTION, not merely the object', () => {
