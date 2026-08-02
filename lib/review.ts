@@ -482,7 +482,11 @@ export async function getReviewQueue(): Promise<ReviewQueue> {
     const res = await fetch(`${BACKEND}/api/v2/review`, {
       headers: { authorization: `Bearer ${jwt}` },
       cache: 'no-store',
-      signal: AbortSignal.timeout(8000),
+      // The backend resolves independent lineage reads concurrently, but this is a
+      // human-facing queue over several sources and can still encounter a cold DB.
+      // Production took ~12s before that fix; keep enough margin that a transient cold
+      // read does not turn valid review work into a false unavailable state.
+      signal: AbortSignal.timeout(20000),
     });
     if (!res.ok) return QUEUE_UNAVAILABLE;
     const body = await res.json();
