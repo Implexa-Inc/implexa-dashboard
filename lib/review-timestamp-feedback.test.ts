@@ -7,9 +7,9 @@ import {
   displayedSecond, draftFromIssue, draftIssuesAtSecond, draftMode, editAction,
   feedbackHereEditLabel, feedbackHereLabel, formatSeconds, openDraft, playheadFromEvent,
   pointCommentLabel, rangeEndButtonLabel, rangeEndError, rangeStartLabel, rangeSurvivesSelection,
-  replaceIssue, saveActionFor, saveDraftLabel, targetGuidance, targetLine,
-  CANCEL_RANGE_LABEL, DRAFT_IN_PROGRESS, SELECT_RANGE_LABEL,
-  type FeedbackDraft, type FrozenTarget, type PendingRange,
+  liveRangeError, replaceIssue, saveActionFor, saveDraftLabel, targetGuidance, targetLine,
+  CANCEL_RANGE_LABEL, DRAFT_IN_PROGRESS, RANGE_END_BEFORE_START, SELECT_RANGE_LABEL,
+  type FeedbackDraft, type FrozenTarget, type PendingRange, type RangeAttempt,
 } from './review-timestamp-feedback.ts';
 import * as feedbackModule from './review-timestamp-feedback.ts';
 import { buildMediaAnchor, anchorError } from './review-anchor.ts';
@@ -47,6 +47,8 @@ function room(startOn: keyof typeof TARGETS = 'artA') {
   // is the whole of finding 1 — session.selected_artifact_id is the only path the
   // compiled brief prints.
   let sessionArtifactId: string | null | undefined = undefined;
+  // Only THAT something was pressed. The message shown is re-derived every read.
+  let rangeAttempt: RangeAttempt = null;
 
   // Every media event goes through ONE path, exactly as the component wires it.
   const fire = (seconds: number, fromArtifactId = selectedId) => {
@@ -86,24 +88,25 @@ function room(startOn: keyof typeof TARGETS = 'artA') {
       return api;
     },
     selectRange: () => {
-      refusal = null;
+      refusal = null; rangeAttempt = null;
       if (!canReplaceDraft(draft)) { refusal = DRAFT_IN_PROGRESS; return api; }
       const begun = beginRange({ target, playheadMs });
-      refusal = begun.error;
-      if (begun.error) return api;
+      if (begun.error) { rangeAttempt = 'begin'; return api; }
       draft = null;
       pendingRange = begun.range;
       return api;
     },
     setEnd: () => {
       const done = completeRange(pendingRange, playheadMs);
-      refusal = done.error;
-      if (done.error || !done.draft) return api;
+      if (done.error || !done.draft) { rangeAttempt = 'end'; return api; }
+      rangeAttempt = null;
       draft = done.draft;
       pendingRange = null;
       return api;
     },
-    cancelRange: () => { pendingRange = null; refusal = null; return api; },
+    cancelRange: () => { pendingRange = null; rangeAttempt = null; refusal = null; return api; },
+    /** What the room SHOWS right now — derived, exactly as the component derives it. */
+    rangeError: () => liveRangeError({ attempt: rangeAttempt, range: pendingRange, playheadMs }),
 
     edit: (issueId: string) => {
       refusal = null;
@@ -301,18 +304,18 @@ test('REPRO: an end at or before the start is refused without modifying anything
   const before = r.range();
 
   r.seeked(9).setEnd();
-  assert.match(r.refusal()!, /must come after the start/);
+  assert.equal(r.rangeError(), RANGE_END_BEFORE_START);
   assert.equal(r.draft(), null, 'a refused end must not open a composer');
   assert.equal(r.range(), before, 'nor disturb the range in progress');
 
   // exactly equal is not a range either — it renders as one while marking nothing
   r.seeked(16.81).setEnd();
-  assert.match(r.refusal()!, /must come after the start/);
+  assert.equal(r.rangeError(), RANGE_END_BEFORE_START);
   assert.equal(r.draft(), null);
 
   // one millisecond past the start IS a range
   r.seeked(16.811).setEnd();
-  assert.equal(r.refusal(), null);
+  assert.equal(r.rangeError(), null);
   assert.equal(r.draft()!.rangeEndMs, 16_811);
 
   // and the pure rule, directly: a refusal hands back NO draft to assign
@@ -323,10 +326,57 @@ test('REPRO: an end at or before the start is refused without modifying anything
   assert.equal(rangeEndError(1000, 1001), null);
 });
 
+test('REPRO: the refusal clears as soon as the playhead becomes a valid end', () => {
+  // Observed in production: `Start 00:00.000 → Set end at 03:42.147` with "The end of
+  // the range must come after the start." still beside it. The reviewer had already
+  // fixed it by scrubbing; the room was a stored string telling them they had not.
+  // This is the surface's original bug in a third costume — a snapshot outliving the
+  // live value it described.
+  const r = room().loadedmetadata(0).selectRange();       // start frozen at 00:00.000
+  r.setEnd();                                             // taken at 0 — equal, refused
+  assert.equal(r.rangeError(), RANGE_END_BEFORE_START);
+
+  r.timeupdate(222.147);                                  // scrub to 03:42.147
+  assert.equal(r.rangeError(), null,
+    'the sentence is a reading of the current state, not a note left by an earlier one');
+  assert.equal(rangeEndButtonLabel(r.playhead()), 'Set end at 03:42.147');
+  assert.notEqual(r.range(), null, 'and clearing the message must not clear the range');
+
+  // it comes BACK if they scrub behind the start again, without another click
+  r.seeked(0);
+  assert.equal(r.rangeError(), RANGE_END_BEFORE_START);
+
+  // and taking a valid end leaves nothing behind
+  r.seeked(222.147).setEnd();
+  assert.equal(r.rangeError(), null);
+  assert.equal(r.draft()!.rangeEndMs, 222_147);
+});
+
+test('a refusal is shown only after an attempt, never pre-emptively', () => {
+  // Deriving the message must not turn into nagging at a position nobody chose.
+  const r = room().loadedmetadata(0).selectRange();
+  assert.equal(r.rangeError(), null, 'the playhead is at the start, but nothing was pressed yet');
+  assert.equal(liveRangeError({ attempt: null, range: { target: TARGETS.artA, startMs: 5000 }, playheadMs: 0 }), null);
+  // cancelling clears the attempt with the range
+  r.setEnd();
+  assert.equal(r.rangeError(), RANGE_END_BEFORE_START);
+  r.cancelRange();
+  assert.equal(r.rangeError(), null);
+});
+
+test('a begin refusal clears the moment a position exists', () => {
+  const r = room().selectRange();                 // no playhead at all
+  assert.match(r.rangeError()!, /Move to the moment/);
+  r.loadedmetadata(4);
+  assert.equal(r.rangeError(), null, 'the complaint is obsolete the instant it is answered');
+  // and the end-attempt case with no range in progress still says something true
+  assert.match(liveRangeError({ attempt: 'end', range: null, playheadMs: 1000 })!, /no range in progress/i);
+});
+
 test('a range cannot be started without a position to start it at', () => {
   const r = room().selectRange();
   assert.equal(r.range(), null);
-  assert.match(r.refusal()!, /Move to the moment/);
+  assert.match(r.rangeError()!, /Move to the moment/);
   assert.equal(completeRange(null, 5000).draft, null);
 });
 

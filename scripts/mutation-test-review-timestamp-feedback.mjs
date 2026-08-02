@@ -15,6 +15,7 @@
  *   cross-artifact   feedback from one file matched or moved by another
  *   edit-as-create   an update that appends instead of replacing
  *   range            an end at or before the start being accepted, or a start that drifts
+ *   stale-refusal    a refusal outliving the state it described, or nagging before one
  *   discoverability  the range stopping being a visible, standalone choice
  *   guidance         source-file guidance disappearing, or being shown indiscriminately
  *   immutability     submitted/accepted/dismissed work becoming editable
@@ -104,8 +105,8 @@ const mutations = [
     '    setPlayheadMs(null);\n    setDraft(null);',
     '    setPlayheadMs(null);'],
   ['artifact-switch', 'an unfinished range survives a file switch', COMPONENT,
-    '    setPendingRange(null);\n    setRangeError(null);\n\n    const base = decidePreview({',
-    '    setRangeError(null);\n\n    const base = decidePreview({'],
+    '    setPendingRange(null);\n    setRangeAttempt(null);\n\n    const base = decidePreview({',
+    '    setRangeAttempt(null);\n\n    const base = decidePreview({'],
   ['artifact-switch', 'a range no longer has to belong to the selected file',
     'lib/review-timestamp-feedback.ts',
     '  return !!range && range.target.artifactId === selectedArtifactId;',
@@ -131,8 +132,8 @@ const mutations = [
   // ── ranges ────────────────────────────────────────────────────────────────
   ['range', 'an end exactly at the start is accepted as a range',
     'lib/review-timestamp-feedback.ts',
-    '  if (endMs <= startMs) return \'The end of the range must come after the start.\';',
-    '  if (endMs < startMs) return \'The end of the range must come after the start.\';'],
+    '  if (endMs <= startMs) return RANGE_END_BEFORE_START;',
+    '  if (endMs < startMs) return RANGE_END_BEFORE_START;'],
   ['range', 'a refused end still hands back a draft to store',
     'lib/review-timestamp-feedback.ts',
     '  if (err) return { draft: null, error: err };',
@@ -144,6 +145,23 @@ const mutations = [
   ['range', 'the end button stops following the playhead', COMPONENT,
     '              {rangeEndButtonLabel(playheadMs)}',
     '              {rangeEndButtonLabel(pendingRange.startMs)}'],
+
+  // ── stale refusal ─────────────────────────────────────────────────────────
+  ['stale-refusal', 'the refusal is stored again instead of derived', COMPONENT,
+    '  const rangeError = liveRangeError({ attempt: rangeAttempt, range: pendingRange, playheadMs });',
+    '  const [rangeError] = useState<string | null>(RANGE_END_BEFORE_START);'],
+  ['stale-refusal', 'a refused end keeps complaining after the playhead becomes valid',
+    'lib/review-timestamp-feedback.ts',
+    '  if (!range) return NO_RANGE_IN_PROGRESS;\n  return rangeEndError(range.startMs, playheadMs);',
+    '  if (!range) return NO_RANGE_IN_PROGRESS;\n  return RANGE_END_BEFORE_START;'],
+  ['stale-refusal', 'a begin refusal survives a position arriving',
+    'lib/review-timestamp-feedback.ts',
+    "  if (attempt === 'begin') return playheadMs === null ? NO_POSITION_FOR_RANGE : null;",
+    "  if (attempt === 'begin') return NO_POSITION_FOR_RANGE;"],
+  ['stale-refusal', 'the refusal nags before anything was pressed',
+    'lib/review-timestamp-feedback.ts',
+    '  if (!attempt) return null;',
+    '  if (!attempt && false) return null;'],
 
   // ── discoverability ───────────────────────────────────────────────────────
   ['discoverability', 'the range choice is hidden behind an open point comment', COMPONENT,
