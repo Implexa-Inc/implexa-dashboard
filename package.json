@@ -11,6 +11,7 @@
     "test": "node scripts/run-tests.mjs",
     "test:generation-contract-mutations": "node scripts/mutation-test-generation-proposal.mjs",
     "test:generation-entry-mutations": "node scripts/mutation-test-generation-entry.mjs",
+    "test:review-timestamp-mutations": "node scripts/mutation-test-review-timestamp-feedback.mjs",
     "fixtures:generation": "node scripts/regenerate-generation-proposal-fixtures.mjs"
   },
   "dependencies": {

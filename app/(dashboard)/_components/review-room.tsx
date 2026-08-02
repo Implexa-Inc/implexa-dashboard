@@ -10,8 +10,12 @@
  *    AND yields the token to revoke, so the two can never name different capabilities.
  *  * Every "cannot preview" reason gets its own words and its own buttons. An
  *    unsupported codec renders an explanation, never an empty black player.
- *  * Pausing captures the exact position (currentTime * 1000, rounded) against the
- *    artifact's validated digest — that pair IS the identity of media feedback.
+ *  * TWO POSITIONS, NEVER ONE. The PLAYHEAD (refreshed by timeupdate/seeked/pause/
+ *    loadedmetadata) drives everything the user is OFFERED; a draft's FROZEN anchor
+ *    drives everything that is SAVED. Binding the offer to the last pause is what made
+ *    the player read 00:01 while the button offered — and saved — 00:03.042.
+ *  * The frozen position, against the artifact's validated digest, IS the identity of
+ *    media feedback. Playback under an open composer must not move it.
  *  * Issues accumulate locally as DRAFTS on the server, then submit together as
  *    exactly one continuation. The submit endpoint is idempotent; this never dedupes.
  *  * "Accept result" and "Approve next action" are different questions. An
@@ -40,6 +44,12 @@ import {
   finalRenderControl, preferredReviewArtifact, previewRequestIdentity, reviewableArtifacts,
   segmentForArtifact, segmentPlaybackClock,
 } from '@/lib/segmented-review';
+import {
+  addFeedbackLabel, canReplaceDraft, canSetRangeEnd, composerHeaderLabel, draftFromIssue,
+  draftIssuesAtSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, formatSeconds,
+  openDraft, playheadFromEvent, replaceIssue, saveActionFor, saveDraftLabel, withRangeEnd,
+  DRAFT_IN_PROGRESS, type FeedbackDraft,
+} from '@/lib/review-timestamp-feedback';
 
 type Props = {
   runId: string;
@@ -108,14 +118,21 @@ export default function ReviewRoom(props: Props) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // draft composer
-  const [pausedAtMs, setPausedAtMs] = useState<number | null>(null);
-  const [playheadMs, setPlayheadMs] = useState(0);
-  const [rangeEndMs, setRangeEndMs] = useState<number | null>(null);
-  const [selection, setSelection] = useState<{ start: number; end: number; quote: string } | null>(null);
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [draftKind, setDraftKind] = useState<string>('content');
-  const [draftBody, setDraftBody] = useState('');
+  // ── the two positions ─────────────────────────────────────────────────────
+  //
+  // THE AUTHORITATIVE PLAYHEAD for the selected artifact. Null means this artifact has
+  // no media position at all (an image, a text file, a player that never loaded) —
+  // which is a different fact from "at zero", and the copy says so.
+  //
+  // There is deliberately no `pausedAtMs` any more. A last-pause position offered as
+  // the place feedback will land is the production bug: scrub to 1s after pausing at
+  // 3.042s and the button both said and meant 00:03.042.
+  const [playheadMs, setPlayheadMs] = useState<number | null>(null);
+  // The composer, carrying its FROZEN anchor. Its presence IS "the composer is open" —
+  // an open flag separate from the anchor is how a composer ends up on screen with a
+  // position nobody snapshotted.
+  const [draft, setDraft] = useState<FeedbackDraft | null>(null);
+  const [rangeError, setRangeError] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [textTruncated, setTextTruncated] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -153,12 +170,13 @@ export default function ReviewRoom(props: Props) {
     setTextContent(null);
     setTextTruncated(false);
     // Per-artifact draft state does not survive a switch: a position captured in the
-    // previous file would anchor the next comment to a moment in a different video.
-    setPausedAtMs(null);
-    setPlayheadMs(0);
-    setRangeEndMs(null);
-    setSelection(null);
-    setComposerOpen(false);
+    // previous file would anchor the next comment to a moment in a different video, and
+    // an in-progress composer carried across would attach to the new file at a moment
+    // it was never about. The playhead goes back to "no position", not to zero — the
+    // new file has not told us anything yet.
+    setPlayheadMs(null);
+    setDraft(null);
+    setRangeError(null);
 
     const base = decidePreview({
       artifact,
@@ -221,30 +239,68 @@ export default function ReviewRoom(props: Props) {
     return null;
   }, [session, runId, artifact]);
 
-  const buildAnchor = useCallback((): ReviewAnchor | null => {
+  /**
+   * The anchor is built from the DRAFT, never from the player.
+   *
+   * `mediaRef.current.currentTime` read at save time is the same bug one layer down:
+   * the reviewer opened the composer at 00:01, wrote a sentence while the clip kept
+   * playing, and the comment landed wherever playback happened to be when they hit
+   * Save. The frozen value is the one they aimed at.
+   */
+  const buildAnchor = useCallback((d: FeedbackDraft | null): ReviewAnchor | null => {
     const sha = artifact?.sha256;
-    if (!sha) return null;
-    if (selection) return buildTextAnchor(sha, selection.start, selection.end, selection.quote);
-    if (pausedAtMs !== null) {
-      return buildMediaAnchor(sha, pausedAtMs / 1000, rangeEndMs === null ? null : rangeEndMs / 1000);
+    if (!sha || !d) return null;
+    if (d.selection) return buildTextAnchor(sha, d.selection.start, d.selection.end, d.selection.quote);
+    if (d.anchorMs !== null) {
+      return buildMediaAnchor(sha, d.anchorMs / 1000, d.rangeEndMs === null ? null : d.rangeEndMs / 1000);
     }
     return buildArtifactAnchor(sha);
-  }, [artifact, selection, pausedAtMs, rangeEndMs]);
+  }, [artifact]);
 
   const submitIssue = useCallback(async () => {
     setError(null);
-    const anchor = buildAnchor();
+    const d = draft;
+    const anchor = buildAnchor(d);
     const aErr = anchorError(anchor);
     if (aErr) { setError(aErr); return; }
-    const bErr = bodyError(draftBody);
+    const bErr = bodyError(d?.body ?? '');
     if (bErr) { setError(bErr); return; }
     setBusy(true);
     try {
+      // EDITING an existing draft is an UPDATE, never a second create. A create here is
+      // the edit-as-create regression: the rail shows the comment twice and the agent
+      // is asked to fix the same thing twice, once with the text the user replaced.
+      const route = saveActionFor(d);
+      const editingId = route?.action === 'update_issue' ? route.issueId : null;
+      if (editingId) {
+        const { body } = await reviewAction({
+          action: 'update_issue', issueId: editingId,
+          kind: d!.kind, anchor, body: d!.body.trim(),
+        });
+        if (!body?.ok) {
+          setError(body?.staleAnchor
+            ? 'This file changed since you opened it, so the comment could not be re-anchored. Reload to review the current version.'
+            : (body?.error || 'Could not save that change.'));
+          return;
+        }
+        setIssues((prev) => {
+          const existing = prev.find((i) => i.id === editingId);
+          // A response that omits the row is not a licence to invent one: fall back to
+          // the values we just sent, still keyed to the SAME id.
+          const updated = (body.issue && body.issue.id)
+            ? body.issue
+            : { ...(existing as ReviewIssue), kind: d!.kind, anchor: anchor as never, body: d!.body.trim() };
+          return replaceIssue(prev, editingId, updated);
+        });
+        setDraft(null); setRangeError(null);
+        return;
+      }
+
       const sid = await ensureSession();
       if (!sid) return;
       const { body } = await reviewAction({
         action: 'create_issue', sessionId: sid, artifactId: artifact?.id,
-        kind: draftKind, anchor, body: draftBody.trim(),
+        kind: d!.kind, anchor, body: d!.body.trim(),
       });
       if (!body?.ok) {
         setError(body?.staleAnchor
@@ -253,9 +309,9 @@ export default function ReviewRoom(props: Props) {
         return;
       }
       setIssues((prev) => [...prev, body.issue]);
-      setDraftBody(''); setComposerOpen(false); setSelection(null); setRangeEndMs(null);
+      setDraft(null); setRangeError(null);
     } finally { setBusy(false); }
-  }, [buildAnchor, draftBody, draftKind, ensureSession, artifact]);
+  }, [buildAnchor, draft, ensureSession, artifact]);
 
   const dismissIssue = useCallback(async (issueId: string) => {
     setBusy(true); setError(null);
@@ -266,13 +322,50 @@ export default function ReviewRoom(props: Props) {
     } finally { setBusy(false); }
   }, []);
 
+  /**
+   * Moves the PLAYHEAD only. An open draft's frozen anchor is untouched on purpose:
+   * jumping to another comment to compare it must not silently re-point the one being
+   * written.
+   */
   const seekTo = useCallback((ms: number) => {
     const el = mediaRef.current;
     if (!el) return;
     el.currentTime = ms / 1000;
     el.pause();
-    setPausedAtMs(ms);
+    setPlayheadMs(ms);
   }, []);
+
+  /**
+   * The ONE place the playhead moves in response to the player: timeupdate, seeked,
+   * pause and loadedmetadata all land here. Scrubbing without ever pausing is the case
+   * the old code could not see, and it is the common one.
+   */
+  const onPlayhead = useCallback((eventArtifactId: string, seconds: number) => {
+    const next = playheadFromEvent({ eventArtifactId, selectedArtifactId: selectedId, seconds });
+    if (next === null) return;
+    setPlayheadMs(next);
+  }, [selectedId]);
+
+  const hereIssues = useMemo(
+    () => draftIssuesAtSecond(issues, selectedId, playheadMs),
+    [issues, selectedId, playheadMs],
+  );
+
+  /** Open a NEW composer, freezing the current playhead into it. */
+  const openComposer = useCallback(() => {
+    setError(null); setRangeError(null);
+    if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+    setDraft(openDraft({ artifactId: selectedId, playheadMs }));
+  }, [draft, selectedId, playheadMs]);
+
+  /** Reopen an existing DRAFT issue on its own anchor, body and kind. */
+  const startEdit = useCallback((issue: ReviewIssue) => {
+    setError(null); setRangeError(null);
+    const next = draftFromIssue(issue as never);
+    if (!next) { setError('Only unsent feedback can be edited.'); return; }
+    if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+    setDraft(next);
+  }, [draft]);
 
   /**
    * Clicking an issue. If it belongs to another artifact we SWITCH FIRST and seek once
@@ -349,7 +442,7 @@ export default function ReviewRoom(props: Props) {
 
   const issuesUnavailable = sources.issues === 'unavailable';
   const playbackClock = production && selectedSegment
-    ? segmentPlaybackClock(production, selectedSegment, playheadMs)
+    ? segmentPlaybackClock(production, selectedSegment, playheadMs ?? 0)
     : null;
 
   return (
@@ -431,9 +524,11 @@ export default function ReviewRoom(props: Props) {
           textTruncated={textTruncated}
           mediaRef={mediaRef}
           issues={surfaceIssues}
-          onPause={(sec) => setPausedAtMs(Math.round(sec * 1000))}
-          onTimeUpdate={(sec) => setPlayheadMs(Math.round(sec * 1000))}
-          onSelectText={(s) => { setSelection(s); setComposerOpen(true); }}
+          onPlayhead={onPlayhead}
+          onSelectText={(s) => {
+            if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+            setDraft(openDraft({ artifactId: selectedId, playheadMs, selection: s }));
+          }}
           onSeek={seekTo}
         />
 
@@ -459,37 +554,72 @@ export default function ReviewRoom(props: Props) {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setComposerOpen(true)}
+              onClick={openComposer}
+              // The EXACT position, for anyone who needs it. The label shows the second
+              // because that is the number on the player next to it.
+              title={playheadMs === null ? undefined : `Exact position ${formatMs(playheadMs)}`}
               className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-200 hover:border-ink-500"
             >
-              {pausedAtMs !== null ? `+ Add feedback at ${formatMs(pausedAtMs)}` : '+ Add feedback'}
+              {addFeedbackLabel({ playheadMs, existingCount: hereIssues.length })}
             </button>
-            {pausedAtMs !== null && (
+
+            {/* Something is ALREADY here. Never merged into it, never overwritten — the
+                count is stated and each one can be reopened. */}
+            {hereIssues.length > 0 && (
+              <span className="flex flex-wrap items-center gap-1 text-xs text-ink-400">
+                <span>{feedbackHereLabel(hereIssues.length)}</span>
+                {hereIssues.map((i, n) => (
+                  <span key={i.id} className="flex items-center gap-1">
+                    <span aria-hidden="true">·</span>
+                    <button
+                      type="button"
+                      onClick={() => startEdit(i)}
+                      className="text-sky-400 hover:underline"
+                    >
+                      {feedbackHereEditLabel(n, hereIssues.length)}
+                    </button>
+                  </span>
+                ))}
+              </span>
+            )}
+
+            {draft && draft.anchorMs !== null && (
               <>
                 <button
                   type="button"
-                  onClick={() => setRangeEndMs(Math.round((mediaRef.current?.currentTime ?? 0) * 1000))}
-                  className="rounded-md border border-ink-800 px-2 py-1 text-xs text-ink-400 hover:border-ink-600"
+                  // Reads the PLAYHEAD (where the user is now), writes the DRAFT (what
+                  // the comment is about). Disabled when that would not be a range.
+                  disabled={!canSetRangeEnd(draft, playheadMs)}
+                  onClick={() => {
+                    const next = withRangeEnd(draft, playheadMs);
+                    setRangeError(next.error);
+                    if (!next.error) setDraft(next.draft);
+                  }}
+                  className="rounded-md border border-ink-800 px-2 py-1 text-xs text-ink-400 hover:border-ink-600 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Set end here
                 </button>
-                {rangeEndMs !== null && <span className="text-xs text-ink-500">→ {formatMs(rangeEndMs)}</span>}
+                {draft.rangeEndMs !== null && (
+                  <span className="text-xs text-ink-500" title={`Exact range ${formatMs(draft.anchorMs)} – ${formatMs(draft.rangeEndMs)}`}>
+                    → {formatSeconds(draft.rangeEndMs)}
+                  </span>
+                )}
               </>
             )}
+            {rangeError && <span role="alert" className="text-xs text-amber-300">{rangeError}</span>}
           </div>
         )}
 
-        {composerOpen && !frozen && !accepted && (
+        {draft && !frozen && !accepted && (
           <div className="mt-3 rounded-md border border-ink-700 bg-ink-950 p-3">
             <div className="mb-2 flex items-center gap-2 text-xs text-ink-400">
-              <span>
-                {selection ? `Characters ${selection.start}–${selection.end}`
-                  : pausedAtMs !== null ? `At ${formatMs(pausedAtMs)}${rangeEndMs !== null ? ` – ${formatMs(rangeEndMs)}` : ''}`
-                  : 'Whole file'}
+              {/* The FROZEN position. It does not move while the clip keeps playing. */}
+              <span title={draft.anchorMs === null ? undefined : `Exact position ${formatMs(draft.anchorMs)}`}>
+                {composerHeaderLabel(draft)}
               </span>
               <select
-                value={draftKind}
-                onChange={(e) => setDraftKind(e.target.value)}
+                value={draft.kind}
+                onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
                 className="ml-auto rounded border border-ink-700 bg-ink-900 px-1.5 py-0.5 text-xs text-ink-200"
                 aria-label="Issue type"
               >
@@ -498,8 +628,8 @@ export default function ReviewRoom(props: Props) {
             </div>
             <textarea
               autoFocus
-              value={draftBody}
-              onChange={(e) => setDraftBody(e.target.value)}
+              value={draft.body}
+              onChange={(e) => setDraft({ ...draft, body: e.target.value })}
               rows={3}
               placeholder="What should change here?"
               className="w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm text-ink-100"
@@ -509,11 +639,13 @@ export default function ReviewRoom(props: Props) {
                 type="button" disabled={busy} onClick={submitIssue}
                 className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 disabled:opacity-50"
               >
-                Save issue
+                {saveDraftLabel(draft)}
               </button>
               <button
                 type="button"
-                onClick={() => { setComposerOpen(false); setDraftBody(''); setSelection(null); }}
+                // Cancelling clears the frozen anchor with the draft. Leaving it behind
+                // would silently anchor the NEXT comment to the abandoned moment.
+                onClick={() => { setDraft(null); setRangeError(null); }}
                 className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-300"
               >
                 Cancel
@@ -539,7 +671,9 @@ export default function ReviewRoom(props: Props) {
           </p>
         ) : ordered.filter((i) => i.status !== 'dismissed').length === 0 ? (
           <p className="mt-2 text-xs text-ink-500">
-            {proxyPreview ? 'No parent-run issues are attached to this proxy.' : 'No issues yet. Pause and add feedback.'}
+            {/* Not "pause and add feedback" any more — pausing was never the requirement,
+                and saying so is what made a stale pause position look authoritative. */}
+            {proxyPreview ? 'No parent-run issues are attached to this proxy.' : 'No issues yet. Move to a moment and add feedback.'}
           </p>
         ) : (
           <ul className="mt-3 space-y-2">
@@ -549,6 +683,8 @@ export default function ReviewRoom(props: Props) {
               const stale = isIssueStale(i, artifacts);
               const own = artifactForIssue(i, artifacts);
               const elsewhere = !!i.artifactId && i.artifactId !== selectedId;
+              // Null for anything already sent, accepted or dismissed.
+              const edit = editAction(i as never, selectedId);
               return (
                 <li key={i.id} className="rounded border border-ink-800 p-2">
                   <div className="flex items-center gap-2 text-xs">
@@ -575,13 +711,29 @@ export default function ReviewRoom(props: Props) {
                       This file changed since the comment was made — the highlight may no longer match.
                     </p>
                   )}
-                  {i.status === 'draft' && !frozen && !accepted && (
-                    <button
-                      type="button" disabled={busy} onClick={() => dismissIssue(i.id)}
-                      className="mt-1 text-xs text-ink-500 hover:text-red-300 disabled:opacity-50"
-                    >
-                      Delete
-                    </button>
+                  {/* Only DRAFTS are editable. Submitted, accepted and dismissed work is
+                      a record of something already acted on or decided — editAction
+                      returns null for those rather than offering a promise we'd refuse.
+                      A draft on ANOTHER file says so: its composer belongs over its own
+                      artifact, so the affordance opens that file instead of quietly
+                      attaching an editor to the one on screen. */}
+                  {!frozen && !accepted && edit && (
+                    <div className="mt-1 flex gap-3">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => (edit.opensElsewhere ? goToIssue(i) : startEdit(i))}
+                        className="text-xs text-sky-400 hover:underline disabled:opacity-50"
+                      >
+                        {edit.label}
+                      </button>
+                      <button
+                        type="button" disabled={busy} onClick={() => dismissIssue(i.id)}
+                        className="text-xs text-ink-500 hover:text-red-300 disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   )}
                 </li>
               );
@@ -664,22 +816,26 @@ export default function ReviewRoom(props: Props) {
 
 /** The viewer. Every non-ready state renders words and buttons, never a dead player. */
 function ArtifactSurface({
-  runId, decision, previewUrl, textContent, textTruncated, mediaRef, issues, onPause, onSelectText, onSeek,
-  onMediaReady, onTimeUpdate, mediaKey,
+  runId, decision, previewUrl, textContent, textTruncated, mediaRef, issues, onSelectText, onSeek,
+  onMediaReady, onPlayhead, mediaKey,
 }: {
   runId: string;
   decision: PreviewDecision | null;
   previewUrl: string | null;
   /** Fired on loadedmetadata — the only safe moment to apply a cross-artifact seek. */
   onMediaReady: () => void;
-  onTimeUpdate: (seconds: number) => void;
+  /**
+   * Every event that can move the position, reported WITH the artifact the element
+   * belongs to. One handler, so there is no way for a subset of them (the old
+   * pause-only binding) to leave the offered position behind the visible one.
+   */
+  onPlayhead: (artifactId: string, seconds: number) => void;
   /** Remounts the element per artifact, so loadedmetadata fires for the NEW file. */
   mediaKey: string;
   textContent: string | null;
   textTruncated: boolean;
   mediaRef: React.MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
   issues: ReviewIssue[];
-  onPause: (seconds: number) => void;
   onSelectText: (s: { start: number; end: number; quote: string }) => void;
   onSeek: (ms: number) => void;
 }) {
@@ -728,9 +884,18 @@ function ArtifactSurface({
           className={decision.kind === 'video'
             ? 'max-h-[60vh] w-full rounded bg-black object-contain'
             : 'w-full'}
-          onLoadedMetadata={onMediaReady}
-          onTimeUpdate={(e) => onTimeUpdate((e.currentTarget as HTMLMediaElement).currentTime)}
-          onPause={(e) => onPause((e.currentTarget as HTMLMediaElement).currentTime)}
+          // Playhead first, THEN the pending cross-artifact seek: the seek sets the
+          // playhead itself, and must win over the position the file happened to load at.
+          onLoadedMetadata={(e) => {
+            onPlayhead(mediaKey, (e.currentTarget as HTMLMediaElement).currentTime);
+            onMediaReady();
+          }}
+          onTimeUpdate={(e) => onPlayhead(mediaKey, (e.currentTarget as HTMLMediaElement).currentTime)}
+          // SEEKED is the one the old code was missing. Scrubbing the control bar to a
+          // new position fires this and not `pause`, so the offered timestamp stayed at
+          // whatever the last pause had been.
+          onSeeked={(e) => onPlayhead(mediaKey, (e.currentTarget as HTMLMediaElement).currentTime)}
+          onPause={(e) => onPlayhead(mediaKey, (e.currentTarget as HTMLMediaElement).currentTime)}
         />
         {markers.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
