@@ -123,16 +123,27 @@ export function targetLine(target: FrozenTarget | null | undefined): string {
  * the whole intervention: "reference only" is a real and common intent, and the
  * failure mode is a reviewer assuming it was understood when nothing carried it.
  *
- * This is prose, not a setting. See docs/review-target-intent-contract.md for why
- * there is no typed field behind it yet, and what it would take to add one.
+ * THE GUIDANCE NAMES THE FILE, and says why the reviewer has to as well.
+ *
+ * A canned "Use this section as reference; do not modify the source file." is not safe
+ * in a multi-file review, and the room previously offered it as a one-click insert.
+ * The compiled brief prints ONE artifact path — the session's — and never each issue's
+ * own (see docs/review-target-intent-contract.md §4). So "this section" and "the source
+ * file" can arrive underneath a heading naming a different file entirely, and a
+ * confident-sounding sentence is then worse than no sentence: the reviewer believes
+ * they were unambiguous. Until the backend names each issue's file, the only honest
+ * advice is "name the files yourself, in your own words" — and the guidance says so
+ * rather than handing over a sentence that reads as sufficient.
+ *
+ * This is prose, not a setting, and nothing here is ever inferred from what was typed.
  */
-export const REFERENCE_ONLY_SENTENCE = 'Use this section as reference; do not modify the source file.';
-export const SOURCE_FILE_GUIDANCE =
-  `This is a source file. Feedback added here applies to this source. If it is only a reference, say: “${REFERENCE_ONLY_SENTENCE}”`;
-
-/** The guidance for this target, or null when none applies. Never inferred from text. */
 export function targetGuidance(target: FrozenTarget | null | undefined): string | null {
-  return target?.role === 'source' ? SOURCE_FILE_GUIDANCE : null;
+  if (target?.role !== 'source') return null;
+  const named = target.relativePath || 'this source file';
+  return `This is a source file. Feedback added here applies to ${named}. `
+    + 'If it is only a reference, say so in your own words and name the file you want changed — '
+    + 'the revision request does not yet label each comment with its own file, so “this section” '
+    + 'can arrive under a different one.';
 }
 
 // ── the draft ───────────────────────────────────────────────────────────────
@@ -263,14 +274,6 @@ export function canReplaceDraft(draft: FeedbackDraft | null | undefined): boolea
 
 export const DRAFT_IN_PROGRESS =
   'Save or cancel the comment you are writing before starting another one.';
-
-/** Append the reference-only sentence to the body. The reviewer's words, one tap. */
-export function withReferenceSentence(draft: FeedbackDraft | null): FeedbackDraft | null {
-  if (!draft) return draft;
-  if (draft.body.includes(REFERENCE_ONLY_SENTENCE)) return draft;
-  const existing = draft.body.trim();
-  return { ...draft, body: existing ? `${existing} ${REFERENCE_ONLY_SENTENCE}` : REFERENCE_ONLY_SENTENCE };
-}
 
 // ── ranges ──────────────────────────────────────────────────────────────────
 

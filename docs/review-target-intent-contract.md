@@ -83,30 +83,57 @@ violate a stated invariant.
 
 ## What the dashboard does instead
 
-Nothing structured. When a draft's frozen artifact has `role === 'source'`, the
-composer says so in words and offers to insert the reviewer's own sentence:
+Nothing structured, and — since review — nothing canned either. When a draft's frozen
+artifact has `role === 'source'`, the composer states the situation and names the file:
 
-> This is a source file. Feedback added here applies to this source. If it is only a
-> reference, say: "Use this section as reference; do not modify the source file."
+> This is a source file. Feedback added here applies to `src/raw-take.mov`. If it is
+> only a reference, say so in your own words and name the file you want changed — the
+> revision request does not yet label each comment with its own file, so "this section"
+> can arrive under a different one.
 
-The sentence lands in `body`, which is the one field that reliably reaches the agent.
-Intent is never inferred from the text, and no UI claims it was recorded as a field.
+**A one-click "Use this section as reference; do not modify the source file." was
+built and then removed.** It is unsafe for exactly the reason in §4: the brief prints
+one artifact path, so that sentence can arrive under a heading naming a different file.
+A confident sentence in the wrong context is worse than no sentence, because the
+reviewer believes they were unambiguous. Until per-issue paths exist, the only honest
+advice is "name the files yourself", and the guidance says so instead of handing over
+wording that reads as sufficient.
 
-## The follow-up contract change, if it is wanted
+Intent is never inferred from the text, and no control claims it was recorded.
 
-Backend, in this order:
+## The follow-up contract change
 
-1. `review-anchor.js` — add an optional `targetIntent` to the normalizer's allowlist
-   with a closed value set (`change` | `reference`), defaulting to absent rather than
-   to `change`, so old issues do not acquire an intent they never had.
-2. New migration — either a `target_intent` column with a CHECK on
-   `run_review_issues`, or a widened `kind` CHECK; plus the matching RPC parameter in
-   `review_create_issue` / `review_update_issue`.
-3. `routes/review.js` + `run-review.service.js` — forward the new field on POST and
-   PATCH.
-4. `review-brief.js` — render the intent per issue, **and** print each issue's own
-   `artifact_id → relative_path`. Item 4's second half is worth doing on its own even
-   if the intent field never happens.
+Superseded in shape by
+`boardroom/REVIEW_ROOM_SPATIAL_FEEDBACK_SPEC_2026-08-02.md` §7, which defines target
+intent as part of `review_anchor.v2` rather than as a standalone flag. Three
+corrections to the sketch that was here before, all from review:
 
-Only once (1)–(3) exist should the dashboard offer an explicit "Change this file /
-Reference only" choice. Until then the choice would be a lie told with a radio button.
+1. **`change | reference` alone is not enough.** Reference mode must identify the
+   actual target: `intent.mode = 'reference_for_artifact'` carries
+   `targetArtifactId` **and** `targetArtifactSha256`. "This is only a reference" without
+   naming what to change instead is the same ambiguity one level up.
+2. **Do not store the intent twice.** Putting it both inside the anchor and in a
+   separate `run_review_issues` column, with no database-enforced invariant tying them
+   together, creates two sources of truth that can disagree — and the disagreement
+   would decide whether a source file gets overwritten. The spec keeps it in the
+   anchor; `artifact_id` stays the *observed* artifact.
+3. **Fail closed on unknown modes.** An unrecognized `intent.mode` must be rejected,
+   never coerced to "change" — the coercion direction here is the destructive one.
+
+Order of work:
+
+1. `review-anchor.js` — v2 validation with the §7.3 invariants: a reference anchor
+   *requires* target id + digest, a change anchor *forbids* them, both must resolve to
+   artifacts in the run or permitted lineage, and unknown versions/modes fail closed.
+2. Migration + RPC parameters, only to the extent the anchor cannot carry it.
+3. `routes/review.js` + `run-review.service.js` — forward the v2 anchor on POST/PATCH.
+4. `review-brief.js` — group instructions by **target** artifact, print each issue's
+   own observed and target identity with digests, and emit the explicit "do not modify
+   this reference" line.
+
+**Item 4's per-issue path is worth doing on its own, first, and independently of any
+intent field.** It is what makes the dashboard's `Feedback applies to:` line survive
+into the brief, and it is the precondition for re-introducing any reference-only
+wording helper. Only once (1)–(3) exist should the dashboard offer an explicit
+"Change this file / Reference only" choice with a target picker. Until then the choice
+would be a lie told with a radio button.

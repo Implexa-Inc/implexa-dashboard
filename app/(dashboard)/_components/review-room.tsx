@@ -49,8 +49,7 @@ import {
   draftIssuesAtSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, openDraft,
   playheadFromEvent, pointCommentLabel, rangeEndButtonLabel, rangeStartLabel,
   rangeSurvivesSelection, replaceIssue, saveActionFor, saveDraftLabel, targetGuidance, targetLine,
-  withReferenceSentence,
-  CANCEL_RANGE_LABEL, DRAFT_IN_PROGRESS, REFERENCE_ONLY_SENTENCE, SELECT_RANGE_LABEL,
+  CANCEL_RANGE_LABEL, DRAFT_IN_PROGRESS, SELECT_RANGE_LABEL,
   type FeedbackDraft, type FrozenTarget, type PendingRange,
 } from '@/lib/review-timestamp-feedback';
 
@@ -242,13 +241,24 @@ export default function ReviewRoom(props: Props) {
   }, [artifact, runId]);
 
   // ── issue creation ────────────────────────────────────────────────────────
-  const ensureSession = useCallback(async (): Promise<string | null> => {
+  /**
+   * The session's selected artifact is NOT decoration, and it is NOT free to be the
+   * live selection when a draft is being saved.
+   *
+   * `session.selected_artifact_id` is the ONLY file the compiled revision brief names
+   * — it prints one "Primary artifact" line and never each issue's own path. So a
+   * session opened for file B while the issue is recorded against file A hands the
+   * agent a brief that names the wrong file, with no per-issue path to contradict it.
+   * The caller therefore passes the identity it is actually writing about: the FROZEN
+   * draft target for an issue, the live selection for a session-level act like accept.
+   */
+  const ensureSession = useCallback(async (artifactId: string | null): Promise<string | null> => {
     if (session?.id) return session.id;
-    const { body } = await reviewAction({ action: 'ensure_session', runId, artifactId: artifact?.id });
+    const { body } = await reviewAction({ action: 'ensure_session', runId, artifactId });
     if (body?.ok && body.session) { setSession(body.session); return body.session.id as string; }
     setError(body?.error || 'Could not open a review session.');
     return null;
-  }, [session, runId, artifact]);
+  }, [session, runId]);
 
   /**
    * The anchor is built from the DRAFT, never from the player.
@@ -311,7 +321,11 @@ export default function ReviewRoom(props: Props) {
         return;
       }
 
-      const sid = await ensureSession();
+      // THE FROZEN FILE, here too. A session opened for the live selection while this
+      // issue is recorded against the draft's file puts the wrong "Primary artifact"
+      // at the head of the revision brief — the one place the agent is told what it is
+      // looking at.
+      const sid = await ensureSession(d!.target.artifactId);
       if (!sid) return;
       const { body } = await reviewAction({
         // The FROZEN file, for the same reason as the digest above.
@@ -327,7 +341,8 @@ export default function ReviewRoom(props: Props) {
       setIssues((prev) => [...prev, body.issue]);
       setDraft(null); setRangeError(null);
     } finally { setBusy(false); }
-  }, [buildAnchor, draft, ensureSession, artifact]);
+    // NOT `artifact`: every identity this path writes now comes from the draft.
+  }, [buildAnchor, draft, ensureSession]);
 
   const dismissIssue = useCallback(async (issueId: string) => {
     setBusy(true); setError(null);
@@ -494,7 +509,10 @@ export default function ReviewRoom(props: Props) {
   const onAccept = useCallback(async (discard: boolean) => {
     setBusy(true); setError(null); setNotice(null);
     try {
-      const sid = await ensureSession();
+      // Accepting is a SESSION-level judgement about the result on screen, not about
+      // one draft — so the live selection is the honest identity here. There is no
+      // frozen target to prefer: this path never writes an issue.
+      const sid = await ensureSession(selectedId);
       if (!sid) return;
       const { body } = await reviewAction({ action: 'accept', sessionId: sid, discardOpenIssues: discard });
       if (body?.needsDiscardConfirmation) { setConfirmDiscard(true); return; }
@@ -503,7 +521,7 @@ export default function ReviewRoom(props: Props) {
       setNotice('Result accepted.');
       router.refresh();
     } finally { setBusy(false); }
-  }, [ensureSession, router]);
+  }, [ensureSession, router, selectedId]);
 
   const issuesUnavailable = sources.issues === 'unavailable';
   const playbackClock = production && selectedSegment
@@ -724,20 +742,16 @@ export default function ReviewRoom(props: Props) {
 
             {/* A source file is an INPUT the agent may edit in place. Reference-only is
                 a real intent and nothing in the contract carries it as a field (see
-                docs/review-target-intent-contract.md), so the room says so plainly and
-                leaves the sentence in the reviewer's own words. It is never inferred. */}
+                docs/review-target-intent-contract.md), so the room states the situation
+                and leaves the wording to the reviewer. It is never inferred.
+
+                DELIBERATELY NO ONE-CLICK SENTENCE. A canned "use this as reference"
+                is unsafe while the brief names only the session's artifact: it would
+                arrive under a heading naming a different file, reading as precise. */}
             {targetGuidance(draft.target) && (
-              <div className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2">
-                <p className="text-xs leading-snug text-amber-200">{targetGuidance(draft.target)}</p>
-                <button
-                  type="button"
-                  onClick={() => setDraft(withReferenceSentence(draft))}
-                  disabled={draft.body.includes(REFERENCE_ONLY_SENTENCE)}
-                  className="mt-1 text-xs text-amber-300 hover:underline disabled:opacity-40"
-                >
-                  Add that sentence to my comment
-                </button>
-              </div>
+              <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-snug text-amber-200">
+                {targetGuidance(draft.target)}
+              </p>
             )}
 
             <textarea

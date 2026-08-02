@@ -90,6 +90,20 @@ test("REPRO: the anchor's digest and the issue's file come from the DRAFT, not t
   assert.equal(/artifact\?\.sha256/.test(builder), false);
 });
 
+test('REPRO: the SESSION is opened on the frozen file too, not the live selection', () => {
+  // session.selected_artifact_id is the only path the compiled brief prints. Creating
+  // the session from the selector while the issue is frozen to another file heads the
+  // agent's brief with the wrong "Primary artifact".
+  assert.match(source, /await ensureSession\(d!\.target\.artifactId\)/,
+    'a switch immediately before save must not decide which file the session names');
+  assert.match(source, /const ensureSession = useCallback\(async \(artifactId: string \| null\)/,
+    'ensureSession must take the identity from its caller rather than reading the selection');
+  const create = source.slice(source.indexOf('const ensureSession'), source.indexOf('const buildAnchor'));
+  assert.equal(/artifact\?\.id/.test(create), false, 'no live-selection fallback may remain in this path');
+  // Accept is session-level and legitimately uses the selection — but it writes no issue.
+  assert.match(source, /await ensureSession\(selectedId\)/);
+});
+
 test('the composer shows the frozen filename and never re-derives it', () => {
   assert.match(source, /\{targetLine\(draft\.target\)\}/,
     'a timestamp alone does not say which of several files the comment is about');
@@ -143,6 +157,14 @@ test('no dashboard-only "reference only" field is invented', () => {
   for (const invented of ['referenceOnly', 'targetIntent', 'doNotModify', "intent:"]) {
     assert.equal(source.includes(invented), false, `${invented} would be a field that carries nothing`);
   }
-  // The sentence goes into the body, which is the field that actually reaches the agent.
-  assert.match(source, /setDraft\(withReferenceSentence\(draft\)\)/);
+});
+
+test('REPRO: no canned reference sentence is offered while the brief names one file', () => {
+  // The guidance is rendered; the one-click insert that used to sit under it is gone,
+  // because the brief prints only the session's artifact path — so a canned "use this
+  // as reference" can arrive under a heading naming a different file.
+  assert.match(source, /targetGuidance\(draft\.target\)/);
+  assert.equal(/withReferenceSentence/.test(source), false,
+    'a helper that writes the sentence for the reviewer implies it is sufficient — it is not yet');
+  assert.equal(/REFERENCE_ONLY_SENTENCE/.test(source), false);
 });

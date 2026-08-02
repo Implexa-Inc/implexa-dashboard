@@ -7,10 +7,11 @@ import {
   displayedSecond, draftFromIssue, draftIssuesAtSecond, draftMode, editAction,
   feedbackHereEditLabel, feedbackHereLabel, formatSeconds, openDraft, playheadFromEvent,
   pointCommentLabel, rangeEndButtonLabel, rangeEndError, rangeStartLabel, rangeSurvivesSelection,
-  replaceIssue, saveActionFor, saveDraftLabel, targetGuidance, targetLine, withReferenceSentence,
-  CANCEL_RANGE_LABEL, DRAFT_IN_PROGRESS, REFERENCE_ONLY_SENTENCE, SELECT_RANGE_LABEL,
-  SOURCE_FILE_GUIDANCE, type FeedbackDraft, type FrozenTarget, type PendingRange,
+  replaceIssue, saveActionFor, saveDraftLabel, targetGuidance, targetLine,
+  CANCEL_RANGE_LABEL, DRAFT_IN_PROGRESS, SELECT_RANGE_LABEL,
+  type FeedbackDraft, type FrozenTarget, type PendingRange,
 } from './review-timestamp-feedback.ts';
+import * as feedbackModule from './review-timestamp-feedback.ts';
 import { buildMediaAnchor, anchorError } from './review-anchor.ts';
 import { resolveReviewAction } from './review-actions.ts';
 
@@ -42,6 +43,10 @@ function room(startOn: keyof typeof TARGETS = 'artA') {
   let refusal: string | null = null;
   const calls: SavedCall[] = [];
   let seq = 0;
+  // `undefined` = no session yet. The FIRST write creates it, and which file it names
+  // is the whole of finding 1 — session.selected_artifact_id is the only path the
+  // compiled brief prints.
+  let sessionArtifactId: string | null | undefined = undefined;
 
   // Every media event goes through ONE path, exactly as the component wires it.
   const fire = (seconds: number, fromArtifactId = selectedId) => {
@@ -69,6 +74,9 @@ function room(startOn: keyof typeof TARGETS = 'artA') {
     issues: () => issues,
     calls: () => calls,
     refusal: () => refusal,
+    sessionArtifact: () => sessionArtifactId,
+    /** Accepting is session-level: it names the live selection, not a draft. */
+    accept: () => { if (sessionArtifactId === undefined) sessionArtifactId = selectedId; return api; },
 
     pointComment: () => {
       refusal = null;
@@ -138,6 +146,8 @@ function room(startOn: keyof typeof TARGETS = 'artA') {
         const existing = issues.find((i) => i.id === route.issueId)!;
         issues = replaceIssue(issues as never, route.issueId, { ...existing, kind: d.kind, anchor, body: d.body.trim() } as never);
       } else {
+        // ensureSession(d.target.artifactId) — the FROZEN file, not the selection.
+        if (sessionArtifactId === undefined) sessionArtifactId = d.target.artifactId;
         seq += 1;
         issues = [...issues, {
           id: `new-${seq}`, artifactId: d.target.artifactId, status: 'draft',
@@ -352,20 +362,69 @@ test('REPRO: the composer names the frozen file, not whatever is selected later'
   assert.equal(call.anchor.artifactSha256, SHA_A, 'the digest travels with the draft, not with the selector');
 });
 
+test('REPRO: a switch immediately before save must not open the session on the other file', () => {
+  // Finding 1. The issue and its digest were already frozen, but the SESSION was still
+  // created from the live selection — and session.selected_artifact_id is the ONLY
+  // path the compiled brief prints ("Primary artifact: …"). So this sequence handed
+  // the agent a brief headed with file B carrying nothing but comments about file A.
+  const r = room('artA').loadedmetadata(0).seeked(12).pointComment().type('the cut is early here');
+  r.selectWithoutReset('artB');   // the switch that used to decide the session
+  r.save();
+
+  assert.equal(r.sessionArtifact(), 'artA',
+    'the session must name the file the issue is actually about');
+  assert.equal(r.calls()[0].artifactId, 'artA');
+  assert.equal(r.calls()[0].anchor.artifactSha256, SHA_A);
+});
+
+test('the session is opened once, by whichever write comes first', () => {
+  // Two drafts on the same file: the second must not re-point the session.
+  const r = room('artA').loadedmetadata(0).seeked(3).pointComment().type('one').save();
+  assert.equal(r.sessionArtifact(), 'artA');
+  r.switchArtifact('artB').loadedmetadata(0).seeked(4).pointComment().type('two').save();
+  assert.equal(r.sessionArtifact(), 'artA', 'an existing session is reused, never re-created');
+  assert.equal(r.calls()[1].artifactId, 'artB', 'while the issue still names its own file');
+});
+
+test('accepting names the live selection, because it is not about one draft', () => {
+  const r = room('artA').loadedmetadata(0).seeked(3).accept();
+  assert.equal(r.sessionArtifact(), 'artA');
+  // and it never writes an issue
+  assert.deepEqual(r.calls(), []);
+});
+
 test('a whole-run comment says so rather than naming a file it does not have', () => {
   assert.equal(targetLine({ artifactId: null, sha256: null, relativePath: null, role: null }),
     'Feedback applies to: the whole run');
   assert.equal(targetLine(null), 'Feedback applies to: the whole run');
 });
 
-test('REPRO: a source artifact shows the source/reference guidance', () => {
+test('REPRO: a source artifact shows the source/reference guidance, naming the file', () => {
   const r = room('artB').loadedmetadata(0).seeked(5).pointComment();
-  const guidance = targetGuidance(r.draft()!.target);
-  assert.equal(guidance, SOURCE_FILE_GUIDANCE);
-  assert.match(guidance!, /This is a source file/);
-  assert.match(guidance!, /applies to this source/);
-  assert.match(guidance!, /Use this section as reference; do not modify the source file/);
+  const guidance = targetGuidance(r.draft()!.target)!;
+  assert.match(guidance, /This is a source file/);
+  assert.match(guidance, /applies to src\/raw-take\.mov/,
+    'naming the file is the point — "this source" is what arrives ambiguously');
+  assert.match(guidance, /say so in your own words and name the file you want changed/);
   assert.equal(targetLine(r.draft()!.target), 'Feedback applies to: src/raw-take.mov');
+  // a source artifact with no path still gets guidance, without inventing a name
+  assert.match(targetGuidance({ artifactId: 'x', sha256: SHA_B, relativePath: null, role: 'source' })!,
+    /applies to this source file/);
+});
+
+test('REPRO: no canned reference-only sentence is offered while the brief names one file', () => {
+  // Finding 2. A one-click "Use this section as reference; do not modify the source
+  // file." was built and removed: the compiled brief prints ONE artifact path, so that
+  // sentence can arrive under a heading naming a different file — reading as precise
+  // while being wrong. The guidance says why the reviewer must name the files.
+  const guidance = targetGuidance(TARGETS.artB)!;
+  assert.equal(/Use this section as reference/.test(guidance), false,
+    'a confident sentence in the wrong context is worse than no sentence');
+  assert.match(guidance, /does not yet label each comment with its own file/,
+    'the reviewer is told WHY they have to name it, not just that they should');
+  // and there is no helper left to insert one
+  assert.equal(Object.keys(feedbackModule).includes('withReferenceSentence'), false);
+  assert.equal(Object.keys(feedbackModule).includes('REFERENCE_ONLY_SENTENCE'), false);
 });
 
 test('REPRO: an output artifact shows no such warning', () => {
@@ -377,22 +436,20 @@ test('REPRO: an output artifact shows no such warning', () => {
   }
 });
 
-test('reference-only intent is the reviewer\'s own sentence, never inferred', () => {
+test('reference-only intent is never inferred, and never stored as a field', () => {
   const r = room('artB').loadedmetadata(0).seeked(5).pointComment();
-  // nothing is implied by the guidance alone
+  // the guidance implies nothing about the draft
   assert.equal(r.draft()!.body, '');
-
-  const withPhrase = withReferenceSentence(r.draft())!;
-  assert.equal(withPhrase.body, REFERENCE_ONLY_SENTENCE);
-  // it lands in the BODY, the one field that reaches the agent — not a typed field
-  assert.equal(Object.keys(withPhrase).includes('intent'), false);
-  assert.equal(Object.keys(withPhrase).includes('referenceOnly'), false);
-
-  // appended to existing text, and never doubled
-  const typed = withReferenceSentence({ ...r.draft()!, body: 'Match the pacing here.' })!;
-  assert.equal(typed.body, `Match the pacing here. ${REFERENCE_ONLY_SENTENCE}`);
-  assert.equal(withReferenceSentence(typed)!.body, typed.body, 'clicking twice must not repeat it');
-  assert.equal(withReferenceSentence(null), null);
+  // no typed intent exists on a draft — the contract has nowhere to put one
+  for (const invented of ['intent', 'referenceOnly', 'targetIntent', 'mode']) {
+    assert.equal(Object.keys(r.draft()!).includes(invented), false,
+      `${invented} would look structured and carry nothing`);
+  }
+  // reviewer text is passed through untouched, whatever it says
+  r.type('Use src/raw-take.mov as reference only; change out/final.mp4.').save();
+  assert.equal(r.calls()[0].body, 'Use src/raw-take.mov as reference only; change out/final.mp4.');
+  assert.equal(Object.keys(r.calls()[0].anchor).includes('intent'), false,
+    'the backend drops unknown anchor keys on a 200 — sending one would silently vanish');
 });
 
 // ── several comments at one moment (unchanged behaviour) ────────────────────
