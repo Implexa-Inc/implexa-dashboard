@@ -46,11 +46,11 @@ import {
 } from '@/lib/segmented-review';
 import {
   beginRange, canOfferRange, canReplaceDraft, completeRange, composerHeaderLabel, draftFromIssue,
-  draftIssuesAtSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, openDraft,
-  playheadFromEvent, pointCommentLabel, rangeEndButtonLabel, rangeStartLabel,
+  draftIssuesAtSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, liveRangeError,
+  openDraft, playheadFromEvent, pointCommentLabel, rangeEndButtonLabel, rangeStartLabel,
   rangeSurvivesSelection, replaceIssue, saveActionFor, saveDraftLabel, targetGuidance, targetLine,
   CANCEL_RANGE_LABEL, DRAFT_IN_PROGRESS, SELECT_RANGE_LABEL,
-  type FeedbackDraft, type FrozenTarget, type PendingRange,
+  type FeedbackDraft, type FrozenTarget, type PendingRange, type RangeAttempt,
 } from '@/lib/review-timestamp-feedback';
 
 type Props = {
@@ -139,7 +139,11 @@ export default function ReviewRoom(props: Props) {
   // is nothing to write yet — and because an abandoned range must be visibly abandoned,
   // not silently become a point comment.
   const [pendingRange, setPendingRange] = useState<PendingRange>(null);
-  const [rangeError, setRangeError] = useState<string | null>(null);
+  // ONLY that the user pressed something — never the refusal itself. A stored refusal
+  // outlives the state it described: "The end of the range must come after the start."
+  // stayed on screen beside `Start 00:00.000 → Set end at 03:42.147`, telling a reviewer
+  // who had already fixed it by scrubbing that they had not.
+  const [rangeAttempt, setRangeAttempt] = useState<RangeAttempt>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [textTruncated, setTextTruncated] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -186,7 +190,7 @@ export default function ReviewRoom(props: Props) {
     // An unfinished range dies with the file it was started in. Carrying a start time
     // into the next video would mark a span nobody selected.
     setPendingRange(null);
-    setRangeError(null);
+    setRangeAttempt(null);
 
     const base = decidePreview({
       artifact,
@@ -317,7 +321,7 @@ export default function ReviewRoom(props: Props) {
             : { ...(existing as ReviewIssue), kind: d!.kind, anchor: anchor as never, body: d!.body.trim() };
           return replaceIssue(prev, editingId, updated);
         });
-        setDraft(null); setRangeError(null);
+        setDraft(null); setRangeAttempt(null);
         return;
       }
 
@@ -339,7 +343,7 @@ export default function ReviewRoom(props: Props) {
         return;
       }
       setIssues((prev) => [...prev, body.issue]);
-      setDraft(null); setRangeError(null);
+      setDraft(null); setRangeAttempt(null);
     } finally { setBusy(false); }
     // NOT `artifact`: every identity this path writes now comes from the draft.
   }, [buildAnchor, draft, ensureSession]);
@@ -382,6 +386,11 @@ export default function ReviewRoom(props: Props) {
     [issues, selectedId, playheadMs],
   );
 
+  // DERIVED, not stored. Scrubbing past the start clears "the end must come after the
+  // start" by itself, because the sentence is only ever a reading of the state it is
+  // about — never a note left behind by an earlier one.
+  const rangeError = liveRangeError({ attempt: rangeAttempt, range: pendingRange, playheadMs });
+
   /**
    * WHICH FILE the next comment is about, captured whole. Everything a draft or a
    * range freezes comes from here, so the four fields can never disagree with each
@@ -396,7 +405,7 @@ export default function ReviewRoom(props: Props) {
 
   /** Open a NEW point composer, freezing the current playhead and file into it. */
   const openPointComment = useCallback(() => {
-    setError(null); setRangeError(null);
+    setError(null); setRangeAttempt(null);
     if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
     setPendingRange(null);
     setDraft(openDraft({ target: targetIdentity, playheadMs }));
@@ -404,10 +413,12 @@ export default function ReviewRoom(props: Props) {
 
   /** Begin a range: the start and its file freeze here, the end follows the playhead. */
   const startRange = useCallback(() => {
-    setError(null); setRangeError(null);
+    setError(null); setRangeAttempt(null);
     if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
     const begun = beginRange({ target: targetIdentity, playheadMs });
-    if (begun.error) { setRangeError(begun.error); return; }
+    // Record only THAT it was refused. Which refusal to show — if any still applies —
+    // is re-decided from live state every render.
+    if (begun.error) { setRangeAttempt('begin'); return; }
     setDraft(null);
     setPendingRange(begun.range);
   }, [draft, targetIdentity, playheadMs]);
@@ -416,17 +427,17 @@ export default function ReviewRoom(props: Props) {
   const finishRange = useCallback(() => {
     setError(null);
     const done = completeRange(pendingRange, playheadMs);
-    setRangeError(done.error);
-    if (done.error || !done.draft) return;
+    if (done.error || !done.draft) { setRangeAttempt('end'); return; }
+    setRangeAttempt(null);
     setDraft(done.draft);
     setPendingRange(null);
   }, [pendingRange, playheadMs]);
 
-  const cancelRange = useCallback(() => { setPendingRange(null); setRangeError(null); }, []);
+  const cancelRange = useCallback(() => { setPendingRange(null); setRangeAttempt(null); }, []);
 
   /** Reopen an existing DRAFT issue on its own file, anchor, body and kind. */
   const startEdit = useCallback((issue: ReviewIssue) => {
-    setError(null); setRangeError(null);
+    setError(null); setRangeAttempt(null);
     // The target is the issue's OWN file. draftFromIssue refuses a mismatch, so an edit
     // can never be opened against whatever happens to be on screen.
     const next = draftFromIssue(issue as never, targetIdentity);
@@ -474,7 +485,7 @@ export default function ReviewRoom(props: Props) {
   useEffect(() => {
     if (pendingRange && !rangeSurvivesSelection(pendingRange, selectedId)) {
       setPendingRange(null);
-      setRangeError(null);
+      setRangeAttempt(null);
     }
   }, [pendingRange, selectedId]);
 
@@ -773,7 +784,7 @@ export default function ReviewRoom(props: Props) {
                 type="button"
                 // Cancelling clears the frozen anchor with the draft. Leaving it behind
                 // would silently anchor the NEXT comment to the abandoned moment.
-                onClick={() => { setDraft(null); setRangeError(null); }}
+                onClick={() => { setDraft(null); setRangeAttempt(null); }}
                 className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-300"
               >
                 Cancel

@@ -284,15 +284,21 @@ export const DRAFT_IN_PROGRESS =
  */
 export type PendingRange = { target: FrozenTarget; startMs: number } | null;
 
+export const NO_POSITION_FOR_RANGE = 'Move to the moment the range should start, then select a range.';
+export const NO_RANGE_IN_PROGRESS = 'There is no range in progress.';
+export const RANGE_NEEDS_START = 'Start a range at a moment first, then mark where it ends.';
+export const RANGE_END_BEFORE_START = 'The end of the range must come after the start.';
+export const RANGE_END_NOT_A_POSITION = 'That is not a valid position.';
+
 /** Null when the end is a usable range end, else why it is refused. */
 export function rangeEndError(startMs: number | null | undefined, endMs: number | null | undefined): string | null {
-  if (startMs === null || startMs === undefined) return 'Start a range at a moment first, then mark where it ends.';
+  if (startMs === null || startMs === undefined) return RANGE_NEEDS_START;
   if (endMs === null || endMs === undefined || !Number.isFinite(endMs) || endMs < 0) {
-    return 'That is not a valid position.';
+    return RANGE_END_NOT_A_POSITION;
   }
   // At-or-before the start is not a range. Equal endpoints in particular read as a
   // range on screen while marking a zero-length span the reviewer never selected.
-  if (endMs <= startMs) return 'The end of the range must come after the start.';
+  if (endMs <= startMs) return RANGE_END_BEFORE_START;
   return null;
 }
 
@@ -302,9 +308,38 @@ export function beginRange(args: {
   playheadMs: number | null;
 }): { range: PendingRange; error: string | null } {
   if (args.playheadMs === null) {
-    return { range: null, error: 'Move to the moment the range should start, then select a range.' };
+    return { range: null, error: NO_POSITION_FOR_RANGE };
   }
   return { range: { target: { ...args.target }, startMs: Math.max(0, Math.round(args.playheadMs)) }, error: null };
+}
+
+/**
+ * Which refusal to SHOW right now — DERIVED, never stored.
+ *
+ * A refusal is a claim about the current state, so it has to be re-decided from the
+ * current state. Storing the string meant "The end of the range must come after the
+ * start." stayed on screen beside `Start 00:00.000 → Set end at 03:42.147`, contradicting
+ * the very control it was about: the reviewer had already fixed it by scrubbing, and the
+ * room was still telling them they hadn't. That is the ORIGINAL BUG of this whole surface
+ * in a third costume — a snapshot outliving the live value it described.
+ *
+ * `attempt` records only that the user pressed something, so a refusal appears after an
+ * action rather than nagging pre-emptively at a position they have not chosen yet.
+ */
+export type RangeAttempt = 'begin' | 'end' | null;
+
+export function liveRangeError(args: {
+  attempt: RangeAttempt;
+  range: PendingRange;
+  playheadMs: number | null;
+}): string | null {
+  const { attempt, range, playheadMs } = args;
+  if (!attempt) return null;
+  // They tried to START one with nothing to start it at. The moment a position exists,
+  // the complaint is obsolete.
+  if (attempt === 'begin') return playheadMs === null ? NO_POSITION_FOR_RANGE : null;
+  if (!range) return NO_RANGE_IN_PROGRESS;
+  return rangeEndError(range.startMs, playheadMs);
 }
 
 /**
@@ -318,7 +353,7 @@ export function completeRange(
   range: PendingRange,
   playheadMs: number | null,
 ): { draft: FeedbackDraft | null; error: string | null } {
-  if (!range) return { draft: null, error: 'There is no range in progress.' };
+  if (!range) return { draft: null, error: NO_RANGE_IN_PROGRESS };
   const err = rangeEndError(range.startMs, playheadMs);
   if (err) return { draft: null, error: err };
   return {

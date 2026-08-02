@@ -125,6 +125,20 @@ test('switching artifact resets the playhead, the composer AND any unfinished ra
   assert.match(effect, /setPendingRange\(null\);/, 'a start time from video A marks nothing in video B');
 });
 
+test('REPRO: the range refusal is derived every render, never stored', () => {
+  // A stored string outlives the state it described: production showed "The end of the
+  // range must come after the start." beside `Start 00:00.000 → Set end at 03:42.147`.
+  assert.match(source, /const rangeError = liveRangeError\(\{ attempt: rangeAttempt, range: pendingRange, playheadMs \}\);/,
+    'the message must be a reading of live state, not a note left by an earlier click');
+  assert.match(source, /useState<RangeAttempt>\(null\)/,
+    'state records only THAT something was pressed');
+  // Nothing may put a message into state.
+  assert.equal(/setRangeError\(/.test(source), false,
+    'storing the refusal is exactly how it goes stale');
+  assert.match(source, /setRangeAttempt\('begin'\)/);
+  assert.match(source, /setRangeAttempt\('end'\)/);
+});
+
 test('a range that outlives its file is dropped by the state itself', () => {
   assert.match(source, /if \(pendingRange && !rangeSurvivesSelection\(pendingRange, selectedId\)\)/,
     'belt and braces: the reset path is not the only thing keeping a range on its own file');
