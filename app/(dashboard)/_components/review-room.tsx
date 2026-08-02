@@ -725,7 +725,9 @@ function ArtifactSurface({
           ref={mediaRef as never}
           src={previewUrl}
           controls
-          className={decision.kind === 'video' ? 'w-full rounded bg-black' : 'w-full'}
+          className={decision.kind === 'video'
+            ? 'max-h-[60vh] w-full rounded bg-black object-contain'
+            : 'w-full'}
           onLoadedMetadata={onMediaReady}
           onTimeUpdate={(e) => onTimeUpdate((e.currentTarget as HTMLMediaElement).currentTime)}
           onPause={(e) => onPause((e.currentTarget as HTMLMediaElement).currentTime)}
