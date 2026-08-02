@@ -45,10 +45,12 @@ import {
   segmentForArtifact, segmentPlaybackClock,
 } from '@/lib/segmented-review';
 import {
-  addFeedbackLabel, canReplaceDraft, canSetRangeEnd, composerHeaderLabel, draftFromIssue,
-  draftIssuesAtSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, formatSeconds,
-  openDraft, playheadFromEvent, replaceIssue, saveActionFor, saveDraftLabel, withRangeEnd,
-  DRAFT_IN_PROGRESS, type FeedbackDraft,
+  beginRange, canOfferRange, canReplaceDraft, completeRange, composerHeaderLabel, draftFromIssue,
+  draftIssuesAtSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, openDraft,
+  playheadFromEvent, pointCommentLabel, rangeEndButtonLabel, rangeStartLabel,
+  rangeSurvivesSelection, replaceIssue, saveActionFor, saveDraftLabel, targetGuidance, targetLine,
+  CANCEL_RANGE_LABEL, DRAFT_IN_PROGRESS, SELECT_RANGE_LABEL,
+  type FeedbackDraft, type FrozenTarget, type PendingRange,
 } from '@/lib/review-timestamp-feedback';
 
 type Props = {
@@ -132,6 +134,11 @@ export default function ReviewRoom(props: Props) {
   // an open flag separate from the anchor is how a composer ends up on screen with a
   // position nobody snapshotted.
   const [draft, setDraft] = useState<FeedbackDraft | null>(null);
+  // A range in progress: START frozen (with its file and digest), END still following
+  // the playhead. A separate state from the draft because until the end is taken there
+  // is nothing to write yet — and because an abandoned range must be visibly abandoned,
+  // not silently become a point comment.
+  const [pendingRange, setPendingRange] = useState<PendingRange>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [textTruncated, setTextTruncated] = useState(false);
@@ -176,6 +183,9 @@ export default function ReviewRoom(props: Props) {
     // new file has not told us anything yet.
     setPlayheadMs(null);
     setDraft(null);
+    // An unfinished range dies with the file it was started in. Carrying a start time
+    // into the next video would mark a span nobody selected.
+    setPendingRange(null);
     setRangeError(null);
 
     const base = decidePreview({
@@ -231,13 +241,24 @@ export default function ReviewRoom(props: Props) {
   }, [artifact, runId]);
 
   // ── issue creation ────────────────────────────────────────────────────────
-  const ensureSession = useCallback(async (): Promise<string | null> => {
+  /**
+   * The session's selected artifact is NOT decoration, and it is NOT free to be the
+   * live selection when a draft is being saved.
+   *
+   * `session.selected_artifact_id` is the ONLY file the compiled revision brief names
+   * — it prints one "Primary artifact" line and never each issue's own path. So a
+   * session opened for file B while the issue is recorded against file A hands the
+   * agent a brief that names the wrong file, with no per-issue path to contradict it.
+   * The caller therefore passes the identity it is actually writing about: the FROZEN
+   * draft target for an issue, the live selection for a session-level act like accept.
+   */
+  const ensureSession = useCallback(async (artifactId: string | null): Promise<string | null> => {
     if (session?.id) return session.id;
-    const { body } = await reviewAction({ action: 'ensure_session', runId, artifactId: artifact?.id });
+    const { body } = await reviewAction({ action: 'ensure_session', runId, artifactId });
     if (body?.ok && body.session) { setSession(body.session); return body.session.id as string; }
     setError(body?.error || 'Could not open a review session.');
     return null;
-  }, [session, runId, artifact]);
+  }, [session, runId]);
 
   /**
    * The anchor is built from the DRAFT, never from the player.
@@ -248,14 +269,18 @@ export default function ReviewRoom(props: Props) {
    * Save. The frozen value is the one they aimed at.
    */
   const buildAnchor = useCallback((d: FeedbackDraft | null): ReviewAnchor | null => {
-    const sha = artifact?.sha256;
+    // THE DRAFT'S OWN DIGEST, not the selected artifact's. Reading `artifact.sha256`
+    // here would anchor a comment written about file A to file B's bytes the moment the
+    // selection moved — an anchor that is internally valid and about the wrong file, so
+    // the backend accepts it and nothing downstream can tell.
+    const sha = d?.target.sha256;
     if (!sha || !d) return null;
     if (d.selection) return buildTextAnchor(sha, d.selection.start, d.selection.end, d.selection.quote);
     if (d.anchorMs !== null) {
       return buildMediaAnchor(sha, d.anchorMs / 1000, d.rangeEndMs === null ? null : d.rangeEndMs / 1000);
     }
     return buildArtifactAnchor(sha);
-  }, [artifact]);
+  }, []);
 
   const submitIssue = useCallback(async () => {
     setError(null);
@@ -296,10 +321,15 @@ export default function ReviewRoom(props: Props) {
         return;
       }
 
-      const sid = await ensureSession();
+      // THE FROZEN FILE, here too. A session opened for the live selection while this
+      // issue is recorded against the draft's file puts the wrong "Primary artifact"
+      // at the head of the revision brief — the one place the agent is told what it is
+      // looking at.
+      const sid = await ensureSession(d!.target.artifactId);
       if (!sid) return;
       const { body } = await reviewAction({
-        action: 'create_issue', sessionId: sid, artifactId: artifact?.id,
+        // The FROZEN file, for the same reason as the digest above.
+        action: 'create_issue', sessionId: sid, artifactId: d!.target.artifactId,
         kind: d!.kind, anchor, body: d!.body.trim(),
       });
       if (!body?.ok) {
@@ -311,7 +341,8 @@ export default function ReviewRoom(props: Props) {
       setIssues((prev) => [...prev, body.issue]);
       setDraft(null); setRangeError(null);
     } finally { setBusy(false); }
-  }, [buildAnchor, draft, ensureSession, artifact]);
+    // NOT `artifact`: every identity this path writes now comes from the draft.
+  }, [buildAnchor, draft, ensureSession]);
 
   const dismissIssue = useCallback(async (issueId: string) => {
     setBusy(true); setError(null);
@@ -351,21 +382,59 @@ export default function ReviewRoom(props: Props) {
     [issues, selectedId, playheadMs],
   );
 
-  /** Open a NEW composer, freezing the current playhead into it. */
-  const openComposer = useCallback(() => {
+  /**
+   * WHICH FILE the next comment is about, captured whole. Everything a draft or a
+   * range freezes comes from here, so the four fields can never disagree with each
+   * other about which artifact they describe.
+   */
+  const targetIdentity = useMemo<FrozenTarget>(() => ({
+    artifactId: artifact?.id ?? null,
+    sha256: artifact?.sha256 ?? null,
+    relativePath: artifact?.relativePath ?? null,
+    role: artifact?.role ?? null,
+  }), [artifact]);
+
+  /** Open a NEW point composer, freezing the current playhead and file into it. */
+  const openPointComment = useCallback(() => {
     setError(null); setRangeError(null);
     if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
-    setDraft(openDraft({ artifactId: selectedId, playheadMs }));
-  }, [draft, selectedId, playheadMs]);
+    setPendingRange(null);
+    setDraft(openDraft({ target: targetIdentity, playheadMs }));
+  }, [draft, targetIdentity, playheadMs]);
 
-  /** Reopen an existing DRAFT issue on its own anchor, body and kind. */
+  /** Begin a range: the start and its file freeze here, the end follows the playhead. */
+  const startRange = useCallback(() => {
+    setError(null); setRangeError(null);
+    if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+    const begun = beginRange({ target: targetIdentity, playheadMs });
+    if (begun.error) { setRangeError(begun.error); return; }
+    setDraft(null);
+    setPendingRange(begun.range);
+  }, [draft, targetIdentity, playheadMs]);
+
+  /** Take the current playhead as the end. A refusal changes nothing. */
+  const finishRange = useCallback(() => {
+    setError(null);
+    const done = completeRange(pendingRange, playheadMs);
+    setRangeError(done.error);
+    if (done.error || !done.draft) return;
+    setDraft(done.draft);
+    setPendingRange(null);
+  }, [pendingRange, playheadMs]);
+
+  const cancelRange = useCallback(() => { setPendingRange(null); setRangeError(null); }, []);
+
+  /** Reopen an existing DRAFT issue on its own file, anchor, body and kind. */
   const startEdit = useCallback((issue: ReviewIssue) => {
     setError(null); setRangeError(null);
-    const next = draftFromIssue(issue as never);
-    if (!next) { setError('Only unsent feedback can be edited.'); return; }
+    // The target is the issue's OWN file. draftFromIssue refuses a mismatch, so an edit
+    // can never be opened against whatever happens to be on screen.
+    const next = draftFromIssue(issue as never, targetIdentity);
+    if (!next) { setError('Only unsent feedback about the file you are viewing can be edited here.'); return; }
     if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+    setPendingRange(null);
     setDraft(next);
-  }, [draft]);
+  }, [draft, targetIdentity]);
 
   /**
    * Clicking an issue. If it belongs to another artifact we SWITCH FIRST and seek once
@@ -398,6 +467,17 @@ export default function ReviewRoom(props: Props) {
     setPendingSeek(null);
   }, [pendingSeek, selectedId, preview, seekTo]);
 
+  // BELT AND BRACES on the range's file. The preview lifecycle already clears it on a
+  // switch; this makes "a range belongs to one artifact" true of the state itself, so a
+  // future edit to that effect cannot quietly leave a start time pointing at video A
+  // while video B is on screen.
+  useEffect(() => {
+    if (pendingRange && !rangeSurvivesSelection(pendingRange, selectedId)) {
+      setPendingRange(null);
+      setRangeError(null);
+    }
+  }, [pendingRange, selectedId]);
+
   // A pending seek that can never be satisfied is dropped rather than held: retaining it
   // would fire on some unrelated later load.
   useEffect(() => {
@@ -429,7 +509,10 @@ export default function ReviewRoom(props: Props) {
   const onAccept = useCallback(async (discard: boolean) => {
     setBusy(true); setError(null); setNotice(null);
     try {
-      const sid = await ensureSession();
+      // Accepting is a SESSION-level judgement about the result on screen, not about
+      // one draft — so the live selection is the honest identity here. There is no
+      // frozen target to prefer: this path never writes an issue.
+      const sid = await ensureSession(selectedId);
       if (!sid) return;
       const { body } = await reviewAction({ action: 'accept', sessionId: sid, discardOpenIssues: discard });
       if (body?.needsDiscardConfirmation) { setConfirmDiscard(true); return; }
@@ -438,7 +521,7 @@ export default function ReviewRoom(props: Props) {
       setNotice('Result accepted.');
       router.refresh();
     } finally { setBusy(false); }
-  }, [ensureSession, router]);
+  }, [ensureSession, router, selectedId]);
 
   const issuesUnavailable = sources.issues === 'unavailable';
   const playbackClock = production && selectedSegment
@@ -527,7 +610,8 @@ export default function ReviewRoom(props: Props) {
           onPlayhead={onPlayhead}
           onSelectText={(s) => {
             if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
-            setDraft(openDraft({ artifactId: selectedId, playheadMs, selection: s }));
+            setPendingRange(null);
+            setDraft(openDraft({ target: targetIdentity, playheadMs, selection: s }));
           }}
           onSeek={seekTo}
         />
@@ -552,16 +636,30 @@ export default function ReviewRoom(props: Props) {
         {/* Persistent, keyboard-reachable. Not a modal that ambushes every pause. */}
         {!frozen && !accepted && artifact?.status === 'validated' && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            {/* TWO EXPLICIT CHOICES, side by side. A range used to be reachable only
+                by opening a point comment first and noticing a "Set end here" button
+                appear — so the people who needed it most never found it, and the ones
+                who did had already committed to a point. */}
             <button
               type="button"
-              onClick={openComposer}
+              onClick={openPointComment}
               // The EXACT position, for anyone who needs it. The label shows the second
               // because that is the number on the player next to it.
               title={playheadMs === null ? undefined : `Exact position ${formatMs(playheadMs)}`}
               className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-200 hover:border-ink-500"
             >
-              {addFeedbackLabel({ playheadMs, existingCount: hereIssues.length })}
+              {pointCommentLabel({ playheadMs, existingCount: hereIssues.length })}
             </button>
+
+            {canOfferRange(playheadMs) && !pendingRange && (
+              <button
+                type="button"
+                onClick={startRange}
+                className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-200 hover:border-ink-500"
+              >
+                {SELECT_RANGE_LABEL}
+              </button>
+            )}
 
             {/* Something is ALREADY here. Never merged into it, never overwritten — the
                 count is stated and each one can be reopened. */}
@@ -583,30 +681,38 @@ export default function ReviewRoom(props: Props) {
               </span>
             )}
 
-            {draft && draft.anchorMs !== null && (
-              <>
-                <button
-                  type="button"
-                  // Reads the PLAYHEAD (where the user is now), writes the DRAFT (what
-                  // the comment is about). Disabled when that would not be a range.
-                  disabled={!canSetRangeEnd(draft, playheadMs)}
-                  onClick={() => {
-                    const next = withRangeEnd(draft, playheadMs);
-                    setRangeError(next.error);
-                    if (!next.error) setDraft(next.draft);
-                  }}
-                  className="rounded-md border border-ink-800 px-2 py-1 text-xs text-ink-400 hover:border-ink-600 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Set end here
-                </button>
-                {draft.rangeEndMs !== null && (
-                  <span className="text-xs text-ink-500" title={`Exact range ${formatMs(draft.anchorMs)} – ${formatMs(draft.rangeEndMs)}`}>
-                    → {formatSeconds(draft.rangeEndMs)}
-                  </span>
-                )}
-              </>
-            )}
             {rangeError && <span role="alert" className="text-xs text-amber-300">{rangeError}</span>}
+          </div>
+        )}
+
+        {/* ── a range in progress ──────────────────────────────────────────
+            An obvious selection state, because a half-made range is a mode: the
+            start is fixed, the end is whatever you scrub to next, and either you
+            take it or you cancel. Nothing here is written until "Set end". */}
+        {pendingRange && !frozen && !accepted && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-sky-500/40 bg-sky-500/10 p-3">
+            <span className="font-mono text-sm text-sky-200">{rangeStartLabel(pendingRange)}</span>
+            <span aria-hidden="true" className="text-sky-300">→</span>
+            <button
+              type="button"
+              // FOLLOWS the playhead while the start stays frozen. Deliberately not
+              // disabled on an invalid end: a silently dead button teaches nothing,
+              // and completeRange refuses in words without touching anything.
+              onClick={finishRange}
+              className="rounded-md bg-sky-400/90 px-3 py-1.5 font-mono text-sm font-medium text-ink-950 hover:bg-sky-300"
+            >
+              {rangeEndButtonLabel(playheadMs)}
+            </button>
+            <button
+              type="button"
+              onClick={cancelRange}
+              className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-300 hover:border-ink-500"
+            >
+              {CANCEL_RANGE_LABEL}
+            </button>
+            <span className="w-full text-xs text-sky-200/80">
+              Scrub to where this should end, then take it. The start stays where you set it.
+            </span>
           </div>
         )}
 
@@ -626,6 +732,28 @@ export default function ReviewRoom(props: Props) {
                 {ISSUE_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
               </select>
             </div>
+
+            {/* WHICH FILE, from the draft's own frozen identity — never from whatever
+                is selected now. With several artifacts in a review, a timestamp alone
+                does not say what the comment is about. */}
+            <p className="mb-2 truncate text-xs text-ink-400" title={draft.target.relativePath ?? undefined}>
+              {targetLine(draft.target)}
+            </p>
+
+            {/* A source file is an INPUT the agent may edit in place. Reference-only is
+                a real intent and nothing in the contract carries it as a field (see
+                docs/review-target-intent-contract.md), so the room states the situation
+                and leaves the wording to the reviewer. It is never inferred.
+
+                DELIBERATELY NO ONE-CLICK SENTENCE. A canned "use this as reference"
+                is unsafe while the brief names only the session's artifact: it would
+                arrive under a heading naming a different file, reading as precise. */}
+            {targetGuidance(draft.target) && (
+              <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-snug text-amber-200">
+                {targetGuidance(draft.target)}
+              </p>
+            )}
+
             <textarea
               autoFocus
               value={draft.body}

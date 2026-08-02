@@ -11,11 +11,14 @@
  * Boundaries covered:
  *   stale-playhead   the offer/anchor reading a position other than the visible one
  *   frozen-anchor    a draft's position moving after the composer opened
+ *   frozen-file      a draft's FILE (id, digest, path, role) re-derived from the selector
  *   cross-artifact   feedback from one file matched or moved by another
  *   edit-as-create   an update that appends instead of replacing
- *   range            an end at or before the start being accepted
+ *   range            an end at or before the start being accepted, or a start that drifts
+ *   discoverability  the range stopping being a visible, standalone choice
+ *   guidance         source-file guidance disappearing, or being shown indiscriminately
  *   immutability     submitted/accepted/dismissed work becoming editable
- *   artifact-switch  a composer or playhead surviving a file switch
+ *   artifact-switch  a composer, playhead or half-made range surviving a file switch
  */
 
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -40,8 +43,8 @@ const tests = [
 const mutations = [
   // ── the observed production bug ───────────────────────────────────────────
   ['stale-playhead', 'the offer is bound to a stale paused position again', COMPONENT,
-    'addFeedbackLabel({ playheadMs, existingCount: hereIssues.length })',
-    'addFeedbackLabel({ playheadMs: draft?.anchorMs ?? null, existingCount: hereIssues.length })'],
+    'pointCommentLabel({ playheadMs, existingCount: hereIssues.length })',
+    'pointCommentLabel({ playheadMs: draft?.anchorMs ?? null, existingCount: hereIssues.length })'],
   ['stale-playhead', 'scrubbing no longer reports a position (pause-only binding)', COMPONENT,
     '          onSeeked={(e) => onPlayhead(mediaKey, (e.currentTarget as HTMLMediaElement).currentTime)}\n',
     ''],
@@ -54,14 +57,35 @@ const mutations = [
   ['frozen-anchor', 'saving reads the player instead of the frozen draft', COMPONENT,
     'return buildMediaAnchor(sha, d.anchorMs / 1000, d.rangeEndMs === null ? null : d.rangeEndMs / 1000);',
     'return buildMediaAnchor(sha, (mediaRef.current?.currentTime ?? 0), d.rangeEndMs === null ? null : d.rangeEndMs / 1000);'],
-  ['frozen-anchor', 'setting a range end drags the start along with it',
-    'lib/review-timestamp-feedback.ts',
-    '  return { draft: { ...draft, rangeEndMs: Math.max(0, Math.round(playheadMs as number)) }, error: null };',
-    '  return { draft: { ...draft, anchorMs: Math.max(0, Math.round(playheadMs as number)) - 1, rangeEndMs: Math.max(0, Math.round(playheadMs as number)) }, error: null };'],
   ['frozen-anchor', 'a typed draft is silently re-anchored by the next Add click',
     'lib/review-timestamp-feedback.ts',
     '  return !draft || draft.body.trim() === \'\';',
     '  return true;'],
+
+  // ── the frozen FILE ───────────────────────────────────────────────────────
+  ['frozen-file', "the anchor digest is read from the selected artifact, not the draft", COMPONENT,
+    '    const sha = d?.target.sha256;',
+    '    const sha = artifact?.sha256;'],
+  ['frozen-file', 'the issue is recorded against the selected file, not the frozen one', COMPONENT,
+    "        action: 'create_issue', sessionId: sid, artifactId: d!.target.artifactId,",
+    "        action: 'create_issue', sessionId: sid, artifactId: artifact?.id,"],
+  ['frozen-file', 'the draft aliases the live target instead of copying it',
+    'lib/review-timestamp-feedback.ts',
+    '    target: { ...args.target },',
+    '    target: args.target,'],
+  ['frozen-file', 'an edit may be opened against a file the issue is not about',
+    'lib/review-timestamp-feedback.ts',
+    '  if ((issue.artifactId ?? null) !== (target.artifactId ?? null)) return null;',
+    '  if (false) return null;'],
+  ['frozen-file', 'the composer names the selected file rather than the frozen one', COMPONENT,
+    '              {targetLine(draft.target)}',
+    '              {targetLine(targetIdentity)}'],
+  ['frozen-file', 'the session is opened on the live selection instead of the frozen file', COMPONENT,
+    '      const sid = await ensureSession(d!.target.artifactId);',
+    '      const sid = await ensureSession(selectedId);'],
+  ['frozen-file', 'ensureSession ignores its caller and reads the selection', COMPONENT,
+    "    const { body } = await reviewAction({ action: 'ensure_session', runId, artifactId });",
+    "    const { body } = await reviewAction({ action: 'ensure_session', runId, artifactId: artifact?.id });"],
 
   // ── cross-artifact identity ───────────────────────────────────────────────
   ['cross-artifact', 'same-second matching ignores which file is selected',
@@ -79,6 +103,13 @@ const mutations = [
   ['artifact-switch', 'an in-progress composer survives a file switch', COMPONENT,
     '    setPlayheadMs(null);\n    setDraft(null);',
     '    setPlayheadMs(null);'],
+  ['artifact-switch', 'an unfinished range survives a file switch', COMPONENT,
+    '    setPendingRange(null);\n    setRangeError(null);\n\n    const base = decidePreview({',
+    '    setRangeError(null);\n\n    const base = decidePreview({'],
+  ['artifact-switch', 'a range no longer has to belong to the selected file',
+    'lib/review-timestamp-feedback.ts',
+    '  return !!range && range.target.artifactId === selectedArtifactId;',
+    '  return !!range;'],
 
   // ── edit-as-create ────────────────────────────────────────────────────────
   ['edit-as-create', 'the update appends a duplicate instead of replacing', COMPONENT,
@@ -97,15 +128,56 @@ const mutations = [
     '    anchorMs: isMedia ? Math.max(0, Math.round(Number(anchor.timeStartMs) || 0)) : null,',
     '    anchorMs: null,'],
 
-  // ── ranges and immutability ───────────────────────────────────────────────
+  // ── ranges ────────────────────────────────────────────────────────────────
   ['range', 'an end exactly at the start is accepted as a range',
     'lib/review-timestamp-feedback.ts',
     '  if (endMs <= startMs) return \'The end of the range must come after the start.\';',
     '  if (endMs < startMs) return \'The end of the range must come after the start.\';'],
-  ['range', 'a refused end is stored anyway',
+  ['range', 'a refused end still hands back a draft to store',
     'lib/review-timestamp-feedback.ts',
-    '  if (err) return { draft, error: err };',
-    '  if (err) return { draft: { ...draft, rangeEndMs: Math.round(playheadMs as number) }, error: err };'],
+    '  if (err) return { draft: null, error: err };',
+    '  if (err) return { draft: { target: range.target, anchorMs: range.startMs, rangeEndMs: Math.round(Number(playheadMs)), selection: null, kind: DEFAULT_ISSUE_KIND, body: \'\', editingIssueId: null }, error: err };'],
+  ['range', 'the range start follows the playhead instead of staying frozen',
+    'lib/review-timestamp-feedback.ts',
+    '      anchorMs: range.startMs,',
+    '      anchorMs: Math.max(0, Math.round(playheadMs as number)) - 1,'],
+  ['range', 'the end button stops following the playhead', COMPONENT,
+    '              {rangeEndButtonLabel(playheadMs)}',
+    '              {rangeEndButtonLabel(pendingRange.startMs)}'],
+
+  // ── discoverability ───────────────────────────────────────────────────────
+  ['discoverability', 'the range choice is hidden behind an open point comment', COMPONENT,
+    '            {canOfferRange(playheadMs) && !pendingRange && (\n              <button\n                type="button"\n                onClick={startRange}',
+    '            {false && canOfferRange(playheadMs) && !pendingRange && (\n              <button\n                type="button"\n                onClick={startRange}'],
+  ['discoverability', 'the frozen start of a range is no longer shown', COMPONENT,
+    '            <span className="font-mono text-sm text-sky-200">{rangeStartLabel(pendingRange)}</span>',
+    '            <span className="font-mono text-sm text-sky-200" />'],
+  ['discoverability', 'a range cannot be cancelled once begun', COMPONENT,
+    '              {CANCEL_RANGE_LABEL}',
+    '              {/* removed */}'],
+
+  // ── source guidance ───────────────────────────────────────────────────────
+  ['guidance', 'source files stop warning that feedback edits them',
+    'lib/review-timestamp-feedback.ts',
+    "  if (target?.role !== 'source') return null;",
+    '  if (true) return null;'],
+  ['guidance', 'every artifact gets the source warning',
+    'lib/review-timestamp-feedback.ts',
+    "  if (target?.role !== 'source') return null;",
+    '  if (false) return null;'],
+  ['guidance', 'the guidance stops naming the file it is about',
+    'lib/review-timestamp-feedback.ts',
+    '  const named = target.relativePath || \'this source file\';',
+    "  const named = 'this source file';"],
+  ['guidance', 'the canned reference-only sentence comes back', COMPONENT,
+    '              <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-snug text-amber-200">\n                {targetGuidance(draft.target)}\n              </p>',
+    '              <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-snug text-amber-200">\n                {targetGuidance(draft.target)}\n                <button type="button" onClick={() => setDraft(withReferenceSentence(draft))}>insert</button>\n              </p>'],
+  ['guidance', 'the reason the reviewer must name the file is dropped',
+    'lib/review-timestamp-feedback.ts',
+    "    + 'the revision request does not yet label each comment with its own file, so “this section” '\n    + 'can arrive under a different one.';",
+    "    + '';"],
+
+  // ── immutability ──────────────────────────────────────────────────────────
   ['immutability', 'submitted and accepted work becomes editable',
     'lib/review-timestamp-feedback.ts',
     "  return !!issue && issue.status === 'draft';",
