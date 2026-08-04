@@ -6,7 +6,7 @@ import QualityModeSelector from './quality-mode-selector';
 import type { QualityMode } from '@/lib/quality-mode';
 import {
   beginProposalCreate, parseGenerationCreateResponse, parseGenerationPreviewSet,
-  proposalEntryError, validateGenerationMoment,
+  proposalCreateLabel, proposalEntryError, proposalSummaryLine, validateGenerationMoment,
   type GenerationMomentInput, type GenerationPreviewSet,
 } from '@/lib/generation-proposal-entry';
 
@@ -134,9 +134,7 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName }:
 
       {selected && (
         <div className="mt-4 rounded-lg border border-ink-800 bg-ink-900/50 p-4 text-sm">
-          <p className="font-medium text-ink-100">
-            {selected.taskCount} {selected.taskCount === 1 ? 'clip' : 'clips'} · up to {selected.maximumCredits} credits
-          </p>
+          <p className="font-medium text-ink-100">{proposalSummaryLine(selected)}</p>
           <p className="mt-1 text-xs text-ink-400">
             {selected.provider && selected.model ? `${selected.provider} · ${selected.model} · ` : ''}
             {moment.startSeconds}s–{moment.endSeconds}s
@@ -160,7 +158,7 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName }:
           <button type="button" onClick={createProposal}
             disabled={phase === 'creating' || selected?.availability !== true}
             className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
-            {phase === 'creating' ? 'Creating proposal…' : 'Create Quick proposal'}
+            {phase === 'creating' ? 'Creating proposal…' : proposalCreateLabel(mode)}
           </button>
         )}
         <button type="button" onClick={() => router.back()} className="btn-outline px-4 py-2 text-sm">Cancel</button>

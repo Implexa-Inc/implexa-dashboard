@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   beginProposalCreate, parseGenerationCreateResponse, parseGenerationPreviewResponse,
-  parseGenerationPreviewSet, proposalEntryError, validateGenerationMoment,
+  parseGenerationPreviewSet, proposalCreateLabel, proposalEntryError, proposalSummaryLine,
+  validateGenerationMoment,
 } from './generation-proposal-entry.ts';
 import {
   FAST_LIVE_COMPILED, PROFESSIONAL_LIVE_COMPILED, PROFESSIONAL_LIVE_UNAVAILABLE_COMPILED,
@@ -219,4 +220,39 @@ test('the proposal create latch admits exactly one synchronous flight', () => {
   ] as const) {
     assert.equal(beginProposalCreate({ current: false }, ...args), false);
   }
+});
+
+// ── what the builder SAYS it will do ────────────────────────────────────────
+
+test('the create button names the SELECTED mode, never a fixed one', () => {
+  // REGRESSION: this label was hard-coded to "Create Quick proposal" while the
+  // selector offered three modes. Selecting Professional showed a button
+  // promising Quick — a control in a paid flow naming the wrong mode, at three
+  // times the credits.
+  assert.equal(proposalCreateLabel('fast'), 'Create Quick proposal');
+  assert.equal(proposalCreateLabel('professional'), 'Create Professional proposal');
+  assert.equal(proposalCreateLabel('production'), 'Create Production proposal');
+});
+
+test('the summary counts CLIPS and names the reserve separately', () => {
+  // REGRESSION: this read "3 clips · up to 108 credits" for a proposal that
+  // generates TWO clips and holds the third task in reserve. The ceiling is
+  // right; the clip count was not.
+  assert.equal(
+    proposalSummaryLine({ candidateCount: 2, repairCount: 1, maximumCredits: 108 }),
+    '2 clips + 1 repair reserve · up to 108 credits',
+  );
+  assert.equal(
+    proposalSummaryLine({ candidateCount: 1, repairCount: 0, maximumCredits: 36 }),
+    '1 clip · up to 36 credits',
+  );
+});
+
+test('the summary line is derived from the live compiled proposal, not hand-written', () => {
+  const professional = parseGenerationPreviewResponse(preview('professional'), expected('professional'));
+  assert.ok(professional);
+  assert.equal(proposalSummaryLine(professional), '2 clips + 1 repair reserve · up to 108 credits');
+  const fast = parseGenerationPreviewResponse(preview('fast'), expected('fast'));
+  assert.ok(fast);
+  assert.equal(proposalSummaryLine(fast), '1 clip · up to 36 credits');
 });
