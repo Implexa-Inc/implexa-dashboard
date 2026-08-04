@@ -22,7 +22,7 @@ import { useRouter } from 'next/navigation';
 import type { GenerationProposalViewModel } from '@/lib/generation-proposal';
 import {
   approvalConfirmationCopy, approvalErrorCopy, beginApproval, buildApprovalRequest,
-  editReset, formatWindow, interpretActionResponse, proposalActions, requestedByLine,
+  editReset, formatWindow, interpretActionResponse, proposalActions, requestedByLine, taskLabel,
   settleApproval,
   type ApprovalFlight, type EditableProposalRef,
 } from '@/lib/generation-proposal-state';
@@ -56,8 +56,9 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
   const acts = useMemo(() => proposalActions(vm, Date.now()), [vm]);
   const edited = ref.proposalId === null;
   // An unavailable proposal that still carries its task graph (Professional,
-  // until its pipeline is genuinely enforced) renders as a PREVIEW: the plan is
-  // shown, and no money action exists at all — not even disabled.
+  // when the server flags or this machine's execution attestation do not both
+  // hold) renders as a PREVIEW: the plan is shown, and no money action exists at
+  // all — not even disabled.
   const previewOnly = vm.availability !== true;
 
   const onApprove = useCallback(async () => {
@@ -152,7 +153,8 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-sm font-medium text-ink-100">
-            {qualityModeLabel(vm.qualityMode)} generation — {vm.taskCount} clip{vm.taskCount === 1 ? '' : 's'}
+            {qualityModeLabel(vm.qualityMode)} generation — {vm.candidateCount} clip{vm.candidateCount === 1 ? '' : 's'}
+            {vm.repairCount > 0 && ` + ${vm.repairCount} repair reserve`}
           </h2>
           <p className="mt-0.5 text-xs text-ink-400">{requestedByLine(vm, agentName)}</p>
         </div>
@@ -197,11 +199,16 @@ export default function GenerationProposalCard({ vm, agentName, editHref }: Prop
         {vm.tasks.map((task) => (
           <li key={task.taskId} className="rounded border border-ink-800 bg-ink-950 p-2.5">
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-medium text-ink-200">{task.momentId} — {task.variant}</span>
-              <span className="font-mono text-ink-400">{formatWindow(task.window)}</span>
+              <span className="font-medium text-ink-200">{taskLabel(task)}</span>
+              {task.kind === 'candidate' && <span className="font-mono text-ink-400">{formatWindow(task.window)}</span>}
               <span className="text-ink-500">{task.durationSeconds}s · {task.ratio}</span>
               <span className="ml-auto text-ink-300">{task.credits} credits</span>
             </div>
+            {task.kind === 'repair' && (
+              <p className="mt-1 text-[11px] text-ink-500">
+                Held in reserve — spent only if judging fails exactly one clip for this moment.
+              </p>
+            )}
             <p className="mt-1.5 whitespace-pre-wrap text-xs leading-snug text-ink-400">{task.promptText}</p>
           </li>
         ))}

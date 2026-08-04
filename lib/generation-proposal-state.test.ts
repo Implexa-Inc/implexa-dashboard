@@ -23,9 +23,16 @@ const base = {
   lifecycle: 'awaiting_approval' as const,
   availability: true,
   taskCount: 3,
+  candidateCount: 3,
+  repairCount: 0,
   maximumCredits: 180,
   capabilityKey: 'video.generate_broll',
   expiresAt: FUTURE,
+};
+
+/** Professional: two clips generated, one repair reserve, 108-credit ceiling. */
+const professionalBase = {
+  ...base, taskCount: 3, candidateCount: 2, repairCount: 1, maximumCredits: 108,
 };
 
 // ── approval offering ───────────────────────────────────────────────────────
@@ -35,6 +42,16 @@ test('awaiting approval offers the explicit label with backend numbers verbatim'
   assert.equal(acts.canApprove, true);
   assert.equal(acts.canCancel, true);
   assert.equal(acts.approveLabel, 'Generate 3 B-rolls — up to 180 credits');
+});
+
+test('the approve label counts CLIPS, not the repair reserve priced into the ceiling', () => {
+  // Professional authorizes three tasks but generates two clips; the third runs
+  // only if judging fails exactly one of them. "Generate 3 B-rolls" would
+  // promise work the user is not buying, while still needing to state the 108
+  // they could actually be charged.
+  const acts = proposalActions(professionalBase, NOW);
+  assert.equal(acts.canApprove, true);
+  assert.equal(acts.approveLabel, 'Generate 2 B-rolls — up to 108 credits');
 });
 
 test('non-broll capabilities say clips, not B-rolls', () => {
