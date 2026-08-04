@@ -82,15 +82,42 @@ function envelopeAgrees(
       ['primary', `${prompt}. Cinematic continuity, intentional camera movement, coherent subject motion, production-ready lighting. Primary composition.`],
       ['coverage', `${prompt}. Cinematic continuity, intentional camera movement, coherent subject motion, production-ready lighting. Complementary coverage with a distinct camera angle.`],
     ]);
-  if (compiled.tasks.length !== expectedVariants.size) return false;
+  // Professional additionally reserves ONE bounded repair per moment. It is
+  // priced into the ceiling the user approves, so it is bound to the typed
+  // prompt exactly like the candidates are — a reserve carrying someone else's
+  // intent is still the wrong 36 credits.
+  const expectedRepairs = compiled.qualityMode === 'professional'
+    ? new Map([[1, `${prompt}. Corrective regeneration using the approved source intent; preserve the moment timing and aspect ratio; fix only independently judged defects.`]])
+    : new Map<number, string>();
+  if (compiled.candidateCount !== expectedVariants.size) return false;
+  // DEFENSE IN DEPTH, not the only line: the parser's Professional gate already
+  // requires exactly one reserve per moment, and refuses a reserve under any
+  // other mode, so mutating THIS check alone does not fail a test (verified by
+  // mutation — reported honestly rather than dressed up). It stays because it
+  // states the entry boundary's own expectation where the counts are read.
+  if (compiled.repairCount !== expectedRepairs.size) return false;
+
   for (const task of compiled.tasks) {
-    if (task.momentId !== expected.moment.id
-      || task.window.startSeconds !== expected.moment.startSeconds
+    if (task.momentId !== expected.moment.id) return false;
+    if (task.kind === 'repair') {
+      if (task.promptText !== expectedRepairs.get(task.repairOrdinal)) return false;
+      expectedRepairs.delete(task.repairOrdinal);
+      continue;
+    }
+    if (task.window.startSeconds !== expected.moment.startSeconds
       || task.window.endSeconds !== expected.moment.endSeconds
       || task.promptText !== expectedVariants.get(task.variant)) return false;
     expectedVariants.delete(task.variant);
   }
-  return expectedVariants.size === 0;
+  // Every expected task was matched exactly once. Both halves are defense in
+  // depth — each entry is deleted from its map as it matches, so a duplicate or
+  // unmatched task already returned false above (verified by mutation). (No
+  // credit assertion here:
+  // initialCredits + repairReserveCredits === maximumCredits is a TAUTOLOGY —
+  // the parser derives all three from the same task list — so asserting it would
+  // be dead validation that reads like a real guarantee. The parser's own
+  // `maximum_credits === sum(tasks)` check is where that is genuinely enforced.)
+  return expectedVariants.size === 0 && expectedRepairs.size === 0;
 }
 
 export function parseGenerationPreviewResponse(

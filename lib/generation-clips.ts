@@ -16,7 +16,7 @@
 
 import type { ReviewArtifact } from './review.ts';
 import type { GenerationProposalViewModel } from './generation-proposal.ts';
-import { formatWindow } from './generation-proposal-state.ts';
+import { taskLabel, taskWindowLabel } from './generation-proposal-state.ts';
 
 export type ClipRow = {
   taskId: string;
@@ -81,8 +81,8 @@ export function clipRows(
       taskId: row.taskId,
       // The parser guarantees receipt tasks ⊆ proposal tasks; the fallback keeps
       // this total function total.
-      label: task ? `${task.momentId} — ${task.variant}` : row.taskId,
-      window: task ? formatWindow(task.window) : '',
+      label: task ? taskLabel(task) : row.taskId,
+      window: task ? taskWindowLabel(task) : '',
       status: row.status,
       artifactSha256: row.artifactSha256,
       artifactId: artifact?.id ?? null,

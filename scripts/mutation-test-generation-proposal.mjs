@@ -16,8 +16,54 @@ const files = [
 
 const mutations = [
   {
-    boundary: 'mode-preview', name: 'Professional becomes approvable', file: 'lib/generation-proposal.ts',
+    boundary: 'mode-preview', name: 'Professional shape gate removed entirely', file: 'lib/generation-proposal.ts',
     from: "  if (v.quality_mode === 'professional') {", to: "  if (false && v.quality_mode === 'professional') {",
+  },
+
+  // ── THE REGRESSION THAT TOOK THIS SURFACE DOWN ────────────────────────────
+  // Each mutant below restores one piece of the superseded two-task, never-
+  // approvable model of Professional. Every one of them made the live quality
+  // comparison refuse to render, so every one must be killed by a test rather
+  // than only by review.
+  {
+    boundary: 'repair-reserve', name: 'OLD ASSUMPTION: every task must name a variant', file: 'lib/generation-proposal.ts',
+    from: '  if (!isId(v.task_id) || !isId(v.moment_id)) return null;',
+    to: '  if (!isId(v.task_id) || !isId(v.moment_id) || !isId(v.variant)) return null;',
+  },
+  {
+    boundary: 'repair-reserve', name: 'OLD ASSUMPTION: Professional can never be approvable', file: 'lib/generation-proposal.ts',
+    from: "    if (!availability && v.unavailable_reason !== 'missing_required_professional_execution_capabilities') return null;",
+    to: "    if (availability || v.unavailable_reason !== 'missing_required_professional_execution_capabilities') return null;",
+  },
+  {
+    boundary: 'repair-reserve', name: 'repair reserve not required once per moment', file: 'lib/generation-proposal.ts',
+    from: '    for (const row of perMoment.values()) if (row.candidates !== 2 || row.repairs !== 1) return null;',
+    to: '    for (const row of perMoment.values()) if (row.candidates !== 2) return null;',
+  },
+  {
+    boundary: 'repair-reserve', name: 'a repair may arrive marked active', file: 'lib/generation-proposal.ts',
+    from: '    if (v.active_by_default !== false) return null;',
+    to: '    if (false && v.active_by_default !== false) return null;',
+  },
+  {
+    boundary: 'repair-reserve', name: 'a repair may also claim to be a candidate', file: 'lib/generation-proposal.ts',
+    from: '    if (v.variant !== undefined || v.timestamp !== undefined || v.candidate_ordinal !== undefined) return null;',
+    to: '    if (false) return null;',
+  },
+  {
+    boundary: 'repair-reserve', name: 'compiler-stated candidate/repair counts unchecked', file: 'lib/generation-proposal.ts',
+    from: '    if (v.candidate_task_count !== candidates.length || v.repair_task_count !== repairs.length) return null;',
+    to: '    if (false) return null;',
+  },
+  {
+    boundary: 'repair-reserve', name: 'any mode may carry a repair reserve', file: 'lib/generation-proposal.ts',
+    from: '  } else if (repairs.length !== 0) {',
+    to: '  } else if (false) {',
+  },
+  {
+    boundary: 'repair-reserve', name: 'unknown task kinds are guessed into a candidate', file: 'lib/generation-proposal.ts',
+    from: "  if (kind !== undefined && kind !== 'candidate' && kind !== 'repair') return null;",
+    to: "  if (false && kind !== undefined && kind !== 'candidate' && kind !== 'repair') return null;",
   },
   {
     boundary: 'mode-preview', name: 'Production accepts a rich task graph', file: 'lib/generation-proposal.ts',

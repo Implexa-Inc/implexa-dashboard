@@ -6,36 +6,43 @@ import {
   beginProposalCreate, parseGenerationCreateResponse, parseGenerationPreviewResponse,
   parseGenerationPreviewSet, proposalEntryError, validateGenerationMoment,
 } from './generation-proposal-entry.ts';
-import { FAST_COMPILED, PROFESSIONAL_COMPILED, PRODUCTION_COMPILED } from './generation-proposal.fixtures.ts';
+import {
+  FAST_LIVE_COMPILED, PROFESSIONAL_LIVE_COMPILED, PROFESSIONAL_LIVE_UNAVAILABLE_COMPILED,
+  PRODUCTION_LIVE_COMPILED,
+} from './generation-proposal.fixtures.ts';
 
 const RUN_ID = '52f93684-6cd5-49b1-b183-671e9fcfb4a5';
 const PROPOSAL_ID = '4c1d16a8-9f7e-4b7a-8a55-2e9d0f6b3c21';
 const USER_ID = 'b15ce0cc-3e6a-4d7d-84bf-1f514f845ffc';
 const ORG_ID = 'a526071d-2350-433b-ae75-4447b3368af6';
+// The exact moment the browser entry point builds, and the fixtures the backend
+// compiles from it. These are REAL compiler output: a previous version of this
+// harness sliced the multi-moment fixtures down by hand, which silently dropped
+// Professional's repair reserve and tested the parser against a document the
+// compiler cannot emit.
 const MOMENT = {
-  id: 'hook', prompt: 'Founder opens laptop in dim room, screen glow on face',
-  startSeconds: 0, endSeconds: 5,
+  id: 'hook', prompt: 'a camera moving over bay area bridge',
+  startSeconds: 0, endSeconds: 3,
 };
 
-function compiledFor(mode: 'fast' | 'professional' | 'production'): Record<string, unknown> {
-  const source = mode === 'fast' ? FAST_COMPILED : mode === 'professional' ? PROFESSIONAL_COMPILED : PRODUCTION_COMPILED;
-  const c = structuredClone(source) as unknown as Record<string, unknown>;
-  const count = mode === 'fast' ? 1 : mode === 'professional' ? 2 : 0;
-  const tasks = (c.tasks as Array<Record<string, unknown>>).slice(0, count);
-  c.tasks = tasks;
-  c.task_count = count;
-  c.per_task_credits = tasks.map((t) => ({ task_id: t.task_id, credits: t.credits }));
-  c.maximum_credits = tasks.reduce((n, t) => n + Number(t.credits), 0);
-  c.proposal_digest = 'a'.repeat(64);
-  return c;
+function compiledFor(
+  mode: 'fast' | 'professional' | 'production',
+  { available = true } = {},
+): Record<string, unknown> {
+  const source = mode === 'fast'
+    ? FAST_LIVE_COMPILED
+    : mode === 'professional'
+      ? (available ? PROFESSIONAL_LIVE_COMPILED : PROFESSIONAL_LIVE_UNAVAILABLE_COMPILED)
+      : PRODUCTION_LIVE_COMPILED;
+  return structuredClone(source) as unknown as Record<string, unknown>;
 }
 
 function expected(mode: 'fast' | 'professional' | 'production') {
   return { agentSubject: 'cinematic-b-roll-generator', sourceRunId: RUN_ID, qualityMode: mode, moment: MOMENT } as const;
 }
 
-function preview(mode: 'fast' | 'professional' | 'production') {
-  const proposal = compiledFor(mode);
+function preview(mode: 'fast' | 'professional' | 'production', opts: { available?: boolean } = {}) {
+  const proposal = compiledFor(mode, opts);
   return {
     ok: true, proposal_id: null, state: 'proposed',
     availability: proposal.availability,
@@ -49,10 +56,10 @@ function preview(mode: 'fast' | 'professional' | 'production') {
   };
 }
 
-function created(mode: 'fast' | 'professional' | 'production') {
-  const body = preview(mode) as Record<string, any>;
+function created(mode: 'fast' | 'professional' | 'production', opts: { available?: boolean } = {}) {
+  const body = preview(mode, opts) as Record<string, any>;
   body.proposal_id = PROPOSAL_ID;
-  body.state = mode === 'fast' ? 'awaiting_approval' : 'unavailable';
+  body.state = body.proposal.availability === true ? 'awaiting_approval' : 'unavailable';
   body.created_at = '2026-08-01T20:00:00.000Z';
   body.expires_at = '2026-08-01T20:30:00.000Z';
   body.identity = {
@@ -66,15 +73,59 @@ function created(mode: 'fast' | 'professional' | 'production') {
 
 test('all three preview modes parse with their exact compiled behavior', () => {
   assert.equal(parseGenerationPreviewResponse(preview('fast'), expected('fast'))?.availability, true);
-  assert.equal(parseGenerationPreviewResponse(preview('professional'), expected('professional'))?.tasks.length, 2);
   assert.equal(parseGenerationPreviewResponse(preview('production'), expected('production'))?.tasks.length, 0);
+
+  // Professional carries THREE tasks for one moment: two candidates plus the
+  // bounded repair reserve, priced into the 108-credit ceiling. Binding it to
+  // two tasks is what made the live comparison refuse to render at all.
+  const professional = parseGenerationPreviewResponse(preview('professional'), expected('professional'));
+  assert.ok(professional, 'the live approvable Professional preview must parse');
+  assert.equal(professional.tasks.length, 3);
+  assert.equal(professional.candidateCount, 2);
+  assert.equal(professional.repairCount, 1);
+  assert.equal(professional.availability, true);
+  assert.equal(professional.initialCredits, 72);
+  assert.equal(professional.repairReserveCredits, 36);
+  assert.equal(professional.maximumCredits, 108);
+});
+
+test('the repair reserve is bound to the typed prompt, not merely counted', () => {
+  // A reserve carrying someone else's intent is still 36 credits of the user's
+  // money, so it is identity-bound exactly like the candidates are.
+  const body = preview('professional') as Record<string, any>;
+  body.proposal.tasks[2].prompt_text = 'Corrective regeneration of an unrelated moment.';
+  assert.equal(parseGenerationPreviewResponse(body, expected('professional')), null);
+
+  // And it must belong to the moment the user typed.
+  const foreign = preview('professional') as Record<string, any>;
+  foreign.proposal.tasks[2].moment_id = 'other';
+  assert.equal(parseGenerationPreviewResponse(foreign, expected('professional')), null);
+});
+
+test('an unavailable Professional preview still parses, so the comparison stays whole', () => {
+  // When the server flags or the machine attestation do not hold, Professional
+  // is a PREVIEW. It must still render beside the other modes — refusing it
+  // would blank the whole comparison, which is the failure this file guards.
+  const vm = parseGenerationPreviewResponse(preview('professional', { available: false }), expected('professional'));
+  assert.ok(vm);
+  assert.equal(vm.availability, false);
+  assert.equal(vm.unavailableReason, 'missing_required_professional_execution_capabilities');
+  assert.equal(vm.repairCount, 1);
 });
 
 test('mode comparison refuses a partial preview set', () => {
   const set = { fast: preview('fast'), professional: preview('professional'), production: preview('production') };
-  assert.equal(parseGenerationPreviewSet(set, {
+  const whole = parseGenerationPreviewSet(set, {
     agentSubject: 'cinematic-b-roll-generator', sourceRunId: RUN_ID, moment: MOMENT,
-  })?.professional.availability, false);
+  });
+  // The comparison the user actually sees: fast and professional both offerable,
+  // production still gated. Professional showing 108 credits across 2 clips plus
+  // a reserve is the whole point of the mode being selectable at all.
+  assert.ok(whole);
+  assert.equal(whole.fast.availability, true);
+  assert.equal(whole.professional.availability, true);
+  assert.equal(whole.professional.maximumCredits, 108);
+  assert.equal(whole.production.availability, false);
   (set.professional as any).identity.source_run_id = USER_ID;
   assert.equal(parseGenerationPreviewSet(set, {
     agentSubject: 'cinematic-b-roll-generator', sourceRunId: RUN_ID, moment: MOMENT,
@@ -107,8 +158,22 @@ test('preview is bound to this run, agent, mode, prompt, and timestamp', () => {
 
 test('create accepts only the persisted identity and availability-derived state', () => {
   assert.deepEqual(parseGenerationCreateResponse(created('fast'), expected('fast'))?.proposalId, PROPOSAL_ID);
-  assert.equal(parseGenerationCreateResponse(created('professional'), expected('professional'))?.state, 'unavailable');
+  // State is DERIVED from compiled availability, not asserted per mode: an
+  // approvable Professional creates awaiting_approval, an unavailable one
+  // creates unavailable, and a response whose state contradicts its own
+  // proposal is refused (covered by the mutation loop below).
+  assert.equal(parseGenerationCreateResponse(created('professional'), expected('professional'))?.state, 'awaiting_approval');
+  assert.equal(
+    parseGenerationCreateResponse(created('professional', { available: false }), expected('professional'))?.state,
+    'unavailable',
+  );
   assert.equal(parseGenerationCreateResponse(created('production'), expected('production'))?.state, 'unavailable');
+
+  // An approvable Professional create claiming 'unavailable' — or the reverse —
+  // is a lifecycle the user could be shown while the truth is the opposite.
+  const mismatched = created('professional') as Record<string, any>;
+  mismatched.state = 'unavailable';
+  assert.equal(parseGenerationCreateResponse(mismatched, expected('professional')), null);
 
   for (const mutate of [
     (b: any) => { b.identity.proposal_id = USER_ID; },

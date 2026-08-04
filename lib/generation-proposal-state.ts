@@ -19,6 +19,7 @@
 import {
   parseGenerationProposalResponse,
   type GenerationProposalViewModel, type GenerationProgress, type GenerationTaskVM,
+  type GenerationCandidateTaskVM,
   type GenerationTaskEventVM, type GenerationReceiptTaskVM,
 } from './generation-proposal.ts';
 
@@ -45,10 +46,15 @@ export function taskNoun(capabilityKey: string, count: number): string {
 
 export function proposalActions(
   vm: Pick<GenerationProposalViewModel,
-    'lifecycle' | 'availability' | 'taskCount' | 'maximumCredits' | 'capabilityKey' | 'expiresAt'>,
+    'lifecycle' | 'availability' | 'taskCount' | 'candidateCount' | 'repairCount'
+    | 'maximumCredits' | 'capabilityKey' | 'expiresAt'>,
   now: number,
 ): ProposalActions {
-  const approveLabel = `Generate ${vm.taskCount} ${taskNoun(vm.capabilityKey, vm.taskCount)} — up to ${vm.maximumCredits} credits`;
+  // The button states the CLIPS it will generate and the CEILING it may spend.
+  // Those are different numbers under Professional, where a repair reserve is
+  // authorized but only spent if the Judge fails exactly one candidate. Saying
+  // "Generate 3 B-rolls" for a 2-clip proposal would misdescribe both.
+  const approveLabel = `Generate ${vm.candidateCount} ${taskNoun(vm.capabilityKey, vm.candidateCount)} — up to ${vm.maximumCredits} credits`;
   const expired = Date.parse(vm.expiresAt) <= now;
 
   if (vm.lifecycle !== 'awaiting_approval') {
@@ -355,7 +361,22 @@ export function requestedByLine(vm: Pick<GenerationProposalViewModel, 'agentSubj
 
 // ── timestamp formatting ────────────────────────────────────────────────────
 
-export function formatWindow(window: GenerationTaskVM['window']): string {
+/**
+ * How a task names itself in a list of clips. A repair reserve is not a clip and
+ * must not read like one: it has no variant, and it may never run.
+ */
+export function taskLabel(task: GenerationTaskVM): string {
+  return task.kind === 'repair'
+    ? `${task.momentId} — repair reserve`
+    : `${task.momentId} — ${task.variant}`;
+}
+
+/** A repair inherits its moment's timing, so it states no window of its own. */
+export function taskWindowLabel(task: GenerationTaskVM): string {
+  return task.kind === 'repair' ? '' : formatWindow(task.window);
+}
+
+export function formatWindow(window: GenerationCandidateTaskVM['window']): string {
   const fmt = (s: number) => {
     const whole = Math.floor(s);
     const m = Math.floor(whole / 60); const sec = whole % 60;

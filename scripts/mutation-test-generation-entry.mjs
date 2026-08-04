@@ -38,8 +38,8 @@ const mutations = [
     '      || task.window.endSeconds !== expected.moment.endSeconds',
     '      || false'],
   ['preview-binding', 'timestamp start response binding removed', 'lib/generation-proposal-entry.ts',
-    '      || task.window.startSeconds !== expected.moment.startSeconds',
-    '      || false'],
+    '    if (task.window.startSeconds !== expected.moment.startSeconds',
+    '    if (false'],
   ['preview-binding', 'explicit mode response binding removed', 'lib/generation-proposal-entry.ts',
     '    || compiled.qualityMode !== expected.qualityMode) return false;',
     '    || false) return false;'],
@@ -73,6 +73,34 @@ const mutations = [
   ['selector-wiring', 'selector bypasses canonical Production gate', 'lib/quality-mode.ts',
     '    { selectable: isModeSelectable(mode, compiledByMode[mode]) },',
     '    { selectable: compiledByMode[mode]?.availability === true },'],
+
+  // ── the repair reserve at the ENTRY boundary ──────────────────────────────
+  // The reserve is 36 credits of the user's money, so it is bound to what they
+  // typed exactly like the candidates are. These mutants restore the superseded
+  // model in which Professional was two tasks bound by variant alone.
+  ['preview-binding', 'OLD ASSUMPTION: candidate count fixed at the task count', 'lib/generation-proposal-entry.ts',
+    '  if (compiled.candidateCount !== expectedVariants.size) return false;',
+    '  if (compiled.tasks.length !== expectedVariants.size) return false;'],
+  // NOTE: the entry-level `compiled.repairCount !== expectedRepairs.size` check
+  // is deliberately NOT mutated here. The parser's Professional gate already
+  // enforces one reserve per moment, so that mutant is EQUIVALENT and would
+  // survive by construction. The redundancy is documented at the call site.
+  ['preview-binding', 'repair prompt response binding removed', 'lib/generation-proposal-entry.ts',
+    '      if (task.promptText !== expectedRepairs.get(task.repairOrdinal)) return false;',
+    '      if (false) return false;'],
+  // Mutating the moment binding for REPAIRS ONLY is equivalent: the parser's
+  // per-moment rule (two candidates + one reserve) already refuses a reserve
+  // filed under a moment of its own. What is genuinely load-bearing here is the
+  // binding to the moment the USER typed, which the parser never sees — so that
+  // is what this mutant removes.
+  ['preview-binding', 'typed moment binding removed', 'lib/generation-proposal-entry.ts',
+    '    if (task.momentId !== expected.moment.id) return false;',
+    '    if (false) return false;'],
+  // The final `size === 0` return is NOT mutated: both halves are equivalent.
+  // Each expected task is deleted from its map as it matches, so a duplicate or
+  // unmatched task already returns false inside the loop, and the counts were
+  // checked before it. It is kept as the natural statement of "everything the
+  // user typed was accounted for" — documented, not dressed up as enforcement.
 ];
 
 let killed = 0;

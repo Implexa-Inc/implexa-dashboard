@@ -5,11 +5,21 @@
  * components, which verify approve/cancel responses with the same parser.)
  *
  * CONTRACT: /api/v2/generation-proposals (backend `generation-quality.v1`,
- * contract_version 2026-08-01, post-review revision of backend PR #130 —
- * Professional compiles unavailable-with-graph, completed demands the full
- * evidence chain). TRANSPORT-BINDING STATUS: pinned to the exact compiled
- * fixtures of that revision; re-reconcile against #130's merged head before
- * declaring this surface live. See docs/generation-quality-ux.md.
+ * contract_version 2026-08-01). TRANSPORT-BINDING STATUS: reconciled against
+ * backend main 7890af3 — the Wave 2 head that ships per-asset semantic judging.
+ * Two things changed from the PR #130 revision this module was first written
+ * against, and BOTH broke the live surface until this reconciliation:
+ *
+ *   1. Professional compiles a bounded repair reserve into `tasks`, so a moment
+ *      carries three tasks (two candidates + one inactive repair), not two. The
+ *      repair task has no `variant`.
+ *   2. Professional is no longer permanently unavailable. It becomes approvable
+ *      when the server capability flags AND the machine execution attestation
+ *      both hold, so `availability: true` is now a legitimate response.
+ *
+ * Fixtures are generated from that exact backend head — see
+ * lib/generation-proposal.fixtures.ts and npm run fixtures:generation, which
+ * refuses to run against any other HEAD. See docs/generation-quality-ux.md.
  *
  * THE RULES, same as lib/review.ts and for the same reason — except here the
  * surface is authorizing PAID work, so a coerced parse doesn't just lie about
@@ -55,11 +65,12 @@ export type GenerationProgress =
 
 export type AuthorizationStatus = 'pending' | 'claimed' | 'completed' | 'failed' | 'unknown' | 'expired';
 
-export type GenerationTaskVM = {
+/**
+ * Fields every compiled task states, whatever kind of work it is.
+ */
+type GenerationTaskCommon = {
   taskId: string;
   momentId: string;
-  variant: string;
-  window: { startSeconds: number; endSeconds: number };
   model: string;
   promptText: string;
   promptDigest: string;
@@ -67,6 +78,42 @@ export type GenerationTaskVM = {
   durationSeconds: number;
   credits: number;
 };
+
+/**
+ * A clip the proposal intends to generate. It names the variant it covers and
+ * the moment window it fills. Fast compiles one per moment; Professional two.
+ */
+export type GenerationCandidateTaskVM = GenerationTaskCommon & {
+  kind: 'candidate';
+  variant: string;
+  window: { startSeconds: number; endSeconds: number };
+  /** Professional numbers its candidates; fast does not distinguish them. */
+  candidateOrdinal: number | null;
+  activeByDefault: true;
+};
+
+/**
+ * Professional's bounded repair reserve: CONTINGENT work that runs only if the
+ * Judge fails exactly one candidate. It carries no variant — no variant is
+ * meaningful for corrective regeneration — and no window of its own, since it
+ * inherits the moment's timing. It is priced into `maximum_credits` because the
+ * user must authorize the ceiling, but it is inactive by default and may never
+ * run at all.
+ */
+export type GenerationRepairTaskVM = GenerationTaskCommon & {
+  kind: 'repair';
+  repairOrdinal: number;
+  activeByDefault: false;
+};
+
+/**
+ * DISCRIMINATED UNION, not one shape with optional fields. Parsing both kinds
+ * through a single lax shape is exactly what broke this surface: the parser
+ * required `variant` on every task, the repair reserve has none, so every live
+ * Professional proposal failed to parse and the whole quality comparison went
+ * dark rather than showing two of three modes.
+ */
+export type GenerationTaskVM = GenerationCandidateTaskVM | GenerationRepairTaskVM;
 
 /**
  * A durable task event. The contract admits exactly two event types, each with
@@ -149,6 +196,17 @@ export type GenerationProposalViewModel = {
 
   tasks: GenerationTaskVM[];
   taskCount: number;
+  /**
+   * The candidate/repair split. `taskCount` counts everything authorized, which
+   * for Professional includes a repair reserve that runs only if the Judge fails
+   * exactly one candidate. Approving 3 tasks is NOT approving 3 clips, so the
+   * approve control states clips and ceiling separately rather than implying the
+   * reserve is work the user asked for.
+   */
+  candidateCount: number;
+  repairCount: number;
+  initialCredits: number;
+  repairReserveCredits: number;
   maximumCredits: number;
   /**
    * Credits incurred so far: the backend computes this as the sum of credits of
@@ -208,22 +266,60 @@ const PROGRESS_BY_AUTH: Record<AuthorizationStatus, GenerationProgress> = {
   failed: 'failed', unknown: 'unknown', expired: 'expired',
 };
 
+const isPositiveInt = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isSafeInteger(v) && v >= 1;
+
+/**
+ * Parse one task by its KIND. `task_kind` is the discriminant: Professional
+ * labels every task `candidate` or `repair`; fast omits it entirely and compiles
+ * a bare candidate. An unrecognized kind fails the parse rather than being
+ * guessed into the shape we happen to render.
+ *
+ * The kind-specific field checks are deliberately two-sided: a repair must not
+ * carry a variant, a window, or a candidate ordinal. Those are not unknown
+ * additive fields (which this contract does allow) — they are known fields of
+ * the OTHER arm, and a task claiming both identities is not something the
+ * compiler emits.
+ */
 function parseTask(v: unknown): GenerationTaskVM | null {
   if (!isObject(v)) return null;
-  if (!isId(v.task_id) || !isId(v.moment_id) || !isId(v.variant)) return null;
+  if (!isId(v.task_id) || !isId(v.moment_id)) return null;
+  if (!isId(v.model) || !isId(v.prompt_text) || !isDigest(v.prompt_digest) || !isId(v.ratio)) return null;
+  if (!(typeof v.duration_seconds === 'number' && Number.isFinite(v.duration_seconds) && v.duration_seconds > 0)) return null;
+  if (!isNonNegInt(v.credits)) return null;
+  const kind = v.task_kind;
+  if (kind !== undefined && kind !== 'candidate' && kind !== 'repair') return null;
+  const common: GenerationTaskCommon = {
+    taskId: v.task_id, momentId: v.moment_id, model: v.model,
+    promptText: v.prompt_text, promptDigest: v.prompt_digest,
+    ratio: v.ratio, durationSeconds: v.duration_seconds, credits: v.credits,
+  };
+
+  if (kind === 'repair') {
+    // Contingent work must SAY it is contingent. A repair that arrived marked
+    // active would be a third clip the user did not think they were approving.
+    if (v.active_by_default !== false) return null;
+    if (!isPositiveInt(v.repair_ordinal)) return null;
+    if (v.variant !== undefined || v.timestamp !== undefined || v.candidate_ordinal !== undefined) return null;
+    return { ...common, kind: 'repair', repairOrdinal: v.repair_ordinal, activeByDefault: false };
+  }
+
+  if (!isId(v.variant)) return null;
   const ts = v.timestamp;
   if (!isObject(ts)) return null;
   const start = ts.start_seconds; const end = ts.end_seconds;
   if (typeof start !== 'number' || typeof end !== 'number' || !Number.isFinite(start) || !Number.isFinite(end)) return null;
   if (start < 0 || end <= start) return null;
-  if (!isId(v.model) || !isId(v.prompt_text) || !isDigest(v.prompt_digest) || !isId(v.ratio)) return null;
-  if (!(typeof v.duration_seconds === 'number' && Number.isFinite(v.duration_seconds) && v.duration_seconds > 0)) return null;
-  if (!isNonNegInt(v.credits)) return null;
+  if (v.repair_ordinal !== undefined) return null;
+  if (kind === 'candidate') {
+    if (v.active_by_default !== true) return null;
+    if (!isPositiveInt(v.candidate_ordinal)) return null;
+  } else if (v.active_by_default !== undefined || v.candidate_ordinal !== undefined) return null;
   return {
-    taskId: v.task_id, momentId: v.moment_id, variant: v.variant,
+    ...common, kind: 'candidate', variant: v.variant,
     window: { startSeconds: start, endSeconds: end },
-    model: v.model, promptText: v.prompt_text, promptDigest: v.prompt_digest,
-    ratio: v.ratio, durationSeconds: v.duration_seconds, credits: v.credits,
+    candidateOrdinal: kind === 'candidate' ? (v.candidate_ordinal as number) : null,
+    activeByDefault: true,
   };
 }
 
@@ -232,7 +328,17 @@ export type CompiledGenerationProposal = Pick<GenerationProposalViewModel,
   | 'availability' | 'unavailableReason' | 'requiredMissingCapabilities'
   | 'provider' | 'model' | 'stageKinds' | 'densityLabel' | 'generationsPerMoment'
   | 'reviewRequirements' | 'tasks' | 'taskCount' | 'maximumCredits'
-> & { proposalDigest: string };
+> & {
+  proposalDigest: string;
+  /** Clips the proposal will actually generate up front. */
+  candidateCount: number;
+  /** Bounded repair reserves: authorized, priced, but contingent. */
+  repairCount: number;
+  /** Credits the candidates spend. */
+  initialCredits: number;
+  /** Credits held for repair that may never be spent. initial + reserve = maximum. */
+  repairReserveCredits: number;
+};
 
 /**
  * Parse the compiled proposal document. Null on ANY shape violation — including
@@ -289,11 +395,12 @@ export function parseCompiledGenerationProposal(v: unknown): CompiledGenerationP
   }
 
   // An APPROVABLE proposal must propose something; an unavailable one may still
-  // CARRY a task graph as a preview (Professional does, until per-asset judging
-  // and segmented assembly are genuinely enforced) or carry nothing (Production).
-  // What is not negotiable: the graph travels whole. Tasks without pins, density,
-  // stages, or review requirements would show clips with no statement of what
-  // runs them — and pins without tasks would name a provider for no work.
+  // CARRY a task graph as a preview (Professional does whenever the server flags
+  // or the machine attestation are not both satisfied) or carry nothing
+  // (Production). What is not negotiable: the graph travels whole. Tasks without
+  // pins, density, stages, or review requirements would show clips with no
+  // statement of what runs them — and pins without tasks would name a provider
+  // for no work.
   if (availability && tasks.length === 0) return null;
   let provider: string | null = null;
   let model: string | null = null;
@@ -333,16 +440,41 @@ export function parseCompiledGenerationProposal(v: unknown): CompiledGenerationP
   // Review requirements describe the graph, so they exist exactly when it does.
   if ((tasks.length > 0) !== (v.review_requirements.length > 0)) return null;
 
-  // MODE GATES FOR THIS CONTRACT VERSION. Professional is deliberately a rich
-  // preview: its distinct tasks, pins, stages and costs remain visible, but the
-  // mode cannot become approvable until Judge + segmented assembly are real.
+  // MODE GATES FOR THIS CONTRACT VERSION.
+  //
+  // Professional is now genuinely approvable: per-asset semantic judging and
+  // segmented assembly ship, and the backend resolves availability from server
+  // capability flags AND a per-machine execution attestation. So BOTH
+  // dispositions are legitimate here — what this gate fixes is the SHAPE.
+  //
+  // Each Professional moment compiles two candidates plus exactly one inactive
+  // repair reserve. That third task is why `maximum_credits` is the true
+  // ceiling rather than the expected spend, so a proposal whose repair reserve
+  // is missing, duplicated, or attached to the wrong moment misstates what the
+  // user is authorizing and must not render.
+  const candidates = tasks.filter((t): t is GenerationCandidateTaskVM => t.kind === 'candidate');
+  const repairs = tasks.filter((t): t is GenerationRepairTaskVM => t.kind === 'repair');
+  if (v.quality_mode === 'professional') {
+    if (tasks.length === 0) return null;
+    if (!availability && v.unavailable_reason !== 'missing_required_professional_execution_capabilities') return null;
+    const perMoment = new Map<string, { candidates: number; repairs: number }>();
+    for (const task of tasks) {
+      const row = perMoment.get(task.momentId) ?? { candidates: 0, repairs: 0 };
+      if (task.kind === 'candidate') row.candidates += 1; else row.repairs += 1;
+      perMoment.set(task.momentId, row);
+    }
+    for (const row of perMoment.values()) if (row.candidates !== 2 || row.repairs !== 1) return null;
+    // The compiler states these counts separately from the graph. A disagreement
+    // means we are not looking at what it compiled.
+    if (v.candidate_task_count !== candidates.length || v.repair_task_count !== repairs.length) return null;
+    if (gpm !== 2) return null;
+  } else if (repairs.length !== 0) {
+    // Only Professional carries a repair policy. A reserve under any other mode
+    // would be authorized spend that mode never promised.
+    return null;
+  }
   // Production is the separate static zero-task gate; it must never borrow the
   // Professional graph under a stronger label.
-  if (v.quality_mode === 'professional') {
-    if (availability !== false
-      || v.unavailable_reason !== 'missing_required_professional_execution_capabilities'
-      || tasks.length === 0) return null;
-  }
   if (v.quality_mode === 'production') {
     if (availability !== false
       || v.unavailable_reason !== 'missing_required_production_capabilities'
@@ -362,6 +494,9 @@ export function parseCompiledGenerationProposal(v: unknown): CompiledGenerationP
     densityLabel: densityLabel as string | null, generationsPerMoment: gpm as number | null,
     reviewRequirements: v.review_requirements as string[],
     tasks, taskCount: tasks.length, maximumCredits: sum,
+    candidateCount: candidates.length, repairCount: repairs.length,
+    initialCredits: candidates.reduce((acc, t) => acc + t.credits, 0),
+    repairReserveCredits: repairs.reduce((acc, t) => acc + t.credits, 0),
     proposalDigest: v.proposal_digest,
   };
 }
@@ -638,6 +773,8 @@ export function parseGenerationProposalResponse(
     generationsPerMoment: compiled.generationsPerMoment,
     reviewRequirements: compiled.reviewRequirements,
     tasks: compiled.tasks, taskCount: compiled.taskCount,
+    candidateCount: compiled.candidateCount, repairCount: compiled.repairCount,
+    initialCredits: compiled.initialCredits, repairReserveCredits: compiled.repairReserveCredits,
     maximumCredits: compiled.maximumCredits,
     incurredCredits: body.cost.total_credits as number,
     dollars: null,

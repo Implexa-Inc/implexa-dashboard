@@ -10,7 +10,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGenerationProposalResponse } from './generation-proposal.ts';
 import { interpretActionResponse } from './generation-proposal-state.ts';
-import { FAST_COMPILED, PROFESSIONAL_COMPILED, PRODUCTION_COMPILED } from './generation-proposal.fixtures.ts';
+import {
+  FAST_COMPILED, PROFESSIONAL_COMPILED, PROFESSIONAL_LIVE_COMPILED, PRODUCTION_COMPILED,
+} from './generation-proposal.fixtures.ts';
 
 const PROPOSAL_ID = '4c1d16a8-9f7e-4b7a-8a55-2e9d0f6b3c21';
 const AUTH_ID = '9d2f5c70-1b3e-4f6a-9c08-7a4e5d2b1f90';
@@ -161,11 +163,11 @@ test('fast fixture parses: 3 clips, 180 credits, awaiting approval, no dollars',
   assert.deepEqual(vm.tasks[1].window, { startSeconds: 12, endSeconds: 17 });
 });
 
-test('professional fixture parses as UNAVAILABLE while retaining its graph for preview', () => {
-  // Post-review contract: Professional's Judge/repair/assembly pipeline is
-  // described but not yet enforced, so it compiles unavailable — with its full
-  // task graph intact so the plan can be previewed. It must parse, and it must
-  // parse as something that can never be approved.
+test('professional parses as UNAVAILABLE with its graph intact when capabilities are missing', () => {
+  // Professional is unavailable whenever the server capability flags or this
+  // machine's execution attestation do not both hold. It still carries its full
+  // task graph so the plan can be previewed — three tasks per moment, because
+  // the bounded repair reserve is authorized work even though it may never run.
   const vm = parse(statusBody(PROFESSIONAL_COMPILED, {
     lifecycle_state: 'unavailable', progress_state: 'unavailable',
   }));
@@ -174,23 +176,127 @@ test('professional fixture parses as UNAVAILABLE while retaining its graph for p
   assert.equal(vm.availability, false);
   assert.equal(vm.unavailableReason, 'missing_required_professional_execution_capabilities');
   assert.equal(vm.lifecycle, 'unavailable');
-  assert.equal(vm.taskCount, 6);
-  assert.equal(vm.maximumCredits, 360);
+  assert.equal(vm.taskCount, 9);
+  assert.equal(vm.candidateCount, 6);
+  assert.equal(vm.repairCount, 3);
+  assert.equal(vm.maximumCredits, 540);
+  assert.equal(vm.initialCredits, 360);
+  assert.equal(vm.repairReserveCredits, 180);
   assert.equal(vm.generationsPerMoment, 2);
   assert.equal(vm.densityLabel, 'high');
   assert.equal(vm.provider, 'runway');
   assert.deepEqual(vm.reviewRequirements, ['per_asset_judge', 'clip_level_repair_eligible', 'segmented_assembly', 'user_review']);
 });
 
-test('professional can never cross into an approvable lifecycle, even with its full graph', () => {
-  const armed = statusBody(PROFESSIONAL_COMPILED);
-  const proposal = armed.proposal as Dict;
-  proposal.availability = true;
-  proposal.unavailable_reason = null;
-  proposal.required_missing_capabilities = [];
-  armed.availability = true;
-  armed.unavailable_reason = null;
-  assert.equal(parse(armed), null);
+test('professional IS approvable once the capabilities hold — the live 108-credit shape', () => {
+  // THE REGRESSION THIS FILE EXISTS TO PREVENT. This module was first written
+  // when Professional could never be approved and each moment compiled two
+  // tasks. Both changed. The parser rejected every live proposal — the repair
+  // task has no `variant` — and the dashboard refused the entire quality
+  // comparison rather than showing two of three modes.
+  const vm = parse(statusBody(PROFESSIONAL_LIVE_COMPILED));
+  assert.ok(vm, 'the live approvable Professional proposal must parse');
+  assert.equal(vm.availability, true);
+  assert.equal(vm.unavailableReason, null);
+  assert.equal(vm.lifecycle, 'awaiting_approval');
+  // Two clips are generated; the third task is a reserve spent only on a
+  // judged failure. 72 + 36 = 108 — the ceiling the user authorizes.
+  assert.equal(vm.taskCount, 3);
+  assert.equal(vm.candidateCount, 2);
+  assert.equal(vm.repairCount, 1);
+  assert.equal(vm.initialCredits, 72);
+  assert.equal(vm.repairReserveCredits, 36);
+  assert.equal(vm.maximumCredits, 108);
+
+  const repair = vm.tasks.find((t) => t.kind === 'repair');
+  assert.ok(repair);
+  assert.equal(repair.activeByDefault, false);
+  assert.equal(repair.repairOrdinal, 1);
+  assert.equal('variant' in repair, false, 'a repair reserve names no variant');
+  assert.equal('window' in repair, false, 'a repair reserve inherits its moment window');
+  const candidates = vm.tasks.filter((t) => t.kind === 'candidate');
+  assert.deepEqual(candidates.map((t) => t.variant).sort(), ['coverage', 'primary']);
+  for (const candidate of candidates) {
+    assert.equal(candidate.activeByDefault, true);
+    assert.deepEqual(candidate.window, { startSeconds: 0, endSeconds: 3 });
+  }
+});
+
+test('the repair reserve must be structurally sound or the proposal does not render', () => {
+  // Each of these misstates what the user is authorizing, so each must fail.
+  // The envelope's cost is re-synced to the mutated proposal on purpose: an
+  // out-of-date `cost.maximum_credits` is refused by a DIFFERENT check, which
+  // would make these cases pass for the wrong reason and let a real gap survive.
+  // (It did — the missing-reserve case below was a false pass until this.)
+  const mutate = (fn: (proposal: Dict) => void) => {
+    const body = statusBody(PROFESSIONAL_LIVE_COMPILED);
+    const proposal = body.proposal as Dict;
+    fn(proposal);
+    body.cost = { total_credits: 0, maximum_credits: proposal.maximum_credits };
+    return parse(body);
+  };
+  const tasksOf = (p: Dict) => p.tasks as Dict[];
+
+  // THE OLD SHAPE: two candidates and no reserve at all, internally consistent
+  // in every other respect. Professional always reserves one bounded repair per
+  // moment, so a document without it is not what the compiler produced — and
+  // rendering it would understate the ceiling by the reserve's 36 credits.
+  assert.equal(mutate((p) => {
+    tasksOf(p).pop();
+    p.task_count = 2; p.repair_task_count = 0;
+    p.per_task_credits = (p.per_task_credits as Dict[]).slice(0, 2);
+    p.maximum_credits = 72;
+  }), null);
+  // A repair that claims to be active is a third clip the user did not approve.
+  assert.equal(mutate((p) => { tasksOf(p)[2].active_by_default = true; }), null);
+  // A repair wearing a variant is claiming to be a candidate.
+  assert.equal(mutate((p) => { tasksOf(p)[2].variant = 'primary'; }), null);
+  // A candidate stripped of its variant is the shape that broke this surface;
+  // it must fail LOUDLY rather than parse as some other kind of task.
+  assert.equal(mutate((p) => { delete tasksOf(p)[0].variant; }), null);
+  // A moment carrying two reserves doubles the contingent spend.
+  assert.equal(mutate((p) => {
+    const extra = clone(tasksOf(p)[2]) as Dict;
+    extra.task_id = 'hook-repair-2'; extra.repair_ordinal = 2;
+    tasksOf(p).push(extra);
+    p.task_count = 4; p.repair_task_count = 2;
+    (p.per_task_credits as Dict[]).push({ task_id: 'hook-repair-2', credits: 36 });
+    p.maximum_credits = 144;
+  }), null);
+  // The separately-stated counts must agree with the graph.
+  assert.equal(mutate((p) => { p.repair_task_count = 0; }), null);
+  assert.equal(mutate((p) => { p.candidate_task_count = 3; }), null);
+});
+
+test('an unknown task kind is refused, never guessed into the shape we render', () => {
+  // Deliberately mutated on a FAST task: it already carries a variant and a
+  // window, so it would parse cleanly the moment the discriminant stopped being
+  // checked. (Stamping an unknown kind onto the repair task proves nothing — it
+  // has no variant, so it fails for an unrelated reason and the check could be
+  // deleted without any test noticing. Verified by mutation.)
+  const body = statusBody(FAST_COMPILED);
+  const proposal = body.proposal as Dict;
+  (proposal.tasks as Dict[])[0].task_kind = 'speculative';
+  assert.equal(parse(body), null);
+});
+
+test('only Professional may carry a repair reserve', () => {
+  // A reserve under fast would be authorized spend that mode never promised.
+  const body = statusBody(FAST_COMPILED);
+  const proposal = body.proposal as Dict;
+  const tasks = proposal.tasks as Dict[];
+  const repair = {
+    task_id: 'hook-repair-1', moment_id: 'hook', task_kind: 'repair', repair_ordinal: 1,
+    model: 'gen4.5', prompt_text: 'Corrective regeneration.',
+    prompt_digest: 'e'.repeat(64), ratio: '720:1280',
+    duration_seconds: 5, credits: 60, active_by_default: false,
+  };
+  tasks.push(repair);
+  proposal.task_count = tasks.length;
+  (proposal.per_task_credits as Dict[]).push({ task_id: repair.task_id, credits: 60 });
+  proposal.maximum_credits = (proposal.maximum_credits as number) + 60;
+  body.cost = { total_credits: 0, maximum_credits: proposal.maximum_credits };
+  assert.equal(parse(body), null);
 });
 
 test('a professional proposal under an approvable lifecycle is refused', () => {
@@ -211,15 +317,24 @@ test('production fixture parses as unavailable with the machine-readable reason'
   assert.equal(vm.lifecycle, 'unavailable');
 });
 
-test('Production remains a zero-task static gate and cannot carry the Professional graph', () => {
-  const disguised = clone(PROFESSIONAL_COMPILED) as Dict;
-  disguised.quality_mode = 'production';
-  disguised.unavailable_reason = 'missing_required_production_capabilities';
-  const body = statusBody(disguised, {
-    lifecycle_state: 'unavailable', progress_state: 'unavailable',
-    unavailable_reason: 'missing_required_production_capabilities',
-  });
-  assert.equal(parse(body), null);
+test('Production remains a zero-task static gate and cannot carry another mode’s graph', () => {
+  // Both disguises must fail, and they fail at DIFFERENT gates. The Professional
+  // graph is refused for carrying a repair reserve outside Professional; the
+  // fast graph has no reserve, so only Production's own zero-task gate stops it.
+  // Testing just the Professional disguise let that gate be deleted silently
+  // once the reserve check existed — verified by mutation.
+  for (const source of [PROFESSIONAL_COMPILED, FAST_COMPILED]) {
+    const disguised = clone(source) as Dict;
+    disguised.quality_mode = 'production';
+    disguised.availability = false;
+    disguised.unavailable_reason = 'missing_required_production_capabilities';
+    const body = statusBody(disguised, {
+      lifecycle_state: 'unavailable', progress_state: 'unavailable',
+      availability: false,
+      unavailable_reason: 'missing_required_production_capabilities',
+    });
+    assert.equal(parse(body), null);
+  }
 });
 
 test('unknown ADDITIVE fields are allowed at every level', () => {
