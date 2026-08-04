@@ -109,12 +109,16 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName }:
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <label className="text-sm text-ink-300">
           Start (seconds)
-          <input value={start} onChange={(e) => edit(setStart, e.target.value)} inputMode="decimal" type="number" min="0" step="0.001"
+          {/* step="any", NOT a millisecond step: arrow keys move by one SECOND
+              (verified in-browser), while typed sub-second values stay valid.
+              step="0.001" made every arrow press a 1ms nudge — 5 became 4.999 —
+              and step="1" would mark a typed 4.994 stepMismatch-invalid. */}
+          <input value={start} onChange={(e) => edit(setStart, e.target.value)} inputMode="decimal" type="number" min="0" step="any"
             className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100" />
         </label>
         <label className="text-sm text-ink-300">
           End (seconds)
-          <input value={end} onChange={(e) => edit(setEnd, e.target.value)} inputMode="decimal" type="number" min="0" step="0.001"
+          <input value={end} onChange={(e) => edit(setEnd, e.target.value)} inputMode="decimal" type="number" min="0" step="any"
             className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100" />
         </label>
       </div>
