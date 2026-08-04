@@ -96,6 +96,17 @@ const mutations = [
   ['preview-binding', 'typed moment binding removed', 'lib/generation-proposal-entry.ts',
     '    if (task.momentId !== expected.moment.id) return false;',
     '    if (false) return false;'],
+  // ── what the builder SAYS it will do ─────────────────────────────────────
+  ['builder-copy', 'create button names a fixed mode instead of the selected one', 'lib/generation-proposal-entry.ts',
+    '  return `Create ${qualityModeLabel(mode)} proposal`;',
+    "  return 'Create Quick proposal';"],
+  ['builder-copy', 'summary counts every task as a clip', 'lib/generation-proposal-entry.ts',
+    "  const clips = `${compiled.candidateCount} ${compiled.candidateCount === 1 ? 'clip' : 'clips'}`;",
+    "  const clips = `${compiled.candidateCount + compiled.repairCount} clips`;"],
+  ['builder-copy', 'reserve folded silently into the clip count', 'lib/generation-proposal-entry.ts',
+    "  const reserve = compiled.repairCount > 0",
+    "  const reserve = false"],
+
   // The final `size === 0` return is NOT mutated: both halves are equivalent.
   // Each expected task is deleted from its map as it matches, so a duplicate or
   // unmatched task already returns false inside the loop, and the counts were

@@ -10,7 +10,7 @@ import {
   parseCompiledGenerationProposal,
   type CompiledGenerationProposal,
 } from './generation-proposal.ts';
-import type { QualityMode } from './quality-mode.ts';
+import { qualityModeLabel, type QualityMode } from './quality-mode.ts';
 
 export const GENERATION_CONTRACT_VERSION = '2026-08-01';
 export const GENERATION_COMPILER_VERSION = 'generation-quality.v1';
@@ -170,6 +170,32 @@ export function parseGenerationPreviewSet(
   // One dark mode poisons the comparison. Showing two cards beside a missing
   // third looks like a complete choice and invites a decision on partial data.
   return fast && professional && production ? { fast, professional, production } : null;
+}
+
+/**
+ * What the builder's create button says it will do. It MUST name the selected
+ * mode: this string was hard-coded to "Quick" while the selector offered three
+ * modes, so a user selecting Professional read a button promising Quick — at
+ * three times the credits. A control in a paid flow that names the wrong mode is
+ * a misstatement of what is about to be authorized.
+ */
+export function proposalCreateLabel(mode: QualityMode): string {
+  return `Create ${qualityModeLabel(mode)} proposal`;
+}
+
+/**
+ * The one-line summary above the create button. It counts CLIPS, and names the
+ * repair reserve separately rather than folding it into the clip count — the
+ * reserve is priced into the ceiling but only spent on a judged failure.
+ */
+export function proposalSummaryLine(
+  compiled: Pick<CompiledGenerationProposal, 'candidateCount' | 'repairCount' | 'maximumCredits'>,
+): string {
+  const clips = `${compiled.candidateCount} ${compiled.candidateCount === 1 ? 'clip' : 'clips'}`;
+  const reserve = compiled.repairCount > 0
+    ? ` + ${compiled.repairCount} repair ${compiled.repairCount === 1 ? 'reserve' : 'reserves'}`
+    : '';
+  return `${clips}${reserve} · up to ${compiled.maximumCredits} credits`;
 }
 
 export function validateGenerationMoment(input: GenerationMomentInput): string | null {
