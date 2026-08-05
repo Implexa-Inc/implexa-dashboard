@@ -37,10 +37,18 @@ import {
   professionalEntryError, reconcileProposal,
 } from '@/lib/professional-v2-entry';
 import type { CompiledProfessionalV2Proposal } from '@/lib/generation-proposal-v2';
+import { formatDurationMs, type VerifiedGenerationSource } from '@/lib/generation-source';
 
 type Props = {
   runId: string;
   agentSubject: string;
+  /**
+   * The EXACT validated source this timeline is cut into, with the authoritative
+   * length the Desktop probed from its bytes. Required: this lane does not open
+   * without a verified source, because every moment it places is bounded by that
+   * number and the browser has no honest way to discover it itself.
+   */
+  source: VerifiedGenerationSource;
   /**
    * The moments of a plan being edited, loaded server-side from the proposal the
    * user chose to edit. Present means this IS an edit: the timeline arrives
@@ -64,7 +72,7 @@ async function post(body: Record<string, unknown>): Promise<{ ok: boolean; statu
   }
 }
 
-export default function ProfessionalBrollBuilder({ runId, agentSubject, seedMoments = null }: Props) {
+export default function ProfessionalBrollBuilder({ runId, agentSubject, source, seedMoments = null }: Props) {
   const router = useRouter();
   const createFlight = useRef(false);
   const [moments, setMoments] = useState<TimelineMoment[]>(
@@ -78,7 +86,12 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, seedMome
   const [phase, setPhase] = useState<'editing' | 'previewing' | 'creating'>('editing');
   const [error, setError] = useState<string | null>(null);
 
-  const validation = useMemo(() => validateTimeline(moments), [moments]);
+  // BOUND TO THE SOURCE. The same validation the backend will run, so a moment
+  // that runs past the end of the video is refused in the editor — where the
+  // mistake is visible and fixable — instead of after a round trip.
+  const validation = useMemo(
+    () => validateTimeline(moments, source.mediaDurationMs), [moments, source.mediaDurationMs],
+  );
   const fingerprint = useMemo(() => timelineFingerprint(moments), [moments]);
   const previewIsCurrent = preview !== null && previewFingerprint === fingerprint;
 
@@ -98,12 +111,19 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, seedMome
     const submitted = moments;
     const submittedFingerprint = timelineFingerprint(submitted);
     const result = await post({
-      action: 'preview-professional-v2', agentSubject, sourceRunId: runId, moments: submitted,
+      action: 'preview-professional-v2', agentSubject, sourceRunId: runId,
+      // NAMED, never inferred. With more than one validated final video in the
+      // run the backend refuses to choose, and rightly: the two files may not be
+      // the same length.
+      sourceArtifactId: source.artifactId,
+      moments: submitted,
     });
     setPhase('editing');
     if (!result.ok) { setError(professionalEntryError(result.ok, result.body, 'preview', result.status)); return; }
     const compiled = parseProfessionalV2PreviewResponse(result.body, {
-      agentSubject, sourceRunId: runId, moments: submitted,
+      agentSubject, sourceRunId: runId,
+      sourceArtifactId: source.artifactId, mediaDurationMs: source.mediaDurationMs,
+      moments: submitted,
     });
     if (!compiled) {
       setError('Implexa compiled something this build could not verify against the timeline you submitted, so it refused to show it. Nothing was created.');
@@ -118,7 +138,7 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, seedMome
     }
     setPreview(compiled);
     setPreviewFingerprint(submittedFingerprint);
-  }, [agentSubject, moments, runId, validation.ok]);
+  }, [agentSubject, moments, runId, source.artifactId, source.mediaDurationMs, validation.ok]);
 
   const onCreate = useCallback(async () => {
     if (createFlight.current || !previewIsCurrent || !preview) return;
@@ -126,7 +146,9 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, seedMome
     setPhase('creating'); setError(null);
     const submitted = moments;
     const result = await post({
-      action: 'create-professional-v2', agentSubject, sourceRunId: runId, moments: submitted,
+      action: 'create-professional-v2', agentSubject, sourceRunId: runId,
+      sourceArtifactId: source.artifactId,
+      moments: submitted,
     });
     if (!result.ok) {
       createFlight.current = false;
@@ -135,7 +157,9 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, seedMome
       return;
     }
     const created = parseProfessionalV2CreateResponse(result.body, {
-      agentSubject, sourceRunId: runId, moments: submitted,
+      agentSubject, sourceRunId: runId,
+      sourceArtifactId: source.artifactId, mediaDurationMs: source.mediaDurationMs,
+      moments: submitted,
     });
     if (!created) {
       createFlight.current = false;
@@ -144,13 +168,24 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, seedMome
       return;
     }
     router.push(`/generations/${encodeURIComponent(created.proposalId)}`);
-  }, [agentSubject, moments, preview, previewIsCurrent, router, runId]);
+  }, [agentSubject, moments, preview, previewIsCurrent, router, runId, source.artifactId, source.mediaDurationMs]);
 
   const busy = phase !== 'editing';
   const unavailable = preview !== null && preview.availability !== true;
 
   return (
     <div className="space-y-4">
+      <p className="rounded-md border border-ink-800 bg-ink-900/40 px-3 py-2 text-xs text-ink-300">
+        {/* The bound the whole editor obeys, said plainly and in the same units the
+            fields use. Milliseconds are shown because the boundary is
+            millisecond-exact: a moment ending at the last millisecond is legal,
+            and rounding the display would make an exact fit look like an overrun. */}
+        Cutting into <span className="font-medium text-ink-100">{source.relativePath}</span>
+        {' · '}
+        source length <span className="font-medium text-ink-100">{formatDurationMs(source.mediaDurationMs)}</span>
+        {'. '}
+        Moments must end at or before the end of this video.
+      </p>
       {seedMoments && seedMoments.length > 0 && (
         <p role="status" className="rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 text-xs text-ink-300">
           These moments were loaded from the plan you chose to edit. That plan has been
@@ -159,7 +194,10 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject, seedMome
         </p>
       )}
 
-      <ProfessionalTimelineEditor moments={moments} onChange={edit} disabled={busy} />
+      <ProfessionalTimelineEditor
+        moments={moments} onChange={edit} disabled={busy}
+        mediaDurationMs={source.mediaDurationMs}
+      />
 
       {/* Before a preview the figures are a labelled local estimate; after one
           they are the backend's compiled numbers. The component says which. */}

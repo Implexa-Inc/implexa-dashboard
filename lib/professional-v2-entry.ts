@@ -54,6 +54,15 @@ const IDEMPOTENCY = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 export type ProfessionalV2EntryIdentity = {
   agentSubject: string;
   sourceRunId: string;
+  /**
+   * The EXACT validated artifact this timeline is compiled against, and its
+   * authoritative length. A run is not a source: the moment a run holds two
+   * final videos, "the run's video" stops naming a file, and the two may not be
+   * the same length. Both travel so the returned document can be bound back to
+   * the source the user actually chose.
+   */
+  sourceArtifactId: string;
+  mediaDurationMs: number;
   moments: readonly TimelineMoment[];
 };
 
@@ -138,6 +147,13 @@ function documentAgreesWithTimeline(
 }
 
 function envelopeAgrees(body: Record<string, unknown>, compiled: CompiledProfessionalV2Proposal, expected: ProfessionalV2EntryIdentity): boolean {
+  // THE SOURCE THE BACKEND COMPILED AGAINST MUST BE THE ONE THAT WAS ASKED FOR.
+  // A well-formed plan for a DIFFERENT source is the wrong plan, exactly as a
+  // well-formed plan for a different timeline is — and its ceiling would be a
+  // different number.
+  if (compiled.sourceBinding.sourceArtifactId !== expected.sourceArtifactId) return false;
+  if (compiled.sourceBinding.sourceRunId !== expected.sourceRunId) return false;
+  if (compiled.sourceBinding.mediaDurationMs !== expected.mediaDurationMs) return false;
   if (body.availability !== compiled.availability) return false;
   if ((body.unavailable_reason ?? null) !== compiled.unavailableReason) return false;
   if (!Array.isArray(body.required_missing_capabilities)
@@ -162,7 +178,7 @@ function envelopeAgrees(body: Record<string, unknown>, compiled: CompiledProfess
 export function reconcileProposal(
   moments: readonly TimelineMoment[], compiled: CompiledProfessionalV2Proposal,
 ): { ok: true } | { ok: false; reason: string } {
-  return reconcileWithBackend(validateTimeline(moments).cost, {
+  return reconcileWithBackend(validateTimeline(moments, compiled.sourceBinding.mediaDurationMs).cost, {
     maximumCredits: compiled.maximumCredits,
     initialCredits: compiled.initialCredits,
     repairReserveCredits: compiled.repairReserveCredits,
@@ -181,7 +197,7 @@ export function parseProfessionalV2PreviewResponse(
   if (body.proposal_id !== null || body.state !== 'proposed') return null;
   if ((body.expires_at ?? null) !== null || (body.created_at ?? null) !== null) return null;
   if (!AGENT.test(expected.agentSubject) || !UUID.test(expected.sourceRunId)) return null;
-  if (!validateTimeline(expected.moments).ok) return null;
+  if (!validateTimeline(expected.moments, expected.mediaDurationMs).ok) return null;
   const compiled = compiledV2From(body.proposal);
   if (!compiled) return null;
   if (!envelopeAgrees(body, compiled, expected)) return null;
@@ -199,7 +215,7 @@ export function parseProfessionalV2CreateResponse(
   if (!validDate(body.created_at) || !validDate(body.expires_at)
     || Date.parse(body.expires_at) <= Date.parse(body.created_at)) return null;
   if (!AGENT.test(expected.agentSubject) || !UUID.test(expected.sourceRunId)) return null;
-  if (!validateTimeline(expected.moments).ok) return null;
+  if (!validateTimeline(expected.moments, expected.mediaDurationMs).ok) return null;
   const compiled = compiledV2From(body.proposal);
   if (!compiled) return null;
   if (!envelopeAgrees(body, compiled, expected)) return null;
@@ -244,11 +260,18 @@ export type ProfessionalApprovalRef = {
   graphDigest: string | null;
   /** The timeline that produced it. Any edit changes this. */
   timelineFingerprint: string | null;
+  /**
+   * The exact source it was compiled against. Switching sources is not an edit
+   * to the timeline — the moments can be byte-identical — so the fingerprint
+   * alone would not notice. It has to be its own field, or a plan priced
+   * against a 30-second file could be approved against a 10-minute one.
+   */
+  sourceArtifactId: string | null;
 };
 
 export const INVALIDATED_APPROVAL_REF: ProfessionalApprovalRef = {
   proposalId: null, proposalVersion: null, proposalDigest: null,
-  graphDigest: null, timelineFingerprint: null,
+  graphDigest: null, timelineFingerprint: null, sourceArtifactId: null,
 };
 
 export function approvalRefFor(
@@ -261,6 +284,7 @@ export function approvalRefFor(
     proposalDigest: vm.proposalDigest,
     graphDigest: vm.compiled.graphDigest,
     timelineFingerprint: moments ? timelineFingerprint(moments) : null,
+    sourceArtifactId: vm.compiled.sourceBinding.sourceArtifactId,
   };
 }
 
@@ -271,7 +295,7 @@ export function invalidateApprovalRef(): ProfessionalApprovalRef {
 
 export type ApprovalRefusalCode =
   | 'in_flight' | 'edited' | 'unavailable' | 'not_awaiting_approval' | 'expired'
-  | 'identity_mismatch' | 'graph_changed' | 'timeline_changed'
+  | 'identity_mismatch' | 'graph_changed' | 'timeline_changed' | 'source_changed'
   | 'ceiling_not_confirmed' | 'invalid_idempotency_key';
 
 export type ApprovalDecision =
@@ -296,6 +320,7 @@ const REFUSAL_COPY: Record<ApprovalRefusalCode, string> = {
   identity_mismatch: 'This card no longer matches the proposal it was built from, so Implexa will not approve it.',
   graph_changed: 'The compiled plan changed since it was shown. Reload before approving.',
   timeline_changed: 'The timeline changed since this proposal was compiled. Preview it again.',
+  source_changed: 'This plan was compiled against a different source video. Preview it again against the video you have selected.',
   ceiling_not_confirmed: 'Confirm the maximum credits this authorizes before approving.',
   invalid_idempotency_key: 'Implexa could not mint a safe retry key for this approval.',
 };
@@ -341,6 +366,9 @@ export function decideProfessionalApproval(input: {
     || ref.proposalVersion !== vm.proposalVersion
     || ref.proposalDigest !== vm.proposalDigest) return refuse('identity_mismatch');
   if (ref.graphDigest !== vm.compiled.graphDigest) return refuse('graph_changed');
+  // The SOURCE, checked on its own. Two plans over identical moments against
+  // different videos are different spends bounded by different numbers.
+  if (ref.sourceArtifactId !== vm.compiled.sourceBinding.sourceArtifactId) return refuse('source_changed');
   if (ref.timelineFingerprint !== null
     && input.currentTimelineFingerprint !== null
     && ref.timelineFingerprint !== input.currentTimelineFingerprint) return refuse('timeline_changed');
@@ -485,6 +513,7 @@ export function interpretProfessionalApprovalResponse(
   if (!vm) return { outcome: 'unverified' };
   if (vm.proposalDigest !== ref.proposalDigest) return { outcome: 'unverified' };
   if (vm.compiled.graphDigest !== ref.graphDigest) return { outcome: 'unverified' };
+  if (vm.compiled.sourceBinding.sourceArtifactId !== ref.sourceArtifactId) return { outcome: 'unverified' };
   if (vm.lifecycle !== 'approved' || !vm.authorization) return { outcome: 'unverified' };
   if (vm.authorization.maxCredits !== vm.compiled.maximumCredits) return { outcome: 'unverified' };
   if (vm.authorization.maxTasks !== vm.compiled.taskCount) return { outcome: 'unverified' };

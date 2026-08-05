@@ -91,6 +91,20 @@ export type ProfessionalV2MomentVM = {
   maximumCredits: number;
 };
 
+/**
+ * The EXACT validated source the plan was compiled against, as the backend
+ * signed it. Parsed strictly: a partial binding is a ceiling nothing stands
+ * behind, and the browser must refuse rather than render a plan whose bound it
+ * cannot state.
+ */
+export type CompiledSourceBinding = {
+  sourceRunId: string;
+  sourceArtifactId: string;
+  sourceArtifactSha256: string;
+  mediaDurationMs: number;
+  windows: ReadonlyArray<{ momentId: string; startMs: number; endMs: number }>;
+};
+
 export type CompiledProfessionalV2Proposal = {
   contractVersion: string;
   compilerVersion: string;
@@ -118,6 +132,8 @@ export type CompiledProfessionalV2Proposal = {
   /** The graph states these; both are load-bearing product claims. */
   projectionOnly: boolean;
   finalRenderAuthorized: boolean;
+  /** The bound source. Always present — an unbound v2 plan does not parse. */
+  sourceBinding: CompiledSourceBinding;
 };
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -189,6 +205,7 @@ function parseTask(v: unknown): ProfessionalV2TaskVM | null {
 
 type ParsedGraph = {
   graphDigest: string;
+  sourceBinding: CompiledSourceBinding;
   moments: ProfessionalV2MomentVM[];
   tasks: ProfessionalV2TaskVM[];
   initialCredits: number;
@@ -334,11 +351,73 @@ function parseControlGraph(v: unknown): ParsedGraph | null {
     || cost.repair_reserve_credits !== repairReserveCredits
     || cost.maximum_credits !== initialCredits + repairReserveCredits) return null;
 
+  // ── THE BOUND SOURCE ──────────────────────────────────────────────────────
+  // A v2 graph with no binding does not parse at all. That is deliberate: those
+  // are the pre-0158 documents, they were priced with no ceiling, and the
+  // backend will refuse to approve them — so rendering one as an approvable plan
+  // would offer the user a button that cannot work.
+  const sourceBinding = parseSourceBinding(v.source_binding, moments);
+  if (!sourceBinding) return null;
+
   return {
-    graphDigest: v.graph_digest, moments, tasks,
+    graphDigest: v.graph_digest, moments, tasks, sourceBinding,
     initialCredits, repairReserveCredits, maximumCredits: initialCredits + repairReserveCredits,
     projectionOnly: true, finalRenderAuthorized: false,
     executionMode: v.execution_mode,
+  };
+}
+
+const SOURCE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SOURCE_SHA256 = /^[a-f0-9]{64}$/;
+
+/**
+ * The signed binding, checked against the graph it claims to bound.
+ *
+ * Two things beyond shape, and both matter:
+ *   - every window must fit inside the binding's OWN declared duration, because
+ *     a document that contradicts itself must never be rendered as a plan;
+ *   - the window set must be EXACTLY the graph's moments, because a binding
+ *     free to omit one could omit precisely the moment that breaks the ceiling.
+ */
+function parseSourceBinding(
+  value: unknown, moments: ReadonlyArray<{ momentId: string; startMs: number; endMs: number }>,
+): CompiledSourceBinding | null {
+  if (!isObject(value)) return null;
+  const runId = value.source_run_id;
+  const artifactId = value.source_artifact_id;
+  const sha256 = value.source_artifact_sha256;
+  const durationMs = value.media_duration_ms;
+  if (typeof runId !== 'string' || !SOURCE_UUID.test(runId)) return null;
+  if (typeof artifactId !== 'string' || !SOURCE_UUID.test(artifactId)) return null;
+  if (typeof sha256 !== 'string' || !SOURCE_SHA256.test(sha256)) return null;
+  if (typeof durationMs !== 'number' || !Number.isSafeInteger(durationMs)
+    || durationMs < 1 || durationMs > 24 * 60 * 60 * 1000) return null;
+  if (!Array.isArray(value.windows) || value.windows.length !== moments.length) return null;
+
+  const byMoment = new Map<string, { momentId: string; startMs: number; endMs: number }>();
+  for (const raw of value.windows) {
+    if (!isObject(raw)) return null;
+    const momentId = raw.moment_id;
+    const startMs = raw.start_ms;
+    const endMs = raw.end_ms;
+    if (typeof momentId !== 'string' || byMoment.has(momentId)) return null;
+    if (typeof startMs !== 'number' || !Number.isSafeInteger(startMs)) return null;
+    if (typeof endMs !== 'number' || !Number.isSafeInteger(endMs)) return null;
+    if (startMs < 0 || endMs <= startMs) return null;
+    if (startMs >= durationMs || endMs > durationMs) return null;
+    byMoment.set(momentId, { momentId, startMs, endMs });
+  }
+  // Exactly the graph's moments, with exactly the graph's windows.
+  for (const moment of moments) {
+    const window = byMoment.get(moment.momentId);
+    if (!window || window.startMs !== moment.startMs || window.endMs !== moment.endMs) return null;
+  }
+  return {
+    sourceRunId: runId,
+    sourceArtifactId: artifactId,
+    sourceArtifactSha256: sha256,
+    mediaDurationMs: durationMs,
+    windows: moments.map((moment) => byMoment.get(moment.momentId)!),
   };
 }
 
@@ -417,5 +496,6 @@ export function parseCompiledProfessionalV2Proposal(v: unknown): CompiledProfess
     maximumCredits: graph.maximumCredits,
     projectionOnly: graph.projectionOnly,
     finalRenderAuthorized: graph.finalRenderAuthorized,
+    sourceBinding: graph.sourceBinding,
   };
 }

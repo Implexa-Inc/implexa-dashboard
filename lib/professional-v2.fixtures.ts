@@ -2,7 +2,7 @@
  * GENERATED — do not edit by hand.
  *
  * Every document below is the REAL wire output of the Implexa backend producer
- * at commit 5cad5203342068981ec9e739792db52379235089: previews, creates and reads
+ * at commit dcdbf0c48be2320d2d5ddd32fa283fdf326a2ee2: previews, creates and reads
  * driven through generation-proposal.service.js itself, and availability
  * verdicts from evaluateProfessionalAvailability. Bounds are PROBED from the
  * producer, never transcribed.
@@ -14,7 +14,7 @@
  * containing a local path, a URL, a bearer token or a JWT.
  */
 
-export const BACKEND_PIN = "5cad5203342068981ec9e739792db52379235089" as const;
+export const BACKEND_PIN = "dcdbf0c48be2320d2d5ddd32fa283fdf326a2ee2" as const;
 
 export const CONTROL_CONTRACT_V1 = "professional-generation-control.v1" as const;
 
@@ -284,7 +284,10 @@ export const V2_PREVIEW_UNAVAILABLE = {
     "capability_key": "video.generate_broll",
     "agent_subject": "daily-ig-reel",
     "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
-    "source_request_id": null
+    "source_request_id": null,
+    "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+    "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "media_duration_ms": 600000
   },
   "expires_at": null,
   "created_at": null,
@@ -294,6 +297,19 @@ export const V2_PREVIEW_UNAVAILABLE = {
     "capability_key": "video.generate_broll",
     "quality_mode": "professional",
     "control_contract_version": "professional-generation-control.v2",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": false,
     "unavailable_reason": "missing_required_professional_execution_capabilities",
     "required_missing_capabilities": [
@@ -307,6 +323,19 @@ export const V2_PREVIEW_UNAVAILABLE = {
       "contract_version": "professional-generation-control.v2",
       "desktop_capability_version": "professional-execution-capability.v1",
       "execution_mode": "professional",
+      "source_binding": {
+        "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+        "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+        "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "media_duration_ms": 600000,
+        "windows": [
+          {
+            "moment_id": "hook",
+            "start_ms": 0,
+            "end_ms": 3000
+          }
+        ]
+      },
       "moments": [
         {
           "moment_id": "hook",
@@ -445,13 +474,13 @@ export const V2_PREVIEW_UNAVAILABLE = {
         "projection_only": true,
         "final_render_authorized": false
       },
-      "graph_digest": "09392e64f4316ccdf4c728d7ea4ecdde7e1c1f9d64a2017eb5cf2490e3bdaa62"
+      "graph_digest": "440d22689077576aa0aaf5fef2a3ac29966c1663025b136e2ac95902ffba445e"
     },
     "task_count": 3,
     "maximum_credits": 108,
     "initial_credits": 72,
     "repair_reserve_credits": 36,
-    "proposal_digest": "34bf076da3757a100fc0e4479c71bfad95a7c94dcfcb6d3eb9ba3a0b93d6b41d"
+    "proposal_digest": "e96fc460bcdc87dbb235b6e124a42394769926912eb1c43f103b131047271e1e"
   }
 } as const;
 
@@ -466,7 +495,10 @@ export const V2_PREVIEW_AVAILABLE = {
     "capability_key": "video.generate_broll",
     "agent_subject": "daily-ig-reel",
     "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
-    "source_request_id": null
+    "source_request_id": null,
+    "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+    "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "media_duration_ms": 600000
   },
   "expires_at": null,
   "created_at": null,
@@ -476,6 +508,19 @@ export const V2_PREVIEW_AVAILABLE = {
     "capability_key": "video.generate_broll",
     "quality_mode": "professional",
     "control_contract_version": "professional-generation-control.v2",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": true,
     "unavailable_reason": null,
     "required_missing_capabilities": [],
@@ -484,6 +529,19 @@ export const V2_PREVIEW_AVAILABLE = {
       "contract_version": "professional-generation-control.v2",
       "desktop_capability_version": "professional-execution-capability.v1",
       "execution_mode": "professional",
+      "source_binding": {
+        "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+        "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+        "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "media_duration_ms": 600000,
+        "windows": [
+          {
+            "moment_id": "hook",
+            "start_ms": 0,
+            "end_ms": 3000
+          }
+        ]
+      },
       "moments": [
         {
           "moment_id": "hook",
@@ -622,13 +680,13 @@ export const V2_PREVIEW_AVAILABLE = {
         "projection_only": true,
         "final_render_authorized": false
       },
-      "graph_digest": "09392e64f4316ccdf4c728d7ea4ecdde7e1c1f9d64a2017eb5cf2490e3bdaa62"
+      "graph_digest": "440d22689077576aa0aaf5fef2a3ac29966c1663025b136e2ac95902ffba445e"
     },
     "task_count": 3,
     "maximum_credits": 108,
     "initial_credits": 72,
     "repair_reserve_credits": 36,
-    "proposal_digest": "74b03c36a65c28f1b83f0b6032b822dcc52cdc9237d1c89f2d0c54947aa93812"
+    "proposal_digest": "223e59faaad74af7bf27d953a4215dd218d1d4995d8f21b338424298d6184d6d"
   }
 } as const;
 
@@ -643,7 +701,10 @@ export const V2_PREVIEW_JUDGE_OFF = {
     "capability_key": "video.generate_broll",
     "agent_subject": "daily-ig-reel",
     "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
-    "source_request_id": null
+    "source_request_id": null,
+    "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+    "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "media_duration_ms": 600000
   },
   "expires_at": null,
   "created_at": null,
@@ -653,6 +714,19 @@ export const V2_PREVIEW_JUDGE_OFF = {
     "capability_key": "video.generate_broll",
     "quality_mode": "professional",
     "control_contract_version": "professional-generation-control.v2",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": true,
     "unavailable_reason": null,
     "required_missing_capabilities": [],
@@ -661,6 +735,19 @@ export const V2_PREVIEW_JUDGE_OFF = {
       "contract_version": "professional-generation-control.v2",
       "desktop_capability_version": "professional-execution-capability.v1",
       "execution_mode": "professional",
+      "source_binding": {
+        "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+        "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+        "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "media_duration_ms": 600000,
+        "windows": [
+          {
+            "moment_id": "hook",
+            "start_ms": 0,
+            "end_ms": 3000
+          }
+        ]
+      },
       "moments": [
         {
           "moment_id": "hook",
@@ -745,13 +832,13 @@ export const V2_PREVIEW_JUDGE_OFF = {
         "projection_only": true,
         "final_render_authorized": false
       },
-      "graph_digest": "18076092317665c0bbf3430bf64f6c13547bfc1bb37d902555ebea20b1f1e5c8"
+      "graph_digest": "8a2ded2ee801964c99cbdda80005056ce38b3bbca72c8bb54d23cf035af38c11"
     },
     "task_count": 1,
     "maximum_credits": 36,
     "initial_credits": 36,
     "repair_reserve_credits": 0,
-    "proposal_digest": "b7852bd578a1a808bee9b3d0047e1d90b5910661b3fed5e00309bc46d4a5c34b"
+    "proposal_digest": "73ea5356604d7c32f023b0e5d2d96dd5324be410bce9d050577dac65551fad26"
   }
 } as const;
 
@@ -766,7 +853,10 @@ export const V2_PREVIEW_MULTI = {
     "capability_key": "video.generate_broll",
     "agent_subject": "daily-ig-reel",
     "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
-    "source_request_id": null
+    "source_request_id": null,
+    "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+    "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "media_duration_ms": 600000
   },
   "expires_at": null,
   "created_at": null,
@@ -776,6 +866,34 @@ export const V2_PREVIEW_MULTI = {
     "capability_key": "video.generate_broll",
     "quality_mode": "professional",
     "control_contract_version": "professional-generation-control.v2",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        },
+        {
+          "moment_id": "build",
+          "start_ms": 8000,
+          "end_ms": 12000
+        },
+        {
+          "moment_id": "abut",
+          "start_ms": 12000,
+          "end_ms": 16000
+        },
+        {
+          "moment_id": "close",
+          "start_ms": 24000,
+          "end_ms": 34000
+        }
+      ]
+    },
     "availability": true,
     "unavailable_reason": null,
     "required_missing_capabilities": [],
@@ -784,6 +902,34 @@ export const V2_PREVIEW_MULTI = {
       "contract_version": "professional-generation-control.v2",
       "desktop_capability_version": "professional-execution-capability.v1",
       "execution_mode": "professional",
+      "source_binding": {
+        "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+        "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+        "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "media_duration_ms": 600000,
+        "windows": [
+          {
+            "moment_id": "hook",
+            "start_ms": 0,
+            "end_ms": 3000
+          },
+          {
+            "moment_id": "build",
+            "start_ms": 8000,
+            "end_ms": 12000
+          },
+          {
+            "moment_id": "abut",
+            "start_ms": 12000,
+            "end_ms": 16000
+          },
+          {
+            "moment_id": "close",
+            "start_ms": 24000,
+            "end_ms": 34000
+          }
+        ]
+      },
       "moments": [
         {
           "moment_id": "hook",
@@ -1288,13 +1434,13 @@ export const V2_PREVIEW_MULTI = {
         "projection_only": true,
         "final_render_authorized": false
       },
-      "graph_digest": "43dcdeadc2ea78ef015760b23c3038931e026887dfd86072bbfb083eaf86991e"
+      "graph_digest": "591bcde49b17ad65ef4885da783aa36a1a7883c0e45edb3cc0a91da496fd7347"
     },
     "task_count": 13,
     "maximum_credits": 948,
     "initial_credits": 744,
     "repair_reserve_credits": 204,
-    "proposal_digest": "1999a538378793081ff25b7f820fd18703e877a6c499380f1bc504ceeb700f40"
+    "proposal_digest": "658ec9c11137616a0b051a7ac2fa5837b2e4f203832457986bdc72430ded14e7"
   }
 } as const;
 
@@ -1314,7 +1460,10 @@ export const V2_PREVIEW_MULTI_UNAVAILABLE = {
     "capability_key": "video.generate_broll",
     "agent_subject": "daily-ig-reel",
     "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
-    "source_request_id": null
+    "source_request_id": null,
+    "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+    "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "media_duration_ms": 600000
   },
   "expires_at": null,
   "created_at": null,
@@ -1324,6 +1473,34 @@ export const V2_PREVIEW_MULTI_UNAVAILABLE = {
     "capability_key": "video.generate_broll",
     "quality_mode": "professional",
     "control_contract_version": "professional-generation-control.v2",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        },
+        {
+          "moment_id": "build",
+          "start_ms": 8000,
+          "end_ms": 12000
+        },
+        {
+          "moment_id": "abut",
+          "start_ms": 12000,
+          "end_ms": 16000
+        },
+        {
+          "moment_id": "close",
+          "start_ms": 24000,
+          "end_ms": 34000
+        }
+      ]
+    },
     "availability": false,
     "unavailable_reason": "missing_required_professional_execution_capabilities",
     "required_missing_capabilities": [
@@ -1337,6 +1514,34 @@ export const V2_PREVIEW_MULTI_UNAVAILABLE = {
       "contract_version": "professional-generation-control.v2",
       "desktop_capability_version": "professional-execution-capability.v1",
       "execution_mode": "professional",
+      "source_binding": {
+        "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+        "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+        "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "media_duration_ms": 600000,
+        "windows": [
+          {
+            "moment_id": "hook",
+            "start_ms": 0,
+            "end_ms": 3000
+          },
+          {
+            "moment_id": "build",
+            "start_ms": 8000,
+            "end_ms": 12000
+          },
+          {
+            "moment_id": "abut",
+            "start_ms": 12000,
+            "end_ms": 16000
+          },
+          {
+            "moment_id": "close",
+            "start_ms": 24000,
+            "end_ms": 34000
+          }
+        ]
+      },
       "moments": [
         {
           "moment_id": "hook",
@@ -1841,13 +2046,13 @@ export const V2_PREVIEW_MULTI_UNAVAILABLE = {
         "projection_only": true,
         "final_render_authorized": false
       },
-      "graph_digest": "43dcdeadc2ea78ef015760b23c3038931e026887dfd86072bbfb083eaf86991e"
+      "graph_digest": "591bcde49b17ad65ef4885da783aa36a1a7883c0e45edb3cc0a91da496fd7347"
     },
     "task_count": 13,
     "maximum_credits": 948,
     "initial_credits": 744,
     "repair_reserve_credits": 204,
-    "proposal_digest": "54f36a3db9c78bba1a72ea6f90fcf81faaa722d4fdd08857f184d1cca3cce51b"
+    "proposal_digest": "17faedb3ee5673f88bcf32f8c669df5ab95ed3f7ad9067c6265e0cc1099f94d5"
   }
 } as const;
 
@@ -1872,7 +2077,7 @@ export const V2_CREATE_UNAVAILABLE = {
     "source_request_id": null,
     "proposal_id": "d41f6a80-5b2c-4e19-8f36-1a7c9d0e2b43",
     "proposal_version": "generation-quality.v1",
-    "proposal_digest": "34bf076da3757a100fc0e4479c71bfad95a7c94dcfcb6d3eb9ba3a0b93d6b41d",
+    "proposal_digest": "e96fc460bcdc87dbb235b6e124a42394769926912eb1c43f103b131047271e1e",
     "authorization_id": null,
     "authorization_digest": null
   },
@@ -1884,6 +2089,19 @@ export const V2_CREATE_UNAVAILABLE = {
     "capability_key": "video.generate_broll",
     "quality_mode": "professional",
     "control_contract_version": "professional-generation-control.v2",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": false,
     "unavailable_reason": "missing_required_professional_execution_capabilities",
     "required_missing_capabilities": [
@@ -1897,6 +2115,19 @@ export const V2_CREATE_UNAVAILABLE = {
       "contract_version": "professional-generation-control.v2",
       "desktop_capability_version": "professional-execution-capability.v1",
       "execution_mode": "professional",
+      "source_binding": {
+        "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+        "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+        "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "media_duration_ms": 600000,
+        "windows": [
+          {
+            "moment_id": "hook",
+            "start_ms": 0,
+            "end_ms": 3000
+          }
+        ]
+      },
       "moments": [
         {
           "moment_id": "hook",
@@ -2035,13 +2266,13 @@ export const V2_CREATE_UNAVAILABLE = {
         "projection_only": true,
         "final_render_authorized": false
       },
-      "graph_digest": "09392e64f4316ccdf4c728d7ea4ecdde7e1c1f9d64a2017eb5cf2490e3bdaa62"
+      "graph_digest": "440d22689077576aa0aaf5fef2a3ac29966c1663025b136e2ac95902ffba445e"
     },
     "task_count": 3,
     "maximum_credits": 108,
     "initial_credits": 72,
     "repair_reserve_credits": 36,
-    "proposal_digest": "34bf076da3757a100fc0e4479c71bfad95a7c94dcfcb6d3eb9ba3a0b93d6b41d"
+    "proposal_digest": "e96fc460bcdc87dbb235b6e124a42394769926912eb1c43f103b131047271e1e"
   }
 } as const;
 
@@ -2061,7 +2292,7 @@ export const V2_CREATE_AVAILABLE = {
     "source_request_id": null,
     "proposal_id": "d41f6a80-5b2c-4e19-8f36-1a7c9d0e2b43",
     "proposal_version": "generation-quality.v1",
-    "proposal_digest": "74b03c36a65c28f1b83f0b6032b822dcc52cdc9237d1c89f2d0c54947aa93812",
+    "proposal_digest": "223e59faaad74af7bf27d953a4215dd218d1d4995d8f21b338424298d6184d6d",
     "authorization_id": null,
     "authorization_digest": null
   },
@@ -2073,6 +2304,19 @@ export const V2_CREATE_AVAILABLE = {
     "capability_key": "video.generate_broll",
     "quality_mode": "professional",
     "control_contract_version": "professional-generation-control.v2",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": true,
     "unavailable_reason": null,
     "required_missing_capabilities": [],
@@ -2081,6 +2325,19 @@ export const V2_CREATE_AVAILABLE = {
       "contract_version": "professional-generation-control.v2",
       "desktop_capability_version": "professional-execution-capability.v1",
       "execution_mode": "professional",
+      "source_binding": {
+        "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+        "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+        "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "media_duration_ms": 600000,
+        "windows": [
+          {
+            "moment_id": "hook",
+            "start_ms": 0,
+            "end_ms": 3000
+          }
+        ]
+      },
       "moments": [
         {
           "moment_id": "hook",
@@ -2219,13 +2476,13 @@ export const V2_CREATE_AVAILABLE = {
         "projection_only": true,
         "final_render_authorized": false
       },
-      "graph_digest": "09392e64f4316ccdf4c728d7ea4ecdde7e1c1f9d64a2017eb5cf2490e3bdaa62"
+      "graph_digest": "440d22689077576aa0aaf5fef2a3ac29966c1663025b136e2ac95902ffba445e"
     },
     "task_count": 3,
     "maximum_credits": 108,
     "initial_credits": 72,
     "repair_reserve_credits": 36,
-    "proposal_digest": "74b03c36a65c28f1b83f0b6032b822dcc52cdc9237d1c89f2d0c54947aa93812"
+    "proposal_digest": "223e59faaad74af7bf27d953a4215dd218d1d4995d8f21b338424298d6184d6d"
   }
 } as const;
 
@@ -2245,7 +2502,7 @@ export const V2_GET_UNAVAILABLE = {
     "source_request_id": null,
     "proposal_id": "d41f6a80-5b2c-4e19-8f36-1a7c9d0e2b43",
     "proposal_version": "generation-quality.v1",
-    "proposal_digest": "34bf076da3757a100fc0e4479c71bfad95a7c94dcfcb6d3eb9ba3a0b93d6b41d",
+    "proposal_digest": "e96fc460bcdc87dbb235b6e124a42394769926912eb1c43f103b131047271e1e",
     "authorization_id": null,
     "authorization_digest": null
   },
@@ -2256,6 +2513,19 @@ export const V2_GET_UNAVAILABLE = {
     "capability_key": "video.generate_broll",
     "quality_mode": "professional",
     "control_contract_version": "professional-generation-control.v2",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": false,
     "unavailable_reason": "missing_required_professional_execution_capabilities",
     "required_missing_capabilities": [
@@ -2269,6 +2539,19 @@ export const V2_GET_UNAVAILABLE = {
       "contract_version": "professional-generation-control.v2",
       "desktop_capability_version": "professional-execution-capability.v1",
       "execution_mode": "professional",
+      "source_binding": {
+        "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+        "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+        "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "media_duration_ms": 600000,
+        "windows": [
+          {
+            "moment_id": "hook",
+            "start_ms": 0,
+            "end_ms": 3000
+          }
+        ]
+      },
       "moments": [
         {
           "moment_id": "hook",
@@ -2407,13 +2690,13 @@ export const V2_GET_UNAVAILABLE = {
         "projection_only": true,
         "final_render_authorized": false
       },
-      "graph_digest": "09392e64f4316ccdf4c728d7ea4ecdde7e1c1f9d64a2017eb5cf2490e3bdaa62"
+      "graph_digest": "440d22689077576aa0aaf5fef2a3ac29966c1663025b136e2ac95902ffba445e"
     },
     "task_count": 3,
     "maximum_credits": 108,
     "initial_credits": 72,
     "repair_reserve_credits": 36,
-    "proposal_digest": "34bf076da3757a100fc0e4479c71bfad95a7c94dcfcb6d3eb9ba3a0b93d6b41d"
+    "proposal_digest": "e96fc460bcdc87dbb235b6e124a42394769926912eb1c43f103b131047271e1e"
   },
   "cost": {
     "total_credits": 0,
@@ -2441,7 +2724,7 @@ export const V2_GET_AWAITING_APPROVAL = {
     "source_request_id": null,
     "proposal_id": "d41f6a80-5b2c-4e19-8f36-1a7c9d0e2b43",
     "proposal_version": "generation-quality.v1",
-    "proposal_digest": "1999a538378793081ff25b7f820fd18703e877a6c499380f1bc504ceeb700f40",
+    "proposal_digest": "658ec9c11137616a0b051a7ac2fa5837b2e4f203832457986bdc72430ded14e7",
     "authorization_id": null,
     "authorization_digest": null
   },
@@ -2452,6 +2735,34 @@ export const V2_GET_AWAITING_APPROVAL = {
     "capability_key": "video.generate_broll",
     "quality_mode": "professional",
     "control_contract_version": "professional-generation-control.v2",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        },
+        {
+          "moment_id": "build",
+          "start_ms": 8000,
+          "end_ms": 12000
+        },
+        {
+          "moment_id": "abut",
+          "start_ms": 12000,
+          "end_ms": 16000
+        },
+        {
+          "moment_id": "close",
+          "start_ms": 24000,
+          "end_ms": 34000
+        }
+      ]
+    },
     "availability": true,
     "unavailable_reason": null,
     "required_missing_capabilities": [],
@@ -2460,6 +2771,34 @@ export const V2_GET_AWAITING_APPROVAL = {
       "contract_version": "professional-generation-control.v2",
       "desktop_capability_version": "professional-execution-capability.v1",
       "execution_mode": "professional",
+      "source_binding": {
+        "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+        "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+        "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "media_duration_ms": 600000,
+        "windows": [
+          {
+            "moment_id": "hook",
+            "start_ms": 0,
+            "end_ms": 3000
+          },
+          {
+            "moment_id": "build",
+            "start_ms": 8000,
+            "end_ms": 12000
+          },
+          {
+            "moment_id": "abut",
+            "start_ms": 12000,
+            "end_ms": 16000
+          },
+          {
+            "moment_id": "close",
+            "start_ms": 24000,
+            "end_ms": 34000
+          }
+        ]
+      },
       "moments": [
         {
           "moment_id": "hook",
@@ -2964,13 +3303,13 @@ export const V2_GET_AWAITING_APPROVAL = {
         "projection_only": true,
         "final_render_authorized": false
       },
-      "graph_digest": "43dcdeadc2ea78ef015760b23c3038931e026887dfd86072bbfb083eaf86991e"
+      "graph_digest": "591bcde49b17ad65ef4885da783aa36a1a7883c0e45edb3cc0a91da496fd7347"
     },
     "task_count": 13,
     "maximum_credits": 948,
     "initial_credits": 744,
     "repair_reserve_credits": 204,
-    "proposal_digest": "1999a538378793081ff25b7f820fd18703e877a6c499380f1bc504ceeb700f40"
+    "proposal_digest": "658ec9c11137616a0b051a7ac2fa5837b2e4f203832457986bdc72430ded14e7"
   },
   "cost": {
     "total_credits": 0,
@@ -2995,7 +3334,10 @@ export const V1_PREVIEW_FAST = {
     "capability_key": "video.generate_broll",
     "agent_subject": "daily-ig-reel",
     "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
-    "source_request_id": null
+    "source_request_id": null,
+    "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+    "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "media_duration_ms": 600000
   },
   "expires_at": null,
   "created_at": null,
@@ -3004,6 +3346,19 @@ export const V1_PREVIEW_FAST = {
     "compiler_version": "generation-quality.v1",
     "capability_key": "video.generate_broll",
     "quality_mode": "fast",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": true,
     "unavailable_reason": null,
     "required_missing_capabilities": [],
@@ -3080,7 +3435,7 @@ export const V1_PREVIEW_FAST = {
       "deterministic_validation",
       "user_review"
     ],
-    "proposal_digest": "dcef2158a9432ea29877514a5201454c7d9cb917a22eeacd831be04e412724e2"
+    "proposal_digest": "bfa609d8b75c71c8f3a6dec0579b33fd43b9117af1c212a91eb4c07f1581fde8"
   }
 } as const;
 
@@ -3095,7 +3450,10 @@ export const V1_PREVIEW_FAST_MULTI = {
     "capability_key": "video.generate_broll",
     "agent_subject": "daily-ig-reel",
     "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
-    "source_request_id": null
+    "source_request_id": null,
+    "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+    "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "media_duration_ms": 600000
   },
   "expires_at": null,
   "created_at": null,
@@ -3104,6 +3462,24 @@ export const V1_PREVIEW_FAST_MULTI = {
     "compiler_version": "generation-quality.v1",
     "capability_key": "video.generate_broll",
     "quality_mode": "fast",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 5000
+        },
+        {
+          "moment_id": "build",
+          "start_ms": 12000,
+          "end_ms": 17000
+        }
+      ]
+    },
     "availability": true,
     "unavailable_reason": null,
     "required_missing_capabilities": [],
@@ -3201,7 +3577,7 @@ export const V1_PREVIEW_FAST_MULTI = {
       "deterministic_validation",
       "user_review"
     ],
-    "proposal_digest": "03886eaaa4c50170af45d9549c656eebf05c69a5fc64ce995f32e4c885e4a21d"
+    "proposal_digest": "a1a76270b551de0ca829d1239698fd06b33b3186fce4fa4b94566c0e512ab976"
   }
 } as const;
 
@@ -3216,7 +3592,10 @@ export const V1_PREVIEW_PROFESSIONAL_AVAILABLE = {
     "capability_key": "video.generate_broll",
     "agent_subject": "daily-ig-reel",
     "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
-    "source_request_id": null
+    "source_request_id": null,
+    "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+    "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "media_duration_ms": 600000
   },
   "expires_at": null,
   "created_at": null,
@@ -3225,6 +3604,19 @@ export const V1_PREVIEW_PROFESSIONAL_AVAILABLE = {
     "compiler_version": "generation-quality.v1",
     "capability_key": "video.generate_broll",
     "quality_mode": "professional",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": true,
     "unavailable_reason": null,
     "required_missing_capabilities": [],
@@ -3516,7 +3908,7 @@ export const V1_PREVIEW_PROFESSIONAL_AVAILABLE = {
       "segmented_assembly",
       "user_review"
     ],
-    "proposal_digest": "48af5beb3f8614b64f9804c54ed30f99f11534151c59f9c18c2cb7625e794954"
+    "proposal_digest": "74573419eabaabe529e204e0f7cc822e3f6fc215ca6d9ec96d75dd0fee97ea3f"
   }
 } as const;
 
@@ -3536,7 +3928,10 @@ export const V1_PREVIEW_PROFESSIONAL_UNAVAILABLE = {
     "capability_key": "video.generate_broll",
     "agent_subject": "daily-ig-reel",
     "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
-    "source_request_id": null
+    "source_request_id": null,
+    "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+    "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "media_duration_ms": 600000
   },
   "expires_at": null,
   "created_at": null,
@@ -3545,6 +3940,19 @@ export const V1_PREVIEW_PROFESSIONAL_UNAVAILABLE = {
     "compiler_version": "generation-quality.v1",
     "capability_key": "video.generate_broll",
     "quality_mode": "professional",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": false,
     "unavailable_reason": "missing_required_professional_execution_capabilities",
     "required_missing_capabilities": [
@@ -3841,7 +4249,7 @@ export const V1_PREVIEW_PROFESSIONAL_UNAVAILABLE = {
       "segmented_assembly",
       "user_review"
     ],
-    "proposal_digest": "7a19f19d21cd934d8c5efab3e51b3e64af347b854cc179b1fe7ca6bc2d5e7074"
+    "proposal_digest": "1feb2d4720c695cf5d4be1dc60be1e8f4b2e15d3fa9a670f1f1dd6c629cbce8d"
   }
 } as const;
 
@@ -3859,7 +4267,10 @@ export const V1_PREVIEW_PRODUCTION = {
     "capability_key": "video.generate_broll",
     "agent_subject": "daily-ig-reel",
     "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
-    "source_request_id": null
+    "source_request_id": null,
+    "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+    "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "media_duration_ms": 600000
   },
   "expires_at": null,
   "created_at": null,
@@ -3868,6 +4279,19 @@ export const V1_PREVIEW_PRODUCTION = {
     "compiler_version": "generation-quality.v1",
     "capability_key": "video.generate_broll",
     "quality_mode": "production",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": false,
     "unavailable_reason": "missing_required_production_capabilities",
     "required_missing_capabilities": [
@@ -3887,7 +4311,7 @@ export const V1_PREVIEW_PRODUCTION = {
     "per_task_credits": [],
     "maximum_credits": 0,
     "review_requirements": [],
-    "proposal_digest": "349290be59fdd4da7080a297193739b93c86300c5056a751102dfb258567d75c"
+    "proposal_digest": "5e64596ec6fa763d4791d5ca0e0b512819330e6e28c520ffbfb047a220efc020"
   }
 } as const;
 
@@ -3907,7 +4331,7 @@ export const V1_CREATE_FAST = {
     "source_request_id": null,
     "proposal_id": "d41f6a80-5b2c-4e19-8f36-1a7c9d0e2b43",
     "proposal_version": "generation-quality.v1",
-    "proposal_digest": "dcef2158a9432ea29877514a5201454c7d9cb917a22eeacd831be04e412724e2",
+    "proposal_digest": "bfa609d8b75c71c8f3a6dec0579b33fd43b9117af1c212a91eb4c07f1581fde8",
     "authorization_id": null,
     "authorization_digest": null
   },
@@ -3918,6 +4342,19 @@ export const V1_CREATE_FAST = {
     "compiler_version": "generation-quality.v1",
     "capability_key": "video.generate_broll",
     "quality_mode": "fast",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": true,
     "unavailable_reason": null,
     "required_missing_capabilities": [],
@@ -3994,7 +4431,7 @@ export const V1_CREATE_FAST = {
       "deterministic_validation",
       "user_review"
     ],
-    "proposal_digest": "dcef2158a9432ea29877514a5201454c7d9cb917a22eeacd831be04e412724e2"
+    "proposal_digest": "bfa609d8b75c71c8f3a6dec0579b33fd43b9117af1c212a91eb4c07f1581fde8"
   }
 } as const;
 
@@ -4014,7 +4451,7 @@ export const V1_GET_FAST = {
     "source_request_id": null,
     "proposal_id": "d41f6a80-5b2c-4e19-8f36-1a7c9d0e2b43",
     "proposal_version": "generation-quality.v1",
-    "proposal_digest": "dcef2158a9432ea29877514a5201454c7d9cb917a22eeacd831be04e412724e2",
+    "proposal_digest": "bfa609d8b75c71c8f3a6dec0579b33fd43b9117af1c212a91eb4c07f1581fde8",
     "authorization_id": null,
     "authorization_digest": null
   },
@@ -4024,6 +4461,19 @@ export const V1_GET_FAST = {
     "compiler_version": "generation-quality.v1",
     "capability_key": "video.generate_broll",
     "quality_mode": "fast",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": true,
     "unavailable_reason": null,
     "required_missing_capabilities": [],
@@ -4100,7 +4550,7 @@ export const V1_GET_FAST = {
       "deterministic_validation",
       "user_review"
     ],
-    "proposal_digest": "dcef2158a9432ea29877514a5201454c7d9cb917a22eeacd831be04e412724e2"
+    "proposal_digest": "bfa609d8b75c71c8f3a6dec0579b33fd43b9117af1c212a91eb4c07f1581fde8"
   },
   "cost": {
     "total_credits": 0,
@@ -4123,7 +4573,10 @@ export const V1_PREVIEW_FAST_EXPLICIT_V1_REQUEST = {
     "capability_key": "video.generate_broll",
     "agent_subject": "daily-ig-reel",
     "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
-    "source_request_id": null
+    "source_request_id": null,
+    "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+    "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "media_duration_ms": 600000
   },
   "expires_at": null,
   "created_at": null,
@@ -4132,6 +4585,19 @@ export const V1_PREVIEW_FAST_EXPLICIT_V1_REQUEST = {
     "compiler_version": "generation-quality.v1",
     "capability_key": "video.generate_broll",
     "quality_mode": "fast",
+    "source_binding": {
+      "source_run_id": "7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77",
+      "source_artifact_id": "b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134",
+      "source_artifact_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "media_duration_ms": 600000,
+      "windows": [
+        {
+          "moment_id": "hook",
+          "start_ms": 0,
+          "end_ms": 3000
+        }
+      ]
+    },
     "availability": true,
     "unavailable_reason": null,
     "required_missing_capabilities": [],
@@ -4208,6 +4674,6 @@ export const V1_PREVIEW_FAST_EXPLICIT_V1_REQUEST = {
       "deterministic_validation",
       "user_review"
     ],
-    "proposal_digest": "dcef2158a9432ea29877514a5201454c7d9cb917a22eeacd831be04e412724e2"
+    "proposal_digest": "bfa609d8b75c71c8f3a6dec0579b33fd43b9117af1c212a91eb4c07f1581fde8"
   }
 } as const;

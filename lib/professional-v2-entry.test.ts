@@ -27,6 +27,12 @@ const clone = <T>(v: T): Doc => structuredClone(v) as unknown as Doc;
 
 const AGENT = 'daily-ig-reel';
 const RUN_ID = '7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77';
+// The exact validated source every fixture was compiled against, and its
+// authoritative Desktop-probed length. A run is not a source (0158): the entry
+// identity names the ARTIFACT, because two final videos in one run need not be
+// the same length.
+const SOURCE_ARTIFACT_ID = 'b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134';
+const SOURCE_MEDIA_DURATION_MS = 600000;
 /** Just after the fixture's created_at, and well before its 30-minute expiry. */
 const NOW = Date.parse('2026-08-04T17:05:00.000Z');
 /** The id the fixture generator's fake table layer assigns on insert. */
@@ -53,7 +59,9 @@ function timelineOf(fixture: { proposal: { professional_control: { moments: read
 }
 
 const expectedFor = (fixture: Parameters<typeof timelineOf>[0]) => ({
-  agentSubject: AGENT, sourceRunId: RUN_ID, moments: timelineOf(fixture),
+  agentSubject: AGENT, sourceRunId: RUN_ID,
+  sourceArtifactId: SOURCE_ARTIFACT_ID, mediaDurationMs: SOURCE_MEDIA_DURATION_MS,
+  moments: timelineOf(fixture),
 });
 
 // ── preview ──────────────────────────────────────────────────────────────────
@@ -81,7 +89,10 @@ test('a preview for a DIFFERENT plan than the one submitted is refused', () => {
   for (const drift of drifts) {
     assert.equal(
       parseProfessionalV2PreviewResponse(clone(V2_PREVIEW_AVAILABLE), {
-        agentSubject: AGENT, sourceRunId: RUN_ID, moments: [{ ...base[0], ...drift }],
+        agentSubject: AGENT, sourceRunId: RUN_ID,
+    sourceArtifactId: SOURCE_ARTIFACT_ID, mediaDurationMs: SOURCE_MEDIA_DURATION_MS,
+        sourceArtifactId: SOURCE_ARTIFACT_ID, mediaDurationMs: SOURCE_MEDIA_DURATION_MS,
+        moments: [{ ...base[0], ...drift }],
       }), null, JSON.stringify(drift),
     );
   }

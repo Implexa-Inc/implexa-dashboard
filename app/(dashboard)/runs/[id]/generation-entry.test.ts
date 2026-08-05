@@ -10,14 +10,39 @@ test('the entry flow is mounted from a validated video run through to the builde
   assert.match(runPage, /verifiedArtifacts\.some\(isValidatedVideoOutput\)/);
   assert.match(runPage, /\/generate-broll/);
   assert.match(entryPage, /<BrollProposalBuilder/);
-  assert.match(entryPage, /classifyGenerationEntryArtifacts/);
+  // RE-ANCHORED for the source-duration boundary. The page no longer asks the
+  // weaker question ("is there SOME validated video?") — it resolves the EXACT
+  // artifact and reads its authoritative length, because a run is not a source
+  // and the moments placed here are bounded by that number.
+  assert.match(entryPage, /classifyGenerationSource/);
   assert.match(entryPage, /\.eq\('status', 'validated'\)/);
-  assert.match(entryPage, /eligibility !== 'eligible'/);
+  // The duration is READ from the artifact row. If this select ever stops
+  // naming it, the page would be back to compiling against no ceiling.
+  assert.match(entryPage, /media_duration_ms/);
+  // ...and an unresolved source stops the page before the builder mounts.
+  assert.match(entryPage, /if \(!source\)/);
+  // The user resolves ambiguity; the page never picks a source for them.
+  assert.match(entryPage, /selectSource/);
+  // EDIT (P1): the seed is a PAIR — moments plus the plan's signed source id —
+  // resolved by the pure resolver, and the chooser preserves `from` so choosing
+  // a source can never swallow the plan being edited.
+  assert.match(entryPage, /resolveEditSeed/);
+  assert.match(entryPage, /sourceArtifactId: read\.vm\.compiled\.sourceBinding\.sourceArtifactId/);
+  assert.match(entryPage, /&from=\$\{encodeURIComponent\(searchParams\.from\)\}/,
+    'the ambiguity chooser must carry ?from through the click');
+  assert.match(entryPage, /source_unverified' \|\| editResolution\.kind === 'source_missing'/,
+    'an edit whose source cannot be honoured must fail closed on its own path');
+  assert.doesNotMatch(entryPage, /sources\[0\]|\.find\(\(\) => true\)/,
+    'the page must never silently choose among several validated final videos');
   assert.match(entryPage, /sourceRunId: source run|owner-scoped|RLS/is);
 });
 
 test('the assembled builder compares before create and has an in-memory single flight', () => {
   assert.match(builder, /action: 'preview'/);
+  // Quick is bound to the exact source too — an unbound Quick moment would be
+  // the cheaper way to authorize a clip with nowhere to go.
+  assert.match(builder, /sourceArtifactId: source\.artifactId/);
+  assert.match(builder, /withinSourceDuration\(/);
   assert.match(builder, /parseGenerationPreviewSet/);
   assert.match(builder, /action: 'create'/);
   assert.match(builder, /parseGenerationCreateResponse/);
