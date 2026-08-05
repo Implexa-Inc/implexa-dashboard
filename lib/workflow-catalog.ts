@@ -21,6 +21,8 @@
 // carries the authoritative remote verdict (see lib/remote-safety.ts and the
 // report), this file is the single place to change the data source.
 
+import type { WorkflowInputContract } from './workflow-input-contract';
+
 const BACKEND = (
   process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai'
 ).replace(/\/$/, '');
@@ -146,6 +148,9 @@ export type WorkflowDetail = {
   version: number | null;
   versions: WorkflowVersionEntry[];
   proposed_count: number;
+  workflow_version_id: string | null;
+  input_contract: WorkflowInputContract | null;
+  input_contract_digest: string | null;
 };
 
 // The backend wraps MCP responses as Server-Sent-Events: `event: message\n
@@ -501,5 +506,8 @@ function mapWorkflowDetail(w: any, slug: string, source: string): WorkflowDetail
           }))
       : [],
     proposed_count: num(w.proposed_count),
+    workflow_version_id: typeof w.workflow_version_id === 'string' ? w.workflow_version_id : null,
+    input_contract: w.input_contract?.version === 1 && Array.isArray(w.input_contract.fields) ? w.input_contract : null,
+    input_contract_digest: typeof w.input_contract_digest === 'string' ? w.input_contract_digest : null,
   };
 }

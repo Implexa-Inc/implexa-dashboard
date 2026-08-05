@@ -559,6 +559,9 @@ export default async function WorkflowDetailPage({
             claudeTaskId={pausableRoutine?.claude_task_id}
             inFlight={inFlight}
             revisePending={revisePending}
+            workflowVersionId={workflow.workflow_version_id}
+            inputContract={workflow.input_contract}
+            inputContractDigest={workflow.input_contract_digest}
             align="start"
           />
         </div>
@@ -684,6 +687,9 @@ export default async function WorkflowDetailPage({
                 claudeTaskId={pausableRoutine?.claude_task_id}
                 inFlight={inFlight}
                 revisePending={revisePending}
+                workflowVersionId={workflow.workflow_version_id}
+                inputContract={workflow.input_contract}
+                inputContractDigest={workflow.input_contract_digest}
               />
               {pausableRoutine && (
                 <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />
