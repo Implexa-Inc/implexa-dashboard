@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import { parseLiveItems } from '@/lib/live-feed';
+import { queuedWaitNotice } from '@/lib/queued-wait-copy';
 import Modal from './modal';
 import StuckRunButton from './stuck-run-button';
 
@@ -448,14 +449,19 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           // fresh agent that hits an un-granted tool/site never dead-ends. Rendered
           // as a SIBLING (can't nest an <a> inside the card's <Link>).
           const showStuck = (c.stuck || c.status === 'needs_attention') && c.status !== 'finished' && c.status !== 'failed';
-          // A queued run that's sat unclaimed for a while isn't "broken" — the most
-          // common cause is no available Claude session on the user's Mac to pick it
-          // up: Claude/the app is closed, the Mac slept, OR they hit the 5-hour usage
-          // limit (the interactive browser-dispatcher cron can't fire on a capped
-          // Claude, so browser runs queue silently). Say so, instead of an endless
-          // spinner (founder was out of Claude credits and had no idea why nothing ran).
-          const QUEUED_WAIT_MS = 8 * 60 * 1000;
-          const showQueuedWait = c.status === 'queued' && elapsedMs(c.since) > QUEUED_WAIT_MS;
+          // A queued run that's sat unclaimed for a while isn't "broken" — but it is
+          // ALSO not "waiting for Claude". This box used to say exactly that for every
+          // queued run, including the auto-routed ones that are the default: it named
+          // an engine nothing had pinned, blamed a 5-hour cap nothing had measured, and
+          // told the user to wait it out while a healthy Codex sat idle. What we may
+          // honestly say lives in lib/queued-wait-copy (pure + tested).
+          const queuedWait = queuedWaitNotice({
+            status: c.status,
+            since: c.since,
+            nowMs: Date.now(),
+            // Only the backend's OWN diagnosis counts as a block. null = not diagnosed.
+            declaredBlock: c.attention?.blockerMessage ?? null,
+          });
           const card = linkable ? (
             <Link href={href!} className={`${cls} hover:border-ink-700 transition-colors`}>{body}</Link>
           ) : (
@@ -534,13 +540,18 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   )}
                 </div>
               )}
-              {showQueuedWait && (
+              {queuedWait && (
                 <div className="mt-1.5 ml-7 rounded-md border border-sky-500/25 bg-sky-500/[0.06] px-3 py-2.5">
-                  <p className="text-[11px] text-sky-700 dark:text-sky-300 leading-snug">
-                    Still waiting for an available Claude session on your Mac to pick this up. Most often that means
-                    Claude (or the Implexa app) isn’t open, your Mac slept, or you’ve hit your Claude 5-hour usage
-                    limit. It runs automatically once Claude is free again — nothing’s lost.
+                  <p className="text-[11px] font-medium text-sky-700 dark:text-sky-300 leading-snug">
+                    {queuedWait.headline}
                   </p>
+                  {/* Only ever the backend's own declared block — never a guessed cause. */}
+                  {queuedWait.block && (
+                    <p className="mt-1 text-[11px] text-sky-700 dark:text-sky-300 leading-snug">
+                      Blocked: {queuedWait.block}
+                    </p>
+                  )}
+                  <p className="mt-1 text-[11px] text-ink-500 leading-snug">{queuedWait.detail}</p>
                 </div>
               )}
             </div>
