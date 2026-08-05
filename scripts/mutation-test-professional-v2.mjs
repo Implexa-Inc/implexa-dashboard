@@ -28,6 +28,8 @@ const FILES = [
   'lib/professional-v2.fixtures.ts',
   'lib/generation-source.ts',
   'lib/generation-source.test.ts',
+  'lib/generation-edit-seed.ts',
+  'lib/generation-edit-seed.test.ts',
   'lib/professional-v2-contract.ts',
   'lib/professional-v2-timeline.ts',
   'lib/generation-control-contract.ts',
@@ -77,6 +79,7 @@ const SUITES = [
   'app/(dashboard)/_components/professional-v2-ui.test.ts',
   // The source-duration boundary's own suite.
   'lib/generation-source.test.ts',
+  'lib/generation-edit-seed.test.ts',
   'app/(dashboard)/runs/[id]/generation-entry.test.ts',
 ];
 
@@ -93,6 +96,7 @@ const PAGE = 'app/(dashboard)/generations/[proposalId]/page.tsx';
 const ENTRY_PAGE = 'app/(dashboard)/runs/[id]/generate-broll/page.tsx';
 const ENTRY_BUILDER = 'app/(dashboard)/_components/broll-proposal-builder.tsx';
 const SOURCE = 'lib/generation-source.ts';
+const EDIT_SEED = 'lib/generation-edit-seed.ts';
 
 const mutations = [
   // ── 0. THE SOURCE-DURATION BOUNDARY ──────────────────────────────────────
@@ -173,6 +177,36 @@ const mutations = [
     boundary: 'source-duration', name: 'the entry page compiles against an unverified source', file: ENTRY_PAGE,
     from: '  if (!source) {',
     to: '  if (false) {',
+  },
+
+  // ── 0b. EDIT MUST PRESERVE THE EXACT SOURCE ──────────────────────────────
+  // The reproduced bug: Edit carried only moments, the ambiguity chooser
+  // replaced `from` with `source`, and the plan was gone — blank builder,
+  // bound to whichever file got clicked.
+  {
+    boundary: 'edit-source-identity', name: 'the edit seed silently rebinds to whatever source was requested', file: EDIT_SEED,
+    from: "    if (requested && requested.mediaDurationMs !== null) {",
+    to: '    if (requested) {',
+  },
+  {
+    boundary: 'edit-source-identity', name: 'a missing plan source falls back to the first remaining file', file: EDIT_SEED,
+    from: "  if (!original) return { kind: 'source_missing', sourceArtifactId: seed.sourceArtifactId, moments: seed.moments };",
+    to: "  if (!original) {\n    const fallback = sources.find((s) => s.mediaDurationMs !== null);\n    if (fallback) return { kind: 'bound', source: { ...fallback, mediaDurationMs: fallback.mediaDurationMs }, moments: seed.moments };\n    return { kind: 'source_missing', sourceArtifactId: seed.sourceArtifactId, moments: seed.moments };\n  }",
+  },
+  {
+    boundary: 'edit-source-identity', name: 'an unverified plan source is reported as bound anyway', file: EDIT_SEED,
+    from: "  if (original.mediaDurationMs === null) return { kind: 'source_unverified', source: original, moments: seed.moments };",
+    to: "  if (original.mediaDurationMs === null) return { kind: 'bound', source: { ...original, mediaDurationMs: 86400000 }, moments: seed.moments };",
+  },
+  {
+    boundary: 'edit-source-identity', name: 'the seed drops the plan\'s source id on the way out', file: ENTRY_PAGE,
+    from: '  return { moments, sourceArtifactId: read.vm.compiled.sourceBinding.sourceArtifactId };',
+    to: "  return { moments, sourceArtifactId: '00000000-0000-4000-8000-000000000000' };",
+  },
+  {
+    boundary: 'edit-source-identity', name: 'an unhonourable edit falls back to the chooser\'s pick', file: ENTRY_PAGE,
+    from: "      : editResolution\n        ? null // an edit whose source cannot be honoured NEVER falls back to the chooser's pick",
+    to: "      : editResolution && false\n        ? null // mutated: the chooser pick leaks through",
   },
 
   // ── 1. INFERRING v2 FROM SHAPE ───────────────────────────────────────────
@@ -510,7 +544,7 @@ const mutations = [
   },
   {
     boundary: 'edit-lifecycle', name: 'a failed edit load opens a blank builder silently', file: ENTRY_PAGE,
-    from: '  const editRequestedButUnavailable = !!searchParams?.from && seedMoments === null;',
+    from: '  const editRequestedButUnavailable = editRequested && seed === null;',
     to: '  const editRequestedButUnavailable = false;',
   },
   {

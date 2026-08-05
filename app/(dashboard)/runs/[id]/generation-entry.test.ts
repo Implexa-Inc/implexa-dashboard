@@ -23,6 +23,15 @@ test('the entry flow is mounted from a validated video run through to the builde
   assert.match(entryPage, /if \(!source\)/);
   // The user resolves ambiguity; the page never picks a source for them.
   assert.match(entryPage, /selectSource/);
+  // EDIT (P1): the seed is a PAIR — moments plus the plan's signed source id —
+  // resolved by the pure resolver, and the chooser preserves `from` so choosing
+  // a source can never swallow the plan being edited.
+  assert.match(entryPage, /resolveEditSeed/);
+  assert.match(entryPage, /sourceArtifactId: read\.vm\.compiled\.sourceBinding\.sourceArtifactId/);
+  assert.match(entryPage, /&from=\$\{encodeURIComponent\(searchParams\.from\)\}/,
+    'the ambiguity chooser must carry ?from through the click');
+  assert.match(entryPage, /source_unverified' \|\| editResolution\.kind === 'source_missing'/,
+    'an edit whose source cannot be honoured must fail closed on its own path');
   assert.doesNotMatch(entryPage, /sources\[0\]|\.find\(\(\) => true\)/,
     'the page must never silently choose among several validated final videos');
   assert.match(entryPage, /sourceRunId: source run|owner-scoped|RLS/is);

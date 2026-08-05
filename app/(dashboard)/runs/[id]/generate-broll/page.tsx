@@ -6,7 +6,8 @@ import {
   type GenerationSourceState, type VerifiedGenerationSource,
 } from '@/lib/generation-source';
 import { getGenerationProposal } from '@/lib/generation-proposal-read';
-import { timelineFromCompiledProposal, type TimelineMoment } from '@/lib/professional-v2-entry';
+import { timelineFromCompiledProposal } from '@/lib/professional-v2-entry';
+import { EDIT_SEED_COPY, resolveEditSeed, type EditSeed } from '@/lib/generation-edit-seed';
 import BrollProposalBuilder from '../../../_components/broll-proposal-builder';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,8 @@ export const dynamic = 'force-dynamic';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
- * The moments of the plan the user chose to edit, or null.
+ * The plan the user chose to edit — its moments AND the exact source artifact
+ * its signed binding names — or null.
  *
  * `?from=` is a URL parameter, so it is treated as an ID TO LOOK UP and nothing
  * more. The proposal is read through the same owner-scoped, JWT-authenticated
@@ -22,15 +24,24 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
  * to nothing. It must also be a v2 plan for THIS run — carrying a plan across
  * runs would bind a timeline to a source it was never written for.
  *
- * No identity travels with the moments: the editor arrives with a plan and no
- * preview, so a fresh compile is required before anything can be saved.
+ * THE SOURCE TRAVELS WITH THE MOMENTS, as one seed. A seed that carried only
+ * moments left the page to resolve the source on its own, and on a run with
+ * several final videos the ambiguity chooser then swallowed the edit entirely
+ * — the plan's timeline gone, the builder blank, bound to whichever file the
+ * user happened to click. The plan already NAMES its file, in a binding the
+ * backend signed; the page's job is to honour it or refuse loudly.
+ *
+ * No approval identity travels: moments and a source id only, so a fresh
+ * compile with its own identity is required before anything can be saved.
  */
-async function seedFromEditedProposal(proposalId: unknown, runId: string): Promise<TimelineMoment[] | null> {
+async function seedFromEditedProposal(proposalId: unknown, runId: string): Promise<EditSeed | null> {
   if (typeof proposalId !== 'string' || !UUID.test(proposalId)) return null;
   const read = await getGenerationProposal(proposalId);
   if (read.state !== 'ready' || read.contract !== 'v2') return null;
   if (read.vm.sourceRunId !== runId) return null;
-  return timelineFromCompiledProposal(read.vm.compiled);
+  const moments = timelineFromCompiledProposal(read.vm.compiled);
+  if (!moments) return null;
+  return { moments, sourceArtifactId: read.vm.compiled.sourceBinding.sourceArtifactId };
 }
 
 function humanize(slug: string): string {
@@ -86,8 +97,21 @@ export default async function GenerateBrollPage({ params, searchParams }: {
     sourceState = { state: 'unavailable' };
   }
 
+  // THE EDIT SEED LOADS BEFORE THE SOURCE IS RESOLVED, because an edited plan
+  // already names its source and that naming outranks the run-level chooser.
+  const seed = await seedFromEditedProposal(searchParams?.from, run.id);
+  const editRequested = !!searchParams?.from;
+  const allSources = 'sources' in sourceState ? sourceState.sources : [];
+
+  // The edited plan's own resolution: bind to ITS source, honour an explicit
+  // different choice as a stated change, or fail closed — decided by the pure
+  // resolver so the A/B case is a unit test, not a page walkthrough.
+  const editResolution = seed ? resolveEditSeed(seed, allSources, searchParams?.source ?? null) : null;
+
   // AMBIGUITY IS RESOLVED BY THE USER, NEVER BY US. With several validated final
   // videos, `?source=` carries their explicit choice; without one the page asks.
+  // An EDIT bypasses the chooser entirely when its plan's source is verified —
+  // the choice was made when the plan was compiled.
   const chosen = sourceState.state === 'ambiguous'
     ? selectSource(sourceState.sources, searchParams?.source ?? null)
     : null;
@@ -96,9 +120,56 @@ export default async function GenerateBrollPage({ params, searchParams }: {
   // source is not a source this lane can compile against, and saying that in the
   // type means no component has to re-check it.
   const chosenDuration = chosen === null ? null : chosen.mediaDurationMs;
-  const source: VerifiedGenerationSource | null = sourceState.state === 'eligible'
-    ? sourceState.source
-    : (chosen !== null && chosenDuration !== null ? { ...chosen, mediaDurationMs: chosenDuration } : null);
+  const source: VerifiedGenerationSource | null =
+    editResolution && (editResolution.kind === 'bound' || editResolution.kind === 'source_changed')
+      ? editResolution.source
+      : editResolution
+        ? null // an edit whose source cannot be honoured NEVER falls back to the chooser's pick
+        : sourceState.state === 'eligible'
+          ? sourceState.source
+          : (chosen !== null && chosenDuration !== null ? { ...chosen, mediaDurationMs: chosenDuration } : null);
+
+  // ── AN EDIT THAT CANNOT BIND FAILS CLOSED, with its own copy ──────────────
+  if (editResolution && (editResolution.kind === 'source_unverified' || editResolution.kind === 'source_missing')) {
+    const copy = EDIT_SEED_COPY[editResolution.kind];
+    // The deliberate way out: recompile these SAME moments against another
+    // verified source. `from` is preserved so the plan's timeline survives the
+    // click; `source` states the change; nothing happens without this click.
+    const alternates = allSources.filter((candidate) => candidate.mediaDurationMs !== null
+      && candidate.artifactId !== seed!.sourceArtifactId);
+    return (
+      <main className="min-h-screen px-4 py-12">
+        <div className="mx-auto max-w-3xl">
+          <Link href={`/runs/${encodeURIComponent(params.id)}`} className="text-xs text-ink-500 hover:text-ink-200">← Back to run</Link>
+          <div className="mt-4 rounded-lg border border-ink-800 bg-ink-950/50 p-5">
+            <h1 className="text-lg font-medium text-ink-100">{copy.title}</h1>
+            <p className="mt-2 text-sm text-ink-400">{copy.body}</p>
+            {copy.action && (
+              <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">{copy.action}</p>
+            )}
+            {alternates.length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs font-medium text-ink-300">Change source and recompile these moments</p>
+                <ul className="mt-2 space-y-2">
+                  {alternates.map((candidate) => (
+                    <li key={candidate.artifactId}>
+                      <Link
+                        href={`/runs/${encodeURIComponent(params.id)}/generate-broll?from=${encodeURIComponent(String(searchParams?.from))}&source=${encodeURIComponent(candidate.artifactId)}`}
+                        className="flex items-center justify-between rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 hover:border-ink-500"
+                      >
+                        <span>{candidate.relativePath}</span>
+                        <span className="text-xs text-ink-400">{formatDurationMs(candidate.mediaDurationMs as number)}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   if (!source) {
     // Which unavailable state, exactly — because "unavailable" with no reason is
@@ -126,7 +197,7 @@ export default async function GenerateBrollPage({ params, searchParams }: {
                 {choices.map((candidate) => (
                   <li key={candidate.artifactId}>
                     <Link
-                      href={`/runs/${encodeURIComponent(params.id)}/generate-broll?source=${encodeURIComponent(candidate.artifactId)}`}
+                      href={`/runs/${encodeURIComponent(params.id)}/generate-broll?source=${encodeURIComponent(candidate.artifactId)}${searchParams?.from ? `&from=${encodeURIComponent(searchParams.from)}` : ''}`}
                       className="flex items-center justify-between rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 hover:border-ink-500"
                     >
                       <span>{candidate.relativePath}</span>
@@ -150,8 +221,8 @@ export default async function GenerateBrollPage({ params, searchParams }: {
   }
 
   const agentName = humanize(run.skill_slug);
-  const seedMoments = await seedFromEditedProposal(searchParams?.from, run.id);
-  const editRequestedButUnavailable = !!searchParams?.from && seedMoments === null;
+  const seedMoments = editResolution ? editResolution.moments : null;
+  const editRequestedButUnavailable = editRequested && seed === null;
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="mx-auto max-w-3xl">
@@ -162,6 +233,16 @@ export default async function GenerateBrollPage({ params, searchParams }: {
                 the edit worked and leave the user rebuilding without knowing it. */}
             Implexa couldn&apos;t load the plan you asked to edit, so this builder is starting
             empty. Nothing was changed or approved — check that plan before rebuilding it here.
+          </p>
+        )}
+        {editResolution && editResolution.kind === 'source_changed' && (
+          <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+            {/* A stated change, never a silent one: the moments came from a plan
+                compiled against a different video, and the new source's length is
+                what these windows will now be checked against. */}
+            You&apos;re recompiling this plan against a <span className="font-medium">different source video</span> than
+            it was originally built for. The moments carried over; their windows will be checked
+            against the new video&apos;s length when you preview.
           </p>
         )}
         <div className="mt-4">
