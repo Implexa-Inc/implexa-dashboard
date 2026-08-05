@@ -26,6 +26,8 @@ const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 /** Everything the suites below need, at its real path. */
 const FILES = [
   'lib/professional-v2.fixtures.ts',
+  'lib/generation-source.ts',
+  'lib/generation-source.test.ts',
   'lib/professional-v2-contract.ts',
   'lib/professional-v2-timeline.ts',
   'lib/generation-control-contract.ts',
@@ -49,6 +51,7 @@ const FILES = [
   // killed HERE, by the tests that were already guarding it.
   'lib/generation-proposal.test.ts',
   'lib/generation-proposal-entry.test.ts',
+  'app/(dashboard)/runs/[id]/generation-entry.test.ts',
   // Read as text by the assembly guards.
   'app/(dashboard)/_components/professional-v2-ui.test.ts',
   'app/(dashboard)/_components/professional-broll-builder.tsx',
@@ -72,6 +75,9 @@ const SUITES = [
   'lib/generation-proposal.test.ts',
   'lib/generation-proposal-entry.test.ts',
   'app/(dashboard)/_components/professional-v2-ui.test.ts',
+  // The source-duration boundary's own suite.
+  'lib/generation-source.test.ts',
+  'app/(dashboard)/runs/[id]/generation-entry.test.ts',
 ];
 
 const CONTRACT = 'lib/generation-control-contract.ts';
@@ -86,8 +92,89 @@ const CARD = 'app/(dashboard)/_components/professional-v2-proposal-card.tsx';
 const PAGE = 'app/(dashboard)/generations/[proposalId]/page.tsx';
 const ENTRY_PAGE = 'app/(dashboard)/runs/[id]/generate-broll/page.tsx';
 const ENTRY_BUILDER = 'app/(dashboard)/_components/broll-proposal-builder.tsx';
+const SOURCE = 'lib/generation-source.ts';
 
 const mutations = [
+  // ── 0. THE SOURCE-DURATION BOUNDARY ──────────────────────────────────────
+  // The browser is not the gate — the backend is, twice. But a browser that
+  // INVENTS a ceiling, or renders a plan whose bound it cannot state, teaches
+  // the user something false about what they are about to authorize.
+  {
+    boundary: 'source-duration', name: 'null duration treated as unlimited', file: SOURCE,
+    from: '  if (!isAuthoritativeDurationMs(mediaDurationMs)) return false;',
+    to: '  if (!isAuthoritativeDurationMs(mediaDurationMs)) return true;',
+  },
+  {
+    boundary: 'source-duration', name: 'one millisecond past the source accepted', file: SOURCE,
+    from: '  return startMs < mediaDurationMs && endMs <= mediaDurationMs;',
+    to: '  return startMs < mediaDurationMs && endMs <= mediaDurationMs + 1;',
+  },
+  {
+    boundary: 'source-duration', name: 'a browser-supplied string duration coerced into a number', file: SOURCE,
+    from: '  return typeof value === \'number\'\n    && Number.isSafeInteger(value)',
+    to: '  return Number.isSafeInteger(Number(value))',
+  },
+  {
+    boundary: 'source-duration', name: 'a source artifact chosen implicitly when several exist', file: SOURCE,
+    from: "  if (sources.length > 1) return { state: 'ambiguous', sources };",
+    to: '  if (sources.length > 1) return { state: sources[0].mediaDurationMs === null ? \'needs_verification\' : \'eligible\', source: sources[0], sources };',
+  },
+  {
+    boundary: 'source-duration', name: 'an unverified source reported as eligible', file: SOURCE,
+    from: "  if (duration === null) return { state: 'needs_verification', sources };",
+    to: '  if (false) return { state: \'needs_verification\', sources };',
+  },
+  {
+    boundary: 'source-duration', name: 'a malformed artifact row read as "no video"', file: SOURCE,
+    from: "    if (!(typeof artifact.id === 'string' && UUID.test(artifact.id))) return { state: 'unavailable' };",
+    to: '    if (!(typeof artifact.id === \'string\' && UUID.test(artifact.id))) continue;',
+  },
+  {
+    boundary: 'source-duration', name: 'the timeline stops enforcing the ceiling', file: TIMELINE,
+    from: '        } else if (!withinSourceDuration(toMs(moment.startSeconds), toMs(moment.endSeconds), mediaDurationMs)) {',
+    to: '        } else if (false) {',
+  },
+  {
+    boundary: 'source-duration', name: 'an unknown duration silently accepted by the editor', file: TIMELINE,
+    from: '        if (!isAuthoritativeDurationMs(mediaDurationMs)) {',
+    to: '        if (false) {',
+  },
+  {
+    boundary: 'source-duration', name: 'an out-of-range timeline is serialized anyway', file: TIMELINE,
+    from: '  if (!validateTimeline(moments, mediaDurationMs).ok) return null;',
+    to: '  if (!validateTimeline(moments).ok) return null;',
+  },
+  {
+    boundary: 'source-duration', name: 'a v2 document with no source binding is rendered as a plan', file: DOC,
+    from: '  const sourceBinding = parseSourceBinding(v.source_binding, moments);\n  if (!sourceBinding) return null;',
+    to: '  const sourceBinding = parseSourceBinding(v.source_binding, moments) || { sourceRunId: \'\', sourceArtifactId: \'\', sourceArtifactSha256: \'\', mediaDurationMs: 1, windows: [] };',
+  },
+  {
+    boundary: 'source-duration', name: 'a binding whose windows disagree with the graph is accepted', file: DOC,
+    from: '    if (!window || window.startMs !== moment.startMs || window.endMs !== moment.endMs) return null;',
+    to: '    if (false) return null;',
+  },
+  {
+    boundary: 'source-duration', name: 'a plan compiled against a DIFFERENT source is accepted', file: ENTRY,
+    from: '  if (compiled.sourceBinding.sourceArtifactId !== expected.sourceArtifactId) return false;',
+    to: '  if (false) return false;',
+  },
+  {
+    boundary: 'source-duration', name: 'switching the source does not invalidate the approval', file: ENTRY,
+    from: "  if (ref.sourceArtifactId !== vm.compiled.sourceBinding.sourceArtifactId) return refuse('source_changed');",
+    to: '  if (false) return refuse(\'source_changed\');',
+  },
+  {
+    boundary: 'source-duration', name: 'Quick sends a moment past the end of its source', file: ENTRY_BUILDER,
+    from: '    if (!withinSourceDuration(',
+    to: '    if (false && !withinSourceDuration(',
+  },
+  {
+    boundary: 'source-duration', name: 'the entry page compiles against an unverified source', file: ENTRY_PAGE,
+    from: '  if (!source) {',
+    to: '  if (false) {',
+  },
+
   // ── 1. INFERRING v2 FROM SHAPE ───────────────────────────────────────────
   {
     boundary: 'discriminator', name: 'v2 inferred from the presence of a control graph', file: CONTRACT,

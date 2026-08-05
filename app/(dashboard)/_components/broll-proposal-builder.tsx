@@ -6,6 +6,7 @@ import QualityModeSelector from './quality-mode-selector';
 import ProfessionalBrollBuilder from './professional-broll-builder';
 import type { TimelineMoment } from '@/lib/professional-v2-timeline';
 import type { QualityMode } from '@/lib/quality-mode';
+import { formatDurationMs, durationSeconds, withinSourceDuration, type VerifiedGenerationSource } from '@/lib/generation-source';
 import {
   beginProposalCreate, parseGenerationCreateResponse, parseGenerationPreviewSet,
   proposalCreateLabel, proposalEntryError, proposalSummaryLine, validateGenerationMoment,
@@ -16,6 +17,12 @@ type Props = {
   runId: string;
   agentSubject: string;
   agentName: string;
+  /**
+   * The EXACT validated source both lanes are cut into, with the authoritative
+   * Desktop-probed length. Quick is bound exactly like Professional: an unbound
+   * Quick moment would just be the cheaper way to buy a clip with nowhere to go.
+   */
+  source: VerifiedGenerationSource;
   /** Moments of a Professional plan being edited, loaded server-side. */
   seedMoments?: TimelineMoment[] | null;
 };
@@ -47,7 +54,7 @@ async function action(body: Record<string, unknown>): Promise<{ ok: boolean; sta
  */
 type EntryLane = 'quick' | 'professional';
 
-export default function BrollProposalBuilder({ runId, agentSubject, agentName, seedMoments = null }: Props) {
+export default function BrollProposalBuilder({ runId, agentSubject, agentName, source, seedMoments = null }: Props) {
   const router = useRouter();
   const createFlight = useRef(false);
   // Quick stays the default. A seeded timeline means the user arrived by editing
@@ -76,11 +83,24 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
   async function compare() {
     const invalid = validateGenerationMoment(moment);
     if (invalid) { setError(invalid); return; }
+    // THE SOURCE-DURATION CEILING, in the same integer milliseconds the backend
+    // compares: `end <= duration` is valid and one millisecond beyond is not,
+    // and two floats differing in the last bit must not decide which side of
+    // that the user is on.
+    if (!withinSourceDuration(
+      Math.round(moment.startSeconds * 1000), Math.round(moment.endSeconds * 1000), source.mediaDurationMs,
+    )) {
+      setError(`This moment runs past the end of the source video (${formatDurationMs(source.mediaDurationMs)}). A clip generated for it would have nowhere to go.`);
+      return;
+    }
     setPhase('previewing'); setError(null); setPreviews(null);
     const modes: QualityMode[] = ['fast', 'professional', 'production'];
     const responses = await Promise.all(modes.map(async (qualityMode) => {
       const result = await action({
         action: 'preview', agentSubject, sourceRunId: runId, qualityMode,
+        // NAMED. With more than one validated final video the backend refuses to
+        // choose, because the two files may not be the same length.
+        sourceArtifactId: source.artifactId,
         moments: [moment],
       });
       return [qualityMode, result] as const;
@@ -104,6 +124,7 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
     setPhase('creating'); setError(null);
     const result = await action({
       action: 'create', agentSubject, sourceRunId: runId, qualityMode: mode,
+      sourceArtifactId: source.artifactId,
       moments: [moment],
     });
     if (!result.ok) {
@@ -135,6 +156,12 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
         </p>
       </div>
 
+      <p className="mt-3 text-xs text-ink-400">
+        Cutting into <span className="font-medium text-ink-200">{source.relativePath}</span>
+        {' · source length '}
+        <span className="font-medium text-ink-200">{formatDurationMs(source.mediaDurationMs)}</span>
+      </p>
+
       <div role="group" aria-label="Generation lane" className="mt-4 flex flex-wrap gap-2">
         {([
           ['quick', 'Quick', 'One moment, one take.'],
@@ -157,7 +184,9 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
 
       {lane === 'professional' && (
         <div className="mt-5">
-          <ProfessionalBrollBuilder runId={runId} agentSubject={agentSubject} seedMoments={seedMoments} />
+          <ProfessionalBrollBuilder
+            runId={runId} agentSubject={agentSubject} source={source} seedMoments={seedMoments}
+          />
         </div>
       )}
 
@@ -170,12 +199,14 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
                 (verified in-browser), while typed sub-second values stay valid.
                 step="0.001" made every arrow press a 1ms nudge — 5 became 4.999 —
                 and step="1" would mark a typed 4.994 stepMismatch-invalid. */}
-            <input value={start} onChange={(e) => edit(setStart, e.target.value)} inputMode="decimal" type="number" min="0" step="any"
+            <input value={start} onChange={(e) => edit(setStart, e.target.value)} inputMode="decimal" type="number"
+              min="0" max={durationSeconds(source.mediaDurationMs)} step="any"
               className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100" />
           </label>
           <label className="text-sm text-ink-300">
             End (seconds)
-            <input value={end} onChange={(e) => edit(setEnd, e.target.value)} inputMode="decimal" type="number" min="0" step="any"
+            <input value={end} onChange={(e) => edit(setEnd, e.target.value)} inputMode="decimal" type="number"
+              min="0" max={durationSeconds(source.mediaDurationMs)} step="any"
               className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100" />
           </label>
         </div>
@@ -184,7 +215,9 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName, s
           <textarea value={prompt} onChange={(e) => edit(setPrompt, e.target.value)} maxLength={700} rows={4}
             placeholder="Example: A clean aerial route map moving from Palo Alto to Pleasanton at sunrise, no text or logos."
             className="mt-1 w-full resize-y rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100 placeholder:text-ink-600" />
-          <span className="mt-1 block text-xs text-ink-600">{prompt.length}/700 · the window must be 2–10 seconds</span>
+          <span className="mt-1 block text-xs text-ink-600">
+            {prompt.length}/700 · the window must be 2–10 seconds, and must end at or before {formatDurationMs(source.mediaDurationMs)}
+          </span>
         </label>
 
         {previews && (

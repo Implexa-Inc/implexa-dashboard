@@ -41,7 +41,11 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const EXPECTED_BACKEND_HEAD = '5cad5203342068981ec9e739792db52379235089';
+// RE-PINNED to the source-duration-boundary head (migration 0158). Every
+// fixture below is produced by THAT producer, so the browser's bounds, its
+// strict parsers and its editor all agree with the exact backend a PR ships
+// against — not with whatever is on main today.
+const EXPECTED_BACKEND_HEAD = 'a3422cc73189a0c6ac40cd869f39547a57e0b56f';
 
 const dashboardRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const backendRoot = resolve(process.env.IMPLEXA_BACKEND_DIR || join(dashboardRoot, '..', 'implexa-backend'));
@@ -68,6 +72,24 @@ const CONTROL_V1 = professional.CONTROL_CONTRACT_V1;
 const USER_ID = '3f1c0a2e-6d4b-4a1e-9c77-2b8f5a0d4e11';
 const ORG_ID = '9a2d5c31-77e4-4b6a-8f10-c3d9e2b41a55';
 const SOURCE_RUN_ID = '7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77';
+const SOURCE_ARTIFACT_ID = 'b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134';
+const SOURCE_ARTIFACT_SHA256 = 'c'.repeat(64);
+/**
+ * TEN MINUTES. 0158 binds every proposal to an exact validated source and its
+ * Desktop-probed duration; these fixtures' moments sit inside the first minute,
+ * so the ceiling never fires here and the fixtures keep describing the shapes
+ * they were written to describe. The ceiling has its own tests.
+ */
+const SOURCE_MEDIA_DURATION_MS = 600000;
+
+/** The DOCUMENT-shaped binding a graph carries, for the direct-build probes. */
+const graphSourceBinding = (windows) => ({
+  source_run_id: SOURCE_RUN_ID,
+  source_artifact_id: SOURCE_ARTIFACT_ID,
+  source_artifact_sha256: SOURCE_ARTIFACT_SHA256,
+  media_duration_ms: SOURCE_MEDIA_DURATION_MS,
+  windows,
+});
 const PROPOSAL_ID = 'd41f6a80-5b2c-4e19-8f36-1a7c9d0e2b43';
 const AGENT_SUBJECT = 'daily-ig-reel';
 const CREATED_AT = '2026-08-04T17:00:00.000Z';
@@ -84,15 +106,19 @@ function fakeDb({ proposalRow = null } = {}) {
     if (table === 'skill_runs') return { data: { id: SOURCE_RUN_ID }, error: null };
     if (table === 'run_requests') return { data: null, error: null };
     if (table === 'run_artifacts') {
-      return {
-        data: [{
-          id: 'b8a1d20c-4e73-4f19-9c8a-5d2e6f70b134',
-          status: 'validated',
-          role: 'final_output',
-          relative_path: 'output/final-reel.mp4',
-        }],
-        error: null,
+      // The REAL row shape the 0158 resolver reads, digest and duration
+      // included. `data` serves the LIST read (eligibility) and `single` the
+      // approval-time re-read of the exact named artifact — PostgREST shapes
+      // those differently, and conflating them is how a list-vs-row bug hides.
+      const artifact = {
+        id: SOURCE_ARTIFACT_ID,
+        status: 'validated',
+        role: 'final_output',
+        relative_path: 'output/final-reel.mp4',
+        sha256: SOURCE_ARTIFACT_SHA256,
+        media_duration_ms: SOURCE_MEDIA_DURATION_MS,
       };
+      return { data: [artifact], error: null, single: artifact };
     }
     if (table === 'generation_proposals') return { data: stored.row, error: null };
     if (table === 'run_capability_task_events') return { data: [], error: null };
@@ -106,7 +132,15 @@ function fakeDb({ proposalRow = null } = {}) {
         in: () => chain,
         order: () => answer(table),
         limit: () => answer(table),
-        maybeSingle: async () => answer(table),
+        maybeSingle: async () => {
+          const result = answer(table);
+          // PostgREST shapes a list read and a single read differently, and the
+          // 0158 approval path uses the single read for the exact named
+          // artifact. Conflating them is how a list-vs-row bug hides.
+          return result && result.single !== undefined
+            ? { data: result.single, error: result.error }
+            : result;
+        },
         single: async () => answer(table),
         insert(row) {
           // The DB assigns id and created_at; the service reads them back off the
@@ -194,7 +228,13 @@ async function preview({ moments, qualityMode = 'professional', controlContractV
     sourceRunId: SOURCE_RUN_ID,
     sourceRequestId: null,
     moments,
-  }, { resolveProfessionalAvailability: resolver(availabilityResult ?? availability()) });
+    // 0158: preview resolves the exact validated source artifact, which is an
+    // OWNER-SCOPED read — so it needs the caller identity create already passed.
+    userId: USER_ID,
+  }, {
+    db: fakeDb(),
+    resolveProfessionalAvailability: resolver(availabilityResult ?? availability()),
+  });
   if (!out || out.ok !== true) throw new Error(`preview refused: ${JSON.stringify(out)}`);
   return out;
 }
@@ -262,7 +302,13 @@ function v2Accepts(moments) {
   const normalized = compiler.normalizeV2RequestMoments(moments);
   if (!normalized.ok) return false;
   const compiled = compiler.compileGenerationProposalV2(
-    { capabilityKey: 'video.generate_broll', executionMode: 'professional', moments: normalized.moments },
+    {
+      capabilityKey: 'video.generate_broll', executionMode: 'professional', moments: normalized.moments,
+      sourceBinding: {
+        sourceRunId: SOURCE_RUN_ID, sourceArtifactId: SOURCE_ARTIFACT_ID,
+        sourceArtifactSha256: SOURCE_ARTIFACT_SHA256, mediaDurationMs: SOURCE_MEDIA_DURATION_MS,
+      },
+    },
     { professionalAvailability: { available: true, required_missing_capabilities: [] } },
   );
   return compiled.ok === true;
@@ -471,6 +517,8 @@ const DERIVED_PROMPT_SUFFIXES = (() => {
         variants_requested: variants, judge_mode: 'ranked', max_repairs: 1,
         provider_identity: { ...compiler.PROVIDER_PIN }, reference_artifact_ids: [],
       }],
+      // 0158: a graph cannot be built without the exact source it is cut into.
+      sourceBinding: graphSourceBinding([{ moment_id: 'hook', start_ms: 0, end_ms: 3000 }]),
     });
     if (!graph) throw new Error(`suffix probe failed at ${variants} variants`);
     candidate[variants] = {};

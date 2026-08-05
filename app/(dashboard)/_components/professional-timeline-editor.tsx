@@ -19,6 +19,7 @@
  */
 
 import type { JudgeMode } from '@/lib/professional-v2-contract';
+import { durationSeconds } from '@/lib/generation-source';
 import {
   BOUNDS, DEFAULT_RATIO, JUDGE_MODES_ALLOWING_REPAIR, PINNED_PROVIDER,
   maxSourcePromptChars, pinnedProviderCapability,
@@ -32,6 +33,18 @@ type Props = {
   moments: TimelineMoment[];
   onChange: (moments: TimelineMoment[]) => void;
   disabled: boolean;
+  /**
+   * The authoritative source length in integer milliseconds, read from the
+   * backend and never computed here. Bounds the timestamp fields and the
+   * validation shown below.
+   *
+   * The `max` it produces is a CONVENIENCE, not the gate: a number input's max
+   * does not stop typing, pasting or autofill, and devtools ignore it entirely.
+   * The gate is the backend — at compile, at create, and again at approval
+   * against a fresh read. What this buys is a user who sees the problem where
+   * they can fix it.
+   */
+  mediaDurationMs: number;
 };
 
 const numberOrNaN = (value: string): number => (value.trim() === '' ? Number.NaN : Number(value));
@@ -40,8 +53,8 @@ function issuesFor(issues: TimelineIssue[], momentId: string): TimelineIssue[] {
   return issues.filter((issue) => issue.momentId === momentId);
 }
 
-export default function ProfessionalTimelineEditor({ moments, onChange, disabled }: Props) {
-  const validation = validateTimeline(moments);
+export default function ProfessionalTimelineEditor({ moments, onChange, disabled, mediaDurationMs }: Props) {
+  const validation = validateTimeline(moments, mediaDurationMs);
   const timelineIssues = validation.issues.filter((issue) => issue.momentId === null);
   const outOfOrder = validation.issues.some((issue) => issue.code === 'out_of_order');
   const capability = pinnedProviderCapability();
@@ -118,7 +131,8 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
                       sub-second values stay valid — same reasoning as the Quick
                       builder's timestamp fields. */}
                   <input
-                    type="number" min="0" step="any" inputMode="decimal" disabled={disabled}
+                    type="number" min="0" max={durationSeconds(mediaDurationMs)} step="any"
+                    inputMode="decimal" disabled={disabled}
                     value={Number.isFinite(moment.startSeconds) ? String(moment.startSeconds) : ''}
                     onChange={(e) => set(moment.id, { startSeconds: numberOrNaN(e.target.value) })}
                     className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm text-ink-100 disabled:opacity-50"
@@ -127,7 +141,8 @@ export default function ProfessionalTimelineEditor({ moments, onChange, disabled
                 <label className="text-xs text-ink-300">
                   End (seconds)
                   <input
-                    type="number" min="0" step="any" inputMode="decimal" disabled={disabled}
+                    type="number" min="0" max={durationSeconds(mediaDurationMs)} step="any"
+                    inputMode="decimal" disabled={disabled}
                     value={Number.isFinite(moment.endSeconds) ? String(moment.endSeconds) : ''}
                     onChange={(e) => set(moment.id, { endSeconds: numberOrNaN(e.target.value) })}
                     className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm text-ink-100 disabled:opacity-50"

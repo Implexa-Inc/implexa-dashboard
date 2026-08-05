@@ -27,6 +27,7 @@ import {
   maxSourcePromptChars, toMs,
   type JudgeMode,
 } from './professional-v2-contract.ts';
+import { formatDurationMs, isAuthoritativeDurationMs, withinSourceDuration } from './generation-source.ts';
 
 export type TimelineMoment = {
   id: string;
@@ -53,6 +54,7 @@ export type TimelineIssue = {
     | 'missing_prompt' | 'prompt_too_long'
     | 'invalid_window' | 'window_too_short' | 'window_too_long' | 'window_precision'
     | 'out_of_order' | 'overlap'
+    | 'moment_outside_source_duration' | 'source_duration_unknown'
     | 'invalid_variants' | 'invalid_judge_mode' | 'invalid_repairs'
     | 'repair_without_judge' | 'unsupported_ratio' | 'uncatalogued_provider';
   message: string;
@@ -171,8 +173,26 @@ const isMs = (seconds: number): boolean =>
  * moment at a time, discovering a new refusal after each round trip, is the
  * experience this editor exists to replace.
  */
-export function validateTimeline(moments: readonly TimelineMoment[]): TimelineValidation {
+/**
+ * `mediaDurationMs` is the AUTHORITATIVE source length, read from the backend —
+ * never computed here, never guessed from a file size or a `<video>` element.
+ *
+ * It is optional so that pure cost/shape validation still works where no source
+ * is in play (the fixture regenerator, the cost reconciler). Where a source IS
+ * in play, passing `null` produces `source_duration_unknown` on every moment
+ * rather than silently accepting them: an unknown duration is never unlimited,
+ * on this side either.
+ */
+export function validateTimeline(
+  moments: readonly TimelineMoment[],
+  mediaDurationMs: number | null | undefined = undefined,
+): TimelineValidation {
   const issues: TimelineIssue[] = [];
+  // `undefined` means "this call is not about a source at all" — a distinct
+  // thing from `null`, which means "there is a source and we do not know how
+  // long it is". Conflating them would either break the shape-only callers or
+  // let an unverified source through.
+  const boundToSource = mediaDurationMs !== undefined;
   const push = (momentId: string | null, code: TimelineIssue['code'], message: string) =>
     issues.push({ momentId, code, message });
 
@@ -230,6 +250,20 @@ export function validateTimeline(moments: readonly TimelineMoment[]): TimelineVa
       }
       if (durationSeconds > BOUNDS.maxDurationSeconds) {
         push(moment.id, 'window_too_long', `${label} is longer than ${BOUNDS.maxDurationSeconds} seconds.`);
+      }
+      // ── THE SOURCE-DURATION CEILING ────────────────────────────────────
+      // Compared in integer MILLISECONDS, exactly as the backend compares it:
+      // `end <= duration` is valid and `end === duration + 1` is not, and two
+      // floats differing in the last bit must not decide which side of that a
+      // user is on.
+      if (boundToSource) {
+        if (!isAuthoritativeDurationMs(mediaDurationMs)) {
+          push(moment.id, 'source_duration_unknown',
+            `${label} cannot be checked: Implexa does not know how long the source video is yet. Open Implexa Desktop to verify it.`);
+        } else if (!withinSourceDuration(toMs(moment.startSeconds), toMs(moment.endSeconds), mediaDurationMs)) {
+          push(moment.id, 'moment_outside_source_duration',
+            `${label} runs past the end of the source video (${formatDurationMs(mediaDurationMs)}). A clip generated for it would have nowhere to go.`);
+        }
       }
     }
 
@@ -316,11 +350,17 @@ export function validateTimeline(moments: readonly TimelineMoment[]): TimelineVa
  * PINS the provider identity and derives every price; a client that named either
  * would be choosing what it is charged at.
  */
-export function toRequestMoments(moments: readonly TimelineMoment[]): Array<{
+export function toRequestMoments(
+  moments: readonly TimelineMoment[],
+  mediaDurationMs: number | null | undefined = undefined,
+): Array<{
   id: string; prompt: string; start_seconds: number; end_seconds: number; ratio: string;
   variants_requested: number; judge_mode: JudgeMode; max_repairs: number;
 }> | null {
-  if (!validateTimeline(moments).ok) return null;
+  // Serializing IS sending. A timeline that fails against the source it is
+  // bound to must never be serialized, or the refusal would arrive from the
+  // backend after the user had every reason to believe it was accepted.
+  if (!validateTimeline(moments, mediaDurationMs).ok) return null;
   return moments.map((moment) => ({
     id: moment.id,
     prompt: moment.prompt.trim(),
