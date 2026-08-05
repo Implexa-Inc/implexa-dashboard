@@ -26,8 +26,12 @@ import Modal from './modal';
 import SetupChoiceField from './setup-choice-field';
 import { firstRunPermsSeen, markFirstRunPermsSeen } from './first-run-permissions-note';
 import { getAgentNoteDraft, clearAgentNoteDraft } from '@/lib/agent-note-draft';
-import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
+import { AttachFiles, composeNoteWithFiles, desktopBridge, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
+import {
+  missingRequiredInputs, orderedInputFields, serializeArtifactBindings,
+  type ArtifactBinding, type RunInputBindings, type WorkflowInputContract,
+} from '@/lib/workflow-input-contract';
 
 type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
 type SetupField = {
@@ -65,7 +69,7 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, workflowVersionId = null, inputContract = null, inputContractDigest = null }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -94,6 +98,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
    *  footgun) and relabelled "Updating…". Cleared server-side once the rewrite
    *  lands; we poll router.refresh() so the button frees up without a reload. */
   revisePending?: boolean;
+  workflowVersionId?: string | null;
+  inputContract?: WorkflowInputContract | null;
+  inputContractDigest?: string | null;
 }) {
   // ONE gate expression. Optional preferences never stop a run.
   const blocking = blockingQuestions ?? pendingQuestions;
@@ -135,6 +142,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // something the engine it would run on doesn't have. Not an error state — a choice
   // (switch engine / grant it / run anyway), so it renders as a card, not a failure.
   const [capCard, setCapCard] = useState<CapabilityCardData | null>(null);
+  const typedFields = orderedInputFields(inputContract);
+  const [inputBindings, setInputBindings] = useState<RunInputBindings>({});
+  const [inputSessionId, setInputSessionId] = useState<string | null>(null);
   // The note the blocked attempt carried, so a retry after switching/granting keeps it.
   const lastNote = useRef<string | undefined>(undefined);
   // The fingerprint computed by the LAST precheck, kept alongside lastNote because
@@ -153,6 +163,48 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   useEffect(() => { stateRef.current = state; }, [state]);
   const supabase = createClient();
   const router = useRouter();
+
+  // Preserve semantic identity across remount/back navigation. Only opaque ids,
+  // digests, and display names are stored; local paths remain Desktop-local.
+  useEffect(() => {
+    if (!workflowVersionId || typeof window === 'undefined') return;
+    const key = `implexa:run-inputs:${slug}:${workflowVersionId}`;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(key) || '{}');
+      if (saved?.bindings && typeof saved.bindings === 'object') setInputBindings(saved.bindings);
+      if (typeof saved?.inputSessionId === 'string') setInputSessionId(saved.inputSessionId);
+    } catch { /* malformed/stale browser state is ignored */ }
+  }, [slug, workflowVersionId]);
+
+  useEffect(() => {
+    if (!workflowVersionId || typeof window === 'undefined') return;
+    const key = `implexa:run-inputs:${slug}:${workflowVersionId}`;
+    try { sessionStorage.setItem(key, JSON.stringify({ bindings: inputBindings, inputSessionId })); } catch { /* private mode */ }
+  }, [slug, workflowVersionId, inputBindings, inputSessionId]);
+
+  async function chooseTypedInput(field: (typeof typedFields)[number]) {
+    const bridge = desktopBridge();
+    if (!bridge?.pickRunInput) return;
+    const result = await bridge.pickRunInput({
+      inputKey: field.key,
+      ...(inputSessionId ? { inputSessionId } : {}),
+      ...(field.accept ? { accept: field.accept } : {}),
+    }).catch(() => null);
+    if (!result?.ok || !result.artifactId || !result.sha256 || !result.displayName || !result.inputSessionId) return;
+    const binding: ArtifactBinding = {
+      artifactId: result.artifactId,
+      sha256: result.sha256,
+      displayName: result.displayName,
+      ...(result.mediaType ? { mediaType: result.mediaType } : {}),
+    };
+    setInputSessionId(result.inputSessionId);
+    setInputBindings((previous) => {
+      if (field.cardinality !== 'many') return { ...previous, [field.key]: binding };
+      const current = previous[field.key];
+      const list = Array.isArray(current) ? current.filter((value): value is ArtifactBinding => typeof value === 'object') : [];
+      return { ...previous, [field.key]: [...list, binding] };
+    });
+  }
 
   // Poll the queued request until the plugin marks it done (run_id linked).
   useEffect(() => {
@@ -330,7 +382,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // REQUIRED-ONLY. Blocking on every displayed field made an optional preference
     // — correctly skippable during activation — required again at the first Run
     // click, which silently undid the whole tier split one surface later.
-    if (blankRequired.length) return;
+    if (blankRequired.length || missingRequiredInputs(inputContract, inputBindings).length) return;
     setSetupSaving(true);
     setMsg('');
     try {
@@ -341,7 +393,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // standing note (__agent_note). The drainer reads it back from the request's
       // `intent` and passes it to run_agent_now, which combines it with the standing
       // note for the run. Net: the saved note stays clean; this applies to just this run.
-      const perRunNote = composeNoteWithFiles(runNote, runFiles);
+      const perRunNote = typedFields.length ? runNote.trim() : composeNoteWithFiles(runNote, runFiles);
       // Persist reviewed setup answers AND the (explicit, clearly-labeled) standing
       // note — the ONE-OFF runNote above is still never written to the standing note.
       // Saving the standing note here is what stops a note typed in Setup (or edited
@@ -360,7 +412,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // Carry the per-run note into the run: the queue path sends it as the run-request
       // `note`; the watch path puts it (paths included) in the prefilled prompt of the
       // session you're about to supervise.
-      if (preRunMode === 'watch') await doWatch(perRunNote || undefined);
+      if (preRunMode === 'watch' && !typedFields.length) await doWatch(perRunNote || undefined);
       else await doQueue(perRunNote || undefined);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Could not save your input. Try again.');
@@ -426,6 +478,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           ...(fingerprint ? { inputFingerprint: fingerprint } : {}),
           // Carries the card's "Run anyway" through. We ask, we never forbid.
           ...(opts?.force ? { force: true } : {}),
+          ...(typedFields.length && workflowVersionId && inputContractDigest ? {
+            workflowVersionId,
+            inputContractDigest,
+            inputBindings: serializeArtifactBindings(inputBindings),
+            inputSessionId,
+          } : {}),
         },
       });
       requestId.current = res?.request?.id || null;
@@ -783,6 +841,78 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         </div>
       )}
 
+      {typedFields.length > 0 && (
+        <div className="mt-4 rounded-md border border-ink-700 bg-ink-950/50 p-3 space-y-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-300">Run inputs</p>
+            <p className="text-[11px] text-ink-500 mt-1">Files are bound to their named role. Upload order is irrelevant.</p>
+          </div>
+          {typedFields.map((field) => {
+            const binding = inputBindings[field.key];
+            const artifact = binding && !Array.isArray(binding) && typeof binding === 'object' ? binding : null;
+            const artifacts = Array.isArray(binding) ? binding.filter((value): value is ArtifactBinding => typeof value === 'object') : artifact ? [artifact] : [];
+            const scalar = typeof binding === 'string' ? binding : '';
+            const scalarMany = Array.isArray(binding) ? binding.filter((value): value is string => typeof value === 'string') : [];
+            return (
+              <div key={field.key} className="rounded-md border border-ink-800 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <label className="text-sm font-medium text-ink-100">{field.label}</label>
+                    <span className={field.required ? 'ml-2 text-[11px] text-amber-300' : 'ml-2 text-[11px] text-ink-500'}>
+                      {field.required ? 'required' : 'optional'}
+                    </span>
+                    <p className="text-xs text-ink-400 mt-1 leading-relaxed">{field.description}</p>
+                  </div>
+                  {field.kind === 'file' && <button
+                      type="button"
+                      onClick={() => void chooseTypedInput(field)}
+                      disabled={!desktopBridge()?.pickRunInput}
+                      className="btn-outline text-xs px-3 py-1.5 shrink-0 disabled:opacity-40"
+                    >
+                      {field.cardinality === 'many' ? 'Add file' : artifact ? 'Replace' : 'Choose file'}
+                    </button>}
+                </div>
+                {field.kind === 'text' ? (
+                  <input
+                    value={field.cardinality === 'many' ? scalarMany.join(', ') : scalar}
+                    onChange={(event) => setInputBindings((previous) => ({ ...previous, [field.key]: field.cardinality === 'many'
+                      ? event.target.value.split(',').map((value) => value.trim()).filter(Boolean)
+                      : event.target.value }))}
+                    className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
+                  />
+                ) : field.kind === 'choice' ? (
+                  <select
+                    value={field.cardinality === 'many' ? scalarMany : scalar}
+                    multiple={field.cardinality === 'many'}
+                    onChange={(event) => setInputBindings((previous) => ({ ...previous, [field.key]: field.cardinality === 'many'
+                      ? Array.from(event.target.selectedOptions, (option) => option.value).filter(Boolean)
+                      : event.target.value }))}
+                    className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
+                  >
+                    <option value="">Select…</option>
+                    {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                ) : artifacts.length ? (
+                  <div className="mt-2 space-y-1">
+                    {artifacts.map((item) => <div key={item.artifactId} className="flex items-center justify-between gap-2 text-xs text-ink-300">
+                      <span className="truncate" title={item.displayName}>✓ {item.displayName}</span>
+                      <button type="button" onClick={() => setInputBindings((previous) => {
+                        const next = { ...previous };
+                        if (field.cardinality === 'many') next[field.key] = artifacts.filter((candidate) => candidate.artifactId !== item.artifactId);
+                        else delete next[field.key];
+                        return next;
+                      })} className="text-ink-500 hover:text-rose-400">Remove</button>
+                    </div>)}
+                  </div>
+                ) : field.kind === 'file' && !desktopBridge()?.pickRunInput ? (
+                  <p className="text-[11px] text-amber-300 mt-2">Open this agent in the Implexa desktop app to choose a local file.</p>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Standing note: the agent's "Notes for this agent" (honored on EVERY run).
           Shown here so it's visibly in effect and an edit made in Setup right before
           clicking Run isn't lost. Saving here writes the standing note — distinct
@@ -816,7 +946,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         {/* Attach a screenshot / file for THIS run. The picked file's absolute PATH
             is baked into the note above so the hands-off run can Read it. Desktop-only
             (a browser can't hand over a local path) — disabled with a hint elsewhere. */}
-        <AttachFiles files={runFiles} canAttach={canAttach} onAttach={attachFile} onRemove={removeFile} />
+        {!typedFields.length && <AttachFiles files={runFiles} canAttach={canAttach} onAttach={attachFile} onRemove={removeFile} />}
       </div>
 
       {setupFields.length > 0 && (
@@ -842,7 +972,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <button
           type="button"
           onClick={submitPreRun}
-          disabled={setupSaving || blankRequired.length > 0}
+          disabled={setupSaving || blankRequired.length > 0 || missingRequiredInputs(inputContract, inputBindings).length > 0}
           className="btn-success text-sm px-5 py-2 disabled:opacity-50"
         >
           {setupSaving ? 'Saving…' : preRunMode === 'watch' ? 'Open in Claude →' : setupFields.length ? 'Save & run' : '▶ Run now'}

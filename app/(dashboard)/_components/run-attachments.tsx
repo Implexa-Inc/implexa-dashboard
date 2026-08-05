@@ -41,6 +41,20 @@ export type DesktopBridge = {
   openAgent?: () => Promise<{ ok: boolean }>;
   handoffAgent?: (prompt: string, surface?: string, target?: string) => Promise<{ ok: boolean; mode?: string }>;
   pickFile?: (opts?: unknown) => Promise<{ ok: boolean; path?: string }>;
+  /** Trusted typed-input boundary. Desktop hashes/registers the local file and
+   * retains its path locally; web/backend receive identity + media metadata only. */
+  pickRunInput?: (opts: {
+    inputKey: string;
+    inputSessionId?: string;
+    accept?: { mediaTypes?: string[]; extensions?: string[] };
+  }) => Promise<{
+    ok: boolean;
+    inputSessionId?: string;
+    artifactId?: string;
+    sha256?: string;
+    displayName?: string;
+    mediaType?: string;
+  }>;
 };
 export function desktopBridge(): DesktopBridge | undefined {
   return typeof window !== 'undefined'
