@@ -224,7 +224,8 @@ test('saved settings are COLLAPSED, never hidden, before a run', () => {
   // The old flag emptied the fields entirely.
   assert.doesNotMatch(src, /setSetupFields\(reviewed \? \[\] : schema\)/,
     'hiding the settings is what let an agent re-run on stale inputs the user could not see');
-  assert.match(src, /setSetupFields\(schema\);/, 'the fields are always loaded');
+  assert.match(src, /setSetupFields\(durableSetup\);/,
+    'durable settings are always loaded; versioned run inputs render in their typed section');
   assert.match(src, /setSetupOpen\(!setupCollapsed\(slug\)\)/, 'the preference only controls collapse');
   assert.match(src, /Review settings/, 'there is a visible settings section');
   // Collapsed still SHOWS the current values, so "what will it use?" is answerable

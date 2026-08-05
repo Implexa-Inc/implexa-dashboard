@@ -347,8 +347,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // able to see and adjust what the agent will use. The preference only decides
     // whether the section starts collapsed.
     const { schema, answers, note } = await loadSetup();
-    setSetupFields(schema);
-    setSetupValues(Object.fromEntries(schema.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
+    const typedKeys = new Set(typedFields.map((field) => field.key));
+    const durableSetup = schema.filter((field) => !typedKeys.has(field.key));
+    setSetupFields(durableSetup);
+    setSetupValues(Object.fromEntries(durableSetup.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
     setSetupOpen(!setupCollapsed(slug));
     // Seed the standing note: prefer the live (possibly unsaved) draft the Setup
     // card mirrored, so a note typed-but-not-saved before clicking Run is carried;
