@@ -9,19 +9,21 @@
  * import this; everything else imports the parser.
  */
 
-import {
-  parseGenerationProposalResponse,
-  type GenerationProposalViewModel,
-} from './generation-proposal.ts';
+import { parseRoutedProposalResponse, type RoutedProposalViewModel } from './generation-proposal-routed.ts';
 
 /**
  * Three-valued read, following lib/attention.ts / lib/review.ts. `not_found` is a
  * real answer (the backend affirmatively said this proposal does not exist for
  * this user); `unavailable` is the absence of an answer. Rendering them the same
  * would tell a user their pending charge vanished when we merely couldn't read it.
+ *
+ * `ready` additionally carries WHICH control contract the proposal declared, so
+ * the page picks a card from a tagged union instead of sniffing fields. The
+ * choice is made once, in lib/generation-control-contract.ts, from the document's
+ * explicit discriminator and nothing else.
  */
 export type GenerationProposalRead =
-  | { state: 'ready'; vm: GenerationProposalViewModel }
+  | ({ state: 'ready' } & RoutedProposalViewModel)
   | { state: 'not_found' }
   | { state: 'unavailable' };
 
@@ -54,9 +56,11 @@ export async function getGenerationProposal(proposalId: string): Promise<Generat
     }
     if (!res.ok) return { state: 'unavailable' };
     const body = await res.json();
-    const vm = parseGenerationProposalResponse(body, proposalId);
-    // Reject, do not coerce. A malformed 200 is a read we could not make.
-    return vm ? { state: 'ready', vm } : { state: 'unavailable' };
+    const routed = parseRoutedProposalResponse(body, proposalId);
+    // Reject, do not coerce. A malformed 200 — including one whose control
+    // contract discriminator is unknown, blank or mixed with the other arm's
+    // fields — is a read we could not make.
+    return routed ? { state: 'ready', ...routed } : { state: 'unavailable' };
   } catch {
     return { state: 'unavailable' };
   }

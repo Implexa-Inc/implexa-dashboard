@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import QualityModeSelector from './quality-mode-selector';
+import ProfessionalBrollBuilder from './professional-broll-builder';
 import type { QualityMode } from '@/lib/quality-mode';
 import {
   beginProposalCreate, parseGenerationCreateResponse, parseGenerationPreviewSet,
@@ -24,9 +25,25 @@ async function action(body: Record<string, unknown>): Promise<{ ok: boolean; sta
   }
 }
 
+/**
+ * The two entry lanes.
+ *
+ * `quick` is the original single-moment flow, byte-for-byte unchanged: it still
+ * compares Quick / Professional / Production through the v1 contract, and every
+ * proposal it creates carries no control-contract discriminator at all.
+ *
+ * `professional` is the multi-moment `professional-generation-control.v2` lane.
+ * It is a SEPARATE lane rather than a fourth mode inside the comparison because
+ * it edits a fundamentally different object — a timeline, not one window — and
+ * folding it into the selector would have made the Quick flow's state machine
+ * carry a plan shape it never had.
+ */
+type EntryLane = 'quick' | 'professional';
+
 export default function BrollProposalBuilder({ runId, agentSubject, agentName }: Props) {
   const router = useRouter();
   const createFlight = useRef(false);
+  const [lane, setLane] = useState<EntryLane>('quick');
   const [prompt, setPrompt] = useState('');
   const [start, setStart] = useState('0');
   const [end, setEnd] = useState('5');
@@ -102,71 +119,103 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName }:
       <div>
         <h1 className="text-xl font-semibold text-ink-50">Generate B-roll</h1>
         <p className="mt-1 text-sm text-ink-400">
-          Add one precise visual moment to {agentName}&apos;s result. Comparing plans is free; generation starts only after a separate approval.
+          {lane === 'quick'
+            ? `Add one precise visual moment to ${agentName}'s result. Comparing plans is free; generation starts only after a separate approval.`
+            : `Lay out a full B-roll timeline for ${agentName}'s result. Compiling a plan is free; generation starts only after a separate approval.`}
         </p>
       </div>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-2">
-        <label className="text-sm text-ink-300">
-          Start (seconds)
-          {/* step="any", NOT a millisecond step: arrow keys move by one SECOND
-              (verified in-browser), while typed sub-second values stay valid.
-              step="0.001" made every arrow press a 1ms nudge — 5 became 4.999 —
-              and step="1" would mark a typed 4.994 stepMismatch-invalid. */}
-          <input value={start} onChange={(e) => edit(setStart, e.target.value)} inputMode="decimal" type="number" min="0" step="any"
-            className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100" />
-        </label>
-        <label className="text-sm text-ink-300">
-          End (seconds)
-          <input value={end} onChange={(e) => edit(setEnd, e.target.value)} inputMode="decimal" type="number" min="0" step="any"
-            className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100" />
-        </label>
+      <div role="group" aria-label="Generation lane" className="mt-4 flex flex-wrap gap-2">
+        {([
+          ['quick', 'Quick', 'One moment, one take.'],
+          ['professional', 'Professional', 'A timeline of moments, with variants, a Judge and a repair reserve.'],
+        ] as const).map(([value, label, hint]) => (
+          <button
+            key={value} type="button" onClick={() => setLane(value)}
+            aria-pressed={lane === value}
+            className={`rounded-lg border px-3 py-2 text-left text-sm ${
+              lane === value
+                ? 'border-ink-500 bg-ink-900 text-ink-100'
+                : 'border-ink-800 text-ink-400 hover:text-ink-200'
+            }`}
+          >
+            <span className="block font-medium">{label}</span>
+            <span className="mt-0.5 block text-[11px] text-ink-500">{hint}</span>
+          </button>
+        ))}
       </div>
-      <label className="mt-4 block text-sm text-ink-300">
-        What should the B-roll show?
-        <textarea value={prompt} onChange={(e) => edit(setPrompt, e.target.value)} maxLength={700} rows={4}
-          placeholder="Example: A clean aerial route map moving from Palo Alto to Pleasanton at sunrise, no text or logos."
-          className="mt-1 w-full resize-y rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100 placeholder:text-ink-600" />
-        <span className="mt-1 block text-xs text-ink-600">{prompt.length}/700 · the window must be 2–10 seconds</span>
-      </label>
 
-      {previews && (
+      {lane === 'professional' && (
         <div className="mt-5">
-          <QualityModeSelector value={mode} onChange={setMode} compiledByMode={previews} disabled={phase === 'creating'} />
+          <ProfessionalBrollBuilder runId={runId} agentSubject={agentSubject} />
         </div>
       )}
 
-      {selected && (
-        <div className="mt-4 rounded-lg border border-ink-800 bg-ink-900/50 p-4 text-sm">
-          <p className="font-medium text-ink-100">{proposalSummaryLine(selected)}</p>
-          <p className="mt-1 text-xs text-ink-400">
-            {selected.provider && selected.model ? `${selected.provider} · ${selected.model} · ` : ''}
-            {moment.startSeconds}s–{moment.endSeconds}s
-          </p>
-          <p className="mt-2 text-xs text-ink-500">
-            Creating this proposal does not generate or spend. The next screen shows the exact tasks and asks for approval.
-          </p>
+      {lane === 'quick' && (
+        <>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <label className="text-sm text-ink-300">
+            Start (seconds)
+            {/* step="any", NOT a millisecond step: arrow keys move by one SECOND
+                (verified in-browser), while typed sub-second values stay valid.
+                step="0.001" made every arrow press a 1ms nudge — 5 became 4.999 —
+                and step="1" would mark a typed 4.994 stepMismatch-invalid. */}
+            <input value={start} onChange={(e) => edit(setStart, e.target.value)} inputMode="decimal" type="number" min="0" step="any"
+              className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100" />
+          </label>
+          <label className="text-sm text-ink-300">
+            End (seconds)
+            <input value={end} onChange={(e) => edit(setEnd, e.target.value)} inputMode="decimal" type="number" min="0" step="any"
+              className="mt-1 w-full rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100" />
+          </label>
         </div>
-      )}
+        <label className="mt-4 block text-sm text-ink-300">
+          What should the B-roll show?
+          <textarea value={prompt} onChange={(e) => edit(setPrompt, e.target.value)} maxLength={700} rows={4}
+            placeholder="Example: A clean aerial route map moving from Palo Alto to Pleasanton at sunrise, no text or logos."
+            className="mt-1 w-full resize-y rounded-md border border-ink-700 bg-ink-900 px-3 py-2 text-ink-100 placeholder:text-ink-600" />
+          <span className="mt-1 block text-xs text-ink-600">{prompt.length}/700 · the window must be 2–10 seconds</span>
+        </label>
 
-      {error && (
-        <p role="alert" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">{error}</p>
-      )}
-
-      <div className="mt-5 flex flex-wrap gap-3">
-        {!previews ? (
-          <button type="button" onClick={compare} disabled={phase === 'previewing'} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
-            {phase === 'previewing' ? 'Comparing…' : 'Compare quality modes'}
-          </button>
-        ) : (
-          <button type="button" onClick={createProposal}
-            disabled={phase === 'creating' || selected?.availability !== true}
-            className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
-            {phase === 'creating' ? 'Creating proposal…' : proposalCreateLabel(mode)}
-          </button>
+        {previews && (
+          <div className="mt-5">
+            <QualityModeSelector value={mode} onChange={setMode} compiledByMode={previews} disabled={phase === 'creating'} />
+          </div>
         )}
-        <button type="button" onClick={() => router.back()} className="btn-outline px-4 py-2 text-sm">Cancel</button>
-      </div>
+
+        {selected && (
+          <div className="mt-4 rounded-lg border border-ink-800 bg-ink-900/50 p-4 text-sm">
+            <p className="font-medium text-ink-100">{proposalSummaryLine(selected)}</p>
+            <p className="mt-1 text-xs text-ink-400">
+              {selected.provider && selected.model ? `${selected.provider} · ${selected.model} · ` : ''}
+              {moment.startSeconds}s–{moment.endSeconds}s
+            </p>
+            <p className="mt-2 text-xs text-ink-500">
+              Creating this proposal does not generate or spend. The next screen shows the exact tasks and asks for approval.
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <p role="alert" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">{error}</p>
+        )}
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          {!previews ? (
+            <button type="button" onClick={compare} disabled={phase === 'previewing'} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
+              {phase === 'previewing' ? 'Comparing…' : 'Compare quality modes'}
+            </button>
+          ) : (
+            <button type="button" onClick={createProposal}
+              disabled={phase === 'creating' || selected?.availability !== true}
+              className="btn-primary px-4 py-2 text-sm disabled:opacity-50">
+              {phase === 'creating' ? 'Creating proposal…' : proposalCreateLabel(mode)}
+            </button>
+          )}
+          <button type="button" onClick={() => router.back()} className="btn-outline px-4 py-2 text-sm">Cancel</button>
+        </div>
+        </>
+      )}
     </section>
   );
 }
