@@ -8,6 +8,7 @@ import { requestedByLine } from '@/lib/generation-proposal-state';
 import GenerationProposalCard from '../../_components/generation-proposal-card';
 import GenerationProgressCard from '../../_components/generation-progress-card';
 import GenerationClipResults from '../../_components/generation-clip-results';
+import ProfessionalV2ProposalCard from '../../_components/professional-v2-proposal-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,55 @@ export default async function GenerationProposalPage({ params }: { params: { pro
         <p className="mt-2 text-sm text-ink-400">
           Implexa has no generation proposal with this id for your account.
         </p>
+      </div>
+    );
+  }
+
+  /**
+   * A `professional-generation-control.v2` plan is a DIFFERENT document: a
+   * timeline of moments, each with its own variants, Judge mode and repair
+   * reserve. It renders through its own card rather than being flattened into
+   * the v1 clip list, which has no place to state any of that — and no place to
+   * keep coverage and takes apart.
+   *
+   * Progress, clip results and the review-packet join stay on the v1 arm: this
+   * lane ships no execution surface for v2, and inventing one for a document
+   * nothing here validates would be worse than saying so.
+   */
+  if (read.contract === 'v2') {
+    const agents = await getMyAgents();
+    const name = new Map(
+      [
+        ...(agents.status === 'ready' ? agents.active : []),
+        ...(agents.status === 'ready' ? agents.needsActivation : []),
+        ...(agents.status === 'ready' ? agents.drafts : []),
+      ].map((a) => [a.slug, a.name] as const),
+    ).get(read.vm.agentSubject) ?? null;
+    return (
+      <div className="mx-auto w-full max-w-3xl px-4 py-6">
+        <header className="mb-5">
+          <h1 className="text-xl font-semibold text-ink-100">B-roll generation</h1>
+          <p className="mt-1 text-xs text-ink-400">
+            Requested by {name ?? read.vm.agentSubject}
+            {read.vm.sourceRunId && (
+              <>
+                {' · '}
+                <Link href={`/runs/${read.vm.sourceRunId}`} className="text-sky-400 hover:underline">
+                  from this run
+                </Link>
+              </>
+            )}
+          </p>
+        </header>
+        {/* Edit carries THIS plan into the builder (`from`), so editing changes a
+            timeline instead of discarding it and starting from blank. */}
+        <ProfessionalV2ProposalCard
+          vm={read.vm}
+          agentName={name}
+          editHref={read.vm.sourceRunId
+            ? `/runs/${encodeURIComponent(read.vm.sourceRunId)}/generate-broll?from=${encodeURIComponent(read.vm.proposalId)}`
+            : null}
+        />
       </div>
     );
   }

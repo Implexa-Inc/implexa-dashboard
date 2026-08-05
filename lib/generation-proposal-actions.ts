@@ -14,6 +14,10 @@ export type ProposalUpstream = {
   idempotencyKey?: string;
 };
 
+import {
+  BOUNDS, CONTROL_V2, JUDGE_MODES, JUDGE_MODES_ALLOWING_REPAIR, SUPPORTED_RATIOS,
+} from './professional-v2-contract.ts';
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHA256 = /^[a-f0-9]{64}$/i;
 // The backend's own idempotency-key grammar. Enforced here too, so a malformed
@@ -56,6 +60,103 @@ function generationInput(b: Record<string, unknown>): Record<string, unknown> | 
   };
 }
 
+/**
+ * The Professional v2 write input — a MULTI-moment timeline, and the only place
+ * a browser payload becomes a v2 request.
+ *
+ * `controlContractVersion` is written here as an EXPLICIT literal. It is never
+ * copied from the client body and never inferred from the fact that the moments
+ * happen to carry `judge_mode` or `variants_requested`: a request whose shape
+ * looks like v2 is still a v1 request unless it says v2, and letting the browser
+ * choose the discriminator would let a forged payload reach the wider compiler
+ * path (more tasks, more variants, judge-off moments) without declaring it.
+ *
+ * Every bound below is the deployed backend's, mirrored from the probed contract
+ * so a plan the compiler would refuse is refused here first — on the server side
+ * of the JWT boundary, not only in the editor a browser could bypass.
+ */
+function professionalV2Input(b: Record<string, unknown>): Record<string, unknown> | string {
+  const agentSubject = typeof b.agentSubject === 'string' ? b.agentSubject.trim() : '';
+  const sourceRunId = id(b.sourceRunId);
+  if (!AGENT.test(agentSubject)) return 'A valid agentSubject is required.';
+  if (!sourceRunId) return 'A valid sourceRunId is required.';
+  if (!Array.isArray(b.moments) || b.moments.length < 1 || b.moments.length > BOUNDS.maxMoments) {
+    return `A Professional timeline carries 1–${BOUNDS.maxMoments} moments.`;
+  }
+
+  const moments: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  let totalTasks = 0;
+  let previousEnd: number | null = null;
+  let previousStart: number | null = null;
+
+  for (const raw of b.moments) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 'A valid B-roll moment is required.';
+    const m = raw as Record<string, unknown>;
+    const momentId = typeof m.id === 'string' ? m.id.trim() : '';
+    const prompt = typeof m.prompt === 'string' ? m.prompt.trim() : '';
+    const start = m.startSeconds;
+    const end = m.endSeconds;
+    const ratio = typeof m.ratio === 'string' ? m.ratio : '';
+    const variants = m.variantsRequested;
+    const judgeMode = typeof m.judgeMode === 'string' ? m.judgeMode : '';
+    const maxRepairs = m.maxRepairs;
+
+    if (!MOMENT.test(momentId) || seen.has(momentId)) return 'Each moment needs its own valid id.';
+    seen.add(momentId);
+    if (prompt.length < 1 || prompt.length > BOUNDS.promptMaxChars) {
+      return `Each moment needs a description of 1–${BOUNDS.promptMaxChars} characters.`;
+    }
+    if (typeof start !== 'number' || typeof end !== 'number'
+      || !Number.isFinite(start) || !Number.isFinite(end)
+      || !Number.isInteger(start * 1000) || !Number.isInteger(end * 1000)
+      || start < 0 || end <= start
+      || end - start < BOUNDS.minDurationSeconds || end - start > BOUNDS.maxDurationSeconds) {
+      return `Each moment must be a ${BOUNDS.minDurationSeconds}–${BOUNDS.maxDurationSeconds} second window.`;
+    }
+    if (!SUPPORTED_RATIOS.includes(ratio)) return 'That aspect ratio is not supported.';
+    if (!Number.isInteger(variants)
+      || (variants as number) < BOUNDS.minVariantsPerMoment
+      || (variants as number) > BOUNDS.maxVariantsPerMoment) {
+      return `Each moment requests ${BOUNDS.minVariantsPerMoment}–${BOUNDS.maxVariantsPerMoment} variants.`;
+    }
+    if (!(JUDGE_MODES as readonly string[]).includes(judgeMode)) return 'That Judge mode is not supported.';
+    if (!Number.isInteger(maxRepairs)
+      || (maxRepairs as number) < 0 || (maxRepairs as number) > BOUNDS.maxRepairsPerMoment) {
+      return `The repair reserve is 0–${BOUNDS.maxRepairsPerMoment} per moment.`;
+    }
+    // Contingent credits nothing could release are money authorized for work
+    // nothing can legitimately spend.
+    if ((maxRepairs as number) > 0 && !(JUDGE_MODES_ALLOWING_REPAIR as readonly string[]).includes(judgeMode)) {
+      return 'A repair reserve requires a Judge; with judging off nothing could release it.';
+    }
+    // Ascending and non-overlapping, read in array order exactly as the compiler
+    // reads it. Abutting stays valid.
+    if (previousStart !== null && start < previousStart) return 'Moments must run in time order.';
+    if (previousEnd !== null && start < previousEnd) return 'Moments may touch, but they may not overlap.';
+    previousStart = start;
+    previousEnd = end;
+    totalTasks += (variants as number) + (maxRepairs as number);
+
+    moments.push({
+      id: momentId, prompt, start_seconds: start, end_seconds: end, ratio,
+      variants_requested: variants, judge_mode: judgeMode, max_repairs: maxRepairs,
+    });
+  }
+
+  if (totalTasks > BOUNDS.maxTotalTasks) {
+    return `This plan authorizes ${totalTasks} generations; one approval covers at most ${BOUNDS.maxTotalTasks}.`;
+  }
+
+  return {
+    capabilityKey: 'video.generate_broll',
+    qualityMode: 'professional',
+    // EXPLICIT, and written from the pinned constant — never echoed from `b`.
+    controlContractVersion: CONTROL_V2,
+    agentSubject, sourceRunId, moments,
+  };
+}
+
 export function resolveProposalAction(action: string, b: Record<string, unknown>): ProposalUpstream | string {
   switch (action) {
     case 'preview':
@@ -64,6 +165,16 @@ export function resolveProposalAction(action: string, b: Record<string, unknown>
       if (typeof body === 'string') return body;
       return {
         path: action === 'preview' ? '/api/v2/generation-proposals/preview' : '/api/v2/generation-proposals',
+        method: 'POST', body,
+      };
+    }
+    case 'preview-professional-v2':
+    case 'create-professional-v2': {
+      const body = professionalV2Input(b);
+      if (typeof body === 'string') return body;
+      return {
+        path: action === 'preview-professional-v2'
+          ? '/api/v2/generation-proposals/preview' : '/api/v2/generation-proposals',
         method: 'POST', body,
       };
     }
