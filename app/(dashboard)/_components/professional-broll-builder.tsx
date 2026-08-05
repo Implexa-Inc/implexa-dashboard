@@ -38,7 +38,17 @@ import {
 } from '@/lib/professional-v2-entry';
 import type { CompiledProfessionalV2Proposal } from '@/lib/generation-proposal-v2';
 
-type Props = { runId: string; agentSubject: string };
+type Props = {
+  runId: string;
+  agentSubject: string;
+  /**
+   * The moments of a plan being edited, loaded server-side from the proposal the
+   * user chose to edit. Present means this IS an edit: the timeline arrives
+   * populated, and — deliberately — no preview and no identity arrive with it,
+   * so a fresh compile is required before anything can be saved or approved.
+   */
+  seedMoments?: TimelineMoment[] | null;
+};
 
 async function post(body: Record<string, unknown>): Promise<{ ok: boolean; status: number | null; body: unknown }> {
   try {
@@ -54,10 +64,12 @@ async function post(body: Record<string, unknown>): Promise<{ ok: boolean; statu
   }
 }
 
-export default function ProfessionalBrollBuilder({ runId, agentSubject }: Props) {
+export default function ProfessionalBrollBuilder({ runId, agentSubject, seedMoments = null }: Props) {
   const router = useRouter();
   const createFlight = useRef(false);
-  const [moments, setMoments] = useState<TimelineMoment[]>([newMoment(1, 0)]);
+  const [moments, setMoments] = useState<TimelineMoment[]>(
+    seedMoments && seedMoments.length ? seedMoments : [newMoment(1, 0)],
+  );
   const [preview, setPreview] = useState<CompiledProfessionalV2Proposal | null>(null);
   // The timeline the preview was compiled FOR. Approval identity in miniature:
   // if the live fingerprint moves away from this, the preview is not about the
@@ -139,6 +151,14 @@ export default function ProfessionalBrollBuilder({ runId, agentSubject }: Props)
 
   return (
     <div className="space-y-4">
+      {seedMoments && seedMoments.length > 0 && (
+        <p role="status" className="rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 text-xs text-ink-300">
+          These moments were loaded from the plan you chose to edit. That plan has been
+          retired — compile this timeline again to get a new plan with its own cost and
+          its own approval.
+        </p>
+      )}
+
       <ProfessionalTimelineEditor moments={moments} onChange={edit} disabled={busy} />
 
       {/* Before a preview the figures are a labelled local estimate; after one

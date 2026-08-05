@@ -88,10 +88,14 @@ export default async function GenerationProposalPage({ params }: { params: { pro
             )}
           </p>
         </header>
+        {/* Edit carries THIS plan into the builder (`from`), so editing changes a
+            timeline instead of discarding it and starting from blank. */}
         <ProfessionalV2ProposalCard
           vm={read.vm}
           agentName={name}
-          editHref={read.vm.sourceRunId ? `/runs/${read.vm.sourceRunId}/generate-broll` : null}
+          editHref={read.vm.sourceRunId
+            ? `/runs/${encodeURIComponent(read.vm.sourceRunId)}/generate-broll?from=${encodeURIComponent(read.vm.proposalId)}`
+            : null}
         />
       </div>
     );

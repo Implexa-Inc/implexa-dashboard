@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import QualityModeSelector from './quality-mode-selector';
 import ProfessionalBrollBuilder from './professional-broll-builder';
+import type { TimelineMoment } from '@/lib/professional-v2-timeline';
 import type { QualityMode } from '@/lib/quality-mode';
 import {
   beginProposalCreate, parseGenerationCreateResponse, parseGenerationPreviewSet,
@@ -11,7 +12,13 @@ import {
   type GenerationMomentInput, type GenerationPreviewSet,
 } from '@/lib/generation-proposal-entry';
 
-type Props = { runId: string; agentSubject: string; agentName: string };
+type Props = {
+  runId: string;
+  agentSubject: string;
+  agentName: string;
+  /** Moments of a Professional plan being edited, loaded server-side. */
+  seedMoments?: TimelineMoment[] | null;
+};
 
 async function action(body: Record<string, unknown>): Promise<{ ok: boolean; status: number | null; body: unknown }> {
   try {
@@ -40,10 +47,13 @@ async function action(body: Record<string, unknown>): Promise<{ ok: boolean; sta
  */
 type EntryLane = 'quick' | 'professional';
 
-export default function BrollProposalBuilder({ runId, agentSubject, agentName }: Props) {
+export default function BrollProposalBuilder({ runId, agentSubject, agentName, seedMoments = null }: Props) {
   const router = useRouter();
   const createFlight = useRef(false);
-  const [lane, setLane] = useState<EntryLane>('quick');
+  // Quick stays the default. A seeded timeline means the user arrived by editing
+  // a Professional plan, and landing them on the Quick lane would hide the very
+  // moments they came to change.
+  const [lane, setLane] = useState<EntryLane>(seedMoments && seedMoments.length ? 'professional' : 'quick');
   const [prompt, setPrompt] = useState('');
   const [start, setStart] = useState('0');
   const [end, setEnd] = useState('5');
@@ -147,7 +157,7 @@ export default function BrollProposalBuilder({ runId, agentSubject, agentName }:
 
       {lane === 'professional' && (
         <div className="mt-5">
-          <ProfessionalBrollBuilder runId={runId} agentSubject={agentSubject} />
+          <ProfessionalBrollBuilder runId={runId} agentSubject={agentSubject} seedMoments={seedMoments} />
         </div>
       )}
 

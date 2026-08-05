@@ -9,10 +9,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  approvalRefFor, decideProfessionalApproval, interpretProfessionalApprovalResponse,
+  approvalRefFor, decideProfessionalApproval, decideProfessionalEdit,
+  interpretProfessionalApprovalResponse, interpretProfessionalCancelResponse,
   invalidateApprovalRef, parseProfessionalV2CreateResponse, parseProfessionalV2PreviewResponse,
-  professionalEntryError, reconcileProposal,
+  professionalEntryError, reconcileProposal, timelineFromCompiledProposal,
 } from './professional-v2-entry.ts';
+import { toRequestMoments, validateTimeline } from './professional-v2-timeline.ts';
 import { parseProfessionalV2ProposalResponse } from './generation-proposal-v2-envelope.ts';
 import { timelineFingerprint, type TimelineMoment } from './professional-v2-timeline.ts';
 import {
@@ -27,6 +29,8 @@ const AGENT = 'daily-ig-reel';
 const RUN_ID = '7c9e1b44-2f36-4d58-9a02-6e5b8c1d3f77';
 /** Just after the fixture's created_at, and well before its 30-minute expiry. */
 const NOW = Date.parse('2026-08-04T17:05:00.000Z');
+/** The id the fixture generator's fake table layer assigns on insert. */
+const PROPOSAL_ID = 'd41f6a80-5b2c-4e19-8f36-1a7c9d0e2b43';
 
 /** The timeline the fixture generator submitted, rebuilt from the compiled graph. */
 function timelineOf(fixture: { proposal: { professional_control: { moments: readonly unknown[] } } }): TimelineMoment[] {
@@ -305,6 +309,88 @@ test('approval is CONFIRMED only by a response that parses and matches', () => {
     }), { outcome: 'unverified' },
   );
   assert.deepEqual(interpretProfessionalApprovalResponse(true, clone(V2_GET_AWAITING_APPROVAL), invalidateApprovalRef()), { outcome: 'unverified' });
+});
+
+// ── the edit lifecycle ───────────────────────────────────────────────────────
+
+test('a compiled plan round-trips back into an editable timeline, unchanged', () => {
+  for (const fixture of [V2_PREVIEW_AVAILABLE, V2_PREVIEW_MULTI, V2_PREVIEW_UNAVAILABLE]) {
+    const compiled = parseProfessionalV2PreviewResponse(clone(fixture), expectedFor(fixture));
+    assert.ok(compiled);
+    const timeline = timelineFromCompiledProposal(compiled);
+    assert.ok(timeline, 'a real compiled plan must be editable');
+    // THE POINT OF THE SEED: editing must not lose the plan. Every field the user
+    // chose comes back, in order.
+    assert.deepEqual(timeline, timelineOf(fixture));
+    assert.equal(validateTimeline(timeline).ok, true);
+    // And re-submitting the seeded timeline reproduces the same request, so the
+    // edit starts from the plan rather than from a blank builder.
+    assert.deepEqual(
+      toRequestMoments(timeline),
+      fixture.proposal.professional_control.moments.map((m) => ({
+        id: m.moment_id, prompt: m.prompt,
+        start_seconds: m.timestamp.start_ms / 1000, end_seconds: m.timestamp.end_ms / 1000,
+        ratio: m.ratio, variants_requested: m.variants_requested,
+        judge_mode: m.judge_mode, max_repairs: m.repair_policy.max_repairs,
+      })),
+    );
+  }
+});
+
+test('an approvable plan must be RETIRED before it can be edited', () => {
+  const vm = approvableVm();
+  assert.equal(vm.lifecycle, 'awaiting_approval');
+  const decision = decideProfessionalEdit(vm);
+  assert.deepEqual(decision, { ok: true, mustRetire: true });
+});
+
+test('a plan that was never approvable has nothing to retire', () => {
+  const vm = parseProfessionalV2ProposalResponse(clone(V2_GET_UNAVAILABLE));
+  assert.ok(vm);
+  assert.deepEqual(decideProfessionalEdit(vm), { ok: true, mustRetire: false });
+  for (const lifecycle of ['cancelled', 'expired'] as const) {
+    assert.deepEqual(decideProfessionalEdit({ lifecycle }), { ok: true, mustRetire: false });
+  }
+});
+
+test('an approved plan cannot be edited at all — the money is committed', () => {
+  const decision = decideProfessionalEdit({ lifecycle: 'approved' });
+  assert.equal(decision.ok, false);
+  assert.match(decision.ok ? '' : decision.reason, /already approved/);
+});
+
+test('retirement is CONFIRMED only by a parsed, matching, cancelled read', () => {
+  const cancelled = clone(V2_GET_AWAITING_APPROVAL);
+  cancelled.lifecycle_state = 'cancelled';
+  cancelled.progress_state = 'cancelled';
+  assert.equal(interpretProfessionalCancelResponse(true, cancelled, PROPOSAL_ID), 'cancelled');
+  // A bare ok:true, or a still-approvable read, is NOT a retirement — and the
+  // editor only opens on a confirmed one, so an unverified answer leaves the
+  // plan visibly approvable instead of silently abandoned.
+  assert.equal(interpretProfessionalCancelResponse(true, { ok: true }, PROPOSAL_ID), 'unverified');
+  assert.equal(interpretProfessionalCancelResponse(true, clone(V2_GET_AWAITING_APPROVAL), PROPOSAL_ID), 'unverified');
+  // A cancellation of someone else's proposal never counts as this one's.
+  assert.equal(interpretProfessionalCancelResponse(true, cancelled, 'd41f6a80-5b2c-4e19-8f36-1a7c9d0e2b44'), 'unverified');
+  assert.equal(interpretProfessionalCancelResponse(false, { ok: false, error: 'proposal_not_cancellable' }, PROPOSAL_ID), 'refused');
+  assert.equal(interpretProfessionalCancelResponse(false, { ok: false, error: 'x', unavailable: true }, PROPOSAL_ID), 'unverified');
+  assert.equal(interpretProfessionalCancelResponse(false, null, PROPOSAL_ID), 'unverified');
+});
+
+test('a seeded edit carries no approval identity, so a fresh preview is unavoidable', () => {
+  const compiled = parseProfessionalV2PreviewResponse(clone(V2_PREVIEW_MULTI), expectedFor(V2_PREVIEW_MULTI));
+  assert.ok(compiled);
+  const timeline = timelineFromCompiledProposal(compiled);
+  assert.ok(timeline);
+  // The seed is moments and nothing else — no proposal id, version, digest or
+  // graph digest travels with it, so nothing downstream can approve the plan the
+  // moments came from.
+  for (const moment of timeline) {
+    assert.deepEqual(Object.keys(moment).sort(), [
+      'endSeconds', 'id', 'judgeMode', 'maxRepairs', 'prompt', 'ratio', 'startSeconds', 'variantsRequested',
+    ]);
+  }
+  assert.equal(JSON.stringify(timeline).includes(compiled.graphDigest), false);
+  assert.equal(JSON.stringify(timeline).includes(compiled.proposalDigest), false);
 });
 
 test('create failures never read as "nothing happened"', () => {

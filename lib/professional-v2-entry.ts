@@ -34,6 +34,7 @@ import {
   reconcileWithBackend, timelineFingerprint, validateTimeline,
   type TimelineMoment,
 } from './professional-v2-timeline.ts';
+export type { TimelineMoment } from './professional-v2-timeline.ts';
 import {
   parseCompiledProfessionalV2Proposal,
   type CompiledProfessionalV2Proposal,
@@ -357,6 +358,100 @@ export function decideProfessionalApproval(input: {
       idempotencyKey: input.idempotencyKey,
     },
   };
+}
+
+// ── the edit lifecycle ───────────────────────────────────────────────────────
+
+/**
+ * Rebuild the editable timeline from a compiled plan.
+ *
+ * This is what makes Edit an EDIT. Without it, "edit" navigates to a blank
+ * builder and the user's whole timeline is gone — a destructive action wearing
+ * the label of a reversible one.
+ *
+ * Returns null if the rebuilt timeline would not validate. A plan the editor
+ * cannot legally hold is a plan it must not pretend to have loaded; seeding it
+ * anyway would show the user their moments beside refusals they cannot fix.
+ */
+export function timelineFromCompiledProposal(
+  compiled: CompiledProfessionalV2Proposal,
+): TimelineMoment[] | null {
+  const moments: TimelineMoment[] = compiled.moments.map((moment) => ({
+    id: moment.momentId,
+    prompt: moment.prompt,
+    startSeconds: moment.startMs / 1000,
+    endSeconds: moment.endMs / 1000,
+    ratio: moment.ratio,
+    variantsRequested: moment.variantsRequested,
+    judgeMode: moment.judgeMode,
+    maxRepairs: moment.maxRepairs,
+  }));
+  return validateTimeline(moments).ok ? moments : null;
+}
+
+export type EditDecision =
+  | {
+    ok: true;
+    /**
+     * True when the plan is still approvable, so editing must durably retire it
+     * before the new one exists. False when it never could be approved
+     * (unavailable, expired, already cancelled) — there is nothing to retire.
+     */
+    mustRetire: boolean;
+  }
+  | { ok: false; reason: string };
+
+/**
+ * May this plan be edited, and does editing have to retire it first?
+ *
+ * THE DURABILITY PROBLEM THIS SOLVES. Forgetting the approval identity in
+ * component state is not invalidation — it survives exactly as long as the card
+ * stays mounted. Press Back and the card remounts, the identity is rebuilt from
+ * the same proposal, and the plan the user just decided to abandon is approvable
+ * again at its old ceiling. Meanwhile the backend still holds it
+ * `awaiting_approval` for its whole TTL, so a second tab, a bookmark, or a
+ * refresh can approve the superseded plan while the replacement is being built.
+ *
+ * So an approvable plan is CANCELLED at the backend before the editor opens.
+ * That is the only place the retirement can be durable, and it also removes the
+ * "two approvable plans for one run, each with its own ceiling" window entirely.
+ * Nothing is lost by it: the plan's content is carried into the editor, so
+ * re-compiling and re-saving reproduces it exactly.
+ *
+ * An APPROVED plan is not editable at all. Money is committed; the honest next
+ * step is a new plan, not an edit that implies the authorization moves with it.
+ */
+export function decideProfessionalEdit(
+  vm: Pick<ProfessionalV2ProposalViewModel, 'lifecycle'>,
+): EditDecision {
+  if (vm.lifecycle === 'approved') {
+    return { ok: false, reason: 'This plan is already approved, so it cannot be edited. Build a new plan instead.' };
+  }
+  return { ok: true, mustRetire: vm.lifecycle === 'awaiting_approval' };
+}
+
+export type CancelOutcome = 'cancelled' | 'refused' | 'unverified';
+
+/**
+ * Did the cancellation actually land?
+ *
+ * Same rule as approval: `ok: true` is not an answer. Cancellation is claimed
+ * only when the body parses under the strict v2 parser, names THIS proposal, and
+ * reads lifecycle `cancelled`. Anything else is unverified — and because the
+ * editor only opens on a CONFIRMED cancel, an unverified answer leaves the user
+ * on a card that still, truthfully, says the plan is approvable.
+ */
+export function interpretProfessionalCancelResponse(
+  httpOk: boolean, body: unknown, proposalId: string,
+): CancelOutcome {
+  if (!httpOk) {
+    if (isObject(body) && body.unavailable === true) return 'unverified';
+    if (isObject(body) && typeof body.error === 'string' && body.error) return 'refused';
+    return 'unverified';
+  }
+  const vm = parseProfessionalV2ProposalResponse(body, proposalId);
+  if (!vm) return 'unverified';
+  return vm.lifecycle === 'cancelled' ? 'cancelled' : 'unverified';
 }
 
 export type ApprovalOutcome =

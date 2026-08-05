@@ -134,8 +134,9 @@ test('the entry offers Professional as a lane, and Quick is unchanged', () => {
   assert.match(entry, /parseGenerationPreviewSet/);
   assert.match(entry, /parseGenerationCreateResponse/);
   assert.match(entry, /createFlight\.current/);
-  // Quick is the default lane, so nothing about the existing flow moves.
-  assert.match(entry, /useState<EntryLane>\('quick'\)/);
+  // Quick is still the default for an ordinary visit — only an edit, which
+  // arrives with the plan's moments, opens on Professional.
+  assert.match(entry, /useState<EntryLane>\(seedMoments && seedMoments\.length \? 'professional' : 'quick'\)/);
 });
 
 test('the proposal page picks a card from the routed contract, not from field sniffing', () => {
@@ -144,6 +145,47 @@ test('the proposal page picks a card from the routed contract, not from field sn
   assert.match(page, /<GenerationProposalCard/);
   assert.doesNotMatch(page, /control_contract_version/);
   assert.doesNotMatch(page, /professional_control/);
+});
+
+test('Edit is a DURABLE transition: retire at the backend, then open the plan', () => {
+  const entryPage = read('../runs/[id]/generate-broll/page.tsx');
+  // The card retires an approvable plan before navigating, and only a CONFIRMED
+  // cancellation opens the editor. Local state alone would be resurrected by a
+  // remount, leaving the abandoned plan approvable at its old ceiling.
+  assert.match(card, /decideProfessionalEdit/);
+  assert.match(card, /interpretProfessionalCancelResponse/);
+  assert.match(card, /if \(outcome !== 'cancelled'\)/);
+  assert.match(card, /decision\.mustRetire/);
+  // On a failed retirement the card must NOT navigate and must NOT pretend the
+  // identity is gone.
+  const editBody = card.slice(card.indexOf('const onEdit'), card.indexOf('return (', card.indexOf('const onEdit')));
+  const failureBranch = editBody.slice(editBody.indexOf("outcome !== 'cancelled'"), editBody.indexOf('setRef(invalidateApprovalRef())', editBody.indexOf("outcome !== 'cancelled'")));
+  assert.doesNotMatch(failureBranch, /router\.push/);
+  assert.doesNotMatch(failureBranch, /invalidateApprovalRef/);
+  assert.match(failureBranch, /still be approvable|still approvable/);
+
+  // Edit carries the plan into the builder rather than discarding it.
+  assert.match(page, /generate-broll\?from=\$\{encodeURIComponent\(read\.vm\.proposalId\)\}/);
+  assert.match(entryPage, /timelineFromCompiledProposal/);
+  assert.match(entryPage, /read\.contract !== 'v2'/);
+  // The seed is bound to THIS run — a plan may not be carried across sources.
+  assert.match(entryPage, /read\.vm\.sourceRunId !== runId/);
+  // A `from` that could not be loaded is SAID, not silently swallowed into a
+  // blank builder that looks like a successful edit.
+  assert.match(entryPage, /editRequestedButUnavailable/);
+  assert.match(entryPage, /couldn&apos;t load the plan you asked to edit/);
+});
+
+test('a seeded edit opens the Professional lane with no preview carried', () => {
+  assert.match(entry, /seedMoments && seedMoments\.length \? 'professional' : 'quick'/);
+  assert.match(builder, /seedMoments && seedMoments\.length \? seedMoments : \[newMoment\(1, 0\)\]/);
+  // No preview, no fingerprint and no identity are seeded, so `previewIsCurrent`
+  // is false on arrival and compiling again is unavoidable before saving.
+  assert.doesNotMatch(builder, /useState<CompiledProfessionalV2Proposal \| null>\(seed/);
+  assert.doesNotMatch(builder, /setPreviewFingerprint\(seed/);
+  assert.match(builder, /useState<CompiledProfessionalV2Proposal \| null>\(null\)/);
+  assert.match(builder, /useState<string \| null>\(null\)/);
+  assert.match(builder, /compile this timeline again/i);
 });
 
 test('the timeline editor enforces bounds from the pinned contract, not from literals', () => {

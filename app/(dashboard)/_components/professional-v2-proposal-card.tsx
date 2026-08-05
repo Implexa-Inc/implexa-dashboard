@@ -29,7 +29,8 @@ import ProfessionalCostSummary from './professional-cost-summary';
 import { capabilityWords } from '@/lib/quality-mode';
 import type { ProfessionalV2ProposalViewModel } from '@/lib/generation-proposal-v2-envelope';
 import {
-  approvalRefFor, decideProfessionalApproval, interpretProfessionalApprovalResponse,
+  approvalRefFor, decideProfessionalApproval, decideProfessionalEdit,
+  interpretProfessionalApprovalResponse, interpretProfessionalCancelResponse,
   invalidateApprovalRef, type ProfessionalApprovalRef,
 } from '@/lib/professional-v2-entry';
 
@@ -61,6 +62,7 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
 
   const compiled = vm.compiled;
   const tasksById = useMemo(() => new Map(compiled.tasks.map((t) => [t.taskId, t])), [compiled.tasks]);
@@ -119,33 +121,76 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
     }
   }, [compiled.maximumCredits, compiled.taskCount, confirmedCeiling, inFlight, ref, router, settled, vm]);
 
+  /** One cancel request, interpreted through the strict parser. */
+  const requestCancel = useCallback(async () => {
+    const res = await fetch('/api/generation-proposals', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'cancel', proposalId: vm.proposalId }),
+    });
+    const body = await res.json().catch(() => null);
+    return interpretProfessionalCancelResponse(res.ok, body, vm.proposalId);
+  }, [vm.proposalId]);
+
   const onCancel = useCallback(async () => {
     setCancelBusy(true); setError(null); setNotice(null);
     try {
-      const res = await fetch('/api/generation-proposals', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'cancel', proposalId: vm.proposalId }),
-      });
-      const body = await res.json().catch(() => null);
-      const parsed = res.ok && body && typeof body === 'object'
-        && (body as { lifecycle_state?: unknown }).lifecycle_state === 'cancelled'
-        && (body as { proposal_id?: unknown }).proposal_id === vm.proposalId;
-      if (parsed) { setNotice('Plan cancelled. Nothing was authorized.'); router.refresh(); return; }
-      setError('We could not confirm whether this cancellation went through. Reload to see the current state.');
+      const outcome = await requestCancel();
+      if (outcome === 'cancelled') { setNotice('Plan cancelled. Nothing was authorized.'); router.refresh(); return; }
+      setError(outcome === 'refused'
+        ? 'Implexa refused to cancel this plan. Reload to see the current state.'
+        : 'We could not confirm whether this cancellation went through. Reload to see the current state.');
       router.refresh();
     } catch {
       setError('We could not reach Implexa to cancel this.');
     } finally { setCancelBusy(false); }
-  }, [router, vm.proposalId]);
+  }, [requestCancel, router]);
 
-  const onEdit = useCallback(() => {
-    // Forget the approval identity FIRST, so nothing on this card can approve the
-    // old plan after the user has decided to change it.
-    setRef(invalidateApprovalRef());
-    setConfirmedCeiling(false);
+  /**
+   * EDIT IS A DURABLE TRANSITION, not a local one.
+   *
+   * Forgetting the identity in component state lasts exactly as long as this
+   * card stays mounted — press Back and the plan is approvable again at its old
+   * ceiling, and the backend was holding it `awaiting_approval` the whole time.
+   * So an approvable plan is CANCELLED at the backend first, and the editor opens
+   * only on a CONFIRMED cancel. A plan that was never approvable has nothing to
+   * retire and opens directly.
+   *
+   * Nothing is lost either way: the editor is seeded from this plan, so
+   * re-compiling and re-saving reproduces it exactly.
+   */
+  const onEdit = useCallback(async () => {
+    if (!editHref || editBusy) return;
+    const decision = decideProfessionalEdit(vm);
+    if (!decision.ok) { setError(decision.reason); return; }
     setError(null); setNotice(null);
-    if (editHref) router.push(editHref);
-  }, [editHref, router]);
+    if (!decision.mustRetire) {
+      setRef(invalidateApprovalRef());
+      setConfirmedCeiling(false);
+      router.push(editHref);
+      return;
+    }
+    setEditBusy(true);
+    try {
+      const outcome = await requestCancel();
+      if (outcome !== 'cancelled') {
+        // NOT retired. The card must keep telling the truth: this plan is still
+        // approvable, so the identity is left intact rather than hidden behind
+        // copy claiming an edit that did not happen.
+        setError(outcome === 'refused'
+          ? 'Implexa refused to retire this plan, so it has not been opened for editing. It is still approvable — reload to see the current state.'
+          : 'We could not confirm this plan was retired, so it has not been opened for editing. It may still be approvable — reload before doing anything else.');
+        router.refresh();
+        return;
+      }
+      setRef(invalidateApprovalRef());
+      setConfirmedCeiling(false);
+      router.push(editHref);
+    } catch {
+      setError('We could not reach Implexa to retire this plan, so it has not been opened for editing.');
+    } finally {
+      setEditBusy(false);
+    }
+  }, [editBusy, editHref, requestCancel, router, vm]);
 
   return (
     <section aria-label="Professional generation plan" className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
@@ -271,10 +316,10 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
             </button>
             {editHref && (
               <button
-                type="button" onClick={onEdit} disabled={inFlight}
+                type="button" onClick={onEdit} disabled={inFlight || editBusy}
                 className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 disabled:opacity-40"
               >
-                Edit
+                {editBusy ? 'Opening for editing…' : 'Edit plan'}
               </button>
             )}
             {!edited && vm.lifecycle === 'awaiting_approval' && (
@@ -292,6 +337,7 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
           <p className="mt-2 text-[11px] leading-snug text-ink-500">
             Approving authorizes this exact timeline and nothing else. It is not a payment —
             usage is recorded as the work actually runs.
+            {editHref && ' Editing cancels this plan and reopens its moments in the builder, so it can never be approved after you change it.'}
           </p>
         </>
       )}
@@ -299,11 +345,14 @@ export default function ProfessionalV2ProposalCard({ vm, agentName, editHref }: 
       {previewOnly && editHref && (
         <div className="mt-3">
           <button
-            type="button" onClick={onEdit}
-            className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200"
+            type="button" onClick={onEdit} disabled={editBusy}
+            className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 disabled:opacity-40"
           >
-            Edit this plan
+            {editBusy ? 'Opening for editing…' : 'Edit this plan'}
           </button>
+          <p className="mt-1.5 text-[11px] text-ink-500">
+            Opens these moments in the builder. This plan was never approvable, so nothing is retired.
+          </p>
         </div>
       )}
     </section>

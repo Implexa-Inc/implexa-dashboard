@@ -105,6 +105,40 @@ else is reported as **unverified** — never as approved and never as "nothing
 happened". The idempotency key is minted once per mounted card so a deliberate
 retry cannot double-authorize.
 
+## The edit lifecycle
+
+Editing a saved plan is a **durable** transition, not a local one.
+
+* **The plan is carried forward.** Edit navigates to
+  `…/generate-broll?from=<proposalId>`; the entry page reads that proposal through
+  the same owner-scoped authenticated read, confirms it is a v2 plan **for this
+  run**, and seeds the editor with its moments. Editing changes a timeline instead
+  of discarding it.
+* **The old identity is durably retired.** An approvable plan is **cancelled at
+  the backend** before the editor opens, and the editor opens only on a *confirmed*
+  cancellation. Forgetting the identity in component state is not invalidation —
+  it survives exactly as long as the card is mounted, so a Back press would make
+  the abandoned plan approvable again at its old ceiling while the backend still
+  held it `awaiting_approval`. Cancelling also removes the window in which two
+  approvable plans exist for one run, each with its own ceiling.
+* **Nothing is lost.** The moments are already in the editor, so re-compiling and
+  re-saving reproduces the plan exactly.
+* **No identity travels with the seed** — no proposal id, version, digest or graph
+  digest — so a fresh compile is unavoidable before anything can be saved.
+* **A plan that was never approvable** (unavailable, expired, already cancelled)
+  has nothing to retire and opens directly. An **approved** plan cannot be edited
+  at all: the money is committed, and the honest next step is a new plan.
+* **A failed retirement does not navigate.** The card says the plan is still
+  approvable rather than showing copy about an edit that did not happen.
+
+## Known gap — the source-duration boundary
+
+Nothing on any surface bounds a moment's timestamps to the length of the source
+video, so a 30-second run can authorize a moment ten minutes in. It predates this
+PR, affects Quick/v1 identically, and cannot be fixed from the Dashboard because
+no surface holds the number. Full audit and the deploy-ordered fix:
+[`source-duration-boundary-audit.md`](./source-duration-boundary-audit.md).
+
 ## Availability today
 
 The three Professional server flags are false, so the backend compiles the plan
@@ -167,10 +201,26 @@ artifact (`.mp4/.mov/.m4v/.webm`, role `final_output`).
     unavailability notice — and **no approve button and no ceiling checkbox**.
 13. **No approval is reachable.** There is no control on the page that issues an
     `approve` action. Confirm in Network that none was sent.
-14. **Quick is unchanged.** Return to the run, use the Quick lane, compare quality
+14. **Edit carries the plan and retires the old one.** On the saved plan press
+    *Edit this plan*. The builder opens on the **Professional** lane with every
+    moment, window, variant count, Judge mode and reserve intact, and states that
+    the previous plan was retired. Confirm:
+    * the URL carries `?from=<the proposal id>`;
+    * no cost figure is shown as compiled — *Compile plan* is required again
+      before *Save* reappears;
+    * pressing **Back** to the old plan shows it as **cancelled** with no approve
+      control. (Today, with the flags false, the plan was `unavailable` and
+      therefore never approvable, so no cancellation is issued and the copy says
+      so — that is the correct behaviour, not a missing step. The cancel-first
+      path is exercised only once the flags are enabled.)
+15. **A broken edit link is said out loud.** Hand-edit the URL to
+    `?from=<a random UUID>` → the builder starts empty **and** shows the notice
+    that the plan could not be loaded. It must never open blank and silent.
+16. **Quick is unchanged.** Return to the run, use the Quick lane, compare quality
     modes and create a Quick proposal exactly as before. Its response carries **no**
     `control_contract_version`, and its proposal page renders the original card.
-15. **Nothing leaked.** Across every response inspected: no provider key, no
+    Visiting `/generate-broll` with no `?from=` still opens on **Quick**.
+17. **Nothing leaked.** Across every response inspected: no provider key, no
     signed URL, no local filesystem path, no JWT in any body.
 
 Stop here. Approval and any provider call are out of scope for this lane and are

@@ -58,6 +58,7 @@ const FILES = [
   'app/(dashboard)/_components/broll-proposal-builder.tsx',
   'app/api/generation-proposals/route.ts',
   'app/(dashboard)/generations/[proposalId]/page.tsx',
+  'app/(dashboard)/runs/[id]/generate-broll/page.tsx',
 ];
 
 const SUITES = [
@@ -82,6 +83,9 @@ const ACTIONS = 'lib/generation-proposal-actions.ts';
 const PROXY = 'app/api/generation-proposals/route.ts';
 const BUILDER = 'app/(dashboard)/_components/professional-broll-builder.tsx';
 const CARD = 'app/(dashboard)/_components/professional-v2-proposal-card.tsx';
+const PAGE = 'app/(dashboard)/generations/[proposalId]/page.tsx';
+const ENTRY_PAGE = 'app/(dashboard)/runs/[id]/generate-broll/page.tsx';
+const ENTRY_BUILDER = 'app/(dashboard)/_components/broll-proposal-builder.tsx';
 
 const mutations = [
   // ── 1. INFERRING v2 FROM SHAPE ───────────────────────────────────────────
@@ -364,6 +368,83 @@ const mutations = [
     boundary: 'v1-untouched', name: 'a v1 document reaching the v2 parser is accepted', file: DOC,
     from: '  if (v.control_contract_version !== CONTROL_V2) return null;',
     to: '  if (false) return null;',
+  },
+
+  // ── 12. THE DURABLE EDIT LIFECYCLE ───────────────────────────────────────
+  // Both defects this boundary exists for were REAL in the first revision of
+  // this PR: Edit navigated to a blank builder (discarding the whole timeline
+  // under a label that promised an edit), and the identity was only forgotten in
+  // component state, so pressing Back made an abandoned plan approvable again at
+  // its old ceiling while the backend still held it awaiting_approval.
+  {
+    boundary: 'edit-lifecycle', name: 'an approvable plan is edited without being retired', file: ENTRY,
+    from: "  return { ok: true, mustRetire: vm.lifecycle === 'awaiting_approval' };",
+    to: '  return { ok: true, mustRetire: false };',
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'an already-approved plan is editable', file: ENTRY,
+    from: "  if (vm.lifecycle === 'approved') {\n    return { ok: false, reason: 'This plan is already approved, so it cannot be edited. Build a new plan instead.' };\n  }",
+    to: '',
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'retirement claimed on a bare ok:true', file: ENTRY,
+    from: "  const vm = parseProfessionalV2ProposalResponse(body, proposalId);\n  if (!vm) return 'unverified';\n  return vm.lifecycle === 'cancelled' ? 'cancelled' : 'unverified';",
+    to: "  return 'cancelled';",
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'a still-approvable read counted as retired', file: ENTRY,
+    from: "  return vm.lifecycle === 'cancelled' ? 'cancelled' : 'unverified';",
+    to: "  return 'cancelled';",
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'an unreadable cancel answer reported as a refusal', file: ENTRY,
+    from: "  if (!httpOk) {\n    if (isObject(body) && body.unavailable === true) return 'unverified';\n    if (isObject(body) && typeof body.error === 'string' && body.error) return 'refused';\n    return 'unverified';\n  }\n  const vm = parseProfessionalV2ProposalResponse(body, proposalId);",
+    to: "  if (!httpOk) {\n    return 'refused';\n  }\n  const vm = parseProfessionalV2ProposalResponse(body, proposalId);",
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'the editor opens even when retirement failed', file: CARD,
+    from: "      if (outcome !== 'cancelled') {",
+    to: '      if (false) {',
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'Edit discards the plan instead of carrying it', file: PAGE,
+    from: '          editHref={read.vm.sourceRunId\n            ? `/runs/${encodeURIComponent(read.vm.sourceRunId)}/generate-broll?from=${encodeURIComponent(read.vm.proposalId)}`\n            : null}',
+    to: '          editHref={read.vm.sourceRunId\n            ? `/runs/${encodeURIComponent(read.vm.sourceRunId)}/generate-broll`\n            : null}',
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'the seed is not bound to this run', file: ENTRY_PAGE,
+    from: '  if (read.vm.sourceRunId !== runId) return null;',
+    to: '  if (false) return null;',
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'a v1 proposal seeds the Professional editor', file: ENTRY_PAGE,
+    from: "  if (read.state !== 'ready' || read.contract !== 'v2') return null;",
+    to: "  if (read.state !== 'ready') return null;",
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'a failed edit load opens a blank builder silently', file: ENTRY_PAGE,
+    from: '  const editRequestedButUnavailable = !!searchParams?.from && seedMoments === null;',
+    to: '  const editRequestedButUnavailable = false;',
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'a seeded timeline is not validated before it is offered', file: ENTRY,
+    from: '  return validateTimeline(moments).ok ? moments : null;',
+    to: '  return moments;',
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'the seed loses a moment field', file: ENTRY,
+    from: '    variantsRequested: moment.variantsRequested,\n    judgeMode: moment.judgeMode,\n    maxRepairs: moment.maxRepairs,\n  }));\n  return validateTimeline(moments).ok ? moments : null;',
+    to: '    variantsRequested: 1,\n    judgeMode: moment.judgeMode,\n    maxRepairs: moment.maxRepairs,\n  }));\n  return validateTimeline(moments).ok ? moments : null;',
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'a seeded edit lands on the Quick lane, hiding the plan', file: ENTRY_BUILDER,
+    from: "  const [lane, setLane] = useState<EntryLane>(seedMoments && seedMoments.length ? 'professional' : 'quick');",
+    to: "  const [lane, setLane] = useState<EntryLane>('quick');",
+  },
+  {
+    boundary: 'edit-lifecycle', name: 'the seeded plan is dropped on the way to the builder', file: BUILDER,
+    from: '  const [moments, setMoments] = useState<TimelineMoment[]>(\n    seedMoments && seedMoments.length ? seedMoments : [newMoment(1, 0)],\n  );',
+    to: '  const [moments, setMoments] = useState<TimelineMoment[]>([newMoment(1, 0)]);',
   },
 
   // ── extra boundaries the lane also depends on ────────────────────────────
