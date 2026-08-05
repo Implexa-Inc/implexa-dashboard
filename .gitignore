@@ -1,4 +1,8 @@
 # Dependencies
+# Both spellings, deliberately. `node_modules/` matches only a real DIRECTORY;
+# a node_modules SYMLINK (worktrees sharing one install) slips past it and gets
+# committed — which is exactly how one reached this branch.
+node_modules
 node_modules/
 .pnp
 .pnp.js
