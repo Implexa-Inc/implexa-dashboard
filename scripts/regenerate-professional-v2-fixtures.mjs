@@ -45,7 +45,7 @@ import { fileURLToPath } from 'node:url';
 // fixture below is produced by THAT producer, so the browser's bounds, its
 // strict parsers and its editor all agree with the exact backend a PR ships
 // against — not with whatever is on main today.
-const EXPECTED_BACKEND_HEAD = '04f7ce06dbd30ab07fd2f11eae05e54935b6981e';
+const EXPECTED_BACKEND_HEAD = 'dcdbf0c48be2320d2d5ddd32fa283fdf326a2ee2';
 
 const dashboardRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const backendRoot = resolve(process.env.IMPLEXA_BACKEND_DIR || join(dashboardRoot, '..', 'implexa-backend'));

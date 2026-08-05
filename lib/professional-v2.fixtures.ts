@@ -2,7 +2,7 @@
  * GENERATED — do not edit by hand.
  *
  * Every document below is the REAL wire output of the Implexa backend producer
- * at commit 04f7ce06dbd30ab07fd2f11eae05e54935b6981e: previews, creates and reads
+ * at commit dcdbf0c48be2320d2d5ddd32fa283fdf326a2ee2: previews, creates and reads
  * driven through generation-proposal.service.js itself, and availability
  * verdicts from evaluateProfessionalAvailability. Bounds are PROBED from the
  * producer, never transcribed.
@@ -14,7 +14,7 @@
  * containing a local path, a URL, a bearer token or a JWT.
  */
 
-export const BACKEND_PIN = "04f7ce06dbd30ab07fd2f11eae05e54935b6981e" as const;
+export const BACKEND_PIN = "dcdbf0c48be2320d2d5ddd32fa283fdf326a2ee2" as const;
 
 export const CONTROL_CONTRACT_V1 = "professional-generation-control.v1" as const;
 
