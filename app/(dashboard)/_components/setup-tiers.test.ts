@@ -20,6 +20,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { openingElements, propValue } from '../../../lib/jsx-source.ts';
 
 const read = (f: string) => readFileSync(join(import.meta.dirname, f), 'utf8');
 
@@ -371,8 +372,21 @@ test('the Setup tab keeps the permissions/access editor after activation', () =>
   const page = read('../workflows/[slug]/page.tsx');
   assert.match(page, /import \{ ActivationCard \} from '\.\.\/\.\.\/_components\/activation-card';/,
     'the reusable activation checklist must be available to the Setup tab');
-  assert.match(page, /\{checklist && <ActivationCard checklist=\{checklist\} surface="setup" \/>\}/,
-    'Setup must render the permissions/access checklist instead of losing it after activation');
+  // Asserted on the two props this test is ABOUT (mounted, and mounted as the setup
+  // surface) rather than on the exact prop list: the card also takes the run-input
+  // contract now, and pinning the full attribute string here made an unrelated
+  // correct change fail a test whose subject is "Setup still has the editor".
+  // The run-input props have their own guard — lib/run-input-surface-parity.test.ts.
+  //
+  // Read with the brace-aware scanner, NOT a /<ActivationCard[^>]*>/ regex: a prop
+  // value may contain '>' (an arrow function is enough), which truncates the match
+  // mid-element and makes a present-prop assertion fail on correct code.
+  const [card_] = openingElements(page, 'ActivationCard');
+  assert.ok(card_, 'Setup must render the permissions/access checklist instead of losing it after activation');
+  assert.equal(propValue(card_, 'checklist'), 'checklist', 'the card must be fed the checklist it edits');
+  assert.equal(propValue(card_, 'surface'), '"setup"', 'and mounted as the reusable setup surface');
+  assert.match(page, /\{checklist && <ActivationCard\b/,
+    'still gated on having a checklist — an unread checklist must not render an empty editor');
 
   const card = read('activation-card.tsx');
   assert.match(card, /surface\?: 'activation' \| 'setup';/,
