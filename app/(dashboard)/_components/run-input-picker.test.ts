@@ -33,8 +33,8 @@ test('a cancel is a no-op and a failure is surfaced', () => {
 test('the error is actually rendered next to its field', () => {
   assert.match(src, /\{inputErrors\[field\.key\] && \(/, 'the message renders per field');
   assert.match(src, /role="alert"/, 'and is announced, not just coloured');
-  assert.match(src, /setInputError\(field\.key, null\);\s*\n\s*const result = await bridge\.pickRunInput\(/,
-    'a fresh attempt clears the previous error before it starts');
+  assert.match(src, /setInputError\(field\.key, null\);[\s\S]*?const sessionId = inputSessionRef\.current \|\| crypto\.randomUUID\(\);[\s\S]*?const result = await bridge\.pickRunInput\(/,
+    'a fresh attempt clears the previous error before it freezes the session and starts');
 });
 
 test('a bound file shows its filename and that it is verified and keyed', () => {

@@ -319,8 +319,8 @@ test('the pop-up seeds its run inputs from the setup it just loaded', () => {
     'the defaults must be seeded where the setup is loaded — a helper nothing calls is how the blank form survived');
   assert.match(src, /const inputBindings = resolveEffectiveInputs\(inputContract, inputDefaults, inputOverrides\);/,
     'one merged value feeds the gate, the payload and the controls, so they cannot disagree');
-  assert.match(src, /void verifySavedFileInputs\(savedInputs\.filesToVerify\);/,
-    'saved file paths are verified, not assumed');
+  assert.match(src, /const modalInputSessionId = inputSessionRef\.current \|\| crypto\.randomUUID\(\);[\s\S]*?void verifySavedFileInputs\(savedInputs\.filesToVerify, modalInputSessionId\);/,
+    'saved file paths are verified under the same frozen session used by manual choices, not assumed or rebound later');
   assert.match(src, /setInputOverrides\(\{\}\);/,
     'a queued run consumes its overrides — otherwise the NEXT run silently inherits them');
   assert.ok(!/setInputBindings\(/.test(src),

@@ -163,6 +163,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   /** File keys whose saved path this machine is still verifying. */
   const [verifyingInputs, setVerifyingInputs] = useState<string[]>([]);
   const [inputSessionId, setInputSessionId] = useState<string | null>(null);
+  // React state is not a synchronization primitive. Saved-file verification
+  // and the manual picker can run concurrently, so both read/write this ref and
+  // are bound to one session chosen before either async bridge call starts.
+  const inputSessionRef = useRef<string | null>(null);
   const inputBindings = resolveEffectiveInputs(inputContract, inputDefaults, inputOverrides);
   // Per-field picker/registration failures. Keyed by contract field key so the
   // message lands on the field the user was actually filling in.
@@ -210,7 +214,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     try {
       const saved = JSON.parse(sessionStorage.getItem(key) || '{}');
       if (saved?.overrides && typeof saved.overrides === 'object') setInputOverrides(saved.overrides);
-      if (typeof saved?.inputSessionId === 'string') setInputSessionId(saved.inputSessionId);
+      if (typeof saved?.inputSessionId === 'string') {
+        inputSessionRef.current = saved.inputSessionId;
+        setInputSessionId(saved.inputSessionId);
+      }
     } catch { /* malformed/stale browser state is ignored */ }
   }, [slug, workflowVersionId]);
 
@@ -224,9 +231,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     const bridge = desktopBridge();
     if (!bridge?.pickRunInput) return;
     setInputError(field.key, null);
+    const sessionId = inputSessionRef.current || crypto.randomUUID();
+    inputSessionRef.current = sessionId;
+    setInputSessionId(sessionId);
     const result = await bridge.pickRunInput({
       inputKey: field.key,
-      ...(inputSessionId ? { inputSessionId } : {}),
+      inputSessionId: sessionId,
       ...(field.accept ? { accept: field.accept } : {}),
     }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
     const outcome = resolvePickerResult(result, field);
@@ -234,6 +244,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // field stays bound.
     if (outcome.kind === 'canceled') return;
     if (outcome.kind === 'failed') { setInputError(field.key, outcome.message); return; }
+    if (outcome.inputSessionId !== sessionId) {
+      setInputError(field.key, 'The Desktop returned this file for a different run-input session. Please choose it again.');
+      return;
+    }
+    inputSessionRef.current = sessionId;
     setInputSessionId(outcome.inputSessionId);
     // A picked file is a change made HERE, so it lands in the override layer and
     // affects this run alone. The saved answer stays exactly as Setup left it.
@@ -249,15 +264,14 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
    * is why the saved path is still SHOWN there — a valid saved source must never
    * read as missing just because a native file control is empty.
    */
-  async function verifySavedFileInputs(fields: WorkflowInputField[]) {
+  async function verifySavedFileInputs(fields: WorkflowInputField[], sessionId: string) {
     const bridge = desktopBridge();
     if (!bridge?.bindSavedRunInput || !fields.length) return;
     setVerifyingInputs(fields.map((field) => field.key));
-    let session = inputSessionId;
     for (const field of fields) {
       const result = await bridge.bindSavedRunInput({
         slug, source, inputKey: field.key,
-        ...(session ? { inputSessionId: session } : {}),
+        inputSessionId: sessionId,
         ...(field.accept ? { accept: field.accept } : {}),
       }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
       setVerifyingInputs((previous) => previous.filter((key) => key !== field.key));
@@ -265,8 +279,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // Say why. A saved source that silently fails to bind is the blank form
       // again, one layer down — an empty control and no reason for it.
       if (outcome.kind === 'failed') { setInputError(field.key, outcome.message); continue; }
-      session = outcome.inputSessionId;
-      setInputSessionId(outcome.inputSessionId);
+      if (outcome.inputSessionId !== sessionId) {
+        setInputError(field.key, 'The saved file was verified for a different run-input session. Choose it again for this run.');
+        continue;
+      }
+      inputSessionRef.current = sessionId;
+      setInputSessionId(sessionId);
       // A verified saved file is still the DEFAULT, not an override: the user
       // did not choose it in this pop-up, they saved it once in Setup.
       setInputDefaults((previous) => bindSavedArtifact(previous, field, outcome.binding));
@@ -429,6 +447,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     setSavedInputValues(savedInputs.values);
     setInputDefaults(savedInputs.bindable);
     setInputErrors({});
+    // Freeze one identity before either automatic verification or a user click
+    // can start. Reuse a restored session only while its per-run overrides are
+    // still alive; a successful queue clears both below.
+    const modalInputSessionId = inputSessionRef.current || crypto.randomUUID();
+    inputSessionRef.current = modalInputSessionId;
+    setInputSessionId(modalInputSessionId);
     setSetupOpen(!setupCollapsed(slug));
     // Seed the standing note: prefer the live (possibly unsaved) draft the Setup
     // card mirrored, so a note typed-but-not-saved before clicking Run is carried;
@@ -446,7 +470,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // Files are verified on the machine that holds them, so the pop-up opens
     // NOW and each saved source resolves into it. Blocking the dialog on a
     // several-hundred-megabyte hash would trade one bad Run click for another.
-    void verifySavedFileInputs(savedInputs.filesToVerify);
+    void verifySavedFileInputs(savedInputs.filesToVerify, modalInputSessionId);
   }
 
   async function loadSetup(): Promise<{
@@ -588,6 +612,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // never asked to keep — exactly the carried-over input a per-run contract
       // exists to prevent. The saved defaults stay; they are the standing answer.
       setInputOverrides({});
+      inputSessionRef.current = null;
+      setInputSessionId(null);
       setState('queued');
       setMsg('Queued. It runs hands-off on your computer (Claude open / Mac awake) — the result lands in your Implexa inbox, usually within a few minutes.');
       // Land the user where the run actually shows itself starting — the Active
