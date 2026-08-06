@@ -8,6 +8,16 @@ export type WorkflowInputField = {
   options?: string[];
   cardinality: 'one' | 'many';
   order: number;
+  /**
+   * Setup questions this run input supersedes, by key.
+   *
+   * The declared, versioned answer to "is the saved `source_video` question the
+   * same thing as the fresh `target_video_source` input?" — which the two
+   * vocabularies otherwise have no way to express, so the Run-now form asked for
+   * the raw video twice and let a months-old saved path compete with the fresh
+   * one. Identity only; nothing here or on the server infers it from labels.
+   */
+  replaces?: string[];
 };
 
 export type WorkflowInputContract = { version: 1; fields: WorkflowInputField[] };
@@ -22,6 +32,43 @@ export type RunInputBindings = Record<string, RunInputValue>;
 
 export function orderedInputFields(contract: WorkflowInputContract | null): WorkflowInputField[] {
   return contract ? [...contract.fields].sort((a, b) => a.order - b.order) : [];
+}
+
+/**
+ * Which setup questions this contract has taken ownership of.
+ *
+ * A field's own key counts: a run input and a setup question sharing a key are
+ * the same identity by definition, and rendering both is the same defect wearing
+ * a simpler disguise.
+ */
+export function supersededSetupKeys(contract: WorkflowInputContract | null): Set<string> {
+  const keys = new Set<string>();
+  for (const field of orderedInputFields(contract)) {
+    keys.add(field.key);
+    for (const replaced of field.replaces ?? []) keys.add(replaced);
+  }
+  return keys;
+}
+
+/**
+ * The setup questions that are still genuinely the user's to answer once.
+ *
+ * These are PREFERENCES — b-roll density, aspect ratio, preferred engine, a
+ * standing style note — reused on every run. What is left after this filter is
+ * exactly what belongs in the saved-preferences section, and nothing in it can
+ * be a second way to answer a question the Run Inputs section already asks.
+ *
+ * The server resolves the same thing against the version each user is pinned to
+ * and no longer serves a superseded question at all. This runs anyway: a client
+ * deployed ahead of that backend must not spend that window rendering the
+ * duplicate, and a filter that depends on deploy order is not a contract.
+ */
+export function reusablePreferences<T extends { key: string }>(
+  fields: T[],
+  contract: WorkflowInputContract | null,
+): T[] {
+  const superseded = supersededSetupKeys(contract);
+  return fields.filter((field) => !superseded.has(field.key));
 }
 
 export function missingRequiredInputs(

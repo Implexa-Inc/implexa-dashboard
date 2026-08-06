@@ -228,7 +228,8 @@ test('saved settings are COLLAPSED, never hidden, before a run', () => {
   assert.match(src, /setSetupFields\(durableSetup\);/,
     'durable settings are always loaded; versioned run inputs render in their typed section');
   assert.match(src, /setSetupOpen\(!setupCollapsed\(slug\)\)/, 'the preference only controls collapse');
-  assert.match(src, /Review settings/, 'there is a visible settings section');
+  assert.match(src, /Saved preferences/,
+    'there is a visible section for the answers kept between runs — named for what it now holds, since the per-run inputs moved to their own section');
   // Collapsed still SHOWS the current values, so "what will it use?" is answerable
   // without expanding.
   assert.match(src, /\{!setupOpen && \(/, 'a collapsed summary must exist');

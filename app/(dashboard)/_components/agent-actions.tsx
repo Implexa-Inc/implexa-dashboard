@@ -29,7 +29,8 @@ import { getAgentNoteDraft, clearAgentNoteDraft } from '@/lib/agent-note-draft';
 import { AttachFiles, composeNoteWithFiles, desktopBridge, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import {
-  bindInputValue, missingRequiredInputs, orderedInputFields, resolvePickerResult, serializeArtifactBindings,
+  bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
+  resolvePickerResult, serializeArtifactBindings,
   type ArtifactBinding, type RunInputBindings, type WorkflowInputContract,
 } from '@/lib/workflow-input-contract';
 
@@ -355,8 +356,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // able to see and adjust what the agent will use. The preference only decides
     // whether the section starts collapsed.
     const { schema, answers, note } = await loadSetup();
-    const typedKeys = new Set(typedFields.map((field) => field.key));
-    const durableSetup = schema.filter((field) => !typedKeys.has(field.key));
+    // Preferences only. A question this contract has superseded — by sharing its
+    // key or by naming it in `replaces` — belongs to the Run Inputs section
+    // below, and rendering it here too is how the form came to ask for the raw
+    // video twice under two names.
+    const durableSetup = reusablePreferences(schema, inputContract);
     setSetupFields(durableSetup);
     setSetupValues(Object.fromEntries(durableSetup.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
     setSetupOpen(!setupCollapsed(slug));
@@ -543,7 +547,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`, { jwt: session?.access_token });
         const schema: Array<{ key: string; question: string }> = Array.isArray(setup?.schema) ? setup.schema : [];
         const answers: Record<string, string> = (setup?.answers && typeof setup.answers === 'object') ? setup.answers : {};
-        const pairs = schema
+        // Same filter as the pop-up: this string becomes the prompt of the
+        // session the user is about to watch, so a superseded answer here is a
+        // stale value put in front of the agent by another route.
+        const pairs = reusablePreferences(schema, inputContract)
           .filter((f) => (answers[f.key] ?? '').toString().trim() !== '')
           .map((f) => `${f.question} ${answers[f.key]}`);
         if (pairs.length) settings = ` Use these saved answers, do not ask again: ${pairs.join('; ')}.`;
@@ -763,7 +770,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     >
       <p className="text-sm text-ink-300 leading-relaxed mb-4">
         {setupFields.length
-          ? <>Confirm or change {setupFields.length === 1 ? 'this answer' : 'these answers'} (e.g. swap a reference video) — saved for next time — and add anything for just this run below.</>
+          ? <>Confirm or change {setupFields.length === 1 ? 'this preference' : 'these preferences'} — kept and reused on every run{typedFields.length ? ', separate from the inputs this run needs fresh' : ''} — and add anything for just this run below.</>
           : <>Add anything you want this run to do differently (optional).</>}
         {' '}{preRunMode === 'watch'
           ? 'It opens in Claude Code with your note included, so you can watch.'
@@ -780,7 +787,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             className="w-full flex items-center justify-between gap-2 text-left"
           >
             <span className="text-xs font-semibold uppercase tracking-wide text-ink-400">
-              Review settings
+              Saved preferences
               {blankRequired.length > 0 && (
                 <span className="ml-2 normal-case text-[11px] text-amber-700 dark:text-amber-300">
                   {blankRequired.length} needed
@@ -855,7 +862,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <div className="mt-4 rounded-md border border-ink-700 bg-ink-950/50 p-3 space-y-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-ink-300">Run inputs</p>
-            <p className="text-[11px] text-ink-500 mt-1">Files are bound to their named role. Upload order is irrelevant.</p>
+            <p className="text-[11px] text-ink-500 mt-1">Fresh for this run — never carried over from the last one. Files are bound to their named role, so upload order is irrelevant.</p>
           </div>
           {typedFields.map((field) => {
             const binding = inputBindings[field.key];
