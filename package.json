@@ -16,7 +16,8 @@
     "fixtures:generation": "node scripts/regenerate-generation-proposal-fixtures.mjs",
     "fixtures:professional-v2": "node scripts/regenerate-professional-v2-fixtures.mjs",
     "fixtures:professional-v2:check": "node scripts/regenerate-professional-v2-fixtures.mjs --check",
-    "test:queued-wait-copy-mutations": "node scripts/mutation-test-queued-wait-copy.mjs"
+    "test:queued-wait-copy-mutations": "node scripts/mutation-test-queued-wait-copy.mjs",
+    "test:run-input-picker-mutations": "node scripts/mutation-test-run-input-picker.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

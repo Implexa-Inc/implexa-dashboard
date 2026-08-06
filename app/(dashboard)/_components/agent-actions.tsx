@@ -29,7 +29,7 @@ import { getAgentNoteDraft, clearAgentNoteDraft } from '@/lib/agent-note-draft';
 import { AttachFiles, composeNoteWithFiles, desktopBridge, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import {
-  missingRequiredInputs, orderedInputFields, serializeArtifactBindings,
+  bindInputValue, missingRequiredInputs, orderedInputFields, resolvePickerResult, serializeArtifactBindings,
   type ArtifactBinding, type RunInputBindings, type WorkflowInputContract,
 } from '@/lib/workflow-input-contract';
 
@@ -145,6 +145,20 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const typedFields = orderedInputFields(inputContract);
   const [inputBindings, setInputBindings] = useState<RunInputBindings>({});
   const [inputSessionId, setInputSessionId] = useState<string | null>(null);
+  // Per-field picker/registration failures. Keyed by contract field key so the
+  // message lands on the field the user was actually filling in.
+  const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
+  function setInputError(key: string, message: string | null) {
+    setInputErrors((previous) => {
+      if (!message) {
+        if (!(key in previous)) return previous;
+        const next = { ...previous };
+        delete next[key];
+        return next;
+      }
+      return { ...previous, [key]: message };
+    });
+  }
   // The note the blocked attempt carried, so a retry after switching/granting keeps it.
   const lastNote = useRef<string | undefined>(undefined);
   // The fingerprint computed by the LAST precheck, kept alongside lastNote because
@@ -185,25 +199,19 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   async function chooseTypedInput(field: (typeof typedFields)[number]) {
     const bridge = desktopBridge();
     if (!bridge?.pickRunInput) return;
+    setInputError(field.key, null);
     const result = await bridge.pickRunInput({
       inputKey: field.key,
       ...(inputSessionId ? { inputSessionId } : {}),
       ...(field.accept ? { accept: field.accept } : {}),
-    }).catch(() => null);
-    if (!result?.ok || !result.artifactId || !result.sha256 || !result.displayName || !result.inputSessionId) return;
-    const binding: ArtifactBinding = {
-      artifactId: result.artifactId,
-      sha256: result.sha256,
-      displayName: result.displayName,
-      ...(result.mediaType ? { mediaType: result.mediaType } : {}),
-    };
-    setInputSessionId(result.inputSessionId);
-    setInputBindings((previous) => {
-      if (field.cardinality !== 'many') return { ...previous, [field.key]: binding };
-      const current = previous[field.key];
-      const list = Array.isArray(current) ? current.filter((value): value is ArtifactBinding => typeof value === 'object') : [];
-      return { ...previous, [field.key]: [...list, binding] };
-    });
+    }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
+    const outcome = resolvePickerResult(result, field);
+    // A cancel changes nothing: no error, and any file already bound to this
+    // field stays bound.
+    if (outcome.kind === 'canceled') return;
+    if (outcome.kind === 'failed') { setInputError(field.key, outcome.message); return; }
+    setInputSessionId(outcome.inputSessionId);
+    setInputBindings((previous) => bindInputValue(previous, field, outcome.binding));
   }
 
   // Poll the queued request until the plugin marks it done (run_id linked).
@@ -897,18 +905,27 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 ) : artifacts.length ? (
                   <div className="mt-2 space-y-1">
                     {artifacts.map((item) => <div key={item.artifactId} className="flex items-center justify-between gap-2 text-xs text-ink-300">
-                      <span className="truncate" title={item.displayName}>✓ {item.displayName}</span>
-                      <button type="button" onClick={() => setInputBindings((previous) => {
-                        const next = { ...previous };
-                        if (field.cardinality === 'many') next[field.key] = artifacts.filter((candidate) => candidate.artifactId !== item.artifactId);
-                        else delete next[field.key];
-                        return next;
-                      })} className="text-ink-500 hover:text-rose-400">Remove</button>
+                      <span className="truncate min-w-0" title={item.displayName}>
+                        <span className="text-emerald-400">✓</span> {item.displayName}
+                        {' '}<span className="text-ink-500">— verified, bound to {field.key}</span>
+                      </span>
+                      <button type="button" onClick={() => {
+                        setInputError(field.key, null);
+                        setInputBindings((previous) => {
+                          const next = { ...previous };
+                          if (field.cardinality === 'many') next[field.key] = artifacts.filter((candidate) => candidate.artifactId !== item.artifactId);
+                          else delete next[field.key];
+                          return next;
+                        });
+                      }} className="text-ink-500 hover:text-rose-400 shrink-0">Remove</button>
                     </div>)}
                   </div>
                 ) : field.kind === 'file' && !desktopBridge()?.pickRunInput ? (
                   <p className="text-[11px] text-amber-300 mt-2">Open this agent in the Implexa desktop app to choose a local file.</p>
                 ) : null}
+                {inputErrors[field.key] && (
+                  <p role="alert" className="text-[11px] text-rose-300 mt-2">{inputErrors[field.key]}</p>
+                )}
               </div>
             );
           })}
