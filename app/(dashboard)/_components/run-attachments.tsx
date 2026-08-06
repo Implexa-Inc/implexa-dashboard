@@ -49,6 +49,10 @@ export type DesktopBridge = {
     accept?: { mediaTypes?: string[]; extensions?: string[] };
   }) => Promise<{
     ok: boolean;
+    /** Set when the user dismissed the native picker: keep state, show nothing. */
+    canceled?: boolean;
+    /** Set on every genuine failure, so a refusal can be explained rather than swallowed. */
+    error?: string;
     inputSessionId?: string;
     artifactId?: string;
     sha256?: string;
