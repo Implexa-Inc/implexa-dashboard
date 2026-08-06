@@ -22,10 +22,10 @@ test('the card can express all six canonical phases', () => {
   // up" and "failed" were literally unrenderable no matter what the server sent.
   assert.match(
     SRC,
-    /type Phase = 'queued' \| 'claimed' \| 'running' \| 'built' \| 'failed' \| 'cancelled';/,
+    /type Phase = 'queued' \| 'claimed' \| 'running' \| 'verifying' \| 'built' \| 'failed' \| 'cancelled';/,
     'the phase union must match the server vocabulary (migration 0160) exactly',
   );
-  for (const phase of ['queued', 'claimed', 'running', 'built', 'failed', 'cancelled']) {
+  for (const phase of ['queued', 'claimed', 'running', 'verifying', 'built', 'failed', 'cancelled']) {
     assert.match(SRC, new RegExp(`^\\s*${phase}:\\s*\\{ title:`, 'm'), `${phase} has no copy, so it would render blank`);
   }
 });

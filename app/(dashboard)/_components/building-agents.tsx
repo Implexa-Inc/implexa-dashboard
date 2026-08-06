@@ -27,7 +27,7 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
 /** Canonical vocabulary. Mirrors the CHECK in migration 0160 — do not extend locally. */
-type Phase = 'queued' | 'claimed' | 'running' | 'built' | 'failed' | 'cancelled';
+type Phase = 'queued' | 'claimed' | 'running' | 'verifying' | 'built' | 'failed' | 'cancelled';
 
 type LifecycleEvent = {
   event: Phase;
@@ -79,6 +79,7 @@ const COPY: Record<Phase, { title: string; sub: string }> = {
   queued:    { title: 'Queued',       sub: 'Waiting for a worker to pick it up' },
   claimed:   { title: 'Picked Up',    sub: 'A worker claimed it and is starting' },
   running:   { title: 'Building',     sub: 'The worker is composing the steps' },
+  verifying: { title: 'Verifying',    sub: 'The build finished; checking the saved agent' },
   built:     { title: 'Built',        sub: 'Your agent is ready' },
   failed:    { title: 'Failed',       sub: 'The build did not finish' },
   cancelled: { title: 'Cancelled',    sub: 'This build was cancelled' },
