@@ -26,13 +26,18 @@ import Modal from './modal';
 import SetupChoiceField from './setup-choice-field';
 import { firstRunPermsSeen, markFirstRunPermsSeen } from './first-run-permissions-note';
 import { getAgentNoteDraft, clearAgentNoteDraft } from '@/lib/agent-note-draft';
-import { AttachFiles, composeNoteWithFiles, desktopBridge, useRunAttachments } from './run-attachments';
+import { AttachFiles, composeNoteWithFiles, desktopBridge, fileName, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import {
   bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
   resolvePickerResult, serializeArtifactBindings,
-  type ArtifactBinding, type RunInputBindings, type WorkflowInputContract,
+  type ArtifactBinding, type RunInputBindings, type WorkflowInputContract, type WorkflowInputField,
 } from '@/lib/workflow-input-contract';
+import {
+  bindSavedArtifact, displayedInputValue, inputOrigin, savedInputLabel,
+  readSavedRunInputs, resolveEffectiveInputs, resolveSavedBindResult,
+  type RunInputOverrides,
+} from '@/lib/run-input-defaults';
 
 type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
 type SetupField = {
@@ -144,8 +149,21 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // (switch engine / grant it / run anyway), so it renders as a card, not a failure.
   const [capCard, setCapCard] = useState<CapabilityCardData | null>(null);
   const typedFields = orderedInputFields(inputContract);
-  const [inputBindings, setInputBindings] = useState<RunInputBindings>({});
+  // TWO LAYERS, kept apart on purpose (see lib/run-input-defaults).
+  //   inputDefaults  — what the user SAVED in Setup. Reused on every run.
+  //   inputOverrides — what they changed in THIS pop-up. This run only, and
+  //                    never written back to the saved answer.
+  // Merged (blanks dropped) into the bindings the run receives. Before this,
+  // there was only the second layer and it started empty — so an agent whose
+  // setup was complete still opened Run now with every control blank.
+  const [inputDefaults, setInputDefaults] = useState<RunInputBindings>({});
+  const [inputOverrides, setInputOverrides] = useState<RunInputOverrides>({});
+  /** The saved answers as text, for naming the source a file field starts from. */
+  const [savedInputValues, setSavedInputValues] = useState<Record<string, string>>({});
+  /** File keys whose saved path this machine is still verifying. */
+  const [verifyingInputs, setVerifyingInputs] = useState<string[]>([]);
   const [inputSessionId, setInputSessionId] = useState<string | null>(null);
+  const inputBindings = resolveEffectiveInputs(inputContract, inputDefaults, inputOverrides);
   // Per-field picker/registration failures. Keyed by contract field key so the
   // message lands on the field the user was actually filling in.
   const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
@@ -181,12 +199,17 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
 
   // Preserve semantic identity across remount/back navigation. Only opaque ids,
   // digests, and display names are stored; local paths remain Desktop-local.
+  //
+  // OVERRIDES ONLY. The saved defaults are the server's to state and are reloaded
+  // whenever the pop-up opens; keeping a copy here would let a stale one outlive
+  // an edit made in Setup. What must survive a remount is the per-run change the
+  // user made in this pop-up and would otherwise silently lose.
   useEffect(() => {
     if (!workflowVersionId || typeof window === 'undefined') return;
     const key = `implexa:run-inputs:${slug}:${workflowVersionId}`;
     try {
       const saved = JSON.parse(sessionStorage.getItem(key) || '{}');
-      if (saved?.bindings && typeof saved.bindings === 'object') setInputBindings(saved.bindings);
+      if (saved?.overrides && typeof saved.overrides === 'object') setInputOverrides(saved.overrides);
       if (typeof saved?.inputSessionId === 'string') setInputSessionId(saved.inputSessionId);
     } catch { /* malformed/stale browser state is ignored */ }
   }, [slug, workflowVersionId]);
@@ -194,10 +217,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   useEffect(() => {
     if (!workflowVersionId || typeof window === 'undefined') return;
     const key = `implexa:run-inputs:${slug}:${workflowVersionId}`;
-    try { sessionStorage.setItem(key, JSON.stringify({ bindings: inputBindings, inputSessionId })); } catch { /* private mode */ }
-  }, [slug, workflowVersionId, inputBindings, inputSessionId]);
+    try { sessionStorage.setItem(key, JSON.stringify({ overrides: inputOverrides, inputSessionId })); } catch { /* private mode */ }
+  }, [slug, workflowVersionId, inputOverrides, inputSessionId]);
 
-  async function chooseTypedInput(field: (typeof typedFields)[number]) {
+  async function chooseTypedInput(field: WorkflowInputField) {
     const bridge = desktopBridge();
     if (!bridge?.pickRunInput) return;
     setInputError(field.key, null);
@@ -212,7 +235,42 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     if (outcome.kind === 'canceled') return;
     if (outcome.kind === 'failed') { setInputError(field.key, outcome.message); return; }
     setInputSessionId(outcome.inputSessionId);
-    setInputBindings((previous) => bindInputValue(previous, field, outcome.binding));
+    // A picked file is a change made HERE, so it lands in the override layer and
+    // affects this run alone. The saved answer stays exactly as Setup left it.
+    setInputOverrides((previous) => bindInputValue(previous, field, outcome.binding));
+  }
+
+  /**
+   * Turn the paths the user saved for file inputs into bindings this run can use.
+   *
+   * Verification, not trust: Desktop re-hashes the saved file and registers it
+   * afresh, so the run receives a digest of the bytes on disk now rather than a
+   * promise made when the path was typed. A browser has no way to do that, which
+   * is why the saved path is still SHOWN there — a valid saved source must never
+   * read as missing just because a native file control is empty.
+   */
+  async function verifySavedFileInputs(fields: WorkflowInputField[]) {
+    const bridge = desktopBridge();
+    if (!bridge?.bindSavedRunInput || !fields.length) return;
+    setVerifyingInputs(fields.map((field) => field.key));
+    let session = inputSessionId;
+    for (const field of fields) {
+      const result = await bridge.bindSavedRunInput({
+        slug, source, inputKey: field.key,
+        ...(session ? { inputSessionId: session } : {}),
+        ...(field.accept ? { accept: field.accept } : {}),
+      }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
+      setVerifyingInputs((previous) => previous.filter((key) => key !== field.key));
+      const outcome = resolveSavedBindResult(result, field);
+      // Say why. A saved source that silently fails to bind is the blank form
+      // again, one layer down — an empty control and no reason for it.
+      if (outcome.kind === 'failed') { setInputError(field.key, outcome.message); continue; }
+      session = outcome.inputSessionId;
+      setInputSessionId(outcome.inputSessionId);
+      // A verified saved file is still the DEFAULT, not an override: the user
+      // did not choose it in this pop-up, they saved it once in Setup.
+      setInputDefaults((previous) => bindSavedArtifact(previous, field, outcome.binding));
+    }
   }
 
   // Poll the queued request until the plugin marks it done (run_id linked).
@@ -355,7 +413,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // ALWAYS load and keep the settings — before launching work the user must be
     // able to see and adjust what the agent will use. The preference only decides
     // whether the section starts collapsed.
-    const { schema, answers, note } = await loadSetup();
+    const { schema, answers, note, runInputDefaults } = await loadSetup();
     // Preferences only. A question this contract has superseded — by sharing its
     // key or by naming it in `replaces` — belongs to the Run Inputs section
     // below, and rendering it here too is how the form came to ask for the raw
@@ -363,6 +421,14 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     const durableSetup = reusablePreferences(schema, inputContract);
     setSetupFields(durableSetup);
     setSetupValues(Object.fromEntries(durableSetup.map((f) => [f.key, (answers[f.key] ?? '').toString()])));
+    // …and the other half of that same split: the questions this contract DID
+    // take over are answered here, from the answers the user already saved under
+    // those very keys. Filtering them out of the section above without seeding
+    // them here is what made the pop-up open blank on a fully-configured agent.
+    const savedInputs = readSavedRunInputs(inputContract, runInputDefaults);
+    setSavedInputValues(savedInputs.values);
+    setInputDefaults(savedInputs.bindable);
+    setInputErrors({});
     setSetupOpen(!setupCollapsed(slug));
     // Seed the standing note: prefer the live (possibly unsaved) draft the Setup
     // card mirrored, so a note typed-but-not-saved before clicking Run is carried;
@@ -377,17 +443,32 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     setRunNote('');
     setRunFiles([]);
     setShowSetupModal(true);
+    // Files are verified on the machine that holds them, so the pop-up opens
+    // NOW and each saved source resolves into it. Blocking the dialog on a
+    // several-hundred-megabyte hash would trade one bad Run click for another.
+    void verifySavedFileInputs(savedInputs.filesToVerify);
   }
 
-  async function loadSetup(): Promise<{ schema: SetupField[]; answers: Record<string, string>; note: string }> {
+  async function loadSetup(): Promise<{
+    schema: SetupField[]; answers: Record<string, string>; note: string;
+    runInputDefaults: Record<string, string>;
+  }> {
+    const empty = { schema: [], answers: {}, note: '', runInputDefaults: {} };
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`, { jwt: session?.access_token });
       const schema: SetupField[] = Array.isArray(setup?.schema) ? setup.schema : [];
       const answers: Record<string, string> = (setup?.answers && typeof setup.answers === 'object') ? setup.answers : {};
       const note: string = typeof setup?.note === 'string' ? setup.note : '';
-      return { schema, answers, note };
-    } catch { return { schema: [], answers: {}, note: '' }; }
+      // The server resolves this against the contract version THIS user is
+      // pinned to, and it already excludes every retired key — so a superseded
+      // answer cannot arrive here and stand in for the input that replaced it.
+      // An older backend that does not send it leaves the form asking, which is
+      // the behaviour that existed before this field did.
+      const runInputDefaults: Record<string, string> = (setup?.runInputDefaults && typeof setup.runInputDefaults === 'object')
+        ? setup.runInputDefaults : {};
+      return { schema, answers, note, runInputDefaults };
+    } catch { return empty; }
   }
 
   // Submit the pop-up: save any reviewed setup (+ remember the dismissal), then
@@ -502,6 +583,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       });
       requestId.current = res?.request?.id || null;
       pollStart.current = Date.now();
+      // The override belonged to the run that just went out. Keeping it would
+      // make the NEXT Run open on a value the user chose for a different run and
+      // never asked to keep — exactly the carried-over input a per-run contract
+      // exists to prevent. The saved defaults stay; they are the standing answer.
+      setInputOverrides({});
       setState('queued');
       setMsg('Queued. It runs hands-off on your computer (Claude open / Mac awake) — the result lands in your Implexa inbox, usually within a few minutes.');
       // Land the user where the run actually shows itself starting — the Active
@@ -862,14 +948,31 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <div className="mt-4 rounded-md border border-ink-700 bg-ink-950/50 p-3 space-y-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-ink-300">Run inputs</p>
-            <p className="text-[11px] text-ink-500 mt-1">Fresh for this run — never carried over from the last one. Files are bound to their named role, so upload order is irrelevant.</p>
+            <p className="text-[11px] text-ink-500 mt-1">
+              What this run works from. These start from what you saved in Setup; change one here and it applies to
+              this run only. Files are bound to their named role, so upload order is irrelevant.
+            </p>
           </div>
           {typedFields.map((field) => {
-            const binding = inputBindings[field.key];
-            const artifact = binding && !Array.isArray(binding) && typeof binding === 'object' ? binding : null;
-            const artifacts = Array.isArray(binding) ? binding.filter((value): value is ArtifactBinding => typeof value === 'object') : artifact ? [artifact] : [];
-            const scalar = typeof binding === 'string' ? binding : '';
-            const scalarMany = Array.isArray(binding) ? binding.filter((value): value is string => typeof value === 'string') : [];
+            const value = displayedInputValue(field.key, inputDefaults, inputOverrides);
+            const origin = inputOrigin(field.key, inputDefaults, inputOverrides);
+            const artifact = value && !Array.isArray(value) && typeof value === 'object' ? value : null;
+            const artifacts = Array.isArray(value) ? value.filter((entry): entry is ArtifactBinding => typeof entry === 'object') : artifact ? [artifact] : [];
+            const scalar = typeof value === 'string' ? value : '';
+            const scalarMany = Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+            const savedPath = savedInputValues[field.key];
+            const verifying = verifyingInputs.includes(field.key);
+            // A change made here, in the override layer. Blank IS the clear: it
+            // takes the saved value out of this run without touching what is saved.
+            const override = (next: string | string[]) => setInputOverrides((previous) => ({ ...previous, [field.key]: next }));
+            const useSaved = () => {
+              setInputError(field.key, null);
+              setInputOverrides((previous) => {
+                const next = { ...previous };
+                delete next[field.key];
+                return next;
+              });
+            };
             return (
               <div key={field.key} className="rounded-md border border-ink-800 p-3">
                 <div className="flex items-start justify-between gap-3">
@@ -878,6 +981,18 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                     <span className={field.required ? 'ml-2 text-[11px] text-amber-300' : 'ml-2 text-[11px] text-ink-500'}>
                       {field.required ? 'required' : 'optional'}
                     </span>
+                    {/* WHICH LAYER this value came from. Without it, "kept from
+                        your setup" and "changed for this run" look identical, and
+                        the user cannot tell what the next run will use. */}
+                    {origin === 'saved' && (
+                      <span className="ml-2 text-[11px] text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">from your setup</span>
+                    )}
+                    {origin === 'override' && (
+                      <span className="ml-2 text-[11px] text-brand-500 border border-brand-500/40 rounded px-1.5 py-0.5">this run only</span>
+                    )}
+                    {origin === 'cleared' && savedPath && (
+                      <span className="ml-2 text-[11px] text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">cleared for this run</span>
+                    )}
                     <p className="text-xs text-ink-400 mt-1 leading-relaxed">{field.description}</p>
                   </div>
                   {field.kind === 'file' && <button
@@ -886,24 +1001,24 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                       disabled={!desktopBridge()?.pickRunInput}
                       className="btn-outline text-xs px-3 py-1.5 shrink-0 disabled:opacity-40"
                     >
-                      {field.cardinality === 'many' ? 'Add file' : artifact ? 'Replace' : 'Choose file'}
+                      {field.cardinality === 'many' ? 'Add file' : artifacts.length ? 'Replace' : 'Choose file'}
                     </button>}
                 </div>
                 {field.kind === 'text' ? (
                   <input
                     value={field.cardinality === 'many' ? scalarMany.join(', ') : scalar}
-                    onChange={(event) => setInputBindings((previous) => ({ ...previous, [field.key]: field.cardinality === 'many'
-                      ? event.target.value.split(',').map((value) => value.trim()).filter(Boolean)
-                      : event.target.value }))}
+                    onChange={(event) => override(field.cardinality === 'many'
+                      ? event.target.value.split(',').map((entry) => entry.trim()).filter(Boolean)
+                      : event.target.value)}
                     className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
                   />
                 ) : field.kind === 'choice' ? (
                   <select
                     value={field.cardinality === 'many' ? scalarMany : scalar}
                     multiple={field.cardinality === 'many'}
-                    onChange={(event) => setInputBindings((previous) => ({ ...previous, [field.key]: field.cardinality === 'many'
+                    onChange={(event) => override(field.cardinality === 'many'
                       ? Array.from(event.target.selectedOptions, (option) => option.value).filter(Boolean)
-                      : event.target.value }))}
+                      : event.target.value)}
                     className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
                   >
                     <option value="">Select…</option>
@@ -918,18 +1033,53 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                       </span>
                       <button type="button" onClick={() => {
                         setInputError(field.key, null);
-                        setInputBindings((previous) => {
-                          const next = { ...previous };
-                          if (field.cardinality === 'many') next[field.key] = artifacts.filter((candidate) => candidate.artifactId !== item.artifactId);
-                          else delete next[field.key];
-                          return next;
-                        });
+                        // Removing a file is a decision about THIS run. The saved
+                        // source is untouched and "Use saved file" brings it back.
+                        if (field.cardinality === 'many') {
+                          setInputOverrides((previous) => ({
+                            ...previous,
+                            [field.key]: artifacts.filter((candidate) => candidate.artifactId !== item.artifactId),
+                          }));
+                        } else override('');
                       }} className="text-ink-500 hover:text-rose-400 shrink-0">Remove</button>
                     </div>)}
                   </div>
+                ) : verifying ? (
+                  <p className="text-[11px] text-ink-400 mt-2">
+                    Checking the file you saved{savedPath ? <> — <span className="font-mono">{fileName(savedPath)}</span></> : null}…
+                  </p>
+                ) : field.kind === 'file' && savedPath && !desktopBridge()?.bindSavedRunInput ? (
+                  // A valid saved source must never read as missing just because
+                  // a native file control is empty. Name it, and say what has to
+                  // happen for the run to use it.
+                  <p className="text-[11px] text-ink-400 mt-2">
+                    Saved source: <span className="font-mono text-ink-300">{fileName(savedPath)}</span>
+                    {' '}<span className="text-amber-300">— open this agent in the Implexa desktop app to use it for a run.</span>
+                  </p>
                 ) : field.kind === 'file' && !desktopBridge()?.pickRunInput ? (
                   <p className="text-[11px] text-amber-300 mt-2">Open this agent in the Implexa desktop app to choose a local file.</p>
                 ) : null}
+                {/* The way BACK, and the explicit way OUT. Without a route to the
+                    saved value an override is a one-way door and a clear looks
+                    like data loss; without a Clear, taking a saved value out of
+                    one run means deleting it in Setup and typing it again. */}
+                {savedPath && (
+                  <div className="mt-2">
+                    {origin === 'saved' ? (
+                      <button
+                        type="button"
+                        onClick={() => { setInputError(field.key, null); override(''); }}
+                        className="text-[11px] text-ink-500 hover:text-ink-300 hover:underline"
+                      >
+                        Clear for this run
+                      </button>
+                    ) : (
+                      <button type="button" onClick={useSaved} className="text-[11px] text-brand-500 hover:underline">
+                        Use saved {field.kind === 'file' ? 'file' : 'value'} ({savedInputLabel(field, savedPath)})
+                      </button>
+                    )}
+                  </div>
+                )}
                 {inputErrors[field.key] && (
                   <p role="alert" className="text-[11px] text-rose-300 mt-2">{inputErrors[field.key]}</p>
                 )}
