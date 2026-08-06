@@ -37,6 +37,24 @@ export function missingRequiredInputs(
 }
 
 /**
+ * Name what a file field will actually take.
+ *
+ * An accept block is an INTERSECTION — a field declaring both extensions and
+ * media types requires both. Naming only the extension would tell a user whose
+ * correctly-suffixed file was refused to go and pick the same thing again.
+ */
+function describeAcceptedTypes(field: WorkflowInputField): string {
+  const extensions = field.accept?.extensions ?? [];
+  const mediaTypes = field.accept?.mediaTypes ?? [];
+  if (extensions.length && mediaTypes.length) {
+    return ` It needs a ${extensions.join(' or ')} file that is also ${mediaTypes.join(' or ')} — this one matched only one of the two.`;
+  }
+  if (extensions.length) return ` Choose a ${extensions.join(' or ')} file.`;
+  if (mediaTypes.length) return ` It accepts ${mediaTypes.join(' or ')}.`;
+  return '';
+}
+
+/**
  * Turn a Desktop `pickRunInput` failure code into something the user can act on.
  *
  * Every one of these used to be swallowed: the picker closed, no filename
@@ -45,12 +63,9 @@ export function missingRequiredInputs(
  * still produces a message — it names the code rather than saying nothing.
  */
 export function describeInputPickerError(code: string | undefined, field: WorkflowInputField): string {
-  const accepted = field.accept?.extensions?.length
-    ? ` Choose a ${field.accept.extensions.join(' or ')} file.`
-    : '';
   switch (code) {
     case 'incompatible_file_type':
-      return `That file isn't an accepted type for “${field.label}”.${accepted}`;
+      return `That file isn't an accepted type for “${field.label}”.${describeAcceptedTypes(field)}`;
     case 'not_linked':
       return 'Implexa Desktop is not linked to your account yet. Sign in from the desktop app, then choose the file again.';
     case 'forbidden':

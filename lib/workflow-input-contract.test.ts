@@ -238,3 +238,31 @@ test('a required many-cardinality input is not satisfied by an empty list', () =
   if (bound.kind !== 'bound') return;
   assert.deepEqual(missingRequiredInputs(manyContract, bindInputValue({}, manyContract.fields[0], bound.binding)), []);
 });
+
+test('a refusal names both restrictions when the field declares both', () => {
+  // An accept block is an intersection. Naming only the extension would tell a
+  // user whose correctly-suffixed file was refused to pick the same thing again.
+  const both = resolvePickerResult({ ok: false, error: 'incompatible_file_type' }, instructionsMd);
+  assert.equal(both.kind, 'failed');
+  if (both.kind !== 'failed') return;
+  assert.match(both.message, /\.md/, 'names the extension');
+  assert.match(both.message, /text\/markdown/, 'and the media type');
+  assert.match(both.message, /only one of the two/, 'and says why matching one was not enough');
+
+  const extensionOnly = resolvePickerResult({ ok: false, error: 'incompatible_file_type' },
+    { ...instructionsMd, accept: { extensions: ['.md'], mediaTypes: [] } });
+  assert.equal(extensionOnly.kind, 'failed');
+  if (extensionOnly.kind === 'failed') {
+    assert.match(extensionOnly.message, /Choose a \.md file/);
+    assert.doesNotMatch(extensionOnly.message, /only one of the two/, 'no intersection to explain');
+  }
+
+  const mediaOnly = resolvePickerResult({ ok: false, error: 'incompatible_file_type' },
+    { ...instructionsMd, accept: { extensions: [], mediaTypes: ['text/markdown'] } });
+  assert.equal(mediaOnly.kind, 'failed');
+  if (mediaOnly.kind === 'failed') assert.match(mediaOnly.message, /accepts text\/markdown/);
+
+  const unrestricted = resolvePickerResult({ ok: false, error: 'incompatible_file_type' },
+    { ...instructionsMd, accept: { extensions: [], mediaTypes: [] } });
+  assert.equal(unrestricted.kind, 'failed', 'still reported, just without a type hint');
+});
