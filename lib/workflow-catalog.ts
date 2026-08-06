@@ -453,6 +453,18 @@ export function workflowRunInputs(w: WorkflowDetail): WorkflowRunInputs {
 }
 
 /**
+ * The two reads getWorkflowRunInputs chains, injectable so the CHAIN can be
+ * tested. It is not a formality: the branch that matters most — every read
+ * missing resolving to null rather than to a record of nulls — is unreachable
+ * from a test that can only exercise the real network path, and that branch is
+ * precisely the one whose collapse re-creates the bug this file exists to fix.
+ */
+export type WorkflowReaders = {
+  mine: (slug: string, source: string) => Promise<WorkflowDetail | null>;
+  shared: (slug: string, source: string) => Promise<WorkflowDetail | null>;
+};
+
+/**
  * Run-input identity for a surface that holds only a slug (the activation
  * screen), where the agent detail page already holds the whole WorkflowDetail.
  *
@@ -464,15 +476,16 @@ export function workflowRunInputs(w: WorkflowDetail): WorkflowRunInputs {
  * Returns null when the workflow could NOT be read, which is deliberately NOT the
  * same value as a workflow that declares no inputs (that resolves to a record of
  * nulls). Collapsing the two would let a failed read render as the confident claim
- * "this agent needs no inputs".
+ * "this agent needs no inputs" — see the caller, which renders the difference.
  */
 export async function getWorkflowRunInputs(
   slug: string,
   source = 'generated',
+  readers: WorkflowReaders = { mine: getMyWorkflow, shared: getWorkflow },
 ): Promise<WorkflowRunInputs | null> {
-  const w = (await getMyWorkflow(slug, source === 'web-seed' ? 'generated' : source))
-    || (await getMyWorkflow(slug, 'community'))
-    || (await getWorkflow(slug, source));
+  const w = (await readers.mine(slug, source === 'web-seed' ? 'generated' : source))
+    || (await readers.mine(slug, 'community'))
+    || (await readers.shared(slug, source));
   return w ? workflowRunInputs(w) : null;
 }
 

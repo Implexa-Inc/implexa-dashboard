@@ -3,26 +3,32 @@
 // THE BUG THIS PINS. <AgentActions/> is rendered on more than one surface. Only
 // the agent detail page passed it workflowVersionId / inputContract /
 // inputContractDigest; the activation card rendered the same "Run now" button
-// without them. Those three are not decoration — they are the ONLY way the
-// component learns the pinned version declares typed inputs. Without them it
-// renders no "Run inputs" section and posts no envelope to
-// POST /api/v2/me/run-requests, and the backend's resolveVersionedRunInputs
-// refuses the run outright (`versioned_input_envelope_required`). The user got a
-// refusal on a screen that offered no way to supply the inputs.
+// without them. Those three are the only way the component learns the pinned
+// version declares typed inputs. Without them it renders no "Run inputs" section
+// and posts no envelope to POST /api/v2/me/run-requests, and the backend's
+// resolveVersionedRunInputs refuses the run outright
+// (`versioned_input_envelope_required`). The user got a refusal on a screen that
+// offered no way to supply the inputs.
 //
 // So the defect was never in a rule — it was one JSX site being a strict subset
 // of another. A unit test of the contract helpers (lib/workflow-input-contract.test.ts)
 // cannot see that, and this repo has no DOM renderer, so the parity itself is
-// pinned as source: every real <AgentActions/> carries the full set, and every
-// real <ActivationCard/> supplies the card the value it forwards. A NEW Run
-// surface added later fails this test on the day it is written, not in production.
+// pinned as source. Two rules the tests below follow, both learned the hard way:
+//
+//   1. A prop NAME being present proves nothing — `runInputs={null}` satisfies
+//      any name-only check while reproducing the bug exactly. Every hop asserts
+//      the VALUE is a real binding.
+//   2. Nothing here may be the only thing standing between a new mount and the
+//      bug: <ActivationCard/>'s runInputs prop is REQUIRED, so tsc rejects a
+//      surface that omits it before these tests ever run.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { workflowRunInputs } from './workflow-catalog.ts';
+import { openingElements, propValue } from './jsx-source.ts';
+import { getWorkflowRunInputs, workflowRunInputs } from './workflow-catalog.ts';
 import type { WorkflowDetail } from './workflow-catalog.ts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -39,6 +45,9 @@ const SKIP = new Set(['node_modules', '.next', '.git', 'dist', '.vercel', 'publi
  */
 const ENVELOPE_PROPS = ['workflowVersionId', 'inputContract', 'inputContractDigest'] as const;
 
+/** Values that type-check but carry nothing — the shape every mutation took. */
+const EMPTY_BINDINGS = new Set(['null', 'undefined', '{}']);
+
 function tsxFiles(dir: string, acc: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     if (SKIP.has(name)) continue;
@@ -47,30 +56,6 @@ function tsxFiles(dir: string, acc: string[] = []): string[] {
     else if (full.endsWith('.tsx')) acc.push(full);
   }
   return acc;
-}
-
-/**
- * Every `<Tag …>` opening element in `source`, as raw text. Scans to the first
- * `>` outside any `{…}` expression, so `foo={a > b}` and nested JSX in a prop
- * don't truncate the element early.
- */
-function openingElements(source: string, tag: string): string[] {
-  const out: string[] = [];
-  const open = `<${tag}`;
-  for (let i = source.indexOf(open); i !== -1; i = source.indexOf(open, i + 1)) {
-    // Reject `<AgentActionsSomethingElse` — the tag must end here.
-    if (/[A-Za-z0-9_]/.test(source[i + open.length] ?? '')) continue;
-    let depth = 0;
-    let j = i + open.length;
-    for (; j < source.length; j++) {
-      const c = source[j];
-      if (c === '{') depth++;
-      else if (c === '}') depth--;
-      else if (c === '>' && depth === 0) break;
-    }
-    out.push(source.slice(i, j + 1));
-  }
-  return out;
 }
 
 /**
@@ -85,7 +70,7 @@ function renderSites(tag: string, requiredProp: string): Array<{ file: string; e
     const source = readFileSync(file, 'utf8');
     if (!source.includes(`<${tag}`)) continue;
     for (const element of openingElements(source, tag)) {
-      if (element.includes(`${requiredProp}=`)) sites.push({ file: file.slice(ROOT.length), element });
+      if (propValue(element, requiredProp) !== null) sites.push({ file: file.slice(ROOT.length), element });
     }
   }
   return sites;
@@ -100,39 +85,66 @@ test('REPRO: every surface that renders Run now hands it the full versioned-inpu
   // welcome — it just has to carry the props.
   assert.ok(sites.length >= 3, `expected to find the known <AgentActions/> render sites, found ${sites.length}`);
 
-  const incomplete = sites
-    .map((s) => ({ ...s, missing: ENVELOPE_PROPS.filter((p) => !s.element.includes(`${p}=`)) }))
-    .filter((s) => s.missing.length);
+  const broken = sites.flatMap((s) => ENVELOPE_PROPS.flatMap((p) => {
+    const value = propValue(s.element, p);
+    if (value === null) return [`${s.file}: missing ${p}`];
+    // A hardcoded null type-checks and satisfies any name-only check, while
+    // reproducing the original bug exactly. It is not a way to pass this.
+    return EMPTY_BINDINGS.has(value) ? [`${s.file}: ${p} is hardcoded ${value}`] : [];
+  }));
 
-  assert.deepEqual(
-    incomplete.map((s) => `${s.file}: missing ${s.missing.join(', ')}`),
-    [],
-    'a <AgentActions/> without these renders no "Run inputs" section and posts no envelope, '
-    + 'so Run now is refused with versioned_input_envelope_required on any contract-bearing agent',
-  );
+  assert.deepEqual(broken, [],
+    'a <AgentActions/> without a real binding for these renders no "Run inputs" section and posts no '
+    + 'envelope, so Run now is refused with versioned_input_envelope_required on any contract-bearing agent');
 });
 
-test('the activation card is fed the run inputs by every page that mounts it', () => {
+test('REPRO: every page that mounts the activation card resolves real run inputs for it', () => {
   const sites = renderSites('ActivationCard', 'checklist');
   assert.ok(sites.length >= 2, `expected the activation screen and the agent setup panel, found ${sites.length}`);
 
-  const unfed = sites.filter((s) => !s.element.includes('runInputs=')).map((s) => s.file);
-  assert.deepEqual(unfed, [], 'a card mounted without runInputs falls straight back into the original bug');
+  const broken = sites.flatMap((s) => {
+    const value = propValue(s.element, 'runInputs');
+    // Omitting it entirely is caught by tsc (the prop is required, no default) —
+    // asserted below. What tsc cannot see is a mount that satisfies the type with
+    // a literal null: that compiles, and lands straight back in the original bug.
+    if (value === null) return [`${s.file}: missing runInputs`];
+    return EMPTY_BINDINGS.has(value) ? [`${s.file}: runInputs is hardcoded ${value}`] : [];
+  });
+
+  assert.deepEqual(broken, [], 'a card mounted without resolved run inputs falls back into the original bug');
+});
+
+test('the card cannot be mounted without run inputs at all — that is tsc’s job, not a test’s', () => {
+  const card = readFileSync(join(ROOT, 'app/(dashboard)/_components/activation-card.tsx'), 'utf8');
+  const props = card.slice(card.indexOf('export function ActivationCard('), card.indexOf('const setupSurface'));
+  assert.match(props, /\n\s*runInputs: WorkflowRunInputs \| null;/,
+    'runInputs must be REQUIRED — an optional prop lets a new surface omit it and silently re-create the bug');
+  assert.doesNotMatch(props, /runInputs\s*=\s*(null|undefined|\{\})/,
+    'a default value would re-open exactly the hole the required prop closes');
 });
 
 test('the card FORWARDS what it is given, rather than hardcoding the absent case', () => {
-  // The parity test above only proves the prop names appear. Passing literal
-  // nulls would satisfy it while reproducing the bug exactly, so pin the binding.
   const card = readFileSync(join(ROOT, 'app/(dashboard)/_components/activation-card.tsx'), 'utf8');
-  const [element] = openingElements(card, 'AgentActions').filter((e) => e.includes('slug='));
+  const [element] = openingElements(card, 'AgentActions').filter((e) => propValue(e, 'slug') !== null);
   assert.ok(element, 'the activation card must still render <AgentActions/>');
   for (const prop of ENVELOPE_PROPS) {
-    assert.match(
-      element,
-      new RegExp(`${prop}=\\{runInputs\\?\\.${prop} \\?\\? null\\}`),
-      `${prop} must come from the runInputs the page resolved`,
-    );
+    assert.equal(propValue(element, prop), `runInputs?.${prop} ?? null`,
+      `${prop} must come from the runInputs the page resolved`);
   }
+});
+
+test('an UNREADABLE contract is rendered as unreadable, not passed off as "needs no inputs"', () => {
+  // Both arrive at <AgentActions/> as the same three nulls, so this notice is the
+  // only thing separating "we could not load it" from a confident "nothing needed".
+  // Without it a transient read failure is the original bug again, narrower.
+  const card = readFileSync(join(ROOT, 'app/(dashboard)/_components/activation-card.tsx'), 'utf8');
+  const at = card.indexOf('{runInputs === null && (');
+  assert.notEqual(at, -1, 'the read-failed case must have its own branch, distinct from a contract-free agent');
+  // The branch must RENDER the explanation, not just exist — bounded to the branch
+  // body so prose from a comment elsewhere in the file cannot satisfy it.
+  const notice = card.slice(at, card.indexOf(')}', at));
+  assert.match(notice, /couldn’t load/i, 'and it must say so to the user, in the card, before they click Run');
+  assert.ok(at < card.indexOf('<AgentActions', at), 'the explanation must come before the button it explains');
 });
 
 test('the envelope AgentActions builds still needs exactly these three from its parent', () => {
@@ -151,18 +163,21 @@ test('the envelope AgentActions builds still needs exactly these three from its 
 
 // ── the derivation ──────────────────────────────────────────────────────────
 
-const detail = (over: Partial<WorkflowDetail>) => ({
-  workflow_version_id: '7a598979-1389-4fa8-a605-d137663999e6',
+const VERSION = '7a598979-1389-4fa8-a605-d137663999e6';
+const DIGEST = 'f009f714'.padEnd(64, '0');
+
+const detail = (over: Partial<WorkflowDetail> = {}) => ({
+  workflow_version_id: VERSION,
   input_contract: { version: 1 as const, fields: [] },
-  input_contract_digest: 'a'.repeat(64),
+  input_contract_digest: DIGEST,
   ...over,
 } as WorkflowDetail);
 
 test('workflowRunInputs renames the persisted columns to the props AgentActions takes', () => {
-  assert.deepEqual(workflowRunInputs(detail({})), {
-    workflowVersionId: '7a598979-1389-4fa8-a605-d137663999e6',
+  assert.deepEqual(workflowRunInputs(detail()), {
+    workflowVersionId: VERSION,
     inputContract: { version: 1, fields: [] },
-    inputContractDigest: 'a'.repeat(64),
+    inputContractDigest: DIGEST,
   });
 });
 
@@ -173,4 +188,64 @@ test('a workflow that genuinely declares no inputs resolves to nulls, not to und
     workflowRunInputs(detail({ workflow_version_id: null, input_contract: null, input_contract_digest: null })),
     { workflowVersionId: null, inputContract: null, inputContractDigest: null },
   );
+});
+
+// ── the read chain ──────────────────────────────────────────────────────────
+//
+// Injected readers, because the branch that matters most — every read missing
+// resolving to null rather than to a record of nulls — is the one whose collapse
+// re-creates the bug, and it is unreachable over the real network path.
+
+function readers(...results: Array<WorkflowDetail | null>) {
+  const asked: string[] = [];
+  const next = () => results[asked.length - 1] ?? null;
+  return {
+    asked,
+    mine: async (slug: string, source: string) => { asked.push(`mine:${slug}:${source}`); return next(); },
+    shared: async (slug: string, source: string) => { asked.push(`shared:${slug}:${source}`); return next(); },
+  };
+}
+
+test('the owner read answers first, and nothing else is asked', async () => {
+  const r = readers(detail());
+  assert.deepEqual(await getWorkflowRunInputs('yt-overlay', 'generated', r), {
+    workflowVersionId: VERSION, inputContract: { version: 1, fields: [] }, inputContractDigest: DIGEST,
+  });
+  assert.deepEqual(r.asked, ['mine:yt-overlay:generated'],
+    'the cached public read must not be consulted once the fresh owner read has answered');
+});
+
+test('a web-seed caller is normalised to the owned source before the owner read', async () => {
+  const r = readers(detail());
+  await getWorkflowRunInputs('yt-overlay', 'web-seed', r);
+  assert.deepEqual(r.asked, ['mine:yt-overlay:generated']);
+});
+
+test('an owner miss falls through community, then the shared catalog', async () => {
+  const r = readers(null, null, detail());
+  assert.ok(await getWorkflowRunInputs('yt-overlay', 'generated', r));
+  assert.deepEqual(r.asked, ['mine:yt-overlay:generated', 'mine:yt-overlay:community', 'shared:yt-overlay:generated'],
+    'dropping a hop silently narrows which agents can Run at all from the activation screen');
+});
+
+test('REPRO (read failure): every read missing is null — NOT a record of nulls', async () => {
+  // The whole point of the type. A record of nulls is indistinguishable from a
+  // contract-free agent, so collapsing these makes an unavailable read render as
+  // "this agent needs no inputs" and Run now refuse with backend jargon.
+  const r = readers(null, null, null);
+  assert.equal(await getWorkflowRunInputs('yt-overlay', 'generated', r), null);
+  assert.equal(r.asked.length, 3, 'and it must actually have tried every read before giving up');
+});
+
+test('a readable workflow that declares no contract is NOT the same as an unreadable one', async () => {
+  const r = readers(detail({ workflow_version_id: null, input_contract: null, input_contract_digest: null }));
+  assert.deepEqual(await getWorkflowRunInputs('plain-agent', 'generated', r),
+    { workflowVersionId: null, inputContract: null, inputContractDigest: null },
+    'this one resolved — it just has nothing to ask for, and Run now is right to proceed');
+});
+
+test('the production readers are the default, so no caller has to know the chain', () => {
+  const catalog = readFileSync(join(ROOT, 'lib/workflow-catalog.ts'), 'utf8');
+  assert.match(catalog, /readers: WorkflowReaders = \{ mine: getMyWorkflow, shared: getWorkflow \}/,
+    'the injected seam exists for tests; production must still get the real owner-first chain by default');
 });

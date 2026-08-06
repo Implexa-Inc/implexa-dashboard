@@ -723,21 +723,27 @@ export function ActivationCard({
   checklist,
   proficiency,
   surface = 'activation',
-  runInputs = null,
+  runInputs,
 }: {
   checklist: ActivationChecklist;
   proficiency?: 'novice' | 'beginner' | 'pro' | 'advanced' | null;
   /** setup = reusable permissions/access editor inside the agent Setup tab. */
   surface?: 'activation' | 'setup';
   /**
-   * The pinned version + input contract of the agent this card can Run. REQUIRED
-   * of every caller for the same reason the agent detail page passes it: without
-   * it <AgentActions/> renders no "Run inputs" section and posts no envelope, so
-   * a workflow version that declares a contract answers Run now with a flat
-   * `versioned_input_envelope_required` refusal and no way to satisfy it from
-   * this screen. null means the read failed — NOT "this agent needs no inputs".
+   * The pinned version + input contract of the agent this card can Run.
+   *
+   * REQUIRED — deliberately not optional-with-a-default. Without it <AgentActions/>
+   * renders no "Run inputs" section and posts no envelope, so a workflow version
+   * that declares a contract answers Run now with a flat
+   * `versioned_input_envelope_required` refusal and no way to satisfy it from this
+   * screen. A default would let a new mount re-create exactly that bug in silence;
+   * with none, tsc refuses to compile the surface that forgets it.
+   *
+   * null means the workflow could NOT be read — NOT "this agent needs no inputs".
+   * The card renders that difference (see the notice by Run now) rather than
+   * passing an unavailable read off as an empty one.
    */
-  runInputs?: WorkflowRunInputs | null;
+  runInputs: WorkflowRunInputs | null;
 }) {
   const setupSurface = surface === 'setup';
   // Guided = novice/beginner: friendlier "Turn it on" framing + a reassurance
@@ -1063,6 +1069,20 @@ export function ActivationCard({
               <AgentSetupCard slug={checklist.slug} source={checklist.source} onSaved={() => router.refresh()} />
             </div>
             <AgentFeedback slug={checklist.slug} name={checklist.name} />
+            {/* An UNREADABLE run-input contract is not an ABSENT one. Both arrive
+                at <AgentActions/> as the same three nulls, so if this notice were
+                dropped a transient read failure would render as the confident
+                claim "this agent needs no inputs" — and Run now would be refused
+                with backend jargon and no explanation. Run stays enabled, because
+                an agent that genuinely declares no inputs runs fine and that is
+                the common case; what the user gets is the reason, in advance. */}
+            {runInputs === null && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 leading-snug max-w-md">
+                We couldn’t load what this agent asks for before a run. You can still start it —
+                but if it does ask for files or links, this run will be turned down until that
+                loads. Reload the page to try again.
+              </p>
+            )}
             <div className="flex items-start gap-4 flex-wrap">
               {/* The versioned run-input props are NOT optional decoration: a
                   pinned version that declares an input contract makes the
