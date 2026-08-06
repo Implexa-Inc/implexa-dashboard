@@ -420,6 +420,62 @@ export async function getMyWorkflow(slug: string, source = 'generated'): Promise
   }
 }
 
+/**
+ * The versioned run-input identity every Run surface must hand <AgentActions/>.
+ *
+ * WHY THIS IS ITS OWN THING: a workflow version that declares an input contract
+ * makes POST /api/v2/me/run-requests REFUSE any run that does not carry the
+ * envelope (backend resolveVersionedRunInputs → `versioned_input_envelope_required`).
+ * <AgentActions/> can only render the "Run inputs" section — and therefore can
+ * only build that envelope — when it is given all three of these. A surface that
+ * renders Run now without them offers a button that cannot succeed, and the user
+ * gets a refusal with nowhere on that screen to supply the inputs. That is exactly
+ * what the activation card did until this type existed to be threaded through it.
+ */
+export type WorkflowRunInputs = {
+  workflowVersionId: string | null;
+  inputContract: WorkflowInputContract | null;
+  inputContractDigest: string | null;
+};
+
+/**
+ * The ONE derivation, so no Run surface invents its own field mapping. Takes a
+ * REAL workflow: "I could not read the workflow" is expressed by getWorkflowRunInputs
+ * returning null, never by feeding nothing in here and getting back a record of
+ * nulls that reads like a confident "declares no inputs".
+ */
+export function workflowRunInputs(w: WorkflowDetail): WorkflowRunInputs {
+  return {
+    workflowVersionId: w.workflow_version_id ?? null,
+    inputContract: w.input_contract ?? null,
+    inputContractDigest: w.input_contract_digest ?? null,
+  };
+}
+
+/**
+ * Run-input identity for a surface that holds only a slug (the activation
+ * screen), where the agent detail page already holds the whole WorkflowDetail.
+ *
+ * Owner read FIRST, for the same reason the detail page does it: getWorkflow's
+ * public catalog read is cached 10 minutes, long enough to hand back a version id
+ * that a revise has already superseded — and a superseded id is not a smaller
+ * envelope, it is a hard `workflow_version_mismatch` refusal.
+ *
+ * Returns null when the workflow could NOT be read, which is deliberately NOT the
+ * same value as a workflow that declares no inputs (that resolves to a record of
+ * nulls). Collapsing the two would let a failed read render as the confident claim
+ * "this agent needs no inputs".
+ */
+export async function getWorkflowRunInputs(
+  slug: string,
+  source = 'generated',
+): Promise<WorkflowRunInputs | null> {
+  const w = (await getMyWorkflow(slug, source === 'web-seed' ? 'generated' : source))
+    || (await getMyWorkflow(slug, 'community'))
+    || (await getWorkflow(slug, source));
+  return w ? workflowRunInputs(w) : null;
+}
+
 // Shared mapper: raw workflow-detail object (from get_workflow or me/workflows)
 // -> the dashboard WorkflowDetail shape.
 function mapWorkflowDetail(w: any, slug: string, source: string): WorkflowDetail {

@@ -371,7 +371,12 @@ test('the Setup tab keeps the permissions/access editor after activation', () =>
   const page = read('../workflows/[slug]/page.tsx');
   assert.match(page, /import \{ ActivationCard \} from '\.\.\/\.\.\/_components\/activation-card';/,
     'the reusable activation checklist must be available to the Setup tab');
-  assert.match(page, /\{checklist && <ActivationCard checklist=\{checklist\} surface="setup" \/>\}/,
+  // Matched on the two props this test is ABOUT (mounted, and mounted as the setup
+  // surface) rather than on the exact prop list: the card also takes the run-input
+  // contract now, and pinning the full attribute string here made an unrelated
+  // correct change fail a test whose subject is "Setup still has the editor".
+  // The run-input props have their own guard — lib/run-input-surface-parity.test.ts.
+  assert.match(page, /\{checklist && <ActivationCard\b[^>]*\bchecklist=\{checklist\}[^>]*\bsurface="setup"/,
     'Setup must render the permissions/access checklist instead of losing it after activation');
 
   const card = read('activation-card.tsx');

@@ -10,6 +10,7 @@ import Link from 'next/link';
 import BackLink from '../../../_components/back-link';
 import { createClient } from '@/lib/supabase/server';
 import { getActivationChecklist } from '@/lib/activation';
+import { getWorkflowRunInputs } from '@/lib/workflow-catalog';
 import { getProficiency } from '@/lib/proficiency';
 import { ActivationCard } from '../../../_components/activation-card';
 import { OpenInAppBanner } from '../../../_components/open-in-app-banner';
@@ -25,6 +26,13 @@ export default async function ActivateAgentPage({ params }: { params: { slug: st
     getActivationChecklist(params.slug),
     getProficiency(supabase, session.user.id),
   ]);
+
+  // The card's own "Run now" needs the pinned version + input contract, exactly
+  // like the agent detail page's. Sequential, not in the Promise.all above,
+  // because the catalog source to read under is the checklist's own — guessing it
+  // is how you resolve a DIFFERENT row and hand Run now a version id the backend
+  // then refuses. One extra owner-scoped round trip on a single-agent screen.
+  const runInputs = checklist ? await getWorkflowRunInputs(params.slug, checklist.source) : null;
 
   return (
     <main className="min-h-screen px-6 lg:px-12 py-12">
@@ -46,7 +54,7 @@ export default async function ActivateAgentPage({ params }: { params: { slug: st
           <>
             <OpenInAppBanner path={`/workflows/${params.slug}/activate`} verb="activate" />
             <p className="text-xs uppercase tracking-wider text-ink-500 mb-3">Switch on</p>
-            <ActivationCard checklist={checklist} proficiency={proficiency} />
+            <ActivationCard checklist={checklist} proficiency={proficiency} runInputs={runInputs} />
           </>
         )}
       </div>

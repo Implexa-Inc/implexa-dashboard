@@ -17,7 +17,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { getWorkflow, getMyWorkflow, listMyWorkflows } from '@/lib/workflow-catalog';
+import { getWorkflow, getMyWorkflow, listMyWorkflows, workflowRunInputs } from '@/lib/workflow-catalog';
 import { remoteSafety } from '@/lib/remote-safety';
 import { getConnectionStatus, warningsForAgent } from '@/lib/connections';
 import { loadInboxItems } from '@/lib/inbox';
@@ -532,7 +532,10 @@ export default async function WorkflowDetailPage({
   const setupPanel = (
     <>
       <AgentExecutorPreference slug={workflow.slug} />
-      {checklist && <ActivationCard checklist={checklist} surface="setup" />}
+      {/* Same run-input identity the header's <AgentActions/> gets — the card
+          renders its own Run now, and a Run button that can't build the envelope
+          is a refusal the user has no way to answer from that screen. */}
+      {checklist && <ActivationCard checklist={checklist} surface="setup" runInputs={workflowRunInputs(workflow)} />}
       <div className="mb-6">
         <ImplexaJudgePolicy slug={workflow.slug} />
       </div>

@@ -25,6 +25,7 @@ import AgentBrowserConnect from './agent-browser-connect';
 import { ImplexaJudgePolicy } from './implexa-judge-policy';
 import { useDesktopBridge, desktopBridge, KeysList, type KeyItem } from './api-key-row';
 import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier } from '@/lib/activation';
+import type { WorkflowRunInputs } from '@/lib/workflow-catalog';
 
 // Defined here (not imported) because lib/activation.ts is server-only; a client
 // component can take its TYPES (erased at compile) but not its runtime values.
@@ -722,11 +723,21 @@ export function ActivationCard({
   checklist,
   proficiency,
   surface = 'activation',
+  runInputs = null,
 }: {
   checklist: ActivationChecklist;
   proficiency?: 'novice' | 'beginner' | 'pro' | 'advanced' | null;
   /** setup = reusable permissions/access editor inside the agent Setup tab. */
   surface?: 'activation' | 'setup';
+  /**
+   * The pinned version + input contract of the agent this card can Run. REQUIRED
+   * of every caller for the same reason the agent detail page passes it: without
+   * it <AgentActions/> renders no "Run inputs" section and posts no envelope, so
+   * a workflow version that declares a contract answers Run now with a flat
+   * `versioned_input_envelope_required` refusal and no way to satisfy it from
+   * this screen. null means the read failed — NOT "this agent needs no inputs".
+   */
+  runInputs?: WorkflowRunInputs | null;
 }) {
   const setupSurface = surface === 'setup';
   // Guided = novice/beginner: friendlier "Turn it on" framing + a reassurance
@@ -1053,6 +1064,12 @@ export function ActivationCard({
             </div>
             <AgentFeedback slug={checklist.slug} name={checklist.name} />
             <div className="flex items-start gap-4 flex-wrap">
+              {/* The versioned run-input props are NOT optional decoration: a
+                  pinned version that declares an input contract makes the
+                  run-request endpoint refuse anything without the envelope, and
+                  only these three let <AgentActions/> render the inputs form that
+                  builds it. Omitting them here is what made "Run now" from this
+                  card a dead end on any contract-bearing agent. */}
               <AgentActions
                 slug={checklist.slug}
                 name={checklist.name}
@@ -1061,6 +1078,9 @@ export function ActivationCard({
                 source={checklist.source}
                 pendingQuestions={checklist.pendingQuestions ?? 0}
                 blockingQuestions={checklist.blockingQuestions}
+                workflowVersionId={runInputs?.workflowVersionId ?? null}
+                inputContract={runInputs?.inputContract ?? null}
+                inputContractDigest={runInputs?.inputContractDigest ?? null}
                 align="start"
               />
               {/* Granting/activating is itself the finished task — let the user
