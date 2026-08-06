@@ -90,6 +90,7 @@ const STEP_LABEL: Record<Phase, string> = {
   queued: 'Queued',
   claimed: 'Picked up',
   running: 'Running',
+  verifying: 'Verifying',
   built: 'Built',
   failed: 'Failed',
   cancelled: 'Cancelled',
