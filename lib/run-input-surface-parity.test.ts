@@ -48,6 +48,25 @@ const ENVELOPE_PROPS = ['workflowVersionId', 'inputContract', 'inputContractDige
 /** Values that type-check but carry nothing — the shape every mutation took. */
 const EMPTY_BINDINGS = new Set(['null', 'undefined', '{}']);
 
+/**
+ * A mount CONSTRUCTING the record instead of passing a resolved one, e.g. the
+ * plausible-looking "get rid of this nullable" cleanup:
+ *
+ *   runInputs={runInputs ?? { workflowVersionId: null, inputContract: null, … }}
+ *
+ * That type-checks, reads as tidying, and is the P1 restored in silence: the card
+ * distinguishes "could not read" from "declares no inputs" by `runInputs === null`
+ * alone, so an inline record of nulls is indistinguishable from a real
+ * contract-free agent and the read-failed notice never renders again.
+ *
+ * The rule that generalises: a page RESOLVES run inputs, it does not INVENT them.
+ * Any object literal building this record must name one of its keys, so matching
+ * `key:` catches every spelling (`??`, spread, ternary arm) without boxing in what
+ * a future surface may legitimately pass — an identifier, a call, a ternary that
+ * yields null are all still fine.
+ */
+const CONSTRUCTS_CONTRACT = new RegExp(`(?<![A-Za-z0-9_])(${ENVELOPE_PROPS.join('|')})\\s*:`);
+
 function tsxFiles(dir: string, acc: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     if (SKIP.has(name)) continue;
@@ -105,10 +124,12 @@ test('REPRO: every page that mounts the activation card resolves real run inputs
   const broken = sites.flatMap((s) => {
     const value = propValue(s.element, 'runInputs');
     // Omitting it entirely is caught by tsc (the prop is required, no default) —
-    // asserted below. What tsc cannot see is a mount that satisfies the type with
-    // a literal null: that compiles, and lands straight back in the original bug.
+    // asserted below. What tsc cannot see is a mount that satisfies the type
+    // without resolving anything: a literal null, or a record built on the spot.
+    // Both compile, and both land back in the bug.
     if (value === null) return [`${s.file}: missing runInputs`];
-    return EMPTY_BINDINGS.has(value) ? [`${s.file}: runInputs is hardcoded ${value}`] : [];
+    if (EMPTY_BINDINGS.has(value)) return [`${s.file}: runInputs is hardcoded ${value}`];
+    return CONSTRUCTS_CONTRACT.test(value) ? [`${s.file}: runInputs is built inline, not resolved`] : [];
   });
 
   assert.deepEqual(broken, [], 'a card mounted without resolved run inputs falls back into the original bug');
