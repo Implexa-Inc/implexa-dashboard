@@ -59,6 +59,25 @@ export type DesktopBridge = {
     displayName?: string;
     mediaType?: string;
   }>;
+  /** Verify and bind the file this agent's SETUP already holds for `inputKey`,
+   * so a saved source is not re-picked before every run. No path crosses from
+   * this page: Desktop asks the server what the user saved and binds only that,
+   * hashing it afresh so the run gets the bytes that exist now. */
+  bindSavedRunInput?: (opts: {
+    slug: string;
+    source?: string;
+    inputKey: string;
+    inputSessionId?: string;
+    accept?: { mediaTypes?: string[]; extensions?: string[] };
+  }) => Promise<{
+    ok: boolean;
+    error?: string;
+    inputSessionId?: string;
+    artifactId?: string;
+    sha256?: string;
+    displayName?: string;
+    mediaType?: string;
+  }>;
 };
 export function desktopBridge(): DesktopBridge | undefined {
   return typeof window !== 'undefined'

@@ -33,21 +33,26 @@ test('a cancel is a no-op and a failure is surfaced', () => {
 test('the error is actually rendered next to its field', () => {
   assert.match(src, /\{inputErrors\[field\.key\] && \(/, 'the message renders per field');
   assert.match(src, /role="alert"/, 'and is announced, not just coloured');
-  assert.match(src, /setInputError\(field\.key, null\);\s*\n\s*const result = await bridge\.pickRunInput\(/,
-    'a fresh attempt clears the previous error before it starts');
+  assert.match(src, /setInputError\(field\.key, null\);[\s\S]*?const sessionId = inputSessionRef\.current \|\| crypto\.randomUUID\(\);[\s\S]*?const result = await bridge\.pickRunInput\(/,
+    'a fresh attempt clears the previous error before it freezes the session and starts');
 });
 
 test('a bound file shows its filename and that it is verified and keyed', () => {
   assert.match(src, /\{item\.displayName\}/, 'the filename is shown');
   assert.match(src, /verified, bound to \{field\.key\}/,
     'the bound state names the contract key, so upload order is visibly irrelevant');
-  assert.match(src, /\{field\.cardinality === 'many' \? 'Add file' : artifact \? 'Replace' : 'Choose file'\}/,
-    'the button reads Replace once a file is bound, never still Choose file');
+  assert.match(src, /\{field\.cardinality === 'many' \? 'Add file' : artifacts\.length \? 'Replace' : 'Choose file'\}/,
+    'the button reads Replace once a file is bound, never still Choose file — including a file bound from the saved setup, which arrives as a default rather than through the picker');
 });
 
-test('removing a file clears its error and its binding together', () => {
-  assert.match(src, /setInputError\(field\.key, null\);\s*\n\s*setInputBindings\(\(previous\) => \{/,
+test('removing a file clears its error and takes the value out of THIS run', () => {
+  // A removal writes an override, not a mutation of the saved answer: the file
+  // leaves this run and stays saved for the next one. It must still clear the
+  // field's error, or a stale failure message outlives the value it described.
+  assert.match(src, /setInputError\(field\.key, null\);\s*\n\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*if \(field\.cardinality === 'many'\) \{/,
     'a removal must not leave a stale failure message behind');
+  assert.doesNotMatch(src, /setInputDefaults\(\(previous\) => \{[\s\S]{0,200}?delete next\[field\.key\]/,
+    'removing a file for one run must never delete what Setup saved');
 });
 
 test('required typed inputs still gate the Run button', () => {
