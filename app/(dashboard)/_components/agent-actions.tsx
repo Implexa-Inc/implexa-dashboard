@@ -22,6 +22,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend, BackendError } from '@/lib/api';
+import { confirmedRunRequestId } from '@/lib/run-request-receipt';
 import Modal from './modal';
 import SetupChoiceField from './setup-choice-field';
 import { firstRunPermsSeen, markFirstRunPermsSeen } from './first-run-permissions-note';
@@ -605,7 +606,15 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           } : {}),
         },
       });
-      requestId.current = res?.request?.id || null;
+      // A 2xx transport response is not a queue receipt.  Do not clear inputs,
+      // redirect, or render Queued unless the server confirms the one request it
+      // created.  This also protects against a proxy accidentally normalising a
+      // typed refusal into HTTP 200 with {ok:false}.
+      const confirmedRequestId = confirmedRunRequestId(res);
+      if (!confirmedRequestId) {
+        throw new Error(res?.error || 'The server did not create a run request.');
+      }
+      requestId.current = confirmedRequestId;
       pollStart.current = Date.now();
       // The override belonged to the run that just went out. Keeping it would
       // make the NEXT Run open on a value the user chose for a different run and

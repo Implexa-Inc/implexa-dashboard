@@ -122,6 +122,7 @@ export type WorkflowVersionEntry = {
 };
 
 export type WorkflowDetail = {
+  id: string;
   source: string;
   slug: string;
   name: string;
@@ -151,6 +152,14 @@ export type WorkflowDetail = {
   workflow_version_id: string | null;
   input_contract: WorkflowInputContract | null;
   input_contract_digest: string | null;
+  run_input_version_source?: 'installed' | 'live';
+  update_available?: {
+    workflow_version_id: string;
+    version: number;
+    input_contract: WorkflowInputContract | null;
+    input_contract_digest: string | null;
+    state: string;
+  } | null;
 };
 
 // The backend wraps MCP responses as Server-Sent-Events: `event: message\n
@@ -494,6 +503,7 @@ export async function getWorkflowRunInputs(
 function mapWorkflowDetail(w: any, slug: string, source: string): WorkflowDetail {
   const num = (v: unknown) => (typeof v === 'number' && v >= 0 ? v : 0);
   return {
+    id: String(w.id ?? ''),
     source: String(w.source ?? source),
     slug: String(w.slug ?? slug),
     name: String(w.name ?? String(w.slug ?? slug).replace(/-/g, ' ')),
@@ -578,5 +588,19 @@ function mapWorkflowDetail(w: any, slug: string, source: string): WorkflowDetail
     workflow_version_id: typeof w.workflow_version_id === 'string' ? w.workflow_version_id : null,
     input_contract: w.input_contract?.version === 1 && Array.isArray(w.input_contract.fields) ? w.input_contract : null,
     input_contract_digest: typeof w.input_contract_digest === 'string' ? w.input_contract_digest : null,
+    run_input_version_source: w.run_input_version_source === 'installed' ? 'installed' : 'live',
+    update_available: w.update_available
+      && typeof w.update_available.workflow_version_id === 'string'
+      && typeof w.update_available.input_contract_digest === 'string'
+      ? {
+          workflow_version_id: w.update_available.workflow_version_id,
+          version: Number(w.update_available.version) || 0,
+          input_contract: w.update_available.input_contract?.version === 1
+            && Array.isArray(w.update_available.input_contract.fields)
+            ? w.update_available.input_contract : null,
+          input_contract_digest: w.update_available.input_contract_digest,
+          state: String(w.update_available.state || 'available'),
+        }
+      : null,
   };
 }

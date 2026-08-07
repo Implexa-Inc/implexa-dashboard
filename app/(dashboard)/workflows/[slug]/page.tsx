@@ -40,6 +40,7 @@ import AgentExecutorPreference from '../../_components/agent-executor-preference
 import { ImplexaJudgePolicy } from '../../_components/implexa-judge-policy';
 import AgentFeedback from '../../_components/agent-feedback';
 import AgentEditButton from '../../_components/agent-edit-button';
+import AgentUpdateGate from '../../_components/agent-update-gate';
 import ReviseLandedPoller from '../../_components/revise-landed-poller';
 import StepRow from '../../_components/step-row';
 import ExtendChain from '../../_components/extend-chain';
@@ -678,6 +679,12 @@ export default async function WorkflowDetailPage({
               </div>
             </div>
             <div className="flex-none flex flex-col items-end gap-2">
+              {workflow.update_available?.input_contract_digest && (
+                <AgentUpdateGate
+                  workflowId={workflow.id}
+                  update={{ ...workflow.update_available, input_contract_digest: workflow.update_available.input_contract_digest }}
+                />
+              )}
               <AgentActions
                 slug={workflow.slug}
                 name={workflow.name}
