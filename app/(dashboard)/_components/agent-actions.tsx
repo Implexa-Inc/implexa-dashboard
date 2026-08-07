@@ -30,7 +30,7 @@ import { getAgentNoteDraft, clearAgentNoteDraft } from '@/lib/agent-note-draft';
 import { AttachFiles, composeNoteWithFiles, desktopBridge, fileName, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import {
-  bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
+  acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
   resolvePickerResult, serializeArtifactBindings,
   type ArtifactBinding, type RunInputBindings, type WorkflowInputContract, type WorkflowInputField,
 } from '@/lib/workflow-input-contract';
@@ -141,7 +141,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [loadedStandingNote, setLoadedStandingNote] = useState('');
   // Per-run file attachments (absolute paths) via the native picker — shared with
   // the Continue box. Their paths are baked into the note so the hands-off run reads them.
-  const { files: runFiles, setFiles: setRunFiles, canAttach, attachFile, removeFile } = useRunAttachments();
+  const { files: runFiles, setFiles: setRunFiles, canAttach, canAttachFolder, attachFile, attachFolder, removeFile } = useRunAttachments();
   // What the pre-run pop-up does on submit: queue it hands-off, or open a session
   // to watch (so the note is pushed into the live session you're watching).
   const [preRunMode, setPreRunMode] = useState<'queue' | 'watch'>('queue');
@@ -228,7 +228,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     try { sessionStorage.setItem(key, JSON.stringify({ overrides: inputOverrides, inputSessionId })); } catch { /* private mode */ }
   }, [slug, workflowVersionId, inputOverrides, inputSessionId]);
 
-  async function chooseTypedInput(field: WorkflowInputField) {
+  async function chooseTypedInput(field: WorkflowInputField, selection: 'file' | 'directory' = 'file') {
     const bridge = desktopBridge();
     if (!bridge?.pickRunInput) return;
     setInputError(field.key, null);
@@ -238,6 +238,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     const result = await bridge.pickRunInput({
       inputKey: field.key,
       inputSessionId: sessionId,
+      selection,
       ...(field.accept ? { accept: field.accept } : {}),
     }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
     const outcome = resolvePickerResult(result, field);
@@ -1030,14 +1031,24 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                     )}
                     <p className="text-xs text-ink-400 mt-1 leading-relaxed">{field.description}</p>
                   </div>
-                  {field.kind === 'file' && <button
+                  {field.kind === 'file' && <div className="flex items-center gap-2 shrink-0">
+                    <button
                       type="button"
                       onClick={() => void chooseTypedInput(field)}
                       disabled={!desktopBridge()?.pickRunInput}
-                      className="btn-outline text-xs px-3 py-1.5 shrink-0 disabled:opacity-40"
+                      className="btn-outline text-xs px-3 py-1.5 disabled:opacity-40"
                     >
-                      {field.cardinality === 'many' ? 'Add file' : artifacts.length ? 'Replace' : 'Choose file'}
+                      {field.cardinality === 'many' ? 'Add file' : artifacts.length ? 'Replace file' : 'Choose file'}
+                    </button>
+                    {acceptsDirectorySnapshot(field) && <button
+                      type="button"
+                      onClick={() => void chooseTypedInput(field, 'directory')}
+                      disabled={!desktopBridge()?.pickRunInput}
+                      className="btn-outline text-xs px-3 py-1.5 disabled:opacity-40"
+                    >
+                      {field.cardinality === 'many' ? 'Add folder' : artifacts.length ? 'Replace with folder' : 'Choose folder'}
                     </button>}
+                  </div>}
                 </div>
                 {field.kind === 'text' ? (
                   <input
@@ -1157,7 +1168,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         {/* Attach a screenshot / file for THIS run. The picked file's absolute PATH
             is baked into the note above so the hands-off run can Read it. Desktop-only
             (a browser can't hand over a local path) — disabled with a hint elsewhere. */}
-        {!typedFields.length && <AttachFiles files={runFiles} canAttach={canAttach} onAttach={attachFile} onRemove={removeFile} />}
+        {!typedFields.length && <AttachFiles files={runFiles} canAttach={canAttach} canAttachFolder={canAttachFolder}
+          onAttach={attachFile} onAttachFolder={attachFolder} onRemove={removeFile} />}
       </div>
 
       {setupFields.length > 0 && (

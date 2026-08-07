@@ -47,7 +47,7 @@ export default function RunContinueBox({
   // The pre-run capability ask — a continue runs the agent just like a Run does, so
   // it hits the same gate and deserves the same actionable card rather than an error.
   const [capCard, setCapCard] = useState<CapabilityCardData | null>(null);
-  const { files, canAttach, attachFile, removeFile } = useRunAttachments();
+  const { files, canAttach, canAttachFolder, attachFile, attachFolder, removeFile } = useRunAttachments();
   const supabase = createClient();
 
   const canSubmit = !!note.trim() || files.length > 0;
@@ -104,7 +104,9 @@ export default function RunContinueBox({
       <AttachFiles
         files={files}
         canAttach={canAttach}
+        canAttachFolder={canAttachFolder}
         onAttach={attachFile}
+        onAttachFolder={attachFolder}
         onRemove={removeFile}
         hint="A screenshot, the captured footage, a doc — the run reads it as input."
       />

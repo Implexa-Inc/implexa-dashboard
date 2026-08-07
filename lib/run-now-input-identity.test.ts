@@ -173,7 +173,7 @@ test('every list the pre-run pop-up builds runs through the same resolution', ()
     'the watch-mode prompt is another envelope; a superseded answer there is the same stale value by another route');
   assert.ok(!/const typedKeys = new Set\(typedFields\.map/.test(src),
     'the key-only filter is what let two names for one identity both render');
-  assert.match(src, /^\s*bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,$/m,
+  assert.match(src, /^\s*acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,$/m,
     'imported from the shared contract module, not re-implemented locally');
   assert.equal(src.split('reusablePreferences(').length - 1, 2,
     'exactly the two lists the pop-up builds — a third list added without it re-opens the defect');

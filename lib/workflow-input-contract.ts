@@ -34,6 +34,13 @@ export function orderedInputFields(contract: WorkflowInputContract | null): Work
   return contract ? [...contract.fields].sort((a, b) => a.order - b.order) : [];
 }
 
+/** A folder can satisfy a typed file field only by becoming an immutable ZIP
+ * artifact. The declared .zip extension is the authority; prose is not. */
+export function acceptsDirectorySnapshot(field: WorkflowInputField): boolean {
+  return field.kind === 'file'
+    && (field.accept?.extensions ?? []).some((extension) => extension.toLowerCase() === '.zip');
+}
+
 /**
  * Which setup questions this contract has taken ownership of.
  *
@@ -127,6 +134,26 @@ export function describeInputPickerError(code: string | undefined, field: Workfl
       return 'The file changed while it was being verified. Make sure nothing is still writing to it, then choose it again.';
     case 'not_a_regular_file':
       return 'That is not a regular file. Choose a file rather than a folder, alias, or symlink.';
+    case 'directory_not_accepted':
+      return `“${field.label}” does not accept a folder snapshot. Choose one of its accepted files instead.`;
+    case 'not_a_directory':
+    case 'invalid_directory_selection':
+      return 'That is not a selectable folder. Choose a real folder rather than an alias or symlink.';
+    case 'directory_contains_symlink':
+    case 'directory_contains_special_file':
+      return 'That folder contains a symlink or unsupported special file. Remove it or create a ZIP yourself, then try again.';
+    case 'directory_too_many_entries':
+    case 'directory_too_large':
+      return 'That folder is too large to attach safely. Create a smaller project folder or ZIP, then try again.';
+    case 'directory_changed_while_snapshotting':
+      return 'That folder changed while Implexa was packaging it. Stop any writes to it, then choose it again.';
+    case 'directory_unreadable':
+    case 'directory_unavailable':
+      return 'Implexa could not read that folder. Check its permissions and choose it again.';
+    case 'directory_snapshot_failed':
+    case 'directory_source_read_short':
+    case 'directory_snapshot_write_stalled':
+      return 'Implexa could not create a verified ZIP snapshot of that folder. Check free disk space, then try again.';
     case 'invalid_input_registration':
       return `Implexa Desktop could not register a file for “${field.label}”. Update the desktop app, then try again.`;
     default:

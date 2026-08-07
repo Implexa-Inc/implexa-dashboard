@@ -27,6 +27,7 @@ const COMPONENT = 'app/(dashboard)/_components/agent-actions.tsx';
 const TESTS = [
   'lib/workflow-input-contract.test.ts',
   'app/(dashboard)/_components/run-input-picker.test.ts',
+  'app/(dashboard)/_components/run-folder-attachments.test.ts',
 ];
 
 const mutants = [
@@ -56,6 +57,18 @@ const mutants = [
   ['failure-computed-but-not-shown', COMPONENT,
     "    if (outcome.kind === 'failed') { setInputError(field.key, outcome.message); return; }",
     "    if (outcome.kind === 'failed') { return; }"],
+  ['folder-affordance-offered-without-zip-contract', LIB,
+    "  return field.kind === 'file'\n    && (field.accept?.extensions ?? []).some((extension) => extension.toLowerCase() === '.zip');",
+    "  return field.kind === 'file';"],
+  ['typed-folder-selection-sent-as-a-file', COMPONENT,
+    '      selection,',
+    "      selection: 'file',"],
+  ['generic-folder-attachment-button-removed', 'app/(dashboard)/_components/run-attachments.tsx',
+    '          Attach folder',
+    '          Attach directory'],
+  ['directory-snapshot-failure-is-swallowed', LIB,
+    "    case 'directory_snapshot_failed':\n    case 'directory_source_read_short':",
+    "    case 'directory_source_read_short':"],
 
   // ── POSITIONAL INSTEAD OF KEYED BINDING ───────────────────────────────────
   // Stored under a fixed slot instead of the contract key: whichever file was

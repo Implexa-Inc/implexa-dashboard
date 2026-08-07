@@ -41,11 +41,15 @@ export type DesktopBridge = {
   openAgent?: () => Promise<{ ok: boolean }>;
   handoffAgent?: (prompt: string, surface?: string, target?: string) => Promise<{ ok: boolean; mode?: string }>;
   pickFile?: (opts?: unknown) => Promise<{ ok: boolean; path?: string }>;
+  /** Generic run/build/continue attachment. The explicitly selected absolute
+   * path rides the same one-off request-note channel as ordinary attached files. */
+  pickDirectory?: () => Promise<{ ok: boolean; path?: string; error?: string }>;
   /** Trusted typed-input boundary. Desktop hashes/registers the local file and
    * retains its path locally; web/backend receive identity + media metadata only. */
   pickRunInput?: (opts: {
     inputKey: string;
     inputSessionId?: string;
+    selection?: 'file' | 'directory';
     accept?: { mediaTypes?: string[]; extensions?: string[] };
   }) => Promise<{
     ok: boolean;
@@ -94,7 +98,11 @@ export function useRunAttachments() {
   // Whether the native file picker bridge is present (desktop app only) — gates the
   // attach affordance, since a plain browser can't give Claude a local path.
   const [canAttach, setCanAttach] = useState(false);
-  useEffect(() => { setCanAttach(!!desktopBridge()?.pickFile); }, []);
+  const [canAttachFolder, setCanAttachFolder] = useState(false);
+  useEffect(() => {
+    setCanAttach(!!desktopBridge()?.pickFile);
+    setCanAttachFolder(!!desktopBridge()?.pickDirectory);
+  }, []);
 
   async function attachFile() {
     const bridge = desktopBridge();
@@ -104,22 +112,33 @@ export function useRunAttachments() {
       setFiles((prev) => (prev.includes(r.path!) ? prev : [...prev, r.path!].slice(0, MAX_RUN_FILES)));
     }
   }
+  async function attachFolder() {
+    const bridge = desktopBridge();
+    if (!bridge?.pickDirectory) return;
+    const r = await bridge.pickDirectory().catch(() => null);
+    if (r?.ok && r.path) {
+      setFiles((prev) => (prev.includes(r.path!) ? prev : [...prev, r.path!].slice(0, MAX_RUN_FILES)));
+    }
+  }
   function removeFile(i: number) {
     setFiles((prev) => prev.filter((_, idx) => idx !== i));
   }
   function reset() { setFiles([]); }
 
-  return { files, setFiles, canAttach, attachFile, removeFile, reset };
+  return { files, setFiles, canAttach, canAttachFolder, attachFile, attachFolder, removeFile, reset };
 }
 
 /** The attach button + attached-file chips. Desktop-only (disabled with a hint in a
  *  plain browser, which can't hand Claude a local path). */
 export function AttachFiles({
-  files, canAttach, onAttach, onRemove, hint = 'A screenshot, PDF, doc — the run reads it as context.',
+  files, canAttach, canAttachFolder = false, onAttach, onAttachFolder, onRemove,
+  hint = 'A screenshot, file, or folder — the run reads it as context.',
 }: {
   files: string[];
   canAttach: boolean;
+  canAttachFolder?: boolean;
   onAttach: () => void;
+  onAttachFolder?: () => void;
   onRemove: (i: number) => void;
   hint?: string;
 }) {
@@ -138,7 +157,19 @@ export function AttachFiles({
           </svg>
           Attach file
         </button>
-        {canAttach && <span className="text-[11px] text-ink-500">{hint}</span>}
+        {canAttachFolder && onAttachFolder && <button
+          type="button"
+          onClick={onAttachFolder}
+          disabled={files.length >= MAX_RUN_FILES}
+          title="Attach a folder for this run"
+          className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 text-ink-300 px-2.5 py-1.5 text-xs hover:border-ink-500 hover:text-ink-100 transition-colors disabled:opacity-40"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+          </svg>
+          Attach folder
+        </button>}
+        {(canAttach || canAttachFolder) && <span className="text-[11px] text-ink-500">{hint}</span>}
       </div>
 
       {files.length > 0 && (
