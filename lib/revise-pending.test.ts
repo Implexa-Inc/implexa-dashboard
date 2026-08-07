@@ -41,6 +41,12 @@ test('no open revise requests → never pending, version or not', () => {
   assert.equal(isRevisePending([{ kind: 'run', status: 'pending', created_at: ASK }], null), false);
 });
 
+test('terminal revise requests always release Updating and Run, even without version history', () => {
+  for (const status of ['done', 'cancelled', 'failed']) {
+    assert.equal(isRevisePending([revise(ASK, status)], null), false, status);
+  }
+});
+
 test('mixed queue: one landed + one newer ask → still pending (the second edit is in flight)', () => {
   const landed = revise(BEFORE_ASK);
   const inFlight = revise(AFTER_ASK);
