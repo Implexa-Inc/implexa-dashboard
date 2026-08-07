@@ -29,7 +29,7 @@ const NOTIFY: ReadonlySet<string> = new Set(['waiting_approval', 'needs_attentio
 // is NOT in NOTIFY, so it never fires a noisy desktop notification).
 const ALERT_STATUSES: ReadonlySet<string> = new Set([...NOTIFY, 'queued']);
 
-type LiveStatus = 'queued' | 'waiting_approval' | 'needs_attention' | 'running' | 'failed' | 'finished' | 'action_available';
+type LiveStatus = 'queued' | 'picked_up' | 'waiting_approval' | 'needs_attention' | 'running' | 'verifying' | 'built' | 'failed' | 'finished' | 'action_available';
 type LiveCard = {
   runId: string | null;
   /** Set on a 'queued' card (a pending run_request with no skill_run yet). */
@@ -38,6 +38,8 @@ type LiveCard = {
   skillSlug: string;
   source: string | null;
   status: LiveStatus;
+  /** Canonical request lifecycle for definition work without a run row. */
+  lifecyclePhase?: 'queued' | 'claimed' | 'running' | 'verifying' | 'built' | 'failed' | 'cancelled' | null;
   since: string | null;
   /** When the run actually completed (null while running/queued). The Home linger
    *  and a finished card's "Nm ago" measure from THIS, not `since` (start time). */
@@ -46,6 +48,8 @@ type LiveCard = {
   typicalMs?: number | null;
   /** Run IDENTITY — what THIS run is, from its own output. Primary card label. */
   headline?: string | null;
+  /** Honest terminal cause for request-level failures (not the user's edit text). */
+  failureReason?: string | null;
   /** Live per-step progress (0089) — drives "Step N/M · <label>" while running. */
   currentStepIndex?: number | null;
   totalSteps?: number | null;
@@ -89,13 +93,30 @@ const POLL_MS = 15000;
 // unmissable at a glance regardless of whether step detail is present.
 const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: string; label: string; chip: string; chipCls: string }> = {
   queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your AI engine', chip: 'Queued',          chipCls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30' },
+  picked_up:        { spin: true,  spinCls: 'border-cyan-500/25 border-t-cyan-500',       dotCls: 'bg-cyan-500',                label: 'A worker picked this up and is starting',    chip: 'Picked up',       chipCls: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30' },
   running:          { spin: true,  spinCls: 'border-emerald-500/25 border-t-emerald-500', dotCls: 'bg-emerald-500',             label: 'Running',                                    chip: 'Running',         chipCls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' },
+  verifying:        { spin: true,  spinCls: 'border-violet-500/25 border-t-violet-500',   dotCls: 'bg-violet-500',              label: 'Verifying the saved agent revision',         chip: 'Verifying',       chipCls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30' },
+  built:            { spin: false, spinCls: '',                                           dotCls: 'bg-emerald-500',             label: 'Your updated agent is ready',                 chip: 'Built',           chipCls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' },
   waiting_approval: { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Waiting for approval',                       chip: 'Approval needed', chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
   action_available: { spin: false, spinCls: '',                                           dotCls: 'bg-brand-500',               label: 'Action available',                           chip: 'Action ready',    chipCls: 'bg-brand-500/10 text-brand-600 dark:text-brand-300 border-brand-500/30' },
   needs_attention:  { spin: true,  spinCls: 'border-amber-500/30 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Needs attention',                            chip: 'Needs attention', chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
   failed:           { spin: false, spinCls: '',                                           dotCls: 'bg-rose-500',                label: 'Failed',                                     chip: 'Failed',          chipCls: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30' },
   finished:         { spin: false, spinCls: '',                                           dotCls: 'bg-ink-500 dark:bg-ink-400', label: 'Finished',                                   chip: 'Finished',        chipCls: 'bg-ink-500/10 text-ink-400 border-ink-500/30' },
 };
+
+function statusFromLifecycle(card: LiveCard): LiveStatus {
+  switch (card.lifecyclePhase) {
+    case 'queued': return 'queued';
+    case 'claimed': return 'picked_up';
+    case 'running': return 'running';
+    case 'verifying': return 'verifying';
+    case 'built': return 'built';
+    case 'failed': return 'failed';
+    // Cancelled requests are omitted from Active Agents. Preserve an older
+    // backend's explicit card status if one nevertheless appears.
+    default: return card.status;
+  }
+}
 
 function humanize(slug: string): string {
   return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -249,9 +270,10 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
         // Unreadable is unavailable, not empty. (See lib/live-feed.)
         const items = parseLiveItems<LiveCard>(res);
         if (items === null) { if (alive) setFailed(true); return; }
-        setCards(items);
+        const normalized = items.map((card) => ({ ...card, status: statusFromLifecycle(card) }));
+        setCards(normalized);
         setFailed(false);
-        maybeNotify(items);
+        maybeNotify(normalized);
       } catch {
         // UNAVAILABLE IS NOT EMPTY. This used to `setCards([])`, which made a
         // failed read indistinguishable from "nothing is live" — and a parent
@@ -281,7 +303,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
   // run age out almost as soon as it finished (founder: "disappeared before 30 min").
   const doneAt = (c: LiveCard) => c.finishedAt || c.since;
   const recentlyDone = (c: LiveCard) =>
-    c.status === 'finished' && !!doneAt(c) && (Date.now() - new Date(doneAt(c)!).getTime()) < RECENT_DONE_MS;
+    (c.status === 'finished' || c.status === 'built') && !!doneAt(c) && (Date.now() - new Date(doneAt(c)!).getTime()) < RECENT_DONE_MS;
   // Computed from `cards ?? []` BEFORE the early returns so the state effect below
   // is never skipped by a conditional hook. The COUNT here is only meaningful
   // alongside `liveStatus` — while cards is null it is 0 because there is nothing
@@ -366,7 +388,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     ? <span className="text-brand-500">{c.actionLabel}{c.actionCount && c.actionCount > 1 ? ` (+${c.actionCount - 1} more)` : ''}</span>
                     : s.label}
                   {/* Finished/failed → "Nm ago" from completion; live cards from start. */}
-                  {(() => { const t = (c.status === 'finished' || c.status === 'failed') && c.finishedAt ? c.finishedAt : c.since; return t ? ` · ${rel(t)}` : ''; })()}
+                  {(() => { const t = (c.status === 'finished' || c.status === 'built' || c.status === 'failed') && c.finishedAt ? c.finishedAt : c.since; return t ? ` · ${rel(t)}` : ''; })()}
                   {c.status === 'running' && c.typicalMs ? (
                     elapsedMs(c.since) > c.typicalMs * 1.5 ? (
                       <span className="text-amber-600 dark:text-amber-400"> · longer than usual (~{fmtDur(c.typicalMs)})</span>
@@ -384,8 +406,13 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     {c.currentStepLabel ? ` · ${c.currentStepLabel}` : ''}
                   </div>
                 ) : null}
+                {c.status === 'failed' && c.failureReason ? (
+                  <div className="mt-1 text-[11px] text-rose-500 leading-snug line-clamp-2">
+                    {c.failureReason}
+                  </div>
+                ) : null}
               </div>
-              {(c.status === 'finished' || c.status === 'failed') && c.runId && (
+              {(c.status === 'finished' || c.status === 'built' || c.status === 'failed') && c.runId && (
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(c.runId!); }}

@@ -26,9 +26,13 @@ const FILES = [
   'lib/queued-wait-copy.ts',
   'lib/queued-wait-copy.test.ts',
   'app/(dashboard)/_components/running-agents.tsx',
+  'app/(dashboard)/_components/revise-request-lifecycle.test.ts',
 ];
 
-const SUITES = ['lib/queued-wait-copy.test.ts'];
+const SUITES = [
+  'lib/queued-wait-copy.test.ts',
+  'app/(dashboard)/_components/revise-request-lifecycle.test.ts',
+];
 
 const COPY = 'lib/queued-wait-copy.ts';
 const COMPONENT = 'app/(dashboard)/_components/running-agents.tsx';
@@ -99,6 +103,17 @@ const mutations = [
     boundary: 'timing', name: 'a running run is described as queued', file: COPY,
     from: "  if (!input || input.status !== 'queued') return null;",
     to: '  if (!input) return null;',
+  },
+  // ── request lifecycle projection ──────────────────────────────────────
+  {
+    boundary: 'request-lifecycle', name: 'the backend lifecycle projection is ignored again', file: COMPONENT,
+    from: '        const normalized = items.map((card) => ({ ...card, status: statusFromLifecycle(card) }));',
+    to: '        const normalized = items;',
+  },
+  {
+    boundary: 'request-lifecycle', name: 'the persisted failure cause is dropped from the card', file: COMPONENT,
+    from: "                {c.status === 'failed' && c.failureReason ? (",
+    to: '                {false ? (',
   },
 ];
 

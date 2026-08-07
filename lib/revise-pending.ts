@@ -59,7 +59,11 @@ export function isRevisePending(
   requests: ReviseRequestRow[] | null | undefined,
   latestVersionAtIso: string | null,
 ): boolean {
-  const revises = (requests ?? []).filter((r) => r?.kind === 'revise');
+  // Enforce terminal clearing here too, not only in the page query. A failed,
+  // cancelled, or completed edit is no longer rewriting anything and may never
+  // keep Run paused if a caller passes a broader request list.
+  const revises = (requests ?? []).filter((r) =>
+    r?.kind === 'revise' && (r.status === 'pending' || r.status === 'consumed'));
   if (revises.length === 0) return false;
   const landedMs = latestVersionAtIso ? Date.parse(latestVersionAtIso) : NaN;
   if (Number.isNaN(landedMs)) return true; // no landed version in scope — keep the trigger semantics
