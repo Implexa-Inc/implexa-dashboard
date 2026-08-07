@@ -569,6 +569,13 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           </div>
         )}
 
+        {/* Files are a first-class part of EVERY run, not an appendix to a final
+            markdown answer. Keep this near the header for running, held, failed,
+            partial and completed runs alike. The component stays present at zero
+            so a tab opened before Desktop validation lands has an honest Refresh
+            path instead of permanently looking as though the run made no files. */}
+        <VerifiedArtifacts artifacts={verifiedArtifacts} />
+
         {/* First quality-mode entry point: only offer B-roll generation beside a
             desktop-validated video deliverable. A markdown path is a worker claim,
             not evidence that there is a video to build from. The proposal itself
@@ -713,7 +720,6 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             <div className="prose prose-sm max-w-none rounded-lg border border-ink-800 bg-ink-950/60 p-5">
               <RunMarkdown markdown={r.output_markdown} workspaceRoot={workspaceRoot} />
             </div>
-            <VerifiedArtifacts artifacts={verifiedArtifacts} />
             {/* (Share moved to the top of the run view — see the amber "Share this
                 run" button under the header. The growth-loop Run Card lives there.) */}
           </>

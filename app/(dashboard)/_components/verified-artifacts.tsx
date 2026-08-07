@@ -7,7 +7,8 @@
  * a relative path from prose just to reach a delivered file.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 
 export type VerifiedArtifact = {
   relativePath: string;
@@ -36,6 +37,9 @@ function roleLabel(role: string | null): string {
 }
 
 export default function VerifiedArtifacts({ artifacts }: { artifacts: VerifiedArtifact[] }) {
+  const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
+  const [refreshing, refresh] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const flash = (text: string) => {
     setMessage(text);
@@ -73,32 +77,59 @@ export default function VerifiedArtifacts({ artifacts }: { artifacts: VerifiedAr
     await copyPath(artifact);
   }, []);
 
-  if (!artifacts.length) return null;
+  const finalCount = artifacts.filter((artifact) => artifact.role === 'final_output').length;
   return (
-    <section className="mt-5 rounded-lg border border-emerald-500/35 bg-emerald-500/[0.06] p-4" aria-label="Verified files">
-      <div className="flex items-baseline justify-between gap-3">
+    <section className="mb-6 rounded-lg border border-emerald-500/35 bg-emerald-500/[0.06] p-4" aria-label="Files and artifacts">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink-50">Verified files</h2>
-          <p className="mt-1 text-xs text-ink-400">Checked on this Mac by Implexa. These are the same files available to Judge.</p>
+          <h2 className="text-sm font-semibold text-ink-50">Files &amp; artifacts</h2>
+          <p className="mt-1 text-xs text-ink-400">
+            {artifacts.length
+              ? `Checked on this Mac by Implexa · ${finalCount} final ${finalCount === 1 ? 'output' : 'outputs'} · ${artifacts.length} total`
+              : 'No verified files yet. Refresh after this run creates or validates files.'}
+          </p>
         </div>
-        <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-300">{artifacts.length} verified</span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => refresh(() => router.refresh())}
+            disabled={refreshing}
+            className="rounded border border-ink-700 px-2.5 py-1 text-xs text-ink-300 hover:bg-ink-800 disabled:opacity-60"
+          >
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+          {artifacts.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpanded((value) => !value)}
+              aria-expanded={expanded}
+              aria-controls="run-artifact-list"
+              className="rounded border border-emerald-500/40 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
+            >
+              {expanded ? 'Hide files' : `View files (${artifacts.length})`}
+            </button>
+          )}
+        </div>
       </div>
-      <ul className="mt-3 divide-y divide-emerald-500/15 rounded-md border border-emerald-500/20 bg-ink-950/30">
-        {artifacts.map((artifact) => (
-          <li key={artifact.validatedPath} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm text-ink-100" title={artifact.relativePath}>{artifact.relativePath.split('/').at(-1)}</div>
-              <div className="mt-0.5 truncate text-xs text-ink-500" title={artifact.relativePath}>
-                {roleLabel(artifact.role)}{size(artifact.sizeBytes) ? ` · ${size(artifact.sizeBytes)}` : ''}
+      {expanded && artifacts.length > 0 && (
+        <ul id="run-artifact-list" className="mt-3 max-h-[28rem] overflow-y-auto divide-y divide-emerald-500/15 rounded-md border border-emerald-500/20 bg-ink-950/30">
+          {artifacts.map((artifact) => (
+            <li key={artifact.validatedPath} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm text-ink-100" title={artifact.relativePath}>{artifact.relativePath.split('/').at(-1)}</div>
+                <div className="mt-0.5 truncate text-xs text-ink-500" title={artifact.relativePath}>
+                  {roleLabel(artifact.role)}{size(artifact.sizeBytes) ? ` · ${size(artifact.sizeBytes)}` : ''}
+                </div>
+                <div className="mt-0.5 truncate font-mono text-[10px] text-ink-600" title={artifact.relativePath}>{artifact.relativePath}</div>
               </div>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <button type="button" onClick={() => void open(artifact)} className="rounded border border-emerald-500/40 px-2.5 py-1 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300">Open</button>
-              <button type="button" onClick={() => void reveal(artifact)} className="rounded border border-ink-700 px-2.5 py-1 text-ink-300 hover:bg-ink-800">Finder</button>
-            </div>
-          </li>
-        ))}
-      </ul>
+              <div className="flex items-center gap-2 text-xs">
+                <button type="button" onClick={() => void open(artifact)} className="rounded border border-emerald-500/40 px-2.5 py-1 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300">Open</button>
+                <button type="button" onClick={() => void reveal(artifact)} className="rounded border border-ink-700 px-2.5 py-1 text-ink-300 hover:bg-ink-800">Finder</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
       {message && <p className="mt-2 text-xs text-ink-300" role="status">{message}</p>}
     </section>
   );
