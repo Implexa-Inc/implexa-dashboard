@@ -48,6 +48,8 @@ type LiveCard = {
   typicalMs?: number | null;
   /** Run IDENTITY — what THIS run is, from its own output. Primary card label. */
   headline?: string | null;
+  /** Honest terminal cause for request-level failures (not the user's edit text). */
+  failureReason?: string | null;
   /** Live per-step progress (0089) — drives "Step N/M · <label>" while running. */
   currentStepIndex?: number | null;
   totalSteps?: number | null;
@@ -101,6 +103,20 @@ const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: strin
   failed:           { spin: false, spinCls: '',                                           dotCls: 'bg-rose-500',                label: 'Failed',                                     chip: 'Failed',          chipCls: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30' },
   finished:         { spin: false, spinCls: '',                                           dotCls: 'bg-ink-500 dark:bg-ink-400', label: 'Finished',                                   chip: 'Finished',        chipCls: 'bg-ink-500/10 text-ink-400 border-ink-500/30' },
 };
+
+function statusFromLifecycle(card: LiveCard): LiveStatus {
+  switch (card.lifecyclePhase) {
+    case 'queued': return 'queued';
+    case 'claimed': return 'picked_up';
+    case 'running': return 'running';
+    case 'verifying': return 'verifying';
+    case 'built': return 'built';
+    case 'failed': return 'failed';
+    // Cancelled requests are omitted from Active Agents. Preserve an older
+    // backend's explicit card status if one nevertheless appears.
+    default: return card.status;
+  }
+}
 
 function humanize(slug: string): string {
   return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -254,9 +270,10 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
         // Unreadable is unavailable, not empty. (See lib/live-feed.)
         const items = parseLiveItems<LiveCard>(res);
         if (items === null) { if (alive) setFailed(true); return; }
-        setCards(items);
+        const normalized = items.map((card) => ({ ...card, status: statusFromLifecycle(card) }));
+        setCards(normalized);
         setFailed(false);
-        maybeNotify(items);
+        maybeNotify(normalized);
       } catch {
         // UNAVAILABLE IS NOT EMPTY. This used to `setCards([])`, which made a
         // failed read indistinguishable from "nothing is live" — and a parent
@@ -387,6 +404,11 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   <div className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300 truncate mt-0.5">
                     Step {Math.min(c.currentStepIndex || 1, c.totalSteps)}/{c.totalSteps}
                     {c.currentStepLabel ? ` · ${c.currentStepLabel}` : ''}
+                  </div>
+                ) : null}
+                {c.status === 'failed' && c.failureReason ? (
+                  <div className="mt-1 text-[11px] text-rose-500 leading-snug line-clamp-2">
+                    {c.failureReason}
                   </div>
                 ) : null}
               </div>

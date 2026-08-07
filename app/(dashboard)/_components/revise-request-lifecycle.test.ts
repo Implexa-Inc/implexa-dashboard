@@ -16,3 +16,14 @@ test('the queued wait notice is gated on the canonical queued status', () => {
   assert.match(source, /c\.status === 'queued' && c\.requestId/);
   assert.doesNotMatch(source, /picked_up[^\n]*Waiting to be picked up/i);
 });
+
+test('the backend lifecycle projection is consumed rather than emitted as dead data', () => {
+  assert.match(source, /function statusFromLifecycle\(card: LiveCard\)/);
+  assert.match(source, /items\.map\(\(card\) => \(\{ \.\.\.card, status: statusFromLifecycle\(card\) \}\)\)/);
+});
+
+test('a failed revise card shows the backend failure cause, not only the edit request text', () => {
+  assert.match(source, /failureReason\?: string \| null/);
+  assert.match(source, /c\.status === 'failed' && c\.failureReason/);
+  assert.match(source, /\{c\.failureReason\}/);
+});
