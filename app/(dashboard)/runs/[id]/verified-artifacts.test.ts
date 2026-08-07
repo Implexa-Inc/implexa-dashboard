@@ -17,10 +17,30 @@ test('run detail surfaces only desktop-validated artifacts, separately from work
     'markdown remains a separate, untrusted presentation surface');
 });
 
+test('files are a first-class run section, not gated on a final markdown deliverable', () => {
+  const files = page.indexOf('<VerifiedArtifacts artifacts={verifiedArtifacts} />');
+  const outputBranch = page.indexOf("{r.output_markdown ? (");
+  assert.ok(files >= 0 && outputBranch >= 0 && files < outputBranch,
+    'the files section must render before and independently of the output-markdown branch');
+  assert.equal(page.match(/<VerifiedArtifacts artifacts=\{verifiedArtifacts\} \/>/g)?.length, 1,
+    'the run page should expose one stable artifacts surface, not a second buried copy');
+});
+
 test('verified file actions use the validator-produced absolute path, while hiding it from the visible label', () => {
   assert.match(component, /openPath\?\.?:?/, 'component must support the desktop open bridge');
   assert.match(component, /artifact\.validatedPath/, 'Open/Finder must use the validated path, not worker prose');
   assert.match(component, /artifact\.relativePath\.split\('\/'\)\.at\(-1\)/,
     'the visible label should be a portable filename, not a home-directory path');
   assert.match(component, /Checked on this Mac by Implexa/, 'trust status must be explained to the user');
+});
+
+test('every run exposes refresh and an expandable bounded artifact list', () => {
+  assert.doesNotMatch(component, /if \(!artifacts\.length\) return null/,
+    'a run opened before validation lands must not permanently lose its files surface');
+  assert.match(component, /router\.refresh\(\)/, 'late Desktop validation must have an in-place refresh path');
+  assert.match(component, /View files \(\$\{artifacts\.length\}\)/,
+    'large artifact sets need a prominent count and explicit browse affordance');
+  assert.match(component, /max-h-\[28rem\] overflow-y-auto/,
+    'dozens of supporting artifacts must not make the entire run page unusable');
+  assert.match(component, /artifact\.relativePath/, 'the expanded browser must retain the portable relative path');
 });
