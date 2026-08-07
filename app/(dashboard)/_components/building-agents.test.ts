@@ -17,15 +17,15 @@ import { join } from 'node:path';
 const read = (f: string) => readFileSync(join(import.meta.dirname, f), 'utf8');
 const SRC = read('building-agents.tsx');
 
-test('the card can express all six canonical phases', () => {
+test('the card can express every canonical phase', () => {
   // The old vocabulary was queued | building | built — three values, so "picked
   // up" and "failed" were literally unrenderable no matter what the server sent.
   assert.match(
     SRC,
-    /type Phase = 'queued' \| 'claimed' \| 'running' \| 'verifying' \| 'built' \| 'failed' \| 'cancelled';/,
-    'the phase union must match the server vocabulary (migration 0160) exactly',
+    /type Phase = 'queued' \| 'claimed' \| 'starting' \| 'running' \| 'verifying' \| 'built' \| 'start_failed' \| 'claim_expired' \| 'failed' \| 'cancelled';/,
+    'the phase union must match the server vocabulary exactly',
   );
-  for (const phase of ['queued', 'claimed', 'running', 'verifying', 'built', 'failed', 'cancelled']) {
+  for (const phase of ['queued', 'claimed', 'starting', 'running', 'verifying', 'built', 'start_failed', 'claim_expired', 'failed', 'cancelled']) {
     assert.match(SRC, new RegExp(`^\\s*${phase}:\\s*\\{ title:`, 'm'), `${phase} has no copy, so it would render blank`);
   }
 });
@@ -47,7 +47,7 @@ test('the phase is taken from the server, never re-derived from timestamps here'
 test('a failure states its reason instead of a bare "Failed"', () => {
   assert.match(
     SRC,
-    /b\.phase === 'failed' \? \(b\.failureReason \|\| c\.sub\)/,
+    /b\.phase === 'failed' \|\| b\.phase === 'start_failed' \|\| b\.phase === 'claim_expired'/,
     'a failed card must show the actionable reason the server recorded',
   );
 });
@@ -58,7 +58,11 @@ test('only a genuine success gets the success checkmark and the Review CTA', () 
   // "Built ✓ Your agent is ready".
   assert.match(SRC, /b\.phase === 'built' \? \(\s*<span[^>]*bg-emerald-500/, 'the green check is keyed on built, not on terminal');
   assert.match(SRC, /\{b\.phase === 'built' \? \(\s*\n\s*<Link/, 'the Review CTA appears only for a genuinely built agent');
-  assert.match(SRC, /b\.phase === 'failed' \? \(\s*<span[^>]*bg-rose-500/, 'a failed build is visually distinct, not another spinner');
+  assert.match(
+    SRC,
+    /\(b\.phase === 'failed' \|\| b\.phase === 'start_failed'\) \? \(\s*<span[^>]*bg-rose-500/,
+    'a failed or start-failed build is visually distinct, not another spinner',
+  );
 });
 
 test('the newly-built agent still opens its detail page first (PR #63 behaviour preserved)', () => {

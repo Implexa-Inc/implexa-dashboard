@@ -27,7 +27,7 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
 /** Canonical vocabulary. Mirrors the CHECK in migration 0160 — do not extend locally. */
-type Phase = 'queued' | 'claimed' | 'running' | 'verifying' | 'built' | 'failed' | 'cancelled';
+type Phase = 'queued' | 'claimed' | 'starting' | 'running' | 'verifying' | 'built' | 'start_failed' | 'claim_expired' | 'failed' | 'cancelled';
 
 type LifecycleEvent = {
   event: Phase;
@@ -57,7 +57,7 @@ type Build = {
 const POLL_MS = 4000;
 
 /** Terminal phases stop the spinner and stop the elapsed clock. */
-const TERMINAL: ReadonlySet<Phase> = new Set(['built', 'failed', 'cancelled']);
+const TERMINAL: ReadonlySet<Phase> = new Set(['built', 'start_failed', 'claim_expired', 'failed', 'cancelled']);
 
 function rel(iso: string | null): string {
   if (!iso) return '';
@@ -78,10 +78,13 @@ function clock(iso: string | null): string {
 const COPY: Record<Phase, { title: string; sub: string }> = {
   queued:    { title: 'Queued',       sub: 'Waiting for a worker to pick it up' },
   claimed:   { title: 'Picked Up',    sub: 'A worker claimed it and is starting' },
+  starting:  { title: 'Starting executor', sub: 'Waiting for the local process to acknowledge startup' },
   running:   { title: 'Building',     sub: 'The worker is composing the steps' },
   verifying: { title: 'Verifying',    sub: 'The build finished; checking the saved agent' },
   built:     { title: 'Built',        sub: 'Your agent is ready' },
   failed:    { title: 'Failed',       sub: 'The build did not finish' },
+  start_failed: { title: 'Start failed', sub: 'The selected executor could not start' },
+  claim_expired: { title: 'Claim expired', sub: 'No process acknowledged this claim before its deadline' },
   cancelled: { title: 'Cancelled',    sub: 'This build was cancelled' },
 };
 
@@ -89,16 +92,20 @@ const COPY: Record<Phase, { title: string; sub: string }> = {
 const STEP_LABEL: Record<Phase, string> = {
   queued: 'Queued',
   claimed: 'Picked up',
+  starting: 'Starting',
   running: 'Running',
   verifying: 'Verifying',
   built: 'Built',
   failed: 'Failed',
+  start_failed: 'Start failed',
+  claim_expired: 'Claim expired',
   cancelled: 'Cancelled',
 };
 
 function phaseDot(phase: Phase): string {
   if (phase === 'built') return 'bg-emerald-500';
-  if (phase === 'failed') return 'bg-rose-500';
+  if (phase === 'failed' || phase === 'start_failed') return 'bg-rose-500';
+  if (phase === 'claim_expired') return 'bg-amber-500';
   if (phase === 'cancelled') return 'bg-ink-600';
   return 'bg-amber-500';
 }
@@ -112,6 +119,7 @@ function phaseDot(phase: Phase): string {
 function anchorFor(b: Build): string | null {
   if (b.phase === 'running') return b.startedAt;
   if (b.phase === 'claimed') return b.claimedAt;
+  if (b.phase === 'starting') return b.claimedAt;
   if (b.phase === 'queued') return b.queuedAt;
   return null;
 }
@@ -182,7 +190,7 @@ export default function BuildingAgents() {
             <div className="flex items-center gap-3">
               {b.phase === 'built' ? (
                 <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center text-[9px] text-ink-950" aria-hidden="true">✓</span>
-              ) : b.phase === 'failed' ? (
+              ) : (b.phase === 'failed' || b.phase === 'start_failed') ? (
                 <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-rose-500 flex items-center justify-center text-[9px] text-ink-950" aria-hidden="true">!</span>
               ) : b.phase === 'cancelled' ? (
                 <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-ink-600" aria-hidden="true" />
@@ -197,7 +205,7 @@ export default function BuildingAgents() {
                   {/* A failure states its reason. "Failed" with no actionable
                       next step is barely better than the false "Built" it
                       replaces. */}
-                  {b.phase === 'failed' ? (b.failureReason || c.sub) : c.sub}
+                  {(b.phase === 'failed' || b.phase === 'start_failed' || b.phase === 'claim_expired') ? (b.failureReason || c.sub) : c.sub}
                   {anchor ? ` · ${rel(anchor)}` : ''}
                   {/* Name the worker once one exists, so "Picked Up" is a claim
                       the user can check rather than one they have to trust. */}
