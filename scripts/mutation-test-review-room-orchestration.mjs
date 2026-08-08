@@ -34,7 +34,7 @@
  *   component-click      the real button disconnected from the real orchestration
  *
  * The wire contract is PINNED to
- * implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706. `review-submit-contract
+ * implexa-backend@b2b39b8d6858c60cb05f1e3c42f0781beb9add14. `review-submit-contract
  * .test.ts` re-reads the backend source at that SHA, so a mutation to our copy of the
  * field name or the bound is killed by disagreement with the server itself.
  */
@@ -261,7 +261,7 @@ const mutations = [
     "    ...state,\n    phase: 'error',\n    snapshot: null,\n    continuationId: null,"],
 
   // ── the pinned wire contract ──────────────────────────────────────────────
-  // Field name, bound and trimming all read from implexa-backend@8c0f71d.
+  // Field name, bound and trimming all read from implexa-backend@b2b39b8.
   ['note-dropped', 'the note is dropped from the request body entirely', ACTIONS,
     '        body: { revisionNote: note.length ? note : null },',
     '        body: {},'],
@@ -386,7 +386,7 @@ const boundaries = new Set(mutations.map(([b]) => b)).size;
 console.log(`\nMutation result: ${killed}/${mutations.length} killed across ${boundaries} boundaries.`);
 console.log('\nNOT COVERED, and stated rather than implied:');
 console.log('  A LIVE round trip. The contract is pinned three ways — fixtures recorded from');
-console.log('  8c0f71d, a parity test that re-reads the backend source at that SHA, and a rendered');
+console.log('  b2b39b8, a parity test that re-reads the backend source at that SHA, and a rendered');
 console.log('  click composed through the real allowlist — but nothing here POSTs to a running');
 console.log('  backend and reads the stored note back. That is the recovery acceptance in');
 console.log('  docs/review-room-draft-recovery.md, and it has not been run.');

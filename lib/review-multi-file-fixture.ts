@@ -16,7 +16,7 @@
  *   EQUAL TIMESTAMPS    Two Chapter1 issues share 00:12.500 exactly, so "stable"
  *                       cannot be satisfied by luck.
  *
- * PINNED to implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706 (migrations 0165
+ * PINNED to implexa-backend@b2b39b8d6858c60cb05f1e3c42f0781beb9add14 (migrations 0165
  * and 0166 applied). The submit response shapes at the bottom of this file were read
  * from that commit's `src/routes/review.js`; `review-submit-contract.test.ts` re-reads
  * the backend source at the same SHA and fails if any of it has drifted.
@@ -113,8 +113,18 @@ export const EXPECTED_TOTAL = 12;
 
 // ── the pinned submit contract ──────────────────────────────────────────────
 
-/** The backend commit every shape below was read from. */
-export const BACKEND_PIN = '8c0f71d6eb611faf9635f14c7bafc767d01bc706';
+/**
+ * The backend commit every shape below was read from: the approved head of #162.
+ *
+ * NOT an ancestor of the backend's `main`. #162 was merged separately and main moved on
+ * to DEPLOYED_MAIN, which additionally carries the #161 learning ledger. The dashboard
+ * calls none of that, and `review-submit-contract.test.ts` proves the two shas agree on
+ * everything it does call — the note contract and the submit route are byte-identical.
+ */
+export const BACKEND_PIN = 'b2b39b8d6858c60cb05f1e3c42f0781beb9add14';
+
+/** What is actually running: the backend's `main` head. Corroboration, not the pin. */
+export const DEPLOYED_MAIN = '8c0f71d6eb611faf9635f14c7bafc767d01bc706';
 
 const REQUEST_ID = 'd41d8cd9-1111-4000-8000-aaaaaaaaaaaa';
 const SUBMISSION_ID = 'e5f60718-2222-4000-8000-bbbbbbbbbbbb';

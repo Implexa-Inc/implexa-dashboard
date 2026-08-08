@@ -13,7 +13,7 @@ export type Upstream = { path: string; method: 'GET' | 'POST' | 'PATCH' | 'DELET
 /**
  * The backend's own bound, not ours.
  *
- * `REVISION_NOTE_MAX` in implexa-backend@8c0f71d `src/lib/review-submission.js`, applied
+ * `REVISION_NOTE_MAX` in implexa-backend@b2b39b8 `src/lib/review-submission.js`, applied
  * AFTER `.trim()`. Duplicated here because the client must refuse the same input the
  * server would; if the two ever disagree the server wins and the user sees its refusal.
  */
@@ -65,7 +65,7 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
       const sessionId = id(b.sessionId);
       if (!sessionId) return 'A valid sessionId is required.';
       // THE REVISION NOTE, under the backend's own field name and bounds — read from
-      // implexa-backend@8c0f71d, src/lib/review-submission.js: the request body key is
+      // implexa-backend@b2b39b8, src/lib/review-submission.js: the request body key is
       // `revisionNote`, it must be a string, it is `.trim()`ed, an empty result becomes
       // null, and REVISION_NOTE_MAX is 2000 measured AFTER the trim.
       //

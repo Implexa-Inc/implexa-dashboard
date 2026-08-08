@@ -3,7 +3,7 @@
 // THE PINNED SUBMIT CONTRACT.
 //
 // Every fixture below is the literal response shape emitted by
-// implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706 (migrations 0165 + 0166
+// implexa-backend@b2b39b8d6858c60cb05f1e3c42f0781beb9add14 (migrations 0165 + 0166
 // applied), read from that commit's `src/routes/review.js`. Nothing here is inferred
 // from a description of the contract.
 //
@@ -23,13 +23,13 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseSubmitResponse, submitRefusalCopy } from './review-submission-flow.ts';
 import { REVISION_NOTE_MAX } from './review-actions.ts';
-import { BACKEND_PIN, submitFixture } from './review-multi-file-fixture.ts';
+import { BACKEND_PIN, DEPLOYED_MAIN, submitFixture } from './review-multi-file-fixture.ts';
 
 // ── the pin itself ──────────────────────────────────────────────────────────
 
 test('the fixtures name the exact backend commit they were read from', () => {
   assert.match(BACKEND_PIN, /^[0-9a-f]{40}$/, 'the backend pin must be a full commit sha');
-  assert.equal(BACKEND_PIN, '8c0f71d6eb611faf9635f14c7bafc767d01bc706');
+  assert.equal(BACKEND_PIN, 'b2b39b8d6858c60cb05f1e3c42f0781beb9add14');
 });
 
 // ── success shapes ──────────────────────────────────────────────────────────
@@ -200,4 +200,66 @@ test('the idempotent branch still omits issueCount, so the fallback stays load-b
   assert.ok(branch, 'the alreadySubmitted branch could not be located');
   assert.doesNotMatch(branch![0], /issueCount/,
     'the idempotent branch now returns a count — prefer it over the session fallback');
+});
+
+// ── the pin is NOT what is deployed, and that gap is checked ────────────────
+//
+// `BACKEND_PIN` is the approved head of the #162 branch. It is NOT an ancestor of the
+// backend's `main`: #162 was merged separately (as dba53b7) and `main` then moved on to
+// DEPLOYED_MAIN, which carries the #161 learning ledger the branch tip does not.
+//
+// Wiring against a branch tip that is not deployed is only safe if the two agree about
+// the surface this dashboard actually calls. So rather than assert that in a comment,
+// the two trees are compared directly. If they ever diverge on the submit contract,
+// this fails — and whichever way it fails, we want to know before a reviewer does.
+
+const atSha = (sha: string, path: string) =>
+  execFileSync('git', ['show', `${sha}:${path}`], { cwd: backendRepo!, encoding: 'utf8' });
+
+const hasBoth = (() => {
+  if (!backendRepo) return false;
+  try {
+    execFileSync('git', ['cat-file', '-e', `${DEPLOYED_MAIN}^{commit}`], { cwd: backendRepo, stdio: 'ignore' });
+    return true;
+  } catch { return false; }
+})();
+
+test('the pinned head and deployed main agree byte-for-byte on the note contract', { skip: !hasBoth }, () => {
+  assert.equal(
+    atSha(BACKEND_PIN, 'src/lib/review-submission.js'),
+    atSha(DEPLOYED_MAIN, 'src/lib/review-submission.js'),
+    'the pinned branch tip and deployed main disagree about the revision note',
+  );
+});
+
+test('the pinned head and deployed main emit the same submit route', { skip: !hasBoth }, () => {
+  const submitOf = (sha: string) => {
+    const route = atSha(sha, 'src/routes/review.js');
+    const start = route.indexOf("router.post('/sessions/:sessionId/submit'");
+    assert.ok(start > 0, `the submit route could not be located at ${sha.slice(0, 7)}`);
+    return route.slice(start, route.indexOf('\n});', start));
+  };
+  assert.equal(submitOf(BACKEND_PIN), submitOf(DEPLOYED_MAIN),
+    'the submission contract differs between the pinned head and what is deployed');
+});
+
+test('every route this dashboard calls exists at BOTH shas', { skip: !hasBoth }, () => {
+  // The two trees are not identical — deployed main additionally carries the #161
+  // /learning/candidates routes. That difference is fine precisely because the
+  // dashboard never calls them; this asserts the part we DO call is present in both,
+  // so the list cannot quietly grow into something only one side has.
+  const called = [
+    "router.post('/runs/:runId/session'",
+    "router.post('/sessions/:sessionId/issues'",
+    "router.patch('/issues/:issueId'",
+    "router.delete('/issues/:issueId'",
+    "router.post('/sessions/:sessionId/submit'",
+    "router.post('/sessions/:sessionId/accept'",
+  ];
+  for (const sha of [BACKEND_PIN, DEPLOYED_MAIN]) {
+    const route = atSha(sha, 'src/routes/review.js');
+    for (const decl of called) {
+      assert.ok(route.includes(decl), `${decl} is missing at ${sha.slice(0, 7)}`);
+    }
+  }
 });
