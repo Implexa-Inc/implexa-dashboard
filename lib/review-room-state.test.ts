@@ -38,16 +38,47 @@ test('submit is disabled with zero draft issues and enabled with any', () => {
 // ── approval-before-action ──────────────────────────────────────────────────
 
 test('REPRO: an approval hold never renders Accept result', () => {
-  const a = s({ isApprovalHold: true, draftCount: 5 });
-  assert.equal(a.canAccept, false, 'authorizing remaining work is a different question from accepting a result');
+  // Holds with and without drafts alike: authorizing remaining work is a different
+  // question from accepting a delivered result.
+  for (const draftCount of [0, 5]) {
+    const a = s({ isApprovalHold: true, draftCount });
+    assert.equal(a.canAccept, false, `hold with ${draftCount} drafts offered Accept`);
+  }
+});
+
+test('an approval hold with nothing written still offers the gate', () => {
+  const a = s({ isApprovalHold: true, draftCount: 0 });
   assert.equal(a.showApproveNextAction, true);
   assert.equal(a.canSubmit, false);
   assert.match(a.statusLine!, /permission to continue/i);
 });
 
+test('#129: drafts outrank the approval gate — Review Room owns sending them', () => {
+  // The production failure: a reviewer with 14 written issues was shown "Approve next
+  // action", which navigates to a run approval gate that does not carry their
+  // feedback. Where a draft exists, the room owns the decision.
+  const a = s({ isApprovalHold: true, draftCount: 5 });
+  assert.equal(a.showApproveNextAction, false, 'the second approval gate was offered over written feedback');
+  assert.equal(a.canSubmit, true);
+  assert.equal(a.canEditIssues, true, 'a hold must not freeze feedback the reviewer is still writing');
+});
+
 test('a delivered result never renders Approve next action', () => {
   assert.equal(s({ draftCount: 1 }).showApproveNextAction, false);
   assert.equal(s({ sessionState: 'accepted' }).showApproveNextAction, false);
+});
+
+test('Approve next action is unreachable wherever a draft exists', () => {
+  for (const sessionState of ['draft', 'submitting', 'submitted', 'accepted', null] as const) {
+    for (const isApprovalHold of [false, true]) {
+      for (const draftCount of [1, 14]) {
+        assert.equal(
+          reviewRoomActions({ sessionState, draftCount, isApprovalHold }).showApproveNextAction, false,
+          `${sessionState}/${draftCount}/${isApprovalHold} offered a second approval page`,
+        );
+      }
+    }
+  }
 });
 
 // ── no contradictory copy, exhaustively ─────────────────────────────────────

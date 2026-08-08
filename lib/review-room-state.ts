@@ -39,13 +39,24 @@ export function reviewRoomActions(input: {
 
   // An approval hold authorizes REMAINING WORK. It is not a delivered result, so
   // "Accept result" is not merely unhelpful here — it answers a different question.
-  if (isApprovalHold) {
+  //
+  // DRAFTS OUTRANK THE HOLD (#129). If the reviewer has already written issues, the
+  // question in front of them is what to do with those issues, and Review Room owns
+  // that end to end. Sending them to the run's approval gate was the production
+  // failure: the gate does not carry their feedback, so the continuation it created
+  // went looking for the review through Computer Use. A hold with drafts therefore
+  // falls through to the normal send path, and Approve next action is not offered
+  // anywhere a draft exists.
+  if (isApprovalHold && draftCount === 0) {
     return {
       canSubmit: false, canAccept: false, showApproveNextAction: true,
       canEditIssues: false, submitLabel: 'Request fixes',
       statusLine: 'This agent is waiting for permission to continue.',
     };
   }
+  // A hold WITH drafts deliberately falls through to the accepted/frozen checks below
+  // before reaching the send path. Returning early here would let a submitting or
+  // accepted session look editable again merely because a hold was also set.
 
   if (accepted) {
     return {
@@ -66,7 +77,11 @@ export function reviewRoomActions(input: {
   }
 
   return {
-    canSubmit: draftCount > 0, canAccept: true, showApproveNextAction: false,
+    canSubmit: draftCount > 0,
+    // Never under a hold. Reaching here with one set means drafts exist, so the room
+    // owns sending them — but the agent still has not delivered a result to accept.
+    canAccept: !isApprovalHold,
+    showApproveNextAction: false,
     canEditIssues: true,
     submitLabel: draftCount > 0 ? `Request fixes (${draftCount})` : 'Request fixes',
     statusLine: null,

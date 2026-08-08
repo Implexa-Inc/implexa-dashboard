@@ -19,7 +19,8 @@
     "test:queued-wait-copy-mutations": "node scripts/mutation-test-queued-wait-copy.mjs",
     "test:run-input-picker-mutations": "node scripts/mutation-test-run-input-picker.mjs",
     "test:installed-version-run-now-mutations": "node scripts/mutation-test-installed-version-run-now.mjs",
-    "test:run-artifacts-visibility-mutations": "node scripts/mutation-test-run-artifacts-visibility.mjs"
+    "test:run-artifacts-visibility-mutations": "node scripts/mutation-test-run-artifacts-visibility.mjs",
+    "test:review-room-orchestration-mutations": "node scripts/mutation-test-review-room-orchestration.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

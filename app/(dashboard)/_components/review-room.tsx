@@ -44,6 +44,11 @@ import {
   finalRenderControl, preferredReviewArtifact, previewRequestIdentity, reviewableArtifacts,
   segmentForArtifact, segmentPlaybackClock,
 } from '@/lib/segmented-review';
+import { groupIssuesByArtifact, groupCountLabel } from '@/lib/review-chronology';
+import {
+  INITIAL_SUBMISSION_STATE, beginPreparing, beginSubmitting, failSubmission, keepReviewing,
+  phaseForSession, reviewSubmissionView, NOTE_MAX_PROVISIONAL, type SubmissionState,
+} from '@/lib/review-submission-flow';
 import {
   beginRange, canOfferRange, canReplaceDraft, completeRange, composerHeaderLabel, draftFromIssue,
   draftIssuesAtSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, liveRangeError,
@@ -161,6 +166,30 @@ export default function ReviewRoom(props: Props) {
     isApprovalHold,
   });
   const visible = useMemo(() => ordered.filter((i) => i.status !== 'dismissed'), [ordered]);
+  // THE RAIL'S CONTENTS. File-first, then each file's own clock — never one global
+  // timestamp order across files, which interleaved Chapter1/2/3 as though they shared
+  // a timeline. `visible` is already filtered, so every group's count is exactly what
+  // that group renders.
+  const groups = useMemo(() => groupIssuesByArtifact(visible, artifacts), [visible, artifacts]);
+
+  // ── the send-changes action ───────────────────────────────────────────────
+  // Local intent only. The DURABLE session row outranks it, so a reload or a second
+  // tab reads the queued revision instead of re-offering the send button.
+  const [localSubmission, setLocalSubmission] = useState<SubmissionState>(INITIAL_SUBMISSION_STATE);
+  const [revisionNote, setRevisionNote] = useState('');
+  const submission = phaseForSession({
+    sessionState: session?.state ?? null,
+    submittedRequestId: session?.submittedRequestId ?? null,
+    submittedIssueIds: session?.submittedIssueIds ?? null,
+    local: localSubmission,
+  });
+  // FALSE UNTIL BACKEND #160 IS PINNED. The revision note's field name, bounds,
+  // trimming and digest coverage belong to that contract; collecting a note the
+  // submission cannot carry would drop it silently on send.
+  const NOTE_ENABLED = false;
+  const submitView = reviewSubmissionView({
+    state: submission, draftCount: drafts.length, busy, noteEnabled: NOTE_ENABLED,
+  });
   // ONLY this artifact's issues may be drawn on it. An issue about another file has no
   // position on this timeline, and rendering it there invents one.
   const surfaceIssues = useMemo(
@@ -503,17 +532,26 @@ export default function ReviewRoom(props: Props) {
   }, [pendingSeek, selectedId, decision]);
 
   // ── actions ───────────────────────────────────────────────────────────────
-  const onSubmit = useCallback(async () => {
+  /**
+   * The existing, already-shipped submission call — deliberately UNCHANGED.
+   *
+   * Backend #160 owns the revision-note field, its bounds and its digest coverage, so
+   * nothing new is sent here and no note is collected on this path. What changed is
+   * only the return value: the caller needs to know whether a DURABLE response came
+   * back, because that is the only thing allowed to move the room out of `submitting`.
+   */
+  const onSubmit = useCallback(async (): Promise<boolean> => {
     setBusy(true); setError(null); setNotice(null);
     try {
       const sid = session?.id;
-      if (!sid) { setError('Nothing to submit yet.'); return; }
+      if (!sid) { setError('Nothing to submit yet.'); return false; }
       const { body } = await reviewAction({ action: 'submit', sessionId: sid });
-      if (!body?.ok) { setError(body?.error || 'Could not request fixes.'); return; }
+      if (!body?.ok) { setError(body?.error || 'Could not request fixes.'); return false; }
       setNotice(body.idempotent
         ? 'These fixes were already requested — showing the existing revision.'
         : 'Revision queued.');
       router.refresh();
+      return true;
     } finally { setBusy(false); }
   }, [session, router]);
 
@@ -534,15 +572,52 @@ export default function ReviewRoom(props: Props) {
     } finally { setBusy(false); }
   }, [ensureSession, router, selectedId]);
 
+  /**
+   * THE ONE ACTION. draft -> preparing -> submitting -> revision_queued, all of it in
+   * this room. There is no second approval page: the previous flow sent the reviewer
+   * to the run's approval gate, which does not carry their issues.
+   *
+   * Two clicks by design. The first FREEZES the count, so what the reviewer confirms
+   * is exactly what is sent; the second sends that frozen set. Neither click can run
+   * twice — `busy` disables the control while a request is open, and the reducers
+   * refuse re-entry from a phase that has already moved on.
+   */
+  const onPrimary = useCallback(async () => {
+    if (submitView.mode === 'accept_result') { await onAccept(false); return; }
+
+    if (submission.phase === 'draft' || submission.phase === 'error') {
+      setLocalSubmission(beginPreparing(submission, drafts.map((d) => d.id)));
+      return;
+    }
+    if (submission.phase !== 'preparing') return;
+
+    const sending = beginSubmitting(submission);
+    setLocalSubmission(sending);
+    const durable = await onSubmit();
+    // ONLY a durable response leaves `submitting`. A refusal returns to a retryable
+    // state with every draft — and the note — untouched; `error` already carries the
+    // reason, so this records the transition rather than a second message.
+    if (!durable) setLocalSubmission(failSubmission(sending, ''));
+  }, [submitView.mode, submission, drafts, onAccept, onSubmit]);
+
   const issuesUnavailable = sources.issues === 'unavailable';
   const playbackClock = production && selectedSegment
     ? segmentPlaybackClock(production, selectedSegment, playheadMs ?? 0)
     : null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+    /* THE WORKSPACE IS VIEWPORT-BOUNDED, so feedback volume cannot push the actions
+       off screen. Every new issue used to grow the rail, which grew the page: at 100
+       issues the submission footer was several screens down.
+
+       `min-h` keeps it usable on short laptops and at high browser zoom — below that
+       the workspace stops shrinking and the PAGE scrolls instead, which is why the
+       footer is also sticky. `minmax(0,1fr)` on both axes is what actually permits the
+       children to be smaller than their content; without it a grid/flex item's
+       automatic minimum size is its content and nothing scrolls internally. */
+    <div className="grid gap-4 lg:h-[calc(100vh-13rem)] lg:min-h-[34rem] lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)]">
       {/* ── artifact surface ─────────────────────────────────────────────── */}
-      <section className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+      <section className="min-h-0 overflow-y-auto rounded-lg border border-ink-800 bg-ink-900/40 p-4">
         {production && (
           <div className="mb-4 border-b border-ink-800 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -794,33 +869,74 @@ export default function ReviewRoom(props: Props) {
         )}
       </section>
 
-      {/* ── issue rail ───────────────────────────────────────────────────── */}
-      <aside className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-        <h2 className="text-sm font-medium text-ink-200">Review issues</h2>
-        {proxyPreview && (
-          <p className="mt-2 text-xs text-sky-300">
-            This is a validated segment proxy. Segment feedback, approval, and repair are not enabled in this first slice.
-          </p>
-        )}
+      {/* ── issue rail ───────────────────────────────────────────────────────
+          A THREE-PART FLEX COLUMN: a header that never scrolls away, ONE internally
+          scrolling list, and a footer pinned to the bottom. `min-h-0` on the column
+          and on the list is the whole trick — a flex item defaults to a minimum size
+          of its content, so without it the list refuses to shrink and the overflow
+          lands on the page instead of inside the rail.
 
+          On narrow/stacked layouts the rail is capped in viewport units rather than by
+          the grid row, so issue scrolling stays bounded there too. */}
+      <aside className="flex max-h-[70vh] min-h-0 flex-col rounded-lg border border-ink-800 bg-ink-900/40 lg:max-h-none">
+        <div className="shrink-0 border-b border-ink-800 px-4 py-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-sm font-medium text-ink-200">Review issues</h2>
+            {!issuesUnavailable && visible.length > 0 && (
+              <span className="shrink-0 text-xs tabular-nums text-ink-500">{groupCountLabel(visible.length)}</span>
+            )}
+          </div>
+          {proxyPreview && (
+            <p className="mt-2 text-xs text-sky-300">
+              This is a validated segment proxy. Segment feedback, approval, and repair are not enabled in this first slice.
+            </p>
+          )}
+        </div>
+
+        {/* THE ONLY SCROLLING REGION IN THE RAIL. */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {issuesUnavailable ? (
           // NOT an empty rail: we could not read them.
-          <p className="mt-2 text-xs text-amber-300">
+          <p className="text-xs text-amber-300">
             We couldn&apos;t load this review&apos;s issues. This list is not empty — it&apos;s unknown.
           </p>
-        ) : ordered.filter((i) => i.status !== 'dismissed').length === 0 ? (
-          <p className="mt-2 text-xs text-ink-500">
+        ) : visible.length === 0 ? (
+          <p className="text-xs text-ink-500">
             {/* Not "pause and add feedback" any more — pausing was never the requirement,
                 and saying so is what made a stale pause position look authoritative. */}
             {proxyPreview ? 'No parent-run issues are attached to this proxy.' : 'No issues yet. Move to a moment and add feedback.'}
           </p>
         ) : (
-          <ul className="mt-3 space-y-2">
-            {visible.map((i) => {
+          groups.map((group) => (
+          <section key={group.artifactId ?? 'whole-run'} className="mb-4 last:mb-0">
+            {/* THE STICKY FILE HEADER. Timestamps below it are local to THIS file, and
+                the heading is what makes that legible while scrolling. Opaque on
+                purpose: a translucent header lets the rows it covers bleed through. */}
+            <h3 className="sticky top-0 z-10 -mx-4 -mt-3 mb-2 flex items-baseline justify-between gap-2 border-b border-ink-800/80 bg-ink-900 px-4 py-1.5">
+              <button
+                type="button"
+                // Selecting the group's file is the same action as clicking one of its
+                // issues, minus the seek. Disabled for whole-run and for artifacts this
+                // packet does not contain — there is nothing to switch to.
+                disabled={!group.artifact}
+                onClick={() => group.artifact && setSelectedId(group.artifact.id)}
+                className="truncate text-left text-xs font-medium text-ink-200 hover:text-sky-300 disabled:cursor-default disabled:hover:text-ink-200"
+                title={group.displayName}
+              >
+                {group.displayName}
+              </button>
+              <span className="shrink-0 text-[11px] tabular-nums text-ink-500">{groupCountLabel(group.count)}</span>
+            </h3>
+            {group.unavailable && (
+              <p className="mb-2 text-[11px] text-amber-300">
+                These comments name a file this review no longer lists.
+              </p>
+            )}
+          <ul className="space-y-2">
+            {group.issues.map((i) => {
               // Measured against the issue's OWN artifact. Comparing to the selected one
               // flags a current comment as stale merely because the user switched files.
               const stale = isIssueStale(i, artifacts);
-              const own = artifactForIssue(i, artifacts);
               const elsewhere = !!i.artifactId && i.artifactId !== selectedId;
               // Null for anything already sent, accepted or dismissed.
               const edit = editAction(i as never, selectedId);
@@ -837,13 +953,12 @@ export default function ReviewRoom(props: Props) {
                     <span className="rounded bg-ink-800 px-1 py-0.5 text-ink-400">{i.kind}</span>
                     <span className="ml-auto text-ink-500">{i.status}</span>
                   </div>
-                  {/* WHICH FILE this issue is about. With many artifacts, a timestamp
-                      alone is ambiguous — and the rail deliberately shows every issue
-                      rather than hiding the ones for other files. */}
-                  <div className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-500">
-                    <span className="truncate">{own ? own.relativePath : 'Whole run'}</span>
-                    {elsewhere && <span className="shrink-0 text-sky-400">· opens another file</span>}
-                  </div>
+                  {/* WHICH FILE this issue is about is now the group heading above, so
+                      the card no longer repeats it. What the heading cannot say is that
+                      acting on this one moves the player to a different file. */}
+                  {elsewhere && (
+                    <p className="mt-0.5 text-[11px] text-sky-400">Opens another file</p>
+                  )}
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink-200">{i.body}</p>
                   {stale && (
                     <p className="mt-1 text-xs text-amber-300">
@@ -878,21 +993,43 @@ export default function ReviewRoom(props: Props) {
               );
             })}
           </ul>
+          </section>
+          ))
         )}
+        </div>
 
-        {error && <p role="alert" className="mt-3 text-xs text-red-300">{error}</p>}
-        {notice && <p role="status" className="mt-3 text-xs text-emerald-300">{notice}</p>}
+        {/* ── submission footer ─────────────────────────────────────────────
+            STICKY AND ALWAYS REACHABLE. `shrink-0` keeps it at full height when the
+            list is long; `sticky bottom-0` keeps it against the viewport edge on short
+            screens and at high zoom, where the rail itself outgrows the window and the
+            page scrolls. Opaque, because the issue list slides underneath it. */}
+        <div className="sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3">
+          {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
+          {notice && <p role="status" className="text-xs text-emerald-300">{notice}</p>}
 
-        <div className="mt-4 space-y-2 border-t border-ink-800 pt-4">
           {proxyPreview ? (
             <p className="text-xs text-ink-500">Final render remains unavailable while required segments are unresolved.</p>
-          ) : acts.statusLine && !acts.canSubmit && !acts.canAccept && !acts.showApproveNextAction ? (
-            <p className="text-xs text-emerald-300">{acts.statusLine}</p>
           ) : accepted ? (
             <p className="text-xs text-emerald-300">You accepted this result.</p>
+          ) : submitView.mode === 'queued' ? (
+            // TERMINAL. Resubmission is closed here as well as at the backend, and the
+            // copy names the exact count and the continuation it created.
+            <>
+              <p className="text-xs text-emerald-300">{submitView.statusLine}</p>
+              {submitView.continuationId && (
+                <a
+                  href={`/runs/${runId}`}
+                  className="block rounded-md border border-ink-700 px-3 py-2 text-center text-sm text-ink-200 hover:border-ink-600"
+                >
+                  Open the revision
+                </a>
+              )}
+            </>
           ) : acts.showApproveNextAction ? (
-            // An approval hold authorizes REMAINING work. It is not a delivered result,
-            // so "Accept result" is never offered here.
+            // An approval hold with NO drafts. It authorizes remaining work, which is a
+            // different question from accepting a result — and, unlike before, this is
+            // the only place the gate is ever offered. The moment a draft exists, the
+            // room owns the decision and shows the send action instead.
             <>
               <p className="text-xs text-ink-400">
                 This agent is waiting for permission to continue. That&apos;s a different question from
@@ -907,16 +1044,74 @@ export default function ReviewRoom(props: Props) {
             </>
           ) : (
             <>
+              {/* THE REVISION NOTE, immediately above the action it belongs to. It
+                  SUPPLEMENTS the structured issues and never replaces them, which is
+                  why it is optional, secondary, and says so.
+
+                  Disabled until Backend #160 is pinned: the field name, bounds,
+                  trimming and digest coverage are that contract's to define, and a
+                  typable box on a submission that cannot carry it would drop the
+                  reviewer's words silently on send. */}
+              {submitView.showNote && (
+                <label className="block">
+                  <span className="text-xs text-ink-400">Additional instructions for this revision</span>
+                  <textarea
+                    value={revisionNote}
+                    onChange={(e) => setRevisionNote(e.target.value)}
+                    disabled={!submitView.noteEnabled}
+                    rows={2}
+                    maxLength={NOTE_MAX_PROVISIONAL}
+                    placeholder="Optional. Adds context to the issues above — it doesn't replace them."
+                    className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-sm text-ink-100 placeholder:text-ink-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  {submitView.noteHint && (
+                    <span className="mt-1 block text-[11px] leading-snug text-ink-500">{submitView.noteHint}</span>
+                  )}
+                </label>
+              )}
+
+              {/* THE FROZEN SNAPSHOT, visible before it is sent. */}
+              {submitView.frozenCount !== null && submitView.statusLine && (
+                <p className="rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-xs text-ink-300">
+                  {submitView.statusLine}
+                </p>
+              )}
+              {!error && submitView.errorLine && (
+                <p role="alert" className="text-xs text-red-300">{submitView.errorLine}</p>
+              )}
+
               <button
                 type="button"
-                disabled={busy || !acts.canSubmit}
-                onClick={onSubmit}
+                disabled={
+                  !submitView.primaryEnabled
+                  || (submitView.mode === 'accept_result' ? !acts.canAccept : !acts.canSubmit)
+                }
+                onClick={onPrimary}
                 className="w-full rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-950 disabled:opacity-40"
               >
-                {acts.submitLabel}
+                {submitView.primaryLabel}
               </button>
 
-              {confirmDiscard ? (
+              {submitView.secondaryLabel && (
+                <button
+                  type="button"
+                  disabled={!submitView.secondaryEnabled}
+                  onClick={() => setLocalSubmission(keepReviewing(submission))}
+                  className="w-full rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 disabled:opacity-40"
+                >
+                  {submitView.secondaryLabel}
+                </button>
+              )}
+
+              {submitView.mode === 'accept_result' && (
+                <p className="text-[11px] leading-snug text-ink-500">{ACCEPT_DISCLAIMER}</p>
+              )}
+
+              {/* The backend's own guard, surfaced verbatim. Accept is only offered
+                  with zero drafts, so this fires only when a draft appeared between
+                  the read and the write (another tab, another device) — and even then
+                  written feedback is never discarded without a confirmed answer. */}
+              {confirmDiscard && (
                 <div className="rounded border border-amber-500/40 bg-amber-500/10 p-2">
                   <p className="text-xs text-amber-200">
                     Accepting discards {drafts.length} unsent {drafts.length === 1 ? 'issue' : 'issues'}.
@@ -936,15 +1131,7 @@ export default function ReviewRoom(props: Props) {
                     </button>
                   </div>
                 </div>
-              ) : (
-                <button
-                  type="button" disabled={busy || !acts.canAccept} onClick={() => onAccept(false)}
-                  className="w-full rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 disabled:opacity-40"
-                >
-                  Accept result
-                </button>
               )}
-              <p className="text-[11px] leading-snug text-ink-500">{ACCEPT_DISCLAIMER}</p>
             </>
           )}
         </div>
