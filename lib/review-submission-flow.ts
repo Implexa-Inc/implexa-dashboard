@@ -19,7 +19,7 @@
  *
  * ── SCOPE AT THIS COMMIT ────────────────────────────────────────────────────────
  * The submission CALL is deliberately not wired here and this module performs no I/O.
- * Backend #160 owns the revision-note field name, its bounds, its trimming and the
+ * Backend #162 owns the revision-note field name, its bounds, its trimming and the
  * canonical digest that covers it; inventing any of those client-side would ship a
  * textarea whose contents are silently dropped, which is the same class of lie the
  * epic exists to end. `noteEnabled` is therefore false until that PR is pinned, and
@@ -37,7 +37,7 @@ export type SubmissionPhase = 'draft' | 'preparing' | 'submitting' | 'revision_q
  * drift as drafts change underneath. It is NOT a contract with the server: the submit
  * endpoint takes only a session id and snapshots server-side, so there is no way to
  * send these ids or to have them verified. Claiming otherwise would be a promise the
- * wire cannot keep — binding a client snapshot needs Backend #160.
+ * wire cannot keep — binding a client snapshot needs Backend #162.
  *
  * Two things follow, and both are enforced below:
  *   the transition into flight is ONE action, so no user edit can land between the
@@ -69,7 +69,7 @@ export const INITIAL_SUBMISSION_STATE: SubmissionState = {
 
 /**
  * A provisional UI bound so the composer cannot grow without limit. It is NOT the wire
- * bound: Backend #160 defines the authoritative maximum and trimming rule, and this
+ * bound: Backend #162 defines the authoritative maximum and trimming rule, and this
  * must be reconciled with it when the contract is pinned.
  */
 export const NOTE_MAX_PROVISIONAL = 4000;
@@ -219,19 +219,36 @@ export type SubmitOutcome =
   | { ok: false };
 
 /**
+ * A synchronous single-flight latch, held across renders by the caller.
+ *
+ * Structurally a React ref, deliberately: the same shape `beginProposalCreate` already
+ * uses for this exact hazard on the generation-entry path.
+ */
+export type SubmissionFlight = { current: boolean };
+
+/**
  * THE WHOLE CLICK, as one function — freeze, send, settle or fail.
  *
  * Extracted from the component on purpose. Every way this can go wrong is a way the
- * room gets stuck on "Sending…" forever, and none of them are reachable from a test
- * that reads JSX or asserts on a source string:
+ * room gets stuck on "Sending…" forever, or sends twice, and none of them are
+ * reachable from a test that reads JSX or asserts on a source string:
  *
  *   the request RESOLVES with a refusal            -> error, drafts kept
  *   the request RESOLVES ok but names no revision  -> error, drafts kept
  *   the request REJECTS (offline, abort, navigate) -> error, drafts kept
  *   the request RESOLVES with a continuation       -> queued, from THAT response
+ *   a SECOND click arrives before the first renders -> nothing transmitted
  *
- * The last one is the one that matters most: the queued state is taken from the reply
- * that created the continuation, never waited for from a refreshed prop.
+ * THE LATCH IS NOT REDUNDANT WITH THE PHASE GUARD, and this is the subtle part. A
+ * real double click does not wait for React to commit `setLocalSubmission`. Both
+ * invocations therefore close over the SAME pre-render `state` — still `draft` — so
+ * `beginPreparing` says yes to both, `busy` has not updated, and the disabled button
+ * has not re-rendered. Two requests go out for one user action. The phase guard only
+ * ever stops a click that arrives after a render.
+ *
+ * `flight` closes that window because it is read and written synchronously, before
+ * the first `await`: the second call sees `true` while the first is still suspended.
+ * It is REQUIRED rather than optional so it cannot be forgotten back into existence.
  *
  * `onState` is called at most twice — once entering flight, once on the outcome — so
  * a caller can drive React state without this function knowing about React.
@@ -241,33 +258,48 @@ export async function submitRevision(args: {
   draftIssueIds: string[];
   submit: () => Promise<SubmitOutcome>;
   onState: (next: SubmissionState) => void;
+  flight: SubmissionFlight;
 }): Promise<SubmissionState> {
-  const { state, draftIssueIds, submit, onState } = args;
+  const { state, draftIssueIds, submit, onState, flight } = args;
 
-  // Re-entry and "nothing to send" both stop here, before anything is transmitted.
-  // This is what makes a double click harmless without a separate guard.
-  const prepared = beginPreparing(state, draftIssueIds);
-  if (prepared.phase !== 'preparing') return state;
+  // SYNCHRONOUS, AND BEFORE EVERY await BELOW. Async function bodies run to their
+  // first await synchronously, so this check-and-set completes during the first
+  // click's call — while the second click is still queued behind it.
+  if (flight.current) return state;
+  flight.current = true;
 
-  const sending = beginSubmitting(prepared);
-  onState(sending);
-
-  let outcome: SubmitOutcome;
   try {
-    outcome = await submit();
-  } catch {
-    // The request never completed. Without this the rejection escapes the click
-    // handler entirely and `sending` is the last state the room ever sees.
-    outcome = { ok: false };
-  }
+    // Re-entry across renders, and "nothing to send", both stop here — before
+    // anything is transmitted.
+    const prepared = beginPreparing(state, draftIssueIds);
+    if (prepared.phase !== 'preparing') return state;
 
-  const next = outcome.ok
-    // settleQueued re-checks the continuation, so an `ok` with an empty id still
-    // lands in error rather than claiming a revision that does not exist.
-    ? settleQueued(sending, { continuationId: outcome.requestId, issueCount: outcome.issueCount ?? null })
-    : failSubmission(sending, '');
-  onState(next);
-  return next;
+    const sending = beginSubmitting(prepared);
+    onState(sending);
+
+    let outcome: SubmitOutcome;
+    try {
+      outcome = await submit();
+    } catch {
+      // The request never completed. Without this the rejection escapes the click
+      // handler entirely and `sending` is the last state the room ever sees.
+      outcome = { ok: false };
+    }
+
+    const next = outcome.ok
+      // settleQueued re-checks the continuation, so an `ok` with an empty id still
+      // lands in error rather than claiming a revision that does not exist.
+      ? settleQueued(sending, { continuationId: outcome.requestId, issueCount: outcome.issueCount ?? null })
+      : failSubmission(sending, '');
+    onState(next);
+    return next;
+  } finally {
+    // RELEASED ON EVERY PATH, including the rejected one. A latch that survived a
+    // failure would make the error state unretryable — the button would be offered
+    // and do nothing, which is the same silent no-op this flow just removed. Re-entry
+    // after a SUCCESS is refused by the phase guard instead, which is durable.
+    flight.current = false;
+  }
 }
 
 export type SubmissionView = {
@@ -306,7 +338,7 @@ export function reviewSubmissionView(input: {
   draftCount: number;
   busy: boolean;
   /**
-   * False until Backend #160 is pinned. When false the composer renders but cannot be
+   * False until Backend #162 is pinned. When false the composer renders but cannot be
    * typed into, so a note can never be collected on a path that could not carry it.
    */
   noteEnabled: boolean;

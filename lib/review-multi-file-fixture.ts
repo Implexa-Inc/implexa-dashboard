@@ -16,7 +16,7 @@
  *   EQUAL TIMESTAMPS    Two Chapter1 issues share 00:12.500 exactly, so "stable"
  *                       cannot be satisfied by luck.
  *
- * NOT pinned to a backend commit. Backend #160 owns the submission contract, and when
+ * NOT pinned to a backend commit. Backend #162 owns the submission contract, and when
  * it is pinned these fixtures are regenerated from it rather than hand-written.
  */
 

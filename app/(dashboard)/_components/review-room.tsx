@@ -51,7 +51,6 @@ import {
   type SubmissionState, type SubmitOutcome,
 } from '@/lib/review-submission-flow';
 
-const FAILED_SUBMIT: SubmitOutcome = { ok: false };
 import {
   beginRange, canOfferRange, canReplaceDraft, completeRange, composerHeaderLabel, draftFromIssue,
   draftIssuesAtSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, liveRangeError,
@@ -79,6 +78,9 @@ type Props = {
 };
 
 const ISSUE_KINDS = ['timing', 'content', 'visual', 'audio', 'missing', 'replacement', 'other'] as const;
+
+/** Every failed submit reports the same shape: no identity, so none can be invented. */
+const FAILED_SUBMIT: SubmitOutcome = { ok: false };
 
 async function reviewAction(payload: Record<string, unknown>) {
   const res = await fetch('/api/review', {
@@ -122,6 +124,12 @@ export default function ReviewRoom(props: Props) {
   const tokenRef = useRef<string | null>(null);
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
   const railListRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * SINGLE-FLIGHT ACROSS CLICKS, not across renders — a ref because it must be
+   * readable and writable before React commits anything. Same pattern, and the same
+   * hazard, as `createFlight`/`beginProposalCreate` on the generation-entry path.
+   */
+  const submitFlightRef = useRef(false);
 
   const [issues, setIssues] = useState<ReviewIssue[]>(props.issues);
   const [session, setSession] = useState<ReviewSession>(props.session);
@@ -204,7 +212,7 @@ export default function ReviewRoom(props: Props) {
     submittedIssueIds: session?.submittedIssueIds ?? null,
     local: localSubmission,
   });
-  // FALSE UNTIL BACKEND #160 IS PINNED. The revision note's field name, bounds,
+  // FALSE UNTIL BACKEND #162 IS PINNED. The revision note's field name, bounds,
   // trimming and digest coverage belong to that contract; collecting a note the
   // submission cannot carry would drop it silently on send.
   const NOTE_ENABLED = false;
@@ -562,7 +570,7 @@ export default function ReviewRoom(props: Props) {
   /**
    * The existing, already-shipped submission call — deliberately UNCHANGED.
    *
-   * Backend #160 owns the revision-note field, its bounds and its digest coverage, so
+   * Backend #162 owns the revision-note field, its bounds and its digest coverage, so
    * nothing new is sent here and no note is collected on this path. What changed is
    * only the return value: the caller needs to know whether a DURABLE response came
    * back, because that is the only thing allowed to move the room out of `submitting`.
@@ -628,22 +636,27 @@ export default function ReviewRoom(props: Props) {
    * this room. There is no second approval page: the previous flow sent the reviewer
    * to the run's approval gate, which does not carry their issues.
    *
-   * Two clicks by design. The first FREEZES the count, so what the reviewer confirms
-   * is exactly what is sent; the second sends that frozen set. Neither click can run
-   * twice — `busy` disables the control while a request is open, and the reducers
-   * refuse re-entry from a phase that has already moved on.
+   * ONE DECISIVE CLICK. It freezes the count and sends that set in the same action,
+   * so nothing the reviewer can do lands between the two.
+   *
+   * It cannot run twice. Note that `busy` and the disabled button are NOT what makes
+   * that true: a real double click does not wait for React to commit either of them,
+   * so both handlers would close over the same pre-render `draft` state and both
+   * would transmit. `submitFlightRef` is read and written synchronously inside
+   * `submitRevision`, before its first await, which is the only guard that closes
+   * that window.
    */
   const onPrimary = useCallback(async () => {
     if (submitView.mode === 'accept_result') { await onAccept(false); return; }
-    // ONE DECISIVE CLICK. Freeze and send in the same action, so nothing the reviewer
-    // can do lands between the two. The orchestration itself lives in the flow module
-    // where every branch — refusal, missing continuation, rejected request — is
-    // executable in a test rather than asserted by reading this file.
+    // The orchestration lives in the flow module, where every branch — refusal,
+    // missing continuation, rejected request, concurrent second click — is executable
+    // in a test rather than asserted by reading this file.
     await submitRevision({
       state: submission,
       draftIssueIds: drafts.map((d) => d.id),
       submit: onSubmit,
       onState: setLocalSubmission,
+      flight: submitFlightRef,
     });
   }, [submitView.mode, submission, drafts, onAccept, onSubmit]);
 
@@ -1096,7 +1109,7 @@ export default function ReviewRoom(props: Props) {
                   SUPPLEMENTS the structured issues and never replaces them, which is
                   why it is optional, secondary, and says so.
 
-                  Disabled until Backend #160 is pinned: the field name, bounds,
+                  Disabled until Backend #162 is pinned: the field name, bounds,
                   trimming and digest coverage are that contract's to define, and a
                   typable box on a submission that cannot carry it would drop the
                   reviewer's words silently on send. */}

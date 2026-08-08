@@ -19,14 +19,19 @@
  *   file-headers         a file group losing its heading or its count
  *   second-approval      the approval gate re-appearing over written feedback
  *   frozen-snapshot      the confirmed count drifting from the sent set
- *   duplicate-submission a double click or retry starting a second submission
+ *   duplicate-submission a click after a rendered success starting a second submission
+ *   single-flight        a REAL double click — both handlers closing over the same
+ *                        pre-render state — transmitting twice
+ *   stuck-in-flight      any path that leaves the room on "Sending…" forever
+ *   snapshot-honesty     the local freeze presented as though the server had bound it
+ *   one-click            a click that promises to send and transmits nothing
  *   local-only-success   "queued" claimed without a durable continuation
  *   note-dropped         the revision note silently discarded, or collected with
  *                        nowhere to go
  *
  * NOT COVERED YET, and deliberately not faked: the END-TO-END note-dropped mutant —
  * a note that reaches the backend and is not persisted byte-identically. That mutant
- * needs Backend #160's field name, bounds, trimming and digest rules. Until it is
+ * needs Backend #162's field name, bounds, trimming and digest rules. Until it is
  * pinned, the note is not collected at all (NOTE_ENABLED = false) and the mutations
  * below prove exactly that: the composer cannot be enabled, and no note field can be
  * added to the wire, without a test failing.
@@ -147,14 +152,14 @@ const mutations = [
   // ── stuck in flight ───────────────────────────────────────────────────────
   // Every mutation here is a way the room says "Sending…" forever.
   ['stuck-in-flight', 'a rejected request escapes the click instead of failing it', FLOW,
-    '  } catch {\n    // The request never completed. Without this the rejection escapes the click\n    // handler entirely and `sending` is the last state the room ever sees.\n    outcome = { ok: false };\n  }',
-    '  }'],
+    '    let outcome: SubmitOutcome;\n    try {\n      outcome = await submit();\n    } catch {',
+    '    let outcome: SubmitOutcome;\n    try {\n      outcome = await submit();\n    } catch (rethrown) {\n      throw rethrown;\n    } finally {'],
   ['stuck-in-flight', 'the outcome never reaches the caller', FLOW,
-    '  onState(next);\n  return next;',
-    '  return next;'],
+    '    onState(next);\n    return next;',
+    '    return next;'],
   ['stuck-in-flight', 'the durable continuation from the response is discarded', FLOW,
-    '    ? settleQueued(sending, { continuationId: outcome.requestId, issueCount: outcome.issueCount ?? null })',
-    "    ? settleQueued(sending, { continuationId: '', issueCount: outcome.issueCount ?? null })"],
+    '      ? settleQueued(sending, { continuationId: outcome.requestId, issueCount: outcome.issueCount ?? null })',
+    "      ? settleQueued(sending, { continuationId: '', issueCount: outcome.issueCount ?? null })"],
   ['stuck-in-flight', 'a settled submission is dragged back by a stale draft row', FLOW,
     "  if (local.phase === 'revision_queued') return local;",
     ''],
@@ -193,13 +198,29 @@ const mutations = [
     "  if (state.phase !== 'error') return state;",
     "  if (state.phase !== 'error' && state.phase !== 'submitting') return state;"],
 
+  // ── single flight ─────────────────────────────────────────────────────────
+  // The phase guard alone does NOT stop a real double click: both handlers close over
+  // the same pre-render state. Only the synchronous latch does.
+  ['single-flight', 'the latch is gone, so two clicks in one tick both transmit', FLOW,
+    '  if (flight.current) return state;\n  flight.current = true;',
+    ''],
+  ['single-flight', 'the latch is set only after the first await', FLOW,
+    '  if (flight.current) return state;\n  flight.current = true;\n\n  try {',
+    '  try {\n    flight.current = true;'],
+  ['single-flight', 'the latch is never released, so a failed attempt cannot be retried', FLOW,
+    '    flight.current = false;\n  }\n}',
+    '  }\n}'],
+  ['single-flight', 'each click gets its own latch, which guards nothing', COMPONENT,
+    '      flight: submitFlightRef,',
+    '      flight: { current: false },'],
+
   // ── duplicate submission ──────────────────────────────────────────────────
   ['duplicate-submission', 'submitting can be entered from any phase', FLOW,
     "  if (state.phase !== 'preparing') return state;\n  return { ...state, phase: 'submitting', error: null };",
     "  return { ...state, phase: 'submitting', error: null };"],
-  ['duplicate-submission', 're-entry is allowed, so a double click transmits twice', FLOW,
-    '  const prepared = beginPreparing(state, draftIssueIds);\n  if (prepared.phase !== \'preparing\') return state;',
-    '  const prepared = beginPreparing({ ...state, phase: \'draft\' }, draftIssueIds);\n  if (prepared.phase !== \'preparing\') return state;'],
+  ['duplicate-submission', 're-entry is allowed, so a click after success transmits again', FLOW,
+    '    const prepared = beginPreparing(state, draftIssueIds);',
+    "    const prepared = beginPreparing({ ...state, phase: 'draft' }, draftIssueIds);"],
   ['duplicate-submission', 'a queued session offers to send again', FLOW,
     "      primaryEnabled: false,\n      secondaryLabel: null,\n      secondaryEnabled: false,\n      showNote: false,\n      noteEnabled: false,\n      noteHint: null,\n      frozenCount,",
     "      primaryEnabled: true,\n      secondaryLabel: null,\n      secondaryEnabled: false,\n      showNote: false,\n      noteEnabled: false,\n      noteHint: null,\n      frozenCount,"],
@@ -272,7 +293,7 @@ for (const [boundary, name, file, from, to] of mutations) {
 
 const boundaries = new Set(mutations.map(([b]) => b)).size;
 console.log(`\nMutation result: ${killed}/${mutations.length} killed across ${boundaries} boundaries.`);
-console.log('NOT COVERED (needs Backend #160): end-to-end note persistence and byte-identical read-back.');
+console.log('NOT COVERED (needs Backend #162): end-to-end note persistence and byte-identical read-back.');
 console.log('NOT COVERED (needs a DOM harness): the mounted component. Submission orchestration was');
 console.log('  moved into submitRevision() so every outcome branch is executable here, and the');
 console.log('  component is a thin delegator pinned by source assertions — but a mutation that makes');

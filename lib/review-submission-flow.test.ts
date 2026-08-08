@@ -229,6 +229,7 @@ async function click(submit: () => Promise<SubmitOutcome>, state = INITIAL_SUBMI
   const seen: SubmissionState[] = [];
   const final = await submitRevision({
     state, draftIssueIds: draftIds, submit, onState: (s) => seen.push(s),
+    flight: { current: false },
   });
   return { final, seen };
 }
@@ -275,26 +276,89 @@ test('ONE click sends: there is no second click that transmits nothing', async (
   assert.match(view(seen[0]).primaryLabel, /^Sending 12 changes/);
 });
 
-test('a double click cannot transmit twice', async () => {
+test('REPRO: a REAL double click transmits once — both clicks see the same pre-render state', async () => {
+  // THE RACE THIS EXISTS FOR. A browser double click does not wait for React to commit
+  // `setLocalSubmission`, so both handlers close over the SAME `draft` state, `busy`
+  // has not updated, and the disabled button has not re-rendered. The phase guard says
+  // yes to both. Only a synchronous latch can tell them apart.
+  //
+  // The first request is held open across the second click, which is what a serial
+  // test — awaiting call A before starting call B — can never reproduce.
   let calls = 0;
-  const submit = async (): Promise<SubmitOutcome> => { calls += 1; return { ok: true, requestId: 'r' }; };
-  const first = await submitRevision({
-    state: INITIAL_SUBMISSION_STATE, draftIssueIds: draftIds, submit, onState: () => {},
-  });
-  // The second click arrives with the state the first one produced.
-  await submitRevision({ state: first, draftIssueIds: draftIds, submit, onState: () => {} });
-  assert.equal(calls, 1, 'a second click reached the network');
+  let release: (() => void) | null = null;
+  const held = new Promise<void>((r) => { release = r; });
+  const submit = async (): Promise<SubmitOutcome> => {
+    calls += 1;
+    await held;
+    return { ok: true, requestId: 'req-race' };
+  };
+
+  const flight = { current: false };
+  const pre = INITIAL_SUBMISSION_STATE; // the one value BOTH clicks captured
+  const a = submitRevision({ state: pre, draftIssueIds: draftIds, submit, onState: () => {}, flight });
+  const b = submitRevision({ state: pre, draftIssueIds: draftIds, submit, onState: () => {}, flight });
+
+  assert.equal(calls, 1, 'the second click reached the network while the first was still open');
+  release!();
+  const [ra, rb] = await Promise.all([a, b]);
+  assert.equal(calls, 1, 'a second request went out after the first resolved');
+  assert.equal(ra.phase, 'revision_queued');
+  // The losing click is a no-op that reports the state it was given, not an error.
+  assert.equal(rb, pre);
 });
 
-test('a click with nothing to send transmits nothing', async () => {
+test('the latch is released so a failed attempt stays retryable', async () => {
   let calls = 0;
+  const flight = { current: false };
+  const run = (submit: () => Promise<SubmitOutcome>, state: SubmissionState) => submitRevision({
+    state, draftIssueIds: draftIds, submit, onState: () => {}, flight,
+  });
+
+  const failed = await run(async () => { calls += 1; return { ok: false }; }, INITIAL_SUBMISSION_STATE);
+  assert.equal(failed.phase, 'error');
+  assert.equal(flight.current, false, 'a failure left the latch closed, making retry a silent no-op');
+
+  const retried = await run(async () => { calls += 1; return { ok: true, requestId: 'r2' }; }, failed);
+  assert.equal(calls, 2);
+  assert.equal(retried.phase, 'revision_queued');
+});
+
+test('the latch is released after a REJECTED request too', async () => {
+  const flight = { current: false };
+  await submitRevision({
+    state: INITIAL_SUBMISSION_STATE, draftIssueIds: draftIds,
+    submit: async () => { throw new TypeError('Failed to fetch'); },
+    onState: () => {}, flight,
+  });
+  assert.equal(flight.current, false, 'a dead request left the room permanently unable to retry');
+});
+
+test('a click that follows a rendered success is refused by the phase guard, not the latch', async () => {
+  // Belt and braces: the latch is released after every attempt, so re-entry after a
+  // SUCCESS has to be stopped by durable state rather than by a transient flag.
+  let calls = 0;
+  const flight = { current: false };
+  const submit = async (): Promise<SubmitOutcome> => { calls += 1; return { ok: true, requestId: 'r' }; };
+  const first = await submitRevision({
+    state: INITIAL_SUBMISSION_STATE, draftIssueIds: draftIds, submit, onState: () => {}, flight,
+  });
+  assert.equal(flight.current, false);
+  await submitRevision({ state: first, draftIssueIds: draftIds, submit, onState: () => {}, flight });
+  assert.equal(calls, 1, 'a click after a settled submission reached the network');
+});
+
+test('a click with nothing to send transmits nothing, and frees the latch', async () => {
+  let calls = 0;
+  const flight = { current: false };
   const final = await submitRevision({
     state: INITIAL_SUBMISSION_STATE, draftIssueIds: [],
     submit: async () => { calls += 1; return { ok: true, requestId: 'r' }; },
-    onState: () => {},
+    onState: () => {}, flight,
   });
   assert.equal(calls, 0);
   assert.equal(final.phase, 'draft');
+  // An early return that kept the latch would wedge the button for the whole session.
+  assert.equal(flight.current, false);
 });
 
 test('a retry after failure transmits again and can succeed', async () => {

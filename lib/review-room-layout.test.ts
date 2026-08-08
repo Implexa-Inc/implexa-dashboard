@@ -185,6 +185,18 @@ test('REPRO: the click delegates to the audited orchestration, not a local copy'
   assert.match(onPrimary, /onState: setLocalSubmission,/);
 });
 
+test('REPRO: the single-flight latch persists across clicks', () => {
+  // A real double click does not wait for React to commit `setLocalSubmission` or
+  // `busy`, so both handlers close over the same pre-render state and the phase guard
+  // admits both. The latch must be a REF held across renders — a fresh object per
+  // click would guard nothing at all.
+  assert.match(source, /const submitFlightRef = useRef\(false\);/,
+    'there is no cross-click flight latch');
+  const onPrimary = source.slice(source.indexOf('const onPrimary ='), source.indexOf('const issuesUnavailable'));
+  assert.match(onPrimary, /flight: submitFlightRef,/,
+    'the orchestration is handed a latch that does not survive the click');
+});
+
 test('REPRO: the durable continuation is read from the response that created it', () => {
   const submit = source.slice(source.indexOf('const onSubmit ='), source.indexOf('const onAccept ='));
   assert.match(submit, /body\.requestId/, 'the response’s continuation id is ignored');
@@ -224,7 +236,7 @@ test('durable session state, not local memory, decides what the room shows', () 
 
 test('the note composer is disabled while the submission cannot carry it', () => {
   assert.match(source, /const NOTE_ENABLED = false/,
-    'the note is being collected before Backend #160 defines how to send it');
+    'the note is being collected before Backend #162 defines how to send it');
   assert.match(rail, /disabled=\{!submitView\.noteEnabled\}/);
 });
 
