@@ -442,19 +442,21 @@ test('a draft row defers to whatever this tab is doing', () => {
 
 // ── the note ────────────────────────────────────────────────────────────────
 
-test('the composer sits on the send path and says so when it cannot yet be collected', () => {
-  const v = view(INITIAL_SUBMISSION_STATE, { noteEnabled: false });
+test('the composer sits on the send path and is live against the pinned contract', () => {
+  const v = view(INITIAL_SUBMISSION_STATE, { noteEnabled: true });
   assert.equal(v.showNote, true, 'the composer belongs above the action');
-  assert.equal(v.noteEnabled, false);
-  assert.match(v.noteHint!, /not collected yet/i);
+  assert.equal(v.noteEnabled, true);
+  assert.equal(v.noteHint, null);
 });
 
-test('with the contract pinned the composer simply enables — no other copy moves', () => {
+test('a backend that cannot carry a note degrades visibly, never silently', () => {
+  // The flag survives the pin so this stays a rendered, explained read-only composer
+  // rather than a box that quietly discards what is typed into it.
   const off = view(INITIAL_SUBMISSION_STATE, { noteEnabled: false });
   const on = view(INITIAL_SUBMISSION_STATE, { noteEnabled: true });
-  assert.equal(on.noteEnabled, true);
-  assert.equal(on.noteHint, null);
-  assert.equal(on.primaryLabel, off.primaryLabel);
+  assert.equal(off.showNote, true);
+  assert.match(off.noteHint!, /cannot be sent/i);
+  assert.equal(on.primaryLabel, off.primaryLabel, 'the action copy must not depend on the note');
   assert.equal(on.secondaryLabel, off.secondaryLabel);
 });
 

@@ -16,8 +16,10 @@
  *   EQUAL TIMESTAMPS    Two Chapter1 issues share 00:12.500 exactly, so "stable"
  *                       cannot be satisfied by luck.
  *
- * NOT pinned to a backend commit. Backend #162 owns the submission contract, and when
- * it is pinned these fixtures are regenerated from it rather than hand-written.
+ * PINNED to implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706 (migrations 0165
+ * and 0166 applied). The submit response shapes at the bottom of this file were read
+ * from that commit's `src/routes/review.js`; `review-submit-contract.test.ts` re-reads
+ * the backend source at the same SHA and fails if any of it has drifted.
  */
 
 import type { ReviewArtifact, ReviewIssue } from './review.ts';
@@ -108,3 +110,84 @@ export const EXPECTED_GROUPS: Array<{ displayName: string; count: number }> = [
 ];
 
 export const EXPECTED_TOTAL = 12;
+
+// ── the pinned submit contract ──────────────────────────────────────────────
+
+/** The backend commit every shape below was read from. */
+export const BACKEND_PIN = '8c0f71d6eb611faf9635f14c7bafc767d01bc706';
+
+const REQUEST_ID = 'd41d8cd9-1111-4000-8000-aaaaaaaaaaaa';
+const SUBMISSION_ID = 'e5f60718-2222-4000-8000-bbbbbbbbbbbb';
+const DIGEST = 'c'.repeat(64);
+
+/** The `_publicSession` projection, as the submit route returns it. */
+const submittedSession = {
+  id: SESSION_ID,
+  runId: RUN_ID,
+  selectedArtifactId: CH1,
+  state: 'submitted',
+  submittedRequestId: REQUEST_ID,
+  submittedIssueIds: fixtureIssues.map((i) => i.id),
+  compiledBrief: 'Review of 3 files…',
+  createdAt: '2026-08-07T11:00:00Z',
+  submittedAt: '2026-08-08T20:41:00Z',
+  acceptedAt: null,
+};
+
+/**
+ * Every response shape `POST /api/v2/review/sessions/:id/submit` can produce at the
+ * pin. Read from the route, not from a description of it — note in particular that
+ * `idempotent` carries NO `issueCount`.
+ */
+export const submitFixture = {
+  fresh: {
+    ok: true,
+    requestId: REQUEST_ID,
+    issueCount: EXPECTED_TOTAL,
+    brief: 'Review of 3 files…',
+    submissionId: SUBMISSION_ID,
+    submissionDigest: DIGEST,
+    session: submittedSession,
+  },
+  // `_adoptExistingContinuation`: a crashed attempt's continuation, finalized.
+  recovered: {
+    ok: true,
+    recovered: true,
+    requestId: REQUEST_ID,
+    issueCount: EXPECTED_TOTAL,
+    brief: 'Review of 3 files…',
+    submissionId: SUBMISSION_ID,
+    submissionDigest: DIGEST,
+    session: submittedSession,
+  },
+  // `prepared.alreadySubmitted`: requestId + session only.
+  idempotent: {
+    ok: true,
+    idempotent: true,
+    requestId: REQUEST_ID,
+    session: submittedSession,
+  },
+  refusals: {
+    digestMismatch: {
+      ok: false, conflict: true, digestMismatch: true,
+      error: 'the review changed since this submission was first attempted; the review is back in draft — submit it again',
+    },
+    requestCancelled: {
+      ok: false, conflict: true, requestCancelled: true,
+      error: 'the continuation for this review was cancelled before it could be delivered; the review is back in draft — submit it again',
+      session: { ...submittedSession, state: 'draft', submittedRequestId: null, submittedIssueIds: null },
+    },
+    incompleteMapping: {
+      ok: false, incompleteMapping: true,
+      error: 'an issue references an artifact that is not available on this run; reload the review before submitting',
+    },
+    noteTooLong: {
+      ok: false,
+      error: 'revisionNote must be at most 2000 characters',
+    },
+    unavailable: {
+      ok: false, unavailable: true,
+      error: 'the artifacts this review refers to could not be read; try again',
+    },
+  },
+} as const;

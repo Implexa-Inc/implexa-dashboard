@@ -7,7 +7,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveReviewAction } from './review-actions.ts';
+import { resolveReviewAction, REVISION_NOTE_MAX } from './review-actions.ts';
 
 const SESSION = 'aaaaaaaa-1111-1111-1111-111111111111';
 const RUN = '11111111-1111-1111-1111-111111111111';
@@ -24,8 +24,61 @@ test('REPRO: submit targets the SESSION — N issues resolve to exactly one cont
   assert.equal(u.method, 'POST');
   // No issue ids are sent. The snapshot is the SERVER's; a client that enumerated
   // issues here could submit a set the user never approved.
-  assert.deepEqual(u.body, {});
+  assert.deepEqual(u.body, { revisionNote: null });
   assert.doesNotMatch(JSON.stringify(u), /issueId|issueIds/);
+});
+
+// ── the revision note, under the backend's own contract ─────────────────────
+//
+// Field name, trimming and bound all read from
+// implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706,
+// src/lib/review-submission.js: `revisionNote`, `.trim()`, REVISION_NOTE_MAX = 2000.
+
+test('the note travels under the backend key, trimmed exactly as the server trims it', () => {
+  const u = resolveReviewAction('submit', {
+    sessionId: SESSION, revisionNote: '  tighten the intro  ',
+  }) as { body: Record<string, unknown> };
+  // Trimmed here so the reviewer's copy and the stored copy cannot differ by
+  // whitespace — the server applies the same `.trim()` before persisting.
+  assert.deepEqual(u.body, { revisionNote: 'tighten the intro' });
+});
+
+test('a whitespace-only note is null, matching the server turning it into null', () => {
+  const u = resolveReviewAction('submit', { sessionId: SESSION, revisionNote: '   \n\t ' }) as { body: Record<string, unknown> };
+  assert.deepEqual(u.body, { revisionNote: null });
+});
+
+test('the bound is the backend bound, measured AFTER the trim', () => {
+  assert.equal(REVISION_NOTE_MAX, 2000, 'this must equal REVISION_NOTE_MAX at the pinned backend commit');
+
+  const atLimit = resolveReviewAction('submit', {
+    sessionId: SESSION, revisionNote: `  ${'x'.repeat(REVISION_NOTE_MAX)}  `,
+  });
+  assert.notEqual(typeof atLimit, 'string', 'a note that fits after trimming was refused');
+
+  const over = resolveReviewAction('submit', {
+    sessionId: SESSION, revisionNote: 'x'.repeat(REVISION_NOTE_MAX + 1),
+  });
+  assert.equal(typeof over, 'string', 'an over-long note reached the network');
+  assert.match(over as string, /2000 characters or fewer/);
+});
+
+test('a non-string note is refused rather than coerced', () => {
+  assert.equal(typeof resolveReviewAction('submit', { sessionId: SESSION, revisionNote: 42 }), 'string');
+  assert.equal(typeof resolveReviewAction('submit', { sessionId: SESSION, revisionNote: { a: 1 } }), 'string');
+  // Absent and explicit null are both "no note", not a refusal.
+  assert.notEqual(typeof resolveReviewAction('submit', { sessionId: SESSION, revisionNote: null }), 'string');
+  assert.notEqual(typeof resolveReviewAction('submit', { sessionId: SESSION }), 'string');
+});
+
+test('the note never leaks into any other action', () => {
+  for (const action of ['ensure_session', 'create_issue', 'update_issue', 'dismiss_issue', 'accept']) {
+    const t = resolveReviewAction(action, {
+      sessionId: SESSION, runId: SESSION, issueId: SESSION, revisionNote: 'not for this call',
+    });
+    if (typeof t === 'string') continue;
+    assert.doesNotMatch(JSON.stringify(t), /not for this call/, `${action} forwarded the revision note`);
+  }
 });
 
 test('duplicate submit resolves identically — the client has no dedupe of its own', () => {

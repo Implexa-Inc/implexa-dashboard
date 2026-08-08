@@ -197,17 +197,26 @@ test('REPRO: the single-flight latch persists across clicks', () => {
     'the orchestration is handed a latch that does not survive the click');
 });
 
-test('REPRO: the durable continuation is read from the response that created it', () => {
+test('REPRO: the response is read through the fail-closed parser, not by hand', () => {
   const submit = source.slice(source.indexOf('const onSubmit ='), source.indexOf('const onAccept ='));
-  assert.match(submit, /body\.requestId/, 'the response’s continuation id is ignored');
-  // An `ok` with no continuation must not be reported as a success.
-  assert.match(submit, /if \(!requestId\) \{/, 'an ok response naming no revision is treated as success');
+  assert.match(submit, /parseSubmitResponse\(body, \{ unavailable: status >= 500 \}\)/,
+    'the response is not read through the audited, fail-closed parser');
+  assert.match(submit, /if \(!outcome\.ok\) \{/, 'a refusal is not surfaced as a refusal');
 });
 
 test('REPRO: a rejected request is caught where it happens', () => {
   const submit = source.slice(source.indexOf('const onSubmit ='), source.indexOf('const onAccept ='));
   assert.match(submit, /\} catch \{/, 'fetch can reject and nothing catches it');
-  assert.match(submit, /could not reach the review service/i);
+  assert.match(submit, /reason: 'transport'/, 'a dead request is not typed as a transport failure');
+});
+
+test('the revision note is sent, and its live value is what gets sent', () => {
+  const submit = source.slice(source.indexOf('const onSubmit ='), source.indexOf('const onAccept ='));
+  assert.match(submit, /revisionNote,/, 'the composer’s text never reaches the request');
+  // Stale-closure guard: the callback must re-create when the note changes, or it
+  // sends whatever was typed at mount.
+  assert.match(submit, /\}, \[session, router, revisionNote\]\);/,
+    'onSubmit closes over a stale revisionNote');
 });
 
 test('REPRO: a refreshed durable session replaces the one read at mount', () => {
@@ -234,15 +243,28 @@ test('durable session state, not local memory, decides what the room shows', () 
 
 // ── the note is not collected until the contract exists ─────────────────────
 
-test('the note composer is disabled while the submission cannot carry it', () => {
-  assert.match(source, /const NOTE_ENABLED = false/,
-    'the note is being collected before Backend #162 defines how to send it');
+test('the note composer is live against the pinned backend', () => {
+  assert.match(source, /const NOTE_ENABLED = true/, 'the note is collected but never sent');
   assert.match(rail, /disabled=\{!submitView\.noteEnabled\}/);
+  assert.match(rail, /maxLength=\{REVISION_NOTE_MAX\}/,
+    'the composer does not enforce the backend bound');
 });
 
-test('the submission call is unchanged — no invented note field on the wire', () => {
+test('the composer counts the TRIMMED length, as the server measures it', () => {
+  assert.match(rail, /revisionNote\.trim\(\)\.length\}\/\$\{REVISION_NOTE_MAX\}/,
+    'the counter disagrees with the bound the server applies');
+});
+
+test('the wire carries the backend’s own field name', () => {
   const actions = readFileSync(fileURLToPath(new URL('./review-actions.ts', import.meta.url)), 'utf8');
   const submit = actions.slice(actions.indexOf("case 'submit'"), actions.indexOf("case 'accept'"));
-  assert.match(submit, /body: \{\}/, 'the submit action invented a request body');
-  assert.doesNotMatch(submit, /note/i, 'a revision-note field was added before its contract exists');
+  assert.match(submit, /revisionNote: note\.length \? note : null/,
+    'the submit body does not carry the backend’s revisionNote field');
+  assert.match(submit, /note\.length > REVISION_NOTE_MAX/, 'the client does not mirror the bound');
+});
+
+test('the queued state renders server-returned identity, not inferred state', () => {
+  const footer = rail.slice(rail.indexOf('submission footer'));
+  assert.match(footer, /\{submitView\.continuationId\}/, 'the continuation id is not shown');
+  assert.match(footer, /\{submitView\.submissionId\}/, 'the structured submission id is not shown');
 });

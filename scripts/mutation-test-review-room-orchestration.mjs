@@ -26,15 +26,17 @@
  *   snapshot-honesty     the local freeze presented as though the server had bound it
  *   one-click            a click that promises to send and transmits nothing
  *   local-only-success   "queued" claimed without a durable continuation
- *   note-dropped         the revision note silently discarded, or collected with
- *                        nowhere to go
+ *   note-dropped         the revision note discarded, renamed, untrimmed, or sent
+ *                        under a bound that has drifted from the backend's
+ *   request-id-dropped   a success accepted without the continuation it must name
+ *   issue-count-invented a count the server did not give, filled in locally
+ *   credential-leak      a token, key or backend origin reaching the browser
+ *   component-click      the real button disconnected from the real orchestration
  *
- * NOT COVERED YET, and deliberately not faked: the END-TO-END note-dropped mutant —
- * a note that reaches the backend and is not persisted byte-identically. That mutant
- * needs Backend #162's field name, bounds, trimming and digest rules. Until it is
- * pinned, the note is not collected at all (NOTE_ENABLED = false) and the mutations
- * below prove exactly that: the composer cannot be enabled, and no note field can be
- * added to the wire, without a test failing.
+ * The wire contract is PINNED to
+ * implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706. `review-submit-contract
+ * .test.ts` re-reads the backend source at that SHA, so a mutation to our copy of the
+ * field name or the bound is killed by disagreement with the server itself.
  */
 
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -50,12 +52,19 @@ const CHRONO = 'lib/review-chronology.ts';
 const FLOW = 'lib/review-submission-flow.ts';
 const ROOM = 'lib/review-room-state.ts';
 const ACTIONS = 'lib/review-actions.ts';
+const PROXY = 'app/api/review/route.ts';
 
 const files = [
   CHRONO, 'lib/review-chronology.test.ts', 'lib/review-multi-file-fixture.ts',
   FLOW, 'lib/review-submission-flow.test.ts',
   ROOM, 'lib/review-room-state.test.ts',
-  ACTIONS, 'lib/review-room-layout.test.ts',
+  ACTIONS, 'lib/review-actions.test.ts',
+  'lib/review-room-layout.test.ts',
+  'lib/review-submit-contract.test.ts',
+  'lib/review-room-credentials.test.ts',
+  'lib/review-room-click.test.ts',
+  'scripts/dom-test-loader.mjs', 'scripts/stubs/next-navigation.mjs',
+  PROXY,
   COMPONENT,
 ];
 const tests = [
@@ -63,6 +72,12 @@ const tests = [
   'lib/review-submission-flow.test.ts',
   'lib/review-room-state.test.ts',
   'lib/review-room-layout.test.ts',
+  'lib/review-actions.test.ts',
+  'lib/review-submit-contract.test.ts',
+  'lib/review-room-credentials.test.ts',
+  // The rendered click test. Slower than the rest, and the only one that can kill a
+  // mutation in the seam between the component and the helpers it calls.
+  'lib/review-room-click.test.ts',
 ];
 
 const mutations = [
@@ -158,20 +173,20 @@ const mutations = [
     '    onState(next);\n    return next;',
     '    return next;'],
   ['stuck-in-flight', 'the durable continuation from the response is discarded', FLOW,
-    '      ? settleQueued(sending, { continuationId: outcome.requestId, issueCount: outcome.issueCount ?? null })',
-    "      ? settleQueued(sending, { continuationId: '', issueCount: outcome.issueCount ?? null })"],
+    '        continuationId: outcome.requestId,',
+    "        continuationId: '',"],
   ['stuck-in-flight', 'a settled submission is dragged back by a stale draft row', FLOW,
     "  if (local.phase === 'revision_queued') return local;",
     ''],
   ['stuck-in-flight', 'the orchestration is handed a state that hides what is in flight', COMPONENT,
     '      state: submission,',
     '      state: INITIAL_SUBMISSION_STATE,'],
-  ['stuck-in-flight', 'the response’s continuation id is ignored', COMPONENT,
-    '      const requestId = typeof body.requestId === \'string\' ? body.requestId.trim() : \'\';',
-    "      const requestId = 'assumed';"],
+  ['stuck-in-flight', 'a refusal is reported to the caller as a success', COMPONENT,
+    '      if (!outcome.ok) {\n        setError(submitRefusalCopy(outcome));\n        return outcome;\n      }',
+    '      if (!outcome.ok) {\n        setError(submitRefusalCopy(outcome));\n      }'],
   ['stuck-in-flight', 'a dead request reports no reason, so the room looks merely idle', COMPONENT,
-    "      setError('We could not reach the review service. Nothing was sent — your feedback is still here.');",
-    '      setError(null);'],
+    "      const outcome: SubmitOutcome = { ok: false, reason: 'transport', message: null };\n      setError(submitRefusalCopy(outcome));",
+    "      const outcome: SubmitOutcome = { ok: false, reason: 'transport', message: null };\n      setError(null);"],
   ['stuck-in-flight', 'a newer durable session is never adopted after a refresh', COMPONENT,
     '    setSession((current) => (!current || current.id === incoming.id ? incoming : current));',
     ''],
@@ -239,6 +254,69 @@ const mutations = [
     "    ...state,\n    phase: 'error',\n    continuationId: null,",
     "    ...state,\n    phase: 'error',\n    snapshot: null,\n    continuationId: null,"],
 
+  // ── the pinned wire contract ──────────────────────────────────────────────
+  // Field name, bound and trimming all read from implexa-backend@8c0f71d.
+  ['note-dropped', 'the note is dropped from the request body entirely', ACTIONS,
+    '        body: { revisionNote: note.length ? note : null },',
+    '        body: {},'],
+  ['note-dropped', 'the note travels under a field the backend does not read', ACTIONS,
+    '        body: { revisionNote: note.length ? note : null },',
+    '        body: { note: note.length ? note : null },'],
+  ['note-dropped', 'the note is sent untrimmed, so stored and shown text differ', ACTIONS,
+    "      const note = typeof raw === 'string' ? raw.trim() : '';",
+    "      const note = typeof raw === 'string' ? raw : '';"],
+  ['note-dropped', 'the client bound drifts above the backend bound', ACTIONS,
+    'export const REVISION_NOTE_MAX = 2000;',
+    'export const REVISION_NOTE_MAX = 4000;'],
+  ['note-dropped', 'an over-long note is forwarded instead of refused', ACTIONS,
+    '      if (note.length > REVISION_NOTE_MAX) {',
+    '      if (false) {'],
+  ['note-dropped', 'the composer text never reaches the request', COMPONENT,
+    '        revisionNote,',
+    "        revisionNote: '',"],
+  ['note-dropped', 'onSubmit closes over the note as it was at mount', COMPONENT,
+    '  }, [session, router, revisionNote]);',
+    '  }, [session, router]);'],
+
+  // ── the server's answer is the answer ─────────────────────────────────────
+  ['request-id-dropped', 'a success with no continuation id is accepted', FLOW,
+    "  const requestId = trimmed(b.requestId);\n  if (!requestId) {",
+    '  const requestId = trimmed(b.requestId) || \'assumed\';\n  if (!requestId) {'],
+  ['request-id-dropped', 'the parsed continuation id never reaches the state', COMPONENT,
+    '      const outcome = parseSubmitResponse(body, { unavailable: status >= 500 });',
+    '      const outcome = parseSubmitResponse({ ...body, requestId: undefined }, { unavailable: status >= 500 });'],
+  ['issue-count-invented', 'a missing server count is filled in from nothing', FLOW,
+    '  if (issueCount === null) {',
+    '  if (false) {'],
+  ['issue-count-invented', 'the idempotent fallback reads something other than the server ids', FLOW,
+    '    ? submittedIds.length',
+    '    ? 0'],
+  ['issue-count-invented', 'a fractional or negative count is trusted', FLOW,
+    "const isIntCount = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;",
+    "const isIntCount = (v: unknown): v is number => typeof v === 'number';"],
+  ['issue-count-invented', 'a refusal is read as a success', FLOW,
+    '  if (b.ok !== true) {',
+    '  if (false) {'],
+
+  // ── credential boundary ───────────────────────────────────────────────────
+  ['credential-leak', 'the proxy forwards a caller-supplied path', PROXY,
+    '  const target = resolveReviewAction(action, body);',
+    '  const target = (body.path ? { path: String(body.path), method: \'POST\', body: {} } : resolveReviewAction(action, body));'],
+  ['credential-leak', 'the browser is handed the backend origin', COMPONENT,
+    "  const res = await fetch('/api/review', {",
+    "  const res = await fetch('https://core.implexa.ai/api/review', {"],
+
+  // ── the rendered click ────────────────────────────────────────────────────
+  ['component-click', 'the click handler is disconnected from the button', COMPONENT,
+    '                onClick={onPrimary}',
+    '                onClick={() => {}}'],
+  ['component-click', 'the primary action never reaches the orchestration', COMPONENT,
+    '    await submitRevision({',
+    '    if (true) return;\n    await submitRevision({'],
+  ['component-click', 'the queued state hides the server identity it was given', COMPONENT,
+    '                    {submitView.continuationId}',
+    "                    {''}"],
+
   // ── the revision note ─────────────────────────────────────────────────────
   ['note-dropped', 'the composer disappears from the send path', FLOW,
     "    secondaryLabel: 'Keep reviewing',\n    secondaryEnabled: true,\n    showNote: true,",
@@ -246,15 +324,15 @@ const mutations = [
   ['note-dropped', 'the composer does not survive a failure', FLOW,
     "  const errorLine = state.phase === 'error' ? state.error : null;",
     "  const errorLine = state.phase === 'error' ? state.error : null;\n  if (state.phase === 'error') return { mode: 'send_changes', primaryLabel: `Send ${draftCount} ${changeWord(draftCount)} & start revision`, primaryEnabled: !busy, secondaryLabel: 'Keep reviewing', secondaryEnabled: true, showNote: false, noteEnabled: false, noteHint: null, frozenCount: null, statusLine: null, errorLine, continuationId: null, resubmissionDisabled: false };"],
-  ['note-dropped', 'a note is collected before the submission can carry it', COMPONENT,
-    '  const NOTE_ENABLED = false;',
-    '  const NOTE_ENABLED = true;'],
+  ['note-dropped', 'the composer is silently disabled against a backend that accepts it', COMPONENT,
+    '  const NOTE_ENABLED = true;',
+    '  const NOTE_ENABLED = false;'],
   ['note-dropped', 'the composer is typable regardless of the contract', COMPONENT,
     'disabled={!submitView.noteEnabled}',
     'disabled={false}'],
-  ['note-dropped', 'an unpinned note field is invented on the wire', ACTIONS,
-    "method: 'POST', body: {} };",
-    "method: 'POST', body: { note: b.note } };"],
+  ['note-dropped', 'the counter measures untrimmed text, disagreeing with the server', COMPONENT,
+    '${revisionNote.trim().length}/${REVISION_NOTE_MAX}',
+    '${revisionNote.length}/${REVISION_NOTE_MAX}'],
   ['note-dropped', 'the composer stops saying the note supplements the issues', COMPONENT,
     "placeholder=\"Optional. Adds context to the issues above — it doesn't replace them.\"",
     'placeholder="Optional."'],
@@ -293,11 +371,12 @@ for (const [boundary, name, file, from, to] of mutations) {
 
 const boundaries = new Set(mutations.map(([b]) => b)).size;
 console.log(`\nMutation result: ${killed}/${mutations.length} killed across ${boundaries} boundaries.`);
-console.log('NOT COVERED (needs Backend #162): end-to-end note persistence and byte-identical read-back.');
-console.log('NOT COVERED (needs a DOM harness): the mounted component. Submission orchestration was');
-console.log('  moved into submitRevision() so every outcome branch is executable here, and the');
-console.log('  component is a thin delegator pinned by source assertions — but a mutation that makes');
-console.log('  the click handler simply do nothing is only reachable from a rendered-and-clicked test.');
+console.log('\nNOT COVERED, and stated rather than implied:');
+console.log('  A LIVE round trip. The contract is pinned three ways — fixtures recorded from');
+console.log('  8c0f71d, a parity test that re-reads the backend source at that SHA, and a rendered');
+console.log('  click composed through the real allowlist — but nothing here POSTs to a running');
+console.log('  backend and reads the stored note back. That is the recovery acceptance in');
+console.log('  docs/review-room-draft-recovery.md, and it has not been run.');
 if (survivors.length) {
   console.error(`\n✖ ${survivors.length} mutation(s) survived — the tests naming them are decorative:`);
   for (const s of survivors) console.error(`   ${s}`);

@@ -47,7 +47,7 @@ import {
 import { groupIssuesByArtifact, groupCountLabel } from '@/lib/review-chronology';
 import {
   INITIAL_SUBMISSION_STATE, keepReviewing, phaseForSession, submitRevision,
-  reviewSubmissionView, NOTE_MAX_PROVISIONAL,
+  reviewSubmissionView, parseSubmitResponse, submitRefusalCopy, REVISION_NOTE_MAX,
   type SubmissionState, type SubmitOutcome,
 } from '@/lib/review-submission-flow';
 
@@ -78,9 +78,6 @@ type Props = {
 };
 
 const ISSUE_KINDS = ['timing', 'content', 'visual', 'audio', 'missing', 'replacement', 'other'] as const;
-
-/** Every failed submit reports the same shape: no identity, so none can be invented. */
-const FAILED_SUBMIT: SubmitOutcome = { ok: false };
 
 async function reviewAction(payload: Record<string, unknown>) {
   const res = await fetch('/api/review', {
@@ -212,10 +209,11 @@ export default function ReviewRoom(props: Props) {
     submittedIssueIds: session?.submittedIssueIds ?? null,
     local: localSubmission,
   });
-  // FALSE UNTIL BACKEND #162 IS PINNED. The revision note's field name, bounds,
-  // trimming and digest coverage belong to that contract; collecting a note the
-  // submission cannot carry would drop it silently on send.
-  const NOTE_ENABLED = false;
+  // PINNED AND CARRIED. implexa-backend@8c0f71d takes the note as `revisionNote` on
+  // the submit body, trims it and bounds it at REVISION_NOTE_MAX; `resolveReviewAction`
+  // applies the same rules before anything leaves the browser, so what the reviewer
+  // sees, what is sent, and what is stored are the same string.
+  const NOTE_ENABLED = true;
   const submitView = reviewSubmissionView({
     state: submission, draftCount: drafts.length, busy, noteEnabled: NOTE_ENABLED,
   });
@@ -568,51 +566,56 @@ export default function ReviewRoom(props: Props) {
 
   // ── actions ───────────────────────────────────────────────────────────────
   /**
-   * The existing, already-shipped submission call — deliberately UNCHANGED.
+   * THE REAL SUBMISSION, against implexa-backend@8c0f71d.
    *
-   * Backend #162 owns the revision-note field, its bounds and its digest coverage, so
-   * nothing new is sent here and no note is collected on this path. What changed is
-   * only the return value: the caller needs to know whether a DURABLE response came
-   * back, because that is the only thing allowed to move the room out of `submitting`.
+   * Carries the revision note under the backend's own key (`revisionNote`, trimmed and
+   * bounded at 2000 in `resolveReviewAction`), and reads the reply through
+   * `parseSubmitResponse`, which FAILS CLOSED: no continuation id, or no
+   * server-authoritative issue count, is a failure — never a success filled in from
+   * local drafts.
+   *
+   * The transport itself is the one thing this function owns. Everything about what
+   * the answer MEANS lives in the flow module, where it is executable in a test.
    */
   const onSubmit = useCallback(async (): Promise<SubmitOutcome> => {
     setBusy(true); setError(null); setNotice(null);
     try {
       const sid = session?.id;
-      if (!sid) { setError('Nothing to submit yet.'); return FAILED_SUBMIT; }
-      const { body } = await reviewAction({ action: 'submit', sessionId: sid });
-      if (!body?.ok) { setError(body?.error || 'Could not request fixes.'); return FAILED_SUBMIT; }
-
-      // THE DURABLE IDENTITY, read from the response that created it. An `ok` with no
-      // continuation is not a success — it is a reply we cannot act on, and treating
-      // it as one is the local-only success the epic forbids.
-      const requestId = typeof body.requestId === 'string' ? body.requestId.trim() : '';
-      if (!requestId) {
-        setError('The revision was not confirmed. Your feedback has not been sent.');
-        return FAILED_SUBMIT;
+      if (!sid) {
+        setError('Nothing to submit yet.');
+        return { ok: false, reason: 'refused', message: 'Nothing to submit yet.' };
       }
-      setNotice(body.idempotent
+      const { status, body } = await reviewAction({
+        action: 'submit', sessionId: sid,
+        // The composer's live text. `resolveReviewAction` trims it and refuses an
+        // over-long note before anything leaves the browser.
+        revisionNote,
+      });
+      // 5xx is a read the service could not make, not a verdict on the review.
+      const outcome = parseSubmitResponse(body, { unavailable: status >= 500 });
+      if (!outcome.ok) {
+        setError(submitRefusalCopy(outcome));
+        return outcome;
+      }
+      setNotice(outcome.idempotent
         ? 'These fixes were already requested — showing the existing revision.'
-        : 'Revision queued.');
+        : outcome.recovered
+          ? 'An earlier attempt had already started this revision — showing that one.'
+          : 'Revision queued.');
       // Refreshes the server props for everything else on the page. The queued state
       // does NOT wait for it: `session` is client state seeded once from props, so a
       // refresh alone would never move this room out of submitting.
       router.refresh();
-      return {
-        ok: true,
-        requestId,
-        // The server's own count of what it snapshotted. Absent on the idempotent
-        // path, where the durable session row supplies it instead.
-        issueCount: Number.isInteger(body.issueCount) ? (body.issueCount as number) : null,
-      };
+      return outcome;
     } catch {
       // A REQUEST THAT NEVER COMPLETED — offline, navigation, abort. `fetch` rejects,
       // and without this the rejection escapes the click handler and the room sits on
       // "Sending…" with no way back to the action.
-      setError('We could not reach the review service. Nothing was sent — your feedback is still here.');
-      return FAILED_SUBMIT;
+      const outcome: SubmitOutcome = { ok: false, reason: 'transport', message: null };
+      setError(submitRefusalCopy(outcome));
+      return outcome;
     } finally { setBusy(false); }
-  }, [session, router]);
+  }, [session, router, revisionNote]);
 
   const onAccept = useCallback(async (discard: boolean) => {
     setBusy(true); setError(null); setNotice(null);
@@ -1073,10 +1076,27 @@ export default function ReviewRoom(props: Props) {
           ) : accepted ? (
             <p className="text-xs text-emerald-300">You accepted this result.</p>
           ) : submitView.mode === 'queued' ? (
-            // TERMINAL. Resubmission is closed here as well as at the backend, and the
-            // copy names the exact count and the continuation it created.
+            // TERMINAL. Resubmission is closed here as well as at the backend, and
+            // every number and identity below came back from the server — none of it
+            // is inferred from local drafts or from a refreshed prop.
             <>
               <p className="text-xs text-emerald-300">{submitView.statusLine}</p>
+              <dl className="rounded border border-ink-800 bg-ink-950 px-2 py-1.5 text-[11px] text-ink-500">
+                <div className="flex items-baseline justify-between gap-2">
+                  <dt>Continuation</dt>
+                  <dd className="truncate font-mono text-ink-300" title={submitView.continuationId ?? undefined}>
+                    {submitView.continuationId}
+                  </dd>
+                </div>
+                {submitView.submissionId && (
+                  <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                    <dt>Submission</dt>
+                    <dd className="truncate font-mono text-ink-300" title={submitView.submissionId}>
+                      {submitView.submissionId}
+                    </dd>
+                  </div>
+                )}
+              </dl>
               {submitView.continuationId && (
                 <a
                   href={`/runs/${runId}`}
@@ -1121,13 +1141,17 @@ export default function ReviewRoom(props: Props) {
                     onChange={(e) => setRevisionNote(e.target.value)}
                     disabled={!submitView.noteEnabled}
                     rows={2}
-                    maxLength={NOTE_MAX_PROVISIONAL}
+                    maxLength={REVISION_NOTE_MAX}
                     placeholder="Optional. Adds context to the issues above — it doesn't replace them."
                     className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-sm text-ink-100 placeholder:text-ink-600 disabled:cursor-not-allowed disabled:opacity-50"
                   />
-                  {submitView.noteHint && (
-                    <span className="mt-1 block text-[11px] leading-snug text-ink-500">{submitView.noteHint}</span>
-                  )}
+                  {/* The server trims before it stores, so the counter measures the
+                      trimmed length — otherwise trailing whitespace would show the
+                      reviewer a number the backend does not agree with. */}
+                  <span className="mt-1 block text-[11px] leading-snug text-ink-500">
+                    {submitView.noteHint
+                      ?? `Optional. ${revisionNote.trim().length}/${REVISION_NOTE_MAX} characters.`}
+                  </span>
                 </label>
               )}
 

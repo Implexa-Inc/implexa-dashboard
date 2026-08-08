@@ -1,7 +1,7 @@
 {
   "name": "implexa-dashboard",
   "version": "0.1.0",
-  "description": "Implexa web dashboard \u2014 Next.js 14 App Router + Supabase Auth + Stripe Checkout",
+  "description": "Implexa web dashboard — Next.js 14 App Router + Supabase Auth + Stripe Checkout",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001",
@@ -39,6 +39,8 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.0.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3"

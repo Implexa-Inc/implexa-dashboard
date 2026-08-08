@@ -17,14 +17,21 @@
  * the contract, and asserting them by reading JSX is how the first version passed its
  * tests while shipping the bug.
  *
- * ── SCOPE AT THIS COMMIT ────────────────────────────────────────────────────────
- * The submission CALL is deliberately not wired here and this module performs no I/O.
- * Backend #162 owns the revision-note field name, its bounds, its trimming and the
- * canonical digest that covers it; inventing any of those client-side would ship a
- * textarea whose contents are silently dropped, which is the same class of lie the
- * epic exists to end. `noteEnabled` is therefore false until that PR is pinned, and
- * `phaseFor`/`reviewSubmissionView` model the complete contract so wiring it is a
- * change of caller, not a change of rules.
+ * ── THE PINNED CONTRACT ─────────────────────────────────────────────────────────
+ * Wired against implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706 (migrations
+ * 0165 + 0166 applied). Field names, bounds and response shapes here were read from
+ * that commit's `src/routes/review.js` and `src/lib/review-submission.js` — none of
+ * them are inferred.
+ *
+ *   POST /api/v2/review/sessions/:sessionId/submit   { revisionNote: string | null }
+ *
+ *   fresh      { ok, requestId, issueCount, brief, submissionId, submissionDigest, session }
+ *   recovered  { ok, recovered: true, … same fields }
+ *   idempotent { ok, idempotent: true, requestId, session }   ← no issueCount
+ *
+ * This module still performs NO I/O: the caller supplies the transport, and everything
+ * here — including how a response is read and when it is refused — stays executable in
+ * a test.
  */
 
 export type SubmissionPhase = 'draft' | 'preparing' | 'submitting' | 'revision_queued' | 'error';
@@ -33,16 +40,16 @@ export type SubmissionPhase = 'draft' | 'preparing' | 'submitting' | 'revision_q
  * What `preparing` froze.
  *
  * A CLIENT-SIDE DISPLAY FREEZE, AND NOTHING MORE. It records what the room believed
- * it was sending at the instant of the click, so the in-flight and queued copy cannot
- * drift as drafts change underneath. It is NOT a contract with the server: the submit
- * endpoint takes only a session id and snapshots server-side, so there is no way to
- * send these ids or to have them verified. Claiming otherwise would be a promise the
- * wire cannot keep — binding a client snapshot needs Backend #162.
+ * it was sending at the instant of the click, so the in-flight copy cannot drift as
+ * drafts change underneath. It is still NOT a contract with the server: at 8c0f71d the
+ * submit endpoint takes a session id and a note, and snapshots the issue set itself
+ * under a row lock (`review_prepare_submission`). There is no field in which to send
+ * these ids and nothing that would verify them.
  *
  * Two things follow, and both are enforced below:
  *   the transition into flight is ONE action, so no user edit can land between the
  *   freeze and the send; and
- *   the count the queued state reports comes from the BACKEND, not from here.
+ *   every count the room REPORTS after the fact comes from the server, never here.
  */
 export type SubmissionSnapshot = {
   readonly issueIds: readonly string[];
@@ -60,19 +67,21 @@ export type SubmissionState = {
    * everywhere it exists — the server's snapshot is the real one.
    */
   submittedCount: number | null;
+  /** The 0165 structured-submission id the server bound, when it named one. */
+  submissionId: string | null;
   error: string | null;
 };
 
 export const INITIAL_SUBMISSION_STATE: SubmissionState = {
-  phase: 'draft', snapshot: null, continuationId: null, submittedCount: null, error: null,
+  phase: 'draft', snapshot: null, continuationId: null,
+  submittedCount: null, submissionId: null, error: null,
 };
 
 /**
- * A provisional UI bound so the composer cannot grow without limit. It is NOT the wire
- * bound: Backend #162 defines the authoritative maximum and trimming rule, and this
- * must be reconciled with it when the contract is pinned.
+ * The composer's bound IS the wire bound — re-exported from the one place that states
+ * it, so the textarea and the request can never disagree about what fits.
  */
-export const NOTE_MAX_PROVISIONAL = 4000;
+export { REVISION_NOTE_MAX } from './review-actions.ts';
 
 /** Freeze the visible snapshot. The only entry into the send path. */
 export function beginPreparing(state: SubmissionState, draftIssueIds: string[]): SubmissionState {
@@ -86,6 +95,7 @@ export function beginPreparing(state: SubmissionState, draftIssueIds: string[]):
     snapshot: Object.freeze({ issueIds: ids, issueCount: ids.length }),
     continuationId: null,
     submittedCount: null,
+    submissionId: null,
     error: null,
   };
 }
@@ -117,14 +127,23 @@ export function beginSubmitting(state: SubmissionState): SubmissionState {
  */
 export function settleQueued(
   state: SubmissionState,
-  args: { continuationId: string; issueCount?: number | null },
+  args: { continuationId: string; issueCount?: number | null; submissionId?: string | null },
 ): SubmissionState {
   if (state.phase !== 'submitting' && state.phase !== 'preparing') return state;
   const id = String(args?.continuationId || '').trim();
   if (!id) return failSubmission(state, 'The revision was not confirmed. Nothing was sent.');
   const n = args?.issueCount;
   const submittedCount = typeof n === 'number' && Number.isInteger(n) && n >= 0 ? n : null;
-  return { ...state, phase: 'revision_queued', continuationId: id, submittedCount, error: null };
+  return {
+    ...state,
+    phase: 'revision_queued',
+    continuationId: id,
+    submittedCount,
+    // The 0165 structured-submission identity, when the server names one. Absent on a
+    // pre-0165 adopted row, so the room shows it only where it is real.
+    submissionId: String(args?.submissionId || '').trim() || null,
+    error: null,
+  };
 }
 
 /**
@@ -138,6 +157,7 @@ export function failSubmission(state: SubmissionState, message: string): Submiss
     phase: 'error',
     continuationId: null,
     submittedCount: null,
+    submissionId: null,
     error: String(message || '').trim() || 'That did not go through. Nothing was sent.',
   };
 }
@@ -191,6 +211,7 @@ export function phaseForSession(input: {
       // The durable ids ARE the server's count. Falls back to whatever this tab
       // already learned from its own response.
       submittedCount: ids.length || local.submittedCount,
+      submissionId: local.submissionId,
       error: null,
     };
   }
@@ -203,7 +224,7 @@ export function phaseForSession(input: {
   if (sessionState === 'submitting') {
     return {
       phase: 'submitting', snapshot: local.snapshot,
-      continuationId: null, submittedCount: null, error: null,
+      continuationId: null, submittedCount: null, submissionId: null, error: null,
     };
   }
 
@@ -215,8 +236,117 @@ export function phaseForSession(input: {
  * there is no shape in which "it worked" and "there is no continuation" coexist.
  */
 export type SubmitOutcome =
-  | { ok: true; requestId: string; issueCount?: number | null }
-  | { ok: false };
+  | {
+      ok: true;
+      requestId: string;
+      /** SERVER-AUTHORITATIVE. Never derived from local drafts. */
+      issueCount: number;
+      submissionId: string | null;
+      submissionDigest: string | null;
+      /** The server had already submitted this session; the same continuation stands. */
+      idempotent: boolean;
+      /** The server adopted a continuation an earlier crashed attempt had created. */
+      recovered: boolean;
+    }
+  | { ok: false; reason: SubmitRefusal; message: string | null };
+
+/**
+ * Why a submission did not produce a queued revision. Typed because the room reacts
+ * differently to "the server refused" and "we could not tell what the server said" —
+ * and because a refusal the user can act on must not read like a transport blip.
+ */
+export type SubmitRefusal =
+  /** The server answered with a refusal it means: 4xx, conflict, digest mismatch. */
+  | 'refused'
+  /** A read the server could not make. Retryable, and it says so. */
+  | 'unavailable'
+  /** `ok: true` that does not carry a usable continuation identity or count. */
+  | 'malformed_success'
+  /** The request never completed: offline, abort, navigation. */
+  | 'transport';
+
+const isIntCount = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+const trimmed = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+
+/**
+ * Read one submit response, and FAIL CLOSED.
+ *
+ * Every success shape at implexa-backend@8c0f71d, `src/routes/review.js`:
+ *
+ *   fresh      { ok, requestId, issueCount, brief, submissionId, submissionDigest, session }
+ *   recovered  { ok, recovered: true, requestId, issueCount, brief, submissionId, submissionDigest, session }
+ *   idempotent { ok, idempotent: true, requestId, session }
+ *
+ * Note the third: the idempotent branch returns NO `issueCount`. It is not missing
+ * information — `session` is the `_publicSession` projection and carries
+ * `submittedIssueIds`, which is the server's own record of what it submitted. That is
+ * the authoritative count on that path, and the only fallback permitted here.
+ *
+ * What is never permitted is inventing one. An `ok: true` that yields neither a
+ * continuation id nor a server count is reported as `malformed_success`: the drafts
+ * stay, the room does not claim a revision, and the reviewer is told plainly that the
+ * result could not be confirmed. Filling the gap from local drafts would be exactly
+ * the local-only success the epic forbids.
+ */
+export function parseSubmitResponse(body: unknown, opts: { unavailable?: boolean } = {}): SubmitOutcome {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const message = trimmed(b.error) || null;
+
+  if (b.ok !== true) {
+    // `unavailable` is the backend's own word for a read it could not make (503), and
+    // the proxy sets it too when the upstream is unreachable.
+    const unavailable = b.unavailable === true || opts.unavailable === true;
+    return { ok: false, reason: unavailable ? 'unavailable' : 'refused', message };
+  }
+
+  const requestId = trimmed(b.requestId);
+  if (!requestId) {
+    return {
+      ok: false, reason: 'malformed_success',
+      message: 'The review service reported success without naming a revision. Nothing was sent.',
+    };
+  }
+
+  const session = (b.session ?? null) as Record<string, unknown> | null;
+  const submittedIds = session && Array.isArray(session.submittedIssueIds)
+    ? (session.submittedIssueIds as unknown[]).filter((x) => typeof x === 'string' && x.trim())
+    : null;
+
+  const issueCount = isIntCount(b.issueCount)
+    ? b.issueCount
+    : submittedIds && submittedIds.length
+      ? submittedIds.length
+      : null;
+
+  if (issueCount === null) {
+    return {
+      ok: false, reason: 'malformed_success',
+      message: 'The review service confirmed a revision but not how much it sent. Reload the review before trying again.',
+    };
+  }
+
+  return {
+    ok: true,
+    requestId,
+    issueCount,
+    submissionId: trimmed(b.submissionId) || null,
+    submissionDigest: trimmed(b.submissionDigest) || null,
+    idempotent: b.idempotent === true,
+    recovered: b.recovered === true,
+  };
+}
+
+/** The sentence shown when an attempt did not produce a revision. */
+export function submitRefusalCopy(outcome: Extract<SubmitOutcome, { ok: false }>): string {
+  if (outcome.message) return outcome.message;
+  if (outcome.reason === 'transport') {
+    return 'We could not reach the review service. Nothing was sent — your feedback is still here.';
+  }
+  if (outcome.reason === 'unavailable') {
+    return 'The review service could not complete that just now. Nothing was sent — try again.';
+  }
+  return 'That did not go through. Nothing was sent — your feedback is still here.';
+}
 
 /**
  * A synchronous single-flight latch, held across renders by the caller.
@@ -283,14 +413,21 @@ export async function submitRevision(args: {
     } catch {
       // The request never completed. Without this the rejection escapes the click
       // handler entirely and `sending` is the last state the room ever sees.
-      outcome = { ok: false };
+      outcome = { ok: false, reason: 'transport', message: null };
     }
 
     const next = outcome.ok
       // settleQueued re-checks the continuation, so an `ok` with an empty id still
       // lands in error rather than claiming a revision that does not exist.
-      ? settleQueued(sending, { continuationId: outcome.requestId, issueCount: outcome.issueCount ?? null })
-      : failSubmission(sending, '');
+      ? settleQueued(sending, {
+        continuationId: outcome.requestId,
+        issueCount: outcome.issueCount,
+        submissionId: outcome.submissionId,
+      })
+      // FAIL CLOSED, with the reason the parser determined. A malformed success is a
+      // failure here for the same reason a refusal is: nothing may claim a revision
+      // the server did not name and count.
+      : failSubmission(sending, submitRefusalCopy(outcome));
     onState(next);
     return next;
   } finally {
@@ -319,6 +456,11 @@ export type SubmissionView = {
   errorLine: string | null;
   /** Set only in `revision_queued`; the reviewer can follow the work they started. */
   continuationId: string | null;
+  /**
+   * The server's structured-submission id, when it named one. Shown alongside the
+   * continuation so the queued claim carries verifiable identity, not just a number.
+   */
+  submissionId: string | null;
   /** True once queued: resubmission is closed here as well as at the backend. */
   resubmissionDisabled: boolean;
 };
@@ -338,8 +480,9 @@ export function reviewSubmissionView(input: {
   draftCount: number;
   busy: boolean;
   /**
-   * False until Backend #162 is pinned. When false the composer renders but cannot be
-   * typed into, so a note can never be collected on a path that could not carry it.
+   * Whether the composer accepts input. True against the pinned contract; the flag
+   * survives so a future backend that cannot carry a note degrades to a visible,
+   * honest read-only composer rather than silently dropping one.
    */
   noteEnabled: boolean;
 }): SubmissionView {
@@ -348,7 +491,7 @@ export function reviewSubmissionView(input: {
 
   const noteHint = noteEnabled
     ? null
-    : 'The revision note ships with the backend submission contract; it is not collected yet.';
+    : 'The revision note cannot be sent to this backend, so it is not collected.';
 
   if (state.phase === 'revision_queued') {
     // THE SERVER'S COUNT, not the local freeze. The two can differ — another tab, or
@@ -374,6 +517,7 @@ export function reviewSubmissionView(input: {
         : `${n} ${changeWord(n)} were sent as one revision.`,
       errorLine: null,
       continuationId: state.continuationId,
+      submissionId: state.submissionId,
       resubmissionDisabled: true,
     };
   }
@@ -398,6 +542,7 @@ export function reviewSubmissionView(input: {
       statusLine: `${n} ${changeWord(n)} frozen for this revision.`,
       errorLine: null,
       continuationId: null,
+      submissionId: null,
       resubmissionDisabled: true,
     };
   }
@@ -423,6 +568,7 @@ export function reviewSubmissionView(input: {
       statusLine: null,
       errorLine,
       continuationId: null,
+      submissionId: null,
       resubmissionDisabled: false,
     };
   }
@@ -440,6 +586,7 @@ export function reviewSubmissionView(input: {
     statusLine: null,
     errorLine,
     continuationId: null,
+    submissionId: null,
     resubmissionDisabled: false,
   };
 }
