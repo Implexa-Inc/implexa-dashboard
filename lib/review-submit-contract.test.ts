@@ -137,16 +137,24 @@ test('a conflict keeps its status as a refusal the reviewer can act on', () => {
 
 /** A sibling backend checkout that actually contains the pinned commit. */
 const backendRepo = (() => {
-  const workspace = join(import.meta.dirname, '..', '..');
-  if (!existsSync(workspace)) return null;
-  for (const name of readdirSync(workspace)) {
-    if (!/backend/i.test(name)) continue;
-    const dir = join(workspace, name);
-    if (!existsSync(join(dir, '.git'))) continue;
-    try {
-      execFileSync('git', ['cat-file', '-e', `${BACKEND_PIN}^{commit}`], { cwd: dir, stdio: 'ignore' });
-      return dir;
-    } catch { /* not this one */ }
+  // SEVERAL ANCESTORS, NOT ONE (2026-08-08). This looked only in the dashboard's
+  // immediate parent. The backend checkouts actually sit a level above that, and from
+  // a git worktree (.claude/worktrees/<name>) they are further up still — so the five
+  // parity tests below reported SKIP everywhere, including the canonical layout. A
+  // cross-repo check that can never locate the other repo is not a check.
+  for (const up of [['..', '..'], ['..', '..', '..'], ['..', '..', '..', '..'],
+    ['..', '..', '..', '..', '..'], ['..', '..', '..', '..', '..', '..']]) {
+    const workspace = join(import.meta.dirname, ...up);
+    if (!existsSync(workspace)) continue;
+    for (const name of readdirSync(workspace)) {
+      if (!/backend/i.test(name)) continue;
+      const dir = join(workspace, name);
+      if (!existsSync(join(dir, '.git'))) continue;
+      try {
+        execFileSync('git', ['cat-file', '-e', `${BACKEND_PIN}^{commit}`], { cwd: dir, stdio: 'ignore' });
+        return dir;
+      } catch { /* not this one */ }
+    }
   }
   return null;
 })();

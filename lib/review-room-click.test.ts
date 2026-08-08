@@ -201,6 +201,16 @@ test('A TYPED REFUSAL leaves Sending, keeps all 12 drafts, and re-offers the act
   assert.match(text(), /submit it again/, "the server's own reason is not shown");
   assert.match(text(), /Send 12 changes & start revision/, 'the action was not re-offered');
   assert.equal(container.querySelectorAll('li').length, 12, 'drafts were lost on refusal');
+  // A REFUSAL MUST NOT ALSO BE ANNOUNCED AS A SUCCESS. `onSubmit` returns early on
+  // `!outcome.ok`; drop that `return` and control falls through to the success notice
+  // and `router.refresh()`, so the room shows the server's rejection and "Revision
+  // queued." together. Every other assertion here reads the RETURNED outcome, which
+  // that mutation leaves untouched — this is the one that sees it.
+  assert.doesNotMatch(text(), /Revision queued/i, 'a refusal was also announced as queued');
+  assert.equal(
+    container.querySelector('p[role="status"]'), null,
+    'a refusal rendered a success status line',
+  );
   root.unmount();
 });
 
@@ -213,6 +223,7 @@ test('A MALFORMED SUCCESS leaves Sending and is treated as a failure', async () 
   assert.doesNotMatch(text(), /Sending/);
   assert.doesNotMatch(text(), /were sent as one revision/, 'a revision was claimed without one existing');
   assert.match(text(), /without naming a revision/i);
+  assert.doesNotMatch(text(), /Revision queued/i, 'a malformed success was announced as queued');
   assert.equal(container.querySelectorAll('li').length, 12);
   root.unmount();
 });

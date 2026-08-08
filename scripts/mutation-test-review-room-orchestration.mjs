@@ -39,11 +39,11 @@
  * field name or the bound is killed by disagreement with the server itself.
  */
 
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { announceBaseline, materializeTree, runSuites } from './mutation-harness-support.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -184,9 +184,15 @@ const mutations = [
   ['stuck-in-flight', 'a refusal is reported to the caller as a success', COMPONENT,
     '      if (!outcome.ok) {\n        setError(submitRefusalCopy(outcome));\n        return outcome;\n      }',
     '      if (!outcome.ok) {\n        setError(submitRefusalCopy(outcome));\n      }'],
-  ['stuck-in-flight', 'a dead request reports no reason, so the room looks merely idle', COMPONENT,
-    "      const outcome: SubmitOutcome = { ok: false, reason: 'transport', message: null };\n      setError(submitRefusalCopy(outcome));",
-    "      const outcome: SubmitOutcome = { ok: false, reason: 'transport', message: null };\n      setError(null);"],
+  // REMOVED 2026-08-08 — 'a dead request reports no reason, so the room looks merely idle'.
+  // It replaced the transport `setError(submitRefusalCopy(outcome))` with `setError(null)`
+  // and expected the room to fall silent. It does not: the room renders
+  // `{!error && submitView.errorLine}` (review-room.tsx:1164) precisely so exactly one
+  // copy of the message shows, and with `error` cleared the flow's own
+  // `failSubmission(sending, submitRefusalCopy(outcome))` supplies the identical string.
+  // The DOM text is the same either way, so this described no regression — it survived
+  // a green baseline for that reason, not for want of a test. Deleted rather than
+  // propped up with an assertion about which of two elements holds the sentence.
   ['stuck-in-flight', 'a newer durable session is never adopted after a refresh', COMPONENT,
     '    setSession((current) => (!current || current.id === incoming.id ? incoming : current));',
     ''],
@@ -338,15 +344,24 @@ const mutations = [
     'placeholder="Optional."'],
 ];
 
+// THE SUITE MUST PASS BEFORE IT MAY JUDGE. Until 2026-08-08 the rendered click test
+// could not resolve `jsdom` from a tree under $TMPDIR, so it threw on import, the run
+// exited non-zero, and all 71 mutants were scored KILLED without a single rendered
+// assertion executing. A non-zero baseline is HARNESS BROKEN and aborts here.
+announceBaseline({
+  label: 'review-room-orchestration',
+  root,
+  files,
+  dir: mkdtempSync(join(tmpdir(), 'implexa-review-orchestration-baseline-')),
+  suites: tests,
+});
+
 let killed = 0;
 const survivors = [];
 for (const [boundary, name, file, from, to] of mutations) {
   const dir = mkdtempSync(join(tmpdir(), 'implexa-review-orchestration-mutant-'));
   try {
-    for (const source of files) {
-      const target = join(dir, source); mkdirSync(dirname(target), { recursive: true });
-      cpSync(join(root, source), target);
-    }
+    materializeTree(root, files, dir);
     const target = join(dir, file);
     const source = readFileSync(target, 'utf8');
     // A mutation whose anchor text has drifted is not a passing mutation — it is a
@@ -354,9 +369,7 @@ for (const [boundary, name, file, from, to] of mutations) {
     // the whole harness exists to catch.
     if (!source.includes(from)) throw new Error(`Mutation anchor missing: [${boundary}] ${name}`);
     writeFileSync(target, source.replace(from, to));
-    const result = spawnSync(process.execPath, ['--test', ...tests.map((t) => join(dir, t))], {
-      cwd: dir, encoding: 'utf8', env: process.env,
-    });
+    const result = runSuites(root, dir, tests);
     if (result.status === 0) {
       survivors.push(`[${boundary}] ${name}`);
       console.log(`SURVIVED [${boundary}] ${name}`);

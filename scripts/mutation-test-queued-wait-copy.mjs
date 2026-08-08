@@ -14,11 +14,11 @@
  * the notice firing before we have anything to say. Each must be KILLED by a test.
  */
 
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { announceBaseline, materializeTree, runSuites } from './mutation-harness-support.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -27,11 +27,23 @@ const FILES = [
   'lib/queued-wait-copy.test.ts',
   'app/(dashboard)/_components/running-agents.tsx',
   'app/(dashboard)/_components/revise-request-lifecycle.test.ts',
+  // The RENDERED test and the machinery it needs. Everything else running-agents.tsx
+  // imports (./modal, ./stuck-run-button, @/lib/live-feed) is deliberately NOT copied:
+  // the loader backfills it from the repository, unmutated, so this list stays the set
+  // of files a mutation may actually touch.
+  'app/(dashboard)/_components/running-agents-failure-cause.test.ts',
+  'scripts/dom-test-loader.mjs',
+  'scripts/stubs/next-link.mjs',
+  'scripts/stubs/supabase-client.mjs',
+  'scripts/stubs/backend-api.mjs',
 ];
 
 const SUITES = [
   'lib/queued-wait-copy.test.ts',
   'app/(dashboard)/_components/revise-request-lifecycle.test.ts',
+  // Mounts the real component against jsdom. The only suite here that can tell whether
+  // a user SEES the failure cause, as opposed to whether the source still spells it.
+  'app/(dashboard)/_components/running-agents-failure-cause.test.ts',
 ];
 
 const COPY = 'lib/queued-wait-copy.ts';
@@ -122,26 +134,31 @@ const mutations = [
   },
 ];
 
+// THE SUITE MUST PASS BEFORE IT MAY JUDGE. The rendered test below cannot resolve
+// `jsdom` or `react` from a tree under $TMPDIR unless node_modules is exposed there,
+// and an unresolved import exits non-zero — which this harness would otherwise score
+// as a kill. That is exactly how the Review Room harness came to report 71/71 without
+// executing a single rendered assertion. A non-zero baseline aborts as HARNESS BROKEN.
+announceBaseline({
+  label: 'queued-wait-copy',
+  root,
+  files: FILES,
+  dir: mkdtempSync(join(tmpdir(), 'implexa-queued-wait-baseline-')),
+  suites: SUITES,
+});
+
 let killed = 0;
 
 for (const mutation of mutations) {
   const dir = mkdtempSync(join(tmpdir(), 'implexa-queued-wait-mutant-'));
   try {
-    for (const file of FILES) {
-      const target = join(dir, file);
-      mkdirSync(dirname(target), { recursive: true });
-      cpSync(join(root, file), target);
-    }
+    materializeTree(root, FILES, dir);
     const target = join(dir, mutation.file);
     const source = readFileSync(target, 'utf8');
     if (!source.includes(mutation.from)) throw new Error(`Mutation anchor missing: ${mutation.name} (${mutation.file})`);
     writeFileSync(target, source.replace(mutation.from, mutation.to));
 
-    const result = spawnSync(
-      process.execPath,
-      ['--test', ...SUITES.map((suite) => join(dir, suite))],
-      { cwd: dir, encoding: 'utf8', env: process.env },
-    );
+    const result = runSuites(root, dir, SUITES);
     // A SURVIVOR IS A HARD FAILURE — a mutation of this surface that no test
     // notices means the honesty it broke was never actually guarded.
     if (result.status === 0) {
