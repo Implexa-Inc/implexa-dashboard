@@ -112,8 +112,13 @@ const mutations = [
   },
   {
     boundary: 'request-lifecycle', name: 'the persisted failure cause is dropped from the card', file: COMPONENT,
-    from: "                {c.status === 'failed' && c.failureReason ? (",
+    from: "                {(['failed', 'start_failed', 'claim_expired'] as LiveStatus[]).includes(c.status) && c.failureReason ? (",
     to: '                {false ? (',
+  },
+  {
+    boundary: 'request-lifecycle', name: 'only a plain failure shows its cause — a start_failed/claim_expired run hides it', file: COMPONENT,
+    from: "                {(['failed', 'start_failed', 'claim_expired'] as LiveStatus[]).includes(c.status) && c.failureReason ? (",
+    to: "                {c.status === 'failed' && c.failureReason ? (",
   },
 ];
 
