@@ -16,10 +16,18 @@
  *   EQUAL TIMESTAMPS    Two Chapter1 issues share 00:12.500 exactly, so "stable"
  *                       cannot be satisfied by luck.
  *
- * PINNED to implexa-backend@b2b39b8d6858c60cb05f1e3c42f0781beb9add14 (migrations 0165
- * and 0166 applied). The submit response shapes at the bottom of this file were read
- * from that commit's `src/routes/review.js`; `review-submit-contract.test.ts` re-reads
- * the backend source at the same SHA and fails if any of it has drifted.
+ * PINNED to the DEPLOYED producer:
+ * implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706, backend `main`, with
+ * migrations 0165 and 0166 applied. The submit response shapes at the bottom of this
+ * file were read from that commit's `src/routes/review.js`, and
+ * `review-submit-contract.test.ts` revalidates them against that same SHA — the field
+ * name, the bound, the trimming and the emitted keys — failing if any of it has
+ * drifted. It is the authority because it is what actually serves the endpoint.
+ *
+ * implexa-backend@b2b39b8d6858c60cb05f1e3c42f0781beb9add14, the reviewed head of #162,
+ * is ONLY an optional equivalence comparison. Nothing here is read from it, and no
+ * claim is made about which migrations it carries; the same test compares the two and
+ * skips when that commit is absent rather than failing.
  */
 
 import type { ReviewArtifact, ReviewIssue } from './review.ts';
