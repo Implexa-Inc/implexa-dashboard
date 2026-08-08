@@ -46,9 +46,12 @@ import {
 } from '@/lib/segmented-review';
 import { groupIssuesByArtifact, groupCountLabel } from '@/lib/review-chronology';
 import {
-  INITIAL_SUBMISSION_STATE, beginPreparing, beginSubmitting, failSubmission, keepReviewing,
-  phaseForSession, reviewSubmissionView, NOTE_MAX_PROVISIONAL, type SubmissionState,
+  INITIAL_SUBMISSION_STATE, keepReviewing, phaseForSession, submitRevision,
+  reviewSubmissionView, NOTE_MAX_PROVISIONAL,
+  type SubmissionState, type SubmitOutcome,
 } from '@/lib/review-submission-flow';
+
+const FAILED_SUBMIT: SubmitOutcome = { ok: false };
 import {
   beginRange, canOfferRange, canReplaceDraft, completeRange, composerHeaderLabel, draftFromIssue,
   draftIssuesAtSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, liveRangeError,
@@ -118,10 +121,28 @@ export default function ReviewRoom(props: Props) {
   const [preview, setPreview] = useState<{ url: string; artifactId: string } | null>(null);
   const tokenRef = useRef<string | null>(null);
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
+  const railListRef = useRef<HTMLDivElement | null>(null);
 
   const [issues, setIssues] = useState<ReviewIssue[]>(props.issues);
   const [session, setSession] = useState<ReviewSession>(props.session);
   const [busy, setBusy] = useState(false);
+
+  /**
+   * ADOPT THE DURABLE SESSION WHEN THE SERVER SENDS A NEWER ONE.
+   *
+   * `session` is seeded from props ONCE. Next keeps this component mounted across
+   * `router.refresh()`, so without this the room would keep answering from the row it
+   * read on first render — a submitted session would still look like a draft, and a
+   * second tab would go on offering to send work that has already been sent.
+   *
+   * Guarded by identity: a session this tab created with `ensureSession` must not be
+   * replaced by a stale `null`, and two different sessions never overwrite each other.
+   */
+  useEffect(() => {
+    const incoming = props.session;
+    if (!incoming) return;
+    setSession((current) => (!current || current.id === incoming.id ? incoming : current));
+  }, [props.session]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -196,7 +217,13 @@ export default function ReviewRoom(props: Props) {
     () => issuesForArtifact(visible, selectedId),
     [visible, selectedId],
   );
-  const frozen = proxyPreview || (!acts.canEditIssues && session?.state !== 'accepted' && !isApprovalHold);
+  // EDITING CLOSES THE MOMENT A SUBMISSION IS IN FLIGHT, not merely once the durable
+  // row catches up. `acts` reads the session row, which still says `draft` while this
+  // tab's request is open — leaving the rail editable over a set that is already being
+  // snapshotted server-side.
+  const submissionInFlight = submission.phase === 'preparing' || submission.phase === 'submitting';
+  const frozen = proxyPreview || submissionInFlight
+    || (!acts.canEditIssues && session?.state !== 'accepted' && !isApprovalHold);
   const accepted = session?.state === 'accepted';
 
   // ── preview lifecycle ─────────────────────────────────────────────────────
@@ -540,18 +567,42 @@ export default function ReviewRoom(props: Props) {
    * only the return value: the caller needs to know whether a DURABLE response came
    * back, because that is the only thing allowed to move the room out of `submitting`.
    */
-  const onSubmit = useCallback(async (): Promise<boolean> => {
+  const onSubmit = useCallback(async (): Promise<SubmitOutcome> => {
     setBusy(true); setError(null); setNotice(null);
     try {
       const sid = session?.id;
-      if (!sid) { setError('Nothing to submit yet.'); return false; }
+      if (!sid) { setError('Nothing to submit yet.'); return FAILED_SUBMIT; }
       const { body } = await reviewAction({ action: 'submit', sessionId: sid });
-      if (!body?.ok) { setError(body?.error || 'Could not request fixes.'); return false; }
+      if (!body?.ok) { setError(body?.error || 'Could not request fixes.'); return FAILED_SUBMIT; }
+
+      // THE DURABLE IDENTITY, read from the response that created it. An `ok` with no
+      // continuation is not a success — it is a reply we cannot act on, and treating
+      // it as one is the local-only success the epic forbids.
+      const requestId = typeof body.requestId === 'string' ? body.requestId.trim() : '';
+      if (!requestId) {
+        setError('The revision was not confirmed. Your feedback has not been sent.');
+        return FAILED_SUBMIT;
+      }
       setNotice(body.idempotent
         ? 'These fixes were already requested — showing the existing revision.'
         : 'Revision queued.');
+      // Refreshes the server props for everything else on the page. The queued state
+      // does NOT wait for it: `session` is client state seeded once from props, so a
+      // refresh alone would never move this room out of submitting.
       router.refresh();
-      return true;
+      return {
+        ok: true,
+        requestId,
+        // The server's own count of what it snapshotted. Absent on the idempotent
+        // path, where the durable session row supplies it instead.
+        issueCount: Number.isInteger(body.issueCount) ? (body.issueCount as number) : null,
+      };
+    } catch {
+      // A REQUEST THAT NEVER COMPLETED — offline, navigation, abort. `fetch` rejects,
+      // and without this the rejection escapes the click handler and the room sits on
+      // "Sending…" with no way back to the action.
+      setError('We could not reach the review service. Nothing was sent — your feedback is still here.');
+      return FAILED_SUBMIT;
     } finally { setBusy(false); }
   }, [session, router]);
 
@@ -584,20 +635,16 @@ export default function ReviewRoom(props: Props) {
    */
   const onPrimary = useCallback(async () => {
     if (submitView.mode === 'accept_result') { await onAccept(false); return; }
-
-    if (submission.phase === 'draft' || submission.phase === 'error') {
-      setLocalSubmission(beginPreparing(submission, drafts.map((d) => d.id)));
-      return;
-    }
-    if (submission.phase !== 'preparing') return;
-
-    const sending = beginSubmitting(submission);
-    setLocalSubmission(sending);
-    const durable = await onSubmit();
-    // ONLY a durable response leaves `submitting`. A refusal returns to a retryable
-    // state with every draft — and the note — untouched; `error` already carries the
-    // reason, so this records the transition rather than a second message.
-    if (!durable) setLocalSubmission(failSubmission(sending, ''));
+    // ONE DECISIVE CLICK. Freeze and send in the same action, so nothing the reviewer
+    // can do lands between the two. The orchestration itself lives in the flow module
+    // where every branch — refusal, missing continuation, rejected request — is
+    // executable in a test rather than asserted by reading this file.
+    await submitRevision({
+      state: submission,
+      draftIssueIds: drafts.map((d) => d.id),
+      submit: onSubmit,
+      onState: setLocalSubmission,
+    });
   }, [submitView.mode, submission, drafts, onAccept, onSubmit]);
 
   const issuesUnavailable = sources.issues === 'unavailable';
@@ -893,8 +940,9 @@ export default function ReviewRoom(props: Props) {
           )}
         </div>
 
-        {/* THE ONLY SCROLLING REGION IN THE RAIL. */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        {/* THE ONLY SCROLLING REGION IN THE RAIL. Focusable so "Keep reviewing" can
+            hand the keyboard back to the list it is telling the user to return to. */}
+        <div ref={railListRef} tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {issuesUnavailable ? (
           // NOT an empty rail: we could not read them.
           <p className="text-xs text-amber-300">
@@ -1096,7 +1144,15 @@ export default function ReviewRoom(props: Props) {
                 <button
                   type="button"
                   disabled={!submitView.secondaryEnabled}
-                  onClick={() => setLocalSubmission(keepReviewing(submission))}
+                  // The explicit alternative to sending. It clears a failed attempt
+                  // and returns the keyboard to the list — it never touches drafts or
+                  // the note, and it cannot recall a request already in flight.
+                  onClick={() => {
+                    setLocalSubmission(keepReviewing(submission));
+                    setError(null);
+                    setNotice(null);
+                    railListRef.current?.focus();
+                  }}
                   className="w-full rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-200 disabled:opacity-40"
                 >
                   {submitView.secondaryLabel}

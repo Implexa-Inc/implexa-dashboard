@@ -9,8 +9,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   INITIAL_SUBMISSION_STATE, beginPreparing, beginSubmitting, settleQueued,
-  failSubmission, keepReviewing, phaseForSession, reviewSubmissionView,
-  type SubmissionState,
+  failSubmission, keepReviewing, phaseForSession, reviewSubmissionView, submitRevision,
+  type SubmissionState, type SubmitOutcome,
 } from './review-submission-flow.ts';
 import { fixtureIssues, EXPECTED_TOTAL } from './review-multi-file-fixture.ts';
 
@@ -51,7 +51,7 @@ test('no state ever labels the primary action as a second approval gate', () => 
     INITIAL_SUBMISSION_STATE,
     beginPreparing(INITIAL_SUBMISSION_STATE, draftIds),
     beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds)),
-    settleQueued(beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds)), 'req-1'),
+    settleQueued(beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds)), { continuationId: 'req-1' }),
     failSubmission(beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds)), 'upstream refused'),
   ];
   for (const s of states) {
@@ -73,6 +73,18 @@ test('preparing freezes a visible, immutable count', () => {
   const v = view(prepared);
   assert.equal(v.frozenCount, EXPECTED_TOTAL);
   assert.match(v.statusLine!, /12 changes frozen/);
+});
+
+test('REPRO: preparing is a transition, not a confirmation screen', () => {
+  // The two-step version promised "Send N changes & start revision" on a click that
+  // sent nothing, then asked for the same click again. One decisive click instead:
+  // preparing is entered and left inside one handler and offers nothing to press.
+  const v = view(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds));
+  assert.equal(v.primaryEnabled, false, 'preparing offered a clickable primary');
+  assert.doesNotMatch(v.primaryLabel, /& start revision/,
+    'a click that transmits nothing repeats the promise of one that does');
+  assert.equal(v.secondaryLabel, null);
+  assert.equal(v.resubmissionDisabled, true);
 });
 
 test('the frozen count does not follow the live drafts', () => {
@@ -117,13 +129,16 @@ test('submitting cannot be re-entered from draft without freezing first', () => 
 
 test('a response with no continuation id is a failure, not a success', () => {
   const submitting = beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds));
-  const settled = settleQueued(submitting, '   ');
+  const settled = settleQueued(submitting, { continuationId: '   ' });
   assert.equal(settled.phase, 'error');
   assert.equal(settled.continuationId, null);
 });
 
 test('queued names the exact count and the continuation, and closes resubmission', () => {
-  const queued = settleQueued(beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds)), 'req-77');
+  const queued = settleQueued(
+    beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds)),
+    { continuationId: 'req-77', issueCount: 12 },
+  );
   const v = view(queued, { draftCount: 0 });
   assert.equal(v.mode, 'queued');
   assert.equal(v.continuationId, 'req-77');
@@ -133,8 +148,41 @@ test('queued names the exact count and the continuation, and closes resubmission
   assert.equal(v.showNote, false);
 });
 
+test("REPRO: the queued count is the SERVER's, not this room's local freeze", () => {
+  // The local snapshot is a display freeze, never a contract — the endpoint takes a
+  // session id and snapshots server-side. When the two disagree the server is right,
+  // and the room says so rather than repeating a number that was never submitted.
+  const queued = settleQueued(
+    beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds)),
+    { continuationId: 'req-77', issueCount: 11 },
+  );
+  assert.equal(queued.submittedCount, 11);
+  const v = view(queued, { draftCount: 0 });
+  assert.match(v.statusLine!, /^11 changes were sent as one revision/);
+  assert.match(v.statusLine!, /this room had shown 12/);
+});
+
+test('a server count that matches the freeze is stated plainly', () => {
+  const queued = settleQueued(
+    beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds)),
+    { continuationId: 'req-77', issueCount: 12 },
+  );
+  assert.doesNotMatch(view(queued, { draftCount: 0 }).statusLine!, /this room had shown/);
+});
+
+test('a missing or malformed server count falls back to the freeze', () => {
+  for (const issueCount of [undefined, null, -1, 1.5, Number.NaN]) {
+    const queued = settleQueued(
+      beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds)),
+      { continuationId: 'req-77', issueCount: issueCount as number | null | undefined },
+    );
+    assert.equal(queued.submittedCount, null, String(issueCount));
+    assert.equal(view(queued, { draftCount: 0 }).statusLine, '12 changes were sent as one revision.');
+  }
+});
+
 test('queued cannot be reached from a state that never submitted', () => {
-  assert.equal(settleQueued(INITIAL_SUBMISSION_STATE, 'req-1').phase, 'draft');
+  assert.equal(settleQueued(INITIAL_SUBMISSION_STATE, { continuationId: 'req-1' }).phase, 'draft');
 });
 
 // ── failure preserves everything ────────────────────────────────────────────
@@ -157,12 +205,103 @@ test('a blank failure message still says something honest', () => {
   assert.match(failed.error!, /nothing was sent/i);
 });
 
-test('Keep reviewing returns to draft without sending', () => {
-  const prepared = beginPreparing(INITIAL_SUBMISSION_STATE, draftIds);
-  const back = keepReviewing(prepared);
+test('Keep reviewing clears a failed attempt and returns to draft', () => {
+  const failed = failSubmission(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds), 'nope');
+  const back = keepReviewing(failed);
   assert.equal(back.phase, 'draft');
   assert.equal(back.snapshot, null);
-  assert.equal(back.continuationId, null);
+  assert.equal(back.error, null);
+});
+
+test('Keep reviewing cannot cancel a request that is already out', () => {
+  const sending = beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds));
+  assert.equal(keepReviewing(sending), sending,
+    'the room would claim "draft" while a continuation is being created');
+});
+
+// ── the whole click ─────────────────────────────────────────────────────────
+//
+// Every one of these is a way the room gets stuck on "Sending…" forever, and none of
+// them is reachable from a test that reads JSX.
+
+/** Drive one click, recording every state the caller was handed. */
+async function click(submit: () => Promise<SubmitOutcome>, state = INITIAL_SUBMISSION_STATE) {
+  const seen: SubmissionState[] = [];
+  const final = await submitRevision({
+    state, draftIssueIds: draftIds, submit, onState: (s) => seen.push(s),
+  });
+  return { final, seen };
+}
+
+test('REPRO: a successful submit settles from ITS OWN response, not a refreshed prop', () => {
+  return click(async () => ({ ok: true, requestId: 'req-500', issueCount: 12 })).then(({ final, seen }) => {
+    assert.deepEqual(seen.map((s) => s.phase), ['submitting', 'revision_queued']);
+    assert.equal(final.phase, 'revision_queued');
+    assert.equal(final.continuationId, 'req-500');
+    assert.equal(final.submittedCount, 12);
+  });
+});
+
+test('REPRO: a REJECTED request lands in error, never stuck in flight', async () => {
+  // fetch rejects offline, on navigation, on abort. Before this, the rejection escaped
+  // the click handler and `submitting` was the last state the room ever saw.
+  const { final, seen } = await click(async () => { throw new TypeError('Failed to fetch'); });
+  assert.deepEqual(seen.map((s) => s.phase), ['submitting', 'error']);
+  assert.equal(final.phase, 'error');
+  assert.match(final.error!, /nothing was sent/i);
+  assert.equal(final.snapshot!.issueCount, EXPECTED_TOTAL, 'a dead request discarded the drafts');
+});
+
+test('an ok response naming no continuation is a failure, not a queued revision', async () => {
+  const { final } = await click(async () => ({ ok: true, requestId: '' }));
+  assert.equal(final.phase, 'error');
+  assert.equal(final.continuationId, null);
+});
+
+test('a refusal keeps every draft and offers the action again', async () => {
+  const { final } = await click(async () => ({ ok: false }));
+  assert.equal(final.phase, 'error');
+  assert.equal(final.snapshot!.issueCount, EXPECTED_TOTAL);
+  assert.equal(view(final, { draftCount: EXPECTED_TOTAL }).primaryLabel,
+    'Send 12 changes & start revision');
+});
+
+test('ONE click sends: there is no second click that transmits nothing', async () => {
+  let calls = 0;
+  const { seen } = await click(async () => { calls += 1; return { ok: true, requestId: 'r', issueCount: 12 }; });
+  assert.equal(calls, 1, 'the decisive click did not reach the network');
+  // And it never renders a clickable primary carrying the same promise twice.
+  assert.equal(view(seen[0]).primaryEnabled, false);
+  assert.match(view(seen[0]).primaryLabel, /^Sending 12 changes/);
+});
+
+test('a double click cannot transmit twice', async () => {
+  let calls = 0;
+  const submit = async (): Promise<SubmitOutcome> => { calls += 1; return { ok: true, requestId: 'r' }; };
+  const first = await submitRevision({
+    state: INITIAL_SUBMISSION_STATE, draftIssueIds: draftIds, submit, onState: () => {},
+  });
+  // The second click arrives with the state the first one produced.
+  await submitRevision({ state: first, draftIssueIds: draftIds, submit, onState: () => {} });
+  assert.equal(calls, 1, 'a second click reached the network');
+});
+
+test('a click with nothing to send transmits nothing', async () => {
+  let calls = 0;
+  const final = await submitRevision({
+    state: INITIAL_SUBMISSION_STATE, draftIssueIds: [],
+    submit: async () => { calls += 1; return { ok: true, requestId: 'r' }; },
+    onState: () => {},
+  });
+  assert.equal(calls, 0);
+  assert.equal(final.phase, 'draft');
+});
+
+test('a retry after failure transmits again and can succeed', async () => {
+  const { final: failed } = await click(async () => ({ ok: false }));
+  const { final } = await click(async () => ({ ok: true, requestId: 'req-2', issueCount: 12 }), failed);
+  assert.equal(final.phase, 'revision_queued');
+  assert.equal(final.continuationId, 'req-2');
 });
 
 // ── durable state on reload ─────────────────────────────────────────────────
@@ -208,6 +347,25 @@ test('a submitting row renders in flight even in a fresh tab', () => {
   });
   assert.equal(s.phase, 'submitting');
   assert.equal(view(s).primaryEnabled, false);
+});
+
+test('REPRO: a settled submission is not dragged back by a stale row', () => {
+  // `session` is client state seeded from props once, so the row this tab holds is
+  // whatever it read BEFORE the submit — including `submitting`, which the backend
+  // sets while preparing. Letting a stale row win put a completed submission back on
+  // "Sending…" with no way out.
+  const queued = settleQueued(
+    beginSubmitting(beginPreparing(INITIAL_SUBMISSION_STATE, draftIds)),
+    { continuationId: 'req-9', issueCount: 12 },
+  );
+  for (const sessionState of ['submitting', 'draft', null]) {
+    const s = phaseForSession({
+      sessionState, submittedRequestId: null, submittedIssueIds: null, local: queued,
+    });
+    assert.equal(s.phase, 'revision_queued', `a '${sessionState}' row reopened a settled submission`);
+    assert.equal(s.continuationId, 'req-9');
+    assert.equal(view(s, { draftCount: 12 }).primaryEnabled, false);
+  }
 });
 
 test('a draft row defers to whatever this tab is doing', () => {

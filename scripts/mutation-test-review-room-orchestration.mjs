@@ -99,8 +99,8 @@ const mutations = [
     'lg:h-[calc(100vh-13rem)] lg:min-h-[34rem] ',
     ''],
   ['internal-scrolling', 'the issue list no longer scrolls inside the rail', COMPONENT,
-    '<div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">',
-    '<div className="px-4 py-3">'],
+    'className="min-h-0 flex-1 overflow-y-auto px-4 py-3"',
+    'className="px-4 py-3"'],
   ['internal-scrolling', 'the rail refuses to shrink below its content', COMPONENT,
     '<aside className="flex max-h-[70vh] min-h-0 flex-col',
     '<aside className="flex max-h-[70vh] flex-col'],
@@ -144,10 +144,62 @@ const mutations = [
     '{submitView.primaryLabel}',
     '{acts.submitLabel}'],
 
+  // ── stuck in flight ───────────────────────────────────────────────────────
+  // Every mutation here is a way the room says "Sending…" forever.
+  ['stuck-in-flight', 'a rejected request escapes the click instead of failing it', FLOW,
+    '  } catch {\n    // The request never completed. Without this the rejection escapes the click\n    // handler entirely and `sending` is the last state the room ever sees.\n    outcome = { ok: false };\n  }',
+    '  }'],
+  ['stuck-in-flight', 'the outcome never reaches the caller', FLOW,
+    '  onState(next);\n  return next;',
+    '  return next;'],
+  ['stuck-in-flight', 'the durable continuation from the response is discarded', FLOW,
+    '    ? settleQueued(sending, { continuationId: outcome.requestId, issueCount: outcome.issueCount ?? null })',
+    "    ? settleQueued(sending, { continuationId: '', issueCount: outcome.issueCount ?? null })"],
+  ['stuck-in-flight', 'a settled submission is dragged back by a stale draft row', FLOW,
+    "  if (local.phase === 'revision_queued') return local;",
+    ''],
+  ['stuck-in-flight', 'the orchestration is handed a state that hides what is in flight', COMPONENT,
+    '      state: submission,',
+    '      state: INITIAL_SUBMISSION_STATE,'],
+  ['stuck-in-flight', 'the response’s continuation id is ignored', COMPONENT,
+    '      const requestId = typeof body.requestId === \'string\' ? body.requestId.trim() : \'\';',
+    "      const requestId = 'assumed';"],
+  ['stuck-in-flight', 'a dead request reports no reason, so the room looks merely idle', COMPONENT,
+    "      setError('We could not reach the review service. Nothing was sent — your feedback is still here.');",
+    '      setError(null);'],
+  ['stuck-in-flight', 'a newer durable session is never adopted after a refresh', COMPONENT,
+    '    setSession((current) => (!current || current.id === incoming.id ? incoming : current));',
+    ''],
+
+  // ── the snapshot is not a server contract ─────────────────────────────────
+  ['snapshot-honesty', 'the queued copy repeats the local freeze over the server count', FLOW,
+    '    const n = state.submittedCount ?? frozenCount ?? draftCount;',
+    '    const n = frozenCount ?? draftCount;'],
+  ['snapshot-honesty', 'a drift between the shown and submitted count is hidden', FLOW,
+    '    const drifted = state.submittedCount !== null && frozenCount !== null && state.submittedCount !== frozenCount;',
+    '    const drifted = false;'],
+  ['snapshot-honesty', 'a malformed server count is trusted as authoritative', FLOW,
+    '  const submittedCount = typeof n === \'number\' && Number.isInteger(n) && n >= 0 ? n : null;',
+    '  const submittedCount = typeof n === \'number\' ? n : null;'],
+  ['snapshot-honesty', 'issues stay editable while the server is snapshotting them', COMPONENT,
+    '  const frozen = proxyPreview || submissionInFlight\n    || (!acts.canEditIssues',
+    '  const frozen = proxyPreview\n    || (!acts.canEditIssues'],
+
+  // ── one decisive click ────────────────────────────────────────────────────
+  ['one-click', 'the first click transmits nothing and re-offers the same promise', FLOW,
+    "      primaryLabel: submitting ? `Sending ${n} ${changeWord(n)}…` : `Preparing ${n} ${changeWord(n)}…`,\n      primaryEnabled: false,",
+    "      primaryLabel: submitting ? `Sending ${n} ${changeWord(n)}…` : `Send ${n} ${changeWord(n)} & start revision`,\n      primaryEnabled: !submitting && !busy,"],
+  ['one-click', 'Keep reviewing silently abandons a request already in flight', FLOW,
+    "  if (state.phase !== 'error') return state;",
+    "  if (state.phase !== 'error' && state.phase !== 'submitting') return state;"],
+
   // ── duplicate submission ──────────────────────────────────────────────────
   ['duplicate-submission', 'submitting can be entered from any phase', FLOW,
     "  if (state.phase !== 'preparing') return state;\n  return { ...state, phase: 'submitting', error: null };",
     "  return { ...state, phase: 'submitting', error: null };"],
+  ['duplicate-submission', 're-entry is allowed, so a double click transmits twice', FLOW,
+    '  const prepared = beginPreparing(state, draftIssueIds);\n  if (prepared.phase !== \'preparing\') return state;',
+    '  const prepared = beginPreparing({ ...state, phase: \'draft\' }, draftIssueIds);\n  if (prepared.phase !== \'preparing\') return state;'],
   ['duplicate-submission', 'a queued session offers to send again', FLOW,
     "      primaryEnabled: false,\n      secondaryLabel: null,\n      secondaryEnabled: false,\n      showNote: false,\n      noteEnabled: false,\n      noteHint: null,\n      frozenCount,",
     "      primaryEnabled: true,\n      secondaryLabel: null,\n      secondaryEnabled: false,\n      showNote: false,\n      noteEnabled: false,\n      noteHint: null,\n      frozenCount,"],
@@ -165,9 +217,6 @@ const mutations = [
   ['local-only-success', 'a failure discards the drafts it promised to preserve', FLOW,
     "    ...state,\n    phase: 'error',\n    continuationId: null,",
     "    ...state,\n    phase: 'error',\n    snapshot: null,\n    continuationId: null,"],
-  ['local-only-success', 'the room leaves submitting without a durable response', COMPONENT,
-    "    if (!durable) setLocalSubmission(failSubmission(sending, ''));",
-    '    if (!durable) return;'],
 
   // ── the revision note ─────────────────────────────────────────────────────
   ['note-dropped', 'the composer disappears from the send path', FLOW,
@@ -224,6 +273,10 @@ for (const [boundary, name, file, from, to] of mutations) {
 const boundaries = new Set(mutations.map(([b]) => b)).size;
 console.log(`\nMutation result: ${killed}/${mutations.length} killed across ${boundaries} boundaries.`);
 console.log('NOT COVERED (needs Backend #160): end-to-end note persistence and byte-identical read-back.');
+console.log('NOT COVERED (needs a DOM harness): the mounted component. Submission orchestration was');
+console.log('  moved into submitRevision() so every outcome branch is executable here, and the');
+console.log('  component is a thin delegator pinned by source assertions — but a mutation that makes');
+console.log('  the click handler simply do nothing is only reachable from a rendered-and-clicked test.');
 if (survivors.length) {
   console.error(`\n✖ ${survivors.length} mutation(s) survived — the tests naming them are decorative:`);
   for (const s of survivors) console.error(`   ${s}`);

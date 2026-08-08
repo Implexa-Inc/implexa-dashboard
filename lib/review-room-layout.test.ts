@@ -168,13 +168,49 @@ test('the queued state links to the continuation and closes resubmission', () =>
     'the queued state offers a link without checking a continuation exists');
 });
 
-test('REPRO: only a durable response may leave the submitting state', () => {
-  // Without the failure transition the room sits on "Sending…" forever after a
-  // refusal — the drafts survive, but the reviewer has no way back to the action.
-  assert.match(source, /const durable = await onSubmit\(\);/,
-    'the room does not check whether the response was durable');
-  assert.match(source, /if \(!durable\) setLocalSubmission\(failSubmission\(sending, ''\)\);/,
-    'a refused submission leaves the room stuck in submitting');
+test('REPRO: the click delegates to the audited orchestration, not a local copy', () => {
+  // The outcome branches (refusal, missing continuation, rejected request) are proven
+  // behaviourally in review-submission-flow.test.ts. What this file must pin is that
+  // the component actually routes through them instead of re-implementing the flow.
+  // Scoped to the click handler. Asserting against the whole file matched the
+  // `reviewSubmissionView({ state: submission, … })` call higher up and passed with
+  // the orchestration's own argument mutated away. Mutation caught that.
+  const onPrimary = source.slice(source.indexOf('const onPrimary ='), source.indexOf('const issuesUnavailable'));
+  assert.ok(onPrimary.length > 0, 'the click handler could not be located');
+  assert.match(onPrimary, /await submitRevision\(\{/, 'the click does not use the audited orchestration');
+  // The CURRENT state, or the re-entry guards it relies on never see the phase that
+  // is already in flight.
+  assert.match(onPrimary, /state: submission,/);
+  assert.match(onPrimary, /submit: onSubmit,/);
+  assert.match(onPrimary, /onState: setLocalSubmission,/);
+});
+
+test('REPRO: the durable continuation is read from the response that created it', () => {
+  const submit = source.slice(source.indexOf('const onSubmit ='), source.indexOf('const onAccept ='));
+  assert.match(submit, /body\.requestId/, 'the response’s continuation id is ignored');
+  // An `ok` with no continuation must not be reported as a success.
+  assert.match(submit, /if \(!requestId\) \{/, 'an ok response naming no revision is treated as success');
+});
+
+test('REPRO: a rejected request is caught where it happens', () => {
+  const submit = source.slice(source.indexOf('const onSubmit ='), source.indexOf('const onAccept ='));
+  assert.match(submit, /\} catch \{/, 'fetch can reject and nothing catches it');
+  assert.match(submit, /could not reach the review service/i);
+});
+
+test('REPRO: a refreshed durable session replaces the one read at mount', () => {
+  // `session` is seeded from props ONCE and Next keeps this component mounted across
+  // router.refresh(), so without this a submitted session still reads as a draft.
+  assert.match(source, /const incoming = props\.session;/,
+    'the room never adopts a newer durable session');
+  assert.match(source, /current\.id === incoming\.id \? incoming : current/,
+    'the sync is unguarded and can clobber a session this tab created');
+});
+
+test('editing closes while a submission is in flight, not merely once the row catches up', () => {
+  assert.match(source, /const submissionInFlight = submission\.phase === 'preparing' \|\| submission\.phase === 'submitting';/);
+  assert.match(source, /const frozen = proxyPreview \|\| submissionInFlight/,
+    'the rail stays editable over a set the server is already snapshotting');
 });
 
 test('durable session state, not local memory, decides what the room shows', () => {

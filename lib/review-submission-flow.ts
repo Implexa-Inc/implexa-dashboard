@@ -32,10 +32,17 @@ export type SubmissionPhase = 'draft' | 'preparing' | 'submitting' | 'revision_q
 /**
  * What `preparing` froze.
  *
- * IMMUTABLE BY CONSTRUCTION. The count the reviewer confirms and the ids that are sent
- * must be the same set; recomputing from live drafts between confirmation and send is
- * how a submission ends up carrying a different number of issues than the button
- * promised.
+ * A CLIENT-SIDE DISPLAY FREEZE, AND NOTHING MORE. It records what the room believed
+ * it was sending at the instant of the click, so the in-flight and queued copy cannot
+ * drift as drafts change underneath. It is NOT a contract with the server: the submit
+ * endpoint takes only a session id and snapshots server-side, so there is no way to
+ * send these ids or to have them verified. Claiming otherwise would be a promise the
+ * wire cannot keep — binding a client snapshot needs Backend #160.
+ *
+ * Two things follow, and both are enforced below:
+ *   the transition into flight is ONE action, so no user edit can land between the
+ *   freeze and the send; and
+ *   the count the queued state reports comes from the BACKEND, not from here.
  */
 export type SubmissionSnapshot = {
   readonly issueIds: readonly string[];
@@ -44,15 +51,20 @@ export type SubmissionSnapshot = {
 
 export type SubmissionState = {
   phase: SubmissionPhase;
-  /** Frozen at `preparing`, retained through failure so Retry resends the same set. */
+  /** Frozen on the click, retained through failure so a retry reports the same set. */
   snapshot: SubmissionSnapshot | null;
   /** Set ONLY from a durable backend response. */
   continuationId: string | null;
+  /**
+   * How many issues the BACKEND says it submitted. Outranks the local snapshot
+   * everywhere it exists — the server's snapshot is the real one.
+   */
+  submittedCount: number | null;
   error: string | null;
 };
 
 export const INITIAL_SUBMISSION_STATE: SubmissionState = {
-  phase: 'draft', snapshot: null, continuationId: null, error: null,
+  phase: 'draft', snapshot: null, continuationId: null, submittedCount: null, error: null,
 };
 
 /**
@@ -64,7 +76,7 @@ export const NOTE_MAX_PROVISIONAL = 4000;
 
 /** Freeze the visible snapshot. The only entry into the send path. */
 export function beginPreparing(state: SubmissionState, draftIssueIds: string[]): SubmissionState {
-  // Re-entry is refused rather than re-frozen: a second click during preparing would
+  // Re-entry is refused rather than re-frozen: a second click in flight would
   // otherwise replace the snapshot the reviewer is looking at.
   if (state.phase !== 'draft' && state.phase !== 'error') return state;
   const ids = Object.freeze([...draftIssueIds]);
@@ -73,11 +85,20 @@ export function beginPreparing(state: SubmissionState, draftIssueIds: string[]):
     phase: 'preparing',
     snapshot: Object.freeze({ issueIds: ids, issueCount: ids.length }),
     continuationId: null,
+    submittedCount: null,
     error: null,
   };
 }
 
-/** Confirmed: the frozen set is now in flight. */
+/**
+ * The frozen set is now in flight.
+ *
+ * `preparing` is a transition, NOT a screen. It is entered and left inside one click
+ * handler, so nothing the reviewer can do lands between the freeze and the send. The
+ * earlier two-click shape promised "Send N changes & start revision" on a click that
+ * sent nothing, and left a window in which editing a draft made the promised count
+ * differ from what the server actually snapshotted.
+ */
 export function beginSubmitting(state: SubmissionState): SubmissionState {
   if (state.phase !== 'preparing') return state;
   return { ...state, phase: 'submitting', error: null };
@@ -88,31 +109,49 @@ export function beginSubmitting(state: SubmissionState): SubmissionState {
  *
  * A continuation id is required: without one there is nothing for the queued state to
  * link to, and reporting success anyway is precisely the local-only success the epic
- * forbids.
+ * forbids. This must be called from the response itself — waiting for a refreshed
+ * session prop to arrive is how a completed submission sits on "Sending…" forever.
+ *
+ * `issueCount` is the server's own count of what it snapshotted. Where it is supplied
+ * it REPLACES the local freeze in everything the room says.
  */
-export function settleQueued(state: SubmissionState, continuationId: string): SubmissionState {
+export function settleQueued(
+  state: SubmissionState,
+  args: { continuationId: string; issueCount?: number | null },
+): SubmissionState {
   if (state.phase !== 'submitting' && state.phase !== 'preparing') return state;
-  const id = String(continuationId || '').trim();
+  const id = String(args?.continuationId || '').trim();
   if (!id) return failSubmission(state, 'The revision was not confirmed. Nothing was sent.');
-  return { ...state, phase: 'revision_queued', continuationId: id, error: null };
+  const n = args?.issueCount;
+  const submittedCount = typeof n === 'number' && Number.isInteger(n) && n >= 0 ? n : null;
+  return { ...state, phase: 'revision_queued', continuationId: id, submittedCount, error: null };
 }
 
 /**
- * Any failure. Drafts and the note are owned by the caller and deliberately untouched
- * here — this returns a retryable state, never a cleared one.
+ * Any failure — a refusal, an unreadable response, or a request that never completed
+ * at all. Drafts and the note are owned by the caller and deliberately untouched here:
+ * this returns a retryable state, never a cleared one.
  */
 export function failSubmission(state: SubmissionState, message: string): SubmissionState {
   return {
     ...state,
     phase: 'error',
     continuationId: null,
+    submittedCount: null,
     error: String(message || '').trim() || 'That did not go through. Nothing was sent.',
   };
 }
 
-/** Back out of a frozen snapshot without sending. */
+/**
+ * "Keep reviewing" — the explicit alternative to sending.
+ *
+ * Never touches drafts or the note; it only clears a failed attempt so the room stops
+ * reporting an outcome the reviewer has moved on from. A submission already in flight
+ * is NOT cancellable from here: the request is out, and pretending otherwise would
+ * leave the room saying "draft" while a continuation is being created.
+ */
 export function keepReviewing(state: SubmissionState): SubmissionState {
-  if (state.phase !== 'preparing' && state.phase !== 'error') return state;
+  if (state.phase !== 'error') return state;
   return { ...INITIAL_SUBMISSION_STATE };
 }
 
@@ -149,15 +188,86 @@ export function phaseForSession(input: {
       // May be absent on an older row. The queued copy still states the count; only
       // the link is withheld, because a link that names no continuation is a lie.
       continuationId: String(submittedRequestId || '').trim() || null,
+      // The durable ids ARE the server's count. Falls back to whatever this tab
+      // already learned from its own response.
+      submittedCount: ids.length || local.submittedCount,
       error: null,
     };
   }
 
+  // A local response that already settled outranks a row this tab has not re-read.
+  // Without this, a completed submission is dragged back to "Sending…" by a stale
+  // `draft` prop and sits there — the exact stall this flow exists to prevent.
+  if (local.phase === 'revision_queued') return local;
+
   if (sessionState === 'submitting') {
-    return { phase: 'submitting', snapshot: local.snapshot, continuationId: null, error: null };
+    return {
+      phase: 'submitting', snapshot: local.snapshot,
+      continuationId: null, submittedCount: null, error: null,
+    };
   }
 
   return local;
+}
+
+/**
+ * What one submit attempt learned. A failure carries no identity by construction, so
+ * there is no shape in which "it worked" and "there is no continuation" coexist.
+ */
+export type SubmitOutcome =
+  | { ok: true; requestId: string; issueCount?: number | null }
+  | { ok: false };
+
+/**
+ * THE WHOLE CLICK, as one function — freeze, send, settle or fail.
+ *
+ * Extracted from the component on purpose. Every way this can go wrong is a way the
+ * room gets stuck on "Sending…" forever, and none of them are reachable from a test
+ * that reads JSX or asserts on a source string:
+ *
+ *   the request RESOLVES with a refusal            -> error, drafts kept
+ *   the request RESOLVES ok but names no revision  -> error, drafts kept
+ *   the request REJECTS (offline, abort, navigate) -> error, drafts kept
+ *   the request RESOLVES with a continuation       -> queued, from THAT response
+ *
+ * The last one is the one that matters most: the queued state is taken from the reply
+ * that created the continuation, never waited for from a refreshed prop.
+ *
+ * `onState` is called at most twice — once entering flight, once on the outcome — so
+ * a caller can drive React state without this function knowing about React.
+ */
+export async function submitRevision(args: {
+  state: SubmissionState;
+  draftIssueIds: string[];
+  submit: () => Promise<SubmitOutcome>;
+  onState: (next: SubmissionState) => void;
+}): Promise<SubmissionState> {
+  const { state, draftIssueIds, submit, onState } = args;
+
+  // Re-entry and "nothing to send" both stop here, before anything is transmitted.
+  // This is what makes a double click harmless without a separate guard.
+  const prepared = beginPreparing(state, draftIssueIds);
+  if (prepared.phase !== 'preparing') return state;
+
+  const sending = beginSubmitting(prepared);
+  onState(sending);
+
+  let outcome: SubmitOutcome;
+  try {
+    outcome = await submit();
+  } catch {
+    // The request never completed. Without this the rejection escapes the click
+    // handler entirely and `sending` is the last state the room ever sees.
+    outcome = { ok: false };
+  }
+
+  const next = outcome.ok
+    // settleQueued re-checks the continuation, so an `ok` with an empty id still
+    // lands in error rather than claiming a revision that does not exist.
+    ? settleQueued(sending, { continuationId: outcome.requestId, issueCount: outcome.issueCount ?? null })
+    : failSubmission(sending, '');
+  onState(next);
+  return next;
 }
 
 export type SubmissionView = {
@@ -209,7 +319,11 @@ export function reviewSubmissionView(input: {
     : 'The revision note ships with the backend submission contract; it is not collected yet.';
 
   if (state.phase === 'revision_queued') {
-    const n = frozenCount ?? draftCount;
+    // THE SERVER'S COUNT, not the local freeze. The two can differ — another tab, or
+    // a draft written between this room's last read and the server's snapshot — and
+    // where they do, the server is right.
+    const n = state.submittedCount ?? frozenCount ?? draftCount;
+    const drifted = state.submittedCount !== null && frozenCount !== null && state.submittedCount !== frozenCount;
     return {
       mode: 'queued',
       primaryLabel: 'Revision queued',
@@ -221,8 +335,11 @@ export function reviewSubmissionView(input: {
       noteHint: null,
       frozenCount,
       // Names the exact count AND the continuation, so the reviewer can tell this
-      // screen's claim from a hopeful one.
-      statusLine: `${n} ${changeWord(n)} were sent as one revision.`,
+      // screen's claim from a hopeful one. A drift is stated rather than hidden: the
+      // room showed one number and the server committed another.
+      statusLine: drifted
+        ? `${n} ${changeWord(n)} were sent as one revision — this room had shown ${frozenCount}.`
+        : `${n} ${changeWord(n)} were sent as one revision.`,
       errorLine: null,
       continuationId: state.continuationId,
       resubmissionDisabled: true,
@@ -230,24 +347,26 @@ export function reviewSubmissionView(input: {
   }
 
   if (state.phase === 'preparing' || state.phase === 'submitting') {
+    // IN FLIGHT, NOT A CONFIRMATION SCREEN. `preparing` is entered and left inside one
+    // click handler, so neither phase offers a clickable primary: the decisive click
+    // already happened, and re-offering the same label was how the old two-step flow
+    // promised "& start revision" on a click that sent nothing.
     const n = frozenCount ?? draftCount;
     const submitting = state.phase === 'submitting';
     return {
       mode: 'in_flight',
-      primaryLabel: submitting ? `Sending ${n} ${changeWord(n)}…` : `Send ${n} ${changeWord(n)} & start revision`,
-      // Preparing still needs a confirmable primary; submitting must not be clickable
-      // twice. The frozen count is visible in both.
-      primaryEnabled: !submitting && !busy,
-      secondaryLabel: submitting ? null : 'Keep reviewing',
-      secondaryEnabled: !submitting,
+      primaryLabel: submitting ? `Sending ${n} ${changeWord(n)}…` : `Preparing ${n} ${changeWord(n)}…`,
+      primaryEnabled: false,
+      secondaryLabel: null,
+      secondaryEnabled: false,
       showNote: true,
-      noteEnabled: noteEnabled && !submitting,
+      noteEnabled: false,
       noteHint,
       frozenCount,
-      statusLine: submitting ? null : `${n} ${changeWord(n)} frozen for this revision.`,
+      statusLine: `${n} ${changeWord(n)} frozen for this revision.`,
       errorLine: null,
       continuationId: null,
-      resubmissionDisabled: submitting,
+      resubmissionDisabled: true,
     };
   }
 
