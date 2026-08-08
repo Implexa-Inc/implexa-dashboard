@@ -17,7 +17,7 @@ acceptance below is the first time it will be submitted.
 | `Chapter3-45s-proof.mp4` | 1 |
 | Continuation requests bound to it | 0 |
 
-Backend pin: `implexa-backend@b2b39b8d6858c60cb05f1e3c42f0781beb9add14`, migrations 0165
+Backend pin: `implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706`, migrations 0165
 and 0166 applied, PostgREST schema reloaded.
 
 **This is a handoff failure, not data loss.** All twelve issues are durable and correct.

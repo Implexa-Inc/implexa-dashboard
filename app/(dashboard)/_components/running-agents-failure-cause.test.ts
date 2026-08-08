@@ -68,10 +68,30 @@ before(async () => {
   RunningAgents = (await import('./running-agents.tsx')).default;
 });
 
+/**
+ * React reports invalid DOM nesting through console.error, not by throwing, so a
+ * structurally broken tree renders "successfully" and every assertion below still
+ * passes. Capturing it turns that silence into a failure.
+ *
+ * THE BUG THIS CAUGHT (2026-08-08). "Retry from agent" was an <a> inside the card's
+ * own <Link> — unconditionally, because the retry condition requires the skillSlug
+ * that makes the card linkable. The parser closes the first <a> when it meets the
+ * second, so the DOM the browser built never matched the JSX. Reverting the fix makes
+ * this fire: `validateDOMNesting(...): <a> cannot appear as a descendant of <a>`.
+ */
+let consoleErrors: string[];
+let realConsoleError: typeof console.error;
+
 beforeEach(() => {
   container = dom.window.document.createElement('div');
   dom.window.document.body.appendChild(container);
   mounted = false;
+  consoleErrors = [];
+  realConsoleError = console.error;
+  console.error = (...args: unknown[]) => {
+    consoleErrors.push(args.map((a) => String(a)).join(' '));
+    realConsoleError(...(args as []));
+  };
 });
 
 // UNMOUNT MUST NOT DEPEND ON THE TEST PASSING. <RunningAgents> polls on a
@@ -80,9 +100,19 @@ beforeEach(() => {
 // that is an infinite hang, and a mutation harness reads a hang as "still running",
 // not as a kill. Teardown belongs here, where a thrown assertion cannot skip it.
 afterEach(async () => {
-  if (!mounted) return;
-  try { await act(async () => { root.unmount(); }); } catch { /* already torn down */ }
-  mounted = false;
+  try {
+    if (mounted) {
+      try { await act(async () => { root.unmount(); }); } catch { /* already torn down */ }
+      mounted = false;
+    }
+  } finally {
+    console.error = realConsoleError;
+  }
+  // Asserted AFTER teardown so a nesting complaint can never leave a live timer
+  // behind, and asserted for every case rather than one: the invalid nesting was
+  // unconditional, so any terminal card that renders is a witness.
+  const nesting = consoleErrors.filter((m) => /validateDOMNesting|cannot appear as a descendant/i.test(m));
+  assert.deepEqual(nesting, [], `React reported invalid DOM nesting:\n${nesting.join('\n')}`);
 });
 
 after(() => { delete (globalThis as Record<string, unknown>).__IMPLEXA_TEST_BACKEND__; });

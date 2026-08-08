@@ -18,7 +18,7 @@
  * tests while shipping the bug.
  *
  * ── THE PINNED CONTRACT ─────────────────────────────────────────────────────────
- * Wired against implexa-backend@b2b39b8d6858c60cb05f1e3c42f0781beb9add14 (migrations
+ * Wired against implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706 (migrations
  * 0165 + 0166 applied). Field names, bounds and response shapes here were read from
  * that commit's `src/routes/review.js` and `src/lib/review-submission.js` — none of
  * them are inferred.
@@ -41,7 +41,7 @@ export type SubmissionPhase = 'draft' | 'preparing' | 'submitting' | 'revision_q
  *
  * A CLIENT-SIDE DISPLAY FREEZE, AND NOTHING MORE. It records what the room believed
  * it was sending at the instant of the click, so the in-flight copy cannot drift as
- * drafts change underneath. It is still NOT a contract with the server: at b2b39b8 the
+ * drafts change underneath. It is still NOT a contract with the server: at 8c0f71d the
  * submit endpoint takes a session id and a note, and snapshots the issue set itself
  * under a row lock (`review_prepare_submission`). There is no field in which to send
  * these ids and nothing that would verify them.
@@ -271,7 +271,7 @@ const trimmed = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 /**
  * Read one submit response, and FAIL CLOSED.
  *
- * Every success shape at implexa-backend@b2b39b8, `src/routes/review.js`:
+ * Every success shape at implexa-backend@8c0f71d, `src/routes/review.js`:
  *
  *   fresh      { ok, requestId, issueCount, brief, submissionId, submissionDigest, session }
  *   recovered  { ok, recovered: true, requestId, issueCount, brief, submissionId, submissionDigest, session }

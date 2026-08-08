@@ -209,7 +209,7 @@ export default function ReviewRoom(props: Props) {
     submittedIssueIds: session?.submittedIssueIds ?? null,
     local: localSubmission,
   });
-  // PINNED AND CARRIED. implexa-backend@b2b39b8 takes the note as `revisionNote` on
+  // PINNED AND CARRIED. implexa-backend@8c0f71d takes the note as `revisionNote` on
   // the submit body, trims it and bounds it at REVISION_NOTE_MAX; `resolveReviewAction`
   // applies the same rules before anything leaves the browser, so what the reviewer
   // sees, what is sent, and what is stored are the same string.
@@ -566,7 +566,7 @@ export default function ReviewRoom(props: Props) {
 
   // ── actions ───────────────────────────────────────────────────────────────
   /**
-   * THE REAL SUBMISSION, against implexa-backend@b2b39b8.
+   * THE REAL SUBMISSION, against implexa-backend@8c0f71d.
    *
    * Carries the revision note under the backend's own key (`revisionNote`, trimmed and
    * bounded at 2000 in `resolveReviewAction`), and reads the reply through

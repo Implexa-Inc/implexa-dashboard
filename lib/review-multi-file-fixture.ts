@@ -114,17 +114,24 @@ export const EXPECTED_TOTAL = 12;
 // ── the pinned submit contract ──────────────────────────────────────────────
 
 /**
- * The backend commit every shape below was read from: the approved head of #162.
+ * THE AUTHORITATIVE PRODUCER: deployed backend `main`.
  *
- * NOT an ancestor of the backend's `main`. #162 was merged separately and main moved on
- * to DEPLOYED_MAIN, which additionally carries the #161 learning ledger. The dashboard
- * calls none of that, and `review-submit-contract.test.ts` proves the two shas agree on
- * everything it does call — the note contract and the submit route are byte-identical.
+ * Every shape below was read from this commit. It is the pin because it is what is
+ * actually serving the endpoint — a dashboard wired to a branch head asserts agreement
+ * with code no user can reach, and would keep passing while production drifted.
  */
-export const BACKEND_PIN = 'b2b39b8d6858c60cb05f1e3c42f0781beb9add14';
+export const BACKEND_PIN = '8c0f71d6eb611faf9635f14c7bafc767d01bc706';
 
-/** What is actually running: the backend's `main` head. Corroboration, not the pin. */
-export const DEPLOYED_MAIN = '8c0f71d6eb611faf9635f14c7bafc767d01bc706';
+/**
+ * The approved #162 head, kept as an OPTIONAL equivalence check.
+ *
+ * Not an ancestor of `main`: #162 was merged separately (dba53b7) and main then moved on
+ * to the #161 learning ledger, which this head does not carry. The dashboard calls none
+ * of that, so the two are expected to agree on everything it does call — and
+ * `review-submit-contract.test.ts` asserts exactly that, skipping where the commit is
+ * not present rather than failing.
+ */
+export const REVIEWED_HEAD = 'b2b39b8d6858c60cb05f1e3c42f0781beb9add14';
 
 const REQUEST_ID = 'd41d8cd9-1111-4000-8000-aaaaaaaaaaaa';
 const SUBMISSION_ID = 'e5f60718-2222-4000-8000-bbbbbbbbbbbb';

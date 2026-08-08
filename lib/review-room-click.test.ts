@@ -251,7 +251,7 @@ test('A THROWN FETCH leaves Sending, keeps the drafts AND the note', async () =>
 // raw text to /api/review, and the server-side allowlist (`resolveReviewAction`) applies
 // the backend's trim and bound before calling the backend. Asserting only the first hop
 // would prove the note left the component but not that it arrives in the shape
-// implexa-backend@b2b39b8 stores.
+// implexa-backend@8c0f71d stores.
 const upstreamOf = (call: Call) =>
   resolveReviewAction('submit', call.body) as { path: string; body: Record<string, unknown> };
 

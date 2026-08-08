@@ -31,7 +31,7 @@ test('REPRO: submit targets the SESSION — N issues resolve to exactly one cont
 // ── the revision note, under the backend's own contract ─────────────────────
 //
 // Field name, trimming and bound all read from
-// implexa-backend@b2b39b8d6858c60cb05f1e3c42f0781beb9add14,
+// implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706,
 // src/lib/review-submission.js: `revisionNote`, `.trim()`, REVISION_NOTE_MAX = 2000.
 
 test('the note travels under the backend key, trimmed exactly as the server trims it', () => {
