@@ -10,6 +10,15 @@
 
 export type Upstream = { path: string; method: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown };
 
+/**
+ * The backend's own bound, not ours.
+ *
+ * `REVISION_NOTE_MAX` in implexa-backend@8c0f71d `src/lib/review-submission.js`, applied
+ * AFTER `.trim()`. Duplicated here because the client must refuse the same input the
+ * server would; if the two ever disagree the server wins and the user sees its refusal.
+ */
+export const REVISION_NOTE_MAX = 2000;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const id = (v: unknown): string | null => (typeof v === 'string' && UUID.test(v.trim()) ? v.trim() : null);
 
@@ -55,9 +64,32 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
     case 'submit': {
       const sessionId = id(b.sessionId);
       if (!sessionId) return 'A valid sessionId is required.';
+      // THE REVISION NOTE, under the backend's own field name and bounds — read from
+      // implexa-backend@8c0f71d, src/lib/review-submission.js: the request body key is
+      // `revisionNote`, it must be a string, it is `.trim()`ed, an empty result becomes
+      // null, and REVISION_NOTE_MAX is 2000 measured AFTER the trim.
+      //
+      // Mirrored here rather than left to the server so an over-long note is refused
+      // before a round trip — and, more importantly, so the note that travels is
+      // byte-identical to the one the server will store. Sending untrimmed text would
+      // make the reviewer's copy and the persisted copy differ by whitespace.
+      const raw = b.revisionNote;
+      if (raw !== undefined && raw !== null && typeof raw !== 'string') {
+        return 'The revision note must be text.';
+      }
+      const note = typeof raw === 'string' ? raw.trim() : '';
+      if (note.length > REVISION_NOTE_MAX) {
+        return `Keep the revision note to ${REVISION_NOTE_MAX} characters or fewer.`;
+      }
       // Idempotent upstream: a double click, a retry, or a crashed attempt all
       // converge on the SAME continuation. The client must not try to dedupe.
-      return { path: `/api/v2/review/sessions/${sessionId}/submit`, method: 'POST', body: {} };
+      return {
+        path: `/api/v2/review/sessions/${sessionId}/submit`, method: 'POST',
+        // Explicit null rather than an absent key: the backend reads
+        // `typeof req.body.revisionNote === 'string' ? … : null`, so both are accepted,
+        // and stating it makes "no note" a decision rather than an omission.
+        body: { revisionNote: note.length ? note : null },
+      };
     }
     case 'accept': {
       const sessionId = id(b.sessionId);

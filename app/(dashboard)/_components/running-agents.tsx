@@ -448,15 +448,6 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                   ✕
                 </button>
               )}
-              {(c.status === 'start_failed' || c.status === 'claim_expired') && c.skillSlug && (
-                <Link
-                  href={`/workflows/${encodeURIComponent(c.skillSlug)}?tab=runs&retryRequest=${encodeURIComponent(c.requestId || '')}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="shrink-0 text-[11px] font-medium text-sky-500 hover:text-sky-400 px-2 py-1 rounded border border-sky-500/30"
-                >
-                  Retry from agent
-                </Link>
-              )}
               {/* Cancel a QUEUED run before it's picked up (catch it before it
                   spends). Opens a confirm; stops the drainer/Claude from running it. */}
               {(['queued', 'picked_up', 'starting'] as LiveStatus[]).includes(c.status) && c.requestId && !c.runId && (
@@ -509,6 +500,15 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
             // Only the backend's OWN diagnosis counts as a block. null = not diagnosed.
             declaredBlock: c.attention?.blockerMessage ?? null,
           });
+          // The one action a terminal startup failure has. It lived INSIDE `body`,
+          // i.e. inside the card's own <Link> whenever the card was linkable — and
+          // the HTML parser closes an open <a> the instant it meets another one, so
+          // the DOM never contained the nesting the JSX described and the retry's
+          // click target was whatever the parser reconstructed. Same rule as the
+          // stuck box below: a link that must be clickable renders as a SIBLING of
+          // the card, never within it. (No stopPropagation needed out here — there
+          // is no longer an ancestor navigation to swallow.)
+          const showRetry = (c.status === 'start_failed' || c.status === 'claim_expired') && !!c.skillSlug;
           const card = linkable ? (
             <Link href={href!} className={`${cls} hover:border-ink-700 transition-colors`}>{body}</Link>
           ) : (
@@ -517,6 +517,16 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           return (
             <div key={key}>
               {card}
+              {showRetry && (
+                <div className="mt-1.5 ml-7">
+                  <Link
+                    href={`/workflows/${encodeURIComponent(c.skillSlug!)}?tab=runs&retryRequest=${encodeURIComponent(c.requestId || '')}`}
+                    className="inline-block text-[11px] font-medium text-sky-500 hover:text-sky-400 px-2 py-1 rounded border border-sky-500/30"
+                  >
+                    Retry from agent
+                  </Link>
+                </div>
+              )}
               {showStuck && (
                 <div className="mt-1.5 ml-7 rounded-md border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5">
                   {/* HONEST STATE, NOT A GUESS (2026-07-23 incident). This box used to
