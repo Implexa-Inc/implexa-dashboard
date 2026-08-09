@@ -20,7 +20,8 @@
     "test:run-input-picker-mutations": "node scripts/mutation-test-run-input-picker.mjs",
     "test:installed-version-run-now-mutations": "node scripts/mutation-test-installed-version-run-now.mjs",
     "test:run-artifacts-visibility-mutations": "node scripts/mutation-test-run-artifacts-visibility.mjs",
-    "test:review-room-orchestration-mutations": "node scripts/mutation-test-review-room-orchestration.mjs"
+    "test:review-room-orchestration-mutations": "node scripts/mutation-test-review-room-orchestration.mjs",
+    "test:review-retry-refusal-mutations": "node scripts/mutation-test-review-retry-refusal.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

@@ -26,6 +26,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { runRequestRefusalCopy } from '@/lib/run-request-refusal';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import { deriveHeldRunPrimaryAction } from '@/lib/held-run-action';
 import type { RunStep } from '@/lib/run-state';
@@ -141,8 +142,8 @@ export default function RunActions({
       }
       // Land on Active Agents so the new run's loader is visible (parity with Run).
       router.push('/workflows'); router.refresh();
-    } catch {
-      setErr('Could not queue the changes. Try again.'); setBusy(null);
+    } catch (error) {
+      setErr(runRequestRefusalCopy(error, 'Could not queue the changes. Try again.')); setBusy(null);
     }
   }
 
