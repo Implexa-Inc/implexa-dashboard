@@ -25,6 +25,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend, BackendError } from '@/lib/api';
+import { runRequestRefusalCopy } from '@/lib/run-request-refusal';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import Modal from './modal';
@@ -74,7 +75,7 @@ export default function RunContinueBox({
     } catch (e) {
       const cap = e instanceof BackendError && e.status === 409 ? e.body?.needsCapability : null;
       if (cap) { setCapCard(cap as CapabilityCardData); return; }
-      setMsg(e instanceof Error ? e.message : 'Could not queue the continue. Try again.');
+      setMsg(runRequestRefusalCopy(e, 'Could not queue the continue. Try again.'));
     } finally {
       setBusy(false);
     }
