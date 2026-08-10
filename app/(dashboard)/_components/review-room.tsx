@@ -33,8 +33,10 @@ import {
 } from '@/lib/review-preview';
 import {
   buildMediaAnchor, buildTextAnchor, buildArtifactAnchor, anchorError, bodyError,
-  anchorLabel, formatMs, sortIssues, isAnchorStale, type ReviewAnchor,
+  anchorLabel, formatMs, sortIssues, isAnchorStale, isSpatialAnchorV2, type ReviewAnchor,
 } from '@/lib/review-anchor';
+import ReviewSpatialOverlay, { SPATIAL_HINT_COPY, type OverlayPin } from '@/app/(dashboard)/_components/review-spatial-overlay';
+import { evidenceGate, evidenceChip, type SessionEvidenceStatus } from '@/lib/review-evidence-status';
 import {
   reviewRoomActions, ACCEPT_DISCLAIMER,
   issuesForArtifact, artifactForIssue, isIssueStale, issueClickTarget,
@@ -53,11 +55,12 @@ import {
 
 import {
   beginRange, canOfferRange, canReplaceDraft, completeRange, composerHeaderLabel, draftFromIssue,
-  draftIssuesAtSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, liveRangeError,
-  openDraft, playheadFromEvent, pointCommentLabel, rangeEndButtonLabel, rangeStartLabel,
-  rangeSurvivesSelection, replaceIssue, saveActionFor, saveDraftLabel, targetGuidance, targetLine,
+  draftIssuesAtSecond, displayedSecond, editAction, feedbackHereEditLabel, feedbackHereLabel, liveRangeError,
+  openDraft, openSpatialDraft, playheadFromEvent, pointCommentLabel, rangeEndButtonLabel, rangeStartLabel,
+  rangeSurvivesSelection, replaceIssue, saveActionFor, saveDraftLabel, spatialAnchorFromDraft,
+  spatialReferenceLine, targetGuidance, targetLine,
   CANCEL_RANGE_LABEL, DRAFT_IN_PROGRESS, SELECT_RANGE_LABEL,
-  type FeedbackDraft, type FrozenTarget, type PendingRange, type RangeAttempt,
+  type DraftSpatial, type FeedbackDraft, type FrozenTarget, type PendingRange, type RangeAttempt,
 } from '@/lib/review-timestamp-feedback';
 
 type Props = {
@@ -120,6 +123,10 @@ export default function ReviewRoom(props: Props) {
   const [preview, setPreview] = useState<{ url: string; artifactId: string } | null>(null);
   const tokenRef = useRef<string | null>(null);
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
+  // The still-image element, so the spatial overlay can measure it the same way it
+  // measures a video. Separate from mediaRef: an image is not a media element and
+  // must never receive playhead reads.
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const railListRef = useRef<HTMLDivElement | null>(null);
   /**
    * SINGLE-FLIGHT ACROSS CLICKS, not across renders — a ref because it must be
@@ -181,6 +188,12 @@ export default function ReviewRoom(props: Props) {
   // A seek requested for an artifact that is not on screen. It carries the artifact id
   // so it can never be applied to a different file.
   const [pendingSeek, setPendingSeek] = useState<PendingSeek>(null);
+  // The spatial issue the reviewer OPENED (clicked in the rail or on a pin) — its
+  // geometry renders on the surface even when the playhead is not on its second.
+  const [openedIssueId, setOpenedIssueId] = useState<string | null>(null);
+  // The last evidence-status poll, verbatim. Null = no successful read yet, which the
+  // gate treats as UNKNOWN (blocked), never as "no evidence required".
+  const [evidenceStatus, setEvidenceStatus] = useState<SessionEvidenceStatus>(null);
 
   const drafts = useMemo(() => issues.filter((i) => i.status === 'draft'), [issues]);
   const ordered = useMemo(() => sortIssues(issues), [issues]);
@@ -253,6 +266,9 @@ export default function ReviewRoom(props: Props) {
     // into the next video would mark a span nobody selected.
     setPendingRange(null);
     setRangeAttempt(null);
+    // The opened spatial issue is NOT cleared here: opening an issue on another file
+    // switches first, and the highlight must survive that switch. Retargeting is
+    // impossible anyway — the render below only draws it on the issue's OWN artifact.
 
     const base = decidePreview({
       artifact,
@@ -341,12 +357,31 @@ export default function ReviewRoom(props: Props) {
     // the backend accepts it and nothing downstream can tell.
     const sha = d?.target.sha256;
     if (!sha || !d) return null;
+    // A spatial draft ALSO carries a frozen time (video) — the on-picture mark decides
+    // the anchor version, and the v2 builder folds that time into `temporal`.
+    if (d.spatial) return spatialAnchorFromDraft(d);
     if (d.selection) return buildTextAnchor(sha, d.selection.start, d.selection.end, d.selection.quote);
     if (d.anchorMs !== null) {
       return buildMediaAnchor(sha, d.anchorMs / 1000, d.rangeEndMs === null ? null : d.rangeEndMs / 1000);
     }
     return buildArtifactAnchor(sha);
   }, []);
+
+  /**
+   * A saved spatial issue immediately asks the backend for its screenshot evidence
+   * (0155 review_request_evidence). Fire-and-forget on purpose: the capture is the
+   * Desktop's job and the submit gate polls for the outcome — a failed request here
+   * surfaces through that poll as "waiting", never as a lost save.
+   */
+  const requestEvidence = useCallback(async (issueId: string) => {
+    try {
+      const { body } = await reviewAction({ action: 'request_evidence', issueId });
+      if (body?.ok && session?.id) {
+        const { body: status } = await reviewAction({ action: 'evidence_status', sessionId: session.id });
+        if (status?.ok) setEvidenceStatus({ state: status.state, issues: status.issues || [] });
+      }
+    } catch { /* the poll owns the outcome */ }
+  }, [session]);
 
   const submitIssue = useCallback(async () => {
     setError(null);
@@ -384,6 +419,9 @@ export default function ReviewRoom(props: Props) {
           return replaceIssue(prev, editingId, updated);
         });
         setDraft(null); setRangeAttempt(null);
+        // An edit may have moved the pin, which revoked the old frame server-side.
+        // Re-request so the issue does not sit blocked on a capture nobody re-asked for.
+        if (anchor && isSpatialAnchorV2(anchor)) void requestEvidence(editingId);
         return;
       }
 
@@ -406,9 +444,12 @@ export default function ReviewRoom(props: Props) {
       }
       setIssues((prev) => [...prev, body.issue]);
       setDraft(null); setRangeAttempt(null);
+      // A saved spatial issue starts its evidence capture NOW — waiting for submit to
+      // ask would serialize every capture behind the reviewer's slowest comment.
+      if (body.issue?.id && anchor && isSpatialAnchorV2(anchor)) void requestEvidence(body.issue.id);
     } finally { setBusy(false); }
     // NOT `artifact`: every identity this path writes now comes from the draft.
-  }, [buildAnchor, draft, ensureSession]);
+  }, [buildAnchor, draft, ensureSession, requestEvidence]);
 
   const dismissIssue = useCallback(async (issueId: string) => {
     setBusy(true); setError(null);
@@ -448,6 +489,74 @@ export default function ReviewRoom(props: Props) {
     [issues, selectedId, playheadMs],
   );
 
+  // ── screenshot evidence (Wave 2) ──────────────────────────────────────────
+  //
+  // THE SUBMIT GATE. Every spatial draft must hold VALIDATED evidence before the send
+  // action unlocks — decided by the pure gate module from the last status poll, and
+  // enforced again server-side (the compile refuses) and at the executor (fail
+  // closed). The browser's own instant pin preview is never called verified.
+  const gate = evidenceGate({ draftIssues: drafts, status: evidenceStatus });
+
+  useEffect(() => {
+    // Poll only while there is something to wait FOR: an open session, spatial drafts,
+    // and a submission that has not left draft. 4s is fast enough to unlock promptly
+    // and slow enough to be polite to the packet-sized read.
+    const sid = session?.id;
+    if (!sid || gate.reason === 'none_required' || submissionInFlight || submission.phase !== 'draft') return;
+    let cancelled = false;
+    const tick = async () => {
+      const { body } = await reviewAction({ action: 'evidence_status', sessionId: sid });
+      if (cancelled) return;
+      if (body?.ok) setEvidenceStatus({ state: body.state, issues: body.issues || [] });
+    };
+    void tick();
+    const timer = setInterval(tick, 4000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [session?.id, gate.reason, submissionInFlight, submission.phase]);
+
+  /** Retry every failed capture — re-request, then let the poll report the outcome. */
+  const retryEvidence = useCallback(async () => {
+    for (const issueId of gate.retryIssueIds) await requestEvidence(issueId);
+  }, [gate.retryIssueIds, requestEvidence]);
+
+  // The freshest per-issue evidence view: the poll wins over the packet projection,
+  // because the packet is only as new as the last full page load.
+  const evidenceForIssue = useCallback((issue: ReviewIssue): { status?: string; ready?: boolean } | null => {
+    const polled = evidenceStatus?.state === 'ready'
+      ? evidenceStatus.issues.find((e) => String(e.issueId) === String(issue.id))?.evidence
+      : undefined;
+    if (polled !== undefined) return polled ?? null;
+    return (issue as { evidence?: { status?: string; ready?: boolean } | null }).evidence ?? null;
+  }, [evidenceStatus]);
+
+  // ── the annotation surface's pins ─────────────────────────────────────────
+  // Numbered within THIS artifact's spatial issues, in rail order, so the pin a
+  // reviewer sees and the card they read agree about which mark is which. For video,
+  // a pin shows on its own frozen second (and always when opened); an image shows all.
+  const spatialSurfaceIssues = useMemo(
+    () => surfaceIssues.filter((i) => isSpatialAnchorV2(i.anchor as never)),
+    [surfaceIssues],
+  );
+  const overlayPins = useMemo<OverlayPin[]>(() => {
+    const second = displayedSecond(playheadMs);
+    return spatialSurfaceIssues.map((issue, index) => {
+      const anchor = issue.anchor as never as {
+        temporal: { startMs: number } | null;
+        geometry: OverlayPin['geometry'];
+      };
+      const visible = !anchor.temporal
+        || issue.id === openedIssueId
+        || (second !== null && displayedSecond(anchor.temporal.startMs) === second);
+      return visible ? {
+        issueId: issue.id,
+        ordinal: index + 1,
+        geometry: anchor.geometry,
+        highlighted: issue.id === openedIssueId,
+        title: issue.body,
+      } : null;
+    }).filter((p): p is OverlayPin => p !== null);
+  }, [spatialSurfaceIssues, playheadMs, openedIssueId]);
+
   // DERIVED, not stored. Scrubbing past the start clears "the end must come after the
   // start" by itself, because the sentence is only ever a reading of the state it is
   // about — never a note left behind by an earlier one.
@@ -464,6 +573,51 @@ export default function ReviewRoom(props: Props) {
     relativePath: artifact?.relativePath ?? null,
     role: artifact?.role ?? null,
   }), [artifact]);
+
+  /**
+   * THE SPATIAL FREEZE, invoked synchronously inside the overlay's pointer-down. For
+   * video it pauses playback IMMEDIATELY and reads the exact timestamp in the same
+   * synchronous turn — the frame the reviewer pressed on, not wherever playback
+   * drifted by pointer-up or React's next commit. For an image there is no clock and
+   * the answer is null.
+   */
+  const freezeMediaForAnnotation = useCallback((): number | null => {
+    const el = mediaRef.current;
+    if (!el || !(el instanceof HTMLVideoElement)) return null;
+    el.pause();
+    const ms = Math.round(Math.max(0, el.currentTime) * 1000);
+    setPlayheadMs(ms);
+    return ms;
+  }, []);
+
+  /** A completed click/drag on the picture: open the composer over the frozen mark. */
+  const onSpatialAnnotate = useCallback((args: { spatial: DraftSpatial; frozenTimestampMs: number | null }) => {
+    setError(null); setRangeAttempt(null);
+    if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+    setPendingRange(null);
+    setOpenedIssueId(null);
+    setDraft(openSpatialDraft({
+      target: targetIdentity,
+      frozenTimestampMs: args.frozenTimestampMs,
+      spatial: args.spatial,
+    }));
+  }, [draft, targetIdentity]);
+
+  /** Arrow-key nudge of an unsaved point — the keyboard's half of placement. */
+  const onNudgeDraft = useCallback((next: { x: number; y: number }) => {
+    setDraft((d) => (d?.spatial && d.spatial.geometry.kind === 'point'
+      ? { ...d, spatial: { ...d.spatial, geometry: { ...d.spatial.geometry, x: next.x, y: next.y } } }
+      : d));
+  }, []);
+
+  /**
+   * Escape cancels an UNSAVED annotation. One with typed text keeps the no-silent-loss
+   * rule every other affordance follows: the composer's own Cancel is the explicit act
+   * for that.
+   */
+  const cancelSpatialDraft = useCallback(() => {
+    setDraft((d) => (d?.spatial && d.body.trim() === '' ? null : d));
+  }, []);
 
   /** Open a NEW point composer, freezing the current playhead and file into it. */
   const openPointComment = useCallback(() => {
@@ -515,14 +669,19 @@ export default function ReviewRoom(props: Props) {
    */
   const goToIssue = useCallback((issue: ReviewIssue) => {
     const target = issueClickTarget(issue, selectedId);
+    // Opening a SPATIAL issue also renders its geometry on the surface — after the
+    // switch and the seek land, the pin must be visible at its frozen place.
+    const spatial = isSpatialAnchorV2(issue.anchor as never);
     if (target.needsSwitch && target.artifactId) {
       setSelectedId(target.artifactId);
       // Identity travels WITH the request, so a further switch before B loads cannot
       // apply B's timestamp to C.
       setPendingSeek(target.seekMs === null ? null : { artifactId: target.artifactId, seekMs: target.seekMs });
+      setOpenedIssueId(spatial ? issue.id : null);
       return;
     }
     if (target.seekMs !== null) seekTo(target.seekMs);
+    setOpenedIssueId(spatial ? issue.id : null);
   }, [selectedId, seekTo]);
 
   /**
@@ -755,6 +914,7 @@ export default function ReviewRoom(props: Props) {
           textContent={textContent}
           textTruncated={textTruncated}
           mediaRef={mediaRef}
+          imageRef={imageRef}
           issues={surfaceIssues}
           onPlayhead={onPlayhead}
           onSelectText={(s) => {
@@ -763,6 +923,19 @@ export default function ReviewRoom(props: Props) {
             setDraft(openDraft({ target: targetIdentity, playheadMs, selection: s }));
           }}
           onSeek={seekTo}
+          spatial={{
+            enabled: !frozen && !accepted && artifact?.status === 'validated',
+            pins: overlayPins,
+            draftSpatial: draft?.spatial ?? null,
+            freezeMedia: freezeMediaForAnnotation,
+            onAnnotate: onSpatialAnnotate,
+            onNudgeDraft,
+            onCancelDraft: cancelSpatialDraft,
+            onOpenIssue: (issueId) => {
+              const issue = issues.find((i) => i.id === issueId);
+              if (issue) goToIssue(issue);
+            },
+          }}
         />
 
         {artifact && (
@@ -884,10 +1057,43 @@ export default function ReviewRoom(props: Props) {
 
             {/* WHICH FILE, from the draft's own frozen identity — never from whatever
                 is selected now. With several artifacts in a review, a timestamp alone
-                does not say what the comment is about. */}
+                does not say what the comment is about. A spatial reference draft
+                states BOTH roles: where the mark sits and what the change applies to. */}
             <p className="mb-2 truncate text-xs text-ink-400" title={draft.target.relativePath ?? undefined}>
-              {targetLine(draft.target)}
+              {draft.spatial ? spatialReferenceLine(draft) : targetLine(draft.target)}
             </p>
+
+            {/* REFERENCE MODE (v2 only): observe A, change B — a typed, validated
+                backend field on the spatial anchor, not prose. Default is change mode:
+                the marked file IS the file to change. Geometry always belongs to the
+                marked (observed) file either way. */}
+            {draft.spatial && validated.some((a) => a.id !== draft.target.artifactId && a.sha256) && (
+              <label className="mb-2 block text-xs text-ink-400">
+                This mark asks for a change to
+                <select
+                  aria-label="File this annotation applies to"
+                  value={draft.referenceTarget?.artifactId ?? ''}
+                  onChange={(e) => {
+                    const targetId = e.target.value;
+                    if (!targetId) { setDraft({ ...draft, referenceTarget: null }); return; }
+                    const t = validated.find((a) => a.id === targetId);
+                    if (!t?.sha256) return;
+                    setDraft({
+                      ...draft,
+                      referenceTarget: { artifactId: t.id, sha256: t.sha256, relativePath: t.relativePath },
+                    });
+                  }}
+                  className="mt-1 block w-full rounded border border-ink-700 bg-ink-900 px-1.5 py-1 text-xs text-ink-200"
+                >
+                  <option value="">{`${draft.target.relativePath || 'this file'} — the marked file itself`}</option>
+                  {validated.filter((a) => a.id !== draft.target.artifactId && a.sha256).map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {`${a.relativePath} — the mark is a reference for it`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             {/* A source file is an INPUT the agent may edit in place. Reference-only is
                 a real intent and nothing in the contract carries it as a field (see
@@ -1024,6 +1230,15 @@ export default function ReviewRoom(props: Props) {
                     <p className="mt-0.5 text-[11px] text-sky-400">Opens another file</p>
                   )}
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink-200">{i.body}</p>
+                  {/* The capture's honest state, for spatial issues only. "Verified"
+                      appears ONLY for the backend's validated projection — the local
+                      pin preview is never called evidence. */}
+                  {isSpatialAnchorV2(i.anchor as never) && i.status === 'draft' && (() => {
+                    const chip = evidenceChip(evidenceForIssue(i));
+                    if (!chip) return null;
+                    const tone = chip.tone === 'ok' ? 'text-emerald-300' : chip.tone === 'failed' ? 'text-amber-300' : 'text-ink-500';
+                    return <p className={`mt-1 text-[11px] ${tone}`}>{chip.label}</p>;
+                  })()}
                   {stale && (
                     <p className="mt-1 text-xs text-amber-300">
                       This file changed since the comment was made — the highlight may no longer match.
@@ -1165,11 +1380,29 @@ export default function ReviewRoom(props: Props) {
                 <p role="alert" className="text-xs text-red-300">{submitView.errorLine}</p>
               )}
 
+              {/* THE EVIDENCE GATE (Wave 2). Sending only unlocks when every spatial
+                  draft holds VALIDATED evidence — the backend refuses anyway; this is
+                  the honest button over that rule, with a retry for failed captures. */}
+              {submitView.mode !== 'accept_result' && gate.blocked && gate.statusLine && (
+                <p role="status" className="text-xs text-sky-300">{gate.statusLine}</p>
+              )}
+              {submitView.mode !== 'accept_result' && gate.reason === 'failed' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={retryEvidence}
+                  className="w-full rounded-md border border-amber-400/60 px-3 py-2 text-sm text-amber-200 hover:border-amber-300 disabled:opacity-40"
+                >
+                  Retry screenshot capture
+                </button>
+              )}
+
               <button
                 type="button"
                 disabled={
                   !submitView.primaryEnabled
                   || (submitView.mode === 'accept_result' ? !acts.canAccept : !acts.canSubmit)
+                  || (submitView.mode !== 'accept_result' && gate.blocked)
                 }
                 onClick={onPrimary}
                 className="w-full rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-950 disabled:opacity-40"
@@ -1233,10 +1466,22 @@ export default function ReviewRoom(props: Props) {
   );
 }
 
+/** Everything the spatial annotation overlay needs, threaded as one bundle. */
+type SpatialSurfaceProps = {
+  enabled: boolean;
+  pins: OverlayPin[];
+  draftSpatial: DraftSpatial | null;
+  freezeMedia: () => number | null;
+  onAnnotate: (args: { spatial: DraftSpatial; frozenTimestampMs: number | null }) => void;
+  onNudgeDraft: (next: { x: number; y: number }) => void;
+  onCancelDraft: () => void;
+  onOpenIssue: (issueId: string) => void;
+};
+
 /** The viewer. Every non-ready state renders words and buttons, never a dead player. */
 function ArtifactSurface({
-  runId, decision, previewUrl, textContent, textTruncated, mediaRef, issues, onSelectText, onSeek,
-  onMediaReady, onPlayhead, mediaKey,
+  runId, decision, previewUrl, textContent, textTruncated, mediaRef, imageRef, issues, onSelectText, onSeek,
+  onMediaReady, onPlayhead, mediaKey, spatial,
 }: {
   runId: string;
   decision: PreviewDecision | null;
@@ -1254,9 +1499,11 @@ function ArtifactSurface({
   textContent: string | null;
   textTruncated: boolean;
   mediaRef: React.MutableRefObject<HTMLVideoElement | HTMLAudioElement | null>;
+  imageRef: React.MutableRefObject<HTMLImageElement | null>;
   issues: ReviewIssue[];
   onSelectText: (s: { start: number; end: number; quote: string }) => void;
   onSeek: (ms: number) => void;
+  spatial: SpatialSurfaceProps;
 }) {
   if (!decision) return <div className="h-48 animate-pulse rounded bg-ink-800/50" />;
 
@@ -1293,6 +1540,9 @@ function ArtifactSurface({
     const Tag = (decision.kind === 'video' ? 'video' : 'audio') as 'video' | 'audio';
     return (
       <div>
+        {/* RELATIVE WRAPPER so the annotation overlay can sit exactly over the player.
+            Audio gets no overlay — there is no picture to point at. */}
+        <div className={decision.kind === 'video' ? 'relative' : undefined}>
         <Tag
           // KEYED BY ARTIFACT. Without this React reuses the element across a switch and
           // loadedmetadata may never fire for the new file, so a pending seek would hang.
@@ -1316,6 +1566,29 @@ function ArtifactSurface({
           onSeeked={(e) => onPlayhead(mediaKey, (e.currentTarget as HTMLMediaElement).currentTime)}
           onPause={(e) => onPlayhead(mediaKey, (e.currentTarget as HTMLMediaElement).currentTime)}
         />
+        {decision.kind === 'video' && (
+          <ReviewSpatialOverlay
+            mediaKind="video"
+            mediaEl={() => (mediaRef.current instanceof HTMLVideoElement ? mediaRef.current : null)}
+            enabled={spatial.enabled}
+            pins={spatial.pins}
+            draftSpatial={spatial.draftSpatial}
+            freezeMedia={spatial.freezeMedia}
+            onAnnotate={spatial.onAnnotate}
+            onNudgeDraft={spatial.onNudgeDraft}
+            onCancelDraft={spatial.onCancelDraft}
+            onOpenIssue={spatial.onOpenIssue}
+          />
+        )}
+        </div>
+        {/* The OUTSIDE-the-player information affordance (Wave 2 discoverability):
+            always visible next to the player, never floating over content. */}
+        {decision.kind === 'video' && (
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-500" data-testid="spatial-hint">
+            <span aria-hidden="true" className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-ink-600 text-[10px]">i</span>
+            <span>{SPATIAL_HINT_COPY}</span>
+          </p>
+        )}
         {markers.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {markers.map((i) => {
@@ -1339,8 +1612,35 @@ function ArtifactSurface({
   }
 
   if (decision.kind === 'image') {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={previewUrl} alt="Artifact under review" className="max-h-[60vh] w-full rounded object-contain" />;
+    return (
+      <div>
+        <div className="relative">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            ref={imageRef}
+            src={previewUrl}
+            alt="Artifact under review"
+            className="max-h-[60vh] w-full rounded object-contain"
+          />
+          <ReviewSpatialOverlay
+            mediaKind="image"
+            mediaEl={() => imageRef.current}
+            enabled={spatial.enabled}
+            pins={spatial.pins}
+            draftSpatial={spatial.draftSpatial}
+            freezeMedia={spatial.freezeMedia}
+            onAnnotate={spatial.onAnnotate}
+            onNudgeDraft={spatial.onNudgeDraft}
+            onCancelDraft={spatial.onCancelDraft}
+            onOpenIssue={spatial.onOpenIssue}
+          />
+        </div>
+        <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-500" data-testid="spatial-hint">
+          <span aria-hidden="true" className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-ink-600 text-[10px]">i</span>
+          <span>{SPATIAL_HINT_COPY}</span>
+        </p>
+      </div>
+    );
   }
 
   if (decision.kind === 'text') {

@@ -105,8 +105,9 @@ test('REPRO: the SESSION is opened on the frozen file too, not the live selectio
 });
 
 test('the composer shows the frozen filename and never re-derives it', () => {
-  assert.match(source, /\{targetLine\(draft\.target\)\}/,
-    'a timestamp alone does not say which of several files the comment is about');
+  assert.match(source, /\{draft\.spatial \? spatialReferenceLine\(draft\) : targetLine\(draft\.target\)\}/,
+    'a timestamp alone does not say which of several files the comment is about — and a '
+    + 'spatial reference draft must state BOTH roles, still from the frozen draft, never the selection');
   assert.match(source, /targetGuidance\(draft\.target\)/);
 });
 

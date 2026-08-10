@@ -61,6 +61,20 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
       if (!issueId) return 'A valid issueId is required.';
       return { path: `/api/v2/review/issues/${issueId}`, method: 'DELETE' };
     }
+    case 'request_evidence': {
+      // Ask the backend for an annotated frame of the issue's CURRENT anchor. The
+      // server rebinds identity from the durable row — nothing else rides in the body,
+      // so there is nothing here a compromised client could redirect.
+      const issueId = id(b.issueId);
+      if (!issueId) return 'A valid issueId is required.';
+      return { path: `/api/v2/review/issues/${issueId}/evidence`, method: 'POST', body: {} };
+    }
+    case 'evidence_status': {
+      // The polling read while Submit waits on validated captures. Read-only.
+      const sessionId = id(b.sessionId);
+      if (!sessionId) return 'A valid sessionId is required.';
+      return { path: `/api/v2/review/sessions/${sessionId}/evidence`, method: 'GET' };
+    }
     case 'submit': {
       const sessionId = id(b.sessionId);
       if (!sessionId) return 'A valid sessionId is required.';

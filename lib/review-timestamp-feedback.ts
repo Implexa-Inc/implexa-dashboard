@@ -35,17 +35,22 @@
  * the number the player is showing them. A RANGE shows exact milliseconds, because
  * its boundaries are a precise claim about extent rather than an aim.
  *
- * WHAT THIS MODULE DELIBERATELY DOES NOT DO: it does not model "change this file" vs
- * "reference only" as a typed value. The backend contract has no such field — see
+ * REFERENCE INTENT IS TYPED FOR v2 SPATIAL DRAFTS ONLY. `review_anchor.v2` carries
+ * `intent.mode` as a real, validated, fail-closed backend field, so a spatial draft
+ * holds `referenceTarget` and the anchor builder maps it to the typed intent. Every
+ * v1 draft keeps the old rule unchanged: the v1 contract has no such field —
  * docs/review-target-intent-contract.md — and `lib/review-anchor.js` upstream drops
- * unknown anchor keys silently on a 200. A dashboard-only field would look structured,
- * survive nothing, and reach the agent as nothing at all. So the room states the
+ * unknown v1 anchor keys silently on a 200, so for those the room still states the
  * situation in words and leaves the sentence in the reviewer's own body text.
  *
  * Pure on purpose: the seam between "what the player is doing" and "what the comment
  * is about" is exactly where the bug lived, so every rule of it is executable rather
  * than asserted by reading JSX.
  */
+
+import {
+  buildSpatialAnchor, INTENT_CHANGE, INTENT_REFERENCE, type SpatialAnchorV2,
+} from './review-anchor.ts';
 
 // ── time ────────────────────────────────────────────────────────────────────
 
@@ -150,18 +155,41 @@ export function targetGuidance(target: FrozenTarget | null | undefined): string 
 
 export type DraftSelection = { start: number; end: number; quote: string };
 
+/**
+ * A spatial annotation's FROZEN place on the picture: normalized geometry against the
+ * visual content, plus the decoded dimensions those coordinates were read against.
+ * Both freeze together at pointer-up — resizing the window, going fullscreen, or the
+ * clip playing on afterwards must not move a mark the reviewer already placed.
+ */
+export type DraftSpatial = {
+  geometry: { kind: 'point' | 'rect'; x: number; y: number; width: number | null; height: number | null };
+  sourceFrame: { visualWidth: number; visualHeight: number };
+};
+
+/**
+ * Reference mode, as an explicit choice: geometry belongs to the OBSERVED file while
+ * the change applies to the named target. Null means change mode — the observed file
+ * IS the target. Never inferred from role or prose; the reviewer picks it.
+ */
+export type DraftReferenceTarget = { artifactId: string; sha256: string; relativePath: string | null } | null;
+
 export type FeedbackDraft = {
   /** The FROZEN file: id, digest, path and role, captured at open. */
   target: FrozenTarget;
   /**
    * THE FROZEN POSITION, in exact milliseconds. Null when the draft is not anchored
-   * to a media moment (a text selection, or a whole-file comment). Written once, at
-   * open. Nothing that happens to playback afterwards may change it.
+   * to a media moment (a text selection, a whole-file comment, or a spatial mark on a
+   * still image). Written once, at open. Nothing that happens to playback afterwards
+   * may change it.
    */
   anchorMs: number | null;
   /** Exact millisecond end of a range, or null for a point comment. */
   rangeEndMs: number | null;
   selection: DraftSelection | null;
+  /** The frozen on-picture mark, or null for every non-spatial draft. */
+  spatial: DraftSpatial | null;
+  /** Reference mode's edit target; null means the observed file is the target. */
+  referenceTarget: DraftReferenceTarget;
   kind: string;
   body: string;
   /** The existing DRAFT issue being edited, or null when composing a new one. */
@@ -171,8 +199,11 @@ export type FeedbackDraft = {
 export const DEFAULT_ISSUE_KIND = 'content';
 
 /** What KIND of location this draft claims. Drives the header and the copy. */
-export function draftMode(draft: FeedbackDraft | null | undefined): 'point' | 'range' | 'text' | 'whole' | null {
+export function draftMode(draft: FeedbackDraft | null | undefined): 'point' | 'range' | 'text' | 'whole' | 'spatial' | null {
   if (!draft) return null;
+  // A spatial draft may ALSO carry a frozen time (video) — the on-picture mark is
+  // still what it is, so spatial wins the header.
+  if (draft.spatial) return 'spatial';
   if (draft.selection) return 'text';
   if (draft.anchorMs === null) return 'whole';
   return draft.rangeEndMs === null ? 'point' : 'range';
@@ -199,6 +230,40 @@ export function openDraft(args: {
     anchorMs: selection ? null : (args.playheadMs === null ? null : Math.max(0, Math.round(args.playheadMs))),
     rangeEndMs: null,
     selection,
+    spatial: null,
+    referenceTarget: null,
+    kind: args.kind || DEFAULT_ISSUE_KIND,
+    body: '',
+    editingIssueId: null,
+  };
+}
+
+/**
+ * Open a composer for an ON-PICTURE annotation, freezing everything it claims in one
+ * synchronous act: the file (id + digest), the exact media timestamp (null for a
+ * still image — the caller pauses the player BEFORE reading it), the normalized
+ * geometry, and the decoded dimensions it was normalized against.
+ *
+ * Seeking, resizing, switching files, or playing on afterwards must not mutate any of
+ * it — the same freeze discipline as openDraft, one dimension richer.
+ */
+export function openSpatialDraft(args: {
+  target: FrozenTarget;
+  /** Exact frozen media timestamp for video; null for a still image. */
+  frozenTimestampMs: number | null;
+  spatial: DraftSpatial;
+  kind?: string;
+}): FeedbackDraft {
+  return {
+    target: { ...args.target },
+    anchorMs: args.frozenTimestampMs === null ? null : Math.max(0, Math.round(args.frozenTimestampMs)),
+    rangeEndMs: null,
+    selection: null,
+    spatial: {
+      geometry: { ...args.spatial.geometry },
+      sourceFrame: { ...args.spatial.sourceFrame },
+    },
+    referenceTarget: null,
     kind: args.kind || DEFAULT_ISSUE_KIND,
     body: '',
     editingIssueId: null,
@@ -240,6 +305,46 @@ export function draftFromIssue(
   if (!issue || !canEditIssue(issue)) return null;
   if ((issue.artifactId ?? null) !== (target.artifactId ?? null)) return null;
   const anchor = (issue.anchor ?? {}) as Record<string, unknown>;
+
+  // A v2 spatial issue reopens with its FROZEN geometry, dimensions, timestamp and
+  // reference target — never re-read from the player or the current layout, which
+  // have both moved on since the mark was placed.
+  if (anchor.version === 2 && anchor.type === 'visual_spatial') {
+    const g = (anchor.geometry ?? {}) as Record<string, unknown>;
+    const sf = (anchor.sourceFrame ?? {}) as Record<string, unknown>;
+    const temporal = anchor.temporal as { startMs?: number } | null;
+    const intent = (anchor.intent ?? {}) as Record<string, unknown>;
+    return {
+      target: { ...target },
+      anchorMs: temporal ? Math.max(0, Math.round(Number(temporal.startMs) || 0)) : null,
+      rangeEndMs: null,
+      selection: null,
+      spatial: {
+        geometry: {
+          kind: g.kind === 'rect' ? 'rect' : 'point',
+          x: Number(g.x) || 0,
+          y: Number(g.y) || 0,
+          width: g.width === null || g.width === undefined ? null : Number(g.width),
+          height: g.height === null || g.height === undefined ? null : Number(g.height),
+        },
+        sourceFrame: {
+          visualWidth: Number(sf.visualWidth) || 1,
+          visualHeight: Number(sf.visualHeight) || 1,
+        },
+      },
+      referenceTarget: intent.mode === 'reference_for_artifact'
+        ? {
+          artifactId: String(intent.targetArtifactId ?? ''),
+          sha256: String(intent.targetArtifactSha256 ?? ''),
+          relativePath: null,
+        }
+        : null,
+      kind: issue.kind || DEFAULT_ISSUE_KIND,
+      body: issue.body ?? '',
+      editingIssueId: issue.id,
+    };
+  }
+
   const isMedia = anchor.type === 'media_time';
   const isText = anchor.type === 'text_selection';
   return {
@@ -255,10 +360,48 @@ export function draftFromIssue(
         quote: String(anchor.quote ?? ''),
       }
       : null,
+    spatial: null,
+    referenceTarget: null,
     kind: issue.kind || DEFAULT_ISSUE_KIND,
     body: issue.body ?? '',
     editingIssueId: issue.id,
   };
+}
+
+/**
+ * The v2 anchor a spatial draft saves as — built HERE, from frozen values only, so the
+ * component never assembles intent by hand. Null when the draft is not spatial or its
+ * frozen file identity is incomplete (no id or no validated digest: nothing honest to
+ * anchor to).
+ */
+export function spatialAnchorFromDraft(draft: FeedbackDraft | null | undefined): SpatialAnchorV2 | null {
+  if (!draft?.spatial || !draft.target.artifactId || !draft.target.sha256) return null;
+  return buildSpatialAnchor({
+    observedArtifactId: draft.target.artifactId,
+    observedArtifactSha256: draft.target.sha256,
+    intent: draft.referenceTarget
+      ? {
+        mode: INTENT_REFERENCE,
+        targetArtifactId: draft.referenceTarget.artifactId,
+        targetArtifactSha256: draft.referenceTarget.sha256,
+      }
+      : { mode: INTENT_CHANGE },
+    temporalStartMs: draft.anchorMs,
+    geometry: draft.spatial.geometry,
+    sourceFrame: draft.spatial.sourceFrame,
+  });
+}
+
+/**
+ * The composer's file line for a spatial draft. Change mode reads like every other
+ * draft; reference mode states BOTH roles — where the mark sits and which file the
+ * change applies to — because that split is the entire meaning of reference mode.
+ */
+export function spatialReferenceLine(draft: FeedbackDraft): string {
+  if (!draft.spatial || !draft.referenceTarget) return targetLine(draft.target);
+  const observed = draft.target.relativePath || 'this file';
+  const target = draft.referenceTarget.relativePath || draft.referenceTarget.artifactId;
+  return `Marked on ${observed} as a reference — the change applies to ${target}`;
 }
 
 /**
@@ -362,6 +505,8 @@ export function completeRange(
       anchorMs: range.startMs,
       rangeEndMs: Math.max(0, Math.round(playheadMs as number)),
       selection: null,
+      spatial: null,
+      referenceTarget: null,
       kind: DEFAULT_ISSUE_KIND,
       body: '',
       editingIssueId: null,
@@ -521,6 +666,16 @@ export function composerHeaderLabel(draft: FeedbackDraft | null): string {
   if (!draft) return '';
   const editing = draft.editingIssueId ? 'Editing · ' : '';
   switch (draftMode(draft)) {
+    case 'spatial': {
+      // The FROZEN place, stated whole: shape, exact time (video only), and percent
+      // position — so what the pin claims stays legible while the player keeps moving.
+      const g = draft.spatial!.geometry;
+      const shape = g.kind === 'rect' ? 'Area' : 'Pin';
+      const at = `(${Math.round(g.x * 100)}%, ${Math.round(g.y * 100)}%)`;
+      return draft.anchorMs === null
+        ? `${editing}${shape} · ${at}`
+        : `${editing}${shape} · ${exactMs(draft.anchorMs)} · ${at}`;
+    }
     case 'text':
       return `${editing}Characters ${draft.selection!.start}–${draft.selection!.end}`;
     case 'range':

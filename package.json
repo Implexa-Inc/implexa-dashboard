@@ -1,7 +1,7 @@
 {
   "name": "implexa-dashboard",
   "version": "0.1.0",
-  "description": "Implexa web dashboard — Next.js 14 App Router + Supabase Auth + Stripe Checkout",
+  "description": "Implexa web dashboard \u2014 Next.js 14 App Router + Supabase Auth + Stripe Checkout",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001",
@@ -21,7 +21,8 @@
     "test:installed-version-run-now-mutations": "node scripts/mutation-test-installed-version-run-now.mjs",
     "test:run-artifacts-visibility-mutations": "node scripts/mutation-test-run-artifacts-visibility.mjs",
     "test:review-room-orchestration-mutations": "node scripts/mutation-test-review-room-orchestration.mjs",
-    "test:review-retry-refusal-mutations": "node scripts/mutation-test-review-retry-refusal.mjs"
+    "test:review-retry-refusal-mutations": "node scripts/mutation-test-review-retry-refusal.mjs",
+    "test:review-spatial-annotation-mutations": "node scripts/mutation-test-review-spatial-annotation.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

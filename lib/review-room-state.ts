@@ -143,7 +143,12 @@ export function isIssueStale<A extends ScopableArtifact>(issue: ScopableIssue, a
   if (!issue.artifactId) return false;
   if (!own) return true; // it named an artifact this packet does not contain
   if (own.status !== 'validated') return true;
-  const anchorSha = issue.anchor && typeof issue.anchor === 'object' ? (issue.anchor as { artifactSha256?: unknown }).artifactSha256 : undefined;
+  const anchor = issue.anchor && typeof issue.anchor === 'object'
+    ? (issue.anchor as { version?: unknown; artifactSha256?: unknown; observedArtifactSha256?: unknown })
+    : null;
+  // A v2 anchor names the bytes it observed under its own key; reading the v1 key
+  // there would flag every current spatial comment stale.
+  const anchorSha = anchor?.version === 2 ? anchor.observedArtifactSha256 : anchor?.artifactSha256;
   if (typeof anchorSha !== 'string') return true;
   return anchorSha !== own.sha256;
 }
@@ -158,7 +163,15 @@ export function issueClickTarget(issue: ScopableIssue, selectedArtifactId: strin
   seekMs: number | null;
 } {
   const anchor = (issue.anchor ?? {}) as Record<string, unknown>;
-  const seekMs = anchor.type === 'media_time' ? (Number(anchor.timeStartMs) || 0) : null;
+  // A v2 spatial anchor with a temporal claim seeks to its FROZEN timestamp — opening
+  // the issue must land the player on the exact frame the pin was placed on. An image
+  // pin has no time and seeks nowhere.
+  const temporal = anchor.version === 2 && anchor.temporal && typeof anchor.temporal === 'object'
+    ? (anchor.temporal as { startMs?: unknown })
+    : null;
+  const seekMs = temporal
+    ? (Number(temporal.startMs) || 0)
+    : anchor.type === 'media_time' ? (Number(anchor.timeStartMs) || 0) : null;
   const artifactId = issue.artifactId ?? null;
   return { artifactId, needsSwitch: !!artifactId && artifactId !== selectedArtifactId, seekMs };
 }
