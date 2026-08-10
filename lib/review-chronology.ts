@@ -142,6 +142,17 @@ export function compareArtifactsForRail(a: ChronoArtifact, b: ChronoArtifact): n
  */
 function localKey(i: ChronoIssue): [number, number, number] {
   const a = (i?.anchor ?? {}) as Record<string, unknown>;
+  // Mirrors the backend's anchorSortKey: a v2 spatial anchor WITH a time sorts among
+  // the temporal anchors by its frozen startMs; an image pin takes the fractional
+  // group after text selections so the existing 0..3 groups never renumber.
+  if (a.version === 2 && a.type === 'visual_spatial') {
+    const t = a.temporal && typeof a.temporal === 'object' ? (a.temporal as Record<string, unknown>) : null;
+    if (t) {
+      const start = num(t.startMs);
+      return [0, start, start];
+    }
+    return [2.5, 0, 0];
+  }
   if (a.type === 'media_time') {
     const start = num(a.timeStartMs);
     // A point comment has no end. Reusing its START keeps it ahead of a RANGE that
