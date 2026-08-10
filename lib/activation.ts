@@ -1,4 +1,5 @@
 import 'server-only';
+import { parseMarketplaceExecutionRequirements, type MarketplaceExecutionRequirements } from './marketplace-execution-requirements';
 
 // Owner-scoped read of the agent activation checklist (ACTIVATION_JOURNEY.md).
 // Mirrors lib/connections.ts: read the Supabase session, call the backend with
@@ -128,6 +129,8 @@ export type ActivationChecklist = {
   capabilityGaps?: CapabilityGap[];
   /** The ONE authoritative "what you'll need" list, server-computed. */
   requirements?: AgentRequirementsPayload;
+  /** Signed, secret-free marketplace authority disclosure. */
+  executionRequirements?: MarketplaceExecutionRequirements | null;
   /** Catalog source, threaded to the setup card / run command. */
   source?: string;
   canActivate: boolean;
@@ -174,6 +177,7 @@ export async function getActivationChecklist(slug: string): Promise<ActivationCh
             !!g && typeof (g as CapabilityGap).capability === 'string')
         : [],
       requirements: (b.requirements as AgentRequirementsPayload) ?? undefined,
+      executionRequirements: parseMarketplaceExecutionRequirements(b.executionRequirements),
       source: (b.source as string) ?? 'generated',
       canActivate: !!b.canActivate,
       stepsLeft: Number(b.stepsLeft ?? 0),
