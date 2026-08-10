@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bindInputValue, missingRequiredInputs, orderedInputFields, resolvePickerResult, serializeArtifactBindings, type WorkflowInputContract, type WorkflowInputField } from './workflow-input-contract.ts';
+import { acceptsDirectorySnapshot, bindInputValue, describeInputPickerError, missingRequiredInputs, orderedInputFields, resolvePickerResult, serializeArtifactBindings, type WorkflowInputContract, type WorkflowInputField } from './workflow-input-contract.ts';
 
 const contract: WorkflowInputContract = { version: 1, fields: [
   { key: 'inspiration_video', label: 'Inspiration video', description: 'Optional reference.', kind: 'file', required: false, cardinality: 'one', order: 2 },
@@ -25,6 +25,13 @@ test('submission strips display names and preserves semantic keys', () => {
     inspiration_video: { artifactId: 'inspiration', sha256: '2' },
     target_video: { artifactId: 'target', sha256: '1' },
   });
+});
+
+test('folder snapshots are offered only by an explicit directory snapshot capability', () => {
+  assert.equal(acceptsDirectorySnapshot({ ...contract.fields[0], accept: { mediaTypes: ['application/zip'], extensions: ['.zip'], directorySnapshot: true } }), true);
+  assert.equal(acceptsDirectorySnapshot({ ...contract.fields[0], accept: { mediaTypes: ['application/zip'], extensions: ['.zip'] } }), false);
+  assert.equal(acceptsDirectorySnapshot({ ...contract.fields[0], accept: { mediaTypes: [], extensions: ['.mp4'] } }), false);
+  assert.equal(acceptsDirectorySnapshot({ ...contract.fields[0], kind: 'text', accept: { mediaTypes: ['application/zip'], extensions: ['.zip'], directorySnapshot: true } }), false);
 });
 
 // ── The Run Inputs picker boundary ──────────────────────────────────────────
@@ -82,6 +89,13 @@ const registeredBrief = {
   displayName: 'Fresh Animation Brief.md',
   mediaType: 'text/markdown',
 };
+
+test('directory snapshot failures are actionable rather than swallowed', () => {
+  const zipField: WorkflowInputField = { ...instructionsMd, label: 'Project bundle', accept: { mediaTypes: [], extensions: ['.zip'] } };
+  assert.match(describeInputPickerError('directory_changed_while_snapshotting', zipField), /changed/);
+  assert.match(describeInputPickerError('directory_contains_symlink', zipField), /symlink/);
+  assert.match(describeInputPickerError('directory_snapshot_failed', zipField), /verified ZIP/);
+});
 
 test('a registered markdown brief binds to instructions_md and shows its filename', () => {
   const outcome = resolvePickerResult(registeredBrief, instructionsMd);

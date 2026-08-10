@@ -4,7 +4,18 @@ export type WorkflowInputField = {
   description: string;
   kind: 'text' | 'choice' | 'file';
   required: boolean;
-  accept?: { mediaTypes: string[]; extensions: string[] };
+  accept?: {
+    mediaTypes: string[];
+    extensions: string[];
+    /**
+     * The DECLARED capability "a local folder may satisfy this input".
+     *
+     * Present and true, or absent. Nothing here reads the label or the
+     * description, and nothing infers it from `.zip` being an accepted
+     * extension — see `acceptsDirectorySnapshot`.
+     */
+    directorySnapshot?: boolean;
+  };
   options?: string[];
   cardinality: 'one' | 'many';
   order: number;
@@ -26,12 +37,39 @@ export type ArtifactBinding = {
   sha256: string;
   displayName: string;
   mediaType?: string;
+  /** Local display metadata — never serialized to the backend. */
+  origin?: 'file' | 'directory-snapshot';
 };
 export type RunInputValue = ArtifactBinding | string | ArtifactBinding[] | string[];
 export type RunInputBindings = Record<string, RunInputValue>;
 
 export function orderedInputFields(contract: WorkflowInputContract | null): WorkflowInputField[] {
   return contract ? [...contract.fields].sort((a, b) => a.order - b.order) : [];
+}
+
+/**
+ * Whether to offer this field a folder, from the contract's own declaration.
+ *
+ * A folder can only satisfy a typed file field by becoming an immutable ZIP
+ * artifact, and whether that is MEANINGFUL is a fact about the agent that only
+ * the contract author knows. Both available shortcuts are wrong, and both were
+ * tried:
+ *
+ *   - PROSE. A description reading "folder path or ZIP" is copy. Rendering a
+ *     folder button from it means the button vanishes the day someone rewords
+ *     the sentence, and appears on every unrelated field whose author happened
+ *     to use the word.
+ *   - `.zip` ACCEPTANCE. "This field takes a ZIP" is a statement about a file
+ *     format. A field that ingests an exported project archive from another
+ *     tool accepts `.zip` and has no use for an arbitrary folder — freezing one
+ *     produces a flawlessly verified artifact the agent cannot read.
+ *
+ * The backend refuses to normalize the capability onto an accept block that
+ * would then reject `application/zip`, so this needs no second opinion about
+ * whether the resulting snapshot would pass.
+ */
+export function acceptsDirectorySnapshot(field: WorkflowInputField): boolean {
+  return field.kind === 'file' && field.accept?.directorySnapshot === true;
 }
 
 /**
@@ -127,6 +165,28 @@ export function describeInputPickerError(code: string | undefined, field: Workfl
       return 'The file changed while it was being verified. Make sure nothing is still writing to it, then choose it again.';
     case 'not_a_regular_file':
       return 'That is not a regular file. Choose a file rather than a folder, alias, or symlink.';
+    case 'directory_not_accepted':
+      return `“${field.label}” does not accept a folder snapshot. Choose one of its accepted files instead.`;
+    case 'not_a_directory':
+    case 'invalid_directory_selection':
+      return 'That is not a selectable folder. Choose a real folder rather than an alias or symlink.';
+    case 'directory_contains_symlink':
+    case 'directory_contains_special_file':
+      return 'That folder contains a symlink or unsupported special file. Remove it or create a ZIP yourself, then try again.';
+    case 'directory_too_many_entries':
+    case 'directory_too_large':
+      return 'That folder is too large to attach safely. Create a smaller project folder or ZIP, then try again.';
+    case 'directory_changed_while_snapshotting':
+      return 'That folder changed while Implexa was packaging it. Stop any writes to it, then choose it again.';
+    case 'directory_unreadable':
+    case 'directory_unavailable':
+      return 'Implexa could not read that folder. Check its permissions and choose it again.';
+    case 'directory_snapshot_failed':
+    case 'directory_source_read_short':
+    case 'directory_snapshot_write_stalled':
+      return 'Implexa could not create a verified ZIP snapshot of that folder. Check free disk space, then try again.';
+    case 'desktop_folder_support_missing':
+      return `This version of Implexa Desktop cannot attach a folder for “${field.label}”. Update Implexa Desktop, or choose a ZIP of the folder instead.`;
     case 'invalid_input_registration':
       return `Implexa Desktop could not register a file for “${field.label}”. Update the desktop app, then try again.`;
     default:
@@ -146,6 +206,15 @@ export type PickRunInputResult = {
   sha256?: string;
   displayName?: string;
   mediaType?: string;
+  /**
+   * Where this artifact came from, as Desktop reports it. Local metadata: it
+   * never reaches the backend (`serializeArtifactBindings` sends identity
+   * only). It exists so the UI can say "frozen from a folder" instead of
+   * leaving the user to wonder why their selection now ends in `.zip` — and so
+   * a Desktop too old to freeze folders fails honestly rather than silently
+   * returning whatever its file dialog produced.
+   */
+  origin?: 'file' | 'directory-snapshot';
 };
 
 export type PickerOutcome =
@@ -169,6 +238,7 @@ export type PickerOutcome =
 export function resolvePickerResult(
   result: PickRunInputResult | null | undefined,
   field: WorkflowInputField,
+  requested: 'file' | 'directory' = 'file',
 ): PickerOutcome {
   if (!result?.ok) {
     if (result?.canceled === true || !result?.error) return { kind: 'canceled' };
@@ -179,6 +249,15 @@ export function resolvePickerResult(
   if (!result.artifactId || !result.sha256 || !result.displayName || !result.inputSessionId) {
     return { kind: 'failed', message: describeInputPickerError('incomplete_registration', field) };
   }
+  // A Desktop that predates folder support ignores `selection` entirely: it
+  // opens its FILE dialog and returns a perfectly valid file artifact. Nothing
+  // about that response says "I could not do what you asked", so accepting it
+  // would bind whatever the user picked out of a dialog that contradicted the
+  // button they clicked. The origin marker is the only honest signal, and its
+  // ABSENCE is exactly the old-Desktop case.
+  if (requested === 'directory' && result.origin !== 'directory-snapshot') {
+    return { kind: 'failed', message: describeInputPickerError('desktop_folder_support_missing', field) };
+  }
   return {
     kind: 'bound',
     inputSessionId: result.inputSessionId,
@@ -187,6 +266,7 @@ export function resolvePickerResult(
       sha256: result.sha256,
       displayName: result.displayName,
       ...(result.mediaType ? { mediaType: result.mediaType } : {}),
+      ...(result.origin ? { origin: result.origin } : {}),
     },
   };
 }

@@ -15,7 +15,7 @@
  * A surviving mutant fails the build.
  */
 
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,9 +24,18 @@ import os from 'node:os';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LIB = 'lib/workflow-input-contract.ts';
 const COMPONENT = 'app/(dashboard)/_components/agent-actions.tsx';
+const UPDATE_COMPONENT = 'app/(dashboard)/_components/agent-update-gate.tsx';
 const TESTS = [
   'lib/workflow-input-contract.test.ts',
   'app/(dashboard)/_components/run-input-picker.test.ts',
+  'app/(dashboard)/_components/run-folder-attachments.test.ts',
+  'app/(dashboard)/_components/folder-input-render.test.ts',
+];
+const TEST_MARKERS = [
+  'folder snapshots are offered only by an explicit directory snapshot capability',
+  'declared folder-capable fields expose a distinct folder snapshot choice',
+  'every generic run, continue, and build attachment surface wires the folder handler',
+  'Run Now uses the same declared folder capability and replacement identity',
 ];
 
 const mutants = [
@@ -56,6 +65,33 @@ const mutants = [
   ['failure-computed-but-not-shown', COMPONENT,
     "    if (outcome.kind === 'failed') { setInputError(field.key, outcome.message); return; }",
     "    if (outcome.kind === 'failed') { return; }"],
+  ['folder-affordance-offered-without-declared-capability', LIB,
+    "  return field.kind === 'file' && field.accept?.directorySnapshot === true;",
+    "  return field.kind === 'file';"],
+  ['folder-capability-inferred-from-zip-again', LIB,
+    "  return field.kind === 'file' && field.accept?.directorySnapshot === true;",
+    "  return field.kind === 'file' && (field.accept?.extensions ?? []).some((extension) => extension.toLowerCase() === '.zip');"],
+  ['directory-response-origin-no-longer-required', LIB,
+    "  if (requested === 'directory' && result.origin !== 'directory-snapshot') {",
+    "  if (false) {"],
+  ['typed-folder-selection-sent-as-a-file', COMPONENT,
+    '      selection,',
+    "      selection: 'file',"],
+  ['run-now-replacement-identity-dropped', COMPONENT,
+    '      ...(replaced ? { replacesArtifactId: replaced.artifactId } : {}),',
+    '      ...{},'],
+  ['activation-replacement-identity-dropped', UPDATE_COMPONENT,
+    '      ...(replaced ? { replacesArtifactId: replaced.artifactId } : {}),',
+    '      ...{},'],
+  ['activation-folder-affordance-removed', UPDATE_COMPONENT,
+    "                  {acceptsDirectorySnapshot(field) && <button type=\"button\" onClick={() => void chooseTypedInput(field, 'directory')}",
+    "                  {false && <button type=\"button\" onClick={() => void chooseTypedInput(field, 'directory')}"],
+  ['generic-folder-attachment-button-removed', 'app/(dashboard)/_components/run-attachments.tsx',
+    '          Attach folder',
+    '          Attach directory'],
+  ['directory-snapshot-failure-is-swallowed', LIB,
+    "    case 'directory_snapshot_failed':\n    case 'directory_source_read_short':",
+    "    case 'directory_source_read_short':"],
 
   // ── POSITIONAL INSTEAD OF KEYED BINDING ───────────────────────────────────
   // Stored under a fixed slot instead of the contract key: whichever file was
@@ -94,14 +130,42 @@ const mutants = [
     'if (blankRequired.length) return;'],
 ];
 
+function copyForTest(prefix) {
+  const dir = mkdtempSync(join(os.tmpdir(), prefix));
+  cpSync(ROOT, dir, {
+    recursive: true,
+    filter: (src) => !['node_modules', '.next', '.git', '.vercel', 'dist'].includes(src.split('/').pop() ?? ''),
+  });
+  symlinkSync(join(ROOT, 'node_modules'), join(dir, 'node_modules'), 'dir');
+  return dir;
+}
+
+function runSuite(dir) {
+  return spawnSync(process.execPath, ['scripts/run-selected-tests.mjs', ...TESTS], {
+    cwd: dir, encoding: 'utf8', timeout: 90000,
+  });
+}
+
+{
+  const dir = copyForTest('implexa-dash-run-input-baseline-');
+  try {
+    const baseline = runSuite(dir);
+    const output = `${baseline.stdout || ''}\n${baseline.stderr || ''}`;
+    const missing = TEST_MARKERS.filter((marker) => !output.includes(marker));
+    if (baseline.status !== 0 || missing.length) {
+      process.stderr.write('HARNESS BROKEN: unmutated run-input picker suite is not fully green\n');
+      if (missing.length) process.stderr.write(`missing test markers: ${missing.join(', ')}\n`);
+      process.stderr.write(output);
+      process.exit(1);
+    }
+    process.stdout.write(`BASELINE green — ${TESTS.length} files reported their load-bearing cases\n`);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
 let killed = 0;
 for (const [name, file, from, to] of mutants) {
-  const dir = mkdtempSync(join(os.tmpdir(), `implexa-dash-run-input-${name}-`));
+  const dir = copyForTest(`implexa-dash-run-input-${name}-`);
   try {
-    cpSync(ROOT, dir, {
-      recursive: true,
-      filter: (src) => !['node_modules', '.next', '.git', '.vercel', 'dist'].includes(src.split('/').pop() ?? ''),
-    });
     const target = join(dir, file);
     const source = readFileSync(target, 'utf8');
     const first = source.indexOf(from);
@@ -109,7 +173,7 @@ for (const [name, file, from, to] of mutants) {
       throw new Error(`${name}: mutation target must occur exactly once in ${file}`);
     }
     writeFileSync(target, source.replace(from, to));
-    const result = spawnSync(process.execPath, ['--test', ...TESTS], { cwd: dir, encoding: 'utf8', timeout: 60000 });
+    const result = runSuite(dir);
     if (result.status === 0) {
       process.stderr.write(`SURVIVED: ${name}\n`);
       process.exitCode = 1;

@@ -7,7 +7,7 @@ import { callBackend } from '@/lib/api';
 import Modal from './modal';
 import { desktopBridge } from './run-attachments';
 import {
-  bindInputValue, missingRequiredInputs, orderedInputFields, resolvePickerResult,
+  acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, resolvePickerResult,
   serializeArtifactBindings, type ArtifactBinding, type RunInputBindings,
   type WorkflowInputContract, type WorkflowInputField,
 } from '@/lib/workflow-input-contract';
@@ -43,16 +43,29 @@ export default function AgentUpdateGate({ workflowId, update }: {
     });
   }
 
-  async function chooseFile(field: WorkflowInputField) {
+  /**
+   * Activation and reactivation ask for the SAME typed inputs a run does, so a
+   * folder-capable field has to offer the same two choices here. It did not:
+   * this surface rendered "Choose file" alone, which meant an agent whose
+   * contract declares folder support could be run from a folder but never
+   * ACTIVATED from one — the user hit a file-only dialog on the one screen they
+   * cannot skip.
+   */
+  async function chooseTypedInput(field: WorkflowInputField, selection: 'file' | 'directory' = 'file') {
     const bridge = desktopBridge();
     if (!bridge?.pickRunInput) return;
     const inputSessionId = sessionRef.current || crypto.randomUUID();
     sessionRef.current = inputSessionId;
     setError(field.key, null);
+    const current = bindings[field.key];
+    const replaced = field.cardinality === 'one' && current && typeof current === 'object' && !Array.isArray(current)
+      ? current as ArtifactBinding : null;
     const raw = await bridge.pickRunInput({
-      inputKey: field.key, inputSessionId, ...(field.accept ? { accept: field.accept } : {}),
+      inputKey: field.key, inputSessionId, selection,
+      ...(replaced ? { replacesArtifactId: replaced.artifactId } : {}),
+      ...(field.accept ? { accept: field.accept } : {}),
     }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
-    const result = resolvePickerResult(raw, field);
+    const result = resolvePickerResult(raw, field, selection);
     if (result.kind === 'canceled') return;
     if (result.kind === 'failed') { setError(field.key, result.message); return; }
     if (result.inputSessionId !== inputSessionId) {
@@ -131,10 +144,16 @@ export default function AgentUpdateGate({ workflowId, update }: {
                   </span>
                   <p className="text-xs text-ink-400 mt-1">{field.description}</p>
                 </div>
-                {field.kind === 'file' && <button type="button" onClick={() => void chooseFile(field)}
-                  disabled={!desktopBridge()?.pickRunInput} className="btn-outline text-xs px-3 py-1.5 shrink-0 disabled:opacity-40">
-                  {field.cardinality === 'many' ? 'Add file' : artifacts.length ? 'Replace' : 'Choose file'}
-                </button>}
+                {field.kind === 'file' && <div className="flex items-center gap-2 shrink-0">
+                  <button type="button" onClick={() => void chooseTypedInput(field)}
+                    disabled={!desktopBridge()?.pickRunInput} className="btn-outline text-xs px-3 py-1.5 disabled:opacity-40">
+                    {field.cardinality === 'many' ? 'Add file' : artifacts.length ? 'Replace file' : 'Choose file'}
+                  </button>
+                  {acceptsDirectorySnapshot(field) && <button type="button" onClick={() => void chooseTypedInput(field, 'directory')}
+                    disabled={!desktopBridge()?.pickRunInput} className="btn-outline text-xs px-3 py-1.5 disabled:opacity-40">
+                    {field.cardinality === 'many' ? 'Add folder' : artifacts.length ? 'Replace with folder' : 'Choose folder'}
+                  </button>}
+                </div>}
               </div>
               {field.kind === 'text' && <input
                 value={field.cardinality === 'many' ? scalarMany.join(', ') : scalar}
@@ -153,7 +172,10 @@ export default function AgentUpdateGate({ workflowId, update }: {
                 {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
               </select>}
               {artifacts.map((artifact) => <div key={artifact.artifactId} className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-300">
-                <span><span className="text-emerald-400">✓</span> {artifact.displayName} — verified, bound to {field.key}</span>
+                <span>
+                  <span className="text-emerald-400">✓</span> {artifact.displayName}
+                  {' '}— {artifact.origin === 'directory-snapshot' ? 'frozen from a folder' : 'file'}, verified, bound to {field.key}
+                </span>
                 <button type="button" className="text-ink-500 hover:text-rose-400" onClick={() => setBindings((previous) => {
                   const existing = previous[field.key];
                   if (field.cardinality === 'many' && Array.isArray(existing)) {

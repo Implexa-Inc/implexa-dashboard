@@ -16,7 +16,7 @@ const src = readFileSync(new URL('./agent-actions.tsx', import.meta.url), 'utf8'
 
 test('the picker result is routed through the tested resolver, not re-decided inline', () => {
   assert.match(src, /resolvePickerResult/, 'the component imports and uses the resolver');
-  assert.match(src, /const outcome = resolvePickerResult\(result, field\);/);
+  assert.match(src, /const outcome = resolvePickerResult\(result, field, selection\);/);
   assert.match(src, /bindInputValue\(previous, field, outcome\.binding\)/,
     'binding goes through the keyed helper, so a file can never be stored positionally');
   assert.doesNotMatch(src, /if \(!result\?\.ok \|\| !result\.artifactId/,
@@ -41,8 +41,16 @@ test('a bound file shows its filename and that it is verified and keyed', () => 
   assert.match(src, /\{item\.displayName\}/, 'the filename is shown');
   assert.match(src, /verified, bound to \{field\.key\}/,
     'the bound state names the contract key, so upload order is visibly irrelevant');
-  assert.match(src, /\{field\.cardinality === 'many' \? 'Add file' : artifacts\.length \? 'Replace' : 'Choose file'\}/,
+  assert.match(src, /\{field\.cardinality === 'many' \? 'Add file' : artifacts\.length \? 'Replace file' : 'Choose file'\}/,
     'the button reads Replace once a file is bound, never still Choose file — including a file bound from the saved setup, which arrives as a default rather than through the picker');
+});
+
+test('declared folder-capable fields expose a distinct folder snapshot choice', () => {
+  assert.match(src, /async function chooseTypedInput\(field: WorkflowInputField, selection: 'file' \| 'directory' = 'file'\)/);
+  assert.match(src, /selection,/,
+    'the requested picker kind must cross the Desktop bridge boundary');
+  assert.match(src, /acceptsDirectorySnapshot\(field\)[\s\S]*?chooseTypedInput\(field, 'directory'\)[\s\S]*?Choose folder/,
+    'folder selection is gated on the explicit capability rather than ZIP acceptance or suggestive prose');
 });
 
 test('removing a file clears its error and takes the value out of THIS run', () => {

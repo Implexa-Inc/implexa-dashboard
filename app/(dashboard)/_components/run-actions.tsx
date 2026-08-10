@@ -80,7 +80,7 @@ export default function RunActions({
   const [busy, setBusy] = useState<null | string>(null);
   const [err, setErr] = useState<string | null>(null);
   const [note, setNote] = useState('');
-  const { files, canAttach, attachFile, removeFile } = useRunAttachments();
+  const { files, canAttach, canAttachFolder, attachFile, attachFolder, removeFile, error: attachError } = useRunAttachments();
 
   async function jwt() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -246,7 +246,8 @@ export default function RunActions({
             placeholder={needsInput ? 'Answer its question or add the missing inputs…' : 'What should it change? (e.g. punch up the hook)'}
             className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
           />
-          <AttachFiles files={files} canAttach={canAttach} onAttach={attachFile} onRemove={removeFile}
+          <AttachFiles files={files} canAttach={canAttach} canAttachFolder={canAttachFolder}
+            onAttach={attachFile} onAttachFolder={attachFolder} onRemove={removeFile} error={attachError}
             hint="A screenshot, the captured footage, a doc — the run reads it as input." />
           {/* Permanent-edit opt-in: by default this re-runs THIS run with the change;
               check to also bake it into the agent so every future run does it. */}

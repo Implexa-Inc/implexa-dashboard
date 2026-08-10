@@ -72,7 +72,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
   // Any-file attach via the native picker (desktop). Shared with run-setup and the
   // Continue box. `canAttach` is true only when the pickFile bridge exists; when it
   // does, this is the attach UI (any file type) and the legacy image picker is hidden.
-  const { files: runFiles, canAttach, attachFile, removeFile, reset: resetFiles } = useRunAttachments();
+  const { files: runFiles, canAttach, canAttachFolder, attachFile, attachFolder, removeFile, reset: resetFiles, error: attachError } = useRunAttachments();
   // The just-queued build, kept so the secondary "shape it in Claude" opt-in can
   // hand it off interactively after the hands-off queue has cleared the input.
   const [queuedIntent, setQueuedIntent] = useState('');
@@ -281,12 +281,15 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
 
         {/* Any-file attach (desktop, via the native picker) — shared with run-setup
             and the Continue box. Paths are baked into the build intent on submit. */}
-        {canAttach && (
+        {(canAttach || canAttachFolder) && (
           <AttachFiles
             files={runFiles}
             canAttach={canAttach}
+            canAttachFolder={canAttachFolder}
             onAttach={attachFile}
+            onAttachFolder={attachFolder}
             onRemove={removeFile}
+            error={attachError}
             hint="Attach a file — a screenshot, a doc, a spec — and your agent can use it."
           />
         )}
