@@ -12,7 +12,7 @@ const consumers = [
 
 test('the desktop bridge and shared attachment UI distinguish files from folders', () => {
   assert.match(attachments, /pickDirectory\?: \(\) => Promise/);
-  assert.match(attachments, /const r = await bridge\.pickDirectory\(\)/);
+  assert.match(attachments, /await bridge\.pickDirectory\(\)\.catch/);
   assert.match(attachments, />\s*Attach folder\s*</);
 });
 

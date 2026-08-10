@@ -27,10 +27,11 @@ test('submission strips display names and preserves semantic keys', () => {
   });
 });
 
-test('folder snapshots are offered only by an explicit ZIP-capable file contract', () => {
-  assert.equal(acceptsDirectorySnapshot({ ...contract.fields[0], accept: { mediaTypes: [], extensions: ['.zip'] } }), true);
+test('folder snapshots are offered only by an explicit directory snapshot capability', () => {
+  assert.equal(acceptsDirectorySnapshot({ ...contract.fields[0], accept: { mediaTypes: ['application/zip'], extensions: ['.zip'], directorySnapshot: true } }), true);
+  assert.equal(acceptsDirectorySnapshot({ ...contract.fields[0], accept: { mediaTypes: ['application/zip'], extensions: ['.zip'] } }), false);
   assert.equal(acceptsDirectorySnapshot({ ...contract.fields[0], accept: { mediaTypes: [], extensions: ['.mp4'] } }), false);
-  assert.equal(acceptsDirectorySnapshot({ ...contract.fields[0], kind: 'text', accept: { mediaTypes: [], extensions: ['.zip'] } }), false);
+  assert.equal(acceptsDirectorySnapshot({ ...contract.fields[0], kind: 'text', accept: { mediaTypes: ['application/zip'], extensions: ['.zip'], directorySnapshot: true } }), false);
 });
 
 // ── The Run Inputs picker boundary ──────────────────────────────────────────

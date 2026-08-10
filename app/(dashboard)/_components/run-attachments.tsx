@@ -42,15 +42,23 @@ export type DesktopBridge = {
   handoffAgent?: (prompt: string, surface?: string, target?: string) => Promise<{ ok: boolean; mode?: string }>;
   pickFile?: (opts?: unknown) => Promise<{ ok: boolean; path?: string }>;
   /** Generic run/build/continue attachment. The explicitly selected absolute
-   * path rides the same one-off request-note channel as ordinary attached files. */
-  pickDirectory?: () => Promise<{ ok: boolean; path?: string; error?: string }>;
+   * path rides the same one-off request-note channel as ordinary attached files
+   * — identical treatment to `pickFile`, which is the point: a folder is not a
+   * second-class attachment here, and it is NOT a typed artifact, so it carries
+   * no digest claim. Typed inputs never use this; they use
+   * `pickRunInput({ selection: 'directory' })`, which freezes the folder. */
+  pickDirectory?: () => Promise<{ ok: boolean; path?: string; canceled?: boolean; error?: string }>;
   /** Trusted typed-input boundary. Desktop hashes/registers the local file and
    * retains its path locally; web/backend receive identity + media metadata only. */
   pickRunInput?: (opts: {
     inputKey: string;
     inputSessionId?: string;
     selection?: 'file' | 'directory';
-    accept?: { mediaTypes?: string[]; extensions?: string[] };
+    accept?: { mediaTypes?: string[]; extensions?: string[]; directorySnapshot?: boolean };
+    /** The one prior binding this same open form is replacing. Desktop releases
+     * it only after the new registration succeeds and only if session + key
+     * also match; it never performs age-based cleanup of queued-run inputs. */
+    replacesArtifactId?: string;
   }) => Promise<{
     ok: boolean;
     /** Set when the user dismissed the native picker: keep state, show nothing. */
@@ -99,12 +107,14 @@ export function useRunAttachments() {
   // attach affordance, since a plain browser can't give Claude a local path.
   const [canAttach, setCanAttach] = useState(false);
   const [canAttachFolder, setCanAttachFolder] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     setCanAttach(!!desktopBridge()?.pickFile);
     setCanAttachFolder(!!desktopBridge()?.pickDirectory);
   }, []);
 
   async function attachFile() {
+    setError(null);
     const bridge = desktopBridge();
     if (!bridge?.pickFile) return;
     const r = await bridge.pickFile().catch(() => null);
@@ -112,26 +122,61 @@ export function useRunAttachments() {
       setFiles((prev) => (prev.includes(r.path!) ? prev : [...prev, r.path!].slice(0, MAX_RUN_FILES)));
     }
   }
+  /**
+   * A refusal is SHOWN. A cancel is not.
+   *
+   * Both used to be the same `return`, which meant a folder picker that failed
+   * — no permission, a dialog that threw, a Desktop that does not have the
+   * channel — looked exactly like the user changing their mind: the dialog
+   * closed, nothing appeared, and there was nothing to read.
+   */
   async function attachFolder() {
     const bridge = desktopBridge();
-    if (!bridge?.pickDirectory) return;
-    const r = await bridge.pickDirectory().catch(() => null);
+    if (!bridge?.pickDirectory) {
+      setError('Open this run in the Implexa desktop app to attach a folder.');
+      return;
+    }
+    setError(null);
+    const r: { ok: boolean; path?: string; canceled?: boolean; error?: string } =
+      await bridge.pickDirectory().catch((e: unknown) => ({
+        ok: false, error: e instanceof Error ? e.message : 'bridge_unavailable',
+      }));
     if (r?.ok && r.path) {
       setFiles((prev) => (prev.includes(r.path!) ? prev : [...prev, r.path!].slice(0, MAX_RUN_FILES)));
+      return;
     }
+    // An older Desktop reports a cancel as a bare `{ ok:false }`, so "no code"
+    // is read as a cancel — the same convention the typed picker uses.
+    if (r?.canceled === true || !r?.error) return;
+    setError(describeFolderAttachError(r.error));
   }
   function removeFile(i: number) {
+    setError(null);
     setFiles((prev) => prev.filter((_, idx) => idx !== i));
   }
-  function reset() { setFiles([]); }
+  function reset() { setFiles([]); setError(null); }
 
-  return { files, setFiles, canAttach, canAttachFolder, attachFile, attachFolder, removeFile, reset };
+  return { files, setFiles, canAttach, canAttachFolder, attachFile, attachFolder, removeFile, reset, error };
 }
 
 /** The attach button + attached-file chips. Desktop-only (disabled with a hint in a
  *  plain browser, which can't hand Claude a local path). */
+/** Turn a Desktop folder-picker refusal into something the user can act on. */
+export function describeFolderAttachError(code: string | undefined): string {
+  switch (code) {
+    case 'forbidden':
+      return 'Implexa Desktop would not accept this page. Open this run from the Implexa desktop app window and try again.';
+    case 'folder_picker_failed':
+      return 'Implexa Desktop could not open a folder picker. Try again, or attach the files individually.';
+    case 'bridge_unavailable':
+      return 'Implexa Desktop did not respond. Make sure it is running, then try again.';
+    default:
+      return `Could not attach that folder (${code}). Try again, or attach the files individually.`;
+  }
+}
+
 export function AttachFiles({
-  files, canAttach, canAttachFolder = false, onAttach, onAttachFolder, onRemove,
+  files, canAttach, canAttachFolder = false, onAttach, onAttachFolder, onRemove, error = null,
   hint = 'A screenshot, file, or folder — the run reads it as context.',
 }: {
   files: string[];
@@ -140,6 +185,7 @@ export function AttachFiles({
   onAttach: () => void;
   onAttachFolder?: () => void;
   onRemove: (i: number) => void;
+  error?: string | null;
   hint?: string;
 }) {
   return (
@@ -171,6 +217,8 @@ export function AttachFiles({
         </button>}
         {(canAttach || canAttachFolder) && <span className="text-[11px] text-ink-500">{hint}</span>}
       </div>
+
+      {error && <p role="alert" className="mt-1.5 text-[11px] text-rose-300">{error}</p>}
 
       {files.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
