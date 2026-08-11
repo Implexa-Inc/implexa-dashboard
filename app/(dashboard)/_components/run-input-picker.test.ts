@@ -53,6 +53,15 @@ test('declared folder-capable fields expose a distinct folder snapshot choice', 
     'folder selection is gated on the explicit capability rather than ZIP acceptance or suggestive prose');
 });
 
+test('the Run Inputs modal and cards leave room for long contract copy', () => {
+  assert.match(src, /open=\{showSetupModal\}[\s\S]*?maxWidth="max-w-2xl"/,
+    'typed run inputs use the wider modal instead of squeezing long labels into max-w-md');
+  assert.match(src, /<p className="text-xs text-ink-400 mt-1 leading-relaxed">\{field\.description\}<\/p>[\s\S]*?mt-3 flex flex-wrap items-center gap-2/,
+    'file and folder actions render after the full-width description and wrap when needed');
+  assert.doesNotMatch(src, /flex items-start justify-between gap-3[\s\S]{0,1800}?Choose folder/,
+    'the action buttons must not reserve half the card width beside long contract copy');
+});
+
 test('removing a file clears its error and takes the value out of THIS run', () => {
   // A removal writes an override, not a mutation of the saved answer: the file
   // leaves this run and stays saved for the next one. It must still clear the

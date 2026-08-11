@@ -895,7 +895,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       open={showSetupModal}
       onClose={() => { if (!setupSaving) setShowSetupModal(false); }}
       title={preRunMode === 'watch' ? 'Before it opens in Claude' : setupFields.length ? 'Before it runs' : 'Add a note for this run'}
-      maxWidth="max-w-md"
+      maxWidth="max-w-2xl"
     >
       <p className="text-sm text-ink-300 leading-relaxed mb-4">
         {setupFields.length
@@ -1017,28 +1017,26 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
               });
             };
             return (
-              <div key={field.key} className="rounded-md border border-ink-800 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <label className="text-sm font-medium text-ink-100">{field.label}</label>
-                    <span className={field.required ? 'ml-2 text-[11px] text-amber-300' : 'ml-2 text-[11px] text-ink-500'}>
-                      {field.required ? 'required' : 'optional'}
-                    </span>
-                    {/* WHICH LAYER this value came from. Without it, "kept from
-                        your setup" and "changed for this run" look identical, and
-                        the user cannot tell what the next run will use. */}
-                    {origin === 'saved' && (
-                      <span className="ml-2 text-[11px] text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">from your setup</span>
-                    )}
-                    {origin === 'override' && (
-                      <span className="ml-2 text-[11px] text-brand-500 border border-brand-500/40 rounded px-1.5 py-0.5">this run only</span>
-                    )}
-                    {origin === 'cleared' && savedPath && (
-                      <span className="ml-2 text-[11px] text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">cleared for this run</span>
-                    )}
-                    <p className="text-xs text-ink-400 mt-1 leading-relaxed">{field.description}</p>
-                  </div>
-                  {field.kind === 'file' && <div className="flex items-center gap-2 shrink-0">
+              <div key={field.key} className="rounded-md border border-ink-800 p-4">
+                <div className="min-w-0">
+                  <label className="text-sm font-medium text-ink-100">{field.label}</label>
+                  <span className={field.required ? 'ml-2 text-[11px] text-amber-300' : 'ml-2 text-[11px] text-ink-500'}>
+                    {field.required ? 'required' : 'optional'}
+                  </span>
+                  {/* WHICH LAYER this value came from. Without it, "kept from
+                      your setup" and "changed for this run" look identical, and
+                      the user cannot tell what the next run will use. */}
+                  {origin === 'saved' && (
+                    <span className="ml-2 text-[11px] text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">from your setup</span>
+                  )}
+                  {origin === 'override' && (
+                    <span className="ml-2 text-[11px] text-brand-500 border border-brand-500/40 rounded px-1.5 py-0.5">this run only</span>
+                  )}
+                  {origin === 'cleared' && savedPath && (
+                    <span className="ml-2 text-[11px] text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">cleared for this run</span>
+                  )}
+                  <p className="text-xs text-ink-400 mt-1 leading-relaxed">{field.description}</p>
+                  {field.kind === 'file' && <div className="mt-3 flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => void chooseTypedInput(field)}
