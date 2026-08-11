@@ -93,6 +93,7 @@ export default async function ReviewRoomPage({ params, searchParams }: {
 
       <ReviewRoom
         runId={packet.run.id}
+        agentSlug={packet.run.slug}
         agentName={agentName}
         artifacts={packet.artifacts}
         production={packet.production}

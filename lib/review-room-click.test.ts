@@ -40,6 +40,7 @@ let React: typeof import('react');
 let createRoot: typeof import('react-dom/client').createRoot;
 let act: (cb: () => void | Promise<void>) => Promise<void>;
 let ReviewRoom: unknown;
+let navigation: typeof import('../scripts/stubs/next-navigation.mjs');
 let dom: JSDOM;
 let container: HTMLElement;
 let root: { render: (n: unknown) => void; unmount: () => void };
@@ -65,11 +66,13 @@ before(async () => {
   const testUtils = await import('react-dom/test-utils');
   act = (testUtils as unknown as { act: typeof act }).act;
   ReviewRoom = (await import('../app/(dashboard)/_components/review-room.tsx') as { default: unknown }).default;
+  navigation = await import('../scripts/stubs/next-navigation.mjs');
 });
 
 after(() => { dom?.window?.close(); });
 
 beforeEach(() => {
+  navigation?.resetRouterCalls();
   calls = [];
   pending = null;
   container = dom.window.document.createElement('div');
@@ -82,6 +85,12 @@ beforeEach(() => {
     return { status: settled.status, json: async () => settled.body } as unknown as Response;
   };
 });
+
+const submittedSession = {
+  id: FIXTURE_SESSION_ID, runId: FIXTURE_RUN_ID, selectedArtifactId: null,
+  state: 'submitted', submittedRequestId: 'd41d8cd9-1111-4000-8000-aaaaaaaaaaaa',
+  submittedIssueIds: fixtureIssues.map((issue) => issue.id), compiledBrief: 'frozen', acceptedAt: null,
+};
 
 /** Mount the room with the 12-issue production draft. */
 async function mount(over: Record<string, unknown> = {}) {
@@ -242,6 +251,59 @@ test('A THROWN FETCH leaves Sending, keeps the drafts AND the note', async () =>
     'tighten the intro',
     'the revision note was discarded on transport failure',
   );
+  root.unmount();
+});
+
+// ── a failed submitted revision opens a real successor round ───────────────
+
+test('Open revision attempt resolves the request to its actual child run', async () => {
+  (globalThis as Record<string, unknown>).fetch = async (url: string, init: { body?: string }) => {
+    const body = JSON.parse(String(init?.body ?? '{}'));
+    calls.push({ url: String(url), body });
+    return {
+      status: 200,
+      json: async () => ({
+        ok: true, requestId: submittedSession.submittedRequestId,
+        outcome: 'succeeded', resultRunId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      }),
+    } as unknown as Response;
+  };
+  await mount({ agentSlug: 'chapter-cutter', session: submittedSession });
+  await click(buttons().find((button) => button.textContent?.includes('Open revision attempt'))!);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.action, 'continuation_status');
+  assert.equal(calls[0].body.sessionId, FIXTURE_SESSION_ID);
+  assert.deepEqual(navigation.routerCalls.push, ['/review/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb']);
+  root.unmount();
+});
+
+test('Add more feedback carries the submitted issues into one editable successor draft', async () => {
+  const nextSessionId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const carried = fixtureIssues.map((issue) => ({
+    ...issue, id: `cccccccc-cccc-4ccc-8ccc-${String(issue.id).slice(-12)}`,
+    sessionId: nextSessionId, status: 'draft', submittedRequestId: null,
+  }));
+  (globalThis as Record<string, unknown>).fetch = async (url: string, init: { body?: string }) => {
+    const body = JSON.parse(String(init?.body ?? '{}'));
+    calls.push({ url: String(url), body });
+    return {
+      status: 200,
+      json: async () => ({
+        ok: true,
+        session: { ...submittedSession, id: nextSessionId, state: 'draft', submittedRequestId: null, submittedIssueIds: null },
+        issues: carried,
+        carriedIssueCount: carried.length,
+      }),
+    } as unknown as Response;
+  };
+  await mount({ agentSlug: 'chapter-cutter', session: submittedSession });
+  await click(buttons().find((button) => button.textContent?.includes('Add more feedback'))!);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.action, 'amend_failed_revision');
+  assert.deepEqual(Object.keys(calls[0].body).sort(), ['action', 'sessionId']);
+  assert.match(text(), /12 submitted changes carried into a new draft/);
+  assert.match(text(), /Send 12 changes & start revision/);
+  assert.equal(container.querySelectorAll('li').length, 12, 'the carried draft was not rendered in full');
   root.unmount();
 });
 
