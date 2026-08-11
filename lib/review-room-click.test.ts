@@ -24,7 +24,14 @@ import { resolveReviewAction, REVISION_NOTE_MAX } from './review-actions.ts';
 
 // The loader is registered for THIS process only — node:test gives every file its own,
 // so no other test's module resolution changes.
-register(new URL('../scripts/dom-test-loader.mjs', import.meta.url));
+register(new URL('../scripts/dom-test-loader.mjs', import.meta.url), {
+  data: {
+    stubs: {
+      '@/lib/supabase/client': ['scripts', 'stubs', 'supabase-client.mjs'],
+      '@/lib/api': ['scripts', 'stubs', 'backend-api.mjs'],
+    },
+  },
+});
 
 type Call = { url: string; body: Record<string, unknown> };
 type Reply = { status: number; body: unknown };
@@ -45,6 +52,7 @@ let dom: JSDOM;
 let container: HTMLElement;
 let root: { render: (n: unknown) => void; unmount: () => void };
 let calls: Call[];
+let backendCalls: Array<{ path: string; options: unknown }>;
 /** When set, the next submit hangs on this instead of replying immediately. */
 let pending: Promise<Reply> | null;
 
@@ -74,6 +82,21 @@ after(() => { dom?.window?.close(); });
 beforeEach(() => {
   navigation?.resetRouterCalls();
   calls = [];
+  backendCalls = [];
+  (globalThis as Record<string, unknown>).__IMPLEXA_TEST_BACKEND__ = async (path: string, options: unknown) => {
+    backendCalls.push({ path, options });
+    if (path.includes('/recovery-state')) {
+      return {
+        ok: true,
+        state: 'retryable',
+        attempt: { executor: 'codex', endedAt: '2026-08-11T19:35:04.687Z', consequentialWorkStarted: false },
+      };
+    }
+    if (path.includes('/recover-review-continuation')) {
+      return { ok: true, reviewRetry: { requeued: true, alreadyQueued: false } };
+    }
+    throw new Error(`unexpected backend call: ${path}`);
+  };
   pending = null;
   container = dom.window.document.createElement('div');
   dom.window.document.body.appendChild(container);
@@ -304,6 +327,23 @@ test('Add more feedback carries the submitted issues into one editable successor
   assert.match(text(), /12 submitted changes carried into a new draft/);
   assert.match(text(), /Send 12 changes & start revision/);
   assert.equal(container.querySelectorAll('li').length, 12, 'the carried draft was not rendered in full');
+  root.unmount();
+});
+
+test('a submitted room exposes the process-ledger retry where the user is stranded', async () => {
+  await mount({ agentSlug: 'chapter-cutter', session: submittedSession });
+  assert.match(text(), /Ready to retry/i,
+    'Review Room did not render the recovery state that was already available on the run page');
+  assert.match(text(), /made no edits/i);
+
+  await click(buttons().find((button) => button.textContent?.includes('Retry this revision'))!);
+
+  assert.ok(
+    backendCalls.some((call) => call.path === `/api/v2/me/run-requests/${submittedSession.submittedRequestId}/recover-review-continuation`),
+    'the exact submitted continuation was not sent to the idempotent recovery endpoint',
+  );
+  assert.match(text(), /Queued with your original review submission/i);
+  assert.match(text(), /same submitted feedback and evidence/i);
   root.unmount();
 });
 

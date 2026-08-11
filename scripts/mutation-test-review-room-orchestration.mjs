@@ -64,6 +64,7 @@ const files = [
   'lib/review-room-credentials.test.ts',
   'lib/review-room-click.test.ts',
   'scripts/dom-test-loader.mjs', 'scripts/stubs/next-navigation.mjs',
+  'scripts/stubs/supabase-client.mjs', 'scripts/stubs/backend-api.mjs',
   PROXY,
   COMPONENT,
 ];
@@ -322,6 +323,9 @@ const mutations = [
   ['component-click', 'the queued state hides the server identity it was given', COMPONENT,
     '                    {submitView.continuationId}',
     "                    {''}"],
+  ['recovery-wiring', 'Review Room recovery targets no submitted continuation', COMPONENT,
+    '                    requestId={submitView.continuationId}',
+    "                    requestId={''}"],
 
   // ── the revision note ─────────────────────────────────────────────────────
   ['note-dropped', 'the composer disappears from the send path', FLOW,
