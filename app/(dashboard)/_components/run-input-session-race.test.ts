@@ -38,6 +38,17 @@ test('a bridge cannot silently switch the frozen session', () => {
   assert.match(verify, /outcome\.inputSessionId !== sessionId/);
 });
 
+test('a late saved-source result cannot overwrite a newer manual file or folder', () => {
+  const pick = SRC.slice(SRC.indexOf("async function chooseTypedInput"), SRC.indexOf("async function verifySavedFileInputs"));
+  const verify = SRC.slice(SRC.indexOf("async function verifySavedFileInputs"), SRC.indexOf("// Poll the queued request"));
+  assert.match(pick, /advanceInputRevision\(inputRevisionRef\.current, field\.key\)/,
+    'a successful manual result advances the field clock before it is displayed');
+  assert.match(pick, /advanceInputRevision[\s\S]*setInputError\(field\.key, null\)[\s\S]*setInputOverrides/,
+    'success clears any saved-source error that arrived while the native picker was open');
+  assert.match(verify, /const revision = readInputRevision[\s\S]*inputRevisionIsCurrent\([\s\S]*continue/,
+    'saved verification checks its starting revision before applying either a binding or an error');
+});
+
 test('a successfully queued run retires its session before the next run', () => {
   const queue = SRC.slice(SRC.indexOf("async function doQueue"), SRC.indexOf("function renderCapabilityCard"));
   assert.match(queue, /setInputOverrides\(\{\}\);\s*inputSessionRef\.current = null;\s*setInputSessionId\(null\);/);
