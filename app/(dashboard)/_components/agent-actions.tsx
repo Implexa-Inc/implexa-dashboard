@@ -164,6 +164,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [savedInputValues, setSavedInputValues] = useState<Record<string, string>>({});
   /** File keys whose saved path this machine is still verifying. */
   const [verifyingInputs, setVerifyingInputs] = useState<string[]>([]);
+  // A native picker resolves only after Desktop has hashed the file or walked,
+  // zipped, hashed and registered the selected directory. Keep that whole
+  // boundary visible and single-flight per field: without it, a large folder
+  // looks like a dead click and a second click can race the first result.
+  const [preparingInputs, setPreparingInputs] = useState<Record<string, 'file' | 'directory'>>({});
+  const preparingInputRef = useRef<Record<string, true>>({});
   const [inputSessionId, setInputSessionId] = useState<string | null>(null);
   // React state is not a synchronization primitive. Saved-file verification
   // and the manual picker can run concurrently, so both read/write this ref and
@@ -237,6 +243,14 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   async function chooseTypedInput(field: WorkflowInputField, selection: 'file' | 'directory' = 'file') {
     const bridge = desktopBridge();
     if (!bridge?.pickRunInput) return;
+    if (preparingInputRef.current[field.key]) return;
+    preparingInputRef.current[field.key] = true;
+    setPreparingInputs((previous) => ({ ...previous, [field.key]: selection }));
+    // Invalidate saved-source verification as soon as the user starts a manual
+    // replacement, not minutes later when a directory ZIP finally exists. A
+    // saved-source refusal that settles during snapshotting belongs to the old
+    // value and must never be painted beside the new successful artifact.
+    const manualRevision = advanceInputRevision(inputRevisionRef.current, field.key);
     setInputError(field.key, null);
     const sessionId = inputSessionRef.current || crypto.randomUUID();
     inputSessionRef.current = sessionId;
@@ -244,34 +258,50 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     const current = inputBindings[field.key];
     const replaced = field.cardinality === 'one' && current && typeof current === 'object' && !Array.isArray(current)
       ? current as ArtifactBinding : null;
-    const result = await bridge.pickRunInput({
-      inputKey: field.key,
-      inputSessionId: sessionId,
-      selection,
-      ...(replaced ? { replacesArtifactId: replaced.artifactId } : {}),
-      ...(field.accept ? { accept: field.accept } : {}),
-    }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
-    // The requested kind is passed through so a Desktop too old to freeze
-    // folders — which ignores `selection` and returns a file from its FILE
-    // dialog — fails honestly instead of binding what the user did not ask for.
-    const outcome = resolvePickerResult(result, field, selection);
-    // A cancel changes nothing: no error, and any file already bound to this
-    // field stays bound.
-    if (outcome.kind === 'canceled') return;
-    if (outcome.kind === 'failed') { setInputError(field.key, outcome.message); return; }
-    if (outcome.inputSessionId !== sessionId) {
-      setInputError(field.key, 'The Desktop returned this file for a different run-input session. Please choose it again.');
-      return;
+    try {
+      const result = await bridge.pickRunInput({
+        inputKey: field.key,
+        inputSessionId: sessionId,
+        selection,
+        ...(replaced ? { replacesArtifactId: replaced.artifactId } : {}),
+        ...(field.accept ? { accept: field.accept } : {}),
+      }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
+      // A newer operation owns this field. Its result is the only one allowed
+      // to alter the binding or error, even if an older bridge call settles last.
+      if (!inputRevisionIsCurrent(inputRevisionRef.current, field.key, manualRevision)) return;
+      // The requested kind is passed through so a Desktop too old to freeze
+      // folders — which ignores `selection` and returns a file from its FILE
+      // dialog — fails honestly instead of binding what the user did not ask for.
+      const outcome = resolvePickerResult(result, field, selection);
+      // A cancel changes nothing: no error, and any file already bound to this
+      // field stays bound. Re-run a saved-source verification invalidated when
+      // this picker started, so cancel also restores the untouched default.
+      if (outcome.kind === 'canceled') {
+        void verifySavedFileInputs([field], sessionId);
+        return;
+      }
+      if (outcome.kind === 'failed') { setInputError(field.key, outcome.message); return; }
+      if (outcome.inputSessionId !== sessionId) {
+        setInputError(field.key, 'The Desktop returned this file for a different run-input session. Please choose it again.');
+        return;
+      }
+      // Verification may have failed while the native picker was open. A valid
+      // manual result is authoritative and clears that older message.
+      setInputError(field.key, null);
+      inputSessionRef.current = sessionId;
+      setInputSessionId(outcome.inputSessionId);
+      // A picked file is a change made HERE, so it lands in the override layer and
+      // affects this run alone. The saved answer stays exactly as Setup left it.
+      setInputOverrides((previous) => bindInputValue(previous, field, outcome.binding));
+    } finally {
+      delete preparingInputRef.current[field.key];
+      setPreparingInputs((previous) => {
+        if (!(field.key in previous)) return previous;
+        const next = { ...previous };
+        delete next[field.key];
+        return next;
+      });
     }
-    advanceInputRevision(inputRevisionRef.current, field.key);
-    // Verification may have failed while the native picker was open. A valid
-    // manual result is authoritative and clears that older message.
-    setInputError(field.key, null);
-    inputSessionRef.current = sessionId;
-    setInputSessionId(outcome.inputSessionId);
-    // A picked file is a change made HERE, so it lands in the override layer and
-    // affects this run alone. The saved answer stays exactly as Setup left it.
-    setInputOverrides((previous) => bindInputValue(previous, field, outcome.binding));
   }
 
   /**
@@ -525,7 +555,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // REQUIRED-ONLY. Blocking on every displayed field made an optional preference
     // — correctly skippable during activation — required again at the first Run
     // click, which silently undid the whole tier split one surface later.
-    if (blankRequired.length || missingRequiredInputs(inputContract, inputBindings).length) return;
+    if (blankRequired.length || missingRequiredInputs(inputContract, inputBindings).length
+        || Object.keys(preparingInputRef.current).length) return;
     setSetupSaving(true);
     setMsg('');
     try {
@@ -1020,6 +1051,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             const scalarMany = Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
             const savedPath = savedInputValues[field.key];
             const verifying = verifyingInputs.includes(field.key);
+            const preparing = preparingInputs[field.key];
             // A change made here, in the override layer. Blank IS the clear: it
             // takes the saved value out of this run without touching what is saved.
             const override = (next: string | string[]) => setInputOverrides((previous) => ({ ...previous, [field.key]: next }));
@@ -1055,20 +1087,27 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                     <button
                       type="button"
                       onClick={() => void chooseTypedInput(field)}
-                      disabled={!desktopBridge()?.pickRunInput}
+                      disabled={!desktopBridge()?.pickRunInput || !!preparing}
                       className="btn-outline text-xs px-3 py-1.5 disabled:opacity-40"
                     >
-                      {field.cardinality === 'many' ? 'Add file' : artifacts.length ? 'Replace file' : 'Choose file'}
+                      {preparing === 'file' ? 'Verifying file…'
+                        : field.cardinality === 'many' ? 'Add file' : artifacts.length ? 'Replace file' : 'Choose file'}
                     </button>
                     {acceptsDirectorySnapshot(field) && <button
                       type="button"
                       onClick={() => void chooseTypedInput(field, 'directory')}
-                      disabled={!desktopBridge()?.pickRunInput}
+                      disabled={!desktopBridge()?.pickRunInput || !!preparing}
                       className="btn-outline text-xs px-3 py-1.5 disabled:opacity-40"
                     >
-                      {field.cardinality === 'many' ? 'Add folder' : artifacts.length ? 'Replace with folder' : 'Choose folder'}
+                      {preparing === 'directory' ? 'Preparing ZIP…'
+                        : field.cardinality === 'many' ? 'Add folder' : artifacts.length ? 'Replace with folder' : 'Choose folder'}
                     </button>}
                   </div>}
+                  {preparing && <p className="text-[11px] text-amber-300 mt-2" role="status" aria-live="polite">
+                    {preparing === 'directory'
+                      ? 'Preparing and verifying a ZIP from this folder… Large folders can take a moment.'
+                      : 'Hashing and verifying this file…'}
+                  </p>}
                 </div>
                 {field.kind === 'text' ? (
                   <input
@@ -1220,7 +1259,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <button
           type="button"
           onClick={submitPreRun}
-          disabled={setupSaving || blankRequired.length > 0 || missingRequiredInputs(inputContract, inputBindings).length > 0}
+          disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredInputs(inputContract, inputBindings).length > 0}
           className="btn-success text-sm px-5 py-2 disabled:opacity-50"
         >
           {setupSaving ? 'Saving…' : preRunMode === 'watch' ? 'Open in Claude →' : setupFields.length ? 'Save & run' : '▶ Run now'}
