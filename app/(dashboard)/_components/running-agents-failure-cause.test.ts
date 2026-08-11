@@ -196,3 +196,42 @@ test('a terminal card with NO persisted cause invents none', async () => {
   // Nothing from the neighbouring cases leaked in either.
   assert.equal(text().includes(START_FAILED_CAUSE), false);
 });
+
+test('switching and resuming states render as distinct lifecycle phases', async () => {
+  await mount([
+    terminalCard({ requestId: 'req-switch', lifecyclePhase: 'switching_executor', status: 'switching',
+      fallbackReason: 'Claude launch was blocked by policy.' }),
+    terminalCard({ requestId: 'req-resume', skillSlug: 'monthly-digest', lifecyclePhase: 'resuming', status: 'resuming',
+      fallbackReason: 'Codex stopped after its checkpoint.', resumeStep: 4 }),
+  ]);
+  assert.match(text(), /Switching/);
+  assert.match(text(), /Resuming/);
+  assert.match(text(), /Resuming from step 4/);
+});
+
+test('selecting renders as its own lifecycle phase with a pre-live Cancel action', async () => {
+  await mount([terminalCard({ lifecyclePhase: 'selecting_executor', status: 'selecting' })]);
+  assert.match(text(), /Selecting/);
+  assert.match(text(), /Selecting executor/);
+  assert.ok(container.querySelector('button[aria-label="Cancel this request"]'));
+  assert.equal(container.querySelector('button[aria-label="Stop this run"]'), null);
+});
+
+test('rendered controls switch from Cancel before launch to Stop only while running', async () => {
+  await mount([
+    terminalCard({ requestId: 'req-switch', lifecyclePhase: 'switching_executor', status: 'switching' }),
+    terminalCard({ requestId: 'req-run', runId: 'run-live', lifecyclePhase: 'running', status: 'running' }),
+  ]);
+  assert.equal(container.querySelectorAll('button[aria-label="Cancel this request"]').length, 1);
+  assert.equal(container.querySelectorAll('button[aria-label="Stop this run"]').length, 1);
+  assert.match(text(), /Cancel request/);
+  assert.match(text(), /Stop run/);
+});
+
+test('an ambiguous consequential step renders Needs Attention, not Running', async () => {
+  await mount([terminalCard({ lifecyclePhase: 'fallback_blocked', status: 'fallback_blocked',
+    fallbackReason: 'Provider receipt missing; external state may already have changed.' })]);
+  assert.match(text(), /Needs attention/);
+  assert.match(text(), /Provider receipt missing/);
+  assert.doesNotMatch(text(), /Running/);
+});

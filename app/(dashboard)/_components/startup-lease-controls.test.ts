@@ -7,7 +7,7 @@ const running = fs.readFileSync(path.join(process.cwd(), 'app/(dashboard)/_compo
 const building = fs.readFileSync(path.join(process.cwd(), 'app/(dashboard)/_components/building-agents.tsx'), 'utf8');
 
 test('claim-only requests expose Cancel, never Stop', () => {
-  assert.match(running, /\['queued', 'picked_up', 'starting'\][\s\S]*c\.requestId && !c\.runId/);
+  assert.match(running, /\['queued', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\][\s\S]*c\.requestId && !c\.runId/);
   assert.match(running, /c\.status === 'running' && \(c\.runId \|\| c\.requestId\)/);
   assert.match(running, /const isRunningCancel = \(c:[^\n]+c\.status === 'running' && !!\(c\.runId \|\| c\.requestId\)/);
   assert.match(running, />\s*Cancel request\s*<\/button>/);
@@ -21,7 +21,7 @@ test('startup has distinct in-flight and terminal copy', () => {
 });
 
 test('startup failures remain visible on Home and can notify the owner', () => {
-  assert.match(running, /const NOTIFY:[^\n]+\['waiting_approval', 'needs_attention', 'start_failed', 'claim_expired', 'failed'/);
+  assert.match(running, /const NOTIFY:[^\n]+\['waiting_approval', 'needs_attention', 'fallback_blocked', 'start_failed', 'claim_expired', 'failed'/);
   assert.match(running, /\(!c\.runId && !c\.requestId\)/, 'a request-only failure must not be filtered out of notifications');
 });
 

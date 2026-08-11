@@ -23,13 +23,13 @@ import StuckRunButton from './stuck-run-button';
 
 // The statuses worth a native desktop notification (yellow/red — they need you).
 // action_available = a delivered run has a READY one-tap action (publish, etc.).
-const NOTIFY: ReadonlySet<string> = new Set(['waiting_approval', 'needs_attention', 'start_failed', 'claim_expired', 'failed', 'action_available']);
+const NOTIFY: ReadonlySet<string> = new Set(['waiting_approval', 'needs_attention', 'fallback_blocked', 'start_failed', 'claim_expired', 'failed', 'action_available']);
 // Statuses shown in the Home "Alerts" list — the notify set PLUS 'queued', so a
 // run you just kicked off appears there for parity with Active Agents (but queued
 // is NOT in NOTIFY, so it never fires a noisy desktop notification).
 const ALERT_STATUSES: ReadonlySet<string> = new Set([...NOTIFY, 'queued']);
 
-type LiveStatus = 'queued' | 'picked_up' | 'starting' | 'start_failed' | 'claim_expired' | 'waiting_approval' | 'needs_attention' | 'running' | 'verifying' | 'built' | 'failed' | 'finished' | 'action_available';
+type LiveStatus = 'queued' | 'selecting' | 'picked_up' | 'starting' | 'switching' | 'resuming' | 'fallback_blocked' | 'start_failed' | 'claim_expired' | 'waiting_approval' | 'needs_attention' | 'running' | 'verifying' | 'built' | 'failed' | 'finished' | 'action_available';
 type LiveCard = {
   runId: string | null;
   /** Set on a 'queued' card (a pending run_request with no skill_run yet). */
@@ -39,7 +39,7 @@ type LiveCard = {
   source: string | null;
   status: LiveStatus;
   /** Canonical request lifecycle for definition work without a run row. */
-  lifecyclePhase?: 'queued' | 'claimed' | 'starting' | 'running' | 'verifying' | 'built' | 'start_failed' | 'claim_expired' | 'failed' | 'cancelled' | null;
+  lifecyclePhase?: 'queued' | 'selecting_executor' | 'claimed' | 'starting' | 'switching_executor' | 'resuming' | 'fallback_blocked' | 'running' | 'verifying' | 'built' | 'start_failed' | 'claim_expired' | 'failed' | 'cancelled' | null;
   since: string | null;
   /** When the run actually completed (null while running/queued). The Home linger
    *  and a finished card's "Nm ago" measure from THIS, not `since` (start time). */
@@ -50,6 +50,9 @@ type LiveCard = {
   headline?: string | null;
   /** Honest terminal cause for request-level failures (not the user's edit text). */
   failureReason?: string | null;
+  fallbackReason?: string | null;
+  fallbackFromAttemptId?: string | null;
+  resumeStep?: number | null;
   /** Live per-step progress (0089) — drives "Step N/M · <label>" while running. */
   currentStepIndex?: number | null;
   totalSteps?: number | null;
@@ -93,8 +96,12 @@ const POLL_MS = 15000;
 // unmissable at a glance regardless of whether step detail is present.
 const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: string; label: string; chip: string; chipCls: string }> = {
   queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your AI engine', chip: 'Queued',          chipCls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30' },
+  selecting:        { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Selecting executor',                         chip: 'Selecting',       chipCls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30' },
   picked_up:        { spin: true,  spinCls: 'border-cyan-500/25 border-t-cyan-500',       dotCls: 'bg-cyan-500',                label: 'A worker picked this up and is starting',    chip: 'Picked up',       chipCls: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30' },
   starting:         { spin: true,  spinCls: 'border-cyan-500/25 border-t-cyan-500',       dotCls: 'bg-cyan-500',                label: 'Starting the selected executor',             chip: 'Starting',         chipCls: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30' },
+  switching:        { spin: true,  spinCls: 'border-violet-500/25 border-t-violet-500',   dotCls: 'bg-violet-500',              label: 'Switching executor after a fenced failure',  chip: 'Switching',       chipCls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30' },
+  resuming:         { spin: true,  spinCls: 'border-violet-500/25 border-t-violet-500',   dotCls: 'bg-violet-500',              label: 'Resuming from the last safe step',           chip: 'Resuming',        chipCls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30' },
+  fallback_blocked: { spin: false, spinCls: '',                                           dotCls: 'bg-amber-500',               label: 'Fallback blocked: consequential state uncertain', chip: 'Needs attention', chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
   start_failed:     { spin: false, spinCls: '',                                           dotCls: 'bg-rose-500',                label: 'The executor could not start',                chip: 'Start failed',     chipCls: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30' },
   claim_expired:    { spin: false, spinCls: '',                                           dotCls: 'bg-amber-500',               label: 'The worker did not confirm startup in time',  chip: 'Claim expired',    chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
   running:          { spin: true,  spinCls: 'border-emerald-500/25 border-t-emerald-500', dotCls: 'bg-emerald-500',             label: 'Running',                                    chip: 'Running',         chipCls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' },
@@ -110,8 +117,12 @@ const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: strin
 function statusFromLifecycle(card: LiveCard): LiveStatus {
   switch (card.lifecyclePhase) {
     case 'queued': return 'queued';
+    case 'selecting_executor': return 'selecting';
     case 'claimed': return 'picked_up';
     case 'starting': return 'starting';
+    case 'switching_executor': return 'switching';
+    case 'resuming': return 'resuming';
+    case 'fallback_blocked': return 'fallback_blocked';
     case 'running': return 'running';
     case 'verifying': return 'verifying';
     case 'built': return 'built';
@@ -422,6 +433,11 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     {c.failureReason}
                   </div>
                 ) : null}
+                {(['switching', 'resuming', 'fallback_blocked'] as LiveStatus[]).includes(c.status) && c.fallbackReason ? (
+                  <div className="mt-1 text-[11px] text-amber-600 dark:text-amber-400 leading-snug line-clamp-2">
+                    {c.fallbackReason}{c.status === 'resuming' && c.resumeStep != null ? ` · Resuming from step ${c.resumeStep}` : ''}
+                  </div>
+                ) : null}
               </div>
               {(c.status === 'finished' || c.status === 'built' || c.status === 'failed') && c.runId && (
                 <button
@@ -450,7 +466,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               )}
               {/* Cancel a QUEUED run before it's picked up (catch it before it
                   spends). Opens a confirm; stops the drainer/Claude from running it. */}
-              {(['queued', 'picked_up', 'starting'] as LiveStatus[]).includes(c.status) && c.requestId && !c.runId && (
+              {(['queued', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'] as LiveStatus[]).includes(c.status) && c.requestId && !c.runId && (
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancel(c); }}
