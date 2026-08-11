@@ -75,6 +75,16 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
       if (!sessionId) return 'A valid sessionId is required.';
       return { path: `/api/v2/review/sessions/${sessionId}/evidence`, method: 'GET' };
     }
+    case 'continuation_status': {
+      const sessionId = id(b.sessionId);
+      if (!sessionId) return 'A valid sessionId is required.';
+      return { path: `/api/v2/review/sessions/${sessionId}/continuation`, method: 'GET' };
+    }
+    case 'amend_failed_revision': {
+      const sessionId = id(b.sessionId);
+      if (!sessionId) return 'A valid sessionId is required.';
+      return { path: `/api/v2/review/sessions/${sessionId}/amend-failed`, method: 'POST', body: {} };
+    }
     case 'submit': {
       const sessionId = id(b.sessionId);
       if (!sessionId) return 'A valid sessionId is required.';
@@ -119,4 +129,3 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
       return 'Unknown review action.';
   }
 }
-

@@ -65,6 +65,7 @@ import {
 
 type Props = {
   runId: string;
+  agentSlug?: string | null;
   agentName: string;
   artifacts: ReviewArtifact[];
   production: ReviewProduction;
@@ -341,6 +342,69 @@ export default function ReviewRoom(props: Props) {
     setError(body?.error || 'Could not open a review session.');
     return null;
   }, [session, runId]);
+
+  /**
+   * A submitted session carries a REQUEST id, not necessarily a run id. Resolve it
+   * before navigating: a completed continuation opens its child Review Room; a failed
+   * request with no child opens the agent's request-aware runs surface.
+   */
+  const openSubmittedRevision = useCallback(async () => {
+    if (!session?.id) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const { body } = await reviewAction({ action: 'continuation_status', sessionId: session.id });
+      if (!body?.ok) { setError(body?.error || 'Could not locate that revision attempt.'); return; }
+      if (body.resultRunId) {
+        router.push(`/review/${encodeURIComponent(String(body.resultRunId))}`);
+        return;
+      }
+      if (props.agentSlug && body.requestId) {
+        router.push(`/workflows/${encodeURIComponent(props.agentSlug)}?tab=runs&retryRequest=${encodeURIComponent(String(body.requestId))}`);
+        return;
+      }
+      setError(body.failureReason || 'This revision did not create a result run. Its request is shown above for support and retry.');
+    } catch {
+      setError('Could not locate that revision attempt.');
+    } finally {
+      setBusy(false);
+    }
+  }, [session, router, props.agentSlug]);
+
+  /**
+   * Preserve the submitted round and open an editable successor only when the backend
+   * proves the exact bound continuation is terminal failure/cancellation. The server
+   * carries the submitted issue snapshot forward; the browser never reconstructs it.
+   */
+  const amendFailedRevision = useCallback(async () => {
+    if (!session?.id) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const { body } = await reviewAction({ action: 'amend_failed_revision', sessionId: session.id });
+      if (!body?.ok) {
+        if (body?.resultRunId) router.push(`/review/${encodeURIComponent(String(body.resultRunId))}`);
+        else setError(body?.error || 'Could not open another feedback round.');
+        return;
+      }
+      if (!body.session?.id || !Array.isArray(body.issues)) {
+        setError('The new feedback round could not be verified. Reload before editing.');
+        return;
+      }
+      setSession(body.session as ReviewSession);
+      setIssues(body.issues as ReviewIssue[]);
+      setLocalSubmission(INITIAL_SUBMISSION_STATE);
+      setRevisionNote('');
+      setEvidenceStatus(null);
+      setDraft(null);
+      setNotice(`${Number(body.carriedIssueCount) || body.issues.length} submitted change${body.issues.length === 1 ? '' : 's'} carried into a new draft. Add more feedback, then send one replacement revision.`);
+      router.refresh();
+    } catch {
+      setError('Could not open another feedback round. Your submitted feedback is unchanged.');
+    } finally {
+      setBusy(false);
+    }
+  }, [session, router]);
 
   /**
    * The anchor is built from the DRAFT, never from the player.
@@ -1313,12 +1377,24 @@ export default function ReviewRoom(props: Props) {
                 )}
               </dl>
               {submitView.continuationId && (
-                <a
-                  href={`/runs/${runId}`}
-                  className="block rounded-md border border-ink-700 px-3 py-2 text-center text-sm text-ink-200 hover:border-ink-600"
-                >
-                  Open the revision
-                </a>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => void openSubmittedRevision()}
+                    disabled={busy}
+                    className="rounded-md border border-ink-700 px-3 py-2 text-center text-sm text-ink-200 hover:border-ink-600 disabled:opacity-50"
+                  >
+                    Open revision attempt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void amendFailedRevision()}
+                    disabled={busy}
+                    className="rounded-md border border-sky-500/40 px-3 py-2 text-center text-sm text-sky-300 hover:border-sky-400 disabled:opacity-50"
+                  >
+                    Add more feedback
+                  </button>
+                </div>
               )}
             </>
           ) : acts.showApproveNextAction ? (

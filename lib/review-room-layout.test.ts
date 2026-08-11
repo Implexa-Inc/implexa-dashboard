@@ -161,11 +161,16 @@ test('the approval gate is reachable ONLY through the zero-draft branch', () => 
   assert.match(rail, /acts\.showApproveNextAction \?/);
 });
 
-test('the queued state links to the continuation and closes resubmission', () => {
+test('the queued state resolves the continuation and offers a terminal successor round', () => {
   const footer = rail.slice(rail.indexOf('submission footer'));
+  const queued = footer.slice(footer.indexOf("submitView.mode === 'queued'"), footer.indexOf('acts.showApproveNextAction'));
   assert.match(footer, /submitView\.mode === 'queued'/);
-  assert.match(footer, /submitView\.continuationId &&/,
+  assert.match(queued, /submitView\.continuationId &&/,
     'the queued state offers a link without checking a continuation exists');
+  assert.match(queued, /openSubmittedRevision/, 'the request id is still being treated as the source run URL');
+  assert.match(queued, /amendFailedRevision/, 'a terminally failed revision would leave the room permanently frozen');
+  assert.doesNotMatch(queued, /href=\{`\/runs\/\$\{runId\}`\}/,
+    'Open revision still links to the source run instead of resolving the continuation result');
 });
 
 test('REPRO: the click delegates to the audited orchestration, not a local copy', () => {

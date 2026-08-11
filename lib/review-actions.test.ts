@@ -126,11 +126,26 @@ test('ensure_session omits an absent artifact rather than sending null', () => {
   assert.deepEqual(withArt.body, { artifactId: ART });
 });
 
+test('submitted-round recovery is owner-routed by session identity only', () => {
+  const status = resolveReviewAction('continuation_status', { sessionId: SESSION }) as any;
+  assert.deepEqual(status, {
+    path: `/api/v2/review/sessions/${SESSION}/continuation`, method: 'GET',
+  });
+  const amend = resolveReviewAction('amend_failed_revision', { sessionId: SESSION }) as any;
+  assert.deepEqual(amend, {
+    path: `/api/v2/review/sessions/${SESSION}/amend-failed`, method: 'POST', body: {},
+  });
+  assert.doesNotMatch(JSON.stringify(amend), /runId|requestId|issueId|issueIds/,
+    'the browser must not assert which request failed or which issues are carried');
+});
+
 // ── the allowlist itself ────────────────────────────────────────────────────
 
 test('a malformed or injected id is refused, never forwarded', () => {
   for (const bad of ['not-a-uuid', '../../v2/admin', '', null, undefined, 42, {}]) {
     assert.equal(typeof resolveReviewAction('submit', { sessionId: bad }), 'string', `submit accepted ${JSON.stringify(bad)}`);
+    assert.equal(typeof resolveReviewAction('continuation_status', { sessionId: bad }), 'string');
+    assert.equal(typeof resolveReviewAction('amend_failed_revision', { sessionId: bad }), 'string');
     assert.equal(typeof resolveReviewAction('create_issue', { sessionId: bad }), 'string');
     assert.equal(typeof resolveReviewAction('dismiss_issue', { issueId: bad }), 'string');
     assert.equal(typeof resolveReviewAction('ensure_session', { runId: bad }), 'string');
