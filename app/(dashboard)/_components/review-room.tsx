@@ -36,6 +36,7 @@ import {
   anchorLabel, formatMs, sortIssues, isAnchorStale, isSpatialAnchorV2, type ReviewAnchor,
 } from '@/lib/review-anchor';
 import ReviewSpatialOverlay, { SPATIAL_HINT_COPY, type OverlayPin } from '@/app/(dashboard)/_components/review-spatial-overlay';
+import ReviewContinuationRecovery from '@/app/(dashboard)/_components/review-continuation-recovery';
 import { evidenceGate, evidenceChip, type SessionEvidenceStatus } from '@/lib/review-evidence-status';
 import {
   reviewRoomActions, ACCEPT_DISCLAIMER,
@@ -1377,24 +1378,41 @@ export default function ReviewRoom(props: Props) {
                 )}
               </dl>
               {submitView.continuationId && (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => void openSubmittedRevision()}
-                    disabled={busy}
-                    className="rounded-md border border-ink-700 px-3 py-2 text-center text-sm text-ink-200 hover:border-ink-600 disabled:opacity-50"
-                  >
-                    Open revision attempt
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void amendFailedRevision()}
-                    disabled={busy}
-                    className="rounded-md border border-sky-500/40 px-3 py-2 text-center text-sm text-sky-300 hover:border-sky-400 disabled:opacity-50"
-                  >
-                    Add more feedback
-                  </button>
-                </div>
+                <>
+                  {/* A submitted Review Room continuation can die before it creates a
+                      child run. The process-ledger recovery UI used to exist only on
+                      the generic run page, so this screen kept calling the older
+                      "amend failed" RPC and displaying its truthful but unactionable
+                      ambiguity refusal. Read the exact request here too: once Desktop
+                      proves the attempt ended, this offers the safe idempotent retry
+                      of the immutable submission without asking for the review again. */}
+                  <ReviewContinuationRecovery
+                    requestId={submitView.continuationId}
+                    note={revisionNote}
+                    onQueued={() => {
+                      setError(null);
+                      setNotice('Revision queued again with the same submitted feedback and evidence.');
+                    }}
+                  />
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => void openSubmittedRevision()}
+                      disabled={busy}
+                      className="rounded-md border border-ink-700 px-3 py-2 text-center text-sm text-ink-200 hover:border-ink-600 disabled:opacity-50"
+                    >
+                      Open revision attempt
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void amendFailedRevision()}
+                      disabled={busy}
+                      className="rounded-md border border-sky-500/40 px-3 py-2 text-center text-sm text-sky-300 hover:border-sky-400 disabled:opacity-50"
+                    >
+                      Add more feedback
+                    </button>
+                  </div>
+                </>
               )}
             </>
           ) : acts.showApproveNextAction ? (
