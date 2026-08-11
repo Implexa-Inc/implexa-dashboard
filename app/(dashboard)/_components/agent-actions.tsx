@@ -34,6 +34,7 @@ import {
   resolvePickerResult, serializeArtifactBindings,
   type ArtifactBinding, type RunInputBindings, type WorkflowInputContract, type WorkflowInputField,
 } from '@/lib/workflow-input-contract';
+import { advanceInputRevision, inputRevisionIsCurrent, readInputRevision } from '@/lib/run-input-verification-order';
 import {
   bindSavedArtifact, displayedInputValue, inputOrigin, savedInputLabel,
   readSavedRunInputs, resolveEffectiveInputs, resolveSavedBindResult,
@@ -168,6 +169,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // and the manual picker can run concurrently, so both read/write this ref and
   // are bound to one session chosen before either async bridge call starts.
   const inputSessionRef = useRef<string | null>(null);
+  // A saved source is verified automatically when the modal opens. That async
+  // result must never overwrite a newer manual file/folder choice for the same
+  // field. Keep a synchronous, per-field revision outside React state so the
+  // promise continuation can tell whether it is stale before touching UI state.
+  const inputRevisionRef = useRef<Record<string, number>>({});
   const inputBindings = resolveEffectiveInputs(inputContract, inputDefaults, inputOverrides);
   // Per-field picker/registration failures. Keyed by contract field key so the
   // message lands on the field the user was actually filling in.
@@ -257,6 +263,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       setInputError(field.key, 'The Desktop returned this file for a different run-input session. Please choose it again.');
       return;
     }
+    advanceInputRevision(inputRevisionRef.current, field.key);
+    // Verification may have failed while the native picker was open. A valid
+    // manual result is authoritative and clears that older message.
+    setInputError(field.key, null);
     inputSessionRef.current = sessionId;
     setInputSessionId(outcome.inputSessionId);
     // A picked file is a change made HERE, so it lands in the override layer and
@@ -278,6 +288,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     if (!bridge?.bindSavedRunInput || !fields.length) return;
     setVerifyingInputs(fields.map((field) => field.key));
     for (const field of fields) {
+      const revision = readInputRevision(inputRevisionRef.current, field.key);
       const result = await bridge.bindSavedRunInput({
         slug, source, inputKey: field.key,
         inputSessionId: sessionId,
@@ -285,6 +296,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
       setVerifyingInputs((previous) => previous.filter((key) => key !== field.key));
       const outcome = resolveSavedBindResult(result, field);
+      // The user successfully chose a replacement while this saved-source check
+      // was in flight. Its result belongs to the old field value; applying either
+      // its error or its binding would make the UI contradict the user's choice.
+      if (!inputRevisionIsCurrent(inputRevisionRef.current, field.key, revision)) continue;
       // Say why. A saved source that silently fails to bind is the blank form
       // again, one layer down — an empty control and no reason for it.
       if (outcome.kind === 'failed') { setInputError(field.key, outcome.message); continue; }
