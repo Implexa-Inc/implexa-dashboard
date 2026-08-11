@@ -24,8 +24,8 @@ test('the picker result is routed through the tested resolver, not re-decided in
 });
 
 test('a cancel is a no-op and a failure is surfaced', () => {
-  assert.match(src, /if \(outcome\.kind === 'canceled'\) return;/,
-    'a cancel changes nothing — the current binding survives');
+  assert.match(src, /if \(outcome\.kind === 'canceled'\) \{[\s\S]*?verifySavedFileInputs\(\[field\], sessionId\);[\s\S]*?return;[\s\S]*?\}/,
+    'a cancel leaves the current binding intact and restores verification of an untouched saved default');
   assert.match(src, /if \(outcome\.kind === 'failed'\) \{ setInputError\(field\.key, outcome\.message\); return; \}/,
     'a failure is recorded against the field the user was filling in');
 });
@@ -41,7 +41,7 @@ test('a bound file shows its filename and that it is verified and keyed', () => 
   assert.match(src, /\{item\.displayName\}/, 'the filename is shown');
   assert.match(src, /verified, bound to \{field\.key\}/,
     'the bound state names the contract key, so upload order is visibly irrelevant');
-  assert.match(src, /\{field\.cardinality === 'many' \? 'Add file' : artifacts\.length \? 'Replace file' : 'Choose file'\}/,
+  assert.match(src, /field\.cardinality === 'many' \? 'Add file' : artifacts\.length \? 'Replace file' : 'Choose file'/,
     'the button reads Replace once a file is bound, never still Choose file — including a file bound from the saved setup, which arrives as a default rather than through the picker');
 });
 
@@ -73,8 +73,9 @@ test('removing a file clears its error and takes the value out of THIS run', () 
 });
 
 test('required typed inputs still gate the Run button', () => {
-  assert.match(src, /disabled=\{setupSaving \|\| blankRequired\.length > 0 \|\| missingRequiredInputs\(inputContract, inputBindings\)\.length > 0\}/);
-  assert.match(src, /if \(blankRequired\.length \|\| missingRequiredInputs\(inputContract, inputBindings\)\.length\) return;/);
+  assert.match(src, /disabled=\{setupSaving \|\| Object\.keys\(preparingInputs\)\.length > 0 \|\| blankRequired\.length > 0 \|\| missingRequiredInputs\(inputContract, inputBindings\)\.length > 0\}/);
+  assert.match(src, /if \(blankRequired\.length \|\| missingRequiredInputs\(inputContract, inputBindings\)\.length[\s\S]*?\|\| Object\.keys\(preparingInputRef\.current\)\.length\) return;/,
+    'the synchronous submit boundary must refuse while a folder snapshot is still being prepared');
 });
 
 test('only digest identity crosses the wire — never a local path', () => {

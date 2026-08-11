@@ -41,12 +41,23 @@ test('a bridge cannot silently switch the frozen session', () => {
 test('a late saved-source result cannot overwrite a newer manual file or folder', () => {
   const pick = SRC.slice(SRC.indexOf("async function chooseTypedInput"), SRC.indexOf("async function verifySavedFileInputs"));
   const verify = SRC.slice(SRC.indexOf("async function verifySavedFileInputs"), SRC.indexOf("// Poll the queued request"));
-  assert.match(pick, /advanceInputRevision\(inputRevisionRef\.current, field\.key\)/,
-    'a successful manual result advances the field clock before it is displayed');
-  assert.match(pick, /advanceInputRevision[\s\S]*setInputError\(field\.key, null\)[\s\S]*setInputOverrides/,
-    'success clears any saved-source error that arrived while the native picker was open');
+  assert.match(pick, /advanceInputRevision\(inputRevisionRef\.current, field\.key\)[\s\S]*await bridge\.pickRunInput/,
+    'starting a manual choice advances the field clock before a slow folder snapshot can yield');
+  assert.match(pick, /inputRevisionIsCurrent\(inputRevisionRef\.current, field\.key, manualRevision\)[\s\S]*setInputError\(field\.key, null\)[\s\S]*setInputOverrides/,
+    'only the current manual result can clear the old error and display its binding');
   assert.match(verify, /const revision = readInputRevision[\s\S]*inputRevisionIsCurrent\([\s\S]*continue/,
     'saved verification checks its starting revision before applying either a binding or an error');
+});
+
+test('manual input preparation is single-flight and blocks submission', () => {
+  const pick = SRC.slice(SRC.indexOf("async function chooseTypedInput"), SRC.indexOf("async function verifySavedFileInputs"));
+  const submit = SRC.slice(SRC.indexOf("async function submitPreRun"), SRC.indexOf("async function precheckDuplicate"));
+  assert.match(pick, /if \(preparingInputRef\.current\[field\.key\]\) return;/);
+  assert.match(pick, /preparingInputRef\.current\[field\.key\] = true;[\s\S]*finally[\s\S]*delete preparingInputRef\.current\[field\.key\]/);
+  assert.match(submit, /Object\.keys\(preparingInputRef\.current\)\.length/,
+    'the handler refuses a click even before React commits the disabled button');
+  assert.match(SRC, /disabled=\{setupSaving \|\| Object\.keys\(preparingInputs\)\.length > 0/,
+    'the rendered primary action stays disabled for the whole native preparation boundary');
 });
 
 test('a successfully queued run retires its session before the next run', () => {

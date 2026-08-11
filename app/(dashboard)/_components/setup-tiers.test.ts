@@ -202,10 +202,10 @@ test('the PRE-RUN dialog blocks on required fields only', () => {
   );
   assert.match(src, /const blankRequired = setupFields\.filter\(\(f\) => !isOptionalField\(f\) &&/,
     'one derived list of blocking blanks, optional excluded by construction');
-  assert.match(src, /disabled=\{setupSaving \|\| blankRequired\.length > 0 \|\| missingRequiredInputs\(inputContract, inputBindings\)\.length > 0\}/,
-    'the Run button uses it and also enforces required inputs from the versioned contract');
-  assert.match(src, /if \(blankRequired\.length \|\| missingRequiredInputs\(inputContract, inputBindings\)\.length\) return;/,
-    'and so does the submit guard');
+  assert.match(src, /disabled=\{setupSaving \|\| Object\.keys\(preparingInputs\)\.length > 0 \|\| blankRequired\.length > 0 \|\| missingRequiredInputs\(inputContract, inputBindings\)\.length > 0\}/,
+    'the Run button uses it, enforces required inputs, and stays closed while an input is being prepared');
+  assert.match(src, /if \(blankRequired\.length \|\| missingRequiredInputs\(inputContract, inputBindings\)\.length[\s\S]*?\|\| Object\.keys\(preparingInputRef\.current\)\.length\) return;/,
+    'and so does the synchronous submit guard');
 });
 
 test('the pre-run dialog knows the tier contract and shows it', () => {

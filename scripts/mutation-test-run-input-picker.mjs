@@ -28,6 +28,7 @@ const UPDATE_COMPONENT = 'app/(dashboard)/_components/agent-update-gate.tsx';
 const TESTS = [
   'lib/workflow-input-contract.test.ts',
   'app/(dashboard)/_components/run-input-picker.test.ts',
+  'app/(dashboard)/_components/run-input-session-race.test.ts',
   'app/(dashboard)/_components/run-folder-attachments.test.ts',
   'app/(dashboard)/_components/folder-input-render.test.ts',
 ];
@@ -36,6 +37,7 @@ const TEST_MARKERS = [
   'declared folder-capable fields expose a distinct folder snapshot choice',
   'every generic run, continue, and build attachment surface wires the folder handler',
   'Run Now uses the same declared folder capability and replacement identity',
+  'Run Now shows folder preparation, blocks duplicate picks and ignores an older saved-source refusal',
 ];
 
 const mutants = [
@@ -59,8 +61,8 @@ const mutants = [
     "      displayName: '',"],
   // A cancel that wipes an already-chosen file.
   ['cancel-clears-the-existing-binding', COMPONENT,
-    "    if (outcome.kind === 'canceled') return;",
-    "    if (outcome.kind === 'canceled') { setInputBindings((previous) => { const next = { ...previous }; delete next[field.key]; return next; }); return; }"],
+    "      if (outcome.kind === 'canceled') {\n        void verifySavedFileInputs([field], sessionId);\n        return;\n      }",
+    "      if (outcome.kind === 'canceled') { setInputDefaults((previous) => { const next = { ...previous }; delete next[field.key]; return next; }); return; }"],
   // A failure that is computed and then thrown away — the original bug's shape.
   ['failure-computed-but-not-shown', COMPONENT,
     "    if (outcome.kind === 'failed') { setInputError(field.key, outcome.message); return; }",
@@ -92,6 +94,15 @@ const mutants = [
   ['directory-snapshot-failure-is-swallowed', LIB,
     "    case 'directory_snapshot_failed':\n    case 'directory_source_read_short':",
     "    case 'directory_source_read_short':"],
+  ['folder-preparation-single-flight-removed', COMPONENT,
+    '    if (preparingInputRef.current[field.key]) return;',
+    '    if (false) return;'],
+  ['manual-replacement-does-not-invalidate-saved-verification-immediately', COMPONENT,
+    '    const manualRevision = advanceInputRevision(inputRevisionRef.current, field.key);',
+    '    const manualRevision = readInputRevision(inputRevisionRef.current, field.key);'],
+  ['folder-preparation-status-removed', COMPONENT,
+    "                      {preparing === 'directory' ? 'Preparing ZIP…'",
+    "                      {preparing === 'directory' ? 'Choose folder'"],
 
   // ── POSITIONAL INSTEAD OF KEYED BINDING ───────────────────────────────────
   // Stored under a fixed slot instead of the contract key: whichever file was
@@ -123,11 +134,11 @@ const mutants = [
     '      || (Array.isArray(value) && value.length === 0);',
     '      || false;'],
   ['run-button-ignores-required-inputs', COMPONENT,
-    'disabled={setupSaving || blankRequired.length > 0 || missingRequiredInputs(inputContract, inputBindings).length > 0}',
-    'disabled={setupSaving || blankRequired.length > 0}'],
+    'disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredInputs(inputContract, inputBindings).length > 0}',
+    'disabled={setupSaving || blankRequired.length > 0 || missingRequiredInputs(inputContract, inputBindings).length > 0}'],
   ['submit-guard-ignores-required-inputs', COMPONENT,
-    'if (blankRequired.length || missingRequiredInputs(inputContract, inputBindings).length) return;',
-    'if (blankRequired.length) return;'],
+    "if (blankRequired.length || missingRequiredInputs(inputContract, inputBindings).length\n        || Object.keys(preparingInputRef.current).length) return;",
+    'if (blankRequired.length || missingRequiredInputs(inputContract, inputBindings).length) return;'],
 ];
 
 function copyForTest(prefix) {

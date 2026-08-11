@@ -126,3 +126,55 @@ test('Run Now uses the same declared folder capability and replacement identity'
     assert.doesNotMatch(rendered.text(), /Project\.zip —/);
   } finally { rendered.cleanup(); }
 });
+
+test('Run Now shows folder preparation, blocks duplicate picks and ignores an older saved-source refusal', async () => {
+  let finishFolder!: (value: Record<string, unknown>) => void;
+  let finishSaved!: (value: Record<string, unknown>) => void;
+  const folderResult = new Promise<Record<string, unknown>>((resolve) => { finishFolder = resolve; });
+  const savedResult = new Promise<Record<string, unknown>>((resolve) => { finishSaved = resolve; });
+  let picks = 0;
+  let pickedSession = '';
+  const rendered = await render('agent-actions.tsx', {
+    slug: 'folder-agent', name: 'Folder agent', isActive: true,
+    workflowVersionId: '33333333-3333-4333-8333-333333333333',
+    inputContractDigest: 'c'.repeat(64), inputContract: update(true).input_contract,
+  }, {
+    backend: () => ({
+      schema: [], answers: {}, note: '',
+      runInputDefaults: { project_bundle: '/saved/project-bundle.zip' },
+    }),
+    bridge: {
+      bindSavedRunInput: async () => savedResult,
+      pickRunInput: async (options: Record<string, unknown>) => {
+        picks += 1;
+        pickedSession = String(options.inputSessionId || '');
+        return folderResult;
+      },
+    },
+  });
+  try {
+    await rendered.click(rendered.getByText('▶ Run now'));
+    await rendered.click(rendered.getByText('Choose folder'));
+
+    assert.match(rendered.text(), /Preparing and verifying a ZIP from this folder/);
+    assert.ok((rendered.getByText('Preparing ZIP…') as HTMLButtonElement).disabled);
+    assert.ok((rendered.getByText('Choose file') as HTMLButtonElement).disabled);
+    assert.ok((rendered.getByText('▶ Run now') as HTMLButtonElement).disabled,
+      'Run cannot serialize the prior binding while its replacement is still being created');
+
+    await rendered.click(rendered.getByText('Preparing ZIP…'));
+    assert.equal(picks, 1, 'a second click cannot start another snapshot for the same field');
+
+    await rendered.act(() => finishSaved({ ok: false, error: 'registration_rejected' }));
+    assert.doesNotMatch(rendered.text(), /rejected this file/,
+      'the saved-input refusal belongs to the value superseded when folder preparation began');
+
+    await rendered.act(() => finishFolder({
+      ok: true, artifactId: firstArtifact, sha256: digestA, displayName: 'Project.zip',
+      origin: 'directory-snapshot', inputSessionId: pickedSession,
+    }));
+    assert.equal(rendered.queryByText('Preparing ZIP…'), null);
+    assert.match(rendered.text(), /Project\.zip — frozen from a folder, verified, bound to project_bundle/);
+    assert.doesNotMatch(rendered.text(), /rejected this file/);
+  } finally { rendered.cleanup(); }
+});
