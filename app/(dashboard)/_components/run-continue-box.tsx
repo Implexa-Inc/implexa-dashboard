@@ -25,7 +25,8 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend, BackendError } from '@/lib/api';
-import { runRequestRefusalCopy } from '@/lib/run-request-refusal';
+import { runRequestRefusalCopy, classifyRunRequestRefusal, type RunRequestRefusal } from '@/lib/run-request-refusal';
+import ReviewContinuationRecovery from './review-continuation-recovery';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import Modal from './modal';
@@ -47,6 +48,10 @@ export default function RunContinueBox({
   // The pre-run capability ask — a continue runs the agent just like a Run does, so
   // it hits the same gate and deserves the same actionable card rather than an error.
   const [capCard, setCapCard] = useState<CapabilityCardData | null>(null);
+  // A Review Room revision that could not be queued is not an error message —
+  // it is a state with an action. Holding the typed refusal (rather than only
+  // its sentence) is what lets the recovery panel below offer that action.
+  const [refusal, setRefusal] = useState<RunRequestRefusal | null>(null);
   const { files, canAttach, canAttachFolder, attachFile, attachFolder, removeFile, error: attachError } = useRunAttachments();
   const supabase = createClient();
 
@@ -57,6 +62,7 @@ export default function RunContinueBox({
     setBusy(true);
     setMsg('');
     setCapCard(null);
+    setRefusal(null);
     try {
       // The prompt + any attached file PATHS, combined into the one-off note the
       // run-request carries (read back by the drainer from the request's `intent`).
@@ -70,11 +76,19 @@ export default function RunContinueBox({
           ...(opts?.force ? { force: true } : {}),
         },
       });
+      // `done` is set ONLY here, from a successful response. A refusal below
+      // leaves the composer exactly as it was — including every character of the
+      // user's note, which is the one thing they must never have to retype.
       setDone(true);
       setMsg('Queued — continuing this run hands-off; the updated result lands in your inbox.');
     } catch (e) {
       const cap = e instanceof BackendError && e.status === 409 ? e.body?.needsCapability : null;
       if (cap) { setCapCard(cap as CapabilityCardData); return; }
+      const classified = classifyRunRequestRefusal(e);
+      // A recoverable refusal hands off to the panel, which owns the copy AND
+      // the action. Showing the sentence here as well would say the same thing
+      // twice and still leave the user with nowhere to click.
+      if (classified?.recoverable) { setRefusal(classified); setMsg(''); return; }
       setMsg(runRequestRefusalCopy(e, 'Could not queue the continue. Try again.'));
     } finally {
       setBusy(false);
@@ -124,6 +138,19 @@ export default function RunContinueBox({
         </button>
         {msg && <span className="text-xs text-rose-600 dark:text-rose-400">{msg}</span>}
       </div>
+      {/* The typed recovery surface. It renders only for a refusal that HAS a
+          recovery path, and it never shows Queued unless the backend said so. */}
+      {refusal?.recoverable && refusal.requestId && (
+        <ReviewContinuationRecovery
+          requestId={refusal.requestId}
+          refusal={refusal}
+          note={composeNoteWithFiles(note, files)}
+          onQueued={() => {
+            setDone(true);
+            setMsg('Queued with your original review submission — the updated result lands in your inbox.');
+          }}
+        />
+      )}
       {/* Modal, not inline — same call as agent-actions.tsx: a rare gate shouldn't
           push the surrounding layout around every time it fires. */}
       <Modal

@@ -22,6 +22,7 @@
     "test:run-artifacts-visibility-mutations": "node scripts/mutation-test-run-artifacts-visibility.mjs",
     "test:review-room-orchestration-mutations": "node scripts/mutation-test-review-room-orchestration.mjs",
     "test:review-retry-refusal-mutations": "node scripts/mutation-test-review-retry-refusal.mjs",
+    "test:review-continuation-recovery-mutations": "node scripts/mutation-test-review-continuation-recovery.mjs",
     "test:review-spatial-annotation-mutations": "node scripts/mutation-test-review-spatial-annotation.mjs"
   },
   "dependencies": {

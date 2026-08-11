@@ -9,10 +9,14 @@ const actions = 'app/(dashboard)/_components/run-actions.tsx';
 const continueBox = 'app/(dashboard)/_components/run-continue-box.tsx';
 const testFile = 'lib/run-request-refusal.test.ts';
 const api = 'lib/api.ts';
+// Anchors track the typed refusal model the copy table became (0175). The
+// PROPERTY is unchanged and is the reason this harness exists: each refusal
+// keeps its own meaning, the reason comes from the structured body, and both
+// continuation surfaces render it instead of a generic catch.
 const mutants = [
-  ['still-running-collapsed-to-generic', helper, "  review_continuation_still_running:\n    'The previous revision is still running or shutting down. Wait a moment, then try again.',", "  review_continuation_still_running: 'fallback',"],
-  ['unknown-live-state-collapsed-to-generic', helper, "  review_continuation_live_state_unknown:\n    'Implexa cannot safely verify that the previous revision process ended. This revision was not queued.',", "  review_continuation_live_state_unknown: 'fallback',"],
-  ['reason-read-from-untrusted-message-instead-of-body', helper, "  const reason = typeof (body as { reason?: unknown }).reason === 'string'", "  const reason = false"],
+  ['still-running-collapsed-to-generic', helper, "  review_continuation_still_running: {\n    kind: 'still_running',\n    message: 'The previous revision is still running. Nothing was queued — wait for it to finish.',", "  review_continuation_still_running: {\n    kind: 'still_running',\n    message: 'fallback',"],
+  ['unknown-live-state-collapsed-to-generic', helper, "    message: 'Implexa cannot yet verify that the previous revision process ended, so nothing was queued. '\n      + 'Fully quit and reopen the executor — that lets Implexa confirm the old process is gone — then retry.',", "    message: 'fallback',"],
+  ['reason-read-from-untrusted-message-instead-of-body', helper, "  const reason = typeof raw.reason === 'string' ? raw.reason : '';", "  const reason = '';"],
   ['held-run-surface-restores-generic-catch', actions, "setErr(runRequestRefusalCopy(error, 'Could not queue the changes. Try again.'))", "setErr('Could not queue the changes. Try again.')"],
   ['universal-continue-surface-restores-raw-error', continueBox, "setMsg(runRequestRefusalCopy(e, 'Could not queue the continue. Try again.'))", "setMsg(e instanceof Error ? e.message : 'Could not queue the continue. Try again.')"],
 ];

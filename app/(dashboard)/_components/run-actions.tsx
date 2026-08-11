@@ -26,7 +26,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
-import { runRequestRefusalCopy } from '@/lib/run-request-refusal';
+import { runRequestRefusalCopy, classifyRunRequestRefusal, type RunRequestRefusal } from '@/lib/run-request-refusal';
+import ReviewContinuationRecovery from './review-continuation-recovery';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import { deriveHeldRunPrimaryAction } from '@/lib/held-run-action';
 import type { RunStep } from '@/lib/run-state';
@@ -79,6 +80,10 @@ export default function RunActions({
   const [confirmDismiss, setConfirmDismiss] = useState(false);
   const [busy, setBusy] = useState<null | string>(null);
   const [err, setErr] = useState<string | null>(null);
+  // A Review Room revision that could not be queued is a STATE with an action,
+  // not an error string. Keeping the typed refusal is what lets the recovery
+  // panel offer "restart Codex, then retry" instead of a dead end.
+  const [refusal, setRefusal] = useState<RunRequestRefusal | null>(null);
   const [note, setNote] = useState('');
   const { files, canAttach, canAttachFolder, attachFile, attachFolder, removeFile, error: attachError } = useRunAttachments();
 
@@ -123,7 +128,7 @@ export default function RunActions({
   async function continueWithChanges() {
     const composed = composeNoteWithFiles(note, files);
     if (busy || (!note.trim() && files.length === 0)) return;
-    setBusy('changes'); setErr(null);
+    setBusy('changes'); setErr(null); setRefusal(null);
     try {
       await callBackend('/api/v2/me/run-requests', {
         jwt: await jwt(), method: 'POST',
@@ -143,6 +148,11 @@ export default function RunActions({
       // Land on Active Agents so the new run's loader is visible (parity with Run).
       router.push('/workflows'); router.refresh();
     } catch (error) {
+      const classified = classifyRunRequestRefusal(error);
+      // Hand a recoverable refusal to the panel, which owns both the copy and
+      // the action. The note stays in state untouched — a refusal must never
+      // cost the user their feedback.
+      if (classified?.recoverable) { setRefusal(classified); setErr(null); setBusy(null); return; }
       setErr(runRequestRefusalCopy(error, 'Could not queue the changes. Try again.')); setBusy(null);
     }
   }
@@ -289,6 +299,13 @@ export default function RunActions({
       )}
 
       {err && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{err}</p>}
+      {refusal?.recoverable && refusal.requestId && (
+        <ReviewContinuationRecovery
+          requestId={refusal.requestId}
+          refusal={refusal}
+          note={composeNoteWithFiles(note, files)}
+        />
+      )}
     </section>
   );
 }
