@@ -7,6 +7,7 @@ export type MarketplaceExecutionRequirement = {
   required: boolean;
   permission_category: string;
   reactivation_on_change: boolean;
+  max_invocations_per_run: number;
   setup: { owner: MarketplaceSetupOwner; title: string; instructions: string[] };
   integration: {
     cli_id?: string;
@@ -71,14 +72,16 @@ export function parseMarketplaceExecutionRequirements(value: unknown): Marketpla
   const requirements: MarketplaceExecutionRequirement[] = [];
   for (const raw of row.requirements) {
     const item = record(raw);
-    if (!item || !exactKeys(item, ['id', 'requirement_type', 'required', 'permission_category', 'reactivation_on_change', 'setup', 'integration'])) return null;
+    if (!item || !exactKeys(item, ['id', 'requirement_type', 'required', 'permission_category', 'reactivation_on_change', 'max_invocations_per_run', 'setup', 'integration'])) return null;
     const requirementType = text(item.requirement_type, 40);
     const id = text(item.id, 120);
     const permission = text(item.permission_category, 80);
     const setup = record(item.setup);
     const integration = record(item.integration);
+    const maxInvocations = item.max_invocations_per_run;
     if (!id || !requirementType || !TYPES.has(requirementType) || !permission
       || typeof item.required !== 'boolean' || typeof item.reactivation_on_change !== 'boolean'
+      || !Number.isSafeInteger(maxInvocations) || Number(maxInvocations) < 1 || Number(maxInvocations) > 10_000
       || !setup || !integration || !exactKeys(setup, ['owner', 'title', 'instructions'])) return null;
     const owner = text(setup.owner, 40);
     const title = text(setup.title, 160);
@@ -127,9 +130,11 @@ export function parseMarketplaceExecutionRequirements(value: unknown): Marketpla
     requirements.push({
       id, requirement_type: requirementType as MarketplaceRequirementType, required: item.required,
       permission_category: permission, reactivation_on_change: item.reactivation_on_change,
+      max_invocations_per_run: Number(maxInvocations),
       setup: { owner: owner as MarketplaceSetupOwner, title, instructions }, integration: publicIntegration,
     });
   }
+  if (requirements.reduce((sum, requirement) => sum + requirement.max_invocations_per_run, 0) > 10_000) return null;
   return { contract_type: 'marketplace_execution_requirements', contract_version: 1, digest: row.digest, requirements };
 }
 

@@ -34,6 +34,7 @@ export function MarketplaceExecutionRequirementsCard({ contract }: { contract?: 
                 </span>
               </div>
               <p className="mt-1 text-xs text-ink-500">Secret owner: {setupOwnerLabel(requirement.setup.owner)}</p>
+              <p className="mt-1 text-xs text-ink-500">Invocation authority: at most {requirement.max_invocations_per_run.toLocaleString()} calls per run</p>
               {requirement.integration.capabilities?.length ? (
                 <p className="mt-1 text-xs text-ink-500">Allowed capabilities: {requirement.integration.capabilities.join(', ')}</p>
               ) : null}
