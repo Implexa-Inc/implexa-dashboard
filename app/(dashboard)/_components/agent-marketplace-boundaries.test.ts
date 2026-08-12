@@ -53,8 +53,8 @@ test('authority-broadening updates disclose the diff and require explicit accept
   assert.match(resume, /Added capabilities:/);
   assert.match(resume, /Added permissions:/);
   assert.match(resume, /type="checkbox"/);
-  assert.match(resume, /acceptAuthorityBroadening: acceptedUpdate/);
-  assert.match(resume, /agent\.update\.authorityDiff\.broadensAuthority && !acceptedUpdate/);
+  assert.match(resume, /acceptAuthorityChange: acceptedUpdate/);
+  assert.match(resume, /agent\.update\.authorityDiff\.changesAuthority && !acceptedUpdate/);
 });
 
 test('disable/remove management preserves history and has explicit destructive confirmation', () => {

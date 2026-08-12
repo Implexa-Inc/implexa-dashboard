@@ -38,7 +38,7 @@ test('Blocked and Needs setup never render Use agent or Ready', async () => {
 });
 
 test('authority-broadening update is keyboard-focusable and disabled until checked', async () => {
-  const update = { fromVersion: '1.0.0', toVersion: '2.0.0', authorityDiff: { addedCapabilities: ['github:write'], removedCapabilities: [], addedPermissions: ['source_control_write'], removedPermissions: [], broadensAuthority: true } };
+  const update = { fromVersion: '1.0.0', toVersion: '2.0.0', authorityDiff: { addedCapabilities: ['github:write'], removedCapabilities: [], addedPermissions: ['source_control_write'], removedPermissions: [], changesAuthority: true, broadensAuthority: true } };
   const rendered = await render('agent-resume.tsx', { agent: agent('Update available', { update, acquisition: { id: 'a', pinnedVersionId: 'old', activeVersionId: 'old', lifecycle: 'installed' } }) });
   try {
     assert.match(rendered.text(), /Added capabilities: github:write/); assert.match(rendered.text(), /Added permissions: source_control_write/);
@@ -46,6 +46,15 @@ test('authority-broadening update is keyboard-focusable and disabled until check
     assert.equal(accept.disabled, true); assert.equal(accept.tabIndex, 0);
     const checkbox = rendered.document.querySelector('input[type="checkbox"]')!;
     await rendered.click(checkbox); assert.equal(accept.disabled, false);
+  } finally { rendered.cleanup(); }
+});
+
+test('Owned agent without an acquisition offers setup and acquires before it can run', async () => {
+  const rendered = await render('agent-resume.tsx', { agent: agent('Available', { ownership: 'Owned', primaryAction: 'Finish setup', acquisition: null }) });
+  try {
+    assert.equal(rendered.queryByText('Use agent'), null);
+    await rendered.click(rendered.getByText('Finish setup'));
+    assert.match(rendered.calls.backend[0].path, /\/acquire$/);
   } finally { rendered.cleanup(); }
 });
 

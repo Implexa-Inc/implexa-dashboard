@@ -20,7 +20,7 @@ export type DiscoveredAgent = {
   readiness: { state: 'Available' | 'Installed' | 'Needs setup' | 'Ready' | 'Update available' | 'Disabled' | 'Incompatible' | 'Blocked'; reason: string | null };
   primaryAction: 'View agent' | 'Use agent' | 'Finish setup';
   testedCompatibility: { executionEngines: string[] };
-  update?: null | { fromVersion: string | null; toVersion: string; authorityDiff: { addedCapabilities: string[]; removedCapabilities: string[]; addedPermissions: string[]; removedPermissions: string[]; broadensAuthority: boolean } };
+  update?: null | { fromVersion: string | null; toVersion: string; authorityDiff: { addedCapabilities: string[]; removedCapabilities: string[]; addedPermissions: string[]; removedPermissions: string[]; changesAuthority: boolean; broadensAuthority: boolean } };
   acquisition?: null | { id: string; pinnedVersionId: string; activeVersionId: string; lifecycle: 'installed' | 'disabled' | 'uninstalled' };
 };
 

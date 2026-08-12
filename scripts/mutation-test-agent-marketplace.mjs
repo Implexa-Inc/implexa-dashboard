@@ -6,11 +6,12 @@ const root = resolve(import.meta.dirname, '..');
 const target = resolve(root, 'app/(dashboard)/_components/agent-resume.tsx');
 const original = readFileSync(target);
 const source = original.toString('utf8');
-const tests = ['app/(dashboard)/_components/agent-marketplace-boundaries.test.ts'];
+const tests = ['app/(dashboard)/_components/agent-marketplace-boundaries.test.ts', 'app/(dashboard)/_components/agent-resume-render.test.ts'];
 const mutations = [
   ['available-always-usable', "agent.readiness.state === 'Available'", 'true'],
   ['blocked-skips-setup', " || agent.readiness.state === 'Blocked'", ''],
-  ['broadening-needs-no-acceptance', 'busy || (agent.update.authorityDiff.broadensAuthority && !acceptedUpdate)', 'busy'],
+  ['authority-change-needs-no-acceptance', 'busy || (agent.update.authorityDiff.changesAuthority && !acceptedUpdate)', 'busy'],
+  ['owned-looks-runnable', "busy ? 'Adding agent…' : agent.primaryAction", "busy ? 'Adding agent…' : 'Use agent'"],
   ['blocked-reason-not-announced', 'role="status"', 'role="note"'],
   ['training-controls-for-non-owner', "agent.ownership === 'Owned'", 'true'],
   ['history-preservation-copy-removed', 'Prior runs, receipts, reviews, learning evidence, and version provenance stay intact.', 'History may be removed.'],
