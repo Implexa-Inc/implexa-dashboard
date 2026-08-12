@@ -15,6 +15,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { postAuthDestination } from '@/lib/navigation';
 import SignupForm from './signup-form';
 
 export const dynamic = 'force-dynamic';
@@ -55,9 +56,11 @@ export default async function SignupPage({
     if (inviteToken) {
       redirect(`/onboarding?invite=${encodeURIComponent(inviteToken)}`);
     }
-    // Adopt-and-run → land on the agent page. Else carry the build intent to /overview.
-    if (adoptNext) redirect(adoptNext);
-    redirect(intent ? `/overview?intent=${encodeURIComponent(intent)}` : (next || '/overview'));
+    // Adopt-and-run → the agent page; a carried build intent → /overview, which
+    // is the only surface that can turn it into a build run-request; otherwise
+    // `next`, else the state-aware default landing. One precedence order, in
+    // lib/navigation, shared with /login, the root redirect and the callback.
+    redirect(postAuthDestination({ next, intent, adoptSlug: agentSlug }));
   }
 
   // Adopt → post-auth `next` = the agent page (no build intent stashed).

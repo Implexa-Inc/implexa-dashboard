@@ -105,6 +105,10 @@ test('Results makes a claim about RESULTS only — it can never contradict Today
   assert.doesNotMatch(zone, /needsYou\.homeCount/, 'and must not re-derive needs-you state at all');
 });
 
-test('Results links to /inbox as the archive rather than rendering everything', () => {
-  assert.match(page, /href="\/inbox"[\s\S]{0,120}View all/);
+test('Results links to the Delivered archive rather than rendering everything', () => {
+  // The archive moved from /inbox to Work's Delivered filter when Review and
+  // Results stopped being destinations of their own (DESIGN.md §8.2). /inbox
+  // still redirects there, but this link points at the canonical URL directly
+  // so the reader does not take an extra hop.
+  assert.match(page, /href="\/work\?view=delivered"[\s\S]{0,120}View all/);
 });

@@ -11,15 +11,24 @@
  * Keeps the surface tiny: just an intent textarea + Build. For the full builder
  * (attachments, suggestions, schedule shaping) the /create page still exists; this
  * is the "I have an idea right now" shortcut.
+ *
+ * NOT omnipresent any more. DESIGN.md §6.2 lists "Creation is omnipresent" as a
+ * confirmed complexity source and §15 Phase A.5 removes it from Work and review
+ * surfaces: while you are judging a delivered artifact, building a new agent is
+ * not a plausible next action, and the floating control sits on top of the
+ * review action area. The suppressed list lives in lib/navigation so the shell
+ * has one description of itself.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { isCreateFabSuppressed } from '@/lib/navigation';
 import CreateDecisionGate from './create-decision-gate';
 
 type State = 'idle' | 'sending' | 'queued' | 'error';
 
 export default function CreateFab() {
+  const pathname = usePathname() || '';
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [intent, setIntent] = useState('');
@@ -41,6 +50,11 @@ export default function CreateFab() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
+
+  // Suppressed on Work and review surfaces. Placed AFTER every hook so the hook
+  // order is identical on every route (an early return above the effects would
+  // break the rules of hooks the moment the user navigates onto /work).
+  if (isCreateFabSuppressed(pathname)) return null;
 
   // Open the plan review; the build is enqueued only when the user accepts it.
   function submit() {

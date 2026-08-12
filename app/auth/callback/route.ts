@@ -9,12 +9,14 @@
  *   4. Post-sign-in client redirect — no code or token, just session is set
  *
  * After authenticating, we route based on profile state:
- *   - profile exists with organization_id → /skills
+ *   - profile exists with organization_id → `next`, else the state-aware
+ *     default landing (postAuthDestination → /start)
  *   - profile missing → /onboarding (Plan A picker)
  */
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { postAuthDestination } from '@/lib/navigation';
 import type { EmailOtpType } from '@supabase/supabase-js';
 
 // Safelist `next` redirects to internal paths only — prevents open-redirect
@@ -118,7 +120,8 @@ export async function GET(request: Request) {
     return NextResponse.redirect(onboardingUrl);
   }
 
-  // Default post-auth landing is /overview (mission control), matching the
-  // root redirect in app/page.tsx. `next` still wins for deep links.
-  return NextResponse.redirect(`${url.origin}${next || '/overview'}`);
+  // Default post-auth landing is the state-aware rule (/start), matching the
+  // root redirect in app/page.tsx and the already-signed-in short circuits on
+  // /login and /signup. `next` still wins for deep links.
+  return NextResponse.redirect(`${url.origin}${postAuthDestination({ next })}`);
 }

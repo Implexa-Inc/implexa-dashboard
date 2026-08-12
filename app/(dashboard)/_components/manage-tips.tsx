@@ -62,10 +62,10 @@ const TIPS: Tip[] = [
   {
     id: 'one-inbox',
     icon: '📥',
-    title: 'Everything lands on Home',
+    title: 'Everything lands in Work',
     body: (
       <>
-        Every run drops its result on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link> as
+        Every run drops its result in <Link href="/work" className="text-brand-500 hover:underline">Work</Link> as
         one simple to-do — review it, give feedback, or approve a follow-up in a tap. You never have to go hunting
         for output.
       </>

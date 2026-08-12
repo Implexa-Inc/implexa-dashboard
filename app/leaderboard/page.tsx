@@ -80,7 +80,7 @@ export default async function LeaderboardPage({
           <Logo height={20} />
         </Link>
         {isAuthed ? (
-          <Link href="/overview" className="text-sm text-ink-200 hover:underline">
+          <Link href="/start" className="text-sm text-ink-200 hover:underline">
             Dashboard →
           </Link>
         ) : (
