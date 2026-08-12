@@ -130,7 +130,7 @@ async function mount(over: Record<string, unknown> = {}) {
         state: 'draft', submittedRequestId: null, submittedIssueIds: null,
         compiledBrief: null, acceptedAt: null,
       },
-      sources: { issues: 'ready', artifacts: 'ready', session: 'ready' },
+      sources: { issues: 'ready', artifacts: 'ready', session: 'ready', reviewer_resolutions: 'ready' },
       isApprovalHold: false,
       ...over,
     }));

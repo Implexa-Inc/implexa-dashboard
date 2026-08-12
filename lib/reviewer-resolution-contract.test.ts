@@ -31,6 +31,18 @@ test('a reviewer-resolution without its issueId fails the packet boundary', () =
   assert.equal(parseReviewPacketResponse(malformed, malformed.run.id), null);
 });
 
+test('a packet without the contracted reviewer-resolution source fails closed', () => {
+  const malformed = structuredClone(packet);
+  delete malformed.sources.reviewer_resolutions;
+  assert.equal(parseReviewPacketResponse(malformed, malformed.run.id), null);
+});
+
+test('every issue must explicitly carry reviewerResolution as null or a valid object', () => {
+  const malformed = structuredClone(packet);
+  delete malformed.issues[0].reviewerResolution;
+  assert.equal(parseReviewPacketResponse(malformed, malformed.run.id), null);
+});
+
 test('checked-in fixture is byte-equivalent JSON to the backend producer', () => {
   const candidates = [
     process.env.IMPLEXA_BACKEND_DIR,

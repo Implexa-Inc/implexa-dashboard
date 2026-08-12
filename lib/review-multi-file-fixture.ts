@@ -77,7 +77,7 @@ function issue(
       timeStartMs: startMs, timeEndMs: opts.endMs ?? null,
     },
     body, status: 'draft', submittedRequestId: null,
-    createdAt: '2026-08-07T11:1' + (seq % 10) + ':00Z',
+    createdAt: '2026-08-07T11:1' + (seq % 10) + ':00Z', reviewerResolution: null,
   };
 }
 

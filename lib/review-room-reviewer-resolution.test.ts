@@ -118,18 +118,22 @@ test('unknown-terminal queued card keeps actions/copy and retries the immutable 
   } finally { room.cleanup(); }
 });
 
-test('resolution-source read failure is honest and blocks resolution and exact-send actions', async () => {
-  const unavailable = props();
-  unavailable.sources = { ...unavailable.sources, reviewer_resolutions: 'unavailable' };
-  const room = await render('review-room.tsx', unavailable);
-  try {
-    assert.match(room.text(), /couldn't verify which feedback is resolved/i);
-    assert.match(room.text(), /Resolution status is unavailable/);
-    assert.equal(room.queryByText('Mark as resolved'), null);
-    assert.equal(room.queryByText('Mark all as resolved'), null);
-    assert.equal(room.queryByText('Send 1 unresolved + 1 new change'), null);
-    assert.ok(room.queryByText('Add more feedback'));
-  } finally { room.cleanup(); }
+test('every non-ready reviewer-resolution source state blocks resolution and exact-send actions', async () => {
+  for (const state of ['unavailable', 'disabled', undefined] as const) {
+    const unavailable = props();
+    unavailable.sources = { ...unavailable.sources };
+    if (state === undefined) delete unavailable.sources.reviewer_resolutions;
+    else unavailable.sources.reviewer_resolutions = state;
+    const room = await render('review-room.tsx', unavailable);
+    try {
+      assert.match(room.text(), /couldn't verify which feedback is resolved/i, `state=${String(state)}`);
+      assert.match(room.text(), /Resolution status is unavailable/, `state=${String(state)}`);
+      assert.equal(room.queryByText('Mark as resolved'), null, `state=${String(state)}`);
+      assert.equal(room.queryByText('Mark all as resolved'), null, `state=${String(state)}`);
+      assert.equal(room.queryByText('Send 1 unresolved + 1 new change'), null, `state=${String(state)}`);
+      assert.ok(room.queryByText('Add more feedback'), `state=${String(state)}`);
+    } finally { room.cleanup(); }
+  }
 });
 
 test('double click is single-flight; rerender adopts durable resolution and a newer draft session', async () => {

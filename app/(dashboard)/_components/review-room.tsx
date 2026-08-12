@@ -947,7 +947,7 @@ export default function ReviewRoom(props: Props) {
   }, [submitView.mode, submission, revisionIssueIds, onAccept, onSubmit]);
 
   const issuesUnavailable = sources.issues === 'unavailable';
-  const resolutionsUnavailable = sources.reviewer_resolutions === 'unavailable';
+  const resolutionsUnavailable = sources.reviewer_resolutions !== 'ready';
   const playbackClock = production && selectedSegment
     ? segmentPlaybackClock(production, selectedSegment, playheadMs ?? 0)
     : null;

@@ -100,7 +100,7 @@ export type ReviewIssue = {
   status: 'draft' | 'submitted' | 'resolved' | 'dismissed' | string;
   submittedRequestId: string | null;
   createdAt: string | null;
-  reviewerResolution?: null | {
+  reviewerResolution: null | {
     id: string;
     issueId: string;
     reviewSessionId: string;
@@ -190,7 +190,7 @@ const SOURCE_STATES = new Set<SourceState>(['ready', 'unavailable', 'disabled'])
 /** Sources the queue is contracted to report. Extra keys are permitted. */
 export const QUEUE_SOURCE_KEYS = ['holds', 'judgments', 'sessions', 'acceptance', 'issueCounts', 'deliveredOutputs'] as const;
 /** Sources the packet is contracted to report. Extra keys are permitted. */
-export const PACKET_SOURCE_KEYS = ['run', 'lineage', 'artifacts', 'judgment', 'verification', 'production', 'session', 'issues'] as const;
+export const PACKET_SOURCE_KEYS = ['run', 'lineage', 'artifacts', 'judgment', 'verification', 'production', 'session', 'issues', 'reviewer_resolutions'] as const;
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -333,7 +333,8 @@ function isValidIssue(v: unknown, runId: string, sessionId: string | null): bool
   if (typeof v.status !== 'string' || !v.status) return false;
   // the anchor drives seeking and staleness; an absent one is not "no location"
   if (!isObject(v.anchor)) return false;
-  if (v.reviewerResolution !== null && v.reviewerResolution !== undefined) {
+  if (!Object.prototype.hasOwnProperty.call(v, 'reviewerResolution')) return false;
+  if (v.reviewerResolution !== null) {
     const rr = v.reviewerResolution;
     if (!isObject(rr) || !isId(rr.id) || !isId(rr.issueId) || rr.issueId !== v.id || !isId(rr.reviewSessionId)
         || !isNullableString(rr.reviewSubmissionId) || typeof rr.resolvedAt !== 'string'
