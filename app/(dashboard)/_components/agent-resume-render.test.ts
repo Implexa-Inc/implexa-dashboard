@@ -156,6 +156,58 @@ test('free audition discloses buyer-owned provider cost, requires acknowledgment
   } finally { rendered.cleanup(); }
 });
 
+test('owner configures the exact-version free audition allowance from the producer packet', async () => {
+  const rendered = await render('agent-resume.tsx', { agent: generated.owned });
+  try {
+    assert.match(rendered.text(), /Free auditions/);
+    assert.equal(rendered.queryByText('Run free audition'), null, 'the publisher must not receive the buyer action');
+    const allowance = rendered.document.querySelector('[aria-label="Free auditions per customer"]') as HTMLSelectElement;
+    assert.equal(allowance.value, '2');
+    const save = rendered.getByText('Save audition setting') as HTMLButtonElement;
+    assert.equal(save.disabled, true, 'an unchanged authoritative value should not write');
+    await rendered.act(() => {
+      const setter = Object.getOwnPropertyDescriptor(rendered.window.HTMLSelectElement.prototype, 'value')!.set!;
+      setter.call(allowance, '4');
+      allowance.dispatchEvent(new rendered.window.Event('change', { bubbles: true }));
+    });
+    assert.equal(save.disabled, false);
+    await rendered.click(save);
+    assert.match(rendered.calls.backend[0].path, /\/audition-policy$/);
+    const body = (rendered.calls.backend[0].init as { body: { versionId: string; allowance: number; inputBindings: Record<string, unknown>; idempotencyKey: string } }).body;
+    assert.equal(body.versionId, generated.owned.version.id);
+    assert.equal(body.allowance, 4);
+    assert.equal(Object.keys(body.inputBindings).length, 0);
+    assert.match(body.idempotencyKey, /^[0-9a-f-]{36}$/);
+  } finally { rendered.cleanup(); }
+});
+
+test('owner can turn auditions off and missing owner policy authority fails closed', async () => {
+  const rendered = await render('agent-resume.tsx', { agent: generated.owned });
+  try {
+    const allowance = rendered.document.querySelector('[aria-label="Free auditions per customer"]') as HTMLSelectElement;
+    await rendered.act(() => {
+      const setter = Object.getOwnPropertyDescriptor(rendered.window.HTMLSelectElement.prototype, 'value')!.set!;
+      setter.call(allowance, '0');
+      allowance.dispatchEvent(new rendered.window.Event('change', { bubbles: true }));
+    });
+    await rendered.click(rendered.getByText('Save audition setting'));
+    assert.equal((rendered.calls.backend[0].init as { body: { allowance: number } }).body.allowance, 0);
+  } finally { rendered.cleanup(); }
+
+  const unavailable = await render('agent-resume.tsx', { agent: { ...generated.owned, auditionConfiguration: undefined } });
+  try {
+    assert.match(unavailable.text(), /Free audition settings are unavailable/);
+    assert.equal(unavailable.queryByText('Save audition setting'), null);
+    assert.equal(unavailable.document.querySelector('[aria-label="Free auditions per customer"]'), null);
+  } finally { unavailable.cleanup(); }
+
+  const malformed = await render('agent-resume.tsx', { agent: { ...generated.owned, auditionConfiguration: { ...generated.owned.auditionConfiguration, maxAllowance: 5000 } } });
+  try {
+    assert.match(malformed.text(), /Free audition settings are unavailable/);
+    assert.equal(malformed.queryByText('Save audition setting'), null);
+  } finally { malformed.cleanup(); }
+});
+
 test('exhausted audition is visibly unavailable and cannot call the backend', async () => {
   const ready = agent('Ready', {
     audition: { allowance: 1, remaining: 0, providerCostMode: 'buyer_owned', disclosure: 'Buyer-owned provider usage.', eligible: false },
