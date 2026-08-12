@@ -947,6 +947,7 @@ export default function ReviewRoom(props: Props) {
   }, [submitView.mode, submission, revisionIssueIds, onAccept, onSubmit]);
 
   const issuesUnavailable = sources.issues === 'unavailable';
+  const resolutionsUnavailable = sources.reviewer_resolutions === 'unavailable';
   const playbackClock = production && selectedSegment
     ? segmentPlaybackClock(production, selectedSegment, playheadMs ?? 0)
     : null;
@@ -1275,15 +1276,15 @@ export default function ReviewRoom(props: Props) {
         <div className="shrink-0 border-b border-ink-800 px-4 py-3">
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="text-sm font-medium text-ink-200">Review issues</h2>
-            {!issuesUnavailable && visible.length > 0 && (
+            {!issuesUnavailable && !resolutionsUnavailable && visible.length > 0 && (
               <span className="shrink-0 text-xs tabular-nums text-ink-500">{groupCountLabel(visible.length)}</span>
             )}
           </div>
-          {!issuesUnavailable && activeIssues.length > 1 && (
+          {!issuesUnavailable && !resolutionsUnavailable && unresolvedPrior.length > 1 && (
             <button
               type="button"
               disabled={busy}
-              onClick={() => void resolveIssues(activeIssues.map((issue) => issue.id))}
+              onClick={() => void resolveIssues(unresolvedPrior.map((issue) => issue.id))}
               className="mt-2 text-xs text-sky-400 hover:underline disabled:opacity-50"
             >
               Mark all as resolved
@@ -1303,6 +1304,10 @@ export default function ReviewRoom(props: Props) {
           // NOT an empty rail: we could not read them.
           <p className="text-xs text-amber-300">
             We couldn&apos;t load this review&apos;s issues. This list is not empty — it&apos;s unknown.
+          </p>
+        ) : resolutionsUnavailable ? (
+          <p className="text-xs text-amber-300">
+            We couldn&apos;t verify which feedback is resolved. Refresh before resolving or sending this revision.
           </p>
         ) : visible.length === 0 ? (
           <p className="text-xs text-ink-500">
@@ -1364,14 +1369,16 @@ export default function ReviewRoom(props: Props) {
                     <p className="mt-0.5 text-[11px] text-sky-400">Opens another file</p>
                   )}
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink-200">{i.body}</p>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void resolveIssues([i.id])}
-                    className="mt-1 text-xs text-sky-400 hover:underline disabled:opacity-50"
-                  >
-                    Mark as resolved
-                  </button>
+                  {i.status !== 'draft' && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void resolveIssues([i.id])}
+                      className="mt-1 text-xs text-sky-400 hover:underline disabled:opacity-50"
+                    >
+                      Mark as resolved
+                    </button>
+                  )}
                   {/* The capture's honest state, for spatial issues only. "Verified"
                       appears ONLY for the backend's validated projection — the local
                       pin preview is never called evidence. */}
@@ -1417,7 +1424,7 @@ export default function ReviewRoom(props: Props) {
           </section>
           ))
         )}
-        {!issuesUnavailable && reviewerResolved.length > 0 && (
+        {!issuesUnavailable && !resolutionsUnavailable && reviewerResolved.length > 0 && (
           <details className="mt-4 border-t border-ink-800 pt-3">
             <summary className="cursor-pointer text-xs font-medium text-ink-400">
               Resolved ({reviewerResolved.length})
@@ -1447,7 +1454,11 @@ export default function ReviewRoom(props: Props) {
           {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
           {notice && <p role="status" className="text-xs text-emerald-300">{notice}</p>}
 
-          {proxyPreview ? (
+          {resolutionsUnavailable ? (
+            <p role="alert" className="text-xs text-amber-300">
+              Resolution status is unavailable. Refresh before resolving or sending feedback.
+            </p>
+          ) : proxyPreview ? (
             <p className="text-xs text-ink-500">Final render remains unavailable while required segments are unresolved.</p>
           ) : accepted ? (
             <p className="text-xs text-emerald-300">You accepted this result.</p>

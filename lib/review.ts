@@ -102,7 +102,7 @@ export type ReviewIssue = {
   createdAt: string | null;
   reviewerResolution?: null | {
     id: string;
-    issueId?: string;
+    issueId: string;
     reviewSessionId: string;
     reviewSubmissionId: string | null;
     resolvedAt: string;
@@ -335,7 +335,7 @@ function isValidIssue(v: unknown, runId: string, sessionId: string | null): bool
   if (!isObject(v.anchor)) return false;
   if (v.reviewerResolution !== null && v.reviewerResolution !== undefined) {
     const rr = v.reviewerResolution;
-    if (!isObject(rr) || !isId(rr.id) || !isId(rr.reviewSessionId)
+    if (!isObject(rr) || !isId(rr.id) || !isId(rr.issueId) || rr.issueId !== v.id || !isId(rr.reviewSessionId)
         || !isNullableString(rr.reviewSubmissionId) || typeof rr.resolvedAt !== 'string'
         || !isObject(rr.actor) || rr.actor.kind !== 'reviewer_dashboard_user'
         || !isId(rr.actor.userId) || !isObject(rr.actor.provenance)) return false;

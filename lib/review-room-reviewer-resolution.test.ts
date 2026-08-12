@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { render } from './test/render.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const packet = JSON.parse(readFileSync(resolve(root, 'fixtures/reviewer-resolution-packet.json'), 'utf8'));
+const fixture = JSON.parse(readFileSync(resolve(root, 'fixtures/reviewer-resolution-packet.json'), 'utf8'));
+const packet = fixture.packet;
 const props = () => ({
   runId: packet.run.id, agentSlug: packet.run.slug, agentName: 'Fixture agent',
   artifacts: packet.artifacts, production: null, issues: structuredClone(packet.issues),
@@ -28,8 +29,8 @@ const buttons = (room: Awaited<ReturnType<typeof render>>, label: string) =>
 test('real ReviewRoom renders active actions, collapsed history, Add more, and exact composition copy', async () => {
   const room = await render('review-room.tsx', props());
   try {
-    assert.equal(buttons(room, 'Mark as resolved').length, 2);
-    assert.ok(room.queryByText('Mark all as resolved'));
+    assert.equal(buttons(room, 'Mark as resolved').length, 1, 'an unsent draft is not reviewer-resolvable');
+    assert.equal(room.queryByText('Mark all as resolved'), null);
     const details = room.document.querySelector('details');
     assert.ok(details); assert.equal(details.open, false);
     assert.match(details.textContent || '', /Resolved \(1\).*Reviewer-resolved history/);
@@ -49,32 +50,32 @@ test('Add more feedback stays enabled when the room has zero prior issues', asyn
   } finally { room.cleanup(); }
 });
 
-test('individual resolve removes only that identity from active composition and preserves collapsed history', async () => {
+test('individual resolve consumes the exact backend-produced response including issueId', async () => {
   const room = await render('review-room.tsx', props());
   try {
-    (room.window as unknown as { fetch: typeof fetch }).fetch = async (_url, init) => {
-      const b = JSON.parse(String(init?.body)); const rr = resolution(b.issueIds[0]);
-      return jsonResponse({ ok: true, resolutions: [rr] });
-    };
+    (room.window as unknown as { fetch: typeof fetch }).fetch = async () => jsonResponse(fixture.resolveResponse);
     await room.click(buttons(room, 'Mark as resolved')[0]);
-    assert.equal(buttons(room, 'Mark as resolved').length, 1);
+    assert.equal(buttons(room, 'Mark as resolved').length, 0);
     assert.equal(room.queryByText('Mark all as resolved'), null);
     assert.ok(room.queryByText('Send 0 unresolved + 1 new change'));
     assert.match(room.document.querySelector('details')?.textContent || '', /Resolved \(2\)/);
   } finally { room.cleanup(); }
 });
 
-test('Mark all is atomic in the UI and all-resolved renders a clean reviewed state, never retry', async () => {
-  const room = await render('review-room.tsx', props());
+test('Mark all sends only unresolved prior issues and never includes a draft', async () => {
+  const bulk = props();
+  bulk.issues.splice(1, 0, { ...structuredClone(bulk.issues[0]), id: 'b8178000-0000-4000-8000-000000000053', body: 'Second prior unresolved change' });
+  const room = await render('review-room.tsx', bulk);
+  let sent: string[] = [];
   try {
     (room.window as unknown as { fetch: typeof fetch }).fetch = async (_url, init) => {
-      const b = JSON.parse(String(init?.body));
+      const b = JSON.parse(String(init?.body)); sent = b.issueIds;
       return jsonResponse({ ok: true, resolutions: b.issueIds.map(resolution) });
     };
     await room.click(room.getByText('Mark all as resolved'));
-    assert.ok(room.queryByText('Review complete'));
-    assert.match(room.text(), /All feedback is marked resolved/);
-    assert.equal(room.queryByText('Ready to retry'), null);
+    assert.deepEqual(sent, [packet.issues[0].id, 'b8178000-0000-4000-8000-000000000053']);
+    assert.equal(sent.includes(packet.issues[1].id), false, 'draft identity entered Mark all');
+    assert.ok(room.queryByText('Send 0 unresolved + 1 new change'));
     assert.ok(room.queryByText('Add more feedback'));
   } finally { room.cleanup(); }
 });
@@ -106,7 +107,7 @@ test('unknown-terminal queued card keeps actions/copy and retries the immutable 
     assert.match(room.text(), /If the revisions were not applied in the previous run, you can retry this revision\./);
     assert.ok(room.queryByText('Retry revision'));
     assert.ok(room.queryByText('Mark as resolved'));
-    assert.ok(room.queryByText('Mark all as resolved'));
+    assert.equal(room.queryByText('Mark all as resolved'), null);
     assert.ok(room.queryByText('Add more feedback'));
     await room.click(room.getByText('Retry revision'));
     const retry = room.calls.backend.find((call) => call.path.endsWith('/recover-review-continuation'));
@@ -114,6 +115,20 @@ test('unknown-terminal queued card keeps actions/copy and retries the immutable 
     const init = retry.init as { body?: Record<string, unknown> };
     assert.equal(init.body?.note, undefined);
     assert.equal(init.body?.issueIds, undefined);
+  } finally { room.cleanup(); }
+});
+
+test('resolution-source read failure is honest and blocks resolution and exact-send actions', async () => {
+  const unavailable = props();
+  unavailable.sources = { ...unavailable.sources, reviewer_resolutions: 'unavailable' };
+  const room = await render('review-room.tsx', unavailable);
+  try {
+    assert.match(room.text(), /couldn't verify which feedback is resolved/i);
+    assert.match(room.text(), /Resolution status is unavailable/);
+    assert.equal(room.queryByText('Mark as resolved'), null);
+    assert.equal(room.queryByText('Mark all as resolved'), null);
+    assert.equal(room.queryByText('Send 1 unresolved + 1 new change'), null);
+    assert.ok(room.queryByText('Add more feedback'));
   } finally { room.cleanup(); }
 });
 
