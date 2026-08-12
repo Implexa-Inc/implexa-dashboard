@@ -49,6 +49,8 @@ import { getMyAgents } from '@/lib/agents-home';
 import { isRevisePending, newestVersionAt } from '@/lib/revise-pending';
 import GradeBadge from '../../_components/grade-badge';
 import { isPausableRoutine } from '@/lib/schedule-trigger';
+import { getAgentResume } from '@/lib/agent-discovery';
+import AgentResume from '../../_components/agent-resume';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,7 +84,7 @@ export default async function WorkflowDetailPage({
   searchParams,
 }: {
   params: { slug: string };
-  searchParams: { source?: string; tab?: string };
+  searchParams: { source?: string; tab?: string; legacy?: string };
 }) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
@@ -91,6 +93,11 @@ export default async function WorkflowDetailPage({
     .from('users').select('id, organization_id')
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
+
+  if (searchParams.legacy !== '1') {
+    const resume = await getAgentResume(params.slug, session.access_token);
+    if (resume) return <AgentResume agent={resume} />;
+  }
 
   const source = searchParams.source || 'web-seed';
   // OWNER-SCOPED FRESH READ FIRST (2026-07-18 founder report): a revise (or

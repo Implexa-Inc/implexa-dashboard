@@ -39,6 +39,6 @@ test('a running FAVORITE still appears in the live spotlight (not hidden by the 
 test('search filters the roster client-side by name or category', () => {
   assert.match(SRC, /a\.name\.toLowerCase\(\)\.includes\(q\) \|\| a\.category\.label\.toLowerCase\(\)\.includes\(q\)/,
     'query matches name or category label');
-  assert.match(SRC, /placeholder="Search agents…"/, 'the search input is rendered');
+  assert.match(SRC, /placeholder="What outcome do you need\?"/, 'the outcome-first search input is rendered');
   assert.match(SRC, /No agents match your search/, 'an empty-search state exists');
 });
