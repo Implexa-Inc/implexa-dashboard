@@ -10,8 +10,8 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { listWorkflows } from '@/lib/workflow-catalog';
-import CommunityAgents from '../_components/community-agents';
+import { listAgentDiscovery } from '@/lib/agent-discovery';
+import AgentDiscoveryCatalog from '../_components/agent-discovery-catalog';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +23,7 @@ export default async function BrowsePage() {
     .from('users').select('organization_id').eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const catalog = await listWorkflows();
+  const discovery = await listAgentDiscovery(session.access_token);
 
   return (
     <main className="min-h-screen px-4 sm:px-8 py-12">
@@ -35,7 +35,10 @@ export default async function BrowsePage() {
             Or <Link href="/create" className="text-brand-500 hover:underline">describe a new one</Link>.
           </p>
         </header>
-        <CommunityAgents agents={catalog} />
+        <AgentDiscoveryCatalog
+          agents={discovery.agents}
+          unavailable={discovery.status === 'unavailable' ? discovery.reason : null}
+        />
       </div>
     </main>
   );

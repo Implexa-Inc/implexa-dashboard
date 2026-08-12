@@ -17,10 +17,11 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { isExecutorConnected } from '@/lib/connection';
 import { getProficiency, isGuided } from '@/lib/proficiency';
-import { listWorkflows, listSuggestedAgents } from '@/lib/workflow-catalog';
+import { listSuggestedAgents } from '@/lib/workflow-catalog';
+import { listAgentDiscovery } from '@/lib/agent-discovery';
 import TalkToImplexa from '../_components/talk-to-implexa';
 import BuildingAgents from '../_components/building-agents';
-import CommunityAgents from '../_components/community-agents';
+import AgentDiscoveryCatalog from '../_components/agent-discovery-catalog';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,8 +34,8 @@ export default async function CreatePage() {
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const [catalog, suggested, proficiency] = await Promise.all([
-    listWorkflows(),
+  const [discovery, suggested, proficiency] = await Promise.all([
+    listAgentDiscovery(session.access_token),
     listSuggestedAgents(6),
     getProficiency(supabase, session.user.id),
   ]);
@@ -65,7 +66,10 @@ export default async function CreatePage() {
         </div>
 
         {/* 2) Pick a proven one */}
-        <CommunityAgents agents={catalog} />
+        <AgentDiscoveryCatalog
+          agents={discovery.agents}
+          unavailable={discovery.status === 'unavailable' ? discovery.reason : null}
+        />
       </div>
     </main>
   );
