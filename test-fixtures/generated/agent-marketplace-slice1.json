@@ -1,0 +1,325 @@
+{
+  "schema": "implexa.agent-marketplace-slice1.fixture.v1",
+  "available": {
+    "id": "00000001-0000-4000-8000-000000000001",
+    "slug": "evidence-research-agent",
+    "name": "Evidence research agent",
+    "job": "Produce a sourced research brief with explicit limitations.",
+    "builder": {
+      "id": "00000002-0000-4000-8000-000000000002",
+      "name": "Implexa"
+    },
+    "ownership": "Available",
+    "limitations": "Does not make purchasing decisions or claim certainty when sources conflict.",
+    "examples": [
+      {
+        "title": "Example brief",
+        "body": "Privacy-reviewed example.",
+        "format": "text"
+      }
+    ],
+    "audience": null,
+    "prerequisites": null,
+    "trust": {
+      "deterministicVerification": {
+        "status": "evidence_available",
+        "count": 1
+      },
+      "judgeReview": {
+        "status": "insufficient_evidence"
+      },
+      "humanAcceptance": {
+        "status": "insufficient_evidence"
+      },
+      "certification": {
+        "status": "unknown"
+      }
+    },
+    "version": {
+      "id": "00000003-0000-4000-8000-000000000003",
+      "number": "1.0.0",
+      "updatedAt": "2026-08-11T20:00:00.000Z",
+      "manifestDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "taskSignature": {
+        "outcome": "sourced research brief",
+        "inputs": [
+          "research question"
+        ]
+      },
+      "taskSignatureDigest": "7982d4d4927cbf294525cd7d81d94bad8ac15e4259ae130cb232450a5edf070e",
+      "inputContractDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "capabilities": [
+      "github:repository.read"
+    ],
+    "permissions": [
+      "source_control_read"
+    ],
+    "capabilityDigest": "b4dab6f33f32cc7abe4bbf74a4def6773821025d36d642961f3c0fc8bb749857",
+    "permissionDigest": "1102f81e5efe6865967dc5fce89219ea60398d1d26e153f3b5617aaba190da84",
+    "requiredInputs": {
+      "version": 1,
+      "fields": []
+    },
+    "requirements": {
+      "contract_type": "marketplace_execution_requirements",
+      "contract_version": 1,
+      "digest": "617933b020c2a5565cc11d5a7f60f38c3a3e1848bd96bef286c76f83b800d22b",
+      "requirements": [
+        {
+          "id": "source-read",
+          "requirement_type": "local_cli",
+          "required": true,
+          "permission_category": "source_control_read",
+          "reactivation_on_change": true,
+          "max_invocations_per_run": 1,
+          "setup": {
+            "owner": "desktop",
+            "title": "Connect source control",
+            "instructions": [
+              "Authenticate the supported CLI on this Desktop."
+            ]
+          },
+          "integration": {
+            "cli_id": "github",
+            "min_version": "2.0.0",
+            "max_version_exclusive": null,
+            "capabilities": [
+              "repository.read"
+            ]
+          }
+        }
+      ]
+    },
+    "testedCompatibility": {
+      "executionEngines": [
+        "claude"
+      ]
+    },
+    "readiness": {
+      "state": "Available",
+      "reason": null
+    },
+    "primaryAction": "Use agent",
+    "acquisition": null,
+    "ownerActions": []
+  },
+  "needsSetup": {
+    "id": "00000001-0000-4000-8000-000000000001",
+    "slug": "evidence-research-agent",
+    "name": "Evidence research agent",
+    "job": "Produce a sourced research brief with explicit limitations.",
+    "builder": {
+      "id": "00000002-0000-4000-8000-000000000002",
+      "name": "Implexa"
+    },
+    "ownership": "Hired",
+    "limitations": "Does not make purchasing decisions or claim certainty when sources conflict.",
+    "examples": [
+      {
+        "title": "Example brief",
+        "body": "Privacy-reviewed example.",
+        "format": "text"
+      }
+    ],
+    "audience": null,
+    "prerequisites": null,
+    "trust": {
+      "deterministicVerification": {
+        "status": "evidence_available",
+        "count": 1
+      },
+      "judgeReview": {
+        "status": "insufficient_evidence"
+      },
+      "humanAcceptance": {
+        "status": "insufficient_evidence"
+      },
+      "certification": {
+        "status": "unknown"
+      }
+    },
+    "version": {
+      "id": "00000003-0000-4000-8000-000000000003",
+      "number": "1.0.0",
+      "updatedAt": "2026-08-11T20:00:00.000Z",
+      "manifestDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "taskSignature": {
+        "outcome": "sourced research brief",
+        "inputs": [
+          "research question"
+        ]
+      },
+      "taskSignatureDigest": "7982d4d4927cbf294525cd7d81d94bad8ac15e4259ae130cb232450a5edf070e",
+      "inputContractDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "capabilities": [
+      "github:repository.read"
+    ],
+    "permissions": [
+      "source_control_read"
+    ],
+    "capabilityDigest": "b4dab6f33f32cc7abe4bbf74a4def6773821025d36d642961f3c0fc8bb749857",
+    "permissionDigest": "1102f81e5efe6865967dc5fce89219ea60398d1d26e153f3b5617aaba190da84",
+    "requiredInputs": {
+      "version": 1,
+      "fields": []
+    },
+    "requirements": {
+      "contract_type": "marketplace_execution_requirements",
+      "contract_version": 1,
+      "digest": "617933b020c2a5565cc11d5a7f60f38c3a3e1848bd96bef286c76f83b800d22b",
+      "requirements": [
+        {
+          "id": "source-read",
+          "requirement_type": "local_cli",
+          "required": true,
+          "permission_category": "source_control_read",
+          "reactivation_on_change": true,
+          "max_invocations_per_run": 1,
+          "setup": {
+            "owner": "desktop",
+            "title": "Connect source control",
+            "instructions": [
+              "Authenticate the supported CLI on this Desktop."
+            ]
+          },
+          "integration": {
+            "cli_id": "github",
+            "min_version": "2.0.0",
+            "max_version_exclusive": null,
+            "capabilities": [
+              "repository.read"
+            ]
+          }
+        }
+      ]
+    },
+    "testedCompatibility": {
+      "executionEngines": [
+        "claude"
+      ]
+    },
+    "readiness": {
+      "state": "Needs setup",
+      "reason": "required_integrations_not_verified"
+    },
+    "primaryAction": "Finish setup",
+    "acquisition": {
+      "id": "00000005-0000-4000-8000-000000000005",
+      "pinnedVersionId": "00000003-0000-4000-8000-000000000003",
+      "activeVersionId": "00000003-0000-4000-8000-000000000003",
+      "lifecycle": "installed"
+    },
+    "ownerActions": []
+  },
+  "blocked": {
+    "id": "00000001-0000-4000-8000-000000000001",
+    "slug": "evidence-research-agent",
+    "name": "Evidence research agent",
+    "job": "Produce a sourced research brief with explicit limitations.",
+    "builder": {
+      "id": "00000002-0000-4000-8000-000000000002",
+      "name": "Implexa"
+    },
+    "ownership": "Hired",
+    "limitations": "Does not make purchasing decisions or claim certainty when sources conflict.",
+    "examples": [
+      {
+        "title": "Example brief",
+        "body": "Privacy-reviewed example.",
+        "format": "text"
+      }
+    ],
+    "audience": null,
+    "prerequisites": null,
+    "trust": {
+      "deterministicVerification": {
+        "status": "evidence_available",
+        "count": 1
+      },
+      "judgeReview": {
+        "status": "insufficient_evidence"
+      },
+      "humanAcceptance": {
+        "status": "insufficient_evidence"
+      },
+      "certification": {
+        "status": "unknown"
+      }
+    },
+    "version": {
+      "id": "00000003-0000-4000-8000-000000000003",
+      "number": "1.0.0",
+      "updatedAt": "2026-08-11T20:00:00.000Z",
+      "manifestDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "taskSignature": {
+        "outcome": "sourced research brief",
+        "inputs": [
+          "research question"
+        ]
+      },
+      "taskSignatureDigest": "7982d4d4927cbf294525cd7d81d94bad8ac15e4259ae130cb232450a5edf070e",
+      "inputContractDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "capabilities": [
+      "github:repository.read"
+    ],
+    "permissions": [
+      "source_control_read"
+    ],
+    "capabilityDigest": "b4dab6f33f32cc7abe4bbf74a4def6773821025d36d642961f3c0fc8bb749857",
+    "permissionDigest": "1102f81e5efe6865967dc5fce89219ea60398d1d26e153f3b5617aaba190da84",
+    "requiredInputs": {
+      "version": 1,
+      "fields": []
+    },
+    "requirements": {
+      "contract_type": "marketplace_execution_requirements",
+      "contract_version": 1,
+      "digest": "617933b020c2a5565cc11d5a7f60f38c3a3e1848bd96bef286c76f83b800d22b",
+      "requirements": [
+        {
+          "id": "source-read",
+          "requirement_type": "local_cli",
+          "required": true,
+          "permission_category": "source_control_read",
+          "reactivation_on_change": true,
+          "max_invocations_per_run": 1,
+          "setup": {
+            "owner": "desktop",
+            "title": "Connect source control",
+            "instructions": [
+              "Authenticate the supported CLI on this Desktop."
+            ]
+          },
+          "integration": {
+            "cli_id": "github",
+            "min_version": "2.0.0",
+            "max_version_exclusive": null,
+            "capabilities": [
+              "repository.read"
+            ]
+          }
+        }
+      ]
+    },
+    "testedCompatibility": {
+      "executionEngines": [
+        "claude"
+      ]
+    },
+    "readiness": {
+      "state": "Blocked",
+      "reason": "Structured execution remains disabled until the reviewed cross-vault credential-reference join and provider-verifier coverage are complete."
+    },
+    "primaryAction": "Finish setup",
+    "acquisition": {
+      "id": "00000005-0000-4000-8000-000000000005",
+      "pinnedVersionId": "00000003-0000-4000-8000-000000000003",
+      "activeVersionId": "00000003-0000-4000-8000-000000000003",
+      "lifecycle": "installed"
+    },
+    "ownerActions": []
+  }
+}

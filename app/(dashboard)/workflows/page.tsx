@@ -24,6 +24,7 @@ import RunningAgents from '../_components/running-agents';
 import ManageTips from '../_components/manage-tips';
 import RetryButton from '../_components/retry-button';
 import ChainSuggestions from '../_components/chain-suggestions';
+import { listAgentDiscovery } from '@/lib/agent-discovery';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,11 +37,12 @@ export default async function WorkflowsPage() {
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const [feed, mine, dismissed, favoriteSlugs] = await Promise.all([
+  const [feed, mine, dismissed, favoriteSlugs, discovery] = await Promise.all([
     getMyAgents(),
     listMyWorkflows(),
     listDismissedWorkflows(),
     listFavoriteSlugs(),
+    listAgentDiscovery(session.access_token),
   ]);
   const favSet = new Set(favoriteSlugs);
   const archived: ArchivedAgent[] = dismissed.map((d) => ({ slug: d.slug, name: d.name, source: d.source }));
@@ -75,8 +77,7 @@ export default async function WorkflowsPage() {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Agents</h1>
             <p className="text-ink-300 text-sm mt-1">
-              The workers you build. Each runs a whole job in your Claude or Codex, as you, and
-              drops its work in <Link href="/work" className="text-brand-500 hover:underline">Work</Link>.
+              Find an agent by the outcome you need, or manage the agents already working for you.
             </p>
           </div>
           {/* The discovery entry point: describe a new agent OR pick a proven one
@@ -115,7 +116,12 @@ export default async function WorkflowsPage() {
             5-status pulsing-dot cards. Invisible when nothing is running. */}
         <RunningAgents />
 
-        <AgentsList agents={list.map((a) => ({ ...a, favorite: favSet.has(a.slug) }))} archived={archived} />
+        <AgentsList
+          agents={list.map((a) => ({ ...a, favorite: favSet.has(a.slug) }))}
+          archived={archived}
+          availableAgents={discovery.agents}
+          discoveryUnavailable={discovery.status === 'unavailable' ? discovery.reason : null}
+        />
 
         {/* Agent Chains, folded in as an in-page suggestion (Codex's design
             audit, 2026-07-01) rather than its own nav tab — "Agent Chains"

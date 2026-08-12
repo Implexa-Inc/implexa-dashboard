@@ -33,6 +33,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import GradeBadge from './grade-badge';
+import type { DiscoveredAgent } from '@/lib/agent-discovery';
 
 // 2026-07-01 simplification (Codex's design audit): a row of 3 mystery icon
 // buttons (Eye/Note/Bin) reads as a technical control panel. Each row now has
@@ -343,7 +344,7 @@ function Section({ title, agents, onArchive, onDeactivate, onRename, onToggleFav
   );
 }
 
-export default function AgentsList({ agents, archived = [] }: { agents: ListAgent[]; archived?: ArchivedAgent[] }) {
+export default function AgentsList({ agents, archived = [], availableAgents = [], discoveryUnavailable = null }: { agents: ListAgent[]; archived?: ArchivedAgent[]; availableAgents?: DiscoveredAgent[]; discoveryUnavailable?: string | null }) {
   const router = useRouter();
   const params = useSearchParams();
   const supabase = createClient();
@@ -357,6 +358,8 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
   const [showArchived, setShowArchived] = useState(false);
   const [showPaused, setShowPaused] = useState(false);
   const [query, setQuery] = useState('');
+  const [readinessFilter, setReadinessFilter] = useState('');
+  const [engineFilter, setEngineFilter] = useState('');
 
   // Star / un-star. Optimistic (flip in place), best-effort backend — a favorite
   // is a pure display marker, so a failed write just reverts the star, never an
@@ -502,6 +505,20 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
   const shown = q
     ? byCat.filter((a) => a.name.toLowerCase().includes(q) || a.category.label.toLowerCase().includes(q))
     : byCat;
+  const discoveryReadinessStates = useMemo(
+    () => [...new Set(availableAgents.map((a) => a.readiness.state))].sort(),
+    [availableAgents],
+  );
+  const discoveryEngines = useMemo(
+    () => [...new Set(availableAgents.flatMap((a) => a.testedCompatibility.executionEngines))].sort(),
+    [availableAgents],
+  );
+  const availableShown = availableAgents.filter((a) => {
+    const matchesQuery = !q || `${a.name} ${a.job} ${a.builder.name}`.toLowerCase().includes(q);
+    const matchesReadiness = !readinessFilter || a.readiness.state === readinessFilter;
+    const matchesEngine = !engineFilter || a.testedCompatibility.executionEngines.includes(engineFilter);
+    return matchesQuery && matchesReadiness && matchesEngine;
+  });
   // Favorites float to their own section at the very top (and are removed from the
   // sections below so a starred agent shows once). Newest-starred not tracked here;
   // order follows the roster.
@@ -539,19 +556,89 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
     <>
       {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
 
-      {/* Search — instant client-side filter over the whole roster by name/category. */}
-      {list.length > 4 && (
-        <div className="relative mb-4">
+      {/* One outcome-first query spans owned/hired and eligible available agents. */}
+      <div className="relative mb-4">
           <span aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 text-sm">⌕</span>
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search agents…"
-            aria-label="Search agents"
+            placeholder="What outcome do you need?"
+            aria-label="Search agents by outcome"
             className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm pl-8 pr-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none"
           />
+      </div>
+
+      {availableAgents.length > 0 && (
+        <div className="mb-5 flex flex-wrap gap-3" aria-label="Filter available agents">
+          <label className="text-xs text-ink-400">
+            Readiness
+            <select
+              value={readinessFilter}
+              onChange={(event) => setReadinessFilter(event.target.value)}
+              className="ml-2 rounded-md border border-ink-700 bg-ink-900 px-2 py-1.5 text-ink-100 focus:border-brand-500/60 focus:outline-none"
+            >
+              <option value="">All states</option>
+              {discoveryReadinessStates.map((state) => <option key={state} value={state}>{state}</option>)}
+            </select>
+          </label>
+          <label className="text-xs text-ink-400">
+            Tested engine
+            <select
+              value={engineFilter}
+              onChange={(event) => setEngineFilter(event.target.value)}
+              className="ml-2 rounded-md border border-ink-700 bg-ink-900 px-2 py-1.5 text-ink-100 focus:border-brand-500/60 focus:outline-none"
+            >
+              <option value="">All engines</option>
+              {discoveryEngines.map((engine) => <option key={engine} value={engine}>{engine}</option>)}
+            </select>
+          </label>
+          {(readinessFilter || engineFilter) && (
+            <button type="button" onClick={() => { setReadinessFilter(''); setEngineFilter(''); }} className="text-xs text-brand-500 hover:underline">
+              Clear filters
+            </button>
+          )}
         </div>
+      )}
+
+      {discoveryUnavailable && (
+        <div role="status" className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          Available agents could not be checked. Your hired and owned agents are still shown below.
+        </div>
+      )}
+
+      {(q || availableShown.length > 0) && (
+        <section className="mb-8" aria-labelledby="available-agent-results">
+          <h2 id="available-agent-results" className="text-sm font-medium text-ink-200 uppercase tracking-wider mb-3">Agent results</h2>
+          <ul className="space-y-3">
+            {q && (
+              <li className="card flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-ink-50">Build yours for free</p>
+                  <p className="mt-1 text-xs text-ink-400">Start a private agent for “{query.trim()}”. You own the build.</p>
+                </div>
+                <Link href={`/create?intent=${encodeURIComponent(query.trim())}`} className="btn-primary text-xs px-3 py-1.5 whitespace-nowrap">View build</Link>
+              </li>
+            )}
+            {availableShown.map((agent) => (
+              <li key={agent.id} className="card flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link href={`/workflows/${encodeURIComponent(agent.slug)}`} className="text-base font-medium text-ink-50 hover:underline">{agent.name}</Link>
+                    <span className="text-[10px] uppercase tracking-wider rounded border border-ink-700 px-1.5 py-0.5 text-ink-300">{agent.ownership}</span>
+                    <span className="text-[10px] uppercase tracking-wider rounded border border-sky-500/40 px-1.5 py-0.5 text-sky-300">{agent.readiness.state}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-ink-300">{agent.job}</p>
+                  <p className="mt-1 text-xs text-ink-500">Built by {agent.builder.name} · v{agent.version.number}</p>
+                </div>
+                <Link href={`/workflows/${encodeURIComponent(agent.slug)}`} className="btn-outline text-xs px-3 py-1.5 whitespace-nowrap">View agent</Link>
+              </li>
+            ))}
+            {availableShown.length === 0 && (
+              <li className="card text-sm text-ink-400" role="status">No available agents match these filters.</li>
+            )}
+          </ul>
+        </section>
       )}
 
       {categories.length > 1 && (

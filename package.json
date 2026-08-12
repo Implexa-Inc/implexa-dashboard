@@ -9,6 +9,7 @@
     "start": "next start --port 3001",
     "lint": "next lint",
     "test": "node scripts/run-tests.mjs",
+    "test:marketplace-mutations": "node scripts/mutation-test-agent-marketplace.mjs",
     "test:generation-contract-mutations": "node scripts/mutation-test-generation-proposal.mjs",
     "test:generation-entry-mutations": "node scripts/mutation-test-generation-entry.mjs",
     "test:professional-v2-mutations": "node scripts/mutation-test-professional-v2.mjs",
