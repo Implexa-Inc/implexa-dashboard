@@ -85,6 +85,26 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
       if (!sessionId) return 'A valid sessionId is required.';
       return { path: `/api/v2/review/sessions/${sessionId}/amend-failed`, method: 'POST', body: {} };
     }
+    case 'add_feedback': {
+      const sessionId = id(b.sessionId);
+      if (!sessionId) return 'A valid sessionId is required.';
+      return { path: `/api/v2/review/sessions/${sessionId}/add-feedback`, method: 'POST', body: {} };
+    }
+    case 'resolve_issues': {
+      const sessionId = id(b.sessionId);
+      if (!sessionId) return 'A valid sessionId is required.';
+      if (!Array.isArray(b.issueIds) || b.issueIds.length < 1 || b.issueIds.length > 500) {
+        return 'Choose between 1 and 500 issues to resolve.';
+      }
+      const issueIds = b.issueIds.map(id);
+      if (issueIds.some((issueId) => !issueId) || new Set(issueIds).size !== issueIds.length) {
+        return 'Every issueId must be a unique valid UUID.';
+      }
+      return {
+        path: `/api/v2/review/sessions/${sessionId}/issues/resolve`, method: 'POST',
+        body: { issueIds },
+      };
+    }
     case 'submit': {
       const sessionId = id(b.sessionId);
       if (!sessionId) return 'A valid sessionId is required.';

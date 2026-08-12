@@ -394,7 +394,7 @@ test('reopening an existing spatial issue seeks to its frozen timestamp and rend
 
 // ── the evidence gate on the real button ────────────────────────────────────
 
-const sendButton = () => buttons().find((b) => /start revision/.test(b.textContent || ''))!;
+const sendButton = () => buttons().find((b) => /^Send \d+ unresolved \+ \d+ new change/.test((b.textContent || '').trim()))!;
 
 test('GATE: Send stays locked while a capture is pending, offers retry on failure, unlocks on validated', async () => {
   evidenceReply = {

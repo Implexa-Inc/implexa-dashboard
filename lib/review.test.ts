@@ -500,10 +500,12 @@ test('REPRO: an artifact, session or issue from ANOTHER run is rejected', () => 
   }
 });
 
-test('REPRO: an issue from another SESSION of this run is rejected', () => {
+test('a carried issue from another session of this run is accepted with its original identity', () => {
   const body = { ...boundPacket(), issues: [{ ...boundPacket().issues[0], sessionId: 's-other' }] };
-  assert.equal(parseReviewPacketResponse(body, 'run-1'), null,
-    'editing or dismissing it would mutate feedback that was never written in this session');
+  const parsed = parseReviewPacketResponse(body, 'run-1');
+  assert.ok(parsed);
+  assert.equal(parsed.issues[0].sessionId, 's-other',
+    'the next round carries the original issue ID/session instead of cloning it');
 });
 
 test('REPRO: issues cannot exist when there is no session', () => {

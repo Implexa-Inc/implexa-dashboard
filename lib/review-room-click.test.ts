@@ -138,7 +138,7 @@ async function mount(over: Record<string, unknown> = {}) {
 }
 
 const buttons = () => [...container.querySelectorAll('button')] as HTMLButtonElement[];
-const primary = () => buttons().find((b) => /Send \d+ changes? & start revision|Sending|Revision queued/.test(b.textContent || ''))!;
+const primary = () => buttons().find((b) => /Send \d+ unresolved \+ \d+ new changes?|Sending|Revision queued/.test(b.textContent || ''))!;
 const text = () => container.textContent || '';
 /** Type into the composer the way React's controlled input expects. */
 const typeNote = async (value: string) => {
@@ -160,7 +160,7 @@ const click = async (el: HTMLElement) => {
 
 test('the room renders the one decisive action for the 12 production drafts', async () => {
   await mount();
-  assert.match(text(), /Send 12 changes & start revision/);
+  assert.match(text(), /Send 0 unresolved \+ 12 new changes/);
   assert.match(text(), /Additional instructions for this revision/);
   // And nothing else competing for the decision.
   assert.doesNotMatch(text(), /Approve next action/i);
@@ -231,7 +231,7 @@ test('A TYPED REFUSAL leaves Sending, keeps all 12 drafts, and re-offers the act
   await click(primary());
   assert.doesNotMatch(text(), /Sending/, 'the room stayed on Sending after a refusal');
   assert.match(text(), /submit it again/, "the server's own reason is not shown");
-  assert.match(text(), /Send 12 changes & start revision/, 'the action was not re-offered');
+  assert.match(text(), /Send 0 unresolved \+ 12 new changes/, 'the action was not re-offered');
   assert.equal(container.querySelectorAll('li').length, 12, 'drafts were lost on refusal');
   // A REFUSAL MUST NOT ALSO BE ANNOUNCED AS A SUCCESS. `onSubmit` returns early on
   // `!outcome.ok`; drop that `return` and control falls through to the success notice
@@ -300,12 +300,8 @@ test('Open revision attempt resolves the request to its actual child run', async
   root.unmount();
 });
 
-test('Add more feedback carries the submitted issues into one editable successor draft', async () => {
+test('Add more feedback opens a successor draft without cloning submitted issues', async () => {
   const nextSessionId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-  const carried = fixtureIssues.map((issue) => ({
-    ...issue, id: `cccccccc-cccc-4ccc-8ccc-${String(issue.id).slice(-12)}`,
-    sessionId: nextSessionId, status: 'draft', submittedRequestId: null,
-  }));
   (globalThis as Record<string, unknown>).fetch = async (url: string, init: { body?: string }) => {
     const body = JSON.parse(String(init?.body ?? '{}'));
     calls.push({ url: String(url), body });
@@ -314,19 +310,19 @@ test('Add more feedback carries the submitted issues into one editable successor
       json: async () => ({
         ok: true,
         session: { ...submittedSession, id: nextSessionId, state: 'draft', submittedRequestId: null, submittedIssueIds: null },
-        issues: carried,
-        carriedIssueCount: carried.length,
       }),
     } as unknown as Response;
   };
   await mount({ agentSlug: 'chapter-cutter', session: submittedSession });
   await click(buttons().find((button) => button.textContent?.includes('Add more feedback'))!);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].body.action, 'amend_failed_revision');
+  assert.equal(calls[0].body.action, 'add_feedback');
   assert.deepEqual(Object.keys(calls[0].body).sort(), ['action', 'sessionId']);
-  assert.match(text(), /12 submitted changes carried into a new draft/);
-  assert.match(text(), /Send 12 changes & start revision/);
-  assert.equal(container.querySelectorAll('li').length, 12, 'the carried draft was not rendered in full');
+  assert.match(text(), /Unresolved earlier issues will stay in the next revision/);
+  assert.match(text(), /Send 0 unresolved \+ 12 new changes/);
+  assert.deepEqual(fixtureIssues.map((issue) => issue.id), submittedSession.submittedIssueIds,
+    'the original issue identities changed while opening a draft');
+  assert.equal(container.querySelectorAll('li').length, 12, 'the unresolved issues were not retained');
   root.unmount();
 });
 
@@ -336,7 +332,7 @@ test('a submitted room exposes the process-ledger retry where the user is strand
     'Review Room did not render the recovery state that was already available on the run page');
   assert.match(text(), /made no edits/i);
 
-  await click(buttons().find((button) => button.textContent?.includes('Retry this revision'))!);
+  await click(buttons().find((button) => button.textContent?.includes('Retry revision'))!);
 
   assert.ok(
     backendCalls.some((call) => call.path === `/api/v2/me/run-requests/${submittedSession.submittedRequestId}/recover-review-continuation`),
