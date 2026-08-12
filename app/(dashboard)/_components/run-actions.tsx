@@ -118,7 +118,7 @@ export default function RunActions({
       await callBackend(`/api/v2/runs/${encodeURIComponent(runId)}/review`, {
         jwt: await jwt(), method: 'POST', body: { status: 'approved' },
       });
-      router.push('/overview'); router.refresh();
+      router.push('/work'); router.refresh();
     } catch {
       setErr('Could not close it. Try again.'); setBusy(null);
     }
@@ -164,7 +164,7 @@ export default function RunActions({
       await callBackend(`/api/v2/runs/${encodeURIComponent(runId)}/review`, {
         jwt: await jwt(), method: 'POST', body: { status: 'dismissed' },
       });
-      router.push('/overview'); router.refresh();
+      router.push('/work'); router.refresh();
     } catch {
       setErr('Could not dismiss. Try again.'); setBusy(null);
     }

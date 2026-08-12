@@ -167,6 +167,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const isAdmin = adminEmails.includes((profile.email || '').toLowerCase());
 
   const userCtx = {
+    // Scopes the shell's per-device "last opened Work" marker so two accounts
+    // on one machine cannot inherit each other's badge state.
+    id:                profile.id,
     displayName:       profile.display_name,
     email:             profile.email,
     plan:              org?.plan || 'free',

@@ -37,7 +37,7 @@ export default function ClearAlertButton({ runId, pending }: { runId: string; pe
   function hide() {
     setBusy('hide');
     hideLocally(runId);
-    router.push('/overview');
+    router.push('/work');
     router.refresh();
   }
 
@@ -49,7 +49,7 @@ export default function ClearAlertButton({ runId, pending }: { runId: string; pe
       await callBackend(`/api/v2/runs/${encodeURIComponent(runId)}/review`, {
         jwt: session?.access_token, method: 'POST', body: { status: 'dismissed' },
       });
-      router.push('/overview');
+      router.push('/work');
       router.refresh();
     } catch {
       setBusy(null);

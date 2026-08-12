@@ -28,10 +28,13 @@ import { usePathname } from 'next/navigation';
 import { LogoMark } from '@/components/logo';
 import { STATUS_PRESENTATION, relativeFromNow, type SetupStatus } from '@/lib/setup-status';
 import {
-  PRIMARY_NAV, SECONDARY_NAV, isNavItemActive, countNewerThan, mergeTimestamps, type NavItem,
+  PRIMARY_NAV, SECONDARY_NAV, isNavItemActive, countNewerThan, mergeTimestamps, workSeenKey,
+  type NavItem,
 } from '@/lib/navigation';
 
 type UserCtx = {
+  /** Account id — scopes the per-device "last opened Work" marker. */
+  id?:         string | null;
   displayName: string | null;
   email:       string;
   plan:        'free' | 'pro' | 'enterprise' | string;
@@ -43,9 +46,6 @@ type UserCtx = {
   /** True when caller email is in NEXT_PUBLIC_ADMIN_EMAILS — shows the /admin nav link. */
   isAdmin?:     boolean;
 };
-
-/** Per-surface "last opened" marker. Per-device on purpose (an unread hint, not synced state). */
-const WORK_SEEN_KEY = 'implexa.seen.work';
 
 /**
  * Focus ring shared by every interactive element in the shell. Keyboard-only
@@ -68,23 +68,24 @@ const FOCUS_RING =
  * ISO timestamps are compared as epoch millis so a timezone-suffix format
  * ("+00:00" vs "Z") can't skew the result.
  */
-function useUnreadBadge(timestamps: string[], pathname: string, ownedPrefix: string): number {
+function useUnreadBadge(timestamps: string[], pathname: string, ownedPrefix: string, seenKey: string | null): number {
   const [seenMs, setSeenMs] = useState<number | null>(null);
   const onPage = pathname === ownedPrefix || pathname.startsWith(`${ownedPrefix}/`);
 
   useEffect(() => {
+    if (!seenKey) return;            // no account to scope by → no badge at all
     try {
-      const v = window.localStorage.getItem(WORK_SEEN_KEY);
+      const v = window.localStorage.getItem(seenKey);
       setSeenMs(v ? Number(v) : 0);   // no marker → everything counts as new
     } catch { setSeenMs(0); }
-  }, []);
+  }, [seenKey]);
 
   useEffect(() => {
-    if (!onPage) return;
+    if (!onPage || !seenKey) return;
     const now = Date.now();
-    try { window.localStorage.setItem(WORK_SEEN_KEY, String(now)); } catch { /* private mode */ }
+    try { window.localStorage.setItem(seenKey, String(now)); } catch { /* private mode */ }
     setSeenMs(now);
-  }, [onPage]);
+  }, [onPage, seenKey]);
 
   if (seenMs === null) return 0;   // pre-hydration: render no badge (SSR-safe)
   if (onPage) return 0;
@@ -92,19 +93,26 @@ function useUnreadBadge(timestamps: string[], pathname: string, ownedPrefix: str
 }
 
 /** Everything both shell surfaces need to render one nav row. */
-function useShellNav(resultRunsAt: string[], needsItemsAt: string[]) {
+function useShellNav(user: UserCtx, resultRunsAt: string[], needsItemsAt: string[]) {
   const pathname = usePathname() || '';
   // Work's badge spans BOTH facts it owns: results delivered and items that
   // stalled or are waiting on a decision. One domain, one count — merged rather
   // than concatenated, because the two server queries read the same table and
   // the needs-you rows are mostly a subset of the results rows.
-  const workUnread = useUnreadBadge(mergeTimestamps(needsItemsAt, resultRunsAt), pathname, '/work');
+  //
+  // The marker is SCOPED TO THE ACCOUNT. This device genuinely runs more than
+  // one Implexa account (that is what the old "Switch account" control was
+  // for), and an unscoped key hands the second account the first one's
+  // last-opened time — suppressing a badge for work it has never seen.
+  const workUnread = useUnreadBadge(
+    mergeTimestamps(needsItemsAt, resultRunsAt), pathname, '/work', workSeenKey(user.id),
+  );
   const badgeFor = (item: NavItem) => (item.badgeKey === 'work' ? workUnread : 0);
   return { pathname, badgeFor };
 }
 
 export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: { user: UserCtx; resultRunsAt?: string[]; needsItemsAt?: string[] }) {
-  const { pathname, badgeFor } = useShellNav(resultRunsAt, needsItemsAt);
+  const { pathname, badgeFor } = useShellNav(user, resultRunsAt, needsItemsAt);
 
   return (
     <aside className="hidden md:flex md:flex-col md:sticky md:top-0 w-56 shrink-0 border-r border-ink-700 bg-ink-900/50 h-screen overflow-y-auto">
@@ -306,7 +314,7 @@ function NavLink({ item, active, badge = 0 }: { item: NavItem; active: boolean; 
  * scrollable row so three labels plus a badge never overflow a 320px screen.
  */
 export function MobileTopBar({ user, resultRunsAt = [], needsItemsAt = [] }: { user: UserCtx; resultRunsAt?: string[]; needsItemsAt?: string[] }) {
-  const { pathname, badgeFor } = useShellNav(resultRunsAt, needsItemsAt);
+  const { pathname, badgeFor } = useShellNav(user, resultRunsAt, needsItemsAt);
 
   return (
     <div className="md:hidden sticky top-0 z-20 bg-ink-900 border-b border-ink-700">

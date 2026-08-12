@@ -2,9 +2,9 @@
  * /login — server component wrapper.
  *
  * Does a session check up front: if the visitor is already logged in, redirects
- * straight to `next` (when provided) or `/skills`. This is the standard pattern
- * for SaaS login pages — users who navigate to /login mid-session shouldn't see
- * a login form they don't need.
+ * straight to `next` (when provided) or the state-aware default landing. This
+ * is the standard pattern for SaaS login pages — users who navigate to /login
+ * mid-session shouldn't see a login form they don't need.
  *
  * Critical for the device-auth flow: when someone hits /cli-auth?code=… while
  * already logged in (e.g. they ran the curl on the same machine they're signed
@@ -16,6 +16,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { postAuthDestination } from '@/lib/navigation';
 import LoginForm from './login-form';
 
 export const dynamic = 'force-dynamic';
@@ -40,10 +41,9 @@ export default async function LoginPage({
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.user) {
     // Already authenticated — skip the login UI entirely. Honor `next` so deep
-    // links (cli-auth, install, etc.) land where the user expected. Default
-    // home is /overview (mission control) so returning users see what their
-    // autopilot did, not the ingredient shelf.
-    redirect(next || '/overview');
+    // links (cli-auth, install, etc.) land where the user expected; otherwise
+    // resolve the state-aware default landing rather than picking a page here.
+    redirect(postAuthDestination({ next }));
   }
 
   return <LoginForm initialError={error} initialNext={next} />;

@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { DEFAULT_LANDING_ROUTE } from '@/lib/navigation';
 
 const CONNECT_CURL = 'curl -fsSL https://core.implexa.ai/install.sh | bash';
 const POLL_MS = 4000;
@@ -84,8 +85,10 @@ export default function GetAppClient({ dmgUrl, firstName }: { dmgUrl: string; fi
         const connectedNow = !!(u && (u.last_mcp_call_at || u.last_hook_event_at)) || ((keys || []).length > 0);
         if (connectedNow) {
           setConnected(true);
-          // Brief beat on the success state, then into the product.
-          setTimeout(() => { if (alive) router.push('/overview'); }, 1400);
+          // Brief beat on the success state, then into the product — via the
+          // state-aware landing, so a user who connected while work was already
+          // waiting lands on it rather than on a page we picked here.
+          setTimeout(() => { if (alive) router.push(DEFAULT_LANDING_ROUTE); }, 1400);
         }
       } catch { /* keep polling */ }
     }

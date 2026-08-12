@@ -7,14 +7,15 @@
  * unlocks the moment we see their executor talk to the backend (status leaves
  * 'never'); until then every dashboard route redirects back here.
  *
- * An already-connected user who somehow lands here is bounced to /overview —
- * this page is only for the not-yet-connected.
+ * An already-connected user who somehow lands here is bounced to the
+ * state-aware default landing — this page is only for the not-yet-connected.
  */
 
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { computeSetupStatus } from '@/lib/setup-status';
+import { postAuthDestination } from '@/lib/navigation';
 import { macDownloadUrl } from '@/lib/app-links';
 import PersistIntent from '../(dashboard)/_components/persist-intent';
 import GetAppClient from './get-app-client';
@@ -34,7 +35,7 @@ export default async function GetAppPage() {
 
   // Already connected → the dashboard is theirs; don't hold them on the door.
   const setup = computeSetupStatus(profile?.last_mcp_call_at, profile?.last_hook_event_at);
-  if (setup.status !== 'never') redirect('/overview');
+  if (setup.status !== 'never') redirect(postAuthDestination());
 
   const firstName = (profile?.display_name || '').trim().split(/\s+/)[0] || null;
   return (

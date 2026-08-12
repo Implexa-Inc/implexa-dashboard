@@ -239,27 +239,95 @@ export function countNewerThan(timestamps: readonly string[], seenMs: number): n
 // ── State-aware default landing ──────────────────────────────────────────────
 
 /**
+ * A three-valued answer. `unknown` is a REAL answer and must survive: a source
+ * we could not read is not a source that said "no". Collapsing it to `no` is
+ * how a silent stop becomes an all-clear.
+ */
+export type Signal = 'yes' | 'no' | 'unknown';
+
+/** `yes` beats `unknown` beats `no` — knowing something is there is decisive. */
+export function anySignal(...signals: readonly Signal[]): Signal {
+  if (signals.includes('yes')) return 'yes';
+  if (signals.includes('unknown')) return 'unknown';
+  return 'no';
+}
+
+/**
  * DESIGN.md §4.3, in priority order:
  *
  *   1. something needs input or a review decision  → Work
  *   2. something is actively running               → Work
  *   3. otherwise                                   → Agents
  *
- * Takes an already-loaded snapshot rather than querying, so the rule is a pure
- * function and the shell invents no state of its own. Counts that could not be
- * read are `null`, and an unreadable count is NOT treated as zero — "we could
- * not see your queue" must not silently become "nothing needs you".
+ * Takes an already-composed snapshot rather than querying, so the rule is a
+ * pure function and the shell invents no state of its own. `lib/landing.ts`
+ * builds the snapshot by consuming the authoritative Needs-you, Review-queue
+ * and live-feed read models — this file must never grow a query of its own.
+ *
+ * Agents is reachable ONLY when both signals are a definite `no`. Rule 3 is a
+ * claim that nothing needs the user, and an unread source cannot support it.
  */
 export type LandingSnapshot = {
-  needsDecision: number | null;
-  inProgress:    number | null;
+  needsDecision: Signal;
+  inProgress:    Signal;
 };
 
 export function resolveDefaultLanding(s: LandingSnapshot): string {
   const work = PRIMARY_NAV.find((i) => i.id === 'work')!.href;
   const agents = PRIMARY_NAV.find((i) => i.id === 'agents')!.href;
-  if (s.needsDecision === null || s.inProgress === null) return work;
-  return s.needsDecision > 0 || s.inProgress > 0 ? work : agents;
+  return s.needsDecision === 'no' && s.inProgress === 'no' ? agents : work;
+}
+
+/**
+ * Where an ordinary authenticated entry lands: the root redirect, the
+ * already-signed-in short circuits on /login and /signup, the auth callback,
+ * and the post-connect hand-off from /get-app. All of them route here so the
+ * state-aware rule is the product's actual default, not just what the logo does.
+ */
+export const DEFAULT_LANDING_ROUTE = '/start';
+
+/**
+ * The one description of where an authenticated user goes, in precedence order.
+ *
+ *   1. `adoptSlug` — adopt-and-run from a shared Run Card goes straight to that
+ *      agent, where the proven Activate → Run flow owns the rest.
+ *   2. `intent` — the build prompt carried from the website hero box. This is
+ *      the ONE case that still lands on /overview: `GetStartedIntent` there is
+ *      what turns the prompt into a build run-request, and there is nowhere
+ *      else yet that can. Removing Home from navigation must not strand
+ *      first-run onboarding, so the hand-off is preserved and named rather
+ *      than quietly rerouted into a page that would drop the intent.
+ *   3. `next` — an explicit deep link (cli-auth, install, invite chains).
+ *   4. the state-aware default landing.
+ *
+ * `next` is expected to be pre-sanitised by the caller's own open-redirect
+ * guard; this function does not widen what those guards allow.
+ */
+export function postAuthDestination(o: {
+  next?:      string | null;
+  intent?:    string | null;
+  adoptSlug?: string | null;
+} = {}): string {
+  if (o.adoptSlug) return `/workflows/${o.adoptSlug}`;
+  if (o.intent) return `/overview?intent=${encodeURIComponent(o.intent)}`;
+  return o.next || DEFAULT_LANDING_ROUTE;
+}
+
+/**
+ * The per-device "last opened Work" marker, SCOPED TO THE ACCOUNT.
+ *
+ * An unscoped key leaks across accounts on a shared device: signing out of one
+ * account and into another hands the second account the first one's marker, so
+ * work that arrived before the switch is silently already-seen and the badge
+ * never shows it. The same device genuinely runs two Implexa accounts here —
+ * that is why "Switch account" existed at all.
+ *
+ * Returns null when there is no account id to scope by; the caller renders no
+ * badge rather than falling back to a shared key.
+ */
+export function workSeenKey(userId: string | null | undefined): string | null {
+  const id = (userId ?? '').trim();
+  return id ? `implexa.seen.work:${id}` : null;
 }
 
 // ── Shell chrome ─────────────────────────────────────────────────────────────

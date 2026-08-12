@@ -41,10 +41,19 @@ const ts = require('typescript');
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolvePath(HERE, '..', '..');
 
-/** Next runtime modules a client component pulls in, mapped to local stubs. */
+/**
+ * Modules replaced by local stubs.
+ *
+ * `next/link` and `next/navigation` need a Next runtime that does not exist
+ * under node:test. `@/lib/supabase/server` is stubbed so the entry-point ROUTES
+ * can be executed for real — where an authenticated user is sent is the thing
+ * under test, the database is not.
+ */
 const STUBS = {
-  'next/link':       join(HERE, 'stubs', 'next-link.tsx'),
-  'next/navigation': join(HERE, 'stubs', 'next-navigation.ts'),
+  'next/link':             join(HERE, 'stubs', 'next-link.tsx'),
+  'next/navigation':       join(HERE, 'stubs', 'next-navigation.ts'),
+  'next/server':           join(HERE, 'stubs', 'next-server.ts'),
+  '@/lib/supabase/server': join(HERE, 'stubs', 'supabase-server.ts'),
 };
 
 const EXTENSIONS = ['', '.tsx', '.ts', '.mjs', '.js', '/index.tsx', '/index.ts'];

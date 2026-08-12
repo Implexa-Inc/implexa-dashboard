@@ -35,7 +35,7 @@ export default function MarkDoneButton({ runId }: { runId: string }) {
       await callBackend(`/api/v2/runs/${encodeURIComponent(runId)}/review`, {
         jwt: session?.access_token, method: 'POST', body: { status: 'approved' },
       });
-      router.push('/overview');
+      router.push('/work');
       router.refresh();
     } catch {
       setBusy(false);

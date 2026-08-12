@@ -145,7 +145,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     return (
       <main className="min-h-screen px-4 py-12">
         <div className="max-w-3xl mx-auto">
-          <BackLink fallback="/overview" label="Home" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
+          <BackLink fallback="/work" label="Work" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
           {existsElsewhere ? (
             <div className="card mt-4 text-sm text-ink-300">
               <p className="font-medium text-ink-100 mb-1">This run is in a different Implexa account.</p>
@@ -163,7 +163,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             <div className="card mt-4 text-sm text-ink-300">
               <p className="font-medium text-ink-100 mb-1">Run not found.</p>
               <p>This run doesn&apos;t exist (it may have been deleted). See your{' '}
-                <Link href="/overview" className="text-brand-500 hover:underline">home</Link>.</p>
+                <Link href="/work" className="text-brand-500 hover:underline">Work</Link>.</p>
             </div>
           )}
         </div>
@@ -505,7 +505,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
-        <BackLink fallback="/overview" label="Home" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
+        <BackLink fallback="/work" label="Work" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
 
         {/* web→app handoff: the https email link lands here; offer the bounce into
             the desktop app. Dormant until the app ships (desktopAppLive). */}
@@ -793,7 +793,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
                 permissionCapability={info.permissionBlocked ? (NEEDS_BROWSER_GRANT_RE.test(r.output_markdown || '') ? 'computerUse' : 'browser') : null}
               />
               <Link href={agentHref} className="btn-outline text-sm px-4 py-2">Run again</Link>
-              <Link href="/overview" className="btn-outline text-sm px-4 py-2">Back to home</Link>
+              <Link href="/work" className="btn-outline text-sm px-4 py-2">Back to Work</Link>
             </div>
           </div>
         ) : r.run_state === 'running' && runLiveness(r).state !== 'alive' ? (

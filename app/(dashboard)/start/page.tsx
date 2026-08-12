@@ -2,65 +2,47 @@
  * /start — the state-aware default landing.
  *
  * Home is gone from primary navigation because it owned no unique object
- * (DESIGN.md §4.1). What replaced it is a RULE, not a page: the Implexa logo
- * resolves here, and here resolves to the domain that actually has something
- * for you (§4.3).
+ * (DESIGN.md §4.1). What replaced it is a RULE, not a page — and this route is
+ * where every ordinary authenticated entry resolves it: the root redirect, the
+ * already-signed-in short circuits on /login and /signup, the auth callback,
+ * the post-connect hand-off from /get-app, and the logo.
  *
  *   1. something needs input or a review decision  → Work
  *   2. something is actively running               → Work
  *   3. otherwise                                   → Agents
  *
- * The rule itself is `resolveDefaultLanding` in lib/navigation, kept pure so it
- * is testable and so the shell invents no state of its own. This file only
- * supplies the snapshot.
+ * The rule is `resolveDefaultLanding` (pure, lib/navigation) and the snapshot is
+ * `loadLandingSnapshot` (lib/landing-load), which composes the authoritative
+ * Needs-you, Review-queue and live-feed models. This page owns neither. It must
+ * never grow a query: an earlier version derived the answer from two raw
+ * skill_runs predicates and was blind to Judge blocks, held runs, ungranted
+ * permissions, signed-out connections, missed schedules, and every partial read
+ * — see the header of lib/landing.ts.
  *
- * A count we could not read stays `null` and is NOT treated as zero — an
- * unreadable queue must never resolve to "nothing needs you, go browse agents".
- * `resolveDefaultLanding` sends an unknown snapshot to Work, which is the
- * surface that can explain what it could not see.
+ * Rule 3 is the only branch that claims nothing needs the user, so it fires only
+ * when all three models positively said so. Anything unreadable lands on Work,
+ * which is the surface that can explain what it could not see.
+ *
+ * The dashboard hard gate still applies: this route lives under (dashboard), so
+ * a never-connected user is sent to /get-app by the layout before any of this
+ * matters.
  */
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { resolveDefaultLanding } from '@/lib/navigation';
+import { loadLandingSnapshot } from '@/lib/landing-load';
 
 export const dynamic = 'force-dynamic';
-
-/** Live states that mean "a job is in flight" (lib/run-state vocabulary). */
-const IN_PROGRESS_STATES = ['queued', 'running'] as const;
 
 export default async function StartPage() {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  // RLS-scoped head counts — no rows fetched, just the two numbers the rule needs.
-  const [needsDecision, inProgress] = await Promise.all([
-    countOrNull(() =>
-      supabase.from('skill_runs').select('id', { count: 'exact', head: true })
-        .or('review_status.eq.pending,run_state.eq.stalled')),
-    countOrNull(() =>
-      supabase.from('skill_runs').select('id', { count: 'exact', head: true })
-        .in('run_state', IN_PROGRESS_STATES as unknown as string[])),
-  ]);
+  const snapshot = await loadLandingSnapshot(supabase);
 
-  // Outside the try/catch below on purpose: redirect() signals by throwing, and
+  // Outside any try/catch on purpose: redirect() signals by throwing, and
   // swallowing that would render an empty page instead of navigating.
-  redirect(resolveDefaultLanding({ needsDecision, inProgress }));
-}
-
-/**
- * `null` on any failure — including a column the deployed schema does not have
- * yet. The caller treats null as "unknown", never as zero.
- */
-async function countOrNull(
-  q: () => PromiseLike<{ count: number | null; error: unknown }>,
-): Promise<number | null> {
-  try {
-    const { count, error } = await q();
-    if (error) return null;
-    return typeof count === 'number' ? count : null;
-  } catch {
-    return null;
-  }
+  redirect(resolveDefaultLanding(snapshot));
 }

@@ -11,8 +11,9 @@ import {
   ownsPath, isNavItemActive, activeNavItem,
   WORK_VIEWS, DEFAULT_WORK_VIEW, parseWorkView, workViewHref,
   LEGACY_ROUTE_REDIRECTS, legacyDestination,
-  resolveDefaultLanding, isCreateFabSuppressed,
-  countNewerThan, mergeTimestamps,
+  resolveDefaultLanding, isCreateFabSuppressed, anySignal,
+  countNewerThan, mergeTimestamps, workSeenKey,
+  DEFAULT_LANDING_ROUTE, postAuthDestination,
 } from './navigation.ts';   // explicit extension: node:test resolves ESM, not bundler-style
 
 test('primary navigation is exactly Agents, Work, Training — in that order', () => {
@@ -121,17 +122,69 @@ test('the redirect target wins when the incoming query collides with it', () => 
 });
 
 test('the default landing follows the locked priority order', () => {
-  assert.equal(resolveDefaultLanding({ needsDecision: 2, inProgress: 0 }), '/work');
-  assert.equal(resolveDefaultLanding({ needsDecision: 0, inProgress: 1 }), '/work');
-  assert.equal(resolveDefaultLanding({ needsDecision: 0, inProgress: 0 }), '/workflows');
+  assert.equal(resolveDefaultLanding({ needsDecision: 'yes', inProgress: 'no' }), '/work');
+  assert.equal(resolveDefaultLanding({ needsDecision: 'no', inProgress: 'yes' }), '/work');
+  assert.equal(resolveDefaultLanding({ needsDecision: 'no', inProgress: 'no' }), '/workflows');
 });
 
-test('an UNREADABLE count is not treated as zero', () => {
+test('an UNREADABLE signal is not treated as "no"', () => {
   // "We could not see your queue" must never resolve to "nothing needs you,
-  // here are some agents to browse".
-  assert.equal(resolveDefaultLanding({ needsDecision: null, inProgress: 0 }), '/work');
-  assert.equal(resolveDefaultLanding({ needsDecision: 0, inProgress: null }), '/work');
-  assert.equal(resolveDefaultLanding({ needsDecision: null, inProgress: null }), '/work');
+  // here are some agents to browse". Agents is a CLAIM, and an unread source
+  // cannot support it.
+  assert.equal(resolveDefaultLanding({ needsDecision: 'unknown', inProgress: 'no' }), '/work');
+  assert.equal(resolveDefaultLanding({ needsDecision: 'no', inProgress: 'unknown' }), '/work');
+  assert.equal(resolveDefaultLanding({ needsDecision: 'unknown', inProgress: 'unknown' }), '/work');
+});
+
+test('anySignal ranks a known yes above an unknown, and unknown above no', () => {
+  assert.equal(anySignal('no', 'unknown', 'yes'), 'yes');
+  assert.equal(anySignal('no', 'unknown'), 'unknown');
+  assert.equal(anySignal('no', 'no'), 'no');
+  assert.equal(anySignal(), 'no', 'no signals at all is a definite no, not unknown');
+});
+
+// ── Post-auth landing ────────────────────────────────────────────────────────
+
+test('an ordinary authenticated entry resolves the state-aware landing', () => {
+  assert.equal(DEFAULT_LANDING_ROUTE, '/start');
+  assert.equal(postAuthDestination(), '/start');
+  assert.equal(postAuthDestination({}), '/start');
+  assert.equal(postAuthDestination({ next: null, intent: null, adoptSlug: null }), '/start');
+});
+
+test('post-auth precedence: adopt beats intent beats next beats the default', () => {
+  assert.equal(
+    postAuthDestination({ adoptSlug: 'daily-brief', intent: 'x', next: '/settings' }),
+    '/workflows/daily-brief',
+  );
+  assert.equal(postAuthDestination({ intent: 'ship it', next: '/settings' }), '/overview?intent=ship%20it');
+  assert.equal(postAuthDestination({ next: '/settings/api-keys' }), '/settings/api-keys');
+});
+
+test('a carried build intent still reaches the ONE surface that consumes it', () => {
+  // /overview is where GetStartedIntent turns the website hero prompt into a
+  // build run-request. Removing Home from navigation must not strand first-run
+  // onboarding, so this hand-off is preserved deliberately, not by accident.
+  assert.equal(
+    postAuthDestination({ intent: 'watch my competitors & brief me' }),
+    '/overview?intent=watch%20my%20competitors%20%26%20brief%20me',
+  );
+});
+
+// ── Badge scoping ────────────────────────────────────────────────────────────
+
+test('the Work seen-marker is scoped per account', () => {
+  // Two accounts on one device must not inherit each other's "last opened"
+  // time; the second would silently start with the first one's work marked
+  // seen. This device really does run more than one Implexa account.
+  assert.equal(workSeenKey('user-a'), 'implexa.seen.work:user-a');
+  assert.notEqual(workSeenKey('user-a'), workSeenKey('user-b'));
+});
+
+test('no account id means NO badge rather than a shared key', () => {
+  for (const id of [null, undefined, '', '   ']) {
+    assert.equal(workSeenKey(id), null, `"${String(id)}" must not fall back to a shared marker`);
+  }
 });
 
 test('the Work badge counts a run ONCE even though two queries return it', () => {
