@@ -23,6 +23,7 @@ export type DiscoveredAgent = {
   update?: null | { fromVersion: string | null; toVersion: string; authorityDiff: { addedCapabilities: string[]; removedCapabilities: string[]; addedPermissions: string[]; removedPermissions: string[]; changesAuthority: boolean; broadensAuthority: boolean } };
   acquisition?: null | { id: string; pinnedVersionId: string; activeVersionId: string; lifecycle: 'installed' | 'disabled' | 'uninstalled' };
   audition?: null | { allowance: number; remaining: number; providerCostMode: 'buyer_owned'; disclosure: string; eligible: boolean };
+  auditionConfiguration?: null | { allowance: number; enabled: boolean; maxAllowance: number; providerCostMode: 'buyer_owned'; disclosure: string };
 };
 
 export type AgentDiscoveryResult =

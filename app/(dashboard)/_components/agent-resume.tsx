@@ -22,12 +22,23 @@ function stableJson(value: unknown): string {
 }
 
 export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
+  const projectedAuditionConfiguration = agent.auditionConfiguration;
+  const ownerAuditionConfiguration = projectedAuditionConfiguration
+    && Number.isInteger(projectedAuditionConfiguration.allowance)
+    && projectedAuditionConfiguration.allowance >= 0
+    && projectedAuditionConfiguration.allowance <= 5
+    && projectedAuditionConfiguration.maxAllowance === 5
+    && projectedAuditionConfiguration.providerCostMode === 'buyer_owned'
+    && typeof projectedAuditionConfiguration.disclosure === 'string'
+    && projectedAuditionConfiguration.disclosure.length > 0
+    ? projectedAuditionConfiguration : null;
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [acceptedUpdate, setAcceptedUpdate] = useState(false);
   const [confirmUninstall, setConfirmUninstall] = useState(false);
   const [providerCostAcknowledged, setProviderCostAcknowledged] = useState(false);
+  const [auditionAllowance, setAuditionAllowance] = useState(ownerAuditionConfiguration?.allowance ?? 0);
   const [inputBindings, setInputBindings] = useState<Record<string, string>>({});
   const operationKeys = useRef(new Map<string, string>());
   const inFlight = useRef(false);
@@ -74,6 +85,19 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
       <button className="btn-primary mt-3 px-4 py-2 text-sm disabled:opacity-50" disabled={busy || !agent.audition.eligible || !providerCostAcknowledged} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/audition`, { providerCostAcknowledged: true })}>{busy ? 'Starting audition…' : agent.audition.eligible ? 'Run free audition' : 'No free auditions remaining'}</button>
     </div>
   ) : null;
+  const auditionConfiguration = agent.ownership === 'Owned' ? ownerAuditionConfiguration ? (
+    <div className="mt-5 rounded-md border border-ink-700 bg-ink-900/40 p-4">
+      <p className="text-sm font-medium text-ink-100">Free auditions</p>
+      <p className="mt-1 text-xs text-ink-400">Let each customer try this exact published version before committing. Implexa does not charge for these runs; customers use their connected provider account.</p>
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <label className="text-xs text-ink-300"><span className="block pb-1">Runs per customer</span><select aria-label="Free auditions per customer" value={auditionAllowance} onChange={(event) => setAuditionAllowance(Number(event.target.value))} className="rounded border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100">{Array.from({ length: ownerAuditionConfiguration.maxAllowance + 1 }, (_, allowance) => <option key={allowance} value={allowance}>{allowance === 0 ? 'Off' : allowance}</option>)}</select></label>
+        <button className="btn-primary px-4 py-2 text-sm disabled:opacity-50" disabled={busy || auditionAllowance === ownerAuditionConfiguration.allowance} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/audition-policy`, { allowance: auditionAllowance })}>{busy ? 'Saving…' : 'Save audition setting'}</button>
+      </div>
+      <p className="mt-2 text-xs text-ink-500">Setting this to Off removes the buyer audition action. It does not change prior runs or evidence.</p>
+    </div>
+  ) : (
+    <div role="status" className="mt-5 rounded-md border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">Free audition settings are unavailable, so no setting can be changed.</div>
+  ) : null;
   return (
     <main className="min-h-screen px-4 py-10"><article className="mx-auto max-w-4xl">
       <Link href="/workflows" className="text-sm text-ink-500 hover:text-ink-200">← Agents</Link>
@@ -84,6 +108,7 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
         </div>{action}</div>
         {agent.readiness.reason && <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">{agent.readiness.reason}</p>}
         {error && <p role="alert" className="mt-3 text-sm text-rose-400">{error}</p>}
+        {auditionConfiguration}
         {auditionAction}
         {update && <div className="mt-4 rounded-md border border-ink-700 p-3 text-sm text-ink-300"><p className="font-medium">Update {update.fromVersion || 'current'} → {update.toVersion}</p><p className="mt-1 text-xs text-ink-500">Added capabilities: {update.authorityDiff.addedCapabilities.join(', ') || 'none'} · Removed capabilities: {update.authorityDiff.removedCapabilities.join(', ') || 'none'} · Added permissions: {update.authorityDiff.addedPermissions.join(', ') || 'none'} · Removed permissions: {update.authorityDiff.removedPermissions.join(', ') || 'none'}</p>{update.authorityDiff.changesAuthority && <label className="mt-3 flex items-start gap-2 text-xs"><input type="checkbox" checked={acceptedUpdate} onChange={(event) => setAcceptedUpdate(event.target.checked)} /><span>I accept the capability and permission changes for this exact version.</span></label>}</div>}
         {agent.ownership === 'Owned' && <div className="mt-4 flex gap-3"><Link href={`/workflows/${agent.slug}?legacy=1&tab=setup`} className="text-sm text-brand-400 hover:underline">Configure</Link><Link href="/training" className="text-sm text-brand-400 hover:underline">Train</Link></div>}
