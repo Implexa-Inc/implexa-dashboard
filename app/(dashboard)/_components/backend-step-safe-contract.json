@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "implexa-backend/scripts/generate-step-safe-contract-fixture.js",
+  "attemptIdentity": {
+    "fields": ["requestId", "launchAttemptId", "fencingEpoch"],
+    "headers": {
+      "requestId": "x-implexa-request-id",
+      "launchAttemptId": "x-implexa-attempt-id",
+      "fencingEpoch": "x-implexa-fencing-epoch"
+    }
+  },
+  "lifecycleStates": [
+    "selecting_executor", "starting", "switching_executor", "resuming",
+    "running", "fallback_blocked", "failed", "needs_attention", "succeeded"
+  ],
+  "stepClassifications": ["read_only", "idempotent_local", "consequential", "rendering"],
+  "replayAuthorities": ["pre_action", "runtime_unverified", "parent_no_action", "server_read_only", "trusted_broker_receipt"],
+  "trustedReceiptBindings": ["userId", "organizationId", "requestId", "launchAttemptId", "fencingEpoch", "step", "operationId"],
+  "helperProbeTools": ["listApps", "getAppState"],
+  "terminalOutcomes": ["succeeded", "failed", "superseded", "cancelled", "needs_attention"]
+}
