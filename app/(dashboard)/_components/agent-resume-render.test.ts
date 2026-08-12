@@ -136,6 +136,40 @@ test('Uninstalled acquisition offers reacquisition without contradictory managem
   } finally { rendered.cleanup(); }
 });
 
+test('free audition discloses buyer-owned provider cost, requires acknowledgment, and opens its exact request', async () => {
+  const ready = generated.ready;
+  const rendered = await render('agent-resume.tsx', { agent: ready }, {
+    backend: async () => ({ ok: true, audition: { requestId: '77777777-7777-4777-8777-777777777777' } }),
+  });
+  try {
+    assert.match(rendered.text(), /1 of 2 free auditions remaining/);
+    assert.match(rendered.text(), /provider may charge you for usage/);
+    const run = rendered.getByText('Run free audition') as HTMLButtonElement;
+    assert.equal(run.disabled, true);
+    const acknowledgment = rendered.document.querySelector('input[type="checkbox"]')!;
+    await rendered.click(acknowledgment);
+    assert.equal(run.disabled, false);
+    await rendered.click(run);
+    assert.match(rendered.calls.backend[0].path, /\/audition$/);
+    assert.equal((rendered.calls.backend[0].init as { body: { providerCostAcknowledged: boolean } }).body.providerCostAcknowledged, true);
+    assert.deepEqual(rendered.calls.push, ['/work']);
+  } finally { rendered.cleanup(); }
+});
+
+test('exhausted audition is visibly unavailable and cannot call the backend', async () => {
+  const ready = agent('Ready', {
+    audition: { allowance: 1, remaining: 0, providerCostMode: 'buyer_owned', disclosure: 'Buyer-owned provider usage.', eligible: false },
+    acquisition: { id: 'installation-1', pinnedVersionId: generated.available.version.id, activeVersionId: generated.available.version.id, lifecycle: 'installed' },
+  });
+  const rendered = await render('agent-resume.tsx', { agent: ready });
+  try {
+    const unavailable = rendered.getByText('No free auditions remaining') as HTMLButtonElement;
+    assert.equal(unavailable.disabled, true);
+    await rendered.click(unavailable);
+    assert.equal(rendered.calls.backend.length, 0);
+  } finally { rendered.cleanup(); }
+});
+
 test('Blocked resume never offers setup, use, or update even when stale update metadata is present', async () => {
   const update = { fromVersion: '1.0.0', toVersion: '2.0.0', authorityDiff: { addedCapabilities: ['github:write'], removedCapabilities: [], addedPermissions: ['source_control_write'], removedPermissions: [], changesAuthority: true, broadensAuthority: true } };
   const rendered = await render('agent-resume.tsx', { agent: agent('Blocked', { update }) });
