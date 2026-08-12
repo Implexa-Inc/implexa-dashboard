@@ -52,7 +52,7 @@ export default async function RunsPage() {
           <section className="card text-sm text-ink-300">
             <p className="mb-3">No runs yet.</p>
             <p>
-              Build an agent on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link> and run it —
+              Build an agent in <Link href="/workflows" className="text-brand-500 hover:underline">Agents</Link> and run it —
               its work shows up here.
             </p>
           </section>

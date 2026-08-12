@@ -26,7 +26,9 @@ import UpdateBanner, { type BehindSurface } from './_components/update-banner';
 import AutoUpdateToast from './_components/auto-update-toast';
 import PersistIntent from './_components/persist-intent';
 import CreateFab from './_components/create-fab';
+import SkipLink from './_components/skip-link';
 import { getLatestVersions } from '@/lib/versions';
+import { MAIN_CONTENT_ID } from '@/lib/navigation';
 
 // Per-surface update command. Claude/Cursor update in-session via /plugin; Codex
 // is most reliably refreshed by re-running its installer (git reset --hard).
@@ -176,14 +178,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen">
+      {/* First focusable element on every authed page — see skip-link.tsx. */}
+      <SkipLink />
       {/* Persist a website build intent server-side on ANY authed page (incl.
-          /install where onboarding lands), so it can never be lost before Home. */}
+          /install where onboarding lands), so it can never be lost. */}
       <Suspense fallback={null}><PersistIntent /></Suspense>
       <Sidebar user={userCtx} resultRunsAt={resultRunsAt} needsItemsAt={needsItemsAt} />
       <div className="flex-1 flex flex-col min-w-0">
-        <MobileTopBar user={userCtx} />
+        <MobileTopBar user={userCtx} resultRunsAt={resultRunsAt} needsItemsAt={needsItemsAt} />
         <UpdateBanner surfaces={behind} installed={profile.plugin_versions as Record<string, string> | null} />
-        <main className="flex-1">
+        {/* tabIndex={-1} so the skip link can actually move focus here; without
+            it the browser scrolls but focus stays on the link. */}
+        <main id={MAIN_CONTENT_ID} tabIndex={-1} className="flex-1 focus:outline-none">
           {children}
         </main>
       </div>

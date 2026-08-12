@@ -139,7 +139,7 @@ export default async function OverviewPage() {
               <div className="flex items-baseline justify-between gap-3 mb-3">
                 <h2 className="text-xs font-semibold text-ink-300 uppercase tracking-wide">Results</h2>
                 {items.length > 0 && (
-                  <Link href="/inbox" className="text-xs text-ink-500 hover:text-ink-300 hover:underline">
+                  <Link href="/work?view=delivered" className="text-xs text-ink-500 hover:text-ink-300 hover:underline">
                     View all →
                   </Link>
                 )}

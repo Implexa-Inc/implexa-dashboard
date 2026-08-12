@@ -596,7 +596,7 @@ export default function AgentsList({ agents, archived = [] }: { agents: ListAgen
               ? <button type="button" onClick={() => setQuery('')} className="text-brand-500 hover:underline">Clear search</button>
               : activeCat
                 ? <button type="button" onClick={() => setCat('')} className="text-brand-500 hover:underline">Clear filter</button>
-                : <>Describe one on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link> and Implexa builds it.</>}
+                : <>Describe one in <Link href="/create" className="text-brand-500 hover:underline">Create</Link> and Implexa builds it.</>}
           </p>
         </div>
       )}

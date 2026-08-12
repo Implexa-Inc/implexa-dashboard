@@ -76,7 +76,7 @@ export default async function WorkflowsPage() {
             <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Agents</h1>
             <p className="text-ink-300 text-sm mt-1">
               The workers you build. Each runs a whole job in your Claude or Codex, as you, and
-              drops its work on <Link href="/overview" className="text-brand-500 hover:underline">Home</Link>.
+              drops its work in <Link href="/work" className="text-brand-500 hover:underline">Work</Link>.
             </p>
           </div>
           {/* The discovery entry point: describe a new agent OR pick a proven one
