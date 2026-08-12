@@ -19,6 +19,7 @@ import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
 import AgentSetupCard from './agent-setup-card';
 import { ActivationRequirements } from './activation-requirements';
+import { MarketplaceExecutionRequirementsCard } from './marketplace-execution-requirements';
 import CapabilityGapsNotice from './capability-gaps-notice';
 import AgentFeedback from './agent-feedback';
 import AgentBrowserConnect from './agent-browser-connect';
@@ -1009,6 +1010,9 @@ export function ActivationCard({
       {/* Provider access is provisioning, not a post-activation reward. Keep it
           outside the lifecycle CTA branches so an existing agent can see and
           repair its real browser/key route from Setup as well as first-run. */}
+      <div className="mt-4">
+        <MarketplaceExecutionRequirementsCard contract={checklist.executionRequirements} />
+      </div>
       <div className="mt-4">
         <ActivationRequirements req={checklist.requirements} slug={checklist.slug} onChanged={() => router.refresh()} />
       </div>
