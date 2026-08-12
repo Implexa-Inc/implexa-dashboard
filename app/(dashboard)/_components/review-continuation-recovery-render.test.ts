@@ -46,11 +46,12 @@ test('an unverifiable attempt names the restart AND the retry — the state_unkn
   });
   try {
     const text = rendered.text();
-    assert.match(text, /can’t confirm the last attempt ended/i);
+    assert.match(text, /Couldn’t verify the previous revision/i);
+    assert.match(text, /If the revisions were not applied in the previous run, you can retry this revision\./i);
     assert.match(text, /quit .*ChatGPT \/ Codex.* and open it again/i,
       'the action the user had already taken must be the action the product names');
     assert.match(text, /don’t re-enter anything/i, 'and their review is reused, not retyped');
-    assert.ok(rendered.queryByText(/I restarted ChatGPT \/ Codex — retry/),
+    assert.ok(rendered.queryByText(/^Retry revision$/),
       'the recovery action must be a control, not a sentence');
     assert.doesNotMatch(text, /^Queued$/im, 'and nothing may claim the revision is queued');
   } finally { rendered.cleanup(); }
@@ -65,7 +66,7 @@ test('a proven-ended attempt offers a plain retry and says no edits were made', 
   try {
     assert.match(rendered.text(), /Ready to retry/i);
     assert.match(rendered.text(), /made no edits/i);
-    assert.ok(rendered.queryByText(/Retry this revision/));
+    assert.ok(rendered.queryByText(/^Retry revision$/));
   } finally { rendered.cleanup(); }
 });
 
@@ -75,7 +76,7 @@ test('a cancelled revision offers new work, never a retry', async () => {
   });
   try {
     assert.match(rendered.text(), /cancelled/i);
-    assert.equal(rendered.queryByText(/Retry this revision/), null);
+    assert.equal(rendered.queryByText(/^Retry revision$/), null);
     assert.equal(rendered.queryByText(/I restarted/), null);
   } finally { rendered.cleanup(); }
 });
@@ -95,7 +96,7 @@ test('NO FALSE QUEUED: a refused retry leaves the panel on its refusal, not on Q
     },
   });
   try {
-    await rendered.click(rendered.getByText(/I restarted ChatGPT \/ Codex — retry/));
+    await rendered.click(rendered.getByText(/^Retry revision$/));
     assert.equal(calls, 1, 'the retry was attempted');
     const text = rendered.text();
     assert.doesNotMatch(text, /lands in your inbox/i, 'a refused retry must not render the queued confirmation');
@@ -113,7 +114,7 @@ test('a SUCCESSFUL retry renders Queued — and only then', async () => {
   });
   try {
     assert.equal(rendered.document.querySelector('[data-recovery-state="queued"]'), null);
-    await rendered.click(rendered.getByText(/I restarted ChatGPT \/ Codex — retry/));
+    await rendered.click(rendered.getByText(/^Retry revision$/));
     assert.ok(rendered.document.querySelector('[data-recovery-state="queued"]'));
     assert.match(rendered.text(), /Queued with your original review submission/i);
   } finally { rendered.cleanup(); }
@@ -131,7 +132,7 @@ test('the retry carries the user’s note, so the review is never re-entered', a
     },
   });
   try {
-    await rendered.click(rendered.getByText(/Retry this revision/));
+    await rendered.click(rendered.getByText(/^Retry revision$/));
     const post = seen.find((c) => c.path.includes('/recover-review-continuation'));
     assert.ok(post, 'the recovery endpoint must be the one addressed');
     assert.match(post!.path, new RegExp(REQUEST), 'and it must name the exact request that was refused');

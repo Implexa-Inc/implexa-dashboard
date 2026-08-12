@@ -95,6 +95,13 @@ export function reviewRoomActions(input: {
 export const ACCEPT_DISCLAIMER =
   "Accepting records your judgement. It doesn't change the Judge verdict or mean the files were verified.";
 
+const noun = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
+/** Exact pre-send composition copy: prior unresolved identities plus current drafts. */
+export function revisionCompositionLabel(unresolvedCount: number, newCount: number): string {
+  return `Send ${unresolvedCount} unresolved + ${newCount} new ${noun(newCount, 'change', 'changes')}`;
+}
+
 // ── artifact scoping ────────────────────────────────────────────────────────
 //
 // A run can carry many artifacts (the live stress fixture has 28). An issue belongs to

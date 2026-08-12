@@ -40,6 +40,7 @@ import ReviewContinuationRecovery from '@/app/(dashboard)/_components/review-con
 import { evidenceGate, evidenceChip, type SessionEvidenceStatus } from '@/lib/review-evidence-status';
 import {
   reviewRoomActions, ACCEPT_DISCLAIMER,
+  revisionCompositionLabel,
   issuesForArtifact, artifactForIssue, isIssueStale, issueClickTarget,
   resolveInitialArtifact, shouldApplySeek, shouldDropPendingSeek, type PendingSeek,
 } from '@/lib/review-room-state';
@@ -136,6 +137,7 @@ export default function ReviewRoom(props: Props) {
    * hazard, as `createFlight`/`beginProposalCreate` on the generation-entry path.
    */
   const submitFlightRef = useRef(false);
+  const resolutionFlightRef = useRef(false);
 
   const [issues, setIssues] = useState<ReviewIssue[]>(props.issues);
   const [session, setSession] = useState<ReviewSession>(props.session);
@@ -155,8 +157,10 @@ export default function ReviewRoom(props: Props) {
   useEffect(() => {
     const incoming = props.session;
     if (!incoming) return;
-    setSession((current) => (!current || current.id === incoming.id ? incoming : current));
+    setSession((current) => (!current || current.id === incoming.id || ['draft', 'submitting'].includes(incoming.state)
+      ? incoming : current));
   }, [props.session]);
+  useEffect(() => { setIssues(props.issues); }, [props.issues]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -197,16 +201,23 @@ export default function ReviewRoom(props: Props) {
   // gate treats as UNKNOWN (blocked), never as "no evidence required".
   const [evidenceStatus, setEvidenceStatus] = useState<SessionEvidenceStatus>(null);
 
-  const drafts = useMemo(() => issues.filter((i) => i.status === 'draft'), [issues]);
+  const reviewerResolved = useMemo(() => issues.filter((i) => !!i.reviewerResolution), [issues]);
+  const activeIssues = useMemo(
+    () => issues.filter((i) => i.status !== 'dismissed' && !i.reviewerResolution),
+    [issues],
+  );
+  const drafts = useMemo(() => activeIssues.filter((i) => i.status === 'draft'), [activeIssues]);
+  const unresolvedPrior = useMemo(() => activeIssues.filter((i) => i.status !== 'draft'), [activeIssues]);
+  const revisionIssueIds = useMemo(() => activeIssues.map((i) => i.id), [activeIssues]);
   const ordered = useMemo(() => sortIssues(issues), [issues]);
   // The single source of truth for what may be offered and said. Re-deriving these
   // inline is how a panel ends up claiming "Accepted" beside a live "Request fixes".
   const acts = reviewRoomActions({
     sessionState: (session?.state as never) ?? null,
-    draftCount: drafts.length,
+    draftCount: activeIssues.length,
     isApprovalHold,
   });
-  const visible = useMemo(() => ordered.filter((i) => i.status !== 'dismissed'), [ordered]);
+  const visible = useMemo(() => ordered.filter((i) => i.status !== 'dismissed' && !i.reviewerResolution), [ordered]);
   // THE RAIL'S CONTENTS. File-first, then each file's own clock — never one global
   // timestamp order across files, which interleaved Chapter1/2/3 as though they shared
   // a timeline. `visible` is already filtered, so every group's count is exactly what
@@ -230,7 +241,7 @@ export default function ReviewRoom(props: Props) {
   // sees, what is sent, and what is stored are the same string.
   const NOTE_ENABLED = true;
   const submitView = reviewSubmissionView({
-    state: submission, draftCount: drafts.length, busy, noteEnabled: NOTE_ENABLED,
+    state: submission, draftCount: activeIssues.length, busy, noteEnabled: NOTE_ENABLED,
   });
   // ONLY this artifact's issues may be drawn on it. An issue about another file has no
   // position on this timeline, and rendering it there invents one.
@@ -407,6 +418,54 @@ export default function ReviewRoom(props: Props) {
     }
   }, [session, router]);
 
+  const addMoreFeedback = useCallback(async () => {
+    setError(null); setNotice(null); setBusy(true);
+    try {
+      const action = session?.id
+        ? { action: 'add_feedback', sessionId: session.id }
+        : { action: 'ensure_session', runId, artifactId: selectedId };
+      const { body } = await reviewAction(action);
+      if (!body?.ok || !body.session?.id) {
+        setError(body?.error || 'Could not open a feedback round.');
+        return;
+      }
+      setSession(body.session as ReviewSession);
+      setLocalSubmission(INITIAL_SUBMISSION_STATE);
+      setRevisionNote('');
+      setEvidenceStatus(null);
+      setNotice('Add feedback when you’re ready. Unresolved earlier issues will stay in the next revision.');
+      router.refresh();
+    } catch {
+      setError('Could not open a feedback round. Existing feedback is unchanged.');
+    } finally { setBusy(false); }
+  }, [session, runId, selectedId, router]);
+
+  const resolveIssues = useCallback(async (issueIds: string[]) => {
+    if (!session?.id || !issueIds.length || resolutionFlightRef.current) return;
+    resolutionFlightRef.current = true;
+    setError(null); setNotice(null); setBusy(true);
+    try {
+      const { body } = await reviewAction({ action: 'resolve_issues', sessionId: session.id, issueIds });
+      if (!body?.ok || !Array.isArray(body.resolutions)) {
+        setError(body?.error || 'Could not mark that feedback resolved.');
+        return;
+      }
+      const byIssue = new Map(body.resolutions.map((r: Record<string, unknown>) => [String(r.issueId), r]));
+      setIssues((current) => current.map((issue) => {
+        const resolution = byIssue.get(issue.id);
+        return resolution ? { ...issue, reviewerResolution: resolution as ReviewIssue['reviewerResolution'] } : issue;
+      }));
+      setLocalSubmission(INITIAL_SUBMISSION_STATE);
+      setNotice(issueIds.length === 1 ? 'Marked as resolved.' : `${issueIds.length} issues marked as resolved.`);
+      router.refresh();
+    } catch {
+      setError('Could not verify the resolution. Reload before trying again.');
+    } finally {
+      resolutionFlightRef.current = false;
+      setBusy(false);
+    }
+  }, [session, router]);
+
   /**
    * The anchor is built from the DRAFT, never from the player.
    *
@@ -560,7 +619,7 @@ export default function ReviewRoom(props: Props) {
   // action unlocks — decided by the pure gate module from the last status poll, and
   // enforced again server-side (the compile refuses) and at the executor (fail
   // closed). The browser's own instant pin preview is never called verified.
-  const gate = evidenceGate({ draftIssues: drafts, status: evidenceStatus });
+  const gate = evidenceGate({ draftIssues: activeIssues, status: evidenceStatus });
 
   useEffect(() => {
     // Poll only while there is something to wait FOR: an open session, spatial drafts,
@@ -880,14 +939,15 @@ export default function ReviewRoom(props: Props) {
     // in a test rather than asserted by reading this file.
     await submitRevision({
       state: submission,
-      draftIssueIds: drafts.map((d) => d.id),
+      draftIssueIds: revisionIssueIds,
       submit: onSubmit,
       onState: setLocalSubmission,
       flight: submitFlightRef,
     });
-  }, [submitView.mode, submission, drafts, onAccept, onSubmit]);
+  }, [submitView.mode, submission, revisionIssueIds, onAccept, onSubmit]);
 
   const issuesUnavailable = sources.issues === 'unavailable';
+  const resolutionsUnavailable = sources.reviewer_resolutions !== 'ready';
   const playbackClock = production && selectedSegment
     ? segmentPlaybackClock(production, selectedSegment, playheadMs ?? 0)
     : null;
@@ -1216,10 +1276,20 @@ export default function ReviewRoom(props: Props) {
         <div className="shrink-0 border-b border-ink-800 px-4 py-3">
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="text-sm font-medium text-ink-200">Review issues</h2>
-            {!issuesUnavailable && visible.length > 0 && (
+            {!issuesUnavailable && !resolutionsUnavailable && visible.length > 0 && (
               <span className="shrink-0 text-xs tabular-nums text-ink-500">{groupCountLabel(visible.length)}</span>
             )}
           </div>
+          {!issuesUnavailable && !resolutionsUnavailable && unresolvedPrior.length > 1 && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void resolveIssues(unresolvedPrior.map((issue) => issue.id))}
+              className="mt-2 text-xs text-sky-400 hover:underline disabled:opacity-50"
+            >
+              Mark all as resolved
+            </button>
+          )}
           {proxyPreview && (
             <p className="mt-2 text-xs text-sky-300">
               This is a validated segment proxy. Segment feedback, approval, and repair are not enabled in this first slice.
@@ -1234,6 +1304,10 @@ export default function ReviewRoom(props: Props) {
           // NOT an empty rail: we could not read them.
           <p className="text-xs text-amber-300">
             We couldn&apos;t load this review&apos;s issues. This list is not empty — it&apos;s unknown.
+          </p>
+        ) : resolutionsUnavailable ? (
+          <p className="text-xs text-amber-300">
+            We couldn&apos;t verify which feedback is resolved. Refresh before resolving or sending this revision.
           </p>
         ) : visible.length === 0 ? (
           <p className="text-xs text-ink-500">
@@ -1295,6 +1369,16 @@ export default function ReviewRoom(props: Props) {
                     <p className="mt-0.5 text-[11px] text-sky-400">Opens another file</p>
                   )}
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink-200">{i.body}</p>
+                  {i.status !== 'draft' && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void resolveIssues([i.id])}
+                      className="mt-1 text-xs text-sky-400 hover:underline disabled:opacity-50"
+                    >
+                      Mark as resolved
+                    </button>
+                  )}
                   {/* The capture's honest state, for spatial issues only. "Verified"
                       appears ONLY for the backend's validated projection — the local
                       pin preview is never called evidence. */}
@@ -1340,6 +1424,25 @@ export default function ReviewRoom(props: Props) {
           </section>
           ))
         )}
+        {!issuesUnavailable && !resolutionsUnavailable && reviewerResolved.length > 0 && (
+          <details className="mt-4 border-t border-ink-800 pt-3">
+            <summary className="cursor-pointer text-xs font-medium text-ink-400">
+              Resolved ({reviewerResolved.length})
+            </summary>
+            <ul className="mt-2 space-y-2">
+              {reviewerResolved.map((issue) => (
+                <li key={issue.id} className="rounded border border-ink-800/70 p-2 opacity-80">
+                  <div className="flex items-center gap-2 text-xs text-ink-500">
+                    <span className="font-mono">{anchorLabel(issue.anchor as Record<string, unknown>)}</span>
+                    <span>{issue.kind}</span>
+                    <span className="ml-auto">Resolved by reviewer</span>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-ink-300">{issue.body}</p>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
         </div>
 
         {/* ── submission footer ─────────────────────────────────────────────
@@ -1351,10 +1454,19 @@ export default function ReviewRoom(props: Props) {
           {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
           {notice && <p role="status" className="text-xs text-emerald-300">{notice}</p>}
 
-          {proxyPreview ? (
+          {resolutionsUnavailable ? (
+            <p role="alert" className="text-xs text-amber-300">
+              Resolution status is unavailable. Refresh before resolving or sending feedback.
+            </p>
+          ) : proxyPreview ? (
             <p className="text-xs text-ink-500">Final render remains unavailable while required segments are unresolved.</p>
           ) : accepted ? (
             <p className="text-xs text-emerald-300">You accepted this result.</p>
+          ) : activeIssues.length === 0 && reviewerResolved.length > 0 ? (
+            <div className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-2">
+              <p className="text-xs font-medium text-emerald-300">Review complete</p>
+              <p className="mt-1 text-[11px] text-ink-400">All feedback is marked resolved. No revision is waiting to be sent.</p>
+            </div>
           ) : submitView.mode === 'queued' ? (
             // TERMINAL. Resubmission is closed here as well as at the backend, and
             // every number and identity below came back from the server — none of it
@@ -1388,7 +1500,6 @@ export default function ReviewRoom(props: Props) {
                       of the immutable submission without asking for the review again. */}
                   <ReviewContinuationRecovery
                     requestId={submitView.continuationId}
-                    note={revisionNote}
                     onQueued={() => {
                       setError(null);
                       setNotice('Revision queued again with the same submitted feedback and evidence.');
@@ -1402,14 +1513,6 @@ export default function ReviewRoom(props: Props) {
                       className="rounded-md border border-ink-700 px-3 py-2 text-center text-sm text-ink-200 hover:border-ink-600 disabled:opacity-50"
                     >
                       Open revision attempt
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void amendFailedRevision()}
-                      disabled={busy}
-                      className="rounded-md border border-sky-500/40 px-3 py-2 text-center text-sm text-sky-300 hover:border-sky-400 disabled:opacity-50"
-                    >
-                      Add more feedback
                     </button>
                   </div>
                 </>
@@ -1465,6 +1568,11 @@ export default function ReviewRoom(props: Props) {
               )}
 
               {/* THE FROZEN SNAPSHOT, visible before it is sent. */}
+              {submitView.mode === 'send_changes' && (
+                <p className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1.5 text-xs text-sky-200">
+                  {revisionCompositionLabel(unresolvedPrior.length, drafts.length)}
+                </p>
+              )}
               {submitView.frozenCount !== null && submitView.statusLine && (
                 <p className="rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-xs text-ink-300">
                   {submitView.statusLine}
@@ -1501,7 +1609,9 @@ export default function ReviewRoom(props: Props) {
                 onClick={onPrimary}
                 className="w-full rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-950 disabled:opacity-40"
               >
-                {submitView.primaryLabel}
+                {submitView.mode === 'send_changes'
+                  ? revisionCompositionLabel(unresolvedPrior.length, drafts.length)
+                  : submitView.primaryLabel}
               </button>
 
               {submitView.secondaryLabel && (
@@ -1554,6 +1664,15 @@ export default function ReviewRoom(props: Props) {
               )}
             </>
           )}
+
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void addMoreFeedback()}
+            className="w-full rounded-md border border-sky-500/40 px-3 py-2 text-center text-sm text-sky-300 hover:border-sky-400 disabled:opacity-50"
+          >
+            Add more feedback
+          </button>
         </div>
       </aside>
     </div>

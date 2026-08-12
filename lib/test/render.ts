@@ -49,6 +49,7 @@ export type Rendered = {
   getByText: (pattern: string | RegExp) => Element;
   queryByText: (pattern: string | RegExp) => Element | null;
   click: (element: Element) => Promise<void>;
+  rerender: (props: Record<string, unknown>) => Promise<void>;
   cleanup: () => void;
 };
 
@@ -127,7 +128,9 @@ export async function render(component: string, props: Record<string, unknown>, 
     globalThis.__mount = (target, props) => {
       const root = createRoot(target);
       act(() => { root.render(React.createElement(Component, props)); });
-      return () => act(() => root.unmount());
+      const cleanup = () => act(() => root.unmount());
+      cleanup.render = (next) => act(() => root.render(React.createElement(Component, next)));
+      return cleanup;
     };
   `;
   const code = await bundle(entry);
@@ -221,6 +224,9 @@ export async function render(component: string, props: Record<string, unknown>, 
       await act(() => {
         element.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
       });
+    },
+    rerender: async (props: Record<string, unknown>) => {
+      await act(() => (unmount as unknown as { render: (p: unknown) => unknown }).render(props));
     },
     cleanup: () => {
       unmount();

@@ -162,8 +162,8 @@ const mutations = [
     "  if (state.phase !== 'draft' && state.phase !== 'error') return state;",
     '  if (false) return state;'],
   ['frozen-snapshot', 'the primary button stops naming the audited count', COMPONENT,
-    '{submitView.primaryLabel}',
-    '{acts.submitLabel}'],
+    "{submitView.mode === 'send_changes'\n                  ? revisionCompositionLabel(unresolvedPrior.length, drafts.length)\n                  : submitView.primaryLabel}",
+    "{submitView.mode === 'send_changes'\n                  ? acts.submitLabel\n                  : submitView.primaryLabel}"],
 
   // ── stuck in flight ───────────────────────────────────────────────────────
   // Every mutation here is a way the room says "Sending…" forever.
@@ -195,7 +195,7 @@ const mutations = [
   // a green baseline for that reason, not for want of a test. Deleted rather than
   // propped up with an assertion about which of two elements holds the sentence.
   ['stuck-in-flight', 'a newer durable session is never adopted after a refresh', COMPONENT,
-    '    setSession((current) => (!current || current.id === incoming.id ? incoming : current));',
+    "    setSession((current) => (!current || current.id === incoming.id || ['draft', 'submitting'].includes(incoming.state)\n      ? incoming : current));",
     ''],
 
   // ── the snapshot is not a server contract ─────────────────────────────────

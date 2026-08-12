@@ -61,7 +61,7 @@ const EXECUTOR_LABEL: Record<string, string> = { codex: 'ChatGPT / Codex', claud
 /** Present tense, no speculation, and visibly different per state. */
 const HEADLINE: Record<RecoveryState, string> = {
   running: 'This revision is still running',
-  unverifiable: 'Implexa can’t confirm the last attempt ended',
+  unverifiable: 'Couldn’t verify the previous revision',
   retryable: 'Ready to retry',
   queued: 'Queued',
   cancelled: 'This revision was cancelled',
@@ -169,11 +169,7 @@ export default function ReviewContinuationRecovery({
       {resolved === 'unverifiable' && (
         <>
           <p className="mt-1 text-xs leading-relaxed text-ink-400">
-            The previous attempt stopped, but Implexa can’t yet prove its process is gone — so it
-            won’t queue your revision on top of something that might still be running.
-            {detail?.attempt?.consequentialWorkStarted === false
-              ? ' That attempt made no edits before it stopped, so nothing has been changed.'
-              : ''}
+            If the revisions were not applied in the previous run, you can retry this revision.
           </p>
           <ol className="mt-3 space-y-1.5 text-xs text-ink-300">
             <li>
@@ -194,7 +190,7 @@ export default function ReviewContinuationRecovery({
               disabled={busy}
               className="btn-success text-xs px-3 py-1.5 disabled:opacity-50"
             >
-              {busy ? 'Checking…' : `I restarted ${executorLabel} — retry`}
+              {busy ? 'Checking…' : 'Retry revision'}
             </button>
             <button
               type="button"
@@ -221,7 +217,7 @@ export default function ReviewContinuationRecovery({
             disabled={busy}
             className="btn-success mt-3 text-xs px-3 py-1.5 disabled:opacity-50"
           >
-            {busy ? 'Queuing…' : 'Retry this revision'}
+            {busy ? 'Queuing…' : 'Retry revision'}
           </button>
         </>
       )}

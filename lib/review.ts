@@ -100,6 +100,14 @@ export type ReviewIssue = {
   status: 'draft' | 'submitted' | 'resolved' | 'dismissed' | string;
   submittedRequestId: string | null;
   createdAt: string | null;
+  reviewerResolution: null | {
+    id: string;
+    issueId: string;
+    reviewSessionId: string;
+    reviewSubmissionId: string | null;
+    resolvedAt: string;
+    actor: { kind: 'reviewer_dashboard_user'; userId: string; provenance: Record<string, unknown> };
+  };
 };
 
 export type ReviewSession = {
@@ -182,7 +190,7 @@ const SOURCE_STATES = new Set<SourceState>(['ready', 'unavailable', 'disabled'])
 /** Sources the queue is contracted to report. Extra keys are permitted. */
 export const QUEUE_SOURCE_KEYS = ['holds', 'judgments', 'sessions', 'acceptance', 'issueCounts', 'deliveredOutputs'] as const;
 /** Sources the packet is contracted to report. Extra keys are permitted. */
-export const PACKET_SOURCE_KEYS = ['run', 'lineage', 'artifacts', 'judgment', 'verification', 'production', 'session', 'issues'] as const;
+export const PACKET_SOURCE_KEYS = ['run', 'lineage', 'artifacts', 'judgment', 'verification', 'production', 'session', 'issues', 'reviewer_resolutions'] as const;
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -319,12 +327,20 @@ function isValidIssue(v: unknown, runId: string, sessionId: string | null): bool
   // this rail, and editing or dismissing it would mutate feedback the user never wrote
   // here. A packet with no session cannot legitimately carry issues at all.
   if (v.runId !== runId) return false;
-  if (sessionId === null || v.sessionId !== sessionId) return false;
+  if (sessionId === null) return false;
   if (typeof v.kind !== 'string' || !v.kind) return false;
   if (typeof v.body !== 'string') return false;
   if (typeof v.status !== 'string' || !v.status) return false;
   // the anchor drives seeking and staleness; an absent one is not "no location"
   if (!isObject(v.anchor)) return false;
+  if (!Object.prototype.hasOwnProperty.call(v, 'reviewerResolution')) return false;
+  if (v.reviewerResolution !== null) {
+    const rr = v.reviewerResolution;
+    if (!isObject(rr) || !isId(rr.id) || !isId(rr.issueId) || rr.issueId !== v.id || !isId(rr.reviewSessionId)
+        || !isNullableString(rr.reviewSubmissionId) || typeof rr.resolvedAt !== 'string'
+        || !isObject(rr.actor) || rr.actor.kind !== 'reviewer_dashboard_user'
+        || !isId(rr.actor.userId) || !isObject(rr.actor.provenance)) return false;
+  }
   return true;
 }
 

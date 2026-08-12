@@ -356,7 +356,7 @@ test('the LIVE payload shape parses — the parser matches production, not just 
     artifacts: [{ id: 'a1', runId: '695352a5-2f9f-45d6-b6f7-188a7e6f1c5a', relativePath: 'out/x.mp4', role: 'final_output', status: 'validated', sha256: 'a'.repeat(64), sizeBytes: 1, mtime: null, validatedAt: null }],
     judgment: { id: 'j', verdict: 'pass', summary: 's', nextAction: null, createdAt: null },
     verification: { receipts: [] }, production: null, session: null, issues: [],
-    sources: { artifacts: 'ready', issues: 'ready', judgment: 'ready', lineage: 'ready', production: 'ready', run: 'ready', session: 'ready', verification: 'ready' },
+    sources: { artifacts: 'ready', issues: 'ready', judgment: 'ready', lineage: 'ready', production: 'ready', reviewer_resolutions: 'ready', run: 'ready', session: 'ready', verification: 'ready' },
   };
   assert.notEqual(parseReviewPacketResponse(livePacket, '695352a5-2f9f-45d6-b6f7-188a7e6f1c5a'), null,
     'the real packet must satisfy the parser, identity check included');
@@ -461,7 +461,7 @@ test('a fully-populated valid packet still parses with all nested shapes present
   const full = {
     ...goodPacket(),
     artifacts: [{ id: 'a1', runId: 'run-1', relativePath: 'out/x.mp4', role: 'final_output', status: 'validated', sha256: 'a'.repeat(64), sizeBytes: 1, mtime: null, validatedAt: null }],
-    issues: [{ id: 'i1', sessionId: 's1', runId: 'run-1', artifactId: 'a1', kind: 'timing', anchor: { version: 1, type: 'media_time', artifactSha256: 'a'.repeat(64), timeStartMs: 1000, timeEndMs: null }, body: 'fix', status: 'draft', submittedRequestId: null, createdAt: null }],
+    issues: [{ id: 'i1', sessionId: 's1', runId: 'run-1', artifactId: 'a1', kind: 'timing', anchor: { version: 1, type: 'media_time', artifactSha256: 'a'.repeat(64), timeStartMs: 1000, timeEndMs: null }, body: 'fix', status: 'draft', submittedRequestId: null, createdAt: null, reviewerResolution: null }],
     lineage: { rootRunId: 'run-1', versions: [{ runId: 'run-1', label: 'Original', runState: null, startedAt: null }] },
     session: { id: 's1', runId: 'run-1', state: 'draft', selectedArtifactId: 'a1', submittedRequestId: null, submittedIssueIds: null, compiledBrief: null, acceptedAt: null },
   };
@@ -481,7 +481,7 @@ const boundPacket = () => ({
   ...goodPacket(),
   artifacts: [{ id: 'a1', runId: 'run-1', relativePath: 'out/x.mp4', role: 'final_output', status: 'validated', sha256: 'a'.repeat(64), sizeBytes: 1, mtime: null, validatedAt: null }],
   session: { id: 's1', runId: 'run-1', state: 'draft', selectedArtifactId: 'a1' },
-  issues: [{ id: 'i1', sessionId: 's1', runId: 'run-1', artifactId: 'a1', kind: 'timing', anchor: { version: 1, type: 'artifact', artifactSha256: 'a'.repeat(64) }, body: 'fix', status: 'draft', submittedRequestId: null, createdAt: null }],
+  issues: [{ id: 'i1', sessionId: 's1', runId: 'run-1', artifactId: 'a1', kind: 'timing', anchor: { version: 1, type: 'artifact', artifactSha256: 'a'.repeat(64) }, body: 'fix', status: 'draft', submittedRequestId: null, createdAt: null, reviewerResolution: null }],
 });
 
 test('the bound packet parses — the binding rules do not reject legitimate data', () => {
@@ -500,10 +500,12 @@ test('REPRO: an artifact, session or issue from ANOTHER run is rejected', () => 
   }
 });
 
-test('REPRO: an issue from another SESSION of this run is rejected', () => {
+test('a carried issue from another session of this run is accepted with its original identity', () => {
   const body = { ...boundPacket(), issues: [{ ...boundPacket().issues[0], sessionId: 's-other' }] };
-  assert.equal(parseReviewPacketResponse(body, 'run-1'), null,
-    'editing or dismissing it would mutate feedback that was never written in this session');
+  const parsed = parseReviewPacketResponse(body, 'run-1');
+  assert.ok(parsed);
+  assert.equal(parsed.issues[0].sessionId, 's-other',
+    'the next round carries the original issue ID/session instead of cloning it');
 });
 
 test('REPRO: issues cannot exist when there is no session', () => {
