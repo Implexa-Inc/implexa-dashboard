@@ -2,17 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { PRIMARY_NAV } from '../../../lib/navigation.ts';
 
 const root = join(import.meta.dirname, '..', '..', '..');
-const sidebar = readFileSync(join(import.meta.dirname, 'sidebar.tsx'), 'utf8');
 const list = readFileSync(join(import.meta.dirname, 'agents-list.tsx'), 'utf8');
 const resume = readFileSync(join(import.meta.dirname, 'agent-resume.tsx'), 'utf8');
 const service = readFileSync(join(root, 'lib', 'agent-discovery.ts'), 'utf8');
 
 test('authenticated primary navigation is exactly Agents, Work, Training', () => {
-  const block = sidebar.match(/const PRIMARY_NAV:[\s\S]*?\n\];/)?.[0] || '';
-  assert.deepEqual([...block.matchAll(/label: '([^']+)'/g)].map((match) => match[1]), ['Agents', 'Work', 'Training']);
-  assert.doesNotMatch(block, /Marketplace|Discover|Review|Home/);
+  assert.deepEqual(PRIMARY_NAV.map((item) => item.label), ['Agents', 'Work', 'Training']);
+  assert.equal(PRIMARY_NAV.some((item) => /Marketplace|Discover|Review|Home/.test(item.label)), false);
   assert.equal(existsSync(join(root, 'app', '(dashboard)', 'marketplace', 'page.tsx')), false);
 });
 
