@@ -96,7 +96,8 @@ export default async function WorkflowDetailPage({
 
   if (searchParams.legacy !== '1') {
     const resume = await getAgentResume(params.slug, session.access_token);
-    if (resume) return <AgentResume agent={resume} />;
+    if (resume.status === 'found') return <AgentResume agent={resume.agent} />;
+    if (resume.status === 'unavailable') return <main className="min-h-screen px-4 py-10"><div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4"><h1 className="text-lg font-semibold text-ink-50">Agent unavailable</h1><p role="alert" className="mt-2 text-sm text-amber-200">{resume.reason} Marketplace readiness could not be verified, so running is disabled. Try again.</p></div></main>;
   }
 
   const source = searchParams.source || 'web-seed';

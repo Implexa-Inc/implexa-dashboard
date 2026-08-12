@@ -1,4 +1,4 @@
-import { callBackend } from '@/lib/api';
+import { BackendError, callBackend } from '@/lib/api';
 
 export type DiscoveredAgent = {
   id: string;
@@ -37,9 +37,17 @@ export async function listAgentDiscovery(jwt: string): Promise<AgentDiscoveryRes
   }
 }
 
-export async function getAgentResume(slug: string, jwt: string): Promise<DiscoveredAgent | null> {
+export type AgentResumeResult =
+  | { status: 'found'; agent: DiscoveredAgent }
+  | { status: 'not_marketplace' }
+  | { status: 'unavailable'; reason: string };
+
+export async function getAgentResume(slug: string, jwt: string): Promise<AgentResumeResult> {
   try {
     const response = await callBackend(`/api/v2/agents/discovery/${encodeURIComponent(slug)}`, { jwt });
-    return response?.agent || null;
-  } catch { return null; }
+    return response?.agent ? { status: 'found', agent: response.agent } : { status: 'unavailable', reason: 'Agent resume response was incomplete.' };
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 404) return { status: 'not_marketplace' };
+    return { status: 'unavailable', reason: error instanceof Error ? error.message : 'Agent resume is unavailable.' };
+  }
 }
