@@ -9,7 +9,7 @@ const source = original.toString('utf8');
 const mutations = [
   ['available-always-usable', "agent.readiness.state === 'Available'", 'true'],
   ['blocked-becomes-setup-actionable', ": agent.readiness.state === 'Needs setup'", ": agent.readiness.state === 'Needs setup' || agent.readiness.state === 'Blocked'"],
-  ['authority-change-needs-no-acceptance', 'busy || (agent.update.authorityDiff.changesAuthority && !acceptedUpdate)', 'busy'],
+  ['authority-change-needs-no-acceptance', 'busy || (update.authorityDiff.changesAuthority && !acceptedUpdate)', 'busy'],
   ['owned-looks-runnable', "agent.ownership === 'Owned' ? 'Finish setup' : 'Use agent'", "'Use agent'"],
   ['blocked-reason-not-announced', 'role="status"', 'role="note"'],
   ['training-controls-for-non-owner', "{agent.ownership === 'Owned' &&", '{true &&'],

@@ -27,6 +27,7 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
   const [error, setError] = useState<string | null>(null);
   const [acceptedUpdate, setAcceptedUpdate] = useState(false);
   const [confirmUninstall, setConfirmUninstall] = useState(false);
+  const [providerCostAcknowledged, setProviderCostAcknowledged] = useState(false);
   const [inputBindings, setInputBindings] = useState<Record<string, string>>({});
   const operationKeys = useRef(new Map<string, string>());
   const inFlight = useRef(false);
@@ -43,22 +44,36 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
       const fingerprint = `${path}\u0000${stableJson(payload)}`;
       let idempotencyKey = operationKeys.current.get(fingerprint);
       if (!idempotencyKey) { idempotencyKey = crypto.randomUUID(); operationKeys.current.set(fingerprint, idempotencyKey); }
-      await callBackend(path, { jwt: session?.access_token, method: 'POST', body: { ...payload, idempotencyKey } });
+      const result = await callBackend(path, { jwt: session?.access_token, method: 'POST', body: { ...payload, idempotencyKey } });
+      if (path.endsWith('/audition') && typeof result?.audition?.requestId === 'string') {
+        router.push('/work');
+        return;
+      }
       router.refresh();
     } catch (e) { setError(e instanceof Error ? e.message : 'The agent could not be updated.'); }
     finally { inFlight.current = false; setBusy(false); }
   }
+  const update = agent.update;
   const action = agent.readiness.state === 'Available'
     ? <button disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/acquire`)} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Adding agent…' : agent.ownership === 'Owned' ? 'Finish setup' : 'Use agent'}</button>
     : agent.readiness.state === 'Needs setup'
       ? hasRequiredFile
         ? <Link href={`/workflows/${encodeURIComponent(agent.slug)}/activate`} className="btn-primary px-4 py-2 text-sm">Finish setup</Link>
         : <button disabled={busy || missingRequired} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/finish-setup`, { inputBindings })} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Checking setup…' : 'Finish setup'}</button>
-      : agent.readiness.state === 'Update available' && agent.update
-        ? <button disabled={busy || (agent.update.authorityDiff.changesAuthority && !acceptedUpdate)} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/update`, { acceptAuthorityChange: acceptedUpdate })} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">Accept update</button>
+      : agent.readiness.state === 'Update available' && update
+        ? <button disabled={busy || (update.authorityDiff.changesAuthority && !acceptedUpdate)} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/update`, { acceptAuthorityChange: acceptedUpdate })} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">Accept update</button>
         : agent.readiness.state === 'Ready'
           ? <Link href={`/workflows/${encodeURIComponent(agent.slug)}?legacy=1`} className="btn-primary px-4 py-2 text-sm">Use agent</Link>
           : null;
+  const auditionAction = agent.audition && agent.readiness.state === 'Ready' ? (
+    <div className="mt-5 rounded-md border border-brand-500/30 bg-brand-500/5 p-4">
+      <p className="text-sm font-medium text-ink-100">Try this exact version free</p>
+      <p className="mt-1 text-xs text-ink-400">{agent.audition.remaining} of {agent.audition.allowance} free audition{agent.audition.allowance === 1 ? '' : 's'} remaining. Allowance is used only after the run produces a reviewable result.</p>
+      <p className="mt-2 text-xs text-amber-200">{agent.audition.disclosure}</p>
+      <label className="mt-3 flex items-start gap-2 text-xs text-ink-300"><input type="checkbox" checked={providerCostAcknowledged} onChange={(event) => setProviderCostAcknowledged(event.target.checked)} /><span>I understand this uses my connected provider account and its usage may be billed by that provider.</span></label>
+      <button className="btn-primary mt-3 px-4 py-2 text-sm disabled:opacity-50" disabled={busy || !agent.audition.eligible || !providerCostAcknowledged} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/audition`, { providerCostAcknowledged: true })}>{busy ? 'Starting audition…' : agent.audition.eligible ? 'Run free audition' : 'No free auditions remaining'}</button>
+    </div>
+  ) : null;
   return (
     <main className="min-h-screen px-4 py-10"><article className="mx-auto max-w-4xl">
       <Link href="/workflows" className="text-sm text-ink-500 hover:text-ink-200">← Agents</Link>
@@ -69,7 +84,8 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
         </div>{action}</div>
         {agent.readiness.reason && <p role="status" className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">{agent.readiness.reason}</p>}
         {error && <p role="alert" className="mt-3 text-sm text-rose-400">{error}</p>}
-        {agent.update && <div className="mt-4 rounded-md border border-ink-700 p-3 text-sm text-ink-300"><p className="font-medium">Update {agent.update.fromVersion || 'current'} → {agent.update.toVersion}</p><p className="mt-1 text-xs text-ink-500">Added capabilities: {agent.update.authorityDiff.addedCapabilities.join(', ') || 'none'} · Removed capabilities: {agent.update.authorityDiff.removedCapabilities.join(', ') || 'none'} · Added permissions: {agent.update.authorityDiff.addedPermissions.join(', ') || 'none'} · Removed permissions: {agent.update.authorityDiff.removedPermissions.join(', ') || 'none'}</p>{agent.update.authorityDiff.changesAuthority && <label className="mt-3 flex items-start gap-2 text-xs"><input type="checkbox" checked={acceptedUpdate} onChange={(event) => setAcceptedUpdate(event.target.checked)} /><span>I accept the capability and permission changes for this exact version.</span></label>}</div>}
+        {auditionAction}
+        {update && <div className="mt-4 rounded-md border border-ink-700 p-3 text-sm text-ink-300"><p className="font-medium">Update {update.fromVersion || 'current'} → {update.toVersion}</p><p className="mt-1 text-xs text-ink-500">Added capabilities: {update.authorityDiff.addedCapabilities.join(', ') || 'none'} · Removed capabilities: {update.authorityDiff.removedCapabilities.join(', ') || 'none'} · Added permissions: {update.authorityDiff.addedPermissions.join(', ') || 'none'} · Removed permissions: {update.authorityDiff.removedPermissions.join(', ') || 'none'}</p>{update.authorityDiff.changesAuthority && <label className="mt-3 flex items-start gap-2 text-xs"><input type="checkbox" checked={acceptedUpdate} onChange={(event) => setAcceptedUpdate(event.target.checked)} /><span>I accept the capability and permission changes for this exact version.</span></label>}</div>}
         {agent.ownership === 'Owned' && <div className="mt-4 flex gap-3"><Link href={`/workflows/${agent.slug}?legacy=1&tab=setup`} className="text-sm text-brand-400 hover:underline">Configure</Link><Link href="/training" className="text-sm text-brand-400 hover:underline">Train</Link></div>}
         {agent.acquisition && agent.acquisition.lifecycle !== 'uninstalled' && <div className="mt-5 border-t border-ink-800 pt-4"><p className="text-xs text-ink-500">Disabling or removing this agent pauses schedules. Prior runs, receipts, reviews, learning evidence, and version provenance stay intact.</p><div className="mt-3 flex flex-wrap items-center gap-3">{agent.acquisition.lifecycle === 'disabled' ? <button className="btn-outline px-3 py-1.5 text-xs" disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/enable`)}>Enable</button> : <button className="btn-outline px-3 py-1.5 text-xs" disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/disable`)}>Disable</button>}<label className="flex items-center gap-2 text-xs text-ink-400"><input aria-label="Confirm removing this agent without deleting history" type="checkbox" checked={confirmUninstall} onChange={(event) => setConfirmUninstall(event.target.checked)} />I understand this removes access, not history</label><button className="rounded border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 disabled:opacity-50" disabled={busy || !confirmUninstall} onClick={() => mutate(`/api/v2/agents/discovery/${agent.id}/uninstall`)}>Remove agent</button></div></div>}
       </header>
