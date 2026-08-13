@@ -289,6 +289,13 @@ export default function ReviewRoom(props: Props) {
   const accepted = session?.state === 'accepted';
   const canAttachReviewFiles = sources.review_artifacts === 'ready'
     && (!session || session.state === 'draft') && !submissionInFlight && !accepted;
+  // An externally opened review target is not part of the original run lineage. It
+  // therefore cannot truthfully use `inherit`, even if the reviewer never opens the
+  // advanced revision options. The durable target binding is the authority here; a
+  // transient picker result or local selection is not.
+  const hasExternalReviewTarget = (props.reviewArtifacts ?? [])
+    .some((entry) => entry.purpose === 'review_target');
+  const effectiveRevisionMode = hasExternalReviewTarget ? 'selected_files' : revisionMode;
   const supportingReviewFiles = (props.reviewArtifacts ?? []).filter((entry) => entry.purpose === 'supporting');
 
   // ── preview lifecycle ─────────────────────────────────────────────────────
@@ -942,7 +949,7 @@ export default function ReviewRoom(props: Props) {
         // The composer's live text. `resolveReviewAction` trims it and refuses an
         // over-long note before anything leaves the browser.
         revisionNote,
-        revisionMode,
+        revisionMode: effectiveRevisionMode,
       });
       // 5xx is a read the service could not make, not a verdict on the review.
       const outcome = parseSubmitResponse(body, { unavailable: status >= 500 });
@@ -968,7 +975,7 @@ export default function ReviewRoom(props: Props) {
       setError(submitRefusalCopy(outcome));
       return outcome;
     } finally { setBusy(false); }
-  }, [session, router, revisionNote, revisionMode]);
+  }, [session, router, revisionNote, effectiveRevisionMode]);
 
   const onAccept = useCallback(async (discard: boolean) => {
     setBusy(true); setError(null); setNotice(null);
@@ -1668,14 +1675,17 @@ export default function ReviewRoom(props: Props) {
                         <label className="flex items-start gap-2 rounded border border-ink-800 bg-ink-950 p-2 text-xs text-ink-300">
                           <input
                             type="checkbox"
-                            checked={revisionMode === 'selected_files'}
+                            checked={effectiveRevisionMode === 'selected_files'}
+                            disabled={hasExternalReviewTarget}
                             onChange={(event) => setRevisionMode(event.target.checked ? 'selected_files' : 'inherit')}
                             className="mt-0.5"
                           />
                           <span>
                             <span className="block font-medium text-ink-100">Start with reviewed and attached files only</span>
                             <span className="mt-0.5 block text-ink-500">
-                              Use this for older work whose original inputs were not recorded. This starts a fresh revision from the exact files in this review and does not inherit hidden files from the old run.
+                              {hasExternalReviewTarget
+                                ? 'Required automatically because this review includes a file opened outside the original run.'
+                                : 'Use this for older work whose original inputs were not recorded. This starts a fresh revision from the exact files in this review and does not inherit hidden files from the old run.'}
                             </span>
                           </span>
                         </label>
