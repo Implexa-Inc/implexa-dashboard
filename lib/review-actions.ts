@@ -125,6 +125,10 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
       if (note.length > REVISION_NOTE_MAX) {
         return `Keep the revision note to ${REVISION_NOTE_MAX} characters or fewer.`;
       }
+      const revisionMode = b.revisionMode === 'selected_files' ? 'selected_files' : 'inherit';
+      if (b.revisionMode !== undefined && b.revisionMode !== 'inherit' && b.revisionMode !== 'selected_files') {
+        return 'Choose a valid revision source mode.';
+      }
       // Idempotent upstream: a double click, a retry, or a crashed attempt all
       // converge on the SAME continuation. The client must not try to dedupe.
       return {
@@ -132,7 +136,7 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
         // Explicit null rather than an absent key: the backend reads
         // `typeof req.body.revisionNote === 'string' ? … : null`, so both are accepted,
         // and stating it makes "no note" a decision rather than an omission.
-        body: { revisionNote: note.length ? note : null },
+        body: { revisionNote: note.length ? note : null, revisionMode },
       };
     }
     case 'accept': {

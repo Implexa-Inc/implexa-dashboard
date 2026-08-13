@@ -24,7 +24,7 @@ test('REPRO: submit targets the SESSION — N issues resolve to exactly one cont
   assert.equal(u.method, 'POST');
   // No issue ids are sent. The snapshot is the SERVER's; a client that enumerated
   // issues here could submit a set the user never approved.
-  assert.deepEqual(u.body, { revisionNote: null });
+  assert.deepEqual(u.body, { revisionNote: null, revisionMode: 'inherit' });
   assert.doesNotMatch(JSON.stringify(u), /issueId|issueIds/);
 });
 
@@ -40,12 +40,22 @@ test('the note travels under the backend key, trimmed exactly as the server trim
   }) as { body: Record<string, unknown> };
   // Trimmed here so the reviewer's copy and the stored copy cannot differ by
   // whitespace — the server applies the same `.trim()` before persisting.
-  assert.deepEqual(u.body, { revisionNote: 'tighten the intro' });
+  assert.deepEqual(u.body, { revisionNote: 'tighten the intro', revisionMode: 'inherit' });
 });
 
 test('a whitespace-only note is null, matching the server turning it into null', () => {
   const u = resolveReviewAction('submit', { sessionId: SESSION, revisionNote: '   \n\t ' }) as { body: Record<string, unknown> };
-  assert.deepEqual(u.body, { revisionNote: null });
+  assert.deepEqual(u.body, { revisionNote: null, revisionMode: 'inherit' });
+});
+
+test('selected-files revision mode is explicit and invalid values fail before the network', () => {
+  const selected = resolveReviewAction('submit', {
+    sessionId: SESSION, revisionMode: 'selected_files',
+  }) as { body: Record<string, unknown> };
+  assert.deepEqual(selected.body, { revisionNote: null, revisionMode: 'selected_files' });
+  assert.equal(typeof resolveReviewAction('submit', {
+    sessionId: SESSION, revisionMode: 'trust_me',
+  }), 'string');
 });
 
 test('the bound is the backend bound, measured AFTER the trim', () => {

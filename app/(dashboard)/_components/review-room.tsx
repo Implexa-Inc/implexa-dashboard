@@ -258,6 +258,7 @@ export default function ReviewRoom(props: Props) {
   // tab reads the queued revision instead of re-offering the send button.
   const [localSubmission, setLocalSubmission] = useState<SubmissionState>(INITIAL_SUBMISSION_STATE);
   const [revisionNote, setRevisionNote] = useState('');
+  const [revisionMode, setRevisionMode] = useState<'inherit' | 'selected_files'>('inherit');
   const submission = phaseForSession({
     sessionState: session?.state ?? null,
     submittedRequestId: session?.submittedRequestId ?? null,
@@ -941,6 +942,7 @@ export default function ReviewRoom(props: Props) {
         // The composer's live text. `resolveReviewAction` trims it and refuses an
         // over-long note before anything leaves the browser.
         revisionNote,
+        revisionMode,
       });
       // 5xx is a read the service could not make, not a verdict on the review.
       const outcome = parseSubmitResponse(body, { unavailable: status >= 500 });
@@ -966,7 +968,7 @@ export default function ReviewRoom(props: Props) {
       setError(submitRefusalCopy(outcome));
       return outcome;
     } finally { setBusy(false); }
-  }, [session, router, revisionNote]);
+  }, [session, router, revisionNote, revisionMode]);
 
   const onAccept = useCallback(async (discard: boolean) => {
     setBusy(true); setError(null); setNotice(null);
@@ -1662,7 +1664,21 @@ export default function ReviewRoom(props: Props) {
                     )}
 
                     {submitView.mode === 'send_changes' && (
-                      <div>
+                      <div className="space-y-3">
+                        <label className="flex items-start gap-2 rounded border border-ink-800 bg-ink-950 p-2 text-xs text-ink-300">
+                          <input
+                            type="checkbox"
+                            checked={revisionMode === 'selected_files'}
+                            onChange={(event) => setRevisionMode(event.target.checked ? 'selected_files' : 'inherit')}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            <span className="block font-medium text-ink-100">Start with reviewed and attached files only</span>
+                            <span className="mt-0.5 block text-ink-500">
+                              Use this for older work whose original inputs were not recorded. This starts a fresh revision from the exact files in this review and does not inherit hidden files from the old run.
+                            </span>
+                          </span>
+                        </label>
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="mr-auto text-xs text-ink-400">Files the revision may use</span>
                           <button
