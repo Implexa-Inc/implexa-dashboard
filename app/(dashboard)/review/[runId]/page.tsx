@@ -99,6 +99,7 @@ export default async function ReviewRoomPage({ params, searchParams }: {
         production={packet.production}
         issues={packet.issues}
         session={packet.session}
+        reviewArtifacts={packet.reviewArtifacts}
         sources={packet.sources}
         isApprovalHold={isApprovalHold}
         // A generated-clip deep link (?artifact=) opens on that clip. The id is

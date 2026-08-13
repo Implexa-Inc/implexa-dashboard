@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ReviewArtifact, ReviewIssue, ReviewProduction, ReviewSession, SourceState } from '@/lib/review';
+import type { ReviewArtifact, ReviewIssue, ReviewProduction, ReviewSession, ReviewSessionArtifact, SourceState } from '@/lib/review';
 import {
   decidePreview, interpretPreviewResult, requestPreview, revokePreview,
   desktopPreviewSupported, desktopReviewHref, inDesktopApp, parsePreviewUrl,
@@ -73,6 +73,7 @@ type Props = {
   production: ReviewProduction;
   issues: ReviewIssue[];
   session: ReviewSession;
+  reviewArtifacts: ReviewSessionArtifact[];
   sources: Record<string, SourceState>;
   isApprovalHold: boolean;
   /**
@@ -84,6 +85,26 @@ type Props = {
 };
 
 const ISSUE_KINDS = ['timing', 'content', 'visual', 'audio', 'missing', 'replacement', 'other'] as const;
+
+type ReviewArtifactPickerResult = {
+  ok: boolean;
+  canceled?: boolean;
+  error?: string;
+  artifact?: { artifactId: string; purpose: 'review_target' | 'supporting' };
+};
+
+type ReviewArtifactBridge = {
+  pickReviewArtifact?: (options: {
+    sessionId: string;
+    purpose: 'review_target' | 'supporting';
+    selection: 'file' | 'directory';
+  }) => Promise<ReviewArtifactPickerResult>;
+};
+
+function reviewArtifactBridge(): ReviewArtifactBridge | null {
+  if (typeof window === 'undefined') return null;
+  return (window as Window & { implexaDesktop?: ReviewArtifactBridge }).implexaDesktop ?? null;
+}
 
 async function reviewAction(payload: Record<string, unknown>) {
   const res = await fetch('/api/review', {
@@ -163,6 +184,14 @@ export default function ReviewRoom(props: Props) {
   useEffect(() => { setIssues(props.issues); }, [props.issues]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [artifactPicker, setArtifactPicker] = useState<null | 'review_target' | 'supporting_file' | 'supporting_folder'>(null);
+  const [pendingExternalArtifactId, setPendingExternalArtifactId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pendingExternalArtifactId || !allArtifacts.some((entry) => entry.id === pendingExternalArtifactId)) return;
+    setSelectedId(pendingExternalArtifactId);
+    setPendingExternalArtifactId(null);
+  }, [allArtifacts, pendingExternalArtifactId]);
 
   // ── the two positions ─────────────────────────────────────────────────────
   //
@@ -257,6 +286,9 @@ export default function ReviewRoom(props: Props) {
   const frozen = proxyPreview || submissionInFlight
     || (!acts.canEditIssues && session?.state !== 'accepted' && !isApprovalHold);
   const accepted = session?.state === 'accepted';
+  const canAttachReviewFiles = sources.review_artifacts === 'ready'
+    && (!session || session.state === 'draft') && !submissionInFlight && !accepted;
+  const supportingReviewFiles = (props.reviewArtifacts ?? []).filter((entry) => entry.purpose === 'supporting');
 
   // ── preview lifecycle ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -354,6 +386,42 @@ export default function ReviewRoom(props: Props) {
     setError(body?.error || 'Could not open a review session.');
     return null;
   }, [session, runId]);
+
+  const pickReviewArtifact = useCallback(async (
+    purpose: 'review_target' | 'supporting', selection: 'file' | 'directory',
+  ) => {
+    const bridge = reviewArtifactBridge();
+    if (!bridge?.pickReviewArtifact) {
+      setError('Open Review Room in the Implexa desktop app to choose a local file or folder.');
+      return;
+    }
+    setError(null);
+    const pickerState = purpose === 'review_target' ? 'review_target'
+      : selection === 'directory' ? 'supporting_folder' : 'supporting_file';
+    setArtifactPicker(pickerState);
+    try {
+      const sessionId = await ensureSession(selectedId);
+      if (!sessionId) return;
+      const result = await bridge.pickReviewArtifact({ sessionId, purpose, selection });
+      if (!result?.ok) {
+        if (!result?.canceled) setError(result?.error || 'That review file could not be safely attached.');
+        return;
+      }
+      if (!result.artifact?.artifactId || result.artifact.purpose !== purpose) {
+        setError('The attached review file could not be verified. Reload before continuing.');
+        return;
+      }
+      if (purpose === 'review_target') setPendingExternalArtifactId(result.artifact.artifactId);
+      setNotice(purpose === 'review_target'
+        ? 'Other file added to this review.'
+        : selection === 'directory' ? 'Folder frozen and attached to this revision.' : 'File attached to this revision.');
+      router.refresh();
+    } catch {
+      setError('That review file could not be safely attached.');
+    } finally {
+      setArtifactPicker(null);
+    }
+  }, [ensureSession, router, selectedId]);
 
   /**
    * A submitted session carries a REQUEST id, not necessarily a run id. Resolve it
@@ -1013,19 +1081,34 @@ export default function ReviewRoom(props: Props) {
           </div>
         )}
 
-        {validated.length > 1 && (
-          <label className="mb-3 block text-xs text-ink-400">
-            File
-            <select
-              value={selectedId ?? ''}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-sm text-ink-100"
-            >
-              {validated.map((a) => (
-                <option key={a.id} value={a.id}>{a.relativePath}{a.role ? ` — ${a.role}` : ''}</option>
-              ))}
-            </select>
-          </label>
+        <div className="mb-3 flex items-end gap-2">
+          {validated.length > 0 && (
+            <label className="min-w-0 flex-1 text-xs text-ink-400">
+              File
+              <select
+                value={selectedId ?? ''}
+                onChange={(e) => setSelectedId(e.target.value)}
+                className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-sm text-ink-100"
+              >
+                {validated.map((a) => (
+                  <option key={a.id} value={a.id}>{a.relativePath}{a.role ? ` — ${a.role}` : ''}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button
+            type="button"
+            disabled={!canAttachReviewFiles || artifactPicker !== null}
+            onClick={() => void pickReviewArtifact('review_target', 'file')}
+            className="shrink-0 rounded border border-ink-700 px-3 py-1.5 text-sm text-sky-300 hover:border-sky-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {artifactPicker === 'review_target' ? 'Freezing file…' : 'Open other file'}
+          </button>
+        </div>
+        {sources.review_artifacts !== 'ready' && (
+          <p role="status" className="mb-3 text-xs text-amber-300">
+            Other review files are unavailable right now. Reload before attaching or sending them.
+          </p>
         )}
 
         <ArtifactSurface
@@ -1567,6 +1650,37 @@ export default function ReviewRoom(props: Props) {
                 </label>
               )}
 
+              {submitView.mode === 'send_changes' && (
+                <div className="rounded border border-ink-800 bg-ink-950/60 p-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="mr-auto text-xs text-ink-400">Files the revision may use</span>
+                    <button
+                      type="button"
+                      disabled={!canAttachReviewFiles || artifactPicker !== null}
+                      onClick={() => void pickReviewArtifact('supporting', 'file')}
+                      className="rounded border border-ink-700 px-2 py-1 text-xs text-sky-300 hover:border-sky-500 disabled:opacity-40"
+                    >
+                      {artifactPicker === 'supporting_file' ? 'Freezing file…' : 'Attach file'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canAttachReviewFiles || artifactPicker !== null}
+                      onClick={() => void pickReviewArtifact('supporting', 'directory')}
+                      className="rounded border border-ink-700 px-2 py-1 text-xs text-sky-300 hover:border-sky-500 disabled:opacity-40"
+                    >
+                      {artifactPicker === 'supporting_folder' ? 'Freezing folder…' : 'Attach folder'}
+                    </button>
+                  </div>
+                  {supportingReviewFiles.length > 0 ? (
+                    <ul className="mt-2 space-y-1 text-xs text-ink-300">
+                      {supportingReviewFiles.map((entry) => <li key={entry.artifactId}>✓ {entry.displayName}</li>)}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-[11px] text-ink-500">Optional replacement images, references, or a folder frozen as ZIP.</p>
+                  )}
+                </div>
+              )}
+
               {/* THE FROZEN SNAPSHOT, visible before it is sent. */}
               {submitView.mode === 'send_changes' && (
                 <p className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1.5 text-xs text-sky-200">
@@ -1605,6 +1719,11 @@ export default function ReviewRoom(props: Props) {
                   !submitView.primaryEnabled
                   || (submitView.mode === 'accept_result' ? !acts.canAccept : !acts.canSubmit)
                   || (submitView.mode !== 'accept_result' && gate.blocked)
+                  // The exact revision manifest includes every session-bound
+                  // supporting file. If that source cannot be read, sending would
+                  // either omit authority or rely on the backend to surprise the
+                  // user with a late refusal. Fail closed at the visible boundary.
+                  || (submitView.mode === 'send_changes' && sources.review_artifacts !== 'ready')
                 }
                 onClick={onPrimary}
                 className="w-full rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-950 disabled:opacity-40"

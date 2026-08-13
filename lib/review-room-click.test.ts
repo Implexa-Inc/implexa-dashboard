@@ -130,7 +130,10 @@ async function mount(over: Record<string, unknown> = {}) {
         state: 'draft', submittedRequestId: null, submittedIssueIds: null,
         compiledBrief: null, acceptedAt: null,
       },
-      sources: { issues: 'ready', artifacts: 'ready', session: 'ready', reviewer_resolutions: 'ready' },
+      reviewArtifacts: [],
+      sources: {
+        issues: 'ready', artifacts: 'ready', session: 'ready', reviewer_resolutions: 'ready', review_artifacts: 'ready',
+      },
       isApprovalHold: false,
       ...over,
     }));
@@ -165,6 +168,76 @@ test('the room renders the one decisive action for the 12 production drafts', as
   // And nothing else competing for the decision.
   assert.doesNotMatch(text(), /Approve next action/i);
   assert.doesNotMatch(text(), /Generate B-roll/i);
+  root.unmount();
+});
+
+test('Open other file calls the Desktop bridge with the exact session and review-target purpose', async () => {
+  const pickerCalls: unknown[] = [];
+  Object.defineProperty(dom.window, 'implexaDesktop', {
+    configurable: true,
+    value: {
+      pickReviewArtifact: async (options: unknown) => {
+        pickerCalls.push(options);
+        return { ok: true, artifact: { artifactId: 'a0000000-0000-4000-8000-000000000001', purpose: 'review_target' } };
+      },
+    },
+  });
+  await mount();
+  await click(buttons().find((button) => button.textContent?.includes('Open other file'))!);
+  assert.deepEqual(pickerCalls, [{ sessionId: FIXTURE_SESSION_ID, purpose: 'review_target', selection: 'file' }]);
+  assert.match(text(), /Other file added to this review/);
+  assert.equal(navigation.routerCalls.refresh, 1, 'the new durable artifact was not refreshed into the packet');
+  root.unmount();
+});
+
+test('Attach file and Attach folder are supporting inputs, never issue targets', async () => {
+  const pickerCalls: unknown[] = [];
+  Object.defineProperty(dom.window, 'implexaDesktop', {
+    configurable: true,
+    value: {
+      pickReviewArtifact: async (options: { purpose: string }) => {
+        pickerCalls.push(options);
+        return { ok: true, artifact: { artifactId: crypto.randomUUID(), purpose: options.purpose } };
+      },
+    },
+  });
+  await mount();
+  await click(buttons().find((button) => button.textContent === 'Attach file')!);
+  await click(buttons().find((button) => button.textContent === 'Attach folder')!);
+  assert.deepEqual(pickerCalls, [
+    { sessionId: FIXTURE_SESSION_ID, purpose: 'supporting', selection: 'file' },
+    { sessionId: FIXTURE_SESSION_ID, purpose: 'supporting', selection: 'directory' },
+  ]);
+  assert.match(text(), /Folder frozen and attached to this revision/);
+  root.unmount();
+});
+
+test('an unavailable durable review-artifact source disables every local picker', async () => {
+  const pickerCalls: unknown[] = [];
+  Object.defineProperty(dom.window, 'implexaDesktop', {
+    configurable: true,
+    value: { pickReviewArtifact: async (options: unknown) => { pickerCalls.push(options); return { ok: true }; } },
+  });
+  await mount({ sources: {
+    issues: 'ready', artifacts: 'ready', session: 'ready', reviewer_resolutions: 'ready', review_artifacts: 'unavailable',
+  } });
+  for (const label of ['Open other file', 'Attach file', 'Attach folder']) {
+    const button = buttons().find((candidate) => candidate.textContent?.includes(label));
+    assert.ok(button, `${label} should remain visible with its unavailable explanation`);
+    assert.equal(button.disabled, true, `${label} must fail closed without durable binding authority`);
+    await click(button);
+  }
+  assert.deepEqual(pickerCalls, []);
+  assert.match(text(), /Other review files are unavailable right now/);
+  root.unmount();
+});
+
+test('missing Desktop bridge fails visibly and sends nothing', async () => {
+  Object.defineProperty(dom.window, 'implexaDesktop', { configurable: true, value: undefined });
+  await mount();
+  await click(buttons().find((button) => button.textContent?.includes('Open other file'))!);
+  assert.match(text(), /Open Review Room in the Implexa desktop app/);
+  assert.equal(calls.length, 0);
   root.unmount();
 });
 
