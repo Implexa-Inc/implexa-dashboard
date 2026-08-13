@@ -236,7 +236,7 @@ test('the revision note is sent, and its live value is what gets sent', () => {
   assert.match(submit, /revisionNote,/, 'the composer’s text never reaches the request');
   // Stale-closure guard: the callback must re-create when the note changes, or it
   // sends whatever was typed at mount.
-  assert.match(submit, /\}, \[session, router, revisionNote, revisionMode\]\);/,
+  assert.match(submit, /\}, \[session, router, revisionNote, effectiveRevisionMode\]\);/,
     'onSubmit closes over stale revision inputs');
 });
 

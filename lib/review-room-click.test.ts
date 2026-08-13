@@ -459,6 +459,26 @@ test('older work can explicitly start from only the immutable reviewed and attac
   root.unmount();
 });
 
+test('an externally opened review target automatically uses selected files without hidden-option input', async () => {
+  await mount({
+    reviewArtifacts: [{
+      artifactId: fixtureArtifacts[0].id,
+      purpose: 'review_target',
+      displayName: 'older-output.mp4',
+      createdAt: '2026-08-12T00:00:00.000Z',
+    }],
+  });
+  const toggle = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+  assert.equal(toggle.checked, true, 'the safe mode was not selected from the durable external target');
+  assert.equal(toggle.disabled, true, 'the required safe mode can be silently downgraded');
+  assert.match(text(), /Required automatically because this review includes a file opened outside the original run/);
+
+  await click(primary());
+  assert.equal(calls[0].body.revisionMode, 'selected_files');
+  assert.deepEqual(upstreamOf(calls[0]).body, { revisionNote: null, revisionMode: 'selected_files' });
+  root.unmount();
+});
+
 test('an over-long note is refused by the allowlist, never forwarded to the backend', async () => {
   await mount();
   // `maxLength` bounds typing and pasting, but not a programmatic set — so this is
