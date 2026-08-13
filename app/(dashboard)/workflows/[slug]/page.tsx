@@ -6,10 +6,17 @@
  *   Runs     - this agent's runs as colored todos (output pop-up + feedback inline)
  *   Setup    - the config interview + connection health + "tell Claude to change it"
  *
- * The workflow steps/outcome/capabilities come from the backend public read
- * path (lib/workflow-catalog.ts) because the catalog is service-role-only RLS.
- * The schedule + runs come straight from Supabase (scheduled_skills + skill_runs
- * are both RLS-scoped to the caller), which wires this page into the loop.
+ * EVERYTHING the page needs arrives in ONE authenticated envelope read
+ * (lib/agent-detail.ts → GET /api/v2/me/agents/:slug/detail): workflow (with
+ * owner-privacy and installed-version authority applied server-side),
+ * checklist, this agent's connection warnings, the owner/private grade, judge
+ * policy, schedules, the Runs-tab rows, and raw run/revise lifecycle rows.
+ * This replaced a ~9-request serial waterfall (two of which computed the
+ * caller's ENTIRE roster to extract one agent's slice). The page still derives
+ * queued/running + revise-pending itself from the raw lifecycle rows, so no
+ * truth moves server-side. The marketplace discovery probe runs in parallel
+ * with the envelope; the schedule-only fallback (no visible workflow) keeps
+ * its RLS reads.
  *
  * ?source=web-seed|generated selects the catalog source; ?tab= deep-links a tab.
  */
@@ -17,9 +24,9 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { getWorkflow, getMyWorkflow, listMyWorkflows, workflowRunInputs } from '@/lib/workflow-catalog';
+import { listMyWorkflows, workflowRunInputs } from '@/lib/workflow-catalog';
+import { getAgentDetail } from '@/lib/agent-detail';
 import { remoteSafety } from '@/lib/remote-safety';
-import { getConnectionStatus, warningsForAgent } from '@/lib/connections';
 import { loadInboxItems } from '@/lib/inbox';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
 import AgentReadiness from '../../_components/agent-readiness';
@@ -44,8 +51,6 @@ import AgentUpdateGate from '../../_components/agent-update-gate';
 import ReviseLandedPoller from '../../_components/revise-landed-poller';
 import StepRow from '../../_components/step-row';
 import ExtendChain from '../../_components/extend-chain';
-import { getActivationChecklist } from '@/lib/activation';
-import { getMyAgents } from '@/lib/agents-home';
 import { isRevisePending, newestVersionAt } from '@/lib/revise-pending';
 import GradeBadge from '../../_components/grade-badge';
 import { isPausableRoutine } from '@/lib/schedule-trigger';
@@ -94,32 +99,24 @@ export default async function WorkflowDetailPage({
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
+  // ONE ENVELOPE, OWNER-SCOPED AND ALWAYS FRESH (cache: 'no-store'). The
+  // backend resolves the workflow with the same owner-first source preference
+  // the old probe chain had (2026-07-18 founder report: a landed revise must
+  // show immediately — the envelope read is never cached), applies the private-
+  // workflow visibility gate, and pins the installed version authority. The
+  // marketplace discovery probe used to be a SERIAL hop in front of everything;
+  // it now runs in parallel with the envelope and simply wins when the agent is
+  // a marketplace one.
+  const detailPromise = getAgentDetail(params.slug, session.access_token, { source: searchParams.source });
   if (searchParams.legacy !== '1') {
     const resume = await getAgentResume(params.slug, session.access_token);
     if (resume.status === 'found') return <AgentResume agent={resume.agent} />;
     if (resume.status === 'unavailable') return <main className="min-h-screen px-4 py-10"><div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4"><h1 className="text-lg font-semibold text-ink-50">Agent unavailable</h1><p role="alert" className="mt-2 text-sm text-amber-200">{resume.reason} Marketplace readiness could not be verified, so running is disabled. Try again.</p></div></main>;
   }
 
-  const source = searchParams.source || 'web-seed';
-  // OWNER-SCOPED FRESH READ FIRST (2026-07-18 founder report): a revise (or
-  // continue/build) can land on the caller's OWN agent seconds before they open
-  // this exact page — the new step must show up immediately. getWorkflow's public
-  // catalog read is cached for 10 minutes (see workflow-catalog.ts's
-  // callMcpTool(..., 600)) for good reason on the BROWSE-someone-else's-shared-
-  // agent path, but this page's most common visitor is the owner checking their
-  // OWN agent right after editing it — and `||` short-circuits on the FIRST
-  // truthy result, so once a shared agent's cached public read ever succeeds, the
-  // always-fresh owner-scoped read below was never even attempted, silently
-  // hiding the edit for up to 10 minutes. getMyWorkflow is owner-scoped
-  // (cache: 'no-store') and correctly returns null for an agent that isn't the
-  // caller's own, so trying it first costs a cheap extra round-trip on the
-  // browse-a-public-agent path and nothing else — it never masks a real 404.
-  const mine = (await getMyWorkflow(params.slug, source === 'web-seed' ? 'generated' : source))
-    || (await getMyWorkflow(params.slug, 'community'));
-  const w = mine || (await getWorkflow(params.slug, source));
-  // Fall back to the other known source before giving up (a generated workflow
-  // reached without ?source, or vice versa).
-  const workflow = w || (await getWorkflow(params.slug, source === 'web-seed' ? 'generated' : 'web-seed'));
+  const detailResult = await detailPromise;
+  const detail = detailResult.status === 'ready' ? detailResult.detail : null;
+  const workflow = detail?.workflow ?? null;
 
   // Not in the workflow catalog — but it may still be a scheduled SKILL the user
   // scheduled/paused (a skill isn't a "workflow", so the catalog read 404s). Open
@@ -186,45 +183,30 @@ export default async function WorkflowDetailPage({
     );
   }
 
-  // Schedule for this workflow (RLS-scoped) + this agent's runs as todo items so
-  // the Runs tab reuses the same colored-todo + output pop-up + feedback machinery
-  // as Home. This is what links the workflow to its routine and its output.
-  const [{ data: routineRows }, agentRuns, judgePolicy] = await Promise.all([
-    supabase
-      .from('scheduled_skills')
-      .select('id, skill_slug, schedule_nl, cron_expression, status, last_run_at, run_count, destination, claude_task_id, trigger_type, fire_at')
-      .eq('skill_slug', workflow.slug)
-      .order('created_at', { ascending: false }),
-    loadInboxItems(supabase, 20, workflow.slug),
-    // Judge policy for THIS agent (RLS select-own scopes it to the caller). Read
-    // defensively: pre-0121/0124 the table or the 'observe' value may not exist,
-    // and a missing policy must degrade to "no badge", never break the page.
-    supabase
-      .from('user_agent_judge_policies')
-      .select('mode')
-      .eq('skill_slug', workflow.slug)
-      .maybeSingle()
-      .then((r) => (r && r.data ? r.data.mode : null), () => null),
-  ]);
-
-  const routines: Routine[] = (routineRows as Routine[]) || [];
+  // Schedules, this agent's runs (same colored-todo machinery as Home), and the
+  // judge policy all arrived in the envelope — mapped through the SAME helpers
+  // the old per-source reads used (buildInboxItems, mapActivationChecklist), so
+  // each tab shows exactly what it showed before.
+  const agentRuns = detail!.runs;
+  const judgePolicy = detail!.judgePolicy;
+  const routines: Routine[] = detail!.routines;
   // The routine to Pause/Resume from the header (the live one, if any).
   const pausableRoutine = routines.find((r) => (r.status === 'active' || r.status === 'paused') && isPausableRoutine(r)) || null;
   // The routine the inline ScheduleManager edits: the live clock if any (regardless
   // of status, so a 'failed' one is still editable), else null → on-demand agent.
   const scheduleRoutine = pausableRoutine || routines.find((r) => isPausableRoutine(r)) || null;
 
-  // Connection health for THIS agent: warn loudly if it needs an account that is
-  // not reachable in the Implexa browser. Degrades to no banner when the read is
-  // not live yet (getConnectionStatus returns null).
-  const connWarnings = warningsForAgent(await getConnectionStatus(), workflow.slug);
+  // Connection health for THIS agent (envelope-scoped — the full-roster
+  // /me/connections read is gone from this page). Degrades to no banner when
+  // the section was unavailable (empty warnings).
+  const connWarnings = detail!.connectionWarnings;
   const safety = remoteSafety(workflow);
   const boundCount = workflow.steps.filter((s) => s.ref && !s.gap).length;
 
   // Activation state drives the primary action: Activate (not yet on) vs Run now
   // (queues a run-request that Claude Code picks up). Null (agent not in the
   // user's library yet) falls back to the Activate path.
-  const checklist = await getActivationChecklist(workflow.slug);
+  const checklist = detail!.checklist;
   const isActive = checklist?.state === 'active';
   const pendingQuestions = checklist?.pendingQuestions ?? 0;
   // Required-only — the same predicate Run gates on, so Overview can never claim
@@ -263,47 +245,29 @@ export default async function WorkflowDetailPage({
   // it); without the gate that pinned "Updating…" indefinitely. workflow.versions
   // is already in scope from the detail read — no extra round-trip.
   let revisePending = false;
-  try {
-    const since = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
-    const { data: reqRows } = await supabase
-      .from('run_requests')
-      .select('status, kind, created_at')
-      .eq('workflow_slug', workflow.slug)
-      .in('kind', ['run', 'continue', 'revise'])
-      .in('status', ['pending', 'consumed'])
-      .gte('created_at', since)
-      .order('created_at', { ascending: false });
+  // The envelope carries the RAW rows (same 12h window / kinds / statuses the
+  // page used to query itself); the derivation — the truth — stays here,
+  // unchanged. A missing lifecycle section falls back to the Run-now defaults,
+  // exactly like the old catch block.
+  if (detail!.lifecycle) {
+    const reqRows = detail!.lifecycle.requests;
     revisePending = isRevisePending(reqRows, newestVersionAt(workflow.versions));
-    const runReq = (reqRows || []).find((r) => r.kind === 'run' || r.kind === 'continue');
+    const runReq = reqRows.find((r) => r.kind === 'run' || r.kind === 'continue');
     if (runReq) inFlight = runReq.status === 'consumed' ? 'running' : 'queued';
-    if (!inFlight) {
-      const { data: runRows } = await supabase
-        .from('skill_runs').select('id').eq('skill_slug', workflow.slug).eq('run_state', 'running').limit(1);
-      if (runRows?.length) inFlight = 'running';
-    }
-  } catch { /* fall back to Run now */ }
+    if (!inFlight && detail!.lifecycle.runningRun) inFlight = 'running';
+  }
 
   // ── tab panels (server-rendered, handed to the client tab shell) ──
 
   // What the user needs on their side before running (paid services + the free
   // tools we auto-install), derived from the agent's steps.
 
-  // The proof-layer grade (run_outcome_ledger, 0091). Owner view: pull their
-  // private grade from the /me/agents feed (delivered N% over M real runs). Falls
-  // back to the public aggregate (min-N gated) for a non-owner visitor. Null when
-  // there isn't a real grade yet — the index refuses to flatter a thin history.
-  let grade: { hasGrade: boolean; rate: number; label: 'reliable' | 'mixed' | 'unproven'; runs: number; confidence: number } | null = null;
-  try {
-    const mine = await getMyAgents();
-    // Unavailable feed -> no grade shown. Omitting a grade is honest; inventing one is not.
-    const owned = mine.status === 'ready' ? [...mine.active, ...mine.needsActivation].find((x) => x.slug === params.slug) : null;
-    grade = owned?.grade ?? null;
-    if (!grade) {
-      const API = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai').replace(/\/$/, '');
-      const r = await fetch(`${API}/api/v2/agents/${encodeURIComponent(params.slug)}/grade`, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
-      if (r.ok) { const b = await r.json(); if (b?.grade?.hasGrade) grade = b.grade; }
-    }
-  } catch { /* no grade shown */ }
+  // The proof-layer grade (run_outcome_ledger, 0091), from the envelope. The
+  // backend applies the same owner/public visibility the /me/agents roster read
+  // used to (private for roster agents, min-N-gated public otherwise) — for ONE
+  // slug, without computing the roster. Null when there isn't a real grade yet —
+  // the page still refuses to flatter a thin history.
+  const grade = detail!.grade;
 
   // Chain detection + "add a step" candidates. A chain = ≥2 workflow-ref steps.
   // For one, offer to extend it (the cycle-checked path): the user's OTHER agents,
@@ -314,7 +278,9 @@ export default async function WorkflowDetailPage({
   const isChain = chainHopSlugs.size >= 2;
   let chainCandidates: Array<{ slug: string; source: string; name: string }> = [];
   if (isChain) {
-    const mine = await listMyWorkflows();
+    // Chain-only extra read; passes the session token so the helper does not
+    // re-run getSession().
+    const mine = await listMyWorkflows(session.access_token);
     chainCandidates = mine
       .filter((w) => w.slug !== workflow.slug && !chainHopSlugs.has(w.slug))
       .map((w) => ({ slug: w.slug, source: w.source, name: w.name }));

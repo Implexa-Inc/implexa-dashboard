@@ -104,8 +104,15 @@ test('the header badge distinguishes observe from every_run — one label would 
 });
 
 test('a missing or unreadable Judge policy shows NO badge rather than breaking the page', () => {
-  assert.match(slugPage, /\.maybeSingle\(\)\s*\n?\s*\.then\(\(r\) => \(r && r\.data \? r\.data\.mode : null\), \(\) => null\)/,
-    'the read degrades to null on both empty and error');
+  // The policy now rides the agent-detail envelope. The degrade chain is:
+  // backend section failure → judgePolicy null in the envelope; lib/agent-detail
+  // maps any non-string to null; and the page's badge renders ONLY on the two
+  // explicit ON modes (pinned above), so null/'off' both mean "no badge".
+  const detailLib = readFileSync(join(process.cwd(), 'lib', 'agent-detail.ts'), 'utf8');
+  assert.match(slugPage, /const judgePolicy = detail!\.judgePolicy/,
+    'the badge reads the envelope policy, not its own table read');
+  assert.match(detailLib, /judgePolicy: asStr\(body\.judgePolicy\)/,
+    'the mapper degrades a missing/invalid policy to null, never to a fake mode');
 });
 
 // ── Pause must describe something that can actually happen ───────────────────

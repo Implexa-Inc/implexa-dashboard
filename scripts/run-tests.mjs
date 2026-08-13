@@ -21,7 +21,11 @@ import { readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
-const SKIP = new Set(['node_modules', '.next', '.git', 'dist', '.vercel']);
+// `.claude` holds harness state, including stale git WORKTREES with full
+// duplicate copies of this repo — discovering those runs every test twice (or
+// worse, an OLD copy's tests against the old code, reported as failures of the
+// current tree).
+const SKIP = new Set(['node_modules', '.next', '.git', 'dist', '.vercel', '.claude']);
 
 function findTests(dir, acc = []) {
   for (const name of readdirSync(dir)) {
