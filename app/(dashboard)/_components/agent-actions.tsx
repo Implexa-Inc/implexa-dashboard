@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { subscribeLiveFeed, notifyRunActivity } from '@/lib/live-feed-poll';
 import { callBackend, BackendError } from '@/lib/api';
 import { confirmedRunRequestId } from '@/lib/run-request-receipt';
 import Modal from './modal';
@@ -67,6 +68,21 @@ function setupCollapsed(slug: string): boolean {
 }
 function markSetupCollapsed(slug: string) {
   try { localStorage.setItem(`implexa:setup-collapsed:${slug}`, '1'); } catch { /* private mode / blocked */ }
+}
+
+// The PER-RUN note survives remounts and refreshes. Tab switches unmount the
+// Setup panel's <AgentActions/>, and <ReviseLandedPoller/> re-runs the server
+// render — neither may eat a half-typed note. sessionStorage (per-tab, gone on
+// close) mirrors how the run-input overrides already persist.
+function readRunNoteDraft(slug: string): string {
+  if (typeof window === 'undefined') return '';
+  try { return sessionStorage.getItem(`implexa:run-note:${slug}`) || ''; } catch { return ''; }
+}
+function writeRunNoteDraft(slug: string, note: string) {
+  try {
+    if (note) sessionStorage.setItem(`implexa:run-note:${slug}`, note);
+    else sessionStorage.removeItem(`implexa:run-note:${slug}`);
+  } catch { /* private mode / blocked */ }
 }
 
 const POLL_MS = 5000;
@@ -134,7 +150,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // Duplicate-work backstop: the prior run this one would repeat, if any.
   const [dupe, setDupe] = useState<{ message: string; runId: string | null; fingerprint: string | null } | null>(null);
   // Free-text note the user attaches to THIS run (a tweak/comment), rides into it.
-  const [runNote, setRunNote] = useState('');
+  // Hydrated from the per-tab draft so remounts/refreshes can't eat a typed note.
+  const [runNote, setRunNote] = useState(() => readRunNoteDraft(slug));
+  useEffect(() => { writeRunNoteDraft(slug, runNote); }, [slug, runNote]);
   // The agent's STANDING note ("Notes for this agent", honored every run). Shown in
   // the pop-up so it's visibly in effect and not lost when the user edits it in
   // Setup and hits Run before Save; saved on submit. Distinct from runNote above.
@@ -378,56 +396,43 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // from mount (not gated on state already being queued/running) is what lets it
   // DISCOVER a run that started elsewhere, not just follow one it already knew
   // about. So the button follows idle → queued → running → done without a reload.
+  // The feed itself comes from the ONE shared poller (lib/live-feed-poll.ts):
+  // however many <AgentActions/> are mounted (this page renders two — header +
+  // Setup tab), there is a single timer and a single getSession() per tick,
+  // idle-backed-off and paused while the tab is hidden or the user is typing.
   useEffect(() => {
     if (requestId.current) return;            // user-initiated runs use the poll above
     let alive = true;
     let misses = 0;
-    const t = setInterval(async () => {
+    const unsubscribe = subscribeLiveFeed((items) => {
+      if (!alive) return;
       if (requestId.current) return;          // a run started from THIS component mid-poll — defer to its own poll
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const res = await callBackend('/api/v2/scheduled-skills/live', { jwt: session?.access_token });
-        if (!alive) return;
-        const items: Array<{ skillSlug?: string; status?: string }> = Array.isArray(res?.items) ? res.items : [];
-        const card = items.find((c) => c.skillSlug === slug && (c.status === 'queued' || c.status === 'running'));
-        if (card) {
-          misses = 0;
-          setState(card.status as RunState);
-          setMsg(card.status === 'running'
-            ? 'Running in Claude Code…'
-            : 'Queued. Waiting for your Claude to pick it up — the result lands in your inbox.');
-        } else if (stateRef.current === 'queued' || stateRef.current === 'running') {
-          // Only reset to idle once we'd SEEN a queued/running card and then lost
-          // it twice in a row (finished) — never reset on a plain "still idle,
-          // never found anything" tick (that's the common case now this effect
-          // polls unconditionally), or a slow first poll could flash the button
-          // back to "Run now" for a run that just hasn't shown up in the feed yet.
-          if (++misses >= 2) {
-            clearInterval(t);
-            setState('idle');
-            setMsg('');
-          }
+      const card = items.find((c) => c.skillSlug === slug && (c.status === 'queued' || c.status === 'running'));
+      if (card) {
+        misses = 0;
+        setState(card.status as RunState);
+        setMsg(card.status === 'running'
+          ? 'Running in Claude Code…'
+          : 'Queued. Waiting for your Claude to pick it up — the result lands in your inbox.');
+      } else if (stateRef.current === 'queued' || stateRef.current === 'running') {
+        // Only reset to idle once we'd SEEN a queued/running card and then lost
+        // it twice in a row (finished) — never reset on a plain "still idle,
+        // never found anything" tick, or a slow first poll could flash the button
+        // back to "Run now" for a run that just hasn't shown up in the feed yet.
+        if (++misses >= 2) {
+          setState('idle');
+          setMsg('');
         }
-      } catch { /* transient — keep polling */ }
-    }, POLL_MS);
-    return () => { alive = false; clearInterval(t); };
+      }
+    });
+    return () => { alive = false; unsubscribe(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // While a rewrite (kind='revise') is pending, poll the server view so the
-  // "Updating…" state clears on its own once the user's Claude lands the new
-  // version (revisePending is computed server-side). Bounded so a stuck revise
-  // doesn't refresh forever; the user can always reload.
-  useEffect(() => {
-    if (!revisePending) return;
-    const start = Date.now();
-    const t = setInterval(() => {
-      if (Date.now() - start > 10 * 60 * 1000) { clearInterval(t); return; }
-      router.refresh();
-    }, 20000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revisePending]);
+  // NOTE (revise refresh): the 20s router.refresh() loop that used to live here
+  // duplicated <ReviseLandedPoller/> — the page-level banner poller that already
+  // refreshes on its own backoff schedule while a revise is pending (and is the
+  // only surface that passes revisePending). One refresh loop, not two.
 
   // Scroll the agent's questions into view and flash them. Used when Run is
   // pressed with unanswered questions, so they surface AT the run moment instead
@@ -448,10 +453,17 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       }
       return false;
     };
-    // Try immediately (no-tab surfaces), then again after the tab panel mounts.
+    // Try immediately (no-tab surfaces), then keep trying while the Setup panel
+    // arrives. It is now server-rendered on demand (AgentTabs navigates to
+    // ?tab=setup), so it can land well after the two short retries this used to
+    // do — those would fire before the panel existed and silently give up,
+    // which is the same dead "I clicked Run and nothing happened" this function
+    // exists to prevent. Bounded retry window, stops as soon as it lands.
     if (!focusSetup()) {
-      setTimeout(focusSetup, 90);
-      setTimeout(focusSetup, 300);
+      let attempts = 0;
+      const retry = setInterval(() => {
+        if (focusSetup() || ++attempts > 20) clearInterval(retry);
+      }, 120);
     }
   }
 
@@ -678,6 +690,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       inputSessionRef.current = null;
       setInputSessionId(null);
       setState('queued');
+      // Other mounted surfaces (the second <AgentActions/>, Home) should see
+      // this run promptly — snap the shared live-feed cadence back to base.
+      notifyRunActivity();
       setMsg('Queued. It runs hands-off on your computer (Claude open / Mac awake) — the result lands in your Implexa inbox, usually within a few minutes.');
       // Land the user where the run actually shows itself starting — the Active
       // Agents loader on /workflows (founder ask: "redirect to agent home so I can

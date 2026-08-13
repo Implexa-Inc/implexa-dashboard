@@ -50,13 +50,13 @@ export default function AgentReadiness({
     : 'border-emerald-500/40 bg-emerald-500/[0.07]';
 
   function openSetup() {
-    // This action lives in Overview while the Setup panel is unmounted. A
-    // same-page Next Link can update the URL without giving AgentTabs a reason
-    // to mount that panel, leaving the only recovery action looking dead.
-    // Switch the client-owned tab explicitly, then find the first unanswered
-    // required field after the async setup card has loaded.
+    // This action lives in Overview while the Setup panel is not rendered. Ask
+    // AgentTabs to open it — it owns the ?tab= URL and the navigation that
+    // server-renders that panel. (This used to also replaceState the URL by
+    // hand; that fought the router for ownership of the same query param and
+    // is now AgentTabs' job alone.) Then find the first unanswered required
+    // field once the panel and its async setup card have landed.
     try {
-      window.history.replaceState(null, '', `/workflows/${encodeURIComponent(slug)}?tab=setup#agent-setup`);
       window.dispatchEvent(new CustomEvent('implexa-open-tab', { detail: { key: 'setup' } }));
     } catch { /* best effort; the retries below still handle an already-open panel */ }
 
@@ -78,9 +78,11 @@ export default function AgentReadiness({
         setup.scrollIntoView({ behavior: 'smooth', block: 'start' });
         return;
       }
-      // The Setup panel and its questions both mount asynchronously. Keep this
-      // bounded so a failed setup fetch cannot leave a permanent timer behind.
-      if (++tries < 20) window.setTimeout(revealMissingAnswer, 75);
+      // The Setup panel now arrives via a server round-trip (AgentTabs
+      // navigates to ?tab=setup) and its questions mount asynchronously after
+      // that, so the retry window has to cover both. Bounded, so a failed setup
+      // fetch cannot leave a permanent timer behind.
+      if (++tries < 25) window.setTimeout(revealMissingAnswer, 120);
     };
     window.setTimeout(revealMissingAnswer, 0);
   }

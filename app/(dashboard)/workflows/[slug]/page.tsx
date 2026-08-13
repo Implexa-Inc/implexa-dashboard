@@ -286,7 +286,13 @@ export default async function WorkflowDetailPage({
       .map((w) => ({ slug: w.slug, source: w.source, name: w.name }));
   }
 
-  const overviewPanel = (
+  // WHICH TAB — resolved server-side from ?tab= (deep links preserved), with a
+  // safe fallback to Overview. Only this panel's tree is built and serialized;
+  // the other two used to ride every page view even though one tab is visible.
+  const tabKeys = ['overview', 'runs', 'setup'];
+  const activeTab = searchParams.tab && tabKeys.includes(searchParams.tab) ? searchParams.tab : 'overview';
+
+  const overviewPanel = () => (
     <>
       {/* Readiness, not a shopping list. "What you'll need" is PROVISIONING and
           now lives in Activate, where it can be finished and then collapse — it
@@ -492,7 +498,7 @@ export default async function WorkflowDetailPage({
     </>
   );
 
-  const runsPanel = agentRuns.length === 0 ? (
+  const runsPanel = () => agentRuns.length === 0 ? (
     <div className="card p-6 text-center">
       <div className="text-2xl mb-2" aria-hidden="true">✓</div>
       <p className="text-ink-100 font-medium">No runs yet.</p>
@@ -504,7 +510,7 @@ export default async function WorkflowDetailPage({
     <InboxList initialItems={agentRuns} basePath={`/workflows/${workflow.slug}`} heading={null} />
   );
 
-  const setupPanel = (
+  const setupPanel = () => (
     <>
       <AgentExecutorPreference slug={workflow.slug} />
       {/* Same run-input identity the header's <AgentActions/> gets — the card
@@ -699,8 +705,8 @@ export default async function WorkflowDetailPage({
 
         <AgentTabs
           tabs={tabs}
-          initial={searchParams.tab}
-          panels={{ overview: overviewPanel, runs: runsPanel, setup: setupPanel }}
+          active={activeTab}
+          panel={activeTab === 'runs' ? runsPanel() : activeTab === 'setup' ? setupPanel() : overviewPanel()}
         />
       </div>
     </main>
