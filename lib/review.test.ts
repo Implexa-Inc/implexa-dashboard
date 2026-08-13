@@ -162,7 +162,7 @@ const goodPacket = () => ({
   // Realistic: the lineage contains the run being viewed — the page derives its
   // "you are here" label by finding it there.
   lineage: { rootRunId: 'run-1', versions: [{ runId: 'run-1', label: 'Original', runState: null, startedAt: null }] },
-  artifacts: [], judgment: null, verification: { receipts: [] }, production: null, session: null, issues: [],
+  artifacts: [], judgment: null, verification: { receipts: [] }, production: null, session: null, issues: [], reviewArtifacts: [],
   sources: { ...okPacketSources },
 });
 
@@ -239,6 +239,37 @@ test('a well-formed packet response parses', () => {
   assert.notEqual(p, null);
   assert.equal(p!.live, true);
   assert.equal(p!.run!.id, 'run-1');
+});
+
+test('review-supplied artifacts are role-bound to durable packet artifacts', () => {
+  const targetId = 'artifact-target';
+  const supportId = 'artifact-support';
+  const packet = {
+    ...goodPacket(),
+    artifacts: [
+      { id: targetId, runId: 'run-1', relativePath: 'review-inputs/a/old.mp4', role: 'review_input', status: 'validated', sha256: 'a'.repeat(64) },
+      { id: supportId, runId: 'run-1', relativePath: 'review-inputs/b/replacements.zip', role: 'review_attachment', status: 'validated', sha256: 'b'.repeat(64) },
+    ],
+    reviewArtifacts: [
+      { artifactId: targetId, purpose: 'review_target', displayName: 'old.mp4', createdAt: '2026-08-12T00:00:00Z' },
+      { artifactId: supportId, purpose: 'supporting', displayName: 'replacements.zip', createdAt: '2026-08-12T00:00:01Z' },
+    ],
+  };
+  assert.notEqual(parseReviewPacketResponse(packet, 'run-1'), null);
+  assert.equal(parseReviewPacketResponse({ ...packet, reviewArtifacts: [
+    { ...packet.reviewArtifacts[0], purpose: 'supporting' }, packet.reviewArtifacts[1],
+  ] }, 'run-1'), null, 'purpose cannot relabel a review target as supporting context');
+  assert.equal(parseReviewPacketResponse({ ...packet, reviewArtifacts: [packet.reviewArtifacts[0], packet.reviewArtifacts[0]] }, 'run-1'), null,
+    'one immutable artifact may not be represented twice');
+});
+
+test('an unavailable review-artifact source may not claim stale attachment rows', () => {
+  const packet = goodPacket();
+  packet.sources.review_artifacts = 'unavailable';
+  assert.notEqual(parseReviewPacketResponse(packet, 'run-1'), null, 'explicit unavailable with no claimed rows stays honest');
+  packet.artifacts = [{ id: 'a', runId: 'run-1', relativePath: 'x.zip', role: 'review_attachment', status: 'validated', sha256: 'a'.repeat(64) }];
+  packet.reviewArtifacts = [{ artifactId: 'a', purpose: 'supporting', displayName: 'x.zip', createdAt: 'now' }];
+  assert.equal(parseReviewPacketResponse(packet, 'run-1'), null);
 });
 
 const goodProduction = () => ({
@@ -355,8 +386,8 @@ test('the LIVE payload shape parses — the parser matches production, not just 
     ] },
     artifacts: [{ id: 'a1', runId: '695352a5-2f9f-45d6-b6f7-188a7e6f1c5a', relativePath: 'out/x.mp4', role: 'final_output', status: 'validated', sha256: 'a'.repeat(64), sizeBytes: 1, mtime: null, validatedAt: null }],
     judgment: { id: 'j', verdict: 'pass', summary: 's', nextAction: null, createdAt: null },
-    verification: { receipts: [] }, production: null, session: null, issues: [],
-    sources: { artifacts: 'ready', issues: 'ready', judgment: 'ready', lineage: 'ready', production: 'ready', reviewer_resolutions: 'ready', run: 'ready', session: 'ready', verification: 'ready' },
+    verification: { receipts: [] }, production: null, session: null, issues: [], reviewArtifacts: [],
+    sources: { artifacts: 'ready', issues: 'ready', judgment: 'ready', lineage: 'ready', production: 'ready', reviewer_resolutions: 'ready', review_artifacts: 'ready', run: 'ready', session: 'ready', verification: 'ready', evidence: 'ready', submission: 'ready' },
   };
   assert.notEqual(parseReviewPacketResponse(livePacket, '695352a5-2f9f-45d6-b6f7-188a7e6f1c5a'), null,
     'the real packet must satisfy the parser, identity check included');

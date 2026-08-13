@@ -5,6 +5,7 @@ import {
   finalRenderControl,
   preferredReviewArtifact,
   previewRequestIdentity,
+  reviewableArtifacts,
   segmentForArtifact,
   segmentPlaybackClock,
 } from './segmented-review.ts';
@@ -38,6 +39,15 @@ test('the segment proxy is preferred and previewed through its worker run identi
   assert.equal(selected?.id, 'proxy-1');
   assert.deepEqual(previewRequestIdentity(selected!), { runId: 'worker-run-1', artifactId: 'proxy-1' });
   assert.equal(segmentForArtifact(production, selected!.id)?.id, 'segment-01');
+});
+
+test('supporting attachments accompany submission context but never become review or reference targets', () => {
+  const target: ReviewArtifact = { ...proxy, id: 'local-target', role: 'review_input' };
+  const support: ReviewArtifact = { ...proxy, id: 'support-zip', role: 'review_attachment' };
+  assert.deepEqual(
+    reviewableArtifacts([target, support], null).map((artifact) => artifact.id),
+    ['local-target'],
+  );
 });
 
 test('preview time exposes the writable offset and maps to global and segment-relative time', () => {

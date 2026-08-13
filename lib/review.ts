@@ -89,6 +89,13 @@ export type ReviewArtifact = {
   // (behind the desktop API key) returns that.
 };
 
+export type ReviewSessionArtifact = {
+  artifactId: string;
+  purpose: 'review_target' | 'supporting';
+  displayName: string;
+  createdAt: string;
+};
+
 export type ReviewIssue = {
   id: string;
   sessionId: string;
@@ -154,6 +161,7 @@ export type ReviewPacket = {
   verification: { receipts: Array<{ id: string; adapterKind: string; status: string; createdAt: string }> };
   production: ReviewProduction;
   session: ReviewSession;
+  reviewArtifacts: ReviewSessionArtifact[];
   issues: ReviewIssue[];
   sources: Record<string, SourceState>;
   live: boolean;
@@ -162,6 +170,7 @@ export type ReviewPacket = {
 const PACKET_UNAVAILABLE: ReviewPacket = {
   ok: false, run: null, lineage: { rootRunId: null, versions: [] }, artifacts: [],
   judgment: null, verification: { receipts: [] }, production: null, session: null, issues: [],
+  reviewArtifacts: [],
   sources: { review_packet: 'unavailable' }, live: false,
 };
 
@@ -190,7 +199,7 @@ const SOURCE_STATES = new Set<SourceState>(['ready', 'unavailable', 'disabled'])
 /** Sources the queue is contracted to report. Extra keys are permitted. */
 export const QUEUE_SOURCE_KEYS = ['holds', 'judgments', 'sessions', 'acceptance', 'issueCounts', 'deliveredOutputs'] as const;
 /** Sources the packet is contracted to report. Extra keys are permitted. */
-export const PACKET_SOURCE_KEYS = ['run', 'lineage', 'artifacts', 'judgment', 'verification', 'production', 'session', 'issues', 'reviewer_resolutions'] as const;
+export const PACKET_SOURCE_KEYS = ['run', 'lineage', 'artifacts', 'judgment', 'verification', 'production', 'session', 'issues', 'reviewer_resolutions', 'review_artifacts'] as const;
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -433,6 +442,18 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
   if (!Array.isArray(body.artifacts) || !body.artifacts.every((a) => isValidArtifact(a, runId))) return null;
   const artifactIds = new Set((body.artifacts as Array<Record<string, unknown>>).map((a) => String(a.id)));
 
+  if (!Array.isArray(body.reviewArtifacts) || !body.reviewArtifacts.every((entry) => {
+    if (!isObject(entry) || !isId(entry.artifactId) || !isId(entry.displayName) || !isId(entry.createdAt)) return false;
+    if (!['review_target', 'supporting'].includes(String(entry.purpose))) return false;
+    if (!artifactIds.has(String(entry.artifactId))) return false;
+    const artifact = (body.artifacts as Array<Record<string, unknown>>).find((a) => a.id === entry.artifactId);
+    return entry.purpose === 'review_target'
+      ? artifact?.role === 'review_input'
+      : artifact?.role === 'review_attachment';
+  })) return null;
+  const reviewArtifactIds = (body.reviewArtifacts as Array<Record<string, unknown>>).map((entry) => String(entry.artifactId));
+  if (new Set(reviewArtifactIds).size !== reviewArtifactIds.length) return null;
+
   if (!Array.isArray(body.issues) || !body.issues.every((i) => isValidIssue(i, runId, sessionId))) return null;
   // REFERENTIAL INTEGRITY. An issue anchored to an artifact the packet does not contain
   // renders a rail entry that can never be seeked to or highlighted — a comment
@@ -448,6 +469,9 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
   // Sources first: the lineage rule below depends on whether lineage was READABLE.
   const sources = parseSources(body.sources, PACKET_SOURCE_KEYS);
   if (!sources) return null;
+  // A non-ready source cannot truthfully supply rows. Accepting stale-looking rows
+  // would make attachment controls appear authoritative over a read that failed.
+  if (sources.review_artifacts !== 'ready' && reviewArtifactIds.length > 0) return null;
 
   if (!isObject(body.lineage)) return null;
   const versions = (body.lineage as Record<string, unknown>).versions;
@@ -484,6 +508,7 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
     verification: body.verification as ReviewPacket['verification'],
     production: body.production as ReviewProduction,
     session: body.session as ReviewSession,
+    reviewArtifacts: body.reviewArtifacts as ReviewSessionArtifact[],
     issues: body.issues as ReviewIssue[],
     sources,
     live: true,

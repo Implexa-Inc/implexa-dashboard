@@ -52,6 +52,7 @@ const CHRONO = 'lib/review-chronology.ts';
 const FLOW = 'lib/review-submission-flow.ts';
 const ROOM = 'lib/review-room-state.ts';
 const ACTIONS = 'lib/review-actions.ts';
+const SEGMENTED = 'lib/segmented-review.ts';
 const PROXY = 'app/api/review/route.ts';
 
 const files = [
@@ -59,6 +60,7 @@ const files = [
   FLOW, 'lib/review-submission-flow.test.ts',
   ROOM, 'lib/review-room-state.test.ts',
   ACTIONS, 'lib/review-actions.test.ts',
+  SEGMENTED, 'lib/segmented-review.test.ts',
   'lib/review-room-layout.test.ts',
   'lib/review-submit-contract.test.ts',
   'lib/review-room-credentials.test.ts',
@@ -74,6 +76,7 @@ const tests = [
   'lib/review-room-state.test.ts',
   'lib/review-room-layout.test.ts',
   'lib/review-actions.test.ts',
+  'lib/segmented-review.test.ts',
   'lib/review-submit-contract.test.ts',
   'lib/review-room-credentials.test.ts',
   // The rendered click test. Slower than the rest, and the only one that can kill a
@@ -82,6 +85,9 @@ const tests = [
 ];
 
 const mutations = [
+  ['supporting-context', 'a supporting attachment becomes selectable as a review or reference target', SEGMENTED,
+    ".filter((artifact) => artifact.role !== 'review_attachment')",
+    ''],
   // ── the observed chronology bug ───────────────────────────────────────────
   ['global-sort', 'every issue falls into one bucket, sorted by a shared clock', CHRONO,
     "    const key = issue?.artifactId ? String(issue.artifactId) : WHOLE_RUN;",
@@ -323,6 +329,15 @@ const mutations = [
   ['component-click', 'the queued state hides the server identity it was given', COMPONENT,
     '                    {submitView.continuationId}',
     "                    {''}"],
+  ['review-artifact-picker', 'an older output is attached as context instead of opened as the review target', COMPONENT,
+    "onClick={() => void pickReviewArtifact('review_target', 'file')}",
+    "onClick={() => void pickReviewArtifact('supporting', 'file')}"],
+  ['review-artifact-picker', 'a supporting folder bypasses deterministic folder freezing', COMPONENT,
+    "onClick={() => void pickReviewArtifact('supporting', 'directory')}",
+    "onClick={() => void pickReviewArtifact('supporting', 'file')}"],
+  ['review-artifact-picker', 'review files are attachable when their durable source is unavailable', COMPONENT,
+    "const canAttachReviewFiles = sources.review_artifacts === 'ready'",
+    "const canAttachReviewFiles = true"],
   ['recovery-wiring', 'Review Room recovery targets no submitted continuation', COMPONENT,
     '                    requestId={submitView.continuationId}',
     "                    requestId={''}"],
