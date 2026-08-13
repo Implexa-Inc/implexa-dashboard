@@ -127,13 +127,24 @@ test('clicking an issue still switches to its artifact and seeks locally', () =>
 
 // ── the single inline action ────────────────────────────────────────────────
 
-test('REPRO: the revision note sits inline, immediately above the action', () => {
+test('REPRO: optional revision controls are collapsed so issue details keep the rail', () => {
   const footer = rail.slice(rail.indexOf('submission footer'));
+  const disclosure = footer.indexOf('<details');
+  const summary = footer.indexOf('Revision options');
   const note = footer.indexOf('Additional instructions for this revision');
   const primary = footer.indexOf('{revisionCompositionLabel(unresolvedPrior.length, drafts.length)}');
+  assert.ok(disclosure > 0, 'the optional controls are permanently expanded');
+  assert.ok(summary > disclosure, 'the compact revision-options summary is missing');
+  assert.doesNotMatch(footer, /<details\s+open\b/,
+    'revision options default open and still squeeze out the issue chronology');
   assert.ok(note > 0, 'the inline revision note composer is missing');
   assert.ok(primary > 0, 'the primary action is missing');
-  assert.ok(note < primary, 'the note must appear above the action it belongs to');
+  assert.ok(disclosure < note && note < primary,
+    'the optional controls must remain in one disclosure above their action');
+  assert.match(footer, /Instructions added/,
+    'a collapsed note can hide that instructions have already been entered');
+  assert.match(footer, /supportingReviewFiles\.length} attached/,
+    'a collapsed attachment list can hide that files have already been attached');
 });
 
 test('the note is presented as supplementing the issues, never replacing them', () => {

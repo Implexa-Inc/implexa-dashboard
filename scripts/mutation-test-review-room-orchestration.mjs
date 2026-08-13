@@ -140,6 +140,9 @@ const mutations = [
   ['sticky-actions', 'the sticky footer becomes translucent and the list reads through it', COMPONENT,
     'sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3',
     'sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900/40 px-4 py-3'],
+  ['compact-options', 'optional revision controls default open and squeeze out issue details', COMPONENT,
+    '<details className="rounded border border-ink-800 bg-ink-950/60">',
+    '<details open className="rounded border border-ink-800 bg-ink-950/60">'],
 
   // ── file headers ──────────────────────────────────────────────────────────
   ['file-headers', 'a file group stops printing its issue count', COMPONENT,

@@ -1620,65 +1620,79 @@ export default function ReviewRoom(props: Props) {
             </>
           ) : (
             <>
-              {/* THE REVISION NOTE, immediately above the action it belongs to. It
-                  SUPPLEMENTS the structured issues and never replaces them, which is
-                  why it is optional, secondary, and says so.
+              {/* Optional revision context must not consume the issue rail by
+                  default. The issue chronology is the primary review surface; this
+                  disclosure keeps instructions and supporting files close to the
+                  send action without permanently shrinking that chronology. */}
+              {(submitView.showNote || submitView.mode === 'send_changes') && (
+                <details className="rounded border border-ink-800 bg-ink-950/60">
+                  <summary className="cursor-pointer px-2 py-1.5 text-xs text-ink-300">
+                    <span className="font-medium">Revision options</span>
+                    <span className="ml-2 text-ink-500">
+                      {revisionNote.trim() && supportingReviewFiles.length > 0
+                        ? `Instructions · ${supportingReviewFiles.length} attached`
+                        : revisionNote.trim()
+                          ? 'Instructions added'
+                          : supportingReviewFiles.length > 0
+                            ? `${supportingReviewFiles.length} attached`
+                            : 'Optional'}
+                    </span>
+                  </summary>
+                  <div className="space-y-2 border-t border-ink-800 p-2">
+                    {/* THE REVISION NOTE supplements the structured issues and never
+                        replaces them. The backend trims it before storing, so the
+                        counter measures the trimmed length too. */}
+                    {submitView.showNote && (
+                      <label className="block">
+                        <span className="text-xs text-ink-400">Additional instructions for this revision</span>
+                        <textarea
+                          value={revisionNote}
+                          onChange={(e) => setRevisionNote(e.target.value)}
+                          disabled={!submitView.noteEnabled}
+                          rows={2}
+                          maxLength={REVISION_NOTE_MAX}
+                          placeholder="Optional. Adds context to the issues above — it doesn't replace them."
+                          className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-sm text-ink-100 placeholder:text-ink-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                        <span className="mt-1 block text-[11px] leading-snug text-ink-500">
+                          {submitView.noteHint
+                            ?? `Optional. ${revisionNote.trim().length}/${REVISION_NOTE_MAX} characters.`}
+                        </span>
+                      </label>
+                    )}
 
-                  Disabled until Backend #162 is pinned: the field name, bounds,
-                  trimming and digest coverage are that contract's to define, and a
-                  typable box on a submission that cannot carry it would drop the
-                  reviewer's words silently on send. */}
-              {submitView.showNote && (
-                <label className="block">
-                  <span className="text-xs text-ink-400">Additional instructions for this revision</span>
-                  <textarea
-                    value={revisionNote}
-                    onChange={(e) => setRevisionNote(e.target.value)}
-                    disabled={!submitView.noteEnabled}
-                    rows={2}
-                    maxLength={REVISION_NOTE_MAX}
-                    placeholder="Optional. Adds context to the issues above — it doesn't replace them."
-                    className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-sm text-ink-100 placeholder:text-ink-600 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                  {/* The server trims before it stores, so the counter measures the
-                      trimmed length — otherwise trailing whitespace would show the
-                      reviewer a number the backend does not agree with. */}
-                  <span className="mt-1 block text-[11px] leading-snug text-ink-500">
-                    {submitView.noteHint
-                      ?? `Optional. ${revisionNote.trim().length}/${REVISION_NOTE_MAX} characters.`}
-                  </span>
-                </label>
-              )}
-
-              {submitView.mode === 'send_changes' && (
-                <div className="rounded border border-ink-800 bg-ink-950/60 p-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="mr-auto text-xs text-ink-400">Files the revision may use</span>
-                    <button
-                      type="button"
-                      disabled={!canAttachReviewFiles || artifactPicker !== null}
-                      onClick={() => void pickReviewArtifact('supporting', 'file')}
-                      className="rounded border border-ink-700 px-2 py-1 text-xs text-sky-300 hover:border-sky-500 disabled:opacity-40"
-                    >
-                      {artifactPicker === 'supporting_file' ? 'Freezing file…' : 'Attach file'}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!canAttachReviewFiles || artifactPicker !== null}
-                      onClick={() => void pickReviewArtifact('supporting', 'directory')}
-                      className="rounded border border-ink-700 px-2 py-1 text-xs text-sky-300 hover:border-sky-500 disabled:opacity-40"
-                    >
-                      {artifactPicker === 'supporting_folder' ? 'Freezing folder…' : 'Attach folder'}
-                    </button>
+                    {submitView.mode === 'send_changes' && (
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="mr-auto text-xs text-ink-400">Files the revision may use</span>
+                          <button
+                            type="button"
+                            disabled={!canAttachReviewFiles || artifactPicker !== null}
+                            onClick={() => void pickReviewArtifact('supporting', 'file')}
+                            className="rounded border border-ink-700 px-2 py-1 text-xs text-sky-300 hover:border-sky-500 disabled:opacity-40"
+                          >
+                            {artifactPicker === 'supporting_file' ? 'Freezing file…' : 'Attach file'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!canAttachReviewFiles || artifactPicker !== null}
+                            onClick={() => void pickReviewArtifact('supporting', 'directory')}
+                            className="rounded border border-ink-700 px-2 py-1 text-xs text-sky-300 hover:border-sky-500 disabled:opacity-40"
+                          >
+                            {artifactPicker === 'supporting_folder' ? 'Freezing folder…' : 'Attach folder'}
+                          </button>
+                        </div>
+                        {supportingReviewFiles.length > 0 ? (
+                          <ul className="mt-2 space-y-1 text-xs text-ink-300">
+                            {supportingReviewFiles.map((entry) => <li key={entry.artifactId}>✓ {entry.displayName}</li>)}
+                          </ul>
+                        ) : (
+                          <p className="mt-2 text-[11px] text-ink-500">Optional replacement images, references, or a folder frozen as ZIP.</p>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {supportingReviewFiles.length > 0 ? (
-                    <ul className="mt-2 space-y-1 text-xs text-ink-300">
-                      {supportingReviewFiles.map((entry) => <li key={entry.artifactId}>✓ {entry.displayName}</li>)}
-                    </ul>
-                  ) : (
-                    <p className="mt-2 text-[11px] text-ink-500">Optional replacement images, references, or a folder frozen as ZIP.</p>
-                  )}
-                </div>
+                </details>
               )}
 
               {/* THE FROZEN SNAPSHOT, visible before it is sent. */}
