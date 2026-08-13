@@ -7,7 +7,10 @@ export function reviewableArtifacts(
   const proxies = production?.segments
     .map((segment) => segment.artifact)
     .filter((artifact): artifact is ReviewArtifact => artifact !== null) ?? [];
-  return [...proxies, ...parentArtifacts];
+  // Supporting attachments travel with the immutable submission as executor context,
+  // but they are not review targets.  Keeping them out of this shared selector also
+  // keeps them out of the reference-target picker used by Review Room.
+  return [...proxies, ...parentArtifacts].filter((artifact) => artifact.role !== 'review_attachment');
 }
 
 export function preferredReviewArtifact(
