@@ -258,7 +258,11 @@ export default function ReviewRoom(props: Props) {
   // tab reads the queued revision instead of re-offering the send button.
   const [localSubmission, setLocalSubmission] = useState<SubmissionState>(INITIAL_SUBMISSION_STATE);
   const [revisionNote, setRevisionNote] = useState('');
-  const [revisionMode, setRevisionMode] = useState<'inherit' | 'selected_files'>('inherit');
+  // Review is file-first by default. The exact reviewed/attached artifact set is a
+  // complete immutable handoff even when the originating run predates input-context
+  // capture. `inherit` remains an explicit advanced choice for a reviewer who knows
+  // the original run has a complete durable input contract.
+  const [revisionMode, setRevisionMode] = useState<'inherit' | 'selected_files'>('selected_files');
   const submission = phaseForSession({
     sessionState: session?.state ?? null,
     submittedRequestId: session?.submittedRequestId ?? null,
@@ -1685,7 +1689,7 @@ export default function ReviewRoom(props: Props) {
                             <span className="mt-0.5 block text-ink-500">
                               {hasExternalReviewTarget
                                 ? 'Required automatically because this review includes a file opened outside the original run.'
-                                : 'Use this for older work whose original inputs were not recorded. This starts a fresh revision from the exact files in this review and does not inherit hidden files from the old run.'}
+                                : 'Recommended. This starts from the exact files in this review and works even when older run inputs were not recorded. Turn it off only to inherit a complete original-run input contract.'}
                             </span>
                           </span>
                         </label>

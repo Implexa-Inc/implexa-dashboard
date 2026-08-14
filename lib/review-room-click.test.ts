@@ -436,7 +436,7 @@ test('REPRO: the typed note reaches the backend under its own field name, trimme
 
   const upstream = upstreamOf(calls[0]);
   assert.match(upstream.path, /\/api\/v2\/review\/sessions\/[0-9a-f-]+\/submit$/);
-  assert.deepEqual(upstream.body, { revisionNote: 'keep the cold open, cut the outro', revisionMode: 'inherit' },
+  assert.deepEqual(upstream.body, { revisionNote: 'keep the cold open, cut the outro', revisionMode: 'selected_files' },
     'the note did not reach the backend trimmed, under `revisionNote`');
   root.unmount();
 });
@@ -444,18 +444,19 @@ test('REPRO: the typed note reaches the backend under its own field name, trimme
 test('an empty composer resolves to an explicit null, not an empty string', async () => {
   await mount();
   await click(primary());
-  assert.deepEqual(upstreamOf(calls[0]).body, { revisionNote: null, revisionMode: 'inherit' });
+  assert.deepEqual(upstreamOf(calls[0]).body, { revisionNote: null, revisionMode: 'selected_files' });
   root.unmount();
 });
 
-test('older work can explicitly start from only the immutable reviewed and attached files', async () => {
+test('reviewed and attached files are the safe default, with original-run inheritance an explicit opt-out', async () => {
   await mount();
   const toggle = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
   assert.ok(toggle, 'selected-files source-policy control is missing');
+  assert.equal(toggle.checked, true, 'ordinary review silently inherited an old run input contract');
   await act(async () => { toggle.click(); });
   await click(primary());
-  assert.equal(calls[0].body.revisionMode, 'selected_files');
-  assert.deepEqual(upstreamOf(calls[0]).body, { revisionNote: null, revisionMode: 'selected_files' });
+  assert.equal(calls[0].body.revisionMode, 'inherit');
+  assert.deepEqual(upstreamOf(calls[0]).body, { revisionNote: null, revisionMode: 'inherit' });
   root.unmount();
 });
 
