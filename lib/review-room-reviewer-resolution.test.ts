@@ -92,7 +92,7 @@ test('unresolved + new submit shows and sends the exact server-composed count wi
     };
     await room.click(room.getByText('Send 1 unresolved + 1 new change'));
     assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0], { action: 'submit', sessionId: packet.session.id, revisionNote: '', revisionMode: 'inherit' });
+    assert.deepEqual(calls[0], { action: 'submit', sessionId: packet.session.id, revisionNote: '', revisionMode: 'selected_files' });
     assert.match(room.text(), /2 changes were sent as one revision/);
   } finally { room.cleanup(); }
 });
