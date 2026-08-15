@@ -259,3 +259,46 @@ export function shouldDropPendingSeek(args: {
   // nothing about this one.
   return failedArtifactId !== null && failedArtifactId === pending.artifactId;
 }
+
+// ── the pre-submit expected-output roster (REV-COR05, client mirror) ────────
+//
+// The server freezes the requested output set from the submission's EDIT TARGETS:
+// for a reference issue (observe A, change B) the target is B, otherwise the artifact
+// the issue is bound to — deterministic entry order, distinct
+// (run-review.service compileSubmission, `editTargetIds`). This mirror exists so the
+// footer can SAY what will be requested before the click; it derives from the same
+// facts the server reads and NEVER invents server state: an id the packet cannot name
+// is omitted silently rather than guessed at.
+
+/**
+ * The reviewed files this submission's issues ask to change, as display names in
+ * first-mention order. Empty when nothing resolves — the caller omits the line.
+ */
+export function expectedRevisionOutputNames(
+  issues: Array<{ artifactId?: string | null; anchor?: unknown }>,
+  artifacts: Array<{ id: string; relativePath: string }>,
+): string[] {
+  const byId = new Map(artifacts.map((a) => [String(a.id), a.relativePath]));
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const issue of issues) {
+    const anchor = issue?.anchor as {
+      version?: unknown;
+      intent?: { mode?: unknown; targetArtifactId?: unknown } | null;
+    } | null | undefined;
+    // The EDIT target, exactly as the server derives it: a v2 reference anchor's
+    // typed target wins; otherwise the issue's own artifact; an unanchored issue
+    // requests no file output.
+    const referenceTarget = anchor && anchor.version === 2
+      && anchor.intent && anchor.intent.mode === 'reference_for_artifact'
+      && typeof anchor.intent.targetArtifactId === 'string'
+      ? anchor.intent.targetArtifactId
+      : null;
+    const editId = referenceTarget ?? (issue?.artifactId ? String(issue.artifactId) : null);
+    if (!editId || seen.has(String(editId))) continue;
+    seen.add(String(editId));
+    const name = byId.get(String(editId));
+    if (name) names.push(name);
+  }
+  return names;
+}

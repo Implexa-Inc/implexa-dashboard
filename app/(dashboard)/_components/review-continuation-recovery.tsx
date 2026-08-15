@@ -32,8 +32,15 @@
  *     successful response, never from having clicked. A refused retry that
  *     rendered as queued would be the same lie the guard exists to prevent,
  *     moved into the UI.
- *   • Lose the user's note. A refusal keeps every character they typed; the
- *     note field is never cleared except on a real success.
+ *   • Lose the user's note. A refusal keeps every character they typed in the
+ *     surrounding composer; nothing here clears it.
+ *
+ * AND ONE MORE, ADDED FOR REV-COR04: the retry body carries NO note, structurally.
+ * This endpoint re-queues the IMMUTABLE submitted round — the copy below promises
+ * the feedback is "reused exactly as you submitted them" — so live composer text
+ * riding along would resurrect a stale instruction into a round that claims to be
+ * an exact replay. A surface composing a NEW instruction sends it on its own create
+ * path; it never arrives here.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -71,14 +78,11 @@ const HEADLINE: Record<RecoveryState, string> = {
 export default function ReviewContinuationRecovery({
   requestId,
   refusal = null,
-  note = '',
   onQueued,
 }: {
   requestId: string;
   /** The typed refusal that brought the user here, if any. */
   refusal?: RunRequestRefusal | null;
-  /** The user's feedback, carried through so a retry never asks for it again. */
-  note?: string;
   onQueued?: (result: { alreadyQueued: boolean; submissionId?: string }) => void;
 }) {
   const [state, setState] = useState<RecoveryState | null>(null);
@@ -125,7 +129,9 @@ export default function ReviewContinuationRecovery({
       const { data: { session } } = await supabase.auth.getSession();
       const result = await callBackend(
         `/api/v2/me/run-requests/${encodeURIComponent(requestId)}/recover-review-continuation`,
-        { jwt: session?.access_token, method: 'POST', body: { note: note || undefined } },
+        // NO NOTE, EVER (REV-COR04): this retries the immutable submitted round
+        // exactly, so nothing composed since may ride along and contradict it.
+        { jwt: session?.access_token, method: 'POST', body: {} },
       );
       // Queued is set HERE and nowhere else.
       setQueued(true);

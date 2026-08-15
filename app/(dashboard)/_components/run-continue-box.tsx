@@ -139,12 +139,17 @@ export default function RunContinueBox({
         {msg && <span className="text-xs text-rose-600 dark:text-rose-400">{msg}</span>}
       </div>
       {/* The typed recovery surface. It renders only for a refusal that HAS a
-          recovery path, and it never shows Queued unless the backend said so. */}
+          recovery path, and it never shows Queued unless the backend said so.
+
+          DELIBERATELY NO NOTE (REV-COR04): the panel's action is "retry the
+          submitted revision", which replays the immutable submitted round exactly.
+          This composer's live text is a NEW instruction — it belongs to a new
+          continue, not smuggled into a retry that promises exact reuse. The text
+          stays in the box either way; nothing is lost. */}
       {refusal?.recoverable && refusal.requestId && (
         <ReviewContinuationRecovery
           requestId={refusal.requestId}
           refusal={refusal}
-          note={composeNoteWithFiles(note, files)}
           onQueued={() => {
             setDone(true);
             setMsg('Queued with your original review submission — the updated result lands in your inbox.');

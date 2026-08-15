@@ -129,6 +129,21 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
       if (b.revisionMode !== undefined && b.revisionMode !== 'inherit' && b.revisionMode !== 'selected_files') {
         return 'Choose a valid revision source mode.';
       }
+      // Tranche 1 passthroughs, both OPTIONAL and both ABSENT unless explicitly set.
+      // `requestMaster` travels only as a real boolean true — the backend reads
+      // `req.body.requestMaster === true`, and a truthy string must not request an
+      // assembled master nobody asked for. `projectCapsuleArtifactId` names the
+      // attached editable bundle; a malformed id is refused rather than silently
+      // dropped, because a submission that quietly lost its capsule marker would
+      // execute against the wrong source contract.
+      if (b.requestMaster !== undefined && typeof b.requestMaster !== 'boolean') {
+        return 'The master-assembly request must be a boolean.';
+      }
+      if (b.projectCapsuleArtifactId !== undefined && b.projectCapsuleArtifactId !== null
+          && !id(b.projectCapsuleArtifactId)) {
+        return 'The project bundle must be named by a valid artifactId.';
+      }
+      const projectCapsuleArtifactId = id(b.projectCapsuleArtifactId);
       // Idempotent upstream: a double click, a retry, or a crashed attempt all
       // converge on the SAME continuation. The client must not try to dedupe.
       return {
@@ -136,7 +151,12 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
         // Explicit null rather than an absent key: the backend reads
         // `typeof req.body.revisionNote === 'string' ? … : null`, so both are accepted,
         // and stating it makes "no note" a decision rather than an omission.
-        body: { revisionNote: note.length ? note : null, revisionMode },
+        body: {
+          revisionNote: note.length ? note : null,
+          revisionMode,
+          ...(b.requestMaster === true ? { requestMaster: true } : {}),
+          ...(projectCapsuleArtifactId ? { projectCapsuleArtifactId } : {}),
+        },
       };
     }
     case 'accept': {

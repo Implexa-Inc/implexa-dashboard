@@ -1,0 +1,488 @@
+{
+  "_generator": "implexa-backend scripts/generate-review-capsule-fixtures.js",
+  "_description": "Revision Reliability Tranche 1 producer fixture: reviewed-capsule submissions (contract v2 / source context v3), typed refusals, the run-4307f3c0 approved-version coverage verdicts, artifact-report totality, and instruction rounds. Committed producer output; regenerate from the backend at the pin below.",
+  "backendPin": "287c57ccf48c8e4da430be9bc67adbd71b3d4fbe",
+  "producer": "implexa-backend scripts/generate-review-capsule-fixtures.js",
+  "contractVersion": 2,
+  "capsuleExternalFiles": {
+    "explicit": {
+      "sourceMode": "reviewed_capsule",
+      "sourceModeDerived": false,
+      "sourceContext": {
+        "contractVersion": 3,
+        "runId": "ca9501e0-0000-4000-8000-000000000010",
+        "coverage": "reviewed_capsule",
+        "members": [
+          {
+            "position": 1,
+            "artifactId": "ca9501e0-0000-4000-8000-000000000033",
+            "sha256": "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0",
+            "role": "project_capsule",
+            "name": "attachments/remotion-project.zip"
+          },
+          {
+            "position": 2,
+            "artifactId": "ca9501e0-0000-4000-8000-000000000031",
+            "sha256": "b80990a5a97323cb7344d94a32e9d4e97ad80436f137f553c053866c6dbe4f4b",
+            "role": "edit_target",
+            "name": "out/ReviewSection04-09m-12m.mp4"
+          },
+          {
+            "position": 3,
+            "artifactId": "ca9501e0-0000-4000-8000-000000000032",
+            "sha256": "8bc3421c2354ade9c1178ff1f2fd05e6fafdc463451f3fc77e4d209062929281",
+            "role": "edit_target",
+            "name": "out/ReviewSection05-12m-end.mp4"
+          }
+        ]
+      },
+      "sourceContextDigest": "cd7c99af6e5f87b1b41adaccdb48bf8cc3b6e3993232a6651e17f9031dc57057",
+      "submissionDigest": "e3f4daeff13028d46cd1dea47a635ca6aad5b66372ad4bd833d9f2672d89b6ae",
+      "payload": {
+        "contractVersion": 2,
+        "sessionId": "ca9501e0-0000-4000-8000-000000000020",
+        "runId": "ca9501e0-0000-4000-8000-000000000010",
+        "userId": "ca9501e0-0000-4000-8000-000000000001",
+        "organizationId": null,
+        "revisionNote": "Keep every approved treatment; change only the two issues.",
+        "sourceMode": "reviewed_capsule",
+        "capsule": {
+          "members": [
+            {
+              "position": 1,
+              "artifactId": "ca9501e0-0000-4000-8000-000000000033",
+              "sha256": "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0",
+              "role": "project_capsule",
+              "name": "attachments/remotion-project.zip"
+            },
+            {
+              "position": 2,
+              "artifactId": "ca9501e0-0000-4000-8000-000000000031",
+              "sha256": "b80990a5a97323cb7344d94a32e9d4e97ad80436f137f553c053866c6dbe4f4b",
+              "role": "edit_target",
+              "name": "out/ReviewSection04-09m-12m.mp4"
+            },
+            {
+              "position": 3,
+              "artifactId": "ca9501e0-0000-4000-8000-000000000032",
+              "sha256": "8bc3421c2354ade9c1178ff1f2fd05e6fafdc463451f3fc77e4d209062929281",
+              "role": "edit_target",
+              "name": "out/ReviewSection05-12m-end.mp4"
+            }
+          ]
+        },
+        "approvedVersions": [],
+        "instruction": {
+          "version": 1,
+          "supersedesVersion": null
+        },
+        "expectedResults": {
+          "issues": [
+            "ca9501e0-0000-4000-8000-000000000041",
+            "ca9501e0-0000-4000-8000-000000000042"
+          ],
+          "artifacts": [
+            {
+              "key": "revision_of:ca9501e0-0000-4000-8000-000000000031",
+              "kind": "revision_of",
+              "sourceArtifactId": "ca9501e0-0000-4000-8000-000000000031",
+              "name": "out/ReviewSection04-09m-12m.mp4"
+            },
+            {
+              "key": "revision_of:ca9501e0-0000-4000-8000-000000000032",
+              "kind": "revision_of",
+              "sourceArtifactId": "ca9501e0-0000-4000-8000-000000000032",
+              "name": "out/ReviewSection05-12m-end.mp4"
+            }
+          ]
+        },
+        "artifacts": [
+          {
+            "order": 1,
+            "artifactId": "ca9501e0-0000-4000-8000-000000000033",
+            "runId": "ca9501e0-0000-4000-8000-000000000010",
+            "sha256": "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0",
+            "role": "review_attachment",
+            "relativePath": "attachments/remotion-project.zip"
+          },
+          {
+            "order": 2,
+            "artifactId": "ca9501e0-0000-4000-8000-000000000031",
+            "runId": "ca9501e0-0000-4000-8000-000000000010",
+            "sha256": "b80990a5a97323cb7344d94a32e9d4e97ad80436f137f553c053866c6dbe4f4b",
+            "role": "final_output",
+            "relativePath": "out/ReviewSection04-09m-12m.mp4"
+          },
+          {
+            "order": 3,
+            "artifactId": "ca9501e0-0000-4000-8000-000000000032",
+            "runId": "ca9501e0-0000-4000-8000-000000000010",
+            "sha256": "8bc3421c2354ade9c1178ff1f2fd05e6fafdc463451f3fc77e4d209062929281",
+            "role": "final_output",
+            "relativePath": "out/ReviewSection05-12m-end.mp4"
+          }
+        ],
+        "issues": [
+          {
+            "order": 1,
+            "issueId": "ca9501e0-0000-4000-8000-000000000041",
+            "artifactId": "ca9501e0-0000-4000-8000-000000000031",
+            "artifactSha256": "b80990a5a97323cb7344d94a32e9d4e97ad80436f137f553c053866c6dbe4f4b",
+            "kind": "visual",
+            "body": "Replace the repeated image with the submitted program screenshot.",
+            "createdAt": "2026-08-14T10:00:01.000Z",
+            "timestamp": {
+              "startMs": 41692,
+              "endMs": 52999
+            },
+            "anchor": {
+              "type": "media_time",
+              "timeStartMs": 41692,
+              "timeEndMs": 52999,
+              "artifactSha256": "b80990a5a97323cb7344d94a32e9d4e97ad80436f137f553c053866c6dbe4f4b"
+            },
+            "anchorDigest": null
+          },
+          {
+            "order": 2,
+            "issueId": "ca9501e0-0000-4000-8000-000000000042",
+            "artifactId": "ca9501e0-0000-4000-8000-000000000032",
+            "artifactSha256": "8bc3421c2354ade9c1178ff1f2fd05e6fafdc463451f3fc77e4d209062929281",
+            "kind": "content",
+            "body": "Add the site name at the bottom for the last eight seconds.",
+            "createdAt": "2026-08-14T10:00:02.000Z",
+            "timestamp": {
+              "startMs": 94380,
+              "endMs": null
+            },
+            "anchor": {
+              "type": "media_time",
+              "timeStartMs": 94380,
+              "timeEndMs": null,
+              "artifactSha256": "8bc3421c2354ade9c1178ff1f2fd05e6fafdc463451f3fc77e4d209062929281"
+            },
+            "anchorDigest": null
+          }
+        ]
+      },
+      "manifest": [
+        {
+          "artifactId": "ca9501e0-0000-4000-8000-000000000033",
+          "runId": "ca9501e0-0000-4000-8000-000000000010",
+          "sha256": "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0",
+          "role": "review_attachment",
+          "relativePath": "attachments/remotion-project.zip"
+        },
+        {
+          "artifactId": "ca9501e0-0000-4000-8000-000000000031",
+          "runId": "ca9501e0-0000-4000-8000-000000000010",
+          "sha256": "b80990a5a97323cb7344d94a32e9d4e97ad80436f137f553c053866c6dbe4f4b",
+          "role": "final_output",
+          "relativePath": "out/ReviewSection04-09m-12m.mp4"
+        },
+        {
+          "artifactId": "ca9501e0-0000-4000-8000-000000000032",
+          "runId": "ca9501e0-0000-4000-8000-000000000010",
+          "sha256": "8bc3421c2354ade9c1178ff1f2fd05e6fafdc463451f3fc77e4d209062929281",
+          "role": "final_output",
+          "relativePath": "out/ReviewSection05-12m-end.mp4"
+        }
+      ],
+      "registeredState": "prepared"
+    },
+    "derivedFromIncompleteLineage": {
+      "sourceMode": "reviewed_capsule",
+      "sourceModeDerived": true,
+      "sourceContext": {
+        "contractVersion": 3,
+        "runId": "ca9501e0-0000-4000-8000-000000000010",
+        "coverage": "reviewed_capsule",
+        "members": [
+          {
+            "position": 1,
+            "artifactId": "ca9501e0-0000-4000-8000-000000000033",
+            "sha256": "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0",
+            "role": "attachment",
+            "name": "attachments/remotion-project.zip"
+          },
+          {
+            "position": 2,
+            "artifactId": "ca9501e0-0000-4000-8000-000000000031",
+            "sha256": "b80990a5a97323cb7344d94a32e9d4e97ad80436f137f553c053866c6dbe4f4b",
+            "role": "edit_target",
+            "name": "out/ReviewSection04-09m-12m.mp4"
+          },
+          {
+            "position": 3,
+            "artifactId": "ca9501e0-0000-4000-8000-000000000032",
+            "sha256": "8bc3421c2354ade9c1178ff1f2fd05e6fafdc463451f3fc77e4d209062929281",
+            "role": "edit_target",
+            "name": "out/ReviewSection05-12m-end.mp4"
+          }
+        ]
+      },
+      "sourceContextDigest": "01489eb38fa137c735f6875ae35b8c1442dd8d52b02c19ce660a1cbd89c5a7e1"
+    }
+  },
+  "capsuleRefusals": {
+    "emptyCapsule": {
+      "ok": false,
+      "code": "reviewed_capsule_incomplete",
+      "error": "a reviewed capsule needs at least one member; an empty capsule cannot scope a revision"
+    },
+    "sourceModeAmbiguous": {
+      "ok": false,
+      "code": "source_mode_ambiguous",
+      "error": "the original run inputs were not recorded under a complete immutable input contract and this review froze no files to continue from; open the exact files (or attach them) so the revision can start from a reviewed capsule"
+    },
+    "missingProjectCapsule": {
+      "ok": false,
+      "code": "reviewed_capsule_incomplete",
+      "error": "the declared editable-project capsule is not among this review\u2019s attached files; attach the exact project bundle (with its digest) or clear the declaration"
+    }
+  },
+  "nativeRebuild4307f3c0": {
+    "runId": "4307f3c0-daa9-4453-86a8-354a26452ee0",
+    "reviewIssueId": "20a1320a-ead9-4fe5-a8d6-8841ed3eca6a",
+    "approvedVersions": [
+      {
+        "position": 1,
+        "artifactId": "ca950409-0000-4000-8000-000000000001",
+        "sha256": "76db0ff611cac8629427fc33da5640f00e11f3252ac6598291b56b54ad65b193",
+        "name": "out/ReviewSection01-00m-03m.mp4"
+      },
+      {
+        "position": 2,
+        "artifactId": "ca950409-0000-4000-8000-000000000002",
+        "sha256": "1575c0b038d285e75f978de6581c73470d2691a5783f8028ba5fe32a153f6ee2",
+        "name": "out/ReviewSection02-03m-06m.mp4"
+      },
+      {
+        "position": 3,
+        "artifactId": "ca950409-0000-4000-8000-000000000003",
+        "sha256": "a0bd6aa943547488f62a74a9f45099b3381a2deb8c9c9fea569c0f644ac109aa",
+        "name": "out/ReviewSection03-06m-09m.mp4"
+      },
+      {
+        "position": 4,
+        "artifactId": "ca950409-0000-4000-8000-000000000004",
+        "sha256": "c6a4c16706c875ed67220ce7f7c3855ed2be7a0502a43f8712428f9a649985da",
+        "name": "out/ReviewSection04-09m-12m-review-retry.mp4"
+      },
+      {
+        "position": 5,
+        "artifactId": "ca950409-0000-4000-8000-000000000005",
+        "sha256": "463039ee595ba9ce0f8abf6d4ce72d1392c2f539bf99508f09255e7393d4702a",
+        "name": "out/ReviewSection05-12m-end-review-retry.mp4"
+      }
+    ],
+    "nativeRebuildSha256": [
+      "9071c853c3f77b4708e6782dedb2f6af1ccc2ad249e8f104d4c0eb2e95101986",
+      "c4a6a458b4f2d297d51155f34a73d127f357183014dce21c9c95e4a0b02c889c",
+      "63fc3417378bd05afa927550fd4889eb21fa7db8a14baec3fd986de74ee636a9",
+      "166e04472a41b263b67c450669480bdd0079c8e7b3dc272c5b27655f4efab6a0",
+      "78d85d3de46460c8001ab5aa435c8fcf6d7c7c1d04796a07537113cf2d4ba98e"
+    ],
+    "verdicts": {
+      "noCoverage": {
+        "ok": false,
+        "error": "this lineage has a server-owned approved-version set; assembly requires approvedVersionCoverage with one typed entry per approved member \u2014 filename, recency, dimensions, stills or an assertion are not proof"
+      },
+      "nativeAsExact": {
+        "ok": false,
+        "error": "consumed_exact for out/ReviewSection01-00m-03m.mp4 requires producedSha256 to equal the approved digest"
+      },
+      "narrativeEquivalence": {
+        "ok": false,
+        "error": "equivalence_proven for out/ReviewSection01-00m-03m.mp4 requires per-issue treatment coverage (treatmentIssueIds); a QA narrative is not equivalence"
+      },
+      "typedEquivalence": {
+        "ok": true,
+        "requiresReview": false,
+        "coverage": [
+          {
+            "position": 1,
+            "artifactId": "ca950409-0000-4000-8000-000000000001",
+            "approvedSha256": "76db0ff611cac8629427fc33da5640f00e11f3252ac6598291b56b54ad65b193",
+            "status": "equivalence_proven",
+            "producedSha256": "9071c853c3f77b4708e6782dedb2f6af1ccc2ad249e8f104d4c0eb2e95101986",
+            "treatmentIssueIds": [
+              "20a1320a-ead9-4fe5-a8d6-8841ed3eca6a"
+            ],
+            "approvalEvidence": null
+          },
+          {
+            "position": 2,
+            "artifactId": "ca950409-0000-4000-8000-000000000002",
+            "approvedSha256": "1575c0b038d285e75f978de6581c73470d2691a5783f8028ba5fe32a153f6ee2",
+            "status": "equivalence_proven",
+            "producedSha256": "c4a6a458b4f2d297d51155f34a73d127f357183014dce21c9c95e4a0b02c889c",
+            "treatmentIssueIds": [
+              "20a1320a-ead9-4fe5-a8d6-8841ed3eca6a"
+            ],
+            "approvalEvidence": null
+          },
+          {
+            "position": 3,
+            "artifactId": "ca950409-0000-4000-8000-000000000003",
+            "approvedSha256": "a0bd6aa943547488f62a74a9f45099b3381a2deb8c9c9fea569c0f644ac109aa",
+            "status": "equivalence_proven",
+            "producedSha256": "63fc3417378bd05afa927550fd4889eb21fa7db8a14baec3fd986de74ee636a9",
+            "treatmentIssueIds": [
+              "20a1320a-ead9-4fe5-a8d6-8841ed3eca6a"
+            ],
+            "approvalEvidence": null
+          },
+          {
+            "position": 4,
+            "artifactId": "ca950409-0000-4000-8000-000000000004",
+            "approvedSha256": "c6a4c16706c875ed67220ce7f7c3855ed2be7a0502a43f8712428f9a649985da",
+            "status": "equivalence_proven",
+            "producedSha256": "166e04472a41b263b67c450669480bdd0079c8e7b3dc272c5b27655f4efab6a0",
+            "treatmentIssueIds": [
+              "20a1320a-ead9-4fe5-a8d6-8841ed3eca6a"
+            ],
+            "approvalEvidence": null
+          },
+          {
+            "position": 5,
+            "artifactId": "ca950409-0000-4000-8000-000000000005",
+            "approvedSha256": "463039ee595ba9ce0f8abf6d4ce72d1392c2f539bf99508f09255e7393d4702a",
+            "status": "equivalence_proven",
+            "producedSha256": "78d85d3de46460c8001ab5aa435c8fcf6d7c7c1d04796a07537113cf2d4ba98e",
+            "treatmentIssueIds": [
+              "20a1320a-ead9-4fe5-a8d6-8841ed3eca6a"
+            ],
+            "approvalEvidence": null
+          }
+        ]
+      },
+      "returnedForReview": {
+        "ok": true,
+        "requiresReview": true,
+        "coverage": [
+          {
+            "position": 1,
+            "artifactId": "ca950409-0000-4000-8000-000000000001",
+            "approvedSha256": "76db0ff611cac8629427fc33da5640f00e11f3252ac6598291b56b54ad65b193",
+            "status": "returned_for_review",
+            "producedSha256": null,
+            "treatmentIssueIds": null,
+            "approvalEvidence": null
+          },
+          {
+            "position": 2,
+            "artifactId": "ca950409-0000-4000-8000-000000000002",
+            "approvedSha256": "1575c0b038d285e75f978de6581c73470d2691a5783f8028ba5fe32a153f6ee2",
+            "status": "consumed_exact",
+            "producedSha256": "1575c0b038d285e75f978de6581c73470d2691a5783f8028ba5fe32a153f6ee2",
+            "treatmentIssueIds": null,
+            "approvalEvidence": null
+          },
+          {
+            "position": 3,
+            "artifactId": "ca950409-0000-4000-8000-000000000003",
+            "approvedSha256": "a0bd6aa943547488f62a74a9f45099b3381a2deb8c9c9fea569c0f644ac109aa",
+            "status": "consumed_exact",
+            "producedSha256": "a0bd6aa943547488f62a74a9f45099b3381a2deb8c9c9fea569c0f644ac109aa",
+            "treatmentIssueIds": null,
+            "approvalEvidence": null
+          },
+          {
+            "position": 4,
+            "artifactId": "ca950409-0000-4000-8000-000000000004",
+            "approvedSha256": "c6a4c16706c875ed67220ce7f7c3855ed2be7a0502a43f8712428f9a649985da",
+            "status": "consumed_exact",
+            "producedSha256": "c6a4c16706c875ed67220ce7f7c3855ed2be7a0502a43f8712428f9a649985da",
+            "treatmentIssueIds": null,
+            "approvalEvidence": null
+          },
+          {
+            "position": 5,
+            "artifactId": "ca950409-0000-4000-8000-000000000005",
+            "approvedSha256": "463039ee595ba9ce0f8abf6d4ce72d1392c2f539bf99508f09255e7393d4702a",
+            "status": "consumed_exact",
+            "producedSha256": "463039ee595ba9ce0f8abf6d4ce72d1392c2f539bf99508f09255e7393d4702a",
+            "treatmentIssueIds": null,
+            "approvalEvidence": null
+          }
+        ]
+      },
+      "reordered": {
+        "ok": false,
+        "error": "approvedVersionCoverage entry 0 does not match approved member 1 (out/ReviewSection01-00m-03m.mp4); coverage must cite the server-owned set in its exact order"
+      }
+    }
+  },
+  "expectedResultsTotality": {
+    "expectedArtifacts": [
+      {
+        "key": "revision_of:ca9501e0-0000-4000-8000-000000000031",
+        "kind": "revision_of",
+        "sourceArtifactId": "ca9501e0-0000-4000-8000-000000000031",
+        "name": "out/ReviewSection04-09m-12m.mp4"
+      },
+      {
+        "key": "revision_of:ca9501e0-0000-4000-8000-000000000032",
+        "kind": "revision_of",
+        "sourceArtifactId": "ca9501e0-0000-4000-8000-000000000032",
+        "name": "out/ReviewSection05-12m-end.mp4"
+      }
+    ],
+    "partial": {
+      "ok": false,
+      "error": "artifact report is incomplete: the requested output set is not covered \u2014 missing revision_of:ca9501e0-0000-4000-8000-000000000032. A partial artifact set cannot close as success"
+    },
+    "total": {
+      "ok": true,
+      "report": [
+        {
+          "issueId": "ca9501e0-0000-4000-8000-000000000041",
+          "disposition": "implemented",
+          "rationale": null,
+          "evidence": null
+        },
+        {
+          "issueId": "ca9501e0-0000-4000-8000-000000000042",
+          "disposition": "implemented",
+          "rationale": null,
+          "evidence": null
+        }
+      ],
+      "artifactReport": [
+        {
+          "key": "revision_of:ca9501e0-0000-4000-8000-000000000031",
+          "disposition": "produced",
+          "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "rationale": null
+        },
+        {
+          "key": "revision_of:ca9501e0-0000-4000-8000-000000000032",
+          "disposition": "produced",
+          "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+          "rationale": null
+        }
+      ]
+    },
+    "extra": {
+      "ok": false,
+      "error": "artifact disposition names an output that was not requested: assembly:master"
+    }
+  },
+  "instructionRounds": {
+    "round1": {
+      "instruction": {
+        "version": 1,
+        "supersedesVersion": null
+      },
+      "revisionNote": "Section 4 only: replace the repeated image."
+    },
+    "round2": {
+      "instruction": {
+        "version": 2,
+        "supersedesVersion": 1
+      },
+      "revisionNote": "All four sections: implement every one of the 26 anchors. This supersedes the earlier Section-4-only instruction."
+    }
+  }
+}

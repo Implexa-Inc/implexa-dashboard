@@ -273,11 +273,11 @@ const mutations = [
   // ── the pinned wire contract ──────────────────────────────────────────────
   // Field name, bound and trimming all read from implexa-backend@8c0f71d.
   ['note-dropped', 'the note is dropped from the request body entirely', ACTIONS,
-    '        body: { revisionNote: note.length ? note : null, revisionMode },',
-    '        body: { revisionMode },'],
+    '          revisionNote: note.length ? note : null,\n          revisionMode,',
+    '          revisionMode,'],
   ['note-dropped', 'the note travels under a field the backend does not read', ACTIONS,
-    '        body: { revisionNote: note.length ? note : null, revisionMode },',
-    '        body: { note: note.length ? note : null, revisionMode },'],
+    '          revisionNote: note.length ? note : null,\n          revisionMode,',
+    '          note: note.length ? note : null,\n          revisionMode,'],
   ['note-dropped', 'the note is sent untrimmed, so stored and shown text differ', ACTIONS,
     "      const note = typeof raw === 'string' ? raw.trim() : '';",
     "      const note = typeof raw === 'string' ? raw : '';"],
@@ -291,8 +291,8 @@ const mutations = [
     '        revisionNote,',
     "        revisionNote: '',"],
   ['note-dropped', 'onSubmit closes over the note as it was at mount', COMPONENT,
-    '  }, [session, router, revisionNote, effectiveRevisionMode]);',
-    '  }, [session, router, effectiveRevisionMode]);'],
+    '  }, [session, router, revisionNote, effectiveRevisionMode, requestMaster, projectCapsuleArtifactId]);',
+    '  }, [session, router, effectiveRevisionMode, requestMaster, projectCapsuleArtifactId]);'],
 
   // ── the server's answer is the answer ─────────────────────────────────────
   ['request-id-dropped', 'a success with no continuation id is accepted', FLOW,

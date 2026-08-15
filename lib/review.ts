@@ -149,6 +149,17 @@ export type ReviewProduction = {
   segments: ReviewProductionSegment[];
 } | null;
 
+/**
+ * One member of the server-owned ordered approved-version set (REV-COR03). Additive:
+ * an older backend simply omits the whole set, and the room shows no badges.
+ */
+export type ReviewApprovedVersion = {
+  position: number;
+  artifactId: string;
+  sha256: string;
+  name: string;
+};
+
 export type ReviewPacket = {
   ok: boolean;
   run: {
@@ -163,6 +174,9 @@ export type ReviewPacket = {
   session: ReviewSession;
   reviewArtifacts: ReviewSessionArtifact[];
   issues: ReviewIssue[];
+  /** Empty when the backend has no approved set (older deployment, or degraded read). */
+  approvedVersions: ReviewApprovedVersion[];
+  approvedSetVersion: number | null;
   sources: Record<string, SourceState>;
   live: boolean;
 };
@@ -171,6 +185,7 @@ const PACKET_UNAVAILABLE: ReviewPacket = {
   ok: false, run: null, lineage: { rootRunId: null, versions: [] }, artifacts: [],
   judgment: null, verification: { receipts: [] }, production: null, session: null, issues: [],
   reviewArtifacts: [],
+  approvedVersions: [], approvedSetVersion: null,
   sources: { review_packet: 'unavailable' }, live: false,
 };
 
@@ -499,6 +514,31 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
   if (!(body.judgment === null || isValidJudgment(body.judgment))) return null;
   if (!(body.production === null || isValidProduction(body.production))) return null;
 
+  // ── the approved-version set (REV-COR03) — ADDITIVE, so guarded, not contracted ──
+  // An older backend omits both keys entirely. A malformed set degrades to "no set"
+  // rather than poisoning the packet: absence of the badge is the pre-tranche truth
+  // everywhere, whereas rejecting the whole read would take the review down over a
+  // purely decorative field.
+  const approvedVersions: ReviewApprovedVersion[] = (() => {
+    const raw = body.approvedVersions;
+    if (!Array.isArray(raw)) return [];
+    const out: ReviewApprovedVersion[] = [];
+    for (const v of raw) {
+      if (!isObject(v) || !isId(v.artifactId) || !isDigest(v.sha256)) return [];
+      if (!Number.isInteger(v.position) || typeof v.name !== 'string' || !v.name) return [];
+      out.push({
+        position: v.position as number,
+        artifactId: String(v.artifactId),
+        sha256: String(v.sha256),
+        name: String(v.name),
+      });
+    }
+    return out;
+  })();
+  const approvedSetVersion = typeof body.approvedSetVersion === 'number' && Number.isInteger(body.approvedSetVersion)
+    ? body.approvedSetVersion
+    : null;
+
   return {
     ok: true,
     run: body.run as ReviewPacket['run'],
@@ -510,6 +550,8 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
     session: body.session as ReviewSession,
     reviewArtifacts: body.reviewArtifacts as ReviewSessionArtifact[],
     issues: body.issues as ReviewIssue[],
+    approvedVersions,
+    approvedSetVersion,
     sources,
     live: true,
   };

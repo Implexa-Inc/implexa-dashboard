@@ -92,8 +92,12 @@ test('both surfaces hand a recoverable refusal to the recovery panel', () => {
       `${file} must route a recoverable refusal to the action, not to a sentence`);
     assert.match(source, /<ReviewContinuationRecovery[\s\S]{0,400}requestId=\{refusal\.requestId\}/,
       `${file} must render the recovery panel`);
-    assert.match(source, /note=\{composeNoteWithFiles\(note, files\)\}/,
-      `${file} must carry the user's note into the retry — it is never re-entered`);
+    // REV-COR04 (Tranche 1): the panel retries the SUBMITTED round exactly, so the
+    // live composer text must NOT ride along — a note here would resurrect a stale
+    // instruction into a retry whose copy promises exact reuse. The note stays in
+    // the composer for a genuinely new continue.
+    assert.doesNotMatch(source, /<ReviewContinuationRecovery[\s\S]{0,400}note=/,
+      `${file} must not hand live composer text to the exact-reuse retry`);
   }
 });
 

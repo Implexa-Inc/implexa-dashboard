@@ -299,11 +299,13 @@ export default function RunActions({
       )}
 
       {err && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{err}</p>}
+      {/* NO NOTE (REV-COR04): the panel retries the SUBMITTED revision exactly, and
+          this composer's live text is a new instruction for a new continue — it must
+          not ride a retry whose copy promises exact reuse. The text stays in the box. */}
       {refusal?.recoverable && refusal.requestId && (
         <ReviewContinuationRecovery
           requestId={refusal.requestId}
           refusal={refusal}
-          note={composeNoteWithFiles(note, files)}
         />
       )}
     </section>

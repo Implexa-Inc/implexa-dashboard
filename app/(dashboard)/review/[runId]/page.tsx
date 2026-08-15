@@ -102,6 +102,8 @@ export default async function ReviewRoomPage({ params, searchParams }: {
         reviewArtifacts={packet.reviewArtifacts}
         sources={packet.sources}
         isApprovalHold={isApprovalHold}
+        approvedVersions={packet.approvedVersions}
+        approvedSetVersion={packet.approvedSetVersion}
         // A generated-clip deep link (?artifact=) opens on that clip. The id is
         // honored only if the packet actually contains it.
         initialArtifactId={typeof searchParams?.artifact === 'string' ? searchParams.artifact : null}

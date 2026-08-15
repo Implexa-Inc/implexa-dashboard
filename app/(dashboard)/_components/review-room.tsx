@@ -37,10 +37,13 @@ import {
 } from '@/lib/review-anchor';
 import ReviewSpatialOverlay, { SPATIAL_HINT_COPY, type OverlayPin } from '@/app/(dashboard)/_components/review-spatial-overlay';
 import ReviewContinuationRecovery from '@/app/(dashboard)/_components/review-continuation-recovery';
-import { evidenceGate, evidenceChip, type SessionEvidenceStatus } from '@/lib/review-evidence-status';
+import {
+  evidenceGate, evidenceChip, trackPendingPolls, STALLED_POLL_THRESHOLD,
+  type PendingPollCounts, type SessionEvidenceStatus,
+} from '@/lib/review-evidence-status';
 import {
   reviewRoomActions, ACCEPT_DISCLAIMER,
-  revisionCompositionLabel,
+  revisionCompositionLabel, expectedRevisionOutputNames,
   issuesForArtifact, artifactForIssue, isIssueStale, issueClickTarget,
   resolveInitialArtifact, shouldApplySeek, shouldDropPendingSeek, type PendingSeek,
 } from '@/lib/review-room-state';
@@ -82,9 +85,20 @@ type Props = {
    * used as before.
    */
   initialArtifactId?: string | null;
+  /**
+   * The SERVER-OWNED ordered approved-version set for this lineage (REV-COR03),
+   * straight from the packet. Absent on an older backend — every rendering below
+   * guards for that and simply shows no badge.
+   */
+  approvedVersions?: Array<{ position: number; artifactId: string; sha256: string; name: string }> | null;
+  approvedSetVersion?: number | null;
 };
 
 const ISSUE_KINDS = ['timing', 'content', 'visual', 'audio', 'missing', 'replacement', 'other'] as const;
+
+// The evidence-retry pool width (REV-U01): enough parallelism that a burst of failed
+// captures retries in seconds, small enough not to stampede the capture pipeline.
+const RETRY_POOL_SIZE = 3;
 
 type ReviewArtifactPickerResult = {
   ok: boolean;
@@ -229,6 +243,15 @@ export default function ReviewRoom(props: Props) {
   // The last evidence-status poll, verbatim. Null = no successful read yet, which the
   // gate treats as UNKNOWN (blocked), never as "no evidence required".
   const [evidenceStatus, setEvidenceStatus] = useState<SessionEvidenceStatus>(null);
+  // The stall clock: consecutive polls each capture has sat `pending`. Advanced ONLY
+  // by the poll tick — a one-off refresh after a retry batch reads state without
+  // aging anything — and reset for an issue the moment its capture leaves `pending`
+  // or the user retries it.
+  const [pendingPolls, setPendingPolls] = useState<PendingPollCounts>({});
+  // The instruction round the submit response named (REV-COR04, tranche 1). Absent on
+  // an older backend, and shown only in this tab's own queued panel — the durable
+  // session row does not carry it.
+  const [queuedInstruction, setQueuedInstruction] = useState<{ version: number; supersedesVersion: number | null } | null>(null);
 
   const reviewerResolved = useMemo(() => issues.filter((i) => !!i.reviewerResolution), [issues]);
   const activeIssues = useMemo(
@@ -263,6 +286,12 @@ export default function ReviewRoom(props: Props) {
   // capture. `inherit` remains an explicit advanced choice for a reviewer who knows
   // the original run has a complete durable input contract.
   const [revisionMode, setRevisionMode] = useState<'inherit' | 'selected_files'>('selected_files');
+  // REV-COR05: an assembled master is produced ONLY when this round explicitly asks.
+  // Default off; the request is frozen into the submission server-side.
+  const [requestMaster, setRequestMaster] = useState(false);
+  // The attached ZIP the reviewer marked as the editable project bundle, if any.
+  // Sent as `projectCapsuleArtifactId` on submit; at most one, by construction.
+  const [projectCapsuleArtifactId, setProjectCapsuleArtifactId] = useState<string | null>(null);
   const submission = phaseForSession({
     sessionState: session?.state ?? null,
     submittedRequestId: session?.submittedRequestId ?? null,
@@ -301,6 +330,20 @@ export default function ReviewRoom(props: Props) {
     .some((entry) => entry.purpose === 'review_target');
   const effectiveRevisionMode = hasExternalReviewTarget ? 'selected_files' : revisionMode;
   const supportingReviewFiles = (props.reviewArtifacts ?? []).filter((entry) => entry.purpose === 'supporting');
+  // REV-COR03: which DIGESTS the server has approved for this lineage. Keyed by
+  // sha256, not artifact id, because approval is identity-by-digest — an id alone
+  // could badge a re-validated file whose bytes have changed.
+  const approvedShaSet = useMemo(
+    () => new Set((props.approvedVersions ?? []).map((v) => v.sha256)),
+    [props.approvedVersions],
+  );
+  // REV-COR05 mirror: the reviewed files this submission's issues ask to change, by
+  // the SAME edit-target rule the server freezes. Display only — the server's roster
+  // is the contract; unresolvable names are omitted silently, never guessed.
+  const expectedOutputNames = useMemo(
+    () => expectedRevisionOutputNames(activeIssues, artifacts),
+    [activeIssues, artifacts],
+  );
 
   // ── preview lifecycle ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -488,6 +531,10 @@ export default function ReviewRoom(props: Props) {
       setLocalSubmission(INITIAL_SUBMISSION_STATE);
       setRevisionNote('');
       setEvidenceStatus(null);
+      setPendingPolls({});
+      setQueuedInstruction(null);
+      setRequestMaster(false);
+      setProjectCapsuleArtifactId(null);
       setDraft(null);
       setNotice(`${Number(body.carriedIssueCount) || body.issues.length} submitted change${body.issues.length === 1 ? '' : 's'} carried into a new draft. Add more feedback, then send one replacement revision.`);
       router.refresh();
@@ -513,6 +560,10 @@ export default function ReviewRoom(props: Props) {
       setLocalSubmission(INITIAL_SUBMISSION_STATE);
       setRevisionNote('');
       setEvidenceStatus(null);
+      setPendingPolls({});
+      setQueuedInstruction(null);
+      setRequestMaster(false);
+      setProjectCapsuleArtifactId(null);
       setNotice('Add feedback when you’re ready. Unresolved earlier issues will stay in the next revision.');
       router.refresh();
     } catch {
@@ -576,14 +627,26 @@ export default function ReviewRoom(props: Props) {
    * (0155 review_request_evidence). Fire-and-forget on purpose: the capture is the
    * Desktop's job and the submit gate polls for the outcome — a failed request here
    * surfaces through that poll as "waiting", never as a lost save.
+   *
+   * REQUEST ONLY — no per-issue evidence_status re-read rides along. The session poll
+   * owns the refresh; a burst of saves or a retry batch must not multiply the
+   * packet-sized status read once per issue (REV-U01).
    */
   const requestEvidence = useCallback(async (issueId: string) => {
     try {
-      const { body } = await reviewAction({ action: 'request_evidence', issueId });
-      if (body?.ok && session?.id) {
-        const { body: status } = await reviewAction({ action: 'evidence_status', sessionId: session.id });
-        if (status?.ok) setEvidenceStatus({ state: status.state, issues: status.issues || [] });
-      }
+      await reviewAction({ action: 'request_evidence', issueId });
+    } catch { /* the poll owns the outcome */ }
+  }, []);
+
+  /** One deliberate status read, outside the poll cadence — used after a retry batch. */
+  const refreshEvidenceStatus = useCallback(async () => {
+    const sid = session?.id;
+    if (!sid) return;
+    try {
+      const { body } = await reviewAction({ action: 'evidence_status', sessionId: sid });
+      // Deliberately does NOT advance the stall clock: only the poll's own cadence
+      // measures "pending across N polls", so an extra read cannot age a capture.
+      if (body?.ok) setEvidenceStatus({ state: body.state, issues: body.issues || [] });
     } catch { /* the poll owns the outcome */ }
   }, [session]);
 
@@ -699,7 +762,7 @@ export default function ReviewRoom(props: Props) {
   // action unlocks — decided by the pure gate module from the last status poll, and
   // enforced again server-side (the compile refuses) and at the executor (fail
   // closed). The browser's own instant pin preview is never called verified.
-  const gate = evidenceGate({ draftIssues: activeIssues, status: evidenceStatus });
+  const gate = evidenceGate({ draftIssues: activeIssues, status: evidenceStatus, pendingPolls });
 
   useEffect(() => {
     // Poll only while there is something to wait FOR: an open session, spatial drafts,
@@ -711,17 +774,49 @@ export default function ReviewRoom(props: Props) {
     const tick = async () => {
       const { body } = await reviewAction({ action: 'evidence_status', sessionId: sid });
       if (cancelled) return;
-      if (body?.ok) setEvidenceStatus({ state: body.state, issues: body.issues || [] });
+      if (body?.ok) {
+        const next: SessionEvidenceStatus = { state: body.state, issues: body.issues || [] };
+        setEvidenceStatus(next);
+        // THE STALL CLOCK ticks here and only here: one successful poll per beat, so
+        // "pending across N polls" measures real elapsed waiting (~100s at N=25),
+        // never how often something else asked for a refresh.
+        setPendingPolls((prev) => trackPendingPolls(prev, next));
+      }
     };
     void tick();
     const timer = setInterval(tick, 4000);
     return () => { cancelled = true; clearInterval(timer); };
   }, [session?.id, gate.reason, submissionInFlight, submission.phase]);
 
-  /** Retry every failed capture — re-request, then let the poll report the outcome. */
+  /**
+   * Retry every failed or stalled capture through a BOUNDED parallel pool (REV-U01):
+   * up to RETRY_POOL_SIZE requests in flight, every id issued exactly once, then ONE
+   * status refresh for the whole batch — never a serial `for … await` crawl and never
+   * a per-issue status read. The gate composes retryIssueIds from failures and stalls
+   * only, so a VERIFIED capture is structurally never re-requested (re-requesting one
+   * would revoke the validated frame the submit gate already accepted).
+   */
   const retryEvidence = useCallback(async () => {
-    for (const issueId of gate.retryIssueIds) await requestEvidence(issueId);
-  }, [gate.retryIssueIds, requestEvidence]);
+    const ids = gate.retryIssueIds;
+    if (!ids.length) return;
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < ids.length) {
+        const issueId = ids[cursor];
+        cursor += 1;
+        await requestEvidence(issueId);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(RETRY_POOL_SIZE, ids.length) }, worker));
+    // A retried capture starts its stall clock over — it was just re-requested, so
+    // "pending for 25 polls" is no longer a fact about it.
+    setPendingPolls((prev) => {
+      const next = { ...prev };
+      for (const issueId of ids) delete next[issueId];
+      return next;
+    });
+    await refreshEvidenceStatus();
+  }, [gate.retryIssueIds, requestEvidence, refreshEvidenceStatus]);
 
   // The freshest per-issue evidence view: the poll wins over the packet projection,
   // because the packet is only as new as the last full page load.
@@ -954,6 +1049,11 @@ export default function ReviewRoom(props: Props) {
         // over-long note before anything leaves the browser.
         revisionNote,
         revisionMode: effectiveRevisionMode,
+        // Tranche 1 passthroughs. Both default to ABSENT — `resolveReviewAction`
+        // forwards them only when explicitly set, so an older backend sees the same
+        // body it always did.
+        ...(requestMaster ? { requestMaster: true } : {}),
+        ...(projectCapsuleArtifactId ? { projectCapsuleArtifactId } : {}),
       });
       // 5xx is a read the service could not make, not a verdict on the review.
       const outcome = parseSubmitResponse(body, { unavailable: status >= 500 });
@@ -961,6 +1061,19 @@ export default function ReviewRoom(props: Props) {
         setError(submitRefusalCopy(outcome));
         return outcome;
       }
+      // REV-COR04: a DELIVERED instruction is consumed. The server froze this note
+      // into the submission it just registered; leaving it in the composer would let
+      // the next round silently resend an instruction the reviewer already sent.
+      setRevisionNote('');
+      // The round identity the server echoed (tranche 1). Guarded — absent on an
+      // older backend, and never invented from local state.
+      const instr = (body as { instruction?: { version?: unknown; supersedesVersion?: unknown } } | null)?.instruction;
+      setQueuedInstruction(instr && Number.isInteger(instr.version) && (instr.version as number) >= 1
+        ? {
+          version: instr.version as number,
+          supersedesVersion: Number.isInteger(instr.supersedesVersion) ? instr.supersedesVersion as number : null,
+        }
+        : null);
       setNotice(outcome.idempotent
         ? 'These fixes were already requested — showing the existing revision.'
         : outcome.recovered
@@ -979,7 +1092,7 @@ export default function ReviewRoom(props: Props) {
       setError(submitRefusalCopy(outcome));
       return outcome;
     } finally { setBusy(false); }
-  }, [session, router, revisionNote, effectiveRevisionMode]);
+  }, [session, router, revisionNote, effectiveRevisionMode, requestMaster, projectCapsuleArtifactId]);
 
   const onAccept = useCallback(async (discard: boolean) => {
     setBusy(true); setError(null); setNotice(null);
@@ -1104,7 +1217,13 @@ export default function ReviewRoom(props: Props) {
                 className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-sm text-ink-100"
               >
                 {validated.map((a) => (
-                  <option key={a.id} value={a.id}>{a.relativePath}{a.role ? ` — ${a.role}` : ''}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.relativePath}{a.role ? ` — ${a.role}` : ''}
+                    {/* REV-COR03: canonicality stated, not remembered. Digest match only. */}
+                    {a.sha256 && approvedShaSet.has(a.sha256)
+                      ? ` · Approved${props.approvedSetVersion != null ? ` v${props.approvedSetVersion}` : ''}`
+                      : ''}
+                  </option>
                 ))}
               </select>
             </label>
@@ -1165,6 +1284,13 @@ export default function ReviewRoom(props: Props) {
               {proxyPreview && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-sky-300">Review proxy</span>}
               {artifact.relativePath}
               {artifact.sha256 && <span className="ml-2 font-mono">sha256 {artifact.sha256.slice(0, 12)}…</span>}
+              {/* REV-COR03: the server-owned approved set, matched by DIGEST. Absent
+                  set (older backend) simply renders no badge — never a guess. */}
+              {artifact.sha256 && approvedShaSet.has(artifact.sha256) && (
+                <span className="ml-2 rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-300">
+                  Approved{props.approvedSetVersion != null ? ` v${props.approvedSetVersion}` : ''}
+                </span>
+              )}
             </p>
             {playbackClock && (
               <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-ink-400">
@@ -1479,7 +1605,9 @@ export default function ReviewRoom(props: Props) {
                       appears ONLY for the backend's validated projection — the local
                       pin preview is never called evidence. */}
                   {isSpatialAnchorV2(i.anchor as never) && i.status === 'draft' && (() => {
-                    const chip = evidenceChip(evidenceForIssue(i));
+                    const chip = evidenceChip(evidenceForIssue(i), {
+                      stalled: (pendingPolls[i.id] ?? 0) >= STALLED_POLL_THRESHOLD,
+                    });
                     if (!chip) return null;
                     const tone = chip.tone === 'ok' ? 'text-emerald-300' : chip.tone === 'failed' ? 'text-amber-300' : 'text-ink-500';
                     return <p className={`mt-1 text-[11px] ${tone}`}>{chip.label}</p>;
@@ -1581,6 +1709,17 @@ export default function ReviewRoom(props: Props) {
                     <dt>Submission</dt>
                     <dd className="truncate font-mono text-ink-300" title={submitView.submissionId}>
                       {submitView.submissionId}
+                    </dd>
+                  </div>
+                )}
+                {/* REV-COR04: which instruction round this queued revision carries,
+                    from the submit response itself. Rendered only when the server
+                    named a superseded round — an older backend names none. */}
+                {queuedInstruction && queuedInstruction.supersedesVersion !== null && (
+                  <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                    <dt>Instructions</dt>
+                    <dd className="text-ink-300">
+                      v{queuedInstruction.version} (supersedes v{queuedInstruction.supersedesVersion})
                     </dd>
                   </div>
                 )}
@@ -1693,6 +1832,24 @@ export default function ReviewRoom(props: Props) {
                             </span>
                           </span>
                         </label>
+                        {/* REV-COR05: the assembled master is NEVER implicit. Off by
+                            default; when on it travels as `requestMaster: true` and
+                            the server freezes it into the expected-output roster. */}
+                        <label className="flex items-start gap-2 rounded border border-ink-800 bg-ink-950 p-2 text-xs text-ink-300">
+                          <input
+                            type="checkbox"
+                            checked={requestMaster}
+                            onChange={(event) => setRequestMaster(event.target.checked)}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            <span className="block font-medium text-ink-100">Also assemble the final master</span>
+                            <span className="mt-0.5 block text-ink-500">
+                              Ask this revision to produce the assembled master alongside the revised files.
+                              Off, only the files your feedback names are produced.
+                            </span>
+                          </span>
+                        </label>
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="mr-auto text-xs text-ink-400">Files the revision may use</span>
                           <button
@@ -1714,7 +1871,27 @@ export default function ReviewRoom(props: Props) {
                         </div>
                         {supportingReviewFiles.length > 0 ? (
                           <ul className="mt-2 space-y-1 text-xs text-ink-300">
-                            {supportingReviewFiles.map((entry) => <li key={entry.artifactId}>✓ {entry.displayName}</li>)}
+                            {supportingReviewFiles.map((entry) => (
+                              <li key={entry.artifactId} className="flex flex-wrap items-center gap-2">
+                                <span>✓ {entry.displayName}</span>
+                                {/* A ZIP can be the EDITABLE PROJECT BUNDLE (0170) —
+                                    a typed fact on the submission, never inferred
+                                    from the filename alone. At most one; ticking a
+                                    second replaces the first. */}
+                                {/\.zip$/i.test(entry.displayName) && (
+                                  <label className="flex items-center gap-1 text-[11px] text-ink-400">
+                                    <input
+                                      type="checkbox"
+                                      checked={projectCapsuleArtifactId === entry.artifactId}
+                                      onChange={(event) => setProjectCapsuleArtifactId(
+                                        event.target.checked ? entry.artifactId : null,
+                                      )}
+                                    />
+                                    This is the editable project bundle
+                                  </label>
+                                )}
+                              </li>
+                            ))}
                           </ul>
                         ) : (
                           <p className="mt-2 text-[11px] text-ink-500">Optional replacement images, references, or a folder frozen as ZIP.</p>
@@ -1729,6 +1906,17 @@ export default function ReviewRoom(props: Props) {
               {submitView.mode === 'send_changes' && (
                 <p className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1.5 text-xs text-sky-200">
                   {revisionCompositionLabel(unresolvedPrior.length, drafts.length)}
+                </p>
+              )}
+              {/* REV-COR05, said BEFORE the click: the exact output roster this
+                  submission requests, mirroring the server's edit-target rule. When
+                  no name resolves the line is omitted, never guessed. */}
+              {submitView.mode === 'send_changes' && (expectedOutputNames.length > 0 || requestMaster) && (
+                <p className="text-[11px] leading-snug text-ink-500">
+                  Requests new versions of: {[
+                    ...expectedOutputNames,
+                    ...(requestMaster ? ['the assembled final master'] : []),
+                  ].join(', ')}
                 </p>
               )}
               {submitView.frozenCount !== null && submitView.statusLine && (
@@ -1746,7 +1934,9 @@ export default function ReviewRoom(props: Props) {
               {submitView.mode !== 'accept_result' && gate.blocked && gate.statusLine && (
                 <p role="status" className="text-xs text-sky-300">{gate.statusLine}</p>
               )}
-              {submitView.mode !== 'accept_result' && gate.reason === 'failed' && (
+              {/* Retry whenever the gate names retryable captures — failed, stalled,
+                  or a disabled evidence backend. Waiting and unknown offer none. */}
+              {submitView.mode !== 'accept_result' && gate.retryIssueIds.length > 0 && (
                 <button
                   type="button"
                   disabled={busy}

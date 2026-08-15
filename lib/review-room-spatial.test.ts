@@ -430,6 +430,115 @@ test('GATE: Send stays locked while a capture is pending, offers retry on failur
   root.unmount();
 });
 
+// ── Tranche 1 (REV-U01): bounded retry, verified stability, stalled, disabled ──
+
+const retryButton = () => buttons().find((b) => /Retry screenshot capture/.test(b.textContent || ''));
+
+test('RETRY POOL: failed captures retry through a pool of ≤3, all issued once, verified never re-requested, one refresh after the batch', async () => {
+  const spatialIssues = [1, 2, 3, 4, 5, 6].map((n) => ({
+    ...storedSpatialIssue, id: `dddddddd-000${n}-4111-8111-111111111111`,
+  }));
+  // Five failed captures and ONE already verified.
+  evidenceReply = {
+    ok: true, state: 'ready',
+    issues: spatialIssues.map((iss, idx) => ({
+      issueId: iss.id, anchorDigest: 'f'.repeat(64),
+      evidence: idx === 5
+        ? { status: 'validated', ready: true, sha256: '9'.repeat(64) }
+        : { status: 'unavailable', ready: false, reason: 'capture_failed' },
+    })),
+  };
+  await mountVideo({ issues: spatialIssues });
+  await act(async () => { await Promise.resolve(); });
+  assert.ok(retryButton(), 'failed captures must offer a retry');
+
+  // Wrap the transport so request_evidence stays IN FLIGHT until the test releases
+  // it — the only way to observe the pool bound rather than assert it from source.
+  const baseFetch = (globalThis as Record<string, unknown>).fetch as typeof fetch;
+  let open = 0;
+  let maxOpen = 0;
+  const releases: Array<() => void> = [];
+  (globalThis as Record<string, unknown>).fetch = (async (url: string, init: { body?: string }) => {
+    const parsed = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+    if (parsed.action === 'request_evidence') {
+      open += 1;
+      maxOpen = Math.max(maxOpen, open);
+      await new Promise<void>((res) => releases.push(res));
+      open -= 1;
+    }
+    return baseFetch(url as never, init as never);
+  }) as typeof fetch;
+
+  const statusCallsBefore = calls.filter((c) => c.body.action === 'evidence_status').length;
+  try {
+    await clickButton(/Retry screenshot capture/);
+    await act(async () => { await Promise.resolve(); });
+    assert.equal(open, 3, 'exactly the pool width may be in flight after the click — not 1, not all 5');
+    // Release captures one at a time; the pool tops back up but never over-fills.
+    while (releases.length) {
+      const release = releases.shift()!;
+      await act(async () => { release(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+      assert.ok(open <= 3, 'the pool bound must hold as the batch drains');
+    }
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+  } finally {
+    (globalThis as Record<string, unknown>).fetch = baseFetch;
+  }
+
+  const requested = calls.filter((c) => c.body.action === 'request_evidence').map((c) => String(c.body.issueId));
+  for (const iss of spatialIssues.slice(0, 5)) {
+    assert.equal(requested.filter((id) => id === iss.id).length, 1, `failed capture ${iss.id} must be re-requested exactly once`);
+  }
+  assert.equal(maxOpen, 3, 'the retry pool is bounded at 3');
+  // VERIFIED STAYS STABLE: the ready capture is never re-requested — doing so would
+  // revoke the validated frame the submit gate already accepted.
+  assert.equal(requested.includes(spatialIssues[5].id), false, 'a verified capture must never be re-requested');
+  const statusCallsAfter = calls.filter((c) => c.body.action === 'evidence_status').length;
+  assert.equal(statusCallsAfter - statusCallsBefore, 1, 'ONE status refresh after the whole batch — not one per issue');
+  root.unmount();
+});
+
+test('STALLED: a capture pending across the poll bound surfaces a stalled state with Retry; submit stays blocked', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  evidenceReply = {
+    ok: true, state: 'ready',
+    issues: [{ issueId: ISSUE_ID, anchorDigest: 'f'.repeat(64), evidence: { status: 'pending', ready: false } }],
+  };
+  await mountVideo({ issues: [storedSpatialIssue] });
+  await act(async () => { await Promise.resolve(); });
+  assert.match(text(), /Capturing screenshot evidence/);
+  assert.equal(!!retryButton(), false, 'a merely-pending capture offers no retry');
+
+  // 25 poll beats (~100s) with the capture still pending.
+  for (let i = 0; i < 25; i += 1) {
+    await act(async () => {
+      t.mock.timers.tick(4000);
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    });
+  }
+  assert.match(text(), /stalled/i, 'the stall must be named, not left as a silent forever-lock');
+  assert.ok(retryButton(), 'a stalled capture must offer Retry');
+  assert.equal(sendButton().disabled, true, 'submit stays blocked — fail closed');
+
+  // Retry re-requests capture for exactly the stalled issue.
+  await fire(retryButton()!, 'click');
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+  assert.ok(calls.some((c) => c.body.action === 'request_evidence' && c.body.issueId === ISSUE_ID),
+    'retry must re-request the stalled capture');
+  root.unmount();
+});
+
+test('DISABLED: spatial drafts over a disabled evidence backend block with typed copy and retry, never the unknown spinner', async () => {
+  evidenceReply = { ok: true, state: 'disabled', issues: [] };
+  await mountVideo({ issues: [storedSpatialIssue] });
+  await act(async () => { await Promise.resolve(); });
+  assert.equal(sendButton().disabled, true, 'disabled with spatial drafts fails closed, mirroring the backend compile gate');
+  assert.match(text(), /disabled on this backend/i, 'the situation is named in words');
+  assert.doesNotMatch(text(), /Checking screenshot evidence/, 'never the generic forever-spinner');
+  assert.ok(retryButton(), 'a retry affordance is offered in case capture support returns');
+  root.unmount();
+});
+
 test('GATE: a v1-only review never waits on evidence', async () => {
   await mountVideo({
     issues: [{

@@ -49,7 +49,7 @@ const files = [
   GEO, 'lib/review-spatial-geometry.test.ts',
   ANCHOR, 'lib/review-spatial-anchor.test.ts',
   FEEDBACK, 'lib/review-spatial-feedback.test.ts',
-  STATUS,
+  STATUS, 'lib/review-evidence-status.test.ts',
   STATE,
   OVERLAY,
   COMPONENT,
@@ -60,6 +60,7 @@ const tests = [
   'lib/review-spatial-geometry.test.ts',
   'lib/review-spatial-anchor.test.ts',
   'lib/review-spatial-feedback.test.ts',
+  'lib/review-evidence-status.test.ts',
   // The rendered suite — the only one that can kill a mutation in the seam between
   // the overlay, the component wiring, and the transport.
   'lib/review-room-spatial.test.ts',
@@ -152,6 +153,27 @@ const mutations = [
   ['evidence', 'the submit button ignores the evidence gate', COMPONENT,
     "                  || (submitView.mode !== 'accept_result' && gate.blocked)",
     '                  || false'],
+
+  // ── evidence observability (Tranche 1, REV-U01) ───────────────────────────
+  // NOTE: pool size 3 → 1 is an EQUIVALENT mutant (still every id, still one
+  // refresh — only slower) and is deliberately not listed. The real regressions are
+  // skipping items, unbounding the pool, unblocking on disabled, deleting stall
+  // detection, and re-requesting verified frames.
+  ['evidence', 'retry silently skips most failed captures — only the first is re-requested', COMPONENT,
+    '    const ids = gate.retryIssueIds;',
+    '    const ids = gate.retryIssueIds.slice(0, 1);'],
+  ['evidence', 'the retry pool is unbounded — every failed capture fired at once', COMPONENT,
+    'const RETRY_POOL_SIZE = 3;',
+    'const RETRY_POOL_SIZE = 999;'],
+  ['evidence', 'verified captures are re-requested on retry, revoking accepted frames', COMPONENT,
+    '    const ids = gate.retryIssueIds;',
+    '    const ids = activeIssues.filter((i) => isSpatialAnchorV2(i.anchor as never)).map((i) => i.id);'],
+  ['evidence', 'a disabled evidence backend unblocks the gate over unverifiable pins', STATUS,
+    "      blocked: true,\n      reason: 'disabled',",
+    "      blocked: false,\n      reason: 'disabled',"],
+  ['evidence', 'stalled detection is removed — a pending capture blocks silently forever', STATUS,
+    "    else if (st === 'pending' && (polls[String(issue.id)] ?? 0) >= STALLED_POLL_THRESHOLD) stalled.push(issue.id);",
+    '    else if (false) stalled.push(issue.id);'],
 
   // ── discoverability / native controls ─────────────────────────────────────
   ['controls', 'the overlay covers the native video transport', OVERLAY,

@@ -73,6 +73,41 @@ test('the bound is the backend bound, measured AFTER the trim', () => {
   assert.match(over as string, /2000 characters or fewer/);
 });
 
+// ── tranche 1 passthroughs: requestMaster and projectCapsuleArtifactId ──────
+
+test('requestMaster travels ONLY as a real boolean true, and is absent by default', () => {
+  const on = resolveReviewAction('submit', { sessionId: SESSION, requestMaster: true }) as { body: Record<string, unknown> };
+  assert.deepEqual(on.body, { revisionNote: null, revisionMode: 'inherit', requestMaster: true });
+  // Explicit false and absent both omit the key — the backend reads `=== true`.
+  const off = resolveReviewAction('submit', { sessionId: SESSION, requestMaster: false }) as { body: Record<string, unknown> };
+  assert.deepEqual(off.body, { revisionNote: null, revisionMode: 'inherit' });
+  const absent = resolveReviewAction('submit', { sessionId: SESSION }) as { body: Record<string, unknown> };
+  assert.equal('requestMaster' in absent.body, false);
+  // A truthy non-boolean must not request an assembled master nobody asked for.
+  for (const bad of ['true', 1, {}, []]) {
+    assert.equal(typeof resolveReviewAction('submit', { sessionId: SESSION, requestMaster: bad }), 'string',
+      `requestMaster ${JSON.stringify(bad)} must be refused`);
+  }
+});
+
+test('projectCapsuleArtifactId is a validated id, refused when malformed, absent when unset', () => {
+  const withCapsule = resolveReviewAction('submit', {
+    sessionId: SESSION, projectCapsuleArtifactId: ART,
+  }) as { body: Record<string, unknown> };
+  assert.deepEqual(withCapsule.body, { revisionNote: null, revisionMode: 'inherit', projectCapsuleArtifactId: ART });
+  // null and absent are both "no bundle", not a refusal.
+  for (const none of [null, undefined]) {
+    const u = resolveReviewAction('submit', { sessionId: SESSION, projectCapsuleArtifactId: none }) as { body: Record<string, unknown> };
+    assert.equal('projectCapsuleArtifactId' in u.body, false);
+  }
+  // A malformed id is REFUSED, never silently dropped — a submission that quietly
+  // lost its capsule marker would execute against the wrong source contract.
+  for (const bad of ['not-a-uuid', '', 42, {}, '../../etc']) {
+    assert.equal(typeof resolveReviewAction('submit', { sessionId: SESSION, projectCapsuleArtifactId: bad }), 'string',
+      `projectCapsuleArtifactId ${JSON.stringify(bad)} must be refused`);
+  }
+});
+
 test('a non-string note is refused rather than coerced', () => {
   assert.equal(typeof resolveReviewAction('submit', { sessionId: SESSION, revisionNote: 42 }), 'string');
   assert.equal(typeof resolveReviewAction('submit', { sessionId: SESSION, revisionNote: { a: 1 } }), 'string');

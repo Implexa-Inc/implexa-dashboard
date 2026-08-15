@@ -120,10 +120,18 @@ test('a SUCCESSFUL retry renders Queued — and only then', async () => {
   } finally { rendered.cleanup(); }
 });
 
-test('the retry carries the user’s note, so the review is never re-entered', async () => {
+test('REV-COR04: the retry posts NO note — the submitted instruction is reused exactly', async () => {
+  // The panel's own copy promises the feedback is "reused exactly as you submitted
+  // them". A live composer note riding the retry body would resurrect a stale
+  // instruction into a round that claims to be an exact replay — so even a caller
+  // that still tries to hand one over (the prop no longer exists) must produce a
+  // bare body. This is asserted from the Review Room's shape (no note anywhere) AND
+  // from a retry surface still holding live composer text.
   const seen: Array<{ path: string; init: unknown }> = [];
   const rendered = await render('review-continuation-recovery.tsx', {
-    requestId: REQUEST, note: 'tighten the pause at five seconds',
+    requestId: REQUEST,
+    // A retry surface's live composer text, offered the old way. It must not travel.
+    note: 'tighten the pause at five seconds',
   }, {
     backend: (path: string, init: unknown) => {
       seen.push({ path, init });
@@ -136,7 +144,11 @@ test('the retry carries the user’s note, so the review is never re-entered', a
     const post = seen.find((c) => c.path.includes('/recover-review-continuation'));
     assert.ok(post, 'the recovery endpoint must be the one addressed');
     assert.match(post!.path, new RegExp(REQUEST), 'and it must name the exact request that was refused');
-    assert.equal((post!.init as { body?: { note?: string } }).body?.note, 'tighten the pause at five seconds');
+    const body = (post!.init as { body?: Record<string, unknown> }).body ?? {};
+    assert.equal('note' in body, false, 'the retry body must carry no note key at all');
+    // Key-based, not deepEqual: the body object crosses the jsdom realm boundary,
+    // and deepStrictEqual would compare prototypes across realms.
+    assert.deepEqual(Object.keys(body), [], 'the retry body is empty — the submitted round is the whole payload');
   } finally { rendered.cleanup(); }
 });
 

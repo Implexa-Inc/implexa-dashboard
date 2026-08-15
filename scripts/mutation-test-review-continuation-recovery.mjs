@@ -72,9 +72,13 @@ const mutants = [
   ['recovery-action: the retry addresses a different request than the one refused', PANEL,
     '        `/api/v2/me/run-requests/${encodeURIComponent(requestId)}/recover-review-continuation`,',
     "        '/api/v2/me/run-requests/00000000-0000-4000-8000-000000000000/recover-review-continuation',"],
-  ['recovery-action: the note is dropped, so the user must re-enter their review', PANEL,
-    '{ jwt: session?.access_token, method: \'POST\', body: { note: note || undefined } },',
-    "{ jwt: session?.access_token, method: 'POST', body: {} },"],
+  // INVERTED 2026-08-15 (REV-COR04). This mutant used to assert the retry CARRIES the
+  // live note; the tranche-1 contract is the opposite — the retry replays the
+  // immutable submitted round exactly, so a note riding along resurrects a stale
+  // instruction. The regression to guard against is note plumbing growing back.
+  ['recovery-action: a live note rides the retry that promised exact reuse', PANEL,
+    "{ jwt: session?.access_token, method: 'POST', body: {} },",
+    "{ jwt: session?.access_token, method: 'POST', body: { note: 'use my latest edits instead' } },"],
   ['recovery-action: an unreadable state is guessed instead of rendering nothing', PANEL,
     "      setState((prev) => prev ?? (refusalKind === 'unverifiable' ? 'unverifiable' : null));",
     "      setState('retryable');"],
