@@ -19,12 +19,13 @@ test('rendered ready surface explains evidence, scope, lifecycle, and active rec
   const html = renderToStaticMarkup(React.createElement(AgentLearningsCard,
     { slug: fixture.scope.agentSlug, initialPayload: payload, initialSource: 'ready' }));
   for (const phrase of ['Train → Learnings','Suggested','Active','Evidence </dt><dd',
-    'Contradictions </dt><dd','Private agent','Approve','Dismiss','Disable','Undo','last applied',
+    'Contradictions </dt><dd','Private agent','Approve','Dismiss','Edit rule','Disable','Undo','last applied',
     'Use feedback you already gave','Analyze past feedback','up to 180 days',
     'remain inert until they recur across successful runs and you approve them']) {
     assert.match(html, new RegExp(phrase));
   }
   assert.match(html, /Exact runtime scope is not enforceable; shadow-only/);
+  assert.match(html, /Approval is locked because the current runtime cannot enforce this exact scope/);
   assert.match(html, /final-assembly/);
   assert.match(html, /remotion\.render/);
   assert.match(html, /<button[^>]+disabled=""[^>]*>Approve/);

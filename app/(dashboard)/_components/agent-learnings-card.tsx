@@ -41,6 +41,18 @@ function reason(value: string) {
   };
   return labels[value] || value.replaceAll('_', ' ');
 }
+function approvalExplanation(item: Candidate) {
+  if (item.eligible) return null;
+  if (item.eligibilityReason === 'insufficient_recurrence') {
+    return `Approval unlocks after this pattern appears in at least 2 independent runs. This suggestion currently has ${item.recurrenceCount}.`;
+  }
+  if (item.eligibilityReason === 'contradicted') return 'Approval is locked because later feedback contradicts this suggestion.';
+  if (item.eligibilityReason === 'stale_evidence') return 'Approval is locked because the supporting evidence is outside the current evidence window.';
+  if (item.eligibilityReason === 'runtime_scope_shadow_only' || item.eligibilityReason === 'capability_shadow_only') {
+    return 'Approval is locked because the current runtime cannot enforce this exact scope.';
+  }
+  return `Approval is locked: ${reason(item.eligibilityReason)}.`;
+}
 
 export default function AgentLearningsCard({ slug, initialPayload = null, initialSource = 'loading' }: {
   slug: string; initialPayload?: Payload | null; initialSource?: SourceState;
@@ -51,6 +63,9 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<BackfillResult | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editInstruction, setEditInstruction] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
 
   const token = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -103,6 +118,30 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
       await load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Past feedback could not be analyzed.');
+    } finally { setBusy(null); }
+  }
+
+  function beginEdit(item: Candidate) {
+    setEditingId(item.id); setEditInstruction(item.instruction); setEditError(null); setError(null);
+  }
+
+  async function saveEdit(item: Candidate) {
+    const instruction = editInstruction.trim().replace(/\s+/g, ' ');
+    if (instruction.length < 12 || instruction.length > 300) {
+      setEditError('Write a rule between 12 and 300 characters.'); return;
+    }
+    if (instruction === item.instruction) {
+      setEditError('Change the rule before saving the refinement.'); return;
+    }
+    const key = `refine:${item.id}`;
+    setBusy(key); setEditError(null); setError(null);
+    try {
+      await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/learning-influence/candidates/${item.id}/refine`, {
+        jwt: await token(), method: 'POST', body: { candidateKey: item.candidateKey, instruction },
+      });
+      setEditingId(null); setEditInstruction(''); await load();
+    } catch (caught) {
+      setEditError(caught instanceof Error ? caught.message : 'The refined rule could not be saved.');
     } finally { setBusy(null); }
   }
 
@@ -172,13 +211,37 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
                   <div><dt className="inline">Capability </dt><dd className="inline text-ink-300">{item.scope.capabilityIdentity || 'all'}</dd></div>
                   <div><dt className="inline">Tool </dt><dd className="inline text-ink-300">{item.scope.toolIdentity || 'all'}</dd></div>
                 </dl>
-                <div className="mt-3 flex gap-2">
+                {approvalExplanation(item) && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{approvalExplanation(item)}</p>
+                )}
+                {editingId === item.id && (
+                  <div className="mt-3 rounded-md border border-sky-500/30 bg-sky-500/5 p-3">
+                    <label htmlFor={`learning-rule-${item.id}`} className="text-xs font-medium text-ink-200">Refine this rule</label>
+                    <p className="mt-1 text-[11px] leading-relaxed text-ink-500">
+                      This creates an auditable replacement with the same evidence and scope. It does not manufacture another supporting run or rewrite the original evidence.
+                    </p>
+                    <textarea id={`learning-rule-${item.id}`} value={editInstruction} maxLength={300}
+                      onChange={(event) => setEditInstruction(event.target.value)} rows={3}
+                      className="mt-2 w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100" />
+                    <p className="mt-1 text-[11px] text-ink-500">{editInstruction.trim().length}/300 characters</p>
+                    {editError && <p role="alert" className="mt-1 text-xs text-rose-600 dark:text-rose-400">{editError}</p>}
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" disabled={busy === `refine:${item.id}`} onClick={() => void saveEdit(item)}
+                        className="btn-success px-3 py-1.5 text-xs disabled:opacity-40">Save refinement</button>
+                      <button type="button" disabled={busy === `refine:${item.id}`} onClick={() => { setEditingId(null); setEditError(null); }}
+                        className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Cancel</button>
+                    </div>
+                  </div>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
                   <button type="button" disabled={!item.eligible || busy === item.id}
                     onClick={() => act(`candidates/${item.id}/approve`, { candidateKey: item.candidateKey }, item.id)}
                     className="btn-success px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40">Approve</button>
                   <button type="button" disabled={busy === item.id}
                     onClick={() => act(`candidates/${item.id}/dismiss`, { candidateKey: item.candidateKey }, item.id)}
                     className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Dismiss</button>
+                  <button type="button" disabled={busy !== null} onClick={() => beginEdit(item)}
+                    className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Edit rule</button>
                 </div>
               </li>
             ))}

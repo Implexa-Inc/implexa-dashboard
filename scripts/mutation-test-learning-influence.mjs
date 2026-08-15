@@ -10,6 +10,9 @@ const mutants = [
   ['historical action detached', 'onClick={() => void analyzePastFeedback()}',
     'onClick={() => undefined}'],
   ['historical endpoint unbound', '/learning-influence/backfill`', '/learning-influence`'],
+  ['locked approval explanation removed', 'Approval unlocks after this pattern appears in at least 2 independent runs.', 'This suggestion is unavailable.'],
+  ['rule refinement action detached', 'onClick={() => beginEdit(item)}', 'onClick={() => undefined}'],
+  ['rule refinement endpoint unbound', '/learning-influence/candidates/${item.id}/refine`', '/learning-influence/candidates/${item.id}/dismiss`'],
 ];
 try {
   for (const [name, needle, replacement] of mutants) {
