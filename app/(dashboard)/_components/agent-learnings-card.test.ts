@@ -58,7 +58,7 @@ test('an unverifiable backfill result fails closed and never reports analysis su
   } finally { rendered.cleanup(); }
 });
 
-test('a one-run suggestion offers an explicit low-evidence override and saves an auditable refinement', async () => {
+test('an edited one-run suggestion atomically approves the replacement text', async () => {
   const calls: Array<{ path: string; body?: unknown }> = [];
   const payload = { ...ready, suggested: [oneRunSuggestion] };
   const rendered = await render('agent-learnings-card.tsx', {
@@ -66,21 +66,17 @@ test('a one-run suggestion offers an explicit low-evidence override and saves an
   }, {
     backend(path, init) {
       calls.push({ path, body: (init as { body?: unknown })?.body });
-      return path.endsWith('/refine') ? { ok: true, candidateId: 'candidate-2' } : payload;
+      return path.endsWith('/refine-and-approve')
+        ? { ok: true, approved: true, candidateId: 'candidate-2', ruleId: 'rule-1', version: 1 }
+        : payload;
     },
   });
   try {
     assert.match(rendered.text(), /Only 1 independent run supports this suggestion/);
-    const approve = rendered.getByText('Approve anyway') as HTMLButtonElement;
-    assert.equal(approve.disabled, false);
-    await rendered.click(approve);
-    const approvalCall = calls.find(({ path }) => path.endsWith('/candidates/candidate-1/approve'));
-    assert.ok(approvalCall);
-    assert.equal(JSON.stringify(approvalCall.body), JSON.stringify({
-      candidateKey: 'a'.repeat(64), allowLowEvidence: true,
-    }));
     await rendered.click(rendered.getByText('Edit rule'));
     assert.match(rendered.text(), /does not manufacture another supporting run/);
+    const buttonLabels = Array.from(rendered.document.querySelectorAll('button')).map((button) => button.textContent?.trim());
+    assert.equal(buttonLabels.includes('Approve anyway'), false, 'the original candidate must not remain separately approvable while editing');
     const textarea = rendered.document.querySelector('textarea') as HTMLTextAreaElement;
     const refined = 'Align text and animation timing precisely with the spoken narration. Make sure animations start slightly after the narration, never before it.';
     await rendered.act(() => {
@@ -88,10 +84,51 @@ test('a one-run suggestion offers an explicit low-evidence override and saves an
       setter.call(textarea, refined);
       textarea.dispatchEvent(new rendered.window.Event('input', { bubbles: true }));
     });
-    await rendered.click(rendered.getByText('Save refinement'));
-    const call = calls.find(({ path }) => path.endsWith('/candidates/candidate-1/refine'));
+    await rendered.click(rendered.getByText('Save & approve'));
+    const call = calls.find(({ path }) => path.endsWith('/candidates/candidate-1/refine-and-approve'));
     assert.ok(call);
-    assert.equal(JSON.stringify(call.body), JSON.stringify({ candidateKey: 'a'.repeat(64), instruction: refined }));
+    assert.equal(JSON.stringify(call.body), JSON.stringify({
+      candidateKey: 'a'.repeat(64), instruction: refined, allowLowEvidence: true,
+    }));
+    assert.equal(calls.some(({ path }) => path.endsWith('/candidates/candidate-1/approve')), false,
+      'editing must never activate the stale original candidate through a separate approval request');
+  } finally { rendered.cleanup(); }
+});
+
+test('editing an active rule appends a new immutable version', async () => {
+  const calls: Array<{ path: string; body?: unknown }> = [];
+  const activeRule = {
+    id: 'version-1', ruleId: 'rule-1', version: 1, versionDigest: 'd'.repeat(64),
+    ruleClass: 'preference', instruction: oneRunSuggestion.instruction,
+    scope: oneRunSuggestion.scope, evidenceIds: ['evidence-1'], lastAppliedRun: null,
+    contradictionCount: 0, influenceState: 'active',
+  };
+  const payload = { ...ready, active: [activeRule] };
+  const rendered = await render('agent-learnings-card.tsx', {
+    slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
+  }, {
+    backend(path, init) {
+      calls.push({ path, body: (init as { body?: unknown })?.body });
+      return path.endsWith('/rules/rule-1/refine')
+        ? { ok: true, ruleId: 'rule-1', version: 2, instruction: 'replacement' }
+        : payload;
+    },
+  });
+  try {
+    await rendered.click(rendered.getByText('Edit active rule'));
+    assert.match(rendered.text(), /Saving appends v2/);
+    assert.match(rendered.text(), /current version.*remain unchanged and auditable/);
+    const textarea = rendered.document.querySelector('textarea') as HTMLTextAreaElement;
+    const refined = 'Align text and animation timing precisely with the spoken narration. Make sure animations start slightly after the narration, never before it.';
+    await rendered.act(() => {
+      const setter = Object.getOwnPropertyDescriptor(rendered.window.HTMLTextAreaElement.prototype, 'value')!.set!;
+      setter.call(textarea, refined);
+      textarea.dispatchEvent(new rendered.window.Event('input', { bubbles: true }));
+    });
+    await rendered.click(rendered.getByText('Save new version'));
+    const call = calls.find(({ path }) => path.endsWith('/rules/rule-1/refine'));
+    assert.ok(call);
+    assert.equal(JSON.stringify(call.body), JSON.stringify({ versionDigest: 'd'.repeat(64), instruction: refined }));
   } finally { rendered.cleanup(); }
 });
 
