@@ -18,10 +18,21 @@ type Candidate = {
 type ActiveRule = {
   id: string; ruleId: string; version: number; versionDigest: string;
   ruleClass: 'preference' | 'reliability'; instruction: string; scope: Scope;
-  evidenceIds: string[]; lastAppliedRun: string | null; contradictionCount: number;
+  evidenceIds: string[]; lastSuppliedRun?: string | null; lastAppliedRun: string | null;
+  lastHandling?: 'applied' | 'unsupported_scope' | 'skipped_inapplicable' | 'refused' | null;
+  contradictionCount: number;
   influenceState: 'active' | 'suspended_contradiction' | 'suspended_scope';
 };
-type Payload = { ok: true; source: 'ready'; suggested: Candidate[]; active: ActiveRule[] };
+type ProofRun = {
+  requestId: string; executionAttemptId: string; runId: string; fencingEpoch: number;
+  contextDigest: string; suppliedAt: string | null;
+  handling: 'applied' | 'unsupported_scope' | 'skipped_inapplicable' | 'refused' | null;
+  handlingReason: string | null; outcome: 'accepted' | 'rejected' | 'pending';
+  outcomeEvidenceId: string | null; causationClaim: 'not_claimed';
+};
+type RuleHistory = { ruleVersionId: string; ruleId: string; version: number;
+  state: 'active' | 'disabled' | 'revoked'; suggestedAt: string | null; approvedAt: string | null; runs: ProofRun[] };
+type Payload = { ok: true; source: 'ready'; suggested: Candidate[]; active: ActiveRule[]; history?: RuleHistory[] };
 type BackfillResult = {
   ok: true; source: 'ready'; scannedEvidence: number; agentEvidence: number;
   matchedEvidence: number; proposals: number; createdCandidates: number;
@@ -217,7 +228,7 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
       <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
         <p className="text-sm font-medium text-ink-100">Use feedback you already gave</p>
         <p className="mt-1 text-xs leading-relaxed text-ink-400">
-          Analyze up to 180 days of this agent&apos;s implemented Review Room feedback. Reviewer words select a small, reviewed rule vocabulary; suggestions remain inert until they recur across successful runs and you approve them.
+          Analyze up to 180 days of this agent&apos;s implemented Review Room feedback. Reviewer words select a small, reviewed rule vocabulary; suggestions remain inert until they meet the evidence threshold and you approve them.
         </p>
         <button type="button" disabled={busy !== null} onClick={() => void analyzePastFeedback()}
           className="btn-outline mt-3 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40">
@@ -320,7 +331,7 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
                   </p>
                 )}
                 <p className="mt-2 text-[11px] text-ink-500">
-                  {rule.evidenceIds.length} supporting evidence records · {rule.contradictionCount} contradictions · task {short(rule.scope.taskSignatureDigest)} · step {rule.scope.stepIndex == null ? 'agent task-wide' : rule.scope.stepIndex} · capability {rule.scope.capabilityIdentity || 'all'} · tool {rule.scope.toolIdentity || 'all'} · last applied {rule.lastAppliedRun ? short(rule.lastAppliedRun) : 'never'}
+                  {rule.evidenceIds.length} supporting evidence records · {rule.contradictionCount} contradictions · task {short(rule.scope.taskSignatureDigest)} · step {rule.scope.stepIndex == null ? 'agent task-wide' : rule.scope.stepIndex} · capability {rule.scope.capabilityIdentity || 'all'} · tool {rule.scope.toolIdentity || 'all'} · last supplied {rule.lastSuppliedRun ? short(rule.lastSuppliedRun) : 'never'} · last applied {rule.lastAppliedRun ? short(rule.lastAppliedRun) : 'never'}
                 </p>
                 {activeEditingId === rule.id && (
                   <div className="mt-3 rounded-md border border-sky-500/30 bg-sky-500/5 p-3">
@@ -351,6 +362,30 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
                     onClick={() => act(`rules/${rule.ruleId}/undo`, { versionDigest: rule.versionDigest }, rule.id)}
                     className="text-xs text-rose-600 hover:text-rose-500 disabled:opacity-40">Undo</button>
                 </div>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="mt-6 border-t border-ink-800 pt-5">
+        <h3 className="text-sm font-semibold text-ink-100">Rule history</h3>
+        {(payload.history || []).length === 0 ? (
+          <p className="mt-2 text-xs text-ink-500">No frozen learning context has been recorded yet.</p>
+        ) : (
+          <ul className="mt-2 space-y-3">
+            {(payload.history || []).map((item) => (
+              <li key={item.ruleVersionId} className="rounded-lg border border-ink-800 bg-ink-900/40 p-3">
+                <p className="text-xs font-medium text-ink-200">Rule v{item.version} · {item.state}</p>
+                {item.runs.length === 0 ? (
+                  <p className="mt-2 text-[11px] text-ink-500">Suggested → approved → not yet supplied</p>
+                ) : item.runs.map((run) => (
+                  <div key={`${run.executionAttemptId}:${item.ruleVersionId}`} className="mt-2 text-[11px] leading-relaxed text-ink-400">
+                    <p>Suggested → approved → {run.suppliedAt ? `supplied to run ${short(run.runId)}` : 'supply pending'} → {run.handling ? run.handling.replaceAll('_', ' ') : 'handling pending'} → outcome {run.outcome}</p>
+                    {run.handlingReason && <p className="text-ink-500">Executor reason: {run.handlingReason}</p>}
+                    <p className="font-mono text-[10px] text-ink-600">attempt {short(run.executionAttemptId)} · fence {run.fencingEpoch} · context {short(run.contextDigest)}</p>
+                    <p className="text-ink-500">Applied is the executor&apos;s handling report. It does not prove this rule caused the outcome.</p>
+                  </div>
+                ))}
               </li>
             ))}
           </ul>

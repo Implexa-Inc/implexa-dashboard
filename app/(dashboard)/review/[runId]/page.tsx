@@ -58,6 +58,23 @@ export default async function ReviewRoomPage({ params, searchParams }: {
 
   const versions = packet.lineage?.versions || [];
   const currentLabel = versions.find((v) => v.runId === packet.run!.id)?.label ?? null;
+  type ReviewLearningProof = { id: string; launch_attempt_id: string; fencing_epoch: number; context_digest: string;
+    context: { rules?: Array<{ id: string; version: number; versionDigest: string; instruction: string }> } };
+  let reviewLearningProof: ReviewLearningProof | null = null;
+  let reviewLearningHandling: Array<{ rule_version_id: string; handling: string; reason: string }> = [];
+  let reviewLearningAvailable = true;
+  try {
+    const proof = await supabase.from('run_learning_attempt_contexts').select('*').eq('run_id', packet.run.id)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (proof.error) reviewLearningAvailable = false;
+    else if (proof.data) {
+      reviewLearningProof = proof.data as ReviewLearningProof;
+      const handling = await supabase.from('run_learning_handling_receipts')
+        .select('rule_version_id,handling,reason').eq('attempt_context_id', proof.data.id).order('created_at', { ascending: true });
+      if (handling.error) reviewLearningAvailable = false;
+      else reviewLearningHandling = handling.data || [];
+    }
+  } catch { reviewLearningAvailable = false; }
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6">
@@ -90,6 +107,30 @@ export default async function ReviewRoomPage({ params, searchParams }: {
           Some of this review couldn&apos;t be loaded ({broken.join(', ')}). What you see may be incomplete.
         </div>
       )}
+
+      <section className="mb-5 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learning proof">
+        <h2 className="text-sm font-semibold text-ink-100">Learning proof</h2>
+        {!reviewLearningAvailable ? (
+          <p className="mt-2 text-xs text-amber-300">Attempt-bound learning proof is unavailable. No handling state is inferred.</p>
+        ) : !reviewLearningProof ? (
+          <p className="mt-2 text-xs text-ink-500">No learning context was frozen for this run.</p>
+        ) : (
+          <div className="mt-2">
+            <p className="text-[11px] text-ink-500">Attempt {reviewLearningProof.launch_attempt_id.slice(0, 12)} · fence {reviewLearningProof.fencing_epoch} · context {reviewLearningProof.context_digest.slice(0, 12)}</p>
+            <ul className="mt-2 space-y-2">
+              {(reviewLearningProof.context.rules || []).map((rule) => {
+                const receipt = reviewLearningHandling.find((item) => item.rule_version_id === rule.id);
+                return <li key={rule.id} className="rounded border border-ink-800 px-3 py-2 text-xs text-ink-300">
+                  <p>{rule.instruction}</p>
+                  <p className="mt-1 text-ink-500">v{rule.version} · {rule.versionDigest.slice(0, 12)} · executor handling {receipt ? receipt.handling.replaceAll('_', ' ') : 'pending'}</p>
+                  {receipt?.reason && <p className="mt-1 text-ink-500">Reason: {receipt.reason}</p>}
+                  <p className="mt-1 text-ink-500">Applied is an executor report, not proof of causation or success.</p>
+                </li>;
+              })}
+            </ul>
+          </div>
+        )}
+      </section>
 
       <ReviewRoom
         runId={packet.run.id}
