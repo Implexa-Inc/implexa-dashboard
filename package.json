@@ -9,6 +9,7 @@
     "start": "next start --port 3001",
     "lint": "next lint",
     "test": "node scripts/run-tests.mjs",
+    "test:mutation:learning-influence": "node scripts/mutation-test-learning-influence.mjs",
     "test:marketplace-mutations": "node scripts/mutation-test-agent-marketplace.mjs",
     "test:mutation:marketplace-audition": "node scripts/mutation-test-marketplace-audition.mjs",
     "test:mutation:marketplace-handoff": "node scripts/mutation-test-marketplace-handoff.mjs",

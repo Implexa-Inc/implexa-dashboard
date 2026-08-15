@@ -1,169 +1,182 @@
 'use client';
 
-/**
- * <AgentLearningsCard /> — the agent's private LEARNINGS, in the dashboard.
- *
- * The per-(user, agent) memory layer (backend migration 0105): durable
- * preferences that accumulate as the agent runs — distilled from your feedback,
- * proposed by a run itself, or typed here — and injected into EVERY future run
- * next to the standing note. Private to you; never touches the shared public
- * agent definition.
- *
- * Self-fetches GET /api/v2/agents/:slug/learnings; add via POST; retire via
- * POST :id/retire. Shows an empty-state with the add box (this is a management
- * surface — you may want to seed a preference before the first run).
- */
-
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
-type Learning = {
-  id: string;
-  learning: string;
-  source: 'feedback' | 'revision' | 'self' | 'manual' | string;
-  weight: number;
-  created_at: string;
+type Scope = {
+  kind: 'private_agent'; agentSlug: string; agentFamilyId: string;
+  originatingAgentVersionId?: string; taskSignatureDigest: string;
+  stepIndex: number | null; capabilityIdentity: string | null; toolIdentity: string | null;
 };
-
-// How each learning got here, in plain language (shown as a small badge).
-const SOURCE_LABEL: Record<string, string> = {
-  feedback: 'from your feedback',
-  self: 'learned from a run',
-  manual: 'you added',
-  revision: 'from a change request',
+type Candidate = {
+  id: string; candidateKey: string; ruleClass: 'preference' | 'reliability' | 'capability';
+  polarity: string; summary: string | null; instruction: string; scope: Scope;
+  evidenceCount: number; recurrenceCount: number; taskCoverage: number;
+  contradictionCount: number; eligible: boolean; eligibilityReason: string;
 };
+type ActiveRule = {
+  id: string; ruleId: string; version: number; versionDigest: string;
+  ruleClass: 'preference' | 'reliability'; instruction: string; scope: Scope;
+  evidenceIds: string[]; lastAppliedRun: string | null; contradictionCount: number;
+  influenceState: 'active' | 'suspended_contradiction' | 'suspended_scope';
+};
+type Payload = { ok: true; source: 'ready'; suggested: Candidate[]; active: ActiveRule[] };
+type SourceState = 'loading' | 'ready' | 'disabled' | 'unavailable';
 
-const MIN_LEN = 12;
-const MAX_LEN = 400;
+function short(value: string | null | undefined, size = 12) {
+  return value ? `${value.slice(0, size)}…` : 'unknown';
+}
+function reason(value: string) {
+  const labels: Record<string, string> = {
+    eligible: 'Ready for your approval', insufficient_recurrence: 'Needs recurring evidence',
+    contradicted: 'Contradicting feedback needs review', stale_evidence: 'Evidence is stale',
+    capability_shadow_only: 'Capability evidence is shadow-only', dismissed: 'Dismissed',
+    runtime_scope_shadow_only: 'Exact runtime scope is not enforceable; shadow-only',
+  };
+  return labels[value] || value.replaceAll('_', ' ');
+}
 
-export default function AgentLearningsCard({ slug }: { slug: string }) {
-  const supabase = createClient();
-  const [learnings, setLearnings] = useState<Learning[] | null>(null);
-  const [draft, setDraft] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
+export default function AgentLearningsCard({ slug, initialPayload = null, initialSource = 'loading' }: {
+  slug: string; initialPayload?: Payload | null; initialSource?: SourceState;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+  const [payload, setPayload] = useState<Payload | null>(initialPayload);
+  const [source, setSource] = useState<SourceState>(initialSource);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function jwt() {
+  const token = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     return session?.access_token;
-  }
+  }, [supabase]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await callBackend(
-          `/api/v2/agents/${encodeURIComponent(slug)}/learnings`,
-          { jwt: await jwt() },
-        );
-        if (!cancelled) setLearnings((res?.learnings as Learning[]) || []);
-      } catch {
-        if (!cancelled) setLearnings([]); // degrade quietly (e.g. table not migrated)
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const body = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/learning-influence`, { jwt: await token() });
+      if (body?.source === 'disabled') { setPayload(null); setSource('disabled'); return; }
+      if (!body?.ok || body?.source !== 'ready' || !Array.isArray(body.suggested) || !Array.isArray(body.active)) {
+        setPayload(null); setSource('unavailable'); return;
       }
-    })();
-    return () => { cancelled = true; };
-  }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
+      setPayload(body as Payload); setSource('ready');
+    } catch {
+      setPayload(null); setSource('unavailable');
+    }
+  }, [slug, token]);
 
-  if (learnings === null) return null; // still loading — no flash
+  useEffect(() => { void load(); }, [load]);
 
-  async function add() {
-    const text = draft.trim();
-    if (text.length < MIN_LEN) { setError(`Add at least ${MIN_LEN} characters.`); return; }
-    setSaving(true); setError(null);
+  async function act(path: string, body: Record<string, string>, key: string) {
+    if (source !== 'ready') return;
+    setBusy(key); setError(null);
     try {
-      const res = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/learnings`, {
-        jwt: await jwt(), method: 'POST', body: { text },
+      await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/learning-influence/${path}`, {
+        jwt: await token(), method: 'POST', body,
       });
-      setLearnings((res?.learnings as Learning[]) || []);
-      setDraft('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not add. Try again.');
-    } finally {
-      setSaving(false);
-    }
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The learning action could not be completed.');
+    } finally { setBusy(null); }
   }
 
-  async function retire(id: string) {
-    setBusyId(id); setError(null);
-    try {
-      const res = await callBackend(
-        `/api/v2/agents/${encodeURIComponent(slug)}/learnings/${encodeURIComponent(id)}/retire`,
-        { jwt: await jwt(), method: 'POST' },
-      );
-      setLearnings((res?.learnings as Learning[]) || []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not retire. Try again.');
-    } finally {
-      setBusyId(null);
-    }
-  }
+  if (source === 'loading') return <div className="card max-w-3xl" aria-busy="true">Loading learnings…</div>;
 
-  const inputCls = 'w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none';
+  if (source !== 'ready' || !payload) {
+    return (
+      <section className="card max-w-3xl border-amber-500/30" aria-label="Train learnings unavailable">
+        <p className="text-[11px] uppercase tracking-widest text-ink-500">Train → Learnings</p>
+        <h2 className="mt-1 text-base font-semibold text-ink-50">Learnings unavailable</h2>
+        <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+          {source === 'disabled'
+            ? 'This deployment has not enabled the immutable learning-rule source. No learning can influence a run.'
+            : 'The learning source could not be verified. Nothing is shown as empty and every learning action is disabled.'}
+        </p>
+        <button type="button" disabled className="btn-outline mt-3 opacity-50">Actions disabled</button>
+      </section>
+    );
+  }
 
   return (
-    <div className="card max-w-2xl">
-      <div className="flex items-start justify-between gap-3 mb-1">
-        <h2 className="text-base font-semibold text-ink-50">What this agent has learned</h2>
-        {learnings.length > 0 && (
-          <span className="flex-none text-[11px] text-ink-400">{learnings.length} active</span>
-        )}
-      </div>
-      <p className="text-xs text-ink-400 mb-4 leading-snug">
-        Private preferences that build up as this agent runs — from your feedback, from the agent noticing what you want, or added here. Every future run honors them. Only you see these; they never change the shared agent.
+    <section className="card max-w-3xl" aria-label="Train learnings">
+      <p className="text-[11px] uppercase tracking-widest text-ink-500">Train → Learnings</p>
+      <h2 className="mt-1 text-base font-semibold text-ink-50">What this agent may carry forward</h2>
+      <p className="mt-1 text-xs leading-relaxed text-ink-400">
+        Private to this agent. Suggestions stay inert until you approve them; every active rule is versioned, frozen into a run, and reversible.
       </p>
 
-      {learnings.length === 0 ? (
-        <p className="text-xs text-ink-500 mb-4 italic">
-          Nothing learned yet — this fills in as you run the agent and leave feedback. You can also add a preference now.
-        </p>
-      ) : (
-        <ul className="space-y-2 mb-4">
-          {learnings.map((l) => (
-            <li key={l.id} className="flex items-start gap-3 rounded-md border border-ink-800 bg-ink-900/50 px-3 py-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-ink-100 leading-snug">{l.learning}</p>
-                <span className="text-[10px] uppercase tracking-wide text-ink-500">
-                  {SOURCE_LABEL[l.source] || l.source}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => retire(l.id)}
-                disabled={busyId === l.id}
-                className="flex-none text-xs text-ink-400 hover:text-rose-500 disabled:opacity-50"
-                title="Retire this learning — it stops applying to future runs"
-              >
-                {busyId === l.id ? '…' : 'Retire'}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="flex items-start gap-2">
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !saving) add(); }}
-          maxLength={MAX_LEN}
-          placeholder="e.g. Always lead the brief with the single most important metric"
-          className={inputCls}
-        />
-        <button
-          type="button"
-          onClick={add}
-          disabled={saving || draft.trim().length < MIN_LEN}
-          className={saving || draft.trim().length < MIN_LEN
-            ? 'btn-outline text-sm px-4 py-2 opacity-50 cursor-not-allowed flex-none'
-            : 'btn-success text-sm px-4 py-2 flex-none'}
-        >
-          {saving ? 'Adding…' : 'Add'}
-        </button>
+      <div className="mt-5">
+        <h3 className="text-sm font-semibold text-ink-100">Suggested</h3>
+        {payload.suggested.length === 0 ? <p className="mt-2 text-xs text-ink-500">No suggestions awaiting review.</p> : (
+          <ul className="mt-2 space-y-3">
+            {payload.suggested.map((item) => (
+              <li key={item.id} className="rounded-lg border border-ink-800 bg-ink-900/50 p-3">
+                <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-ink-500">
+                  <span>{item.ruleClass}</span><span>Private agent</span><span>{reason(item.eligibilityReason)}</span>
+                </div>
+                <p className="mt-2 text-sm text-ink-100">{item.summary || item.instruction}</p>
+                {item.summary && <p className="mt-1 text-xs text-ink-400">Rule: {item.instruction}</p>}
+                <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-500">
+                  <div><dt className="inline">Evidence </dt><dd className="inline text-ink-300">{item.evidenceCount}</dd></div>
+                  <div><dt className="inline">Runs </dt><dd className="inline text-ink-300">{item.recurrenceCount}</dd></div>
+                  <div><dt className="inline">Task coverage </dt><dd className="inline text-ink-300">{item.taskCoverage}</dd></div>
+                  <div><dt className="inline">Contradictions </dt><dd className="inline text-ink-300">{item.contradictionCount}</dd></div>
+                  <div><dt className="inline">Task </dt><dd className="inline font-mono text-ink-300">{short(item.scope.taskSignatureDigest)}</dd></div>
+                  <div><dt className="inline">Step </dt><dd className="inline text-ink-300">{item.scope.stepIndex == null ? 'agent task-wide' : item.scope.stepIndex}</dd></div>
+                  <div><dt className="inline">Capability </dt><dd className="inline text-ink-300">{item.scope.capabilityIdentity || 'all'}</dd></div>
+                  <div><dt className="inline">Tool </dt><dd className="inline text-ink-300">{item.scope.toolIdentity || 'all'}</dd></div>
+                </dl>
+                <div className="mt-3 flex gap-2">
+                  <button type="button" disabled={!item.eligible || busy === item.id}
+                    onClick={() => act(`candidates/${item.id}/approve`, { candidateKey: item.candidateKey }, item.id)}
+                    className="btn-success px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40">Approve</button>
+                  <button type="button" disabled={busy === item.id}
+                    onClick={() => act(`candidates/${item.id}/dismiss`, { candidateKey: item.candidateKey }, item.id)}
+                    className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Dismiss</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
-    </div>
+
+      <div className="mt-6 border-t border-ink-800 pt-5">
+        <h3 className="text-sm font-semibold text-ink-100">Active</h3>
+        {payload.active.length === 0 ? <p className="mt-2 text-xs text-ink-500">No approved rules influence future runs.</p> : (
+          <ul className="mt-2 space-y-3">
+            {payload.active.map((rule) => (
+              <li key={rule.id} className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                <div className="text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                  {rule.ruleClass} · v{rule.version} · private agent · {rule.influenceState === 'active' ? 'active' : 'suspended'}
+                </div>
+                <p className="mt-2 text-sm text-ink-100">{rule.instruction}</p>
+                {rule.influenceState === 'suspended_contradiction' && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                    Suspended from future runs after {rule.contradictionCount} contradictory evidence record{rule.contradictionCount === 1 ? '' : 's'}. Already-frozen runs are unchanged; review by disabling or undoing this rule.
+                  </p>
+                )}
+                {rule.influenceState === 'suspended_scope' && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                    Suspended from future runs because this runtime cannot enforce its exact step, capability, or tool scope. It remains visible for review and cannot be broadened.
+                  </p>
+                )}
+                <p className="mt-2 text-[11px] text-ink-500">
+                  {rule.evidenceIds.length} supporting evidence records · {rule.contradictionCount} contradictions · task {short(rule.scope.taskSignatureDigest)} · step {rule.scope.stepIndex == null ? 'agent task-wide' : rule.scope.stepIndex} · capability {rule.scope.capabilityIdentity || 'all'} · tool {rule.scope.toolIdentity || 'all'} · last applied {rule.lastAppliedRun ? short(rule.lastAppliedRun) : 'never'}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button type="button" disabled={busy === rule.id}
+                    onClick={() => act(`rules/${rule.ruleId}/disable`, { versionDigest: rule.versionDigest }, rule.id)}
+                    className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Disable</button>
+                  <button type="button" disabled={busy === rule.id}
+                    onClick={() => act(`rules/${rule.ruleId}/undo`, { versionDigest: rule.versionDigest }, rule.id)}
+                    className="text-xs text-rose-600 hover:text-rose-500 disabled:opacity-40">Undo</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {error && <p role="alert" className="mt-3 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+    </section>
   );
 }

@@ -1,0 +1,59 @@
+{
+  "contractVersion": "learning-influence.fixture.v1",
+  "producer": "implexa-backend",
+  "scope": {
+    "ownerId": "00000003-0000-4000-8000-000000000003",
+    "organizationId": "00000001-0000-4000-8000-000000000001",
+    "agentSlug": "visual-evidence-remotion-compositor",
+    "agentFamilyId": "00000005-0000-4000-8000-000000000005",
+    "workflowVersionId": "00000006-0000-4000-8000-000000000006",
+    "taskSignatureDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "suggested": [
+    {
+      "id": "00000030-0000-4000-8000-000000000030",
+      "candidateKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ruleClass": "reliability",
+      "polarity": "positive",
+      "summary": "Resolution or packaging changes must preserve approved treatments.",
+      "instruction": "Preserve every approved treatment when changing resolution or packaging.",
+      "evidenceCount": 2,
+      "recurrenceCount": 2,
+      "taskCoverage": 1,
+      "contradictionCount": 0,
+      "stepIndex": 4,
+      "capabilityIdentity": "final-assembly",
+      "toolIdentity": "remotion.render",
+      "eligible": false,
+      "eligibilityReason": "runtime_scope_shadow_only"
+    }
+  ],
+  "active": [
+    {
+      "id": "00000040-0000-4000-8000-000000000040",
+      "ruleId": "00000041-0000-4000-8000-000000000041",
+      "version": 1,
+      "versionDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "ruleClass": "reliability",
+      "polarity": "positive",
+      "instruction": "Preserve every approved treatment when changing resolution or packaging.",
+      "instructionDigest": "a221fa6933115aa5232e5468c3f8c767216f25c3a63dd9b57707e67f9b91273c",
+      "stepIndex": null,
+      "capabilityIdentity": null,
+      "toolIdentity": null,
+      "evidenceIds": [
+        "00000050-0000-4000-8000-000000000050",
+        "00000051-0000-4000-8000-000000000051"
+      ],
+      "originatingAgentVersionId": "00000006-0000-4000-8000-000000000006",
+      "lastAppliedRun": "00000060-0000-4000-8000-000000000060",
+      "contradictionCount": 0,
+      "influenceState": "active"
+    }
+  ],
+  "unavailable": {
+    "source": "unavailable",
+    "actionsEnabled": false,
+    "mayRenderAsEmpty": false
+  }
+}
