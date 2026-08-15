@@ -64,6 +64,15 @@ export type AgentLifecycle = {
   runningRun: boolean;
 };
 
+/**
+ * Sections the backend could NOT read. A name here means "unknown", never
+ * "empty" — the page must render it as unavailable and must not offer an
+ * action whose safety depends on the section it could not read.
+ */
+export type AgentSection =
+  | 'activation' | 'connections' | 'grade' | 'judge_policy'
+  | 'schedules' | 'runs' | 'lifecycle' | 'latest_run' | 'own_generated' | 'dismissed';
+
 export type AgentDetail = {
   workflow: WorkflowDetail;
   checklist: ActivationChecklist | null;
@@ -73,8 +82,13 @@ export type AgentDetail = {
   routines: AgentRoutine[];
   runs: InboxItem[];
   lifecycle: AgentLifecycle | null;
-  /** Sections the backend could not read this time (degraded, not empty). */
   unavailable: string[];
+  /**
+   * `unavailable` as a predicate. Read THIS rather than testing a section's
+   * value for emptiness: a null checklist and an unreadable checklist are the
+   * same value and opposite facts.
+   */
+  isUnavailable: (section: AgentSection) => boolean;
 };
 
 export type AgentDetailResult =
@@ -180,9 +194,14 @@ export async function getAgentDetail(
     if (!body?.ok || !body.workflow) return { status: 'unavailable' };
 
     const workflow = mapWorkflowDetail(body.workflow, slug, opts.source || 'web-seed');
+    const unavailable: string[] = Array.isArray(body.unavailable)
+      ? body.unavailable.filter((s: unknown): s is string => typeof s === 'string')
+      : [];
+    const unavailableSet = new Set(unavailable);
     return {
       status: 'ready',
       detail: {
+        isUnavailable: (section: AgentSection) => unavailableSet.has(section),
         workflow,
         checklist: mapActivationChecklist(body.checklist ?? null, slug),
         connectionWarnings: mapEnvelopeWarnings(body.connections?.warnings),
@@ -193,7 +212,7 @@ export async function getAgentDetail(
         lifecycle: body.lifecycle && Array.isArray(body.lifecycle.requests)
           ? { requests: body.lifecycle.requests, runningRun: body.lifecycle.runningRun === true }
           : null,
-        unavailable: Array.isArray(body.unavailable) ? body.unavailable : [],
+        unavailable,
       },
     };
   } catch {

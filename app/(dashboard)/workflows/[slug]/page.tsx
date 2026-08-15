@@ -197,9 +197,29 @@ export default async function WorkflowDetailPage({
   const scheduleRoutine = pausableRoutine || routines.find((r) => isPausableRoutine(r)) || null;
 
   // Connection health for THIS agent (envelope-scoped — the full-roster
-  // /me/connections read is gone from this page). Degrades to no banner when
-  // the section was unavailable (empty warnings).
+  // /me/connections read is gone from this page).
+  //
+  // UNAVAILABLE IS NOT HEALTHY. An unreadable connection registry produces the
+  // same empty warning list as a genuinely healthy agent, so silence here used
+  // to mean "we checked and it's fine" when it actually meant "we never got to
+  // look". The two now render differently and the unreadable one blocks the
+  // run actions that depend on a reachable account.
   const connWarnings = detail!.connectionWarnings;
+  const connectionsUnavailable = detail!.isUnavailable('connections');
+  // Same problem, worse consequence: a checklist we could not read used to
+  // fall through to `checklist === null`, which the Activate/Run controls treat
+  // as "not in your library yet" and render as an actionable Activate button.
+  // That offers to activate an agent whose readiness nobody verified.
+  const activationUnavailable = detail!.isUnavailable('activation');
+  const judgeUnavailable = detail!.isUnavailable('judge_policy');
+  const gradeUnavailable = detail!.isUnavailable('grade');
+  // Same class again: an unreadable run list renders as "No runs yet" and an
+  // unreadable schedule list as "runs on demand". Both are assertions about
+  // this agent that the failed read cannot support.
+  const runsUnavailable = detail!.isUnavailable('runs');
+  const schedulesUnavailable = detail!.isUnavailable('schedules');
+  // Any section whose failure makes the primary action unsafe to offer.
+  const actionsBlocked = activationUnavailable || connectionsUnavailable;
   const safety = remoteSafety(workflow);
   const boundCount = workflow.steps.filter((s) => s.ref && !s.gap).length;
 
@@ -498,7 +518,16 @@ export default async function WorkflowDetailPage({
     </>
   );
 
-  const runsPanel = () => agentRuns.length === 0 ? (
+  const runsPanel = () => runsUnavailable ? (
+    // NOT the empty state: we did not read the history, so we cannot say it is
+    // empty. The old empty state ("No runs yet") is a factual claim.
+    <div role="status" className="card p-6 text-center">
+      <p className="text-ink-100 font-medium">Run history unavailable</p>
+      <p className="text-ink-400 text-sm mt-1">
+        We could not load this agent’s runs. This is not the same as having none — reload to try again.
+      </p>
+    </div>
+  ) : agentRuns.length === 0 ? (
     <div className="card p-6 text-center">
       <div className="text-2xl mb-2" aria-hidden="true">✓</div>
       <p className="text-ink-100 font-medium">No runs yet.</p>
@@ -543,6 +572,7 @@ export default async function WorkflowDetailPage({
             claudeTaskId={pausableRoutine?.claude_task_id}
             inFlight={inFlight}
             revisePending={revisePending}
+            statusUnavailable={actionsBlocked}
             workflowVersionId={workflow.workflow_version_id}
             inputContract={workflow.input_contract}
             inputContractDigest={workflow.input_contract_digest}
@@ -677,6 +707,7 @@ export default async function WorkflowDetailPage({
                 claudeTaskId={pausableRoutine?.claude_task_id}
                 inFlight={inFlight}
                 revisePending={revisePending}
+                statusUnavailable={actionsBlocked}
                 workflowVersionId={workflow.workflow_version_id}
                 inputContract={workflow.input_contract}
                 inputContractDigest={workflow.input_contract_digest}
@@ -701,6 +732,32 @@ export default async function WorkflowDetailPage({
          * above the tabs, with a one-tap sign-in. Renders nothing when healthy. */}
         {connWarnings.length > 0 && (
           <ConnectionAttentionBanner warnings={connWarnings} scope="agent" className="mb-6" />
+        )}
+
+        {/* A section we could not read says so, in the place its answer would
+         * have gone. Silence here is what made an unread check look like a
+         * passed one. */}
+        {(actionsBlocked || judgeUnavailable || gradeUnavailable || runsUnavailable || schedulesUnavailable) && (
+          <div role="status" className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.06] px-4 py-3">
+            <div className="text-sm font-semibold text-ink-100">Some status could not be loaded</div>
+            <ul className="mt-1 space-y-0.5 text-sm text-ink-300">
+              {activationUnavailable && (
+                <li>Setup and readiness status unavailable — we could not check what this agent still needs.</li>
+              )}
+              {connectionsUnavailable && (
+                <li>Connection status unavailable — we could not check whether its accounts are signed in.</li>
+              )}
+              {judgeUnavailable && <li>Judge policy unavailable — whether a second model reviews this agent is unknown.</li>}
+              {gradeUnavailable && <li>Track record unavailable — this is not the same as having no runs.</li>}
+              {runsUnavailable && <li>Run history unavailable — the Runs tab is not showing an empty history, it is showing none.</li>}
+              {schedulesUnavailable && <li>Schedule unavailable — we could not read whether this agent runs on a clock.</li>}
+            </ul>
+            <p className="mt-2 text-xs text-ink-400">
+              {actionsBlocked
+                ? 'Running is paused until this loads, because starting a run depends on it. Reload to try again.'
+                : 'Reload to try again.'}
+            </p>
+          </div>
         )}
 
         <AgentTabs

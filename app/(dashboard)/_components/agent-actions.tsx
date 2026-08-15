@@ -93,7 +93,7 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, workflowVersionId = null, inputContract = null, inputContractDigest = null }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, inputContract = null, inputContractDigest = null }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -122,6 +122,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
    *  footgun) and relabelled "Updating…". Cleared server-side once the rewrite
    *  lands; we poll router.refresh() so the button frees up without a reload. */
   revisePending?: boolean;
+  /** A section the run depends on (readiness / connection health) could not be
+   *  READ. Distinct from "not ready": we do not know whether it is ready. The
+   *  primary action is withheld rather than offered on an unverified basis. */
+  statusUnavailable?: boolean;
   workflowVersionId?: string | null;
   inputContract?: WorkflowInputContract | null;
   inputContractDigest?: string | null;
@@ -773,7 +777,20 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   return (
     <>
     <div className={`flex flex-col gap-1.5 ${align === 'end' ? 'items-end' : 'items-start'}`}>
-      {!isActive ? (
+      {statusUnavailable ? (
+        // A section the run depends on could not be READ (setup/readiness or
+        // connection health). Its failure looks identical to a clean result —
+        // null checklist, empty warnings — so without this the page offered a
+        // confident Activate/Run built on a check that never happened.
+        <button
+          type="button"
+          disabled
+          className="btn-success text-sm px-4 py-2 opacity-60 cursor-not-allowed"
+          title="We could not load this agent's setup or connection status, so running is paused. Reload to try again."
+        >
+          Status unavailable
+        </button>
+      ) : !isActive ? (
         <Link href={`/workflows/${slug}/activate`} className="btn-success text-sm px-4 py-2">
           Activate
         </Link>
@@ -818,7 +835,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       {/* Secondary: supervise the run live instead of hands-off. Goes through the
           same pop-up (so the note rides into the watched session). Shown only
           before queuing so the paths stay mutually exclusive (no double-run). */}
-      {isActive && !revisePending && blocking === 0 && (state === 'idle' || state === 'error') && (
+      {isActive && !statusUnavailable && !revisePending && blocking === 0 && (state === 'idle' || state === 'error') && (
         <button
           type="button"
           onClick={openWatch}

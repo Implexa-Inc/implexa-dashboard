@@ -123,7 +123,12 @@ test('a 200 with a hollow body (no workflow) is unavailable, not an empty page',
   assert.deepEqual(await getAgentDetail('x', 't', { fetchImpl: impl }), { status: 'unavailable' });
 });
 
-test('degraded sections arrive as their calm defaults, with the section names preserved', async () => {
+test('a DEGRADED section is reported as unknown — its empty value must never be read as an answer', async () => {
+  // This test previously asserted the opposite ("null checklist → the Activate
+  // path, as before", "no connections read → no banner, as before"), which
+  // pinned the fail-open: an unreadable check rendered as a passed one. The
+  // values are unchanged — they are the calm defaults — but they are no longer
+  // the whole story, and isUnavailable is what callers must branch on.
   const { impl } = fetchStub(200, {
     ...ENVELOPE,
     checklist: null,
@@ -137,11 +142,42 @@ test('degraded sections arrive as their calm defaults, with the section names pr
   const out = await getAgentDetail('daily-brief', 'jwt-123', { fetchImpl: impl });
   assert.equal(out.status, 'ready');
   if (out.status !== 'ready') return;
-  assert.equal(out.detail.checklist, null, 'null checklist → the Activate path, as before');
-  assert.deepEqual(out.detail.connectionWarnings, [], 'no connections read → no banner, as before');
+  const d = out.detail;
+  for (const section of ['activation', 'connections', 'grade', 'judge_policy', 'lifecycle'] as const) {
+    assert.equal(d.isUnavailable(section), true, `${section} must report as unavailable, not merely empty`);
+  }
+  assert.equal(d.checklist, null, 'the value is still the calm default…');
+  assert.equal(d.isUnavailable('activation'), true, '…but callers can tell it apart from "no checklist"');
+  assert.deepEqual(d.connectionWarnings, [], 'no warnings…');
+  assert.equal(d.isUnavailable('connections'), true, '…is NOT a clean bill of health here');
+});
+
+test('a section that is genuinely empty is NOT reported unavailable', async () => {
+  // The other half of the discrimination: a healthy agent with no warnings and
+  // no grade yet must not light up the unavailable notice.
+  const { impl } = fetchStub(200, {
+    ...ENVELOPE,
+    connections: { warnings: [], needs: [], requiresBrowser: false, ok: true },
+    grade: null,
+    unavailable: [],
+  });
+  const out = await getAgentDetail('daily-brief', 'jwt-123', { fetchImpl: impl });
+  assert.equal(out.status, 'ready');
+  if (out.status !== 'ready') return;
+  assert.deepEqual(out.detail.connectionWarnings, []);
+  assert.equal(out.detail.isUnavailable('connections'), false);
   assert.equal(out.detail.grade, null);
-  assert.equal(out.detail.lifecycle, null, 'no lifecycle → Run-now defaults, as before');
-  assert.deepEqual(out.detail.unavailable, ['activation', 'connections', 'grade', 'judge_policy', 'lifecycle']);
+  assert.equal(out.detail.isUnavailable('grade'), false);
+});
+
+test('a malformed unavailable list cannot smuggle a section in as "available"', async () => {
+  const { impl } = fetchStub(200, { ...ENVELOPE, unavailable: ['activation', 42, null, 'connections'] });
+  const out = await getAgentDetail('daily-brief', 'jwt-123', { fetchImpl: impl });
+  assert.equal(out.status, 'ready');
+  if (out.status !== 'ready') return;
+  assert.equal(out.detail.isUnavailable('activation'), true);
+  assert.equal(out.detail.isUnavailable('connections'), true);
+  assert.deepEqual(out.detail.unavailable, ['activation', 'connections'], 'non-strings dropped, real names kept');
 });
 
 test('?source= rides the query string', async () => {
