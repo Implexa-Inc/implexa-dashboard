@@ -3,6 +3,15 @@ import assert from 'node:assert/strict';
 import { render } from '../../../lib/test/render.ts';
 
 const ready = { ok: true, source: 'ready', suggested: [], active: [] };
+const oneRunSuggestion = {
+  id: 'candidate-1', candidateKey: 'a'.repeat(64), ruleClass: 'preference', polarity: 'positive',
+  summary: 'Time text and animations to the spoken narration.',
+  instruction: 'Align text and animation timing precisely with the spoken narration.',
+  scope: { kind: 'private_agent', agentSlug: 'video-agent', agentFamilyId: 'family-1',
+    taskSignatureDigest: 'b'.repeat(64), stepIndex: null, capabilityIdentity: null, toolIdentity: null },
+  evidenceCount: 1, recurrenceCount: 1, taskCoverage: 1, contradictionCount: 0,
+  eligible: false, eligibilityReason: 'insufficient_recurrence',
+};
 
 test('historical feedback analysis posts to the agent-bound backfill and refreshes suggestions', async () => {
   const responses: Array<{ path: string; method?: string }> = [];
@@ -46,5 +55,37 @@ test('an unverifiable backfill result fails closed and never reports analysis su
     await rendered.click(rendered.getByText('Analyze past feedback'));
     assert.match(rendered.text(), /Historical feedback analysis returned an unverifiable result/);
     assert.doesNotMatch(rendered.text(), /implemented feedback items matched reviewed patterns/);
+  } finally { rendered.cleanup(); }
+});
+
+test('a locked one-run suggestion explains the threshold and saves an auditable refinement', async () => {
+  const calls: Array<{ path: string; body?: unknown }> = [];
+  const payload = { ...ready, suggested: [oneRunSuggestion] };
+  const rendered = await render('agent-learnings-card.tsx', {
+    slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
+  }, {
+    backend(path, init) {
+      calls.push({ path, body: (init as { body?: unknown })?.body });
+      return path.endsWith('/refine') ? { ok: true, candidateId: 'candidate-2' } : payload;
+    },
+  });
+  try {
+    assert.match(rendered.text(), /Approval unlocks after this pattern appears in at least 2 independent runs/);
+    assert.match(rendered.text(), /currently has 1/);
+    const approve = rendered.getByText('Approve') as HTMLButtonElement;
+    assert.equal(approve.disabled, true);
+    await rendered.click(rendered.getByText('Edit rule'));
+    assert.match(rendered.text(), /does not manufacture another supporting run/);
+    const textarea = rendered.document.querySelector('textarea') as HTMLTextAreaElement;
+    const refined = 'Align text and animation timing precisely with the spoken narration. Make sure animations start slightly after the narration, never before it.';
+    await rendered.act(() => {
+      const setter = Object.getOwnPropertyDescriptor(rendered.window.HTMLTextAreaElement.prototype, 'value')!.set!;
+      setter.call(textarea, refined);
+      textarea.dispatchEvent(new rendered.window.Event('input', { bubbles: true }));
+    });
+    await rendered.click(rendered.getByText('Save refinement'));
+    const call = calls.find(({ path }) => path.endsWith('/candidates/candidate-1/refine'));
+    assert.ok(call);
+    assert.equal(JSON.stringify(call.body), JSON.stringify({ candidateKey: 'a'.repeat(64), instruction: refined }));
   } finally { rendered.cleanup(); }
 });
