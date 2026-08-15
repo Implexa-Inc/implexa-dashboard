@@ -22,6 +22,11 @@ type ActiveRule = {
   influenceState: 'active' | 'suspended_contradiction' | 'suspended_scope';
 };
 type Payload = { ok: true; source: 'ready'; suggested: Candidate[]; active: ActiveRule[] };
+type BackfillResult = {
+  ok: true; source: 'ready'; scannedEvidence: number; agentEvidence: number;
+  matchedEvidence: number; proposals: number; createdCandidates: number;
+  attachedEvidence: number; replaySafe: true;
+};
 type SourceState = 'loading' | 'ready' | 'disabled' | 'unavailable';
 
 function short(value: string | null | undefined, size = 12) {
@@ -45,6 +50,7 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
   const [source, setSource] = useState<SourceState>(initialSource);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<BackfillResult | null>(null);
 
   const token = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -80,6 +86,26 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
     } finally { setBusy(null); }
   }
 
+  async function analyzePastFeedback() {
+    if (source !== 'ready') return;
+    setBusy('historical-backfill'); setError(null); setAnalysis(null);
+    try {
+      const body = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/learning-influence/backfill`, {
+        jwt: await token(), method: 'POST', body: {},
+      });
+      const counts = ['scannedEvidence', 'agentEvidence', 'matchedEvidence', 'proposals',
+        'createdCandidates', 'attachedEvidence'] as const;
+      if (!body?.ok || body?.source !== 'ready' || body?.replaySafe !== true
+          || counts.some((key) => !Number.isSafeInteger(body[key]) || body[key] < 0)) {
+        throw new Error('Historical feedback analysis returned an unverifiable result.');
+      }
+      setAnalysis(body as BackfillResult);
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Past feedback could not be analyzed.');
+    } finally { setBusy(null); }
+  }
+
   if (source === 'loading') return <div className="card max-w-3xl" aria-busy="true">Loading learnings…</div>;
 
   if (source !== 'ready' || !payload) {
@@ -104,6 +130,26 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
       <p className="mt-1 text-xs leading-relaxed text-ink-400">
         Private to this agent. Suggestions stay inert until you approve them; every active rule is versioned, frozen into a run, and reversible.
       </p>
+
+      <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
+        <p className="text-sm font-medium text-ink-100">Use feedback you already gave</p>
+        <p className="mt-1 text-xs leading-relaxed text-ink-400">
+          Analyze up to 180 days of this agent&apos;s implemented Review Room feedback. Reviewer words select a small, reviewed rule vocabulary; suggestions remain inert until they recur across successful runs and you approve them.
+        </p>
+        <button type="button" disabled={busy !== null} onClick={() => void analyzePastFeedback()}
+          className="btn-outline mt-3 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40">
+          {busy === 'historical-backfill' ? 'Analyzing past feedback…' : 'Analyze past feedback'}
+        </button>
+        {analysis && (
+          <p role="status" className="mt-2 text-xs text-sky-700 dark:text-sky-300">
+            {analysis.agentEvidence === 0
+              ? 'No implemented feedback from this agent was found in the last 180 days.'
+              : analysis.matchedEvidence === 0
+                ? `${analysis.agentEvidence} implemented feedback item${analysis.agentEvidence === 1 ? '' : 's'} checked; none matched the reviewed learning patterns yet.`
+                : `${analysis.matchedEvidence} of ${analysis.agentEvidence} implemented feedback items matched reviewed patterns. ${analysis.createdCandidates} new suggestion${analysis.createdCandidates === 1 ? '' : 's'} and ${analysis.attachedEvidence} new evidence link${analysis.attachedEvidence === 1 ? '' : 's'} were added without duplicates.`}
+          </p>
+        )}
+      </div>
 
       <div className="mt-5">
         <h3 className="text-sm font-semibold text-ink-100">Suggested</h3>

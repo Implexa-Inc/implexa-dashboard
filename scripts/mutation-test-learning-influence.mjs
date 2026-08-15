@@ -1,8 +1,22 @@
 import assert from 'node:assert/strict'; import fs from 'node:fs'; import path from 'node:path'; import {spawnSync} from 'node:child_process'; import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'); const file=path.join(root,'app/(dashboard)/_components/agent-learnings-card.tsx');
-function run(){return spawnSync(process.execPath,['--test','test/learning-influence.render.test.mjs'],{cwd:root,encoding:'utf8'});}
+function run(){return spawnSync(process.execPath,['--test','test/learning-influence.render.test.mjs','app/(dashboard)/_components/agent-learnings-card.test.ts'],{cwd:root,encoding:'utf8'});}
 const baseline=run(); assert.equal(baseline.status,0,`baseline failed\n${baseline.stdout}\n${baseline.stderr}`);
-const original=fs.readFileSync(file,'utf8'); const needle="if (source !== 'ready' || !payload) {"; assert.equal(original.split(needle).length-1,1);
-try { fs.writeFileSync(file,original.replace(needle,"if (false) { // mutation: fail open")); const result=run(); assert.notEqual(result.status,0,'UI fail-open mutant SURVIVED'); console.log('KILLED: UI fail-open'); }
+const original=fs.readFileSync(file,'utf8');
+const mutants = [
+  ['UI fail-open', "if (source !== 'ready' || !payload) {", "if (false) { // mutation: fail open"],
+  ['historical analysis disabled', 'disabled={busy !== null} onClick={() => void analyzePastFeedback()}',
+    'disabled={true} onClick={() => void analyzePastFeedback()}'],
+  ['historical action detached', 'onClick={() => void analyzePastFeedback()}',
+    'onClick={() => undefined}'],
+  ['historical endpoint unbound', '/learning-influence/backfill`', '/learning-influence`'],
+];
+try {
+  for (const [name, needle, replacement] of mutants) {
+    assert.equal(original.split(needle).length-1,1,`${name}: anchor must occur once`);
+    fs.writeFileSync(file,original.replace(needle,replacement));
+    const result=run(); assert.notEqual(result.status,0,`${name} mutant SURVIVED`); console.log(`KILLED: ${name}`);
+  }
+}
 finally { fs.writeFileSync(file,original); }
-console.log('Learning Influence v1 rendered UI mutations: PASS (1/1 killed; baseline green)');
+console.log(`Learning Influence v1 rendered UI mutations: PASS (${mutants.length}/${mutants.length} killed; baseline green)`);
