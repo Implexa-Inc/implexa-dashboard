@@ -44,7 +44,9 @@ function reason(value: string) {
 function approvalExplanation(item: Candidate) {
   if (item.eligible) return null;
   if (item.eligibilityReason === 'insufficient_recurrence') {
-    return `Approval unlocks after this pattern appears in at least 2 independent runs. This suggestion currently has ${item.recurrenceCount}.`;
+    return canApproveLowEvidence(item)
+      ? 'Only 1 independent run supports this suggestion. You can approve anyway; it will be recorded as a low-evidence author override and remains reversible.'
+      : `Approval requires recurring evidence. This suggestion currently has ${item.recurrenceCount} independent runs.`;
   }
   if (item.eligibilityReason === 'contradicted') return 'Approval is locked because later feedback contradicts this suggestion.';
   if (item.eligibilityReason === 'stale_evidence') return 'Approval is locked because the supporting evidence is outside the current evidence window.';
@@ -52,6 +54,17 @@ function approvalExplanation(item: Candidate) {
     return 'Approval is locked because the current runtime cannot enforce this exact scope.';
   }
   return `Approval is locked: ${reason(item.eligibilityReason)}.`;
+}
+function canApproveLowEvidence(item: Candidate) {
+  return !item.eligible
+    && item.eligibilityReason === 'insufficient_recurrence'
+    && item.evidenceCount === 1
+    && item.recurrenceCount === 1
+    && item.contradictionCount === 0
+    && (item.ruleClass === 'preference' || item.ruleClass === 'reliability')
+    && item.scope.stepIndex == null
+    && item.scope.capabilityIdentity == null
+    && item.scope.toolIdentity == null;
 }
 
 export default function AgentLearningsCard({ slug, initialPayload = null, initialSource = 'loading' }: {
@@ -88,7 +101,7 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
 
   useEffect(() => { void load(); }, [load]);
 
-  async function act(path: string, body: Record<string, string>, key: string) {
+  async function act(path: string, body: Record<string, string | boolean>, key: string) {
     if (source !== 'ready') return;
     setBusy(key); setError(null);
     try {
@@ -234,9 +247,13 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
                   </div>
                 )}
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" disabled={!item.eligible || busy === item.id}
-                    onClick={() => act(`candidates/${item.id}/approve`, { candidateKey: item.candidateKey }, item.id)}
-                    className="btn-success px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40">Approve</button>
+                  <button type="button" disabled={!(item.eligible || canApproveLowEvidence(item)) || busy === item.id}
+                    onClick={() => act(`candidates/${item.id}/approve`, {
+                      candidateKey: item.candidateKey, allowLowEvidence: canApproveLowEvidence(item),
+                    }, item.id)}
+                    className="btn-success px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40">
+                    {canApproveLowEvidence(item) ? 'Approve anyway' : 'Approve'}
+                  </button>
                   <button type="button" disabled={busy === item.id}
                     onClick={() => act(`candidates/${item.id}/dismiss`, { candidateKey: item.candidateKey }, item.id)}
                     className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Dismiss</button>

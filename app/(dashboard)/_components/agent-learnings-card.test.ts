@@ -58,7 +58,7 @@ test('an unverifiable backfill result fails closed and never reports analysis su
   } finally { rendered.cleanup(); }
 });
 
-test('a locked one-run suggestion explains the threshold and saves an auditable refinement', async () => {
+test('a one-run suggestion offers an explicit low-evidence override and saves an auditable refinement', async () => {
   const calls: Array<{ path: string; body?: unknown }> = [];
   const payload = { ...ready, suggested: [oneRunSuggestion] };
   const rendered = await render('agent-learnings-card.tsx', {
@@ -70,10 +70,15 @@ test('a locked one-run suggestion explains the threshold and saves an auditable 
     },
   });
   try {
-    assert.match(rendered.text(), /Approval unlocks after this pattern appears in at least 2 independent runs/);
-    assert.match(rendered.text(), /currently has 1/);
-    const approve = rendered.getByText('Approve') as HTMLButtonElement;
-    assert.equal(approve.disabled, true);
+    assert.match(rendered.text(), /Only 1 independent run supports this suggestion/);
+    const approve = rendered.getByText('Approve anyway') as HTMLButtonElement;
+    assert.equal(approve.disabled, false);
+    await rendered.click(approve);
+    const approvalCall = calls.find(({ path }) => path.endsWith('/candidates/candidate-1/approve'));
+    assert.ok(approvalCall);
+    assert.equal(JSON.stringify(approvalCall.body), JSON.stringify({
+      candidateKey: 'a'.repeat(64), allowLowEvidence: true,
+    }));
     await rendered.click(rendered.getByText('Edit rule'));
     assert.match(rendered.text(), /does not manufacture another supporting run/);
     const textarea = rendered.document.querySelector('textarea') as HTMLTextAreaElement;
@@ -88,4 +93,24 @@ test('a locked one-run suggestion explains the threshold and saves an auditable 
     assert.ok(call);
     assert.equal(JSON.stringify(call.body), JSON.stringify({ candidateKey: 'a'.repeat(64), instruction: refined }));
   } finally { rendered.cleanup(); }
+});
+
+test('low-evidence override never unlocks contradicted or scoped suggestions', async () => {
+  const blocked = [
+    { ...oneRunSuggestion, id: 'contradicted', contradictionCount: 1 },
+    { ...oneRunSuggestion, id: 'scoped', scope: { ...oneRunSuggestion.scope, toolIdentity: 'higgsfield.seedance' } },
+  ];
+  for (const item of blocked) {
+    const payload = { ...ready, suggested: [item] };
+    const rendered = await render('agent-learnings-card.tsx', {
+      slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
+    }, {
+      backend() { return payload; },
+    });
+    try {
+      const approve = rendered.getByText('Approve') as HTMLButtonElement;
+      assert.equal(approve.disabled, true);
+      assert.doesNotMatch(rendered.text(), /Approve anyway/);
+    } finally { rendered.cleanup(); }
+  }
 });
