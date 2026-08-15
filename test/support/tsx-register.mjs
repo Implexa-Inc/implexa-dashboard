@@ -54,6 +54,7 @@ const STUBS = {
   'next/navigation':       join(HERE, 'stubs', 'next-navigation.ts'),
   'next/server':           join(HERE, 'stubs', 'next-server.ts'),
   '@/lib/supabase/server': join(HERE, 'stubs', 'supabase-server.ts'),
+  '@/lib/supabase/client': join(HERE, 'stubs', 'supabase-client.ts'),
 };
 
 const EXTENSIONS = ['', '.tsx', '.ts', '.mjs', '.js', '/index.tsx', '/index.ts'];

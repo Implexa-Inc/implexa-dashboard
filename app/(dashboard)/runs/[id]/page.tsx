@@ -224,12 +224,26 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   // mechanism (no run_requests row at all, e.g. a manual/legacy insert) — the
   // banner component itself renders nothing when the fields are absent, so a
   // degraded fetch here is silently safe, never a broken page.
-  let engineRouting: { original_preference?: string | null; selected_executor?: string | null; selection_reason?: string | null } | null = null;
+  let engineRouting: { original_preference?: string | null; selected_executor?: string | null; selection_reason?: string | null; learning_context?: { rules?: Array<{ id: string; version: number; versionDigest: string; ruleClass: string; instruction: string }> } | null } | null = null;
+  let learningSourceAvailable = true;
   try {
-    const { data } = await supabase.from('run_requests')
-      .select('original_preference, selected_executor, selection_reason').eq('run_id', r.id).maybeSingle();
-    engineRouting = data || null;
-  } catch { /* 0118/0119 not applied yet, or no run_requests row for this run — banner just stays hidden */ }
+    const { data, error } = await supabase.from('run_requests')
+      .select('original_preference, selected_executor, selection_reason, learning_context').eq('run_id', r.id).maybeSingle();
+    if (error) {
+      learningSourceAvailable = false;
+      // Preserve the pre-0190 routing disclosure while making the learning
+      // source failure explicit. A missing additive column must not erase an
+      // otherwise valid engine-override explanation.
+      const legacy = await supabase.from('run_requests')
+        .select('original_preference, selected_executor, selection_reason').eq('run_id', r.id).maybeSingle();
+      engineRouting = legacy.data || null;
+    } else {
+      engineRouting = data || null;
+      // A manual/legacy run with no request row has no authoritative prepared
+      // learning source. Treat that as unavailable, never as a proven empty set.
+      if (!data) learningSourceAvailable = false;
+    }
+  } catch { learningSourceAvailable = false; }
 
   // Resolve the agent this run belongs to. Used to have been a .find() over the
   // full listWorkflows() catalog — but that catalog is heavily cached (1h) and,
@@ -553,6 +567,26 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           selectedExecutor={engineRouting?.selected_executor}
           selectionReason={engineRouting?.selection_reason}
         />
+
+        <section className="mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learnings used">
+          <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
+          {!learningSourceAvailable ? (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">The frozen learning source is unavailable. This is not shown as an empty result.</p>
+          ) : (engineRouting?.learning_context?.rules || []).length === 0 ? (
+            <p className="mt-2 text-xs text-ink-500">No approved learning rule versions were frozen into this run.</p>
+          ) : (
+            <ul className="mt-2 space-y-2">
+              {(engineRouting?.learning_context?.rules || []).map((rule) => (
+                <li key={rule.id} className="rounded-md border border-ink-800 px-3 py-2">
+                  <p className="text-sm text-ink-100">{rule.instruction}</p>
+                  <p className="mt-1 text-[10px] uppercase tracking-wide text-ink-500">
+                    {rule.ruleClass} · v{rule.version} · {rule.id.slice(0, 8)} · {rule.versionDigest.slice(0, 12)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id} />
         {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
