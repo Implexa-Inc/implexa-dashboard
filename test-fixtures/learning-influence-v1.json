@@ -21,8 +21,11 @@
       "recurrenceCount": 2,
       "taskCoverage": 1,
       "contradictionCount": 0,
-      "eligible": true,
-      "eligibilityReason": "eligible"
+      "stepIndex": 4,
+      "capabilityIdentity": "final-assembly",
+      "toolIdentity": "remotion.render",
+      "eligible": false,
+      "eligibilityReason": "runtime_scope_shadow_only"
     }
   ],
   "active": [
@@ -35,14 +38,17 @@
       "polarity": "positive",
       "instruction": "Preserve every approved treatment when changing resolution or packaging.",
       "instructionDigest": "a221fa6933115aa5232e5468c3f8c767216f25c3a63dd9b57707e67f9b91273c",
-      "stepIndex": 4,
-      "capabilityIdentity": "final-assembly",
+      "stepIndex": null,
+      "capabilityIdentity": null,
+      "toolIdentity": null,
       "evidenceIds": [
         "00000050-0000-4000-8000-000000000050",
         "00000051-0000-4000-8000-000000000051"
       ],
       "originatingAgentVersionId": "00000006-0000-4000-8000-000000000006",
-      "lastAppliedRun": "00000060-0000-4000-8000-000000000060"
+      "lastAppliedRun": "00000060-0000-4000-8000-000000000060",
+      "contradictionCount": 0,
+      "influenceState": "active"
     }
   ],
   "unavailable": {

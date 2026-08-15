@@ -7,7 +7,7 @@ import { callBackend } from '@/lib/api';
 type Scope = {
   kind: 'private_agent'; agentSlug: string; agentFamilyId: string;
   originatingAgentVersionId?: string; taskSignatureDigest: string;
-  stepIndex: number | null; capabilityIdentity: string | null;
+  stepIndex: number | null; capabilityIdentity: string | null; toolIdentity: string | null;
 };
 type Candidate = {
   id: string; candidateKey: string; ruleClass: 'preference' | 'reliability' | 'capability';
@@ -18,7 +18,8 @@ type Candidate = {
 type ActiveRule = {
   id: string; ruleId: string; version: number; versionDigest: string;
   ruleClass: 'preference' | 'reliability'; instruction: string; scope: Scope;
-  evidenceIds: string[]; lastAppliedRun: string | null;
+  evidenceIds: string[]; lastAppliedRun: string | null; contradictionCount: number;
+  influenceState: 'active' | 'suspended_contradiction' | 'suspended_scope';
 };
 type Payload = { ok: true; source: 'ready'; suggested: Candidate[]; active: ActiveRule[] };
 type SourceState = 'loading' | 'ready' | 'disabled' | 'unavailable';
@@ -31,6 +32,7 @@ function reason(value: string) {
     eligible: 'Ready for your approval', insufficient_recurrence: 'Needs recurring evidence',
     contradicted: 'Contradicting feedback needs review', stale_evidence: 'Evidence is stale',
     capability_shadow_only: 'Capability evidence is shadow-only', dismissed: 'Dismissed',
+    runtime_scope_shadow_only: 'Exact runtime scope is not enforceable; shadow-only',
   };
   return labels[value] || value.replaceAll('_', ' ');
 }
@@ -120,6 +122,9 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
                   <div><dt className="inline">Task coverage </dt><dd className="inline text-ink-300">{item.taskCoverage}</dd></div>
                   <div><dt className="inline">Contradictions </dt><dd className="inline text-ink-300">{item.contradictionCount}</dd></div>
                   <div><dt className="inline">Task </dt><dd className="inline font-mono text-ink-300">{short(item.scope.taskSignatureDigest)}</dd></div>
+                  <div><dt className="inline">Step </dt><dd className="inline text-ink-300">{item.scope.stepIndex == null ? 'agent task-wide' : item.scope.stepIndex}</dd></div>
+                  <div><dt className="inline">Capability </dt><dd className="inline text-ink-300">{item.scope.capabilityIdentity || 'all'}</dd></div>
+                  <div><dt className="inline">Tool </dt><dd className="inline text-ink-300">{item.scope.toolIdentity || 'all'}</dd></div>
                 </dl>
                 <div className="mt-3 flex gap-2">
                   <button type="button" disabled={!item.eligible || busy === item.id}
@@ -142,11 +147,21 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
             {payload.active.map((rule) => (
               <li key={rule.id} className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
                 <div className="text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-                  {rule.ruleClass} · v{rule.version} · private agent
+                  {rule.ruleClass} · v{rule.version} · private agent · {rule.influenceState === 'active' ? 'active' : 'suspended'}
                 </div>
                 <p className="mt-2 text-sm text-ink-100">{rule.instruction}</p>
+                {rule.influenceState === 'suspended_contradiction' && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                    Suspended from future runs after {rule.contradictionCount} contradictory evidence record{rule.contradictionCount === 1 ? '' : 's'}. Already-frozen runs are unchanged; review by disabling or undoing this rule.
+                  </p>
+                )}
+                {rule.influenceState === 'suspended_scope' && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                    Suspended from future runs because this runtime cannot enforce its exact step, capability, or tool scope. It remains visible for review and cannot be broadened.
+                  </p>
+                )}
                 <p className="mt-2 text-[11px] text-ink-500">
-                  {rule.evidenceIds.length} evidence records · task {short(rule.scope.taskSignatureDigest)} · last applied {rule.lastAppliedRun ? short(rule.lastAppliedRun) : 'never'}
+                  {rule.evidenceIds.length} supporting evidence records · {rule.contradictionCount} contradictions · task {short(rule.scope.taskSignatureDigest)} · step {rule.scope.stepIndex == null ? 'agent task-wide' : rule.scope.stepIndex} · capability {rule.scope.capabilityIdentity || 'all'} · tool {rule.scope.toolIdentity || 'all'} · last applied {rule.lastAppliedRun ? short(rule.lastAppliedRun) : 'never'}
                 </p>
                 <div className="mt-3 flex gap-2">
                   <button type="button" disabled={busy === rule.id}
