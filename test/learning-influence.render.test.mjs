@@ -55,3 +55,16 @@ test('rendered unavailable source is explicit and cannot masquerade as empty', (
   assert.doesNotMatch(html, /No suggestions awaiting review/);
   assert.doesNotMatch(html, /Analyze past feedback/);
 });
+
+test('rendered one-run unscoped preference is advisory and author-overridable', () => {
+  const item = { ...payload.suggested[0], id: 'one-run', ruleClass: 'preference',
+    eligible: false, eligibilityReason: 'insufficient_recurrence', evidenceCount: 1,
+    recurrenceCount: 1, contradictionCount: 0,
+    scope: { ...baseScope, stepIndex: null, capabilityIdentity: null, toolIdentity: null } };
+  const html = renderToStaticMarkup(React.createElement(AgentLearningsCard,
+    { slug: fixture.scope.agentSlug, initialPayload: { ...payload, suggested: [item] }, initialSource: 'ready' }));
+  assert.match(html, /Only 1 independent run supports this suggestion/);
+  assert.match(html, /low-evidence author override/);
+  assert.match(html, /<button[^>]*>Approve anyway<\/button>/);
+  assert.doesNotMatch(html, /<button[^>]+disabled=""[^>]*>Approve anyway/);
+});
