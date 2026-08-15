@@ -28,7 +28,8 @@
     "test:review-continuation-recovery-mutations": "node scripts/mutation-test-review-continuation-recovery.mjs",
     "test:executor-fallback-mutations": "node scripts/mutation-test-executor-fallback.mjs",
     "test:review-spatial-annotation-mutations": "node scripts/mutation-test-review-spatial-annotation.mjs",
-    "test:reviewer-resolution-mutations": "node scripts/mutation-test-reviewer-resolution.mjs"
+    "test:reviewer-resolution-mutations": "node scripts/mutation-test-reviewer-resolution.mjs",
+    "test:outcome-orchestration-mutations": "node scripts/mutation-test-outcome-orchestration.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
