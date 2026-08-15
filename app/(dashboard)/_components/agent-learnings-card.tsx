@@ -79,6 +79,9 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editInstruction, setEditInstruction] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
+  const [activeEditingId, setActiveEditingId] = useState<string | null>(null);
+  const [activeEditInstruction, setActiveEditInstruction] = useState('');
+  const [activeEditError, setActiveEditError] = useState<string | null>(null);
 
   const token = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -138,23 +141,51 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
     setEditingId(item.id); setEditInstruction(item.instruction); setEditError(null); setError(null);
   }
 
-  async function saveEdit(item: Candidate) {
+  function validatedInstruction(value: string, original: string) {
+    const instruction = value.trim().replace(/\s+/g, ' ');
+    if (instruction.length < 12 || instruction.length > 300) return { error: 'Write a rule between 12 and 300 characters.' };
+    if (instruction === original) return { error: 'Change the rule before saving the refinement.' };
+    return { instruction };
+  }
+
+  async function saveEdit(item: Candidate, approve: boolean) {
     const instruction = editInstruction.trim().replace(/\s+/g, ' ');
-    if (instruction.length < 12 || instruction.length > 300) {
-      setEditError('Write a rule between 12 and 300 characters.'); return;
-    }
-    if (instruction === item.instruction) {
-      setEditError('Change the rule before saving the refinement.'); return;
-    }
-    const key = `refine:${item.id}`;
+    const checked = validatedInstruction(instruction, item.instruction);
+    if (checked.error) { setEditError(checked.error); return; }
+    const key = `${approve ? 'refine-approve' : 'refine'}:${item.id}`;
     setBusy(key); setEditError(null); setError(null);
     try {
-      await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/learning-influence/candidates/${item.id}/refine`, {
-        jwt: await token(), method: 'POST', body: { candidateKey: item.candidateKey, instruction },
+      const endpoint = approve ? 'refine-and-approve' : 'refine';
+      await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/learning-influence/candidates/${item.id}/${endpoint}`, {
+        jwt: await token(), method: 'POST', body: {
+          candidateKey: item.candidateKey, instruction: checked.instruction,
+          ...(approve ? { allowLowEvidence: canApproveLowEvidence(item) } : {}),
+        },
       });
       setEditingId(null); setEditInstruction(''); await load();
     } catch (caught) {
       setEditError(caught instanceof Error ? caught.message : 'The refined rule could not be saved.');
+    } finally { setBusy(null); }
+  }
+
+  function beginActiveEdit(rule: ActiveRule) {
+    setActiveEditingId(rule.id); setActiveEditInstruction(rule.instruction);
+    setActiveEditError(null); setError(null);
+  }
+
+  async function saveActiveEdit(rule: ActiveRule) {
+    const checked = validatedInstruction(activeEditInstruction, rule.instruction);
+    if (checked.error) { setActiveEditError(checked.error); return; }
+    const key = `refine-rule:${rule.id}`;
+    setBusy(key); setActiveEditError(null); setError(null);
+    try {
+      await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/learning-influence/rules/${rule.ruleId}/refine`, {
+        jwt: await token(), method: 'POST',
+        body: { versionDigest: rule.versionDigest, instruction: checked.instruction },
+      });
+      setActiveEditingId(null); setActiveEditInstruction(''); await load();
+    } catch (caught) {
+      setActiveEditError(caught instanceof Error ? caught.message : 'The active rule could not be refined.');
     } finally { setBusy(null); }
   }
 
@@ -238,15 +269,17 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
                       className="mt-2 w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100" />
                     <p className="mt-1 text-[11px] text-ink-500">{editInstruction.trim().length}/300 characters</p>
                     {editError && <p role="alert" className="mt-1 text-xs text-rose-600 dark:text-rose-400">{editError}</p>}
-                    <div className="mt-2 flex gap-2">
-                      <button type="button" disabled={busy === `refine:${item.id}`} onClick={() => void saveEdit(item)}
-                        className="btn-success px-3 py-1.5 text-xs disabled:opacity-40">Save refinement</button>
-                      <button type="button" disabled={busy === `refine:${item.id}`} onClick={() => { setEditingId(null); setEditError(null); }}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button type="button" disabled={busy !== null} onClick={() => void saveEdit(item, true)}
+                        className="btn-success px-3 py-1.5 text-xs disabled:opacity-40">Save &amp; approve</button>
+                      <button type="button" disabled={busy !== null} onClick={() => void saveEdit(item, false)}
+                        className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Save only</button>
+                      <button type="button" disabled={busy !== null} onClick={() => { setEditingId(null); setEditError(null); }}
                         className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Cancel</button>
                     </div>
                   </div>
                 )}
-                <div className="mt-3 flex flex-wrap gap-2">
+                {editingId !== item.id && <div className="mt-3 flex flex-wrap gap-2">
                   <button type="button" disabled={!(item.eligible || canApproveLowEvidence(item)) || busy === item.id}
                     onClick={() => act(`candidates/${item.id}/approve`, {
                       candidateKey: item.candidateKey, allowLowEvidence: canApproveLowEvidence(item),
@@ -259,7 +292,7 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
                     className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Dismiss</button>
                   <button type="button" disabled={busy !== null} onClick={() => beginEdit(item)}
                     className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Edit rule</button>
-                </div>
+                </div>}
               </li>
             ))}
           </ul>
@@ -289,14 +322,35 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
                 <p className="mt-2 text-[11px] text-ink-500">
                   {rule.evidenceIds.length} supporting evidence records · {rule.contradictionCount} contradictions · task {short(rule.scope.taskSignatureDigest)} · step {rule.scope.stepIndex == null ? 'agent task-wide' : rule.scope.stepIndex} · capability {rule.scope.capabilityIdentity || 'all'} · tool {rule.scope.toolIdentity || 'all'} · last applied {rule.lastAppliedRun ? short(rule.lastAppliedRun) : 'never'}
                 </p>
-                <div className="mt-3 flex gap-2">
+                {activeEditingId === rule.id && (
+                  <div className="mt-3 rounded-md border border-sky-500/30 bg-sky-500/5 p-3">
+                    <label htmlFor={`active-learning-rule-${rule.id}`} className="text-xs font-medium text-ink-200">Edit active rule</label>
+                    <p className="mt-1 text-[11px] leading-relaxed text-ink-500">
+                      Saving appends v{rule.version + 1}. The current version, its evidence, and rules already frozen into runs remain unchanged and auditable.
+                    </p>
+                    <textarea id={`active-learning-rule-${rule.id}`} value={activeEditInstruction} maxLength={300}
+                      onChange={(event) => setActiveEditInstruction(event.target.value)} rows={3}
+                      className="mt-2 w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100" />
+                    <p className="mt-1 text-[11px] text-ink-500">{activeEditInstruction.trim().length}/300 characters</p>
+                    {activeEditError && <p role="alert" className="mt-1 text-xs text-rose-600 dark:text-rose-400">{activeEditError}</p>}
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" disabled={busy !== null} onClick={() => void saveActiveEdit(rule)}
+                        className="btn-success px-3 py-1.5 text-xs disabled:opacity-40">Save new version</button>
+                      <button type="button" disabled={busy !== null} onClick={() => { setActiveEditingId(null); setActiveEditError(null); }}
+                        className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Cancel</button>
+                    </div>
+                  </div>
+                )}
+                {activeEditingId !== rule.id && <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" disabled={busy !== null} onClick={() => beginActiveEdit(rule)}
+                    className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Edit active rule</button>
                   <button type="button" disabled={busy === rule.id}
                     onClick={() => act(`rules/${rule.ruleId}/disable`, { versionDigest: rule.versionDigest }, rule.id)}
                     className="btn-outline px-3 py-1.5 text-xs disabled:opacity-40">Disable</button>
                   <button type="button" disabled={busy === rule.id}
                     onClick={() => act(`rules/${rule.ruleId}/undo`, { versionDigest: rule.versionDigest }, rule.id)}
                     className="text-xs text-rose-600 hover:text-rose-500 disabled:opacity-40">Undo</button>
-                </div>
+                </div>}
               </li>
             ))}
           </ul>

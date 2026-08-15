@@ -12,9 +12,12 @@ const mutants = [
   ['historical endpoint unbound', '/learning-influence/backfill`', '/learning-influence`'],
   ['low-evidence warning removed', 'Only 1 independent run supports this suggestion.', 'This suggestion is unavailable.'],
   ['low-evidence override disabled', 'item.eligible || canApproveLowEvidence(item)', 'item.eligible'],
-  ['low-evidence override detached', 'allowLowEvidence: canApproveLowEvidence(item)', 'allowLowEvidence: false'],
+  ['edited low-evidence override detached', '...(approve ? { allowLowEvidence: canApproveLowEvidence(item) } : {}),',
+    '...(approve ? { allowLowEvidence: false } : {}),'],
   ['rule refinement action detached', 'onClick={() => beginEdit(item)}', 'onClick={() => undefined}'],
-  ['rule refinement endpoint unbound', '/learning-influence/candidates/${item.id}/refine`', '/learning-influence/candidates/${item.id}/dismiss`'],
+  ['edited approval loses atomic endpoint', "const endpoint = approve ? 'refine-and-approve' : 'refine';", "const endpoint = 'refine';"],
+  ['active refinement action detached', 'onClick={() => beginActiveEdit(rule)}', 'onClick={() => undefined}'],
+  ['active refinement endpoint unbound', '/learning-influence/rules/${rule.ruleId}/refine`', '/learning-influence/rules/${rule.ruleId}/disable`'],
 ];
 try {
   for (const [name, needle, replacement] of mutants) {
