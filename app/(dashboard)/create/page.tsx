@@ -22,6 +22,7 @@ import { listAgentDiscovery } from '@/lib/agent-discovery';
 import TalkToImplexa from '../_components/talk-to-implexa';
 import BuildingAgents from '../_components/building-agents';
 import AgentDiscoveryCatalog from '../_components/agent-discovery-catalog';
+import OutcomeEntry from '../_components/outcome-entry';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +54,15 @@ export default async function CreatePage() {
           <p className="text-sm text-ink-400 mt-1">
             Describe what you want and your own Claude builds it — or start from one the community already runs.
           </p>
+        </div>
+
+        {/* 0) Outcome-first: state the result, the control plane picks the agent */}
+        <OutcomeEntry />
+
+        {/* divider */}
+        <div className="relative my-10 text-center">
+          <span className="bg-ink-950 px-3 relative z-10 text-xs uppercase tracking-wide text-ink-500">or build an agent yourself</span>
+          <div className="absolute top-1/2 left-0 right-0 h-px bg-ink-800" />
         </div>
 
         {/* 1) Describe it */}
