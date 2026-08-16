@@ -172,7 +172,12 @@ export default function OutcomeEntry() {
     } catch {
       if (current()) setStartError(UNCONFIRMED_START_COPY);
     } finally {
-      if (current()) setStarting(false);
+      // NEVER guarded. `starting` is this action's own in-flight flag, not a
+      // claim about the request that produced the plan, and releasing it is
+      // always correct. Guarding it left the flag stuck true whenever the user
+      // edited during a start, so the NEXT plan rendered a disabled
+      // "Starting…" button and nothing could be started without a reload.
+      setStarting(false);
     }
   }
 

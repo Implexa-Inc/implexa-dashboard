@@ -27,6 +27,30 @@ test('every production links to its own monitor', async () => {
   } finally { rendered.cleanup(); }
 });
 
+test('a blocked production is never counted as running', async () => {
+  // Blocked is unsettled but stalled on the user. Calling it "running" would
+  // contradict the Blocked badge on its own row and tell the user work is
+  // progressing when in fact it is the item that needs them.
+  const blocked = { ...productions[0], id: productions[0].id, state: 'blocked', settled: false };
+  const rendered = await render('../work/_components/outcome-productions-list.tsx', {
+    load: { status: 'ready', productions: [blocked] },
+  });
+  try {
+    assert.match(rendered.text(), /1 waiting on you/);
+    assert.doesNotMatch(rendered.text(), /1 running/);
+    assert.ok(rendered.queryByText('Blocked'), 'the row still states what it is');
+  } finally { rendered.cleanup(); }
+});
+
+test('a deployment without the route renders nothing at all', async () => {
+  const rendered = await render('../work/_components/outcome-productions-list.tsx', {
+    load: { status: 'absent' },
+  });
+  try {
+    assert.equal(rendered.text(), '', 'no warning about a capability the backend never offered');
+  } finally { rendered.cleanup(); }
+});
+
 test('an unreadable list says so — it never renders as "you have none"', async () => {
   const rendered = await render('../work/_components/outcome-productions-list.tsx', {
     load: { status: 'unavailable', reason: 'The productions response did not match the contract.' },
