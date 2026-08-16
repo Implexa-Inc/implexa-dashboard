@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fixture from '../test-fixtures/generated/outcome-orchestration.json' with { type: 'json' };
-import { loadOutcomeProduction } from './outcome-production-load.ts';
+import { listOutcomeProductions, loadOutcomeProduction } from './outcome-production-load.ts';
 
 const ID = fixture.productions.running.id;
 
@@ -50,6 +50,43 @@ test('a completed production loads its receipt from the receipt endpoint', async
     const load = await loadOutcomeProduction(ID, 'jwt');
     assert.equal(load.status, 'ok');
     assert.ok(load.status === 'ok' && load.receipt && load.receipt.outcome.type === 'success');
+    assert.equal(load.status === 'ok' && load.receiptStatus, 'ready');
+  } finally { restore(); }
+});
+
+test('EVERY settled production loads its receipt — stopped and failed included', async () => {
+  // A stopped or failed production is exactly when the user most needs the
+  // account of what was spent and what came back. Reading the receipt only for
+  // 'completed' left those two states with no Work item at all.
+  const cases = [
+    ['statusCancelled', 'receiptCancelled', 'partial'],
+    ['statusFailed', 'receiptFailure', 'failure'],
+  ] as const;
+  for (const [statusKey, receiptKey, outcomeType] of cases) {
+    const restore = stubFetch((url) => (
+      url.endsWith('/receipt')
+        ? { status: 200, body: fixture.responses[receiptKey] }
+        : { status: 200, body: fixture.responses[statusKey] }
+    ));
+    try {
+      const load = await loadOutcomeProduction(ID, 'jwt');
+      assert.ok(load.status === 'ok' && load.receipt, statusKey);
+      assert.equal(load.status === 'ok' && load.receipt!.outcome.type, outcomeType);
+    } finally { restore(); }
+  }
+});
+
+test('a receipt that is merely late does NOT hide the production that read cleanly', async () => {
+  const restore = stubFetch((url) => (
+    url.endsWith('/receipt')
+      ? { status: 404, body: { ok: false, error: 'not_written_yet' } }
+      : { status: 200, body: fixture.responses.statusCompleted }
+  ));
+  try {
+    const load = await loadOutcomeProduction(ID, 'jwt');
+    assert.equal(load.status, 'ok', 'the settled production still renders');
+    assert.equal(load.status === 'ok' && load.receiptStatus, 'pending');
+    assert.equal(load.status === 'ok' && load.receipt, null);
   } finally { restore(); }
 });
 
@@ -72,14 +109,38 @@ test('a 200 with a drifted body is UNAVAILABLE, never an empty monitor', async (
     assert.equal(load.status, 'unavailable');
   } finally { restore(); }
 
-  // The production reads clean but the receipt drifts: the page must fail
-  // closed rather than show a settled production with no accountable result.
+  // The production reads clean but the receipt drifts. The receipt is reported
+  // as its own gap; blanking a page that can already answer "what happened"
+  // would be a bigger lie than admitting the accounting is unread.
   restore = stubFetch((url) => (
     url.endsWith('/receipt')
       ? { status: 200, body: { ok: true, receipt: { productionId: ID } } }
       : { status: 200, body: fixture.responses.statusCompleted }
   ));
   try {
-    assert.equal((await loadOutcomeProduction(ID, 'jwt')).status, 'unavailable');
+    const load = await loadOutcomeProduction(ID, 'jwt');
+    assert.equal(load.status, 'ok');
+    assert.equal(load.status === 'ok' && load.receiptStatus, 'unavailable');
+    assert.equal(load.status === 'ok' && load.receipt, null, 'a drifted receipt is never partially rendered');
+  } finally { restore(); }
+});
+
+test('the productions list is three-valued: readable, or explicitly unavailable', async () => {
+  let restore = stubFetch(() => ({ status: 200, body: fixture.responses.list }));
+  try {
+    const load = await listOutcomeProductions('jwt');
+    assert.equal(load.status, 'ready');
+    assert.equal(load.status === 'ready' && load.productions.length, 3);
+  } finally { restore(); }
+
+  // An unreadable list must never render as "you have no productions".
+  restore = stubFetch(() => ({ status: 200, body: { ok: true, productions: [{ id: 'x' }] } }));
+  try {
+    assert.equal((await listOutcomeProductions('jwt')).status, 'unavailable');
+  } finally { restore(); }
+
+  restore = stubFetch(() => ({ status: 503, body: { ok: false, error: 'down' } }));
+  try {
+    assert.equal((await listOutcomeProductions('jwt')).status, 'unavailable');
   } finally { restore(); }
 });

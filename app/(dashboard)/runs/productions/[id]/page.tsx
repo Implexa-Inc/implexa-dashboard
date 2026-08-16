@@ -48,6 +48,25 @@ export default async function OutcomeProductionPage({ params }: { params: { id: 
           <div className="space-y-6">
             <OutcomeProductionMonitor production={load.production} />
             {load.receipt && <OutcomeWorkItem receipt={load.receipt} />}
+
+            {/* A settled production whose receipt we could not show. The
+                production above is real and already says what happened; what
+                is missing is the accounting, and saying so beats both hiding
+                the page and implying there was nothing to account for. */}
+            {load.receiptStatus === 'pending' && (
+              <div role="status" aria-label="Receipt pending" className="card p-5">
+                <p className="text-sm text-ink-300">
+                  This production has settled. Its receipt — costs, artifacts, and what was returned — isn’t ready yet.
+                </p>
+              </div>
+            )}
+            {load.receiptStatus === 'unavailable' && (
+              <div role="status" aria-label="Receipt unavailable" className="card p-5 border-amber-500/40">
+                <p className="text-sm text-amber-300">
+                  We can’t show this production’s receipt right now. Its costs and artifacts are unread — this is not a claim that none exist.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

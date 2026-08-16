@@ -177,6 +177,74 @@ test('a refused start (409) discards the stale plan instead of retrying it', asy
   } finally { rendered.cleanup(); }
 });
 
+test('REGRESSION: a plan answered for a superseded request is dropped, not rendered', async () => {
+  // The clear-on-edit is not enough on its own: the clear happens now and the
+  // response lands later. Without a request-generation guard the old plan
+  // repainted itself — startable, with a genuine digest the backend would
+  // honour, against a ceiling the user had already changed.
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    let release: (v: unknown) => void = () => {};
+    const gate = new Promise((r) => { release = r; });
+    (rendered.window as unknown as Record<string, unknown>).fetch = async () => {
+      await gate;
+      return { ok: true, status: 200, json: async () => fixture.responses.planPrepared };
+    };
+    await fillRequest(rendered);
+    await rendered.click(planButton(rendered));
+
+    // The user changes the budget while the plan request is still in flight.
+    await type(rendered, rendered.document.getElementById('outcome-budget')!, '400');
+    assert.equal(rendered.queryByText('Proposed plan'), null);
+
+    await rendered.act(async () => { release(null); await new Promise((r) => setTimeout(r, 5)); });
+
+    assert.equal(rendered.queryByText('Proposed plan'), null, 'the superseded plan never repaints');
+    assert.equal(rendered.queryByText('Start production'), null, 'and nothing stale is startable');
+    assert.doesNotMatch(rendered.text(), /\$40\.00/, 'the old ceiling is gone with it');
+  } finally { rendered.cleanup(); }
+});
+
+test('an unconfirmed start points at the safe retry, not at planning again', async () => {
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    const calls = stubFetch(rendered, [
+      { status: 200, body: fixture.responses.planPrepared },
+      { status: 503, body: { ok: false, error: 'unreachable' } },
+    ]);
+    await fillRequest(rendered);
+    await rendered.click(planButton(rendered));
+    await rendered.click(rendered.document.querySelector('input[type="checkbox"]')!);
+    await rendered.click(rendered.getByText('Start production'));
+
+    // Planning again would mint a new plan AND a new idempotency key, so a
+    // start that had in fact landed would reserve the budget a second time.
+    assert.match(rendered.text(), /cannot reserve your budget twice/);
+    assert.doesNotMatch(rendered.text(), /plan again rather than assuming/);
+    const retry = rendered.queryByText('Start production') as HTMLButtonElement | null;
+    assert.ok(retry && !retry.disabled, 'the safe action stays available');
+
+    // And the retry reuses the SAME key, which is what makes it safe.
+    await rendered.click(retry!);
+    assert.equal(calls[2].body.idempotencyKey, calls[1].body.idempotencyKey);
+  } finally { rendered.cleanup(); }
+});
+
+test('attachments dropped by the cap are announced, never silently narrowed', async () => {
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    const input = rendered.document.getElementById('outcome-attachments')!;
+    const files = Array.from({ length: 12 }, (_, i) => ({ name: `clip-${i}.mp4`, size: 100 + i }));
+    Object.defineProperty(input, 'files', { value: files, configurable: true });
+    await rendered.act(() => {
+      input.dispatchEvent(new (rendered.window as unknown as { Event: typeof Event }).Event('change', { bubbles: true }));
+    });
+    assert.match(rendered.text(), /2 files were not added/);
+    assert.match(rendered.text(), /at most 10 inputs/);
+    assert.ok(rendered.document.querySelector('[role="status"]'));
+  } finally { rendered.cleanup(); }
+});
+
 test('a two-node plan says exactly what it will run — two agents in sequence, never more', async () => {
   const rendered = await render('outcome-entry.tsx', {});
   try {

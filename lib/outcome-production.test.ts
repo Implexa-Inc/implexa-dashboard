@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fixture from '../test-fixtures/generated/outcome-orchestration.json' with { type: 'json' };
 import {
   canStartPlan, formatMinor, formatMinorRange,
-  parsePlanResponse, parseProductionResponse, parseReceiptResponse,
+  parsePlanResponse, parseProductionListResponse, parseProductionResponse, parseReceiptResponse,
 } from './outcome-production.ts';
 
 test('the fixture is the producer’s: schema stamp and producer path are pinned', () => {
@@ -140,4 +140,51 @@ test('receipts parse with typed outcomes; drift fails closed', () => {
 test('money formatting is minor-units + explicit currency, verbatim', () => {
   assert.equal(formatMinor(2250, 'USD'), (2250 / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' }));
   assert.match(formatMinorRange([1400, 2200], 'USD'), /14.*22/);
+});
+
+test('a currency the formatter would throw on fails closed at the boundary', () => {
+  // toLocaleString throws RangeError on anything that is not a well-formed
+  // ISO-4217 code, and a throw inside render takes the page down. Every one of
+  // these must be refused by the parser instead, so the surface renders its
+  // honest "we can't show this" state.
+  for (const bad of ['US', '$', 'DOLLARS', '12', '']) {
+    const plan = structuredClone(fixture.responses.planPrepared);
+    (plan.plan as Record<string, unknown>).currency = bad;
+    assert.equal(parsePlanResponse(plan), null, `plan currency ${JSON.stringify(bad)}`);
+
+    const production = structuredClone(fixture.responses.statusRunning);
+    (production.production.budget as Record<string, unknown>).currency = bad;
+    assert.equal(parseProductionResponse(production), null, `budget currency ${JSON.stringify(bad)}`);
+
+    const receipt = structuredClone(fixture.responses.receiptSuccess);
+    (receipt.receipt.totals as Record<string, unknown>).currency = bad;
+    assert.equal(parseReceiptResponse(receipt), null, `totals currency ${JSON.stringify(bad)}`);
+  }
+  // And everything that survives the boundary formats without throwing.
+  const production = parseProductionResponse(fixture.responses.statusRunning)!;
+  assert.doesNotThrow(() => formatMinor(production.budget.spentCents, production.budget.currency));
+});
+
+test('settlement is the backend’s flag, and it is required', () => {
+  const running = parseProductionResponse(fixture.responses.statusRunning);
+  assert.equal(running!.settled, false);
+  for (const key of ['statusCompleted', 'statusCancelled', 'statusFailed'] as const) {
+    assert.equal(parseProductionResponse(fixture.responses[key])!.settled, true, key);
+  }
+  const missing = structuredClone(fixture.responses.statusCompleted);
+  delete (missing.production as Record<string, unknown>).settled;
+  assert.equal(parseProductionResponse(missing), null, 'settlement is never inferred from the state string');
+});
+
+test('the productions list parses, and one drifted member makes the whole list unreadable', () => {
+  const productions = parseProductionListResponse(fixture.responses.list);
+  assert.ok(productions);
+  assert.equal(productions.length, 3);
+  assert.equal(productions.filter((p) => !p.settled).length, 1);
+
+  const drifted = structuredClone(fixture.responses.list);
+  delete (drifted.productions[1] as Record<string, unknown>).budget;
+  assert.equal(parseProductionListResponse(drifted), null, 'a partial list rendered as complete would hide running work');
+  assert.equal(parseProductionListResponse({ ok: true }), null);
+  assert.equal(parseProductionListResponse({ ok: false, productions: [] }), null);
 });

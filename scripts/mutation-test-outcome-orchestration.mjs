@@ -34,6 +34,7 @@ const suites = [
   'app/(dashboard)/_components/outcome-entry.render.test.ts',
   'app/(dashboard)/_components/outcome-production-monitor.render.test.ts',
   'app/(dashboard)/_components/outcome-work-item.render.test.ts',
+  'app/(dashboard)/work/_components/outcome-productions-list.render.test.ts',
 ];
 
 const CONTRACT = 'lib/outcome-production.ts';
@@ -43,6 +44,7 @@ const ENTRY = 'app/(dashboard)/_components/outcome-entry.tsx';
 const CARD = 'app/(dashboard)/_components/outcome-plan-card.tsx';
 const MONITOR = 'app/(dashboard)/_components/outcome-production-monitor.tsx';
 const WORK_ITEM = 'app/(dashboard)/_components/outcome-work-item.tsx';
+const LIST = 'app/(dashboard)/work/_components/outcome-productions-list.tsx';
 
 const mutants = [
   ['fail-closed', 'drifted plan body renders instead of failing closed', CONTRACT,
@@ -90,6 +92,43 @@ const mutants = [
   ['work-item-honesty', 'a partial outcome wears the success badge', WORK_ITEM,
     "partial: { label: 'Partially delivered',",
     "partial: { label: 'Delivered',"],
+
+  // ── the review fixes (2026-08-15) ────────────────────────────────────
+  // Each of these restores a bug an independent review found in the first
+  // draft, so the mutant is the exact defect that shipped, not an invented one.
+  ['stale-response', 'RESTORES: an edit no longer invalidates an in-flight plan', ENTRY,
+    '      reqId.current += 1;\n      set(value);',
+    '      set(value);'],
+  ['stale-response', 'RESTORES: a superseded plan answer is applied anyway', ENTRY,
+    '      if (!current()) return;\n      if (res.status === 400 || res.status === 401) {',
+    '      if (res.status === 400 || res.status === 401) {'],
+  ['currency', 'RESTORES: any string passes as a currency and render throws', CONTRACT,
+    "const currency = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z]{3}$/.test(v);",
+    "const currency = (v: unknown): v is string => typeof v === 'string' && v.length > 0;"],
+  ['settlement', 'RESTORES: settlement inferred from the state string', LOAD,
+    '  if (!production.settled) return { status: \'ok\', production, receipt: null, receiptStatus: \'none\' };',
+    "  if (production.state !== 'completed') return { status: 'ok', production, receipt: null, receiptStatus: 'none' };"],
+  ['settlement', 'settlement flag is optional on the wire', CONTRACT,
+    "  if (typeof v.settled !== 'boolean') return null;",
+    "  if (false) return null;"],
+  ['receipt-scope', 'RESTORES: a late receipt blanks the whole production', LOAD,
+    "    return { status: 'ok', production, receipt: null, receiptStatus: late ? 'pending' : 'unavailable' };",
+    "    return { status: 'unavailable', reason: 'The production receipt is unavailable.' };"],
+  ['list-honesty', 'a drifted member is dropped and the list still claims to be complete', CONTRACT,
+    '    const production = parseProduction(raw);\n    if (!production) return null;\n    out.push(production);',
+    '    const production = parseProduction(raw);\n    if (production) out.push(production);'],
+  ['list-honesty', 'an unreadable list renders as an empty one', LIST,
+    "  if (load.status === 'unavailable') {",
+    '  if (false) {'],
+  ['polling', 'settled work keeps polling / unsettled work stops', CONTRACT,
+    'export function shouldPollProduction(production: Production): boolean {\n  return !production.settled;',
+    'export function shouldPollProduction(production: Production): boolean {\n  return production.settled;'],
+  ['start-retry', 'RESTORES: an unconfirmed start sends the user to re-plan', ENTRY,
+    "const UNCONFIRMED_START_COPY = 'We couldn’t confirm the start. Press Start production again — it reuses this plan’s approval, so it cannot reserve your budget twice.';",
+    "const UNCONFIRMED_START_COPY = 'We couldn’t confirm the start. Nothing shows as running — plan again rather than assuming it began.';"],
+  ['attachment-cap', 'RESTORES: files past the cap are dropped silently', ENTRY,
+    '      if (next.length >= MAX_ATTACHMENTS) { dropped += 1; continue; }',
+    '      if (next.length >= MAX_ATTACHMENTS) { continue; }'],
 ];
 
 function run(cwd) {
@@ -136,4 +175,4 @@ for (const [boundary, name, file, from, to] of mutants) {
   }
 }
 
-process.stdout.write(`Mutation result: ${killed}/${mutants.length} killed across 7 boundaries.\n`);
+process.stdout.write(`Mutation result: ${killed}/${mutants.length} killed across 14 boundaries.\n`);
