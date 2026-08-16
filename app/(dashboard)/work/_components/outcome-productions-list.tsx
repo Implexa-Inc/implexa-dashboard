@@ -55,6 +55,11 @@ function Row({ production }: { production: Production }) {
 }
 
 export default function OutcomeProductionsList({ load }: { load: OutcomeProductionListLoad }) {
+  // This deployment has no outcome-production route at all. /work is a shared
+  // surface, and warning every user about a capability the backend has never
+  // offered is noise, not honesty.
+  if (load.status === 'absent') return null;
+
   if (load.status === 'unavailable') {
     return (
       <section role="status" aria-label="Productions unavailable" className="card p-5 border-amber-500/40 mb-6">
@@ -69,12 +74,22 @@ export default function OutcomeProductionsList({ load }: { load: OutcomeProducti
   // Nothing to say beats an empty box on a page that already has three lists.
   if (load.productions.length === 0) return null;
 
-  const active = load.productions.filter((p) => !p.settled);
+  // "Running" is a claim about work that is actually progressing. A blocked
+  // production is unsettled but stalled on the user, so folding it into a
+  // running count would contradict the Blocked badge on its own row.
+  const unsettled = load.productions.filter((p) => !p.settled);
+  const running = unsettled.filter((p) => p.state === 'running').length;
+  const waiting = unsettled.length - running;
+  const counts = [
+    running > 0 ? `${running} running` : null,
+    waiting > 0 ? `${waiting} waiting on you` : null,
+  ].filter(Boolean);
+
   return (
     <section aria-label="Outcome productions" className="mb-6">
       <h2 className="text-sm font-semibold text-ink-50">
         Productions
-        {active.length > 0 && <span className="text-ink-400 font-normal"> · {active.length} running</span>}
+        {counts.length > 0 && <span className="text-ink-400 font-normal"> · {counts.join(' · ')}</span>}
       </h2>
       <ul className="mt-2 space-y-2">
         {load.productions.map((production) => <Row key={production.id} production={production} />)}

@@ -76,18 +76,23 @@ test('EVERY settled production loads its receipt — stopped and failed included
   }
 });
 
-test('a receipt that is merely late does NOT hide the production that read cleanly', async () => {
-  const restore = stubFetch((url) => (
-    url.endsWith('/receipt')
-      ? { status: 404, body: { ok: false, error: 'not_written_yet' } }
-      : { status: 200, body: fixture.responses.statusCompleted }
-  ));
-  try {
-    const load = await loadOutcomeProduction(ID, 'jwt');
-    assert.equal(load.status, 'ok', 'the settled production still renders');
-    assert.equal(load.status === 'ok' && load.receiptStatus, 'pending');
-    assert.equal(load.status === 'ok' && load.receipt, null);
-  } finally { restore(); }
+test('an unreadable receipt does NOT hide the production that read cleanly', async () => {
+  // A 404 here means both "not written yet" and "this backend has no receipt
+  // route", and we cannot tell which — so it is reported as unread, never as
+  // a promise that one is on its way.
+  for (const status of [404, 503]) {
+    const restore = stubFetch((url) => (
+      url.endsWith('/receipt')
+        ? { status, body: { ok: false, error: 'nope' } }
+        : { status: 200, body: fixture.responses.statusCompleted }
+    ));
+    try {
+      const load = await loadOutcomeProduction(ID, 'jwt');
+      assert.equal(load.status, 'ok', `the settled production still renders (${status})`);
+      assert.equal(load.status === 'ok' && load.receiptStatus, 'unavailable');
+      assert.equal(load.status === 'ok' && load.receipt, null);
+    } finally { restore(); }
+  }
 });
 
 test('the backend’s 404 is not_found; other failures are unavailable', async () => {
@@ -142,5 +147,14 @@ test('the productions list is three-valued: readable, or explicitly unavailable'
   restore = stubFetch(() => ({ status: 503, body: { ok: false, error: 'down' } }));
   try {
     assert.equal((await listOutcomeProductions('jwt')).status, 'unavailable');
+  } finally { restore(); }
+});
+
+test('a deployment without the list route is ABSENT, not a fault to warn about', async () => {
+  // /work is a shared surface. A backend that has never offered this
+  // capability must not put a standing amber warning on it for every user.
+  const restore = stubFetch(() => ({ status: 404, body: { ok: false, error: 'not_found' } }));
+  try {
+    assert.equal((await listOutcomeProductions('jwt')).status, 'absent');
   } finally { restore(); }
 });

@@ -111,9 +111,9 @@ const mutants = [
   ['settlement', 'settlement flag is optional on the wire', CONTRACT,
     "  if (typeof v.settled !== 'boolean') return null;",
     "  if (false) return null;"],
-  ['receipt-scope', 'RESTORES: a late receipt blanks the whole production', LOAD,
-    "    return { status: 'ok', production, receipt: null, receiptStatus: late ? 'pending' : 'unavailable' };",
-    "    return { status: 'unavailable', reason: 'The production receipt is unavailable.' };"],
+  ['receipt-scope', 'RESTORES: a drifted receipt blanks the whole production', LOAD,
+    "    if (!receipt) return { status: 'ok', production, receipt: null, receiptStatus: 'unavailable' };",
+    "    if (!receipt) return { status: 'unavailable', reason: 'The production receipt did not match the contract.' };"],
   ['list-honesty', 'a drifted member is dropped and the list still claims to be complete', CONTRACT,
     '    const production = parseProduction(raw);\n    if (!production) return null;\n    out.push(production);',
     '    const production = parseProduction(raw);\n    if (production) out.push(production);'],
@@ -129,6 +129,25 @@ const mutants = [
   ['attachment-cap', 'RESTORES: files past the cap are dropped silently', ENTRY,
     '      if (next.length >= MAX_ATTACHMENTS) { dropped += 1; continue; }',
     '      if (next.length >= MAX_ATTACHMENTS) { continue; }'],
+
+  // ── review round 2 (2026-08-15) ──────────────────────────────────────
+  // Round 1's own fixes introduced these. Same rule: the mutant restores the
+  // exact defect that shipped.
+  ['start-lifecycle', 'RESTORES: an edit mid-start wedges Start forever', ENTRY,
+    '      setStarting(false);\n    }\n  }',
+    '      if (current()) setStarting(false);\n    }\n  }'],
+  ['absent-route', 'RESTORES: a missing list route warns every /work user', LOAD,
+    "    if (error instanceof BackendError && error.status === 404) return { status: 'absent' };",
+    '    if (false) return { status: \'absent\' };'],
+  ['absent-route', 'an absent route renders the unavailable banner anyway', LIST,
+    "  if (load.status === 'absent') return null;",
+    "  if (false) return null;"],
+  ['receipt-copy', 'RESTORES: an unread receipt is promised as on its way', LOAD,
+    "    return { status: 'ok', production, receipt: null, receiptStatus: 'unavailable' };\n  }\n}",
+    "    return { status: 'ok', production, receipt: null, receiptStatus: error instanceof BackendError && error.status === 404 ? 'ready' : 'unavailable' };\n  }\n}"],
+  ['count-honesty', 'a blocked production is counted as running', LIST,
+    "  const running = unsettled.filter((p) => p.state === 'running').length;",
+    '  const running = unsettled.length;'],
 ];
 
 function run(cwd) {
@@ -175,4 +194,4 @@ for (const [boundary, name, file, from, to] of mutants) {
   }
 }
 
-process.stdout.write(`Mutation result: ${killed}/${mutants.length} killed across 14 boundaries.\n`);
+process.stdout.write(`Mutation result: ${killed}/${mutants.length} killed across 19 boundaries.\n`);

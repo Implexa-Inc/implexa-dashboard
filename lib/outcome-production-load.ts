@@ -20,11 +20,14 @@ import {
 /**
  * - `ready`       the receipt is here.
  * - `none`        the production has not settled, so no receipt exists yet.
- * - `pending`     settled, but the backend has no receipt for it YET (the
- *                 settle and the receipt write are not one instant).
- * - `unavailable` we could not read or could not understand the receipt.
+ * - `unavailable` settled, but we could not read or could not understand it.
+ *
+ * There is deliberately no "written soon" state. A 404 from the receipt route
+ * means both "not yet" and "this backend has no such route", and the two are
+ * indistinguishable from here — so promising the user a receipt is on its way
+ * would be a claim about the future with no evidence behind it.
  */
-export type ReceiptStatus = 'ready' | 'none' | 'pending' | 'unavailable';
+export type ReceiptStatus = 'ready' | 'none' | 'unavailable';
 
 export type OutcomeProductionLoad =
   | { status: 'ok'; production: Production; receipt: ProductionReceipt | null; receiptStatus: ReceiptStatus }
@@ -55,14 +58,20 @@ export async function loadOutcomeProduction(productionId: string, jwt: string): 
     // that can already answer "what happened".
     if (!receipt) return { status: 'ok', production, receipt: null, receiptStatus: 'unavailable' };
     return { status: 'ok', production, receipt, receiptStatus: 'ready' };
-  } catch (error) {
-    const late = error instanceof BackendError && error.status === 404;
-    return { status: 'ok', production, receipt: null, receiptStatus: late ? 'pending' : 'unavailable' };
+  } catch {
+    return { status: 'ok', production, receipt: null, receiptStatus: 'unavailable' };
   }
 }
 
 export type OutcomeProductionListLoad =
   | { status: 'ready'; productions: Production[] }
+  /**
+   * This deployment has no outcome-production list route at all. Distinct from
+   * `unavailable` because it is not a fault the user can act on or should be
+   * warned about: /work is a shared surface, and an alarming banner about a
+   * capability the backend has never offered is noise for every user of it.
+   */
+  | { status: 'absent' }
   | { status: 'unavailable'; reason: string };
 
 /**
@@ -79,6 +88,11 @@ export async function listOutcomeProductions(jwt: string): Promise<OutcomeProduc
     if (!productions) return { status: 'unavailable', reason: 'The productions response did not match the contract.' };
     return { status: 'ready', productions };
   } catch (error) {
+    // A 404 here is the deployment saying "I have no such route", not "your
+    // productions failed to load" — so it renders nothing rather than putting
+    // a permanent warning on /work for every user of a feature that does not
+    // exist yet.
+    if (error instanceof BackendError && error.status === 404) return { status: 'absent' };
     return { status: 'unavailable', reason: error instanceof Error ? error.message : 'Your productions are unavailable.' };
   }
 }

@@ -230,6 +230,42 @@ test('an unconfirmed start points at the safe retry, not at planning again', asy
   } finally { rendered.cleanup(); }
 });
 
+test('REGRESSION: editing during a start does not wedge the next plan’s Start button', async () => {
+  // `starting` is this action's own in-flight flag. Guarding its release
+  // behind the request generation left it stuck true whenever the user edited
+  // mid-start, and the NEXT plan then rendered a permanently disabled
+  // "Starting…" button — no production could be started without a reload.
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    let release: (v: unknown) => void = () => {};
+    let call = 0;
+    (rendered.window as unknown as Record<string, unknown>).fetch = async () => {
+      call += 1;
+      if (call === 2) {
+        await new Promise((r) => { release = r; });
+        return { ok: false, status: 503, json: async () => ({ ok: false }) };
+      }
+      return { ok: true, status: 200, json: async () => fixture.responses.planPrepared };
+    };
+    await fillRequest(rendered);
+    await rendered.click(planButton(rendered));
+    await rendered.click(rendered.document.querySelector('input[type="checkbox"]')!);
+    await rendered.click(rendered.getByText('Start production'));
+
+    // The user edits while that start is still in flight, then it fails.
+    await type(rendered, rendered.document.getElementById('outcome-budget')!, '400');
+    await rendered.act(async () => { release(null); await new Promise((r) => setTimeout(r, 5)); });
+
+    // Plan again and approve: the fresh plan must be startable.
+    await rendered.click(planButton(rendered));
+    await rendered.act(async () => { await new Promise((r) => setTimeout(r, 5)); });
+    await rendered.click(rendered.document.querySelector('input[type="checkbox"]')!);
+    const start = rendered.getByText('Start production') as HTMLButtonElement;
+    assert.equal(start.disabled, false, 'the new plan is startable');
+    assert.equal(rendered.queryByText('Starting…'), null, 'no stale in-flight label survives');
+  } finally { rendered.cleanup(); }
+});
+
 test('attachments dropped by the cap are announced, never silently narrowed', async () => {
   const rendered = await render('outcome-entry.tsx', {});
   try {
