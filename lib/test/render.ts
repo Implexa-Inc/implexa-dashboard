@@ -35,6 +35,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 /** Calls the stubs recorded, so a test can assert what a component asked for. */
 export type RenderCalls = {
   push: string[];
+  /** router.replace targets — how a tab switch navigates (scroll-preserving). */
+  replace: string[];
   backend: Array<{ path: string; init: unknown }>;
 };
 
@@ -140,7 +142,7 @@ export async function render(component: string, props: Record<string, unknown>, 
     url: 'https://dashboard.test/agents/test-agent',
   });
   const { window } = dom;
-  const calls: RenderCalls = { push: [], backend: [] };
+  const calls: RenderCalls = { push: [], replace: [], backend: [] };
   (window as unknown as Record<string, unknown>).__implexaCalls = calls;
   if (options.backend) (window as unknown as Record<string, unknown>).__implexaBackend = options.backend;
   if (options.bridge) (window as unknown as Record<string, unknown>).implexaDesktop = options.bridge;

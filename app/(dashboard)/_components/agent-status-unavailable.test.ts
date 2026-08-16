@@ -25,6 +25,38 @@ import { render } from '../../../lib/test/render.ts';
 const dir = import.meta.dirname;
 const page = readFileSync(join(dir, '..', 'workflows', '[slug]', 'page.tsx'), 'utf8');
 
+test('a backend read failure is NOT rendered as a missing agent', () => {
+  // 'unavailable' used to fall through to the schedule-only branch, which
+  // calls notFound() for an agent with no schedule row — so a blip told the
+  // owner their agent had been deleted. The explicit branch must come BEFORE
+  // the `if (!workflow)` fallback, or it can never run.
+  // Ordering is asserted over CODE, not prose: the comments here explain the
+  // notFound() path they replaced, and matching those would compare an
+  // explanation's position against real control flow.
+  const code = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const unavailableAt = code.indexOf("detailResult.status === 'unavailable'");
+  const fallbackAt = code.indexOf('if (!workflow) {');
+  const notFoundAt = code.indexOf('notFound()');
+  assert.ok(unavailableAt > -1, 'the page must handle the unavailable status explicitly');
+  assert.ok(unavailableAt < fallbackAt, 'it must be handled BEFORE the schedule-only fallback');
+  assert.ok(unavailableAt < notFoundAt, 'and before any notFound() path');
+  assert.match(page, /Agent status unavailable/);
+  assert.match(page, /does not mean the agent[\s\S]{0,40}is gone/,
+    'the copy must say the read failed, not that the agent is missing');
+});
+
+test('an unreadable schedule list withholds the editor instead of showing "no schedule"', () => {
+  // ScheduleManager REPLACES any existing routine on save, so rendering its
+  // empty state over a failed read invites overwriting a cadence the user was
+  // never shown.
+  assert.match(page, /schedulesUnavailable \? \(/,
+    'the Schedule card must branch on the unavailable flag');
+  const guardAt = page.indexOf('schedulesUnavailable ? (');
+  const managerAt = page.indexOf('<ScheduleManager');
+  assert.ok(guardAt > -1 && guardAt < managerAt, 'the guard must gate the editor, not follow it');
+  assert.match(page, /editing is disabled to[\s\S]{0,60}replacing a schedule you cannot see/);
+});
+
 test('the page branches on isUnavailable, never on a section value being empty', () => {
   assert.match(page, /const activationUnavailable = detail!\.isUnavailable\('activation'\)/);
   assert.match(page, /const connectionsUnavailable = detail!\.isUnavailable\('connections'\)/);

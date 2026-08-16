@@ -24,6 +24,7 @@ import { announceBaseline, materializeTree, runSuites } from './mutation-harness
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 const READER = 'lib/agent-detail.ts';
+const TABS = 'app/(dashboard)/_components/agent-tabs.tsx';
 const ACTIONS = 'app/(dashboard)/_components/agent-actions.tsx';
 const PAGE = 'app/(dashboard)/workflows/[slug]/page.tsx';
 
@@ -72,8 +73,10 @@ const FILES = [
     READER,
     ACTIONS,
     PAGE,
+    TABS,
     'lib/agent-detail.test.ts',
     'app/(dashboard)/_components/agent-status-unavailable.test.ts',
+    'app/(dashboard)/_components/agent-tabs-render.test.ts',
     // The reader's own dependencies (workflow-catalog, activation-core,
     // inbox-items, run-state) are deliberately NOT copied: no mutation here
     // touches them, so the loader backfills them from the repository
@@ -91,6 +94,9 @@ const FILES = [
     // Node's native type-stripping WITHOUT the two-rooted loader, so nothing
     // backfills its relative imports — they have to be here.
     ...importClosure('./agent-detail.ts', join(root, 'lib')),
+    // The tab shell is rendered for real now (it no longer depends on a React
+    // 19 hook), so its closure has to be on disk too.
+    ...importClosure('./agent-tabs.tsx', join(root, 'app', '(dashboard)', '_components')),
   ]),
 ];
 
@@ -99,9 +105,39 @@ const SUITES = [
   // The only suite that can tell whether a USER is actually prevented from
   // starting a run, as opposed to whether the source still spells the guard.
   'app/(dashboard)/_components/agent-status-unavailable.test.ts',
+  // Behavioural, not textual: this is what proves a tab switch keeps the
+  // outgoing panel on screen and writes the deep link.
+  'app/(dashboard)/_components/agent-tabs-render.test.ts',
 ];
 
 const mutations = [
+  // ── a failed read is presented as a missing agent ────────────────────────
+  {
+    boundary: 'page-gate', name: 'a backend failure falls through to the not-found path', file: PAGE,
+    from: "  if (detailResult.status === 'unavailable') {",
+    to: "  if (false as boolean) {",
+  },
+  {
+    boundary: 'schedule', name: 'an unreadable schedule list still renders the editor', file: PAGE,
+    from: '        {schedulesUnavailable ? (',
+    to: '        {(false as boolean) ? (',
+  },
+  // ── the tab strip stops being optimistic / stops reconciling ─────────────
+  {
+    boundary: 'tabs', name: 'the strip waits for the server, so the click feels dead', file: TABS,
+    from: '    setShown(key);\n    startTransition(() => {',
+    to: '    startTransition(() => {',
+  },
+  {
+    boundary: 'tabs', name: 'the strip never reconciles to the server answer', file: TABS,
+    from: '  useEffect(() => { setShown(active); }, [active]);',
+    to: '  useEffect(() => { /* no sync */ }, [active]);',
+  },
+  {
+    boundary: 'tabs', name: 'a tab switch pushes history and scrolls to the top', file: TABS,
+    from: "      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });",
+    to: "      router.push(qs ? `${pathname}?${qs}` : pathname);",
+  },
   // ── the reader stops discriminating ──────────────────────────────────────
   {
     boundary: 'reader', name: 'every section reports as available', file: READER,

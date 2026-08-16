@@ -45,8 +45,16 @@ test('?tab= deep links still work, and Overview stays the safe fallback', () => 
 
 test('no flicker: the switch is a transition and the outgoing panel is dimmed, never replaced', () => {
   assert.match(tabs, /useTransition\(\)/, 'the navigation must run in a transition so the current panel stays mounted');
-  assert.match(tabs, /useOptimistic\(active\)/, 'the tab strip must respond to the click before the panel arrives');
   assert.match(tabs, /aria-busy=\{isPending \|\| undefined\}/);
+  // useOptimistic is React 19 and absent from this project's react@18.3.1; it
+  // resolved only via Next's vendored canary and made this component
+  // unrenderable by lib/test/render.ts. The behaviour it provided is asserted
+  // for real in agent-tabs-render.test.ts now.
+  // Strip comments first: this file's own prose explains WHY the hook is gone,
+  // and a bare /useOptimistic/ would match that explanation forever.
+  const tabsCode = tabs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  assert.doesNotMatch(tabsCode, /useOptimistic/,
+    'a hook outside the declared React version cannot be exercised by the render harness');
   assert.doesNotMatch(tabs, /isPending \?\s*<|Loading|Spinner/,
     'a spinner replacing content that was already on screen IS the flicker this forbids');
   assert.match(tabs, /scroll: false/, 'a tab switch must not yank the viewport to the top');

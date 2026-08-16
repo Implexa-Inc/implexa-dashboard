@@ -21,7 +21,7 @@
  * unaffected by a tab switch, so no label can go stale mid-transition.
  */
 
-import { useEffect, useOptimistic, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 export type TabDef = { key: string; label: string; attention?: boolean };
@@ -42,9 +42,24 @@ export default function AgentTabs({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   // The tab strip must respond to the click instantly even though the panel
-  // arrives from the server a moment later; this optimistic value is reverted
-  // automatically if the navigation is abandoned.
-  const [shown, showTab] = useOptimistic(active);
+  // arrives from the server a moment later.
+  //
+  // Deliberately useState, NOT useOptimistic: useOptimistic is a React 19 API,
+  // absent from this project's declared react@18.3.1 (it resolves at runtime
+  // only because Next aliases React to its own vendored canary). Depending on
+  // that made this component unrenderable by lib/test/render.ts, which bundles
+  // the real React — i.e. the no-flicker behaviour below could never be tested,
+  // only regex-matched.
+  //
+  // The optimistic value is reconciled against the SERVER'S answer, not against
+  // the transition ending. Reverting when isPending falls looks correct but
+  // isn't: a navigation that resolves without changing the tab (or faster than
+  // the panel) snaps the highlight back to the old tab and then forward again —
+  // a flicker in the one place this component exists to prevent one. Syncing on
+  // `active` means the strip holds the clicked tab until the server actually
+  // answers, which is exactly what the dimmed, aria-busy panel below is saying.
+  const [shown, setShown] = useState(active);
+  useEffect(() => { setShown(active); }, [active]);
 
   function openTab(key: string) {
     if (key === active) return;
@@ -52,8 +67,8 @@ export default function AgentTabs({
     if (key === tabs[0]?.key) next.delete('tab');
     else next.set('tab', key);
     const qs = next.toString();
+    setShown(key);
     startTransition(() => {
-      showTab(key);
       // scroll:false — a tab switch must not yank the viewport to the top.
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     });

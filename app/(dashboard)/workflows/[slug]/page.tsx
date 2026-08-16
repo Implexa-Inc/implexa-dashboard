@@ -115,6 +115,28 @@ export default async function WorkflowDetailPage({
   }
 
   const detailResult = await detailPromise;
+
+  // A FAILED READ IS NOT A MISSING AGENT. 'unavailable' used to fall through to
+  // the schedule-only branch below, which calls notFound() when the agent has
+  // no schedule row — so a backend blip told the owner their agent had been
+  // deleted. The reader distinguishes not_found from unavailable precisely so
+  // this branch can, and the schedule-only fallback stays reserved for its real
+  // case: a scheduled SKILL that genuinely is not in the workflow catalog.
+  if (detailResult.status === 'unavailable') {
+    return (
+      <main className="min-h-screen px-4 py-10">
+        <div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4">
+          <h1 className="text-lg font-semibold text-ink-50">Agent status unavailable</h1>
+          <p role="alert" className="mt-2 text-sm text-amber-200">
+            We could not load <code className="font-mono">{params.slug}</code> right now. This does not mean the agent
+            is gone — the read failed. Reload to try again.
+          </p>
+          <p className="mt-3 text-sm"><BackLink fallback="/workflows" label="Back to your agents" /></p>
+        </div>
+      </main>
+    );
+  }
+
   const detail = detailResult.status === 'ready' ? detailResult.detail : null;
   const workflow = detail?.workflow ?? null;
 
@@ -472,7 +494,18 @@ export default async function WorkflowDetailPage({
             </span>
           )}
         </div>
-        <ScheduleManager slug={workflow.slug} agentName={workflow.name} routine={scheduleRoutine} />
+        {schedulesUnavailable ? (
+          // NOT the on-demand state. ScheduleManager REPLACES any existing
+          // routine on save, so offering the editor over an unread schedule
+          // list invites the user to overwrite a cadence we failed to show
+          // them. Say so and withhold the control instead.
+          <p role="status" className="text-sm text-ink-300">
+            Schedule unavailable — we could not read whether this agent runs on a clock, so editing is disabled to
+            avoid replacing a schedule you cannot see. Reload to try again.
+          </p>
+        ) : (
+          <ScheduleManager slug={workflow.slug} agentName={workflow.name} routine={scheduleRoutine} />
+        )}
       </div>
 
       {/* Changelog */}
