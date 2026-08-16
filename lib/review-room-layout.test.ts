@@ -189,6 +189,14 @@ test('the queued state resolves the continuation and keeps recovery separate fro
     'Open revision still links to the source run instead of resolving the continuation result');
 });
 
+test('a server-derived reviewed capsule is disclosed in the queued receipt', () => {
+  const footer = rail.slice(rail.indexOf('submission footer'));
+  assert.match(footer, /queuedSourcePolicy\?\.derived && queuedSourcePolicy\.mode === 'reviewed_capsule'/,
+    'the receipt does not require both server derivation and reviewed-capsule mode');
+  assert.match(footer, /started from the reviewed and attached files because the original run did not have a complete input contract/,
+    'the reviewer is not told that their explicit inherit choice was changed');
+});
+
 test('REPRO: the click delegates to the audited orchestration, not a local copy', () => {
   // The outcome branches (refusal, missing continuation, rejected request) are proven
   // behaviourally in review-submission-flow.test.ts. What this file must pin is that

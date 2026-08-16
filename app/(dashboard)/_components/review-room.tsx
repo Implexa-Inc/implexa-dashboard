@@ -252,6 +252,9 @@ export default function ReviewRoom(props: Props) {
   // an older backend, and shown only in this tab's own queued panel — the durable
   // session row does not carry it.
   const [queuedInstruction, setQueuedInstruction] = useState<{ version: number; supersedesVersion: number | null } | null>(null);
+  const [queuedSourcePolicy, setQueuedSourcePolicy] = useState<{
+    mode: 'inherit' | 'reviewed_capsule'; derived: boolean;
+  } | null>(null);
 
   const reviewerResolved = useMemo(() => issues.filter((i) => !!i.reviewerResolution), [issues]);
   const activeIssues = useMemo(
@@ -1074,6 +1077,9 @@ export default function ReviewRoom(props: Props) {
           supersedesVersion: Number.isInteger(instr.supersedesVersion) ? instr.supersedesVersion as number : null,
         }
         : null);
+      setQueuedSourcePolicy(outcome.sourceMode
+        ? { mode: outcome.sourceMode, derived: outcome.sourceModeDerived === true }
+        : null);
       setNotice(outcome.idempotent
         ? 'These fixes were already requested — showing the existing revision.'
         : outcome.recovered
@@ -1724,6 +1730,11 @@ export default function ReviewRoom(props: Props) {
                   </div>
                 )}
               </dl>
+              {queuedSourcePolicy?.derived && queuedSourcePolicy.mode === 'reviewed_capsule' && (
+                <p className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1.5 text-[11px] text-sky-200">
+                  Implexa started from the reviewed and attached files because the original run did not have a complete input contract.
+                </p>
+              )}
               {submitView.continuationId && (
                 <>
                   {/* A submitted Review Room continuation can die before it creates a

@@ -221,6 +221,11 @@ const mutations = [
     '  const frozen = proxyPreview || submissionInFlight\n    || (!acts.canEditIssues',
     '  const frozen = proxyPreview\n    || (!acts.canEditIssues'],
 
+  // ── derived source-policy disclosure ──────────────────────────────────────
+  ['source-policy-disclosure', 'a server-derived reviewed capsule is hidden from the reviewer', COMPONENT,
+    "queuedSourcePolicy?.derived && queuedSourcePolicy.mode === 'reviewed_capsule'",
+    'false'],
+
   // ── one decisive click ────────────────────────────────────────────────────
   ['one-click', 'the first click transmits nothing and re-offers the same promise', FLOW,
     "      primaryLabel: submitting ? `Sending ${n} ${changeWord(n)}…` : `Preparing ${n} ${changeWord(n)}…`,\n      primaryEnabled: false,",

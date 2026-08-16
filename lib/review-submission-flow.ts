@@ -247,6 +247,10 @@ export type SubmitOutcome =
       idempotent: boolean;
       /** The server adopted a continuation an earlier crashed attempt had created. */
       recovered: boolean;
+      /** The server-authoritative source policy frozen into this submission. */
+      sourceMode?: 'inherit' | 'reviewed_capsule' | null;
+      /** True when the server safely replaced an unavailable inherit contract. */
+      sourceModeDerived?: boolean;
     }
   | { ok: false; reason: SubmitRefusal; message: string | null };
 
@@ -325,6 +329,26 @@ export function parseSubmitResponse(body: unknown, opts: { unavailable?: boolean
     };
   }
 
+  const hasSourceMode = Object.prototype.hasOwnProperty.call(b, 'sourceMode');
+  const hasSourceModeDerived = Object.prototype.hasOwnProperty.call(b, 'sourceModeDerived');
+  if (hasSourceMode !== hasSourceModeDerived) {
+    return {
+      ok: false, reason: 'malformed_success',
+      message: 'The review service returned an incomplete source policy. Nothing was sent.',
+    };
+  }
+  const sourceMode = !hasSourceMode
+    ? null
+    : b.sourceMode === 'inherit' || b.sourceMode === 'reviewed_capsule'
+      ? b.sourceMode
+      : null;
+  if (hasSourceMode && (sourceMode === null || typeof b.sourceModeDerived !== 'boolean')) {
+    return {
+      ok: false, reason: 'malformed_success',
+      message: 'The review service returned an invalid source policy. Nothing was sent.',
+    };
+  }
+
   return {
     ok: true,
     requestId,
@@ -333,6 +357,8 @@ export function parseSubmitResponse(body: unknown, opts: { unavailable?: boolean
     submissionDigest: trimmed(b.submissionDigest) || null,
     idempotent: b.idempotent === true,
     recovered: b.recovered === true,
+    sourceMode,
+    sourceModeDerived: hasSourceMode ? b.sourceModeDerived as boolean : false,
   };
 }
 

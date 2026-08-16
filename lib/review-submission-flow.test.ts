@@ -10,11 +10,39 @@ import assert from 'node:assert/strict';
 import {
   INITIAL_SUBMISSION_STATE, beginPreparing, beginSubmitting, settleQueued,
   failSubmission, keepReviewing, phaseForSession, reviewSubmissionView, submitRevision,
+  parseSubmitResponse,
   type SubmissionState, type SubmitOutcome,
 } from './review-submission-flow.ts';
 import { fixtureIssues, EXPECTED_TOTAL } from './review-multi-file-fixture.ts';
 
 const draftIds = fixtureIssues.map((i) => i.id);
+
+test('submit parsing preserves a complete server-derived source policy', () => {
+  const outcome = parseSubmitResponse({
+    ok: true,
+    requestId: 'req-derived',
+    issueCount: 2,
+    sourceMode: 'reviewed_capsule',
+    sourceModeDerived: true,
+  });
+  assert.equal(outcome.ok, true);
+  if (!outcome.ok) return;
+  assert.equal(outcome.sourceMode, 'reviewed_capsule');
+  assert.equal(outcome.sourceModeDerived, true);
+});
+
+test('submit parsing fails closed on partial or malformed source policy metadata', () => {
+  for (const body of [
+    { ok: true, requestId: 'req-1', issueCount: 1, sourceMode: 'reviewed_capsule' },
+    { ok: true, requestId: 'req-2', issueCount: 1, sourceModeDerived: true },
+    { ok: true, requestId: 'req-3', issueCount: 1, sourceMode: 'guessed', sourceModeDerived: true },
+    { ok: true, requestId: 'req-4', issueCount: 1, sourceMode: 'reviewed_capsule', sourceModeDerived: 'yes' },
+  ]) {
+    const outcome = parseSubmitResponse(body);
+    assert.equal(outcome.ok, false, JSON.stringify(body));
+    if (!outcome.ok) assert.equal(outcome.reason, 'malformed_success');
+  }
+});
 
 const view = (state: SubmissionState, over: { draftCount?: number; busy?: boolean; noteEnabled?: boolean } = {}) =>
   reviewSubmissionView({
