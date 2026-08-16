@@ -21,7 +21,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(
   'utf8',
 ));
 
-const BACKEND_PIN = '287c57ccf48c8e4da430be9bc67adbd71b3d4fbe';
+const BACKEND_PIN = '4ca2cb3498fb299bc615ee9a53f3e1e0e47aadba';
 
 test('the committed producer fixture is the one this build was verified against', () => {
   assert.equal(FIXTURE.backendPin, BACKEND_PIN);

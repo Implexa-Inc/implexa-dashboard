@@ -1,7 +1,7 @@
 {
   "_generator": "implexa-backend scripts/generate-review-capsule-fixtures.js",
   "_description": "Revision Reliability Tranche 1 producer fixture: reviewed-capsule submissions (contract v2 / source context v3), typed refusals, the run-4307f3c0 approved-version coverage verdicts, artifact-report totality, and instruction rounds. Committed producer output; regenerate from the backend at the pin below.",
-  "backendPin": "287c57ccf48c8e4da430be9bc67adbd71b3d4fbe",
+  "backendPin": "4ca2cb3498fb299bc615ee9a53f3e1e0e47aadba",
   "producer": "implexa-backend scripts/generate-review-capsule-fixtures.js",
   "contractVersion": 2,
   "capsuleExternalFiles": {
