@@ -245,6 +245,32 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     }
   } catch { learningSourceAvailable = false; }
 
+  type FrozenRule = { id: string; version: number; versionDigest: string; ruleClass: string; instruction: string };
+  type HandlingReceipt = { rule_version_id: string; handling: string; reason: string; evidence_binding: unknown; causation_claim: string };
+  type LearningProof = { id: string; launch_attempt_id: string; fencing_epoch: number; context_digest: string;
+    context: { rules?: FrozenRule[]; trainingProvenance?: Record<string, string> } };
+  let learningProof: LearningProof | null = null;
+  let learningHandling: HandlingReceipt[] = [];
+  let associatedOutcome: 'accepted' | 'rejected' | 'pending' = 'pending';
+  let learningProofUnavailable = false;
+  try {
+    const proofResult = await supabase.from('run_learning_attempt_contexts').select('*')
+      .eq('run_id', r.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (proofResult.error) learningProofUnavailable = true;
+    else if (proofResult.data) {
+      learningProof = proofResult.data as LearningProof;
+      const handlingResult = await supabase.from('run_learning_handling_receipts')
+        .select('rule_version_id,handling,reason,evidence_binding,causation_claim')
+        .eq('attempt_context_id', proofResult.data.id).order('created_at', { ascending: true });
+      if (handlingResult.error) learningProofUnavailable = true;
+      else learningHandling = (handlingResult.data || []) as HandlingReceipt[];
+      const outcomeResult = await supabase.from('run_acceptance_events').select('decision')
+        .eq('run_id', r.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!outcomeResult.error && outcomeResult.data?.decision === 'accepted') associatedOutcome = 'accepted';
+      else if (!outcomeResult.error && outcomeResult.data?.decision === 'requested_changes') associatedOutcome = 'rejected';
+    }
+  } catch { learningProofUnavailable = true; }
+
   // Resolve the agent this run belongs to. Used to have been a .find() over the
   // full listWorkflows() catalog — but that catalog is heavily cached (1h) and,
   // more importantly, is the PUBLIC-ish list; a private/unproven/just-generated
@@ -570,12 +596,30 @@ export default async function RunDetailPage({ params }: { params: { id: string }
 
         <section className="mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learnings used">
           <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
-          {!learningSourceAvailable ? (
+          {learningProofUnavailable && !learningProof ? (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">The attempt-bound learning proof is unavailable. No handling state is inferred.</p>
+          ) : learningProof ? (
+            <div className="mt-2">
+              <p className="text-[11px] text-ink-500">Frozen for attempt {learningProof.launch_attempt_id.slice(0, 12)} at fence {learningProof.fencing_epoch} · context {learningProof.context_digest.slice(0, 12)} · associated outcome {associatedOutcome}</p>
+              <ul className="mt-2 space-y-2">
+                {(learningProof.context.rules || []).map((rule) => {
+                  const receipt = learningHandling.find((item) => item.rule_version_id === rule.id);
+                  return <li key={rule.id} className="rounded-md border border-ink-800 px-3 py-2">
+                    <p className="text-sm text-ink-100">{rule.instruction}</p>
+                    <p className="mt-1 text-[10px] uppercase tracking-wide text-ink-500">{rule.ruleClass} · v{rule.version} · {rule.id.slice(0, 8)} · {rule.versionDigest.slice(0, 12)}</p>
+                    <p className="mt-1 text-xs text-ink-400">Executor handling: {receipt ? receipt.handling.replaceAll('_', ' ') : 'pending'}</p>
+                    {receipt?.reason && <p className="mt-1 text-xs text-ink-500">Reason: {receipt.reason}</p>}
+                    <p className="mt-1 text-[11px] text-ink-500">Applied means the executor reported following the supplied rule. It does not prove causation or success.</p>
+                  </li>;
+                })}
+              </ul>
+            </div>
+          ) : !learningSourceAvailable ? (
             <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">The frozen learning source is unavailable. This is not shown as an empty result.</p>
           ) : (engineRouting?.learning_context?.rules || []).length === 0 ? (
-            <p className="mt-2 text-xs text-ink-500">No approved learning rule versions were frozen into this run.</p>
+            <p className="mt-2 text-xs text-ink-500">No learning context was frozen for this run.</p>
           ) : (
-            <ul className="mt-2 space-y-2">
+            <div className="mt-2"><p className="text-xs text-ink-500">Legacy prepared context. This run predates attempt-bound handling receipts.</p><ul className="mt-2 space-y-2">
               {(engineRouting?.learning_context?.rules || []).map((rule) => (
                 <li key={rule.id} className="rounded-md border border-ink-800 px-3 py-2">
                   <p className="text-sm text-ink-100">{rule.instruction}</p>
@@ -584,7 +628,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
                   </p>
                 </li>
               ))}
-            </ul>
+            </ul></div>
           )}
         </section>
 

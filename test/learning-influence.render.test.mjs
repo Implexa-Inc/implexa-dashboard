@@ -4,8 +4,12 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
-const { default: AgentLearningsCard } = await import('@/app/(dashboard)/_components/agent-learnings-card.tsx');
+const cardModule = process.env.LEARNING_CARD_MODULE
+  ? pathToFileURL(process.env.LEARNING_CARD_MODULE).href
+  : '@/app/(dashboard)/_components/agent-learnings-card.tsx';
+const { default: AgentLearningsCard } = await import(cardModule);
 const fixture = JSON.parse(readFileSync(new URL('../test-fixtures/learning-influence-v1.json',import.meta.url),'utf8'));
 const task = fixture.scope.taskSignatureDigest;
 const baseScope = { kind: 'private_agent', agentSlug: fixture.scope.agentSlug, agentFamilyId: fixture.scope.agentFamilyId,
@@ -13,7 +17,8 @@ const baseScope = { kind: 'private_agent', agentSlug: fixture.scope.agentSlug, a
 const payload = { ok: true, source: 'ready', suggested: fixture.suggested.map((item) => ({...item,
   scope: {...baseScope,stepIndex:item.stepIndex,capabilityIdentity:item.capabilityIdentity,toolIdentity:item.toolIdentity}})),
   active: fixture.active.map((item) => ({...item,
-    scope: {...baseScope,stepIndex:item.stepIndex,capabilityIdentity:item.capabilityIdentity,toolIdentity:item.toolIdentity}})) };
+    scope: {...baseScope,stepIndex:item.stepIndex,capabilityIdentity:item.capabilityIdentity,toolIdentity:item.toolIdentity}})),
+  history: fixture.history };
 
 test('rendered ready surface explains evidence, scope, lifecycle, and active receipt', () => {
   const html = renderToStaticMarkup(React.createElement(AgentLearningsCard,
@@ -21,7 +26,7 @@ test('rendered ready surface explains evidence, scope, lifecycle, and active rec
   for (const phrase of ['Train → Learnings','Suggested','Active','Evidence </dt><dd',
     'Contradictions </dt><dd','Private agent','Approve','Dismiss','Edit rule','Edit active rule','Disable','Undo','last applied',
     'Use feedback you already gave','Analyze past feedback','up to 180 days',
-    'remain inert until they recur across successful runs and you approve them']) {
+    'remain inert until they meet the evidence threshold and you approve them','last supplied','last applied']) {
     assert.match(html, new RegExp(phrase));
   }
   assert.match(html, /Exact runtime scope is not enforceable; shadow-only/);
@@ -32,6 +37,18 @@ test('rendered ready surface explains evidence, scope, lifecycle, and active rec
   assert.match(html, /<button[^>]*>Analyze past feedback<\/button>/);
   assert.doesNotMatch(html, /<button[^>]+disabled=""[^>]*>Analyze past feedback<\/button>/);
   assert.match(html, new RegExp(task.slice(0, 12)));
+});
+
+test('rendered proof history covers empty, pending, supplied, applied, unsupported, and revoked honestly', () => {
+  const html = renderToStaticMarkup(React.createElement(AgentLearningsCard,
+    { slug: fixture.scope.agentSlug, initialPayload: payload, initialSource: 'ready' }));
+  for (const phrase of ['Rule history', 'supply pending', 'supplied to run', 'applied',
+    'unsupported scope', 'outcome pending', 'outcome accepted', 'revoked',
+    'does not prove this rule caused the outcome']) assert.match(html, new RegExp(phrase));
+  const empty = renderToStaticMarkup(React.createElement(AgentLearningsCard,
+    { slug: fixture.scope.agentSlug, initialPayload: { ...payload, history: [] }, initialSource: 'ready' }));
+  assert.match(empty, /No frozen learning context has been recorded yet/);
+  assert.doesNotMatch(empty, /supplied to run/);
 });
 
 test('rendered post-approval contradiction is visibly suspended but reversible', () => {

@@ -1,5 +1,5 @@
 {
-  "contractVersion": "learning-influence.fixture.v1",
+  "contractVersion": "trainer-compounding-proof.fixture.v1",
   "producer": "implexa-backend",
   "scope": {
     "ownerId": "00000003-0000-4000-8000-000000000003",
@@ -7,7 +7,11 @@
     "agentSlug": "visual-evidence-remotion-compositor",
     "agentFamilyId": "00000005-0000-4000-8000-000000000005",
     "workflowVersionId": "00000006-0000-4000-8000-000000000006",
-    "taskSignatureDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    "taskSignatureDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "requestId": "00000008-0000-4000-8000-000000000008",
+    "executionAttemptId": "00000009-0000-4000-8000-000000000009",
+    "runId": "00000060-0000-4000-8000-000000000060",
+    "fencingEpoch": 7
   },
   "suggested": [
     {
@@ -46,9 +50,71 @@
         "00000051-0000-4000-8000-000000000051"
       ],
       "originatingAgentVersionId": "00000006-0000-4000-8000-000000000006",
+      "lastSuppliedRun": "00000060-0000-4000-8000-000000000060",
       "lastAppliedRun": "00000060-0000-4000-8000-000000000060",
+      "lastHandling": "applied",
       "contradictionCount": 0,
       "influenceState": "active"
+    }
+  ],
+  "history": [
+    {
+      "ruleVersionId": "00000040-0000-4000-8000-000000000040",
+      "ruleId": "00000041-0000-4000-8000-000000000041",
+      "version": 1,
+      "state": "active",
+      "suggestedAt": "2026-08-10T10:00:00.000Z",
+      "approvedAt": "2026-08-11T10:00:00.000Z",
+      "runs": [
+        {
+          "requestId": "00000008-0000-4000-8000-000000000008",
+          "executionAttemptId": "00000009-0000-4000-8000-000000000009",
+          "runId": "00000060-0000-4000-8000-000000000060",
+          "fencingEpoch": 7,
+          "contextDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "suppliedAt": "2026-08-12T10:00:00.000Z",
+          "handling": "applied",
+          "handlingReason": "Followed the supplied final assembly constraint.",
+          "outcome": "accepted",
+          "outcomeEvidenceId": "00000070-0000-4000-8000-000000000070",
+          "causationClaim": "not_claimed"
+        },
+        {
+          "requestId": "00000018-0000-4000-8000-000000000018",
+          "executionAttemptId": "00000019-0000-4000-8000-000000000019",
+          "runId": "00000061-0000-4000-8000-000000000061",
+          "fencingEpoch": 8,
+          "contextDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "suppliedAt": "2026-08-13T10:00:00.000Z",
+          "handling": "unsupported_scope",
+          "handlingReason": "The runtime did not expose the exact operation scope.",
+          "outcome": "pending",
+          "outcomeEvidenceId": null,
+          "causationClaim": "not_claimed"
+        },
+        {
+          "requestId": "00000028-0000-4000-8000-000000000028",
+          "executionAttemptId": "00000029-0000-4000-8000-000000000029",
+          "runId": "00000062-0000-4000-8000-000000000062",
+          "fencingEpoch": 9,
+          "contextDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "suppliedAt": null,
+          "handling": null,
+          "handlingReason": null,
+          "outcome": "pending",
+          "outcomeEvidenceId": null,
+          "causationClaim": "not_claimed"
+        }
+      ]
+    },
+    {
+      "ruleVersionId": "00000042-0000-4000-8000-000000000042",
+      "ruleId": "00000043-0000-4000-8000-000000000043",
+      "version": 2,
+      "state": "revoked",
+      "suggestedAt": "2026-08-09T10:00:00.000Z",
+      "approvedAt": "2026-08-10T10:00:00.000Z",
+      "runs": []
     }
   ],
   "unavailable": {
