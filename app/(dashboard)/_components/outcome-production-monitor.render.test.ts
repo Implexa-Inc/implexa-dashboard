@@ -11,6 +11,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { render, type Rendered } from '../../../lib/test/render.ts';
+import { shouldPollProduction, type Production } from '../../../lib/outcome-production.ts';
 import fixture from '../../../test-fixtures/generated/outcome-orchestration.json' with { type: 'json' };
 
 function stubFetch(rendered: Rendered, reply: { status: number; body: unknown }) {
@@ -86,6 +87,26 @@ test('a blocked production surfaces its typed blockers in a status region, on pa
     assert.match(region!.textContent || '', /typed partial result/);
     assert.ok(rendered.queryByText(/exceeded its retry ceiling/), 'the failing child names its own blocker');
     assert.ok(rendered.document.querySelector('[aria-label="Stop this production"]'), 'a blocked production can still be stopped');
+  } finally { rendered.cleanup(); }
+});
+
+test('unsettled work keeps re-reading itself; settled work does not', () => {
+  // A monitor that never re-reads shows a snapshot that quietly becomes a lie:
+  // the parent keeps claiming "Running · 1 of 2 steps · $19.00" while children
+  // finish and real money moves.
+  for (const key of ['running', 'blocked'] as const) {
+    assert.equal(shouldPollProduction(fixture.productions[key] as unknown as Production), true, key);
+  }
+  for (const key of ['completed', 'cancelled', 'failed'] as const) {
+    assert.equal(shouldPollProduction(fixture.productions[key] as unknown as Production), false, key);
+  }
+});
+
+test('a failed production renders its blockers and no stop control', async () => {
+  const rendered = await render('outcome-production-monitor.tsx', { production: fixture.productions.failed });
+  try {
+    assert.ok(rendered.queryByText(/No master was produced/));
+    assert.equal(rendered.document.querySelector('[aria-label="Stop this production"]'), null);
   } finally { rendered.cleanup(); }
 });
 

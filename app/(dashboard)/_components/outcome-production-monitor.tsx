@@ -15,10 +15,21 @@
  * component performs no client-side reconciliation.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from './modal';
-import { formatMinor, type Production } from '@/lib/outcome-production';
+import { formatMinor, shouldPollProduction, type Production } from '@/lib/outcome-production';
+
+/**
+ * How often an unsettled production re-reads itself.
+ *
+ * Without this the page is a snapshot from load: the parent keeps saying
+ * "Running · $19.00 spent · 1 of 2 steps" while children finish and real money
+ * moves, and a user watching it would reasonably conclude the work is stuck.
+ * router.refresh() re-runs the server component, so the JWT stays server-side
+ * and there is no second client read path to keep honest.
+ */
+const REFRESH_MS = 10_000;
 
 const STATE_LABELS: Record<string, string> = {
   running: 'Running',
@@ -39,6 +50,13 @@ export default function OutcomeProductionMonitor({ production }: { production: P
   const [confirmStop, setConfirmStop] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
+
+  const poll = shouldPollProduction(production);
+  useEffect(() => {
+    if (!poll) return undefined;
+    const timer = setInterval(() => router.refresh(), REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [poll, router]);
 
   async function stopProduction() {
     setStopping(true);

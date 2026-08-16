@@ -36,6 +36,8 @@ import { RunAttentionBanner, type AttentionItem } from '../_components/run-atten
 import InboxList from '../inbox/inbox-list';
 import WorkFilterTabs from './_components/work-filter-tabs';
 import ReadyForReviewList from './_components/ready-for-review-list';
+import OutcomeProductionsList from './_components/outcome-productions-list';
+import { listOutcomeProductions } from '@/lib/outcome-production-load';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,7 +77,7 @@ export default async function WorkPage({
 
         <WorkFilterTabs current={view} reviewCount={reviewCount} />
 
-        {view === 'needs'     && <NeedsYouView />}
+        {view === 'needs'     && <NeedsYouView jwt={session.access_token} />}
         {view === 'review'    && <ReviewView queue={queue} />}
         {view === 'delivered' && <DeliveredView />}
       </div>
@@ -89,14 +91,22 @@ export default async function WorkPage({
  * all-clear, because it is the only component that can see both the live alert
  * count and the server-known setup count.
  */
-async function NeedsYouView() {
+async function NeedsYouView({ jwt }: { jwt: string }) {
   const supabase = createClient();
-  const needsYou = await loadNeedsYou(supabase);
+  const [needsYou, productions] = await Promise.all([
+    loadNeedsYou(supabase),
+    // An outcome production IS work being produced, and this is the only
+    // surface that can lead a user back to one that is already running.
+    listOutcomeProductions(jwt),
+  ]);
   return (
-    <TodayFeed
-      data={needsYou}
-      warning={attentionWarning({ partial: needsYou.partial, truncated: needsYou.truncated, live: !needsYou.partial })}
-    />
+    <>
+      <OutcomeProductionsList load={productions} />
+      <TodayFeed
+        data={needsYou}
+        warning={attentionWarning({ partial: needsYou.partial, truncated: needsYou.truncated, live: !needsYou.partial })}
+      />
+    </>
   );
 }
 

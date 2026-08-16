@@ -40,6 +40,18 @@ type PlanPhase =
 
 const UNAVAILABLE_COPY = 'We can’t plan this outcome right now. Nothing was selected and nothing will run — this is not the same as having no eligible agent.';
 
+/**
+ * The start landed or it didn't, and from here we cannot tell which. The one
+ * safe move is to press Start again: it reuses this plan's idempotency key, so
+ * a start that already succeeded is recognised rather than repeated. Telling
+ * the user to plan again would mint a NEW plan and key, and if the first start
+ * had in fact landed they would reserve the budget a second time.
+ */
+const UNCONFIRMED_START_COPY = 'We couldn’t confirm the start. Press Start production again — it reuses this plan’s approval, so it cannot reserve your budget twice.';
+
+/** Declared inputs the planner is allowed to see in one request. */
+const MAX_ATTACHMENTS = 10;
+
 export default function OutcomeEntry() {
   const router = useRouter();
   const [goal, setGoal] = useState('');
@@ -50,16 +62,31 @@ export default function OutcomeEntry() {
   const [plan, setPlan] = useState<PlanPhase>({ phase: 'idle' });
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [droppedFiles, setDroppedFiles] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // The generation of the request currently on screen. Bumped by every edit AND
+  // by every plan request, so an answer computed for a superseded request is
+  // DROPPED rather than rendered ([[plan-review-modal reqId]]).
+  //
+  // Clearing the plan on edit is not sufficient on its own: the clear happens
+  // now, the in-flight response lands later, and without this guard it would
+  // repaint a plan built from the old goal/budget — startable, with a genuine
+  // digest the backend would honour, against a ceiling the user had already
+  // changed.
+  const reqId = useRef(0);
 
   // A shown plan is bound to the request that produced it. Any edit discards
   // it — the stale digest would be refused server-side anyway, but the UI must
   // not present last request's plan as this request's.
   function edit<T>(set: (v: T) => void) {
     return (value: T) => {
+      reqId.current += 1;
       set(value);
       setPlan((current) => (current.phase === 'idle' ? current : { phase: 'idle' }));
       setStartError(null);
+      // addFiles re-sets this AFTER calling us, so its own count survives.
+      setDroppedFiles(0);
     };
   }
   const editGoal = edit(setGoal);
@@ -72,6 +99,8 @@ export default function OutcomeEntry() {
   const requestReady = goal.trim().length >= 8 && Number.isInteger(budgetCents) && budgetCents >= 100;
 
   async function requestPlan() {
+    const mine = (reqId.current += 1);
+    const current = () => mine === reqId.current;
     setPlan({ phase: 'planning' });
     setStartError(null);
     try {
@@ -88,6 +117,7 @@ export default function OutcomeEntry() {
         }),
       });
       const body = await res.json().catch(() => null);
+      if (!current()) return;
       if (res.status === 400 || res.status === 401) {
         setPlan({ phase: 'invalid', message: (body && typeof body.error === 'string' && body.error) || 'That request was refused.' });
         return;
@@ -101,12 +131,14 @@ export default function OutcomeEntry() {
       // the budget twice.
       setPlan({ phase: 'plan', outcome, idempotencyKey: crypto.randomUUID() });
     } catch {
-      setPlan({ phase: 'unavailable', message: UNAVAILABLE_COPY });
+      if (current()) setPlan({ phase: 'unavailable', message: UNAVAILABLE_COPY });
     }
   }
 
   async function startProduction() {
     if (plan.phase !== 'plan' || plan.outcome.kind !== 'plan') return;
+    const mine = reqId.current;
+    const current = () => mine === reqId.current;
     setStarting(true);
     setStartError(null);
     try {
@@ -122,35 +154,42 @@ export default function OutcomeEntry() {
       });
       const body = await res.json().catch(() => null);
       const productionId = res.ok && body && body.ok === true && typeof body.productionId === 'string' ? body.productionId : null;
+      // A production that really started is worth navigating to even if the
+      // user edited the form meanwhile — the money is committed either way.
       if (productionId) {
         router.push(`/runs/productions/${productionId}`);
         return;
       }
+      if (!current()) return;
       if (res.status === 409) {
         // The backend refused the plan identity (stale, expired, or budget
         // moved). The shown plan is no longer real — discard it, and say so
         // in the standing status region (the card it rendered in is gone).
         setPlan({ phase: 'invalid', message: 'That plan is no longer current. Plan again to get a fresh one.' });
       } else {
-        setStartError('We couldn’t confirm the start. Nothing shows as running — plan again rather than assuming it began.');
+        setStartError(UNCONFIRMED_START_COPY);
       }
     } catch {
-      setStartError('We couldn’t confirm the start. Nothing shows as running — plan again rather than assuming it began.');
+      if (current()) setStartError(UNCONFIRMED_START_COPY);
     } finally {
-      setStarting(false);
+      if (current()) setStarting(false);
     }
   }
 
   function addFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     const next = [...attachments];
+    let dropped = 0;
     for (const file of Array.from(files)) {
-      if (next.length >= 10) break;
-      if (!next.some((a) => a.name === file.name && a.sizeBytes === file.size)) {
-        next.push({ name: file.name, sizeBytes: file.size });
-      }
+      if (next.some((a) => a.name === file.name && a.sizeBytes === file.size)) continue;
+      // Silently narrowing the declared input set is the one thing the user
+      // cannot detect: the plan would be built from fewer inputs than they
+      // believe they supplied, and its reasons would look sound.
+      if (next.length >= MAX_ATTACHMENTS) { dropped += 1; continue; }
+      next.push({ name: file.name, sizeBytes: file.size });
     }
     editAttachments(next);
+    setDroppedFiles(dropped);
     if (fileInput.current) fileInput.current.value = '';
   }
 
@@ -207,6 +246,12 @@ export default function OutcomeEntry() {
             className="mt-2 block text-xs text-ink-400 file:mr-3 file:rounded-lg file:border file:border-ink-700 file:bg-transparent file:px-3 file:py-1.5 file:text-xs file:text-ink-300"
             aria-label="Attach files this outcome starts from"
           />
+          {droppedFiles > 0 && (
+            <p role="status" className="mt-2 text-xs text-amber-300">
+              {droppedFiles} {droppedFiles === 1 ? 'file was' : 'files were'} not added — one outcome request declares at most {MAX_ATTACHMENTS} inputs.
+              Remove something above if a dropped file matters to this outcome.
+            </p>
+          )}
         </div>
 
         <fieldset>

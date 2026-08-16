@@ -100,6 +100,15 @@ export type Production = {
   id: string;
   workItemId: string;
   state: string;
+  /**
+   * Whether this production has settled and therefore HAS a receipt.
+   *
+   * The backend is the authority. `state` is an open vocabulary that will grow,
+   * so a consumer that decides settlement by listing terminal state strings
+   * silently drops the receipt — the whole account of what was spent and what
+   * came back — for every state it has not heard of yet.
+   */
+  settled: boolean;
   planId: string;
   planDigest: string;
   goal: string;
@@ -146,6 +155,18 @@ const str = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const strOrNull = (v: unknown): v is string | null => v === null || str(v);
 
+/**
+ * A well-formed ISO-4217 code — exactly what Intl.NumberFormat accepts.
+ *
+ * This is checked HERE rather than at the point of formatting because
+ * `toLocaleString` throws RangeError on anything else, and a throw inside
+ * render takes the page down. Every other kind of contract drift in this
+ * module degrades to an honest "we can't show this" status; without this
+ * check, a currency of "US" or "$" would be the one drift that crashes
+ * instead.
+ */
+const currency = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z]{3}$/.test(v);
+
 function readRange(v: unknown): [number, number] | null {
   if (!Array.isArray(v) || v.length !== 2 || !num(v[0]) || !num(v[1])) return null;
   return [v[0], v[1]];
@@ -169,7 +190,7 @@ function readInputRefs(v: unknown): InputRef[] | null {
 
 export function parseIntent(v: unknown): OutcomeIntent | null {
   if (!isObj(v) || !str(v.id) || !str(v.goal) || !isOutcomeQuality(v.quality)) return null;
-  if (!num(v.maxBudgetCents) || !str(v.currency) || !str(v.digest)) return null;
+  if (!num(v.maxBudgetCents) || !currency(v.currency) || !str(v.digest)) return null;
   if (!strOrNull(v.deadline ?? null)) return null;
   const inputRefs = readInputRefs(v.inputRefs);
   if (!inputRefs) return null;
@@ -210,7 +231,7 @@ export function parsePlan(v: unknown): OutcomePlan | null {
   }
   const inputs = readInputRefs(v.inputs);
   const total = readRange(v.totalEstimatedCostCentsRange);
-  if (!inputs || !total || !num(v.maxBudgetCents) || !str(v.currency) || !str(v.expiresAt) || !str(v.digest)) return null;
+  if (!inputs || !total || !num(v.maxBudgetCents) || !currency(v.currency) || !str(v.expiresAt) || !str(v.digest)) return null;
   if (!Array.isArray(v.missingSetup)) return null;
   const missingSetup: PlanMissingSetup[] = [];
   for (const raw of v.missingSetup) {
@@ -281,9 +302,10 @@ function readChild(v: unknown): ProductionChild | null {
 
 export function parseProduction(v: unknown): Production | null {
   if (!isObj(v) || !str(v.id) || !str(v.workItemId) || !str(v.state)) return null;
+  if (typeof v.settled !== 'boolean') return null;
   if (!str(v.planId) || !str(v.planDigest) || !str(v.goal) || !isOutcomeQuality(v.quality)) return null;
   const b = v.budget;
-  if (!isObj(b) || !num(b.reservedCents) || !num(b.spentCents) || !num(b.maxBudgetCents) || !str(b.currency)) return null;
+  if (!isObj(b) || !num(b.reservedCents) || !num(b.spentCents) || !num(b.maxBudgetCents) || !currency(b.currency)) return null;
   const p = v.progress;
   if (!isObj(p) || !num(p.completedNodes) || !num(p.totalNodes)) return null;
   if (typeof v.canCancel !== 'boolean') return null;
@@ -301,7 +323,8 @@ export function parseProduction(v: unknown): Production | null {
     children.push(child);
   }
   return {
-    id: v.id, workItemId: v.workItemId, state: v.state, planId: v.planId, planDigest: v.planDigest,
+    id: v.id, workItemId: v.workItemId, state: v.state, settled: v.settled,
+    planId: v.planId, planDigest: v.planDigest,
     goal: v.goal, quality: v.quality,
     budget: { reservedCents: b.reservedCents, spentCents: b.spentCents, maxBudgetCents: b.maxBudgetCents, currency: b.currency },
     progress: { completedNodes: p.completedNodes, totalNodes: p.totalNodes },
@@ -314,6 +337,23 @@ export function parseProductionResponse(v: unknown): Production | null {
   return parseProduction(v.production);
 }
 
+/**
+ * The owner's productions, newest first. One drifted member makes the WHOLE
+ * list unreadable: a partially-parsed list rendered as complete would tell the
+ * user "these are your productions" while silently omitting one that may be
+ * running and spending ([[parseLiveItems discipline]]).
+ */
+export function parseProductionListResponse(v: unknown): Production[] | null {
+  if (!isObj(v) || v.ok !== true || !Array.isArray(v.productions)) return null;
+  const out: Production[] = [];
+  for (const raw of v.productions) {
+    const production = parseProduction(raw);
+    if (!production) return null;
+    out.push(production);
+  }
+  return out;
+}
+
 export function parseReceipt(v: unknown): ProductionReceipt | null {
   if (!isObj(v) || !str(v.productionId) || !str(v.workItemId)) return null;
   if (!str(v.scorerVersion) || !str(v.weightSetVersion) || !str(v.planId) || !str(v.planDigest)) return null;
@@ -324,7 +364,7 @@ export function parseReceipt(v: unknown): ProductionReceipt | null {
     selectedPath.push({ order: raw.order, agentName: raw.agentName, agentVersionId: raw.agentVersionId, versionNumber: raw.versionNumber });
   }
   const t = v.totals;
-  if (!isObj(t) || !num(t.costCents) || !num(t.durationSeconds) || !num(t.reservedCents) || !num(t.refundedCents) || !str(t.currency)) return null;
+  if (!isObj(t) || !num(t.costCents) || !num(t.durationSeconds) || !num(t.reservedCents) || !num(t.refundedCents) || !currency(t.currency)) return null;
   if (!Array.isArray(v.childReceipts)) return null;
   const childReceipts: ChildReceipt[] = [];
   for (const raw of v.childReceipts) {
@@ -388,4 +428,15 @@ export function formatDurationRange(range: [number, number]): string {
  */
 export function canStartPlan(plan: OutcomePlan): boolean {
   return plan.state === 'prepared' && plan.missingSetup.length === 0;
+}
+
+/**
+ * Whether the monitor should keep re-reading this production.
+ *
+ * Unsettled work changes while the user watches — children finish and real
+ * money moves — so a page that never re-reads shows a snapshot that quietly
+ * becomes a lie. Settled work never changes again, so polling it is pure noise.
+ */
+export function shouldPollProduction(production: Production): boolean {
+  return !production.settled;
 }
