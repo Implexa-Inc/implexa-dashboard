@@ -18,7 +18,7 @@ const intent = {
 const plan = {
   digest: DIGEST, contract_version: 'outcome-production-plan.v1', scorer_version: 'outcome-scorer-v1',
   weight_set_digest: 'b'.repeat(64), intent_digest: 'c'.repeat(64), quality: 'balanced', deadline_at: null,
-  nodes: [{ ordinal: 0, role: 'produce_outcome', workflow_id: WORKFLOW_ID, workflow_version_id: VERSION_ID, slug: 'final-video-compositor', budget_credits: 100, max_duration_ms: 3600000, max_retries: 1, max_invocations: 1000 }],
+  nodes: [{ ordinal: 0, role: 'produce_outcome', workflow_id: WORKFLOW_ID, workflow_version_id: VERSION_ID, slug: 'final-video-compositor', agent: { name: 'Final Video Compositor', task_key: 'video.final_master', task_label: 'Final Video Compositor', required_input_types: ['project_bundle'], output_types: ['video_master'] }, budget_credits: 100, max_duration_ms: 3600000, max_retries: 1, max_invocations: 1000 }],
   budget: { max_budget_credits: 100, allocations: [{ ordinal: 0, budget_credits: 100 }] }, unresolved_missing_assets: [],
   stop_conditions: { max_nodes: 2, sequential_only: true, on_child_failure: 'stop_with_typed_failure', on_budget_exhausted: 'stop_with_typed_failure', on_cancel: 'release_and_cancel_children' },
 };
@@ -60,9 +60,41 @@ test('a positive credit ceiling and zero consequential-spend default are explici
     assert.equal(calls[0].body.max_budget_credits, 100);
     assert.match(String(calls[0].body.idempotency_key), /^[0-9a-f-]{36}$/i);
     assert.deepEqual(calls[0].body.consequential_action_ceiling, { max_provider_calls: 0, max_spend_minor: 0, currency: 'USD' });
-    assert.ok(rendered.queryByText('Recommended plan'));
-    assert.match(rendered.text(), /final-video-compositor/);
+    assert.ok(rendered.queryByText('Recommended agent'));
+    assert.match(rendered.text(), /Final Video Compositor/);
+    assert.match(rendered.text(), /Needs: Project Bundle/);
+    assert.match(rendered.text(), /Produces: Video Master/);
     assert.match(rendered.text(), /Planning budget: 100 credits/);
+  } finally { rendered.cleanup(); }
+});
+
+test('planning shows the full agent chain before root inputs are supplied', async () => {
+  const plannerId = '33333333-3333-4333-8333-333333333333';
+  const plannerVersionId = '44444444-4444-4444-8444-444444444444';
+  const chain = {
+    ...plan,
+    nodes: [
+      { ordinal: 0, role: 'generate_asset', workflow_id: plannerId, workflow_version_id: plannerVersionId, slug: 'visual-treatment-planner-runway-remotion', agent: { name: 'Visual Treatment Planner — Runway + Remotion', task_key: 'video.visual_treatment_plan', task_label: 'Visual Treatment Planner', required_input_types: ['presenter_video'], output_types: ['project_bundle'] }, budget_credits: 30, max_duration_ms: 3600000, max_retries: 1, max_invocations: 1000 },
+      { ...plan.nodes[0], ordinal: 1, budget_credits: 70, agent: { name: 'Visual Evidence & Remotion Compositor', task_key: 'video.final_master', task_label: 'Visual Evidence & Remotion Compositor', required_input_types: ['project_bundle'], output_types: ['video_master'] } },
+    ],
+    budget: { ...plan.budget, allocations: [{ ordinal: 0, budget_credits: 30 }, { ordinal: 1, budget_credits: 70 }] },
+    unresolved_missing_assets: [{ kind: 'presenter_video', description: 'Visual Treatment Planner needs presenter_video before this plan can start' }],
+  };
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    stubFetch(rendered, [{ status: 200, body: { ...planResponse, plan: chain } }]);
+    await fillGoal(rendered);
+    await rendered.click(planButton(rendered));
+    assert.match(rendered.text(), /Recommended agent chain/);
+    assert.match(rendered.text(), /2 agents will work in this order/);
+    assert.match(rendered.text(), /Visual Treatment Planner — Runway \+ Remotion/);
+    assert.match(rendered.text(), /Visual Evidence & Remotion Compositor/);
+    assert.match(rendered.text(), /Presenter Video \(you provide\)/);
+    assert.match(rendered.text(), /Project Bundle \(from step 1\)/);
+    assert.match(rendered.text(), /What you’ll provide before starting/);
+    assert.match(rendered.text(), /recommendation is complete; these inputs only gate execution/i);
+    assert.equal(rendered.queryByText('Start production'), null);
+    assert.equal(rendered.queryByText('One input is still needed'), null);
   } finally { rendered.cleanup(); }
 });
 
@@ -113,7 +145,7 @@ test('one Backend clarification renders only its choices and resubmits the same 
     assert.equal(calls[1].body.goal, calls[0].body.goal);
     assert.equal(calls[1].body.quality, calls[0].body.quality);
     assert.equal(calls[1].body.clarification_task_key, 'video');
-    assert.ok(rendered.queryByText('Recommended plan'));
+    assert.ok(rendered.queryByText('Recommended agent'));
   } finally { rendered.cleanup(); }
 });
 

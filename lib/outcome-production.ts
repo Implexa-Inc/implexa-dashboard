@@ -66,6 +66,13 @@ export type PlanNode = {
   workflow_id: string;
   workflow_version_id: string;
   slug: string | null;
+  agent: {
+    name: string;
+    task_key: string | null;
+    task_label: string;
+    required_input_types: string[];
+    output_types: string[];
+  } | null;
   budget_credits: number;
   max_duration_ms: number;
   max_retries: number;
@@ -243,9 +250,24 @@ function readNode(v: unknown): PlanNode | null {
   if (!str(v.workflow_version_id) || !UUID.test(v.workflow_version_id) || (v.slug !== null && !str(v.slug))) return null;
   if (!integer(v.budget_credits) || v.budget_credits < 0 || !integer(v.max_duration_ms) || v.max_duration_ms < 0) return null;
   if (!integer(v.max_retries) || v.max_retries < 0 || !integer(v.max_invocations) || v.max_invocations < 0) return null;
+  let agent: PlanNode['agent'] = null;
+  if (v.agent !== undefined) {
+    if (!isObj(v.agent) || !str(v.agent.name) || !str(v.agent.task_label)) return null;
+    if (v.agent.task_key !== null && !str(v.agent.task_key)) return null;
+    if (!Array.isArray(v.agent.required_input_types) || !v.agent.required_input_types.every(str)) return null;
+    if (!Array.isArray(v.agent.output_types) || !v.agent.output_types.every(str)) return null;
+    agent = {
+      name: v.agent.name,
+      task_key: v.agent.task_key as string | null,
+      task_label: v.agent.task_label,
+      required_input_types: v.agent.required_input_types as string[],
+      output_types: v.agent.output_types as string[],
+    };
+  }
   return {
     ordinal: v.ordinal, role: v.role, workflow_id: v.workflow_id,
     workflow_version_id: v.workflow_version_id, slug: v.slug as string | null,
+    agent,
     budget_credits: v.budget_credits, max_duration_ms: v.max_duration_ms,
     max_retries: v.max_retries, max_invocations: v.max_invocations,
   };
