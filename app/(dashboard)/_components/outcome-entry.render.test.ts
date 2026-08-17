@@ -1,0 +1,155 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { render, type Rendered } from '../../../lib/test/render.ts';
+
+type FetchCall = { url: string; body: Record<string, unknown> };
+const PRODUCTION_ID = '00000040-0000-4000-8000-000000000040';
+const WORKFLOW_ID = '11111111-1111-4111-8111-111111111111';
+const VERSION_ID = '22222222-2222-4222-8222-222222222222';
+const ARTIFACT_ID = '77777777-7777-4777-8777-777777777777';
+const INPUT_SESSION_ID = '88888888-8888-4888-8888-888888888888';
+const DIGEST = 'a'.repeat(64);
+const intent = {
+  goal: 'Produce a final master from the attached editable project.', quality: 'balanced', deadline_at: null,
+  max_budget_credits: 100,
+  consequential_action_ceiling: { max_provider_calls: 0, max_spend_minor: 0, currency: 'USD' },
+  input_references: [],
+};
+const plan = {
+  digest: DIGEST, contract_version: 'outcome-production-plan.v1', scorer_version: 'outcome-scorer-v1',
+  weight_set_digest: 'b'.repeat(64), intent_digest: 'c'.repeat(64), quality: 'balanced', deadline_at: null,
+  nodes: [{ ordinal: 0, role: 'produce_outcome', workflow_id: WORKFLOW_ID, workflow_version_id: VERSION_ID, slug: 'final-video-compositor', budget_credits: 100, max_duration_ms: 3600000, max_retries: 1, max_invocations: 1000 }],
+  budget: { max_budget_credits: 100, allocations: [{ ordinal: 0, budget_credits: 100 }] }, unresolved_missing_assets: [],
+  stop_conditions: { max_nodes: 2, sequential_only: true, on_child_failure: 'stop_with_typed_failure', on_budget_exhausted: 'stop_with_typed_failure', on_cancel: 'release_and_cancel_children' },
+};
+const planResponse = { ok: true, kind: 'plan', productionId: PRODUCTION_ID, intent, plan };
+
+function stubFetch(rendered: Rendered, replies: Array<{ status: number; body: unknown }>) {
+  const calls: FetchCall[] = [];
+  (rendered.window as unknown as Record<string, unknown>).fetch = async (url: string, init: { body: string }) => {
+    calls.push({ url, body: JSON.parse(init.body) });
+    const reply = replies[Math.min(calls.length - 1, replies.length - 1)];
+    return { ok: reply.status >= 200 && reply.status < 300, status: reply.status, json: async () => reply.body };
+  };
+  return calls;
+}
+
+async function type(rendered: Rendered, element: Element, value: string) {
+  const proto = element.tagName === 'TEXTAREA'
+    ? (rendered.window as unknown as { HTMLTextAreaElement: { prototype: unknown } }).HTMLTextAreaElement.prototype
+    : (rendered.window as unknown as { HTMLInputElement: { prototype: unknown } }).HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, 'value')!.set!;
+  await rendered.act(() => { setter.call(element, value); element.dispatchEvent(new rendered.window.Event('input', { bubbles: true })); });
+}
+
+async function fillGoal(rendered: Rendered) {
+  await type(rendered, rendered.document.getElementById('outcome-goal')!, 'Produce a final master from my approved sections.');
+}
+
+const planButton = (rendered: Rendered) => rendered.getByText('Plan this outcome') as HTMLButtonElement;
+
+test('a positive credit ceiling and zero consequential-spend default are explicit', async () => {
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    const calls = stubFetch(rendered, [{ status: 200, body: planResponse }]);
+    assert.equal(planButton(rendered).disabled, true);
+    await fillGoal(rendered);
+    assert.equal(planButton(rendered).disabled, false);
+    await rendered.click(planButton(rendered));
+    assert.equal(calls[0].body.action, 'prepare');
+    assert.equal(calls[0].body.max_budget_credits, 100);
+    assert.match(String(calls[0].body.idempotency_key), /^[0-9a-f-]{36}$/i);
+    assert.deepEqual(calls[0].body.consequential_action_ceiling, { max_provider_calls: 0, max_spend_minor: 0, currency: 'USD' });
+    assert.ok(rendered.queryByText('Recommended plan'));
+    assert.match(rendered.text(), /final-video-compositor/);
+    assert.match(rendered.text(), /Planning budget: 100 credits/);
+  } finally { rendered.cleanup(); }
+});
+
+test('browser mode requires Implexa Desktop and has no file input fallback', async () => {
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    assert.match(rendered.text(), /Open Implexa Desktop/);
+    assert.equal(rendered.document.querySelector('input[type="file"]'), null);
+    await rendered.click(rendered.getByText('Add verified artifact'));
+    assert.match(rendered.text(), /Browser filenames are not accepted/);
+  } finally { rendered.cleanup(); }
+});
+
+test('Desktop artifacts keep local metadata but send only the four reference fields plus kind', async () => {
+  const pickerCalls: Record<string, unknown>[] = [];
+  const rendered = await render('outcome-entry.tsx', {}, { bridge: { pickRunInput: async (options: Record<string, unknown>) => {
+    pickerCalls.push(options);
+    return { ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST, displayName: 'project-bundle.zip', mediaType: 'application/zip' };
+  } } });
+  try {
+    const calls = stubFetch(rendered, [{ status: 200, body: { ...planResponse, intent: { ...intent, input_references: [{ kind: 'artifact', id: ARTIFACT_ID, digest: DIGEST, description: 'project-bundle.zip', input_type: 'project_bundle', input_session_id: INPUT_SESSION_ID }] } } }]);
+    await rendered.click(rendered.getByText('Add verified artifact'));
+    assert.ok(rendered.queryByText('project-bundle.zip'));
+    assert.equal((rendered.document.querySelector('select') as HTMLSelectElement).value, 'project_bundle');
+    await fillGoal(rendered);
+    await rendered.click(planButton(rendered));
+    const reference = (calls[0].body.input_references as Record<string, unknown>[])[0];
+    assert.deepEqual(reference, { kind: 'artifact', id: ARTIFACT_ID, digest: DIGEST, description: 'project-bundle.zip', input_type: 'project_bundle', input_session_id: INPUT_SESSION_ID });
+    assert.equal('displayName' in reference, false);
+    assert.equal('mediaType' in reference, false);
+    assert.equal('inputSessionId' in reference, false);
+    assert.equal(pickerCalls[0].selection, 'file');
+  } finally { rendered.cleanup(); }
+});
+
+test('one Backend clarification renders only its choices and resubmits the same request with task key', async () => {
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    const calls = stubFetch(rendered, [
+      { status: 200, body: { ok: true, kind: 'clarification_required', clarification: { question: 'Which final outcome?', choices: [{ taskKey: 'video', label: 'Final video', outputTypes: ['video'] }, { taskKey: 'project', label: 'Editable project', outputTypes: ['project'] }] } } },
+      { status: 200, body: planResponse },
+    ]);
+    await fillGoal(rendered);
+    await rendered.click(planButton(rendered));
+    assert.ok(rendered.queryByText('Which final outcome?'));
+    assert.equal(rendered.queryByText('Use recommended'), null);
+    await rendered.click(rendered.getByText('Final video'));
+    assert.equal(calls[1].body.goal, calls[0].body.goal);
+    assert.equal(calls[1].body.quality, calls[0].body.quality);
+    assert.equal(calls[1].body.clarification_task_key, 'video');
+    assert.ok(rendered.queryByText('Recommended plan'));
+  } finally { rendered.cleanup(); }
+});
+
+test('Start uses Backend production identity and expected plan digest only', async () => {
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    const calls = stubFetch(rendered, [{ status: 200, body: planResponse }, { status: 200, body: { ok: true, productionId: PRODUCTION_ID } }]);
+    await fillGoal(rendered);
+    await rendered.click(planButton(rendered));
+    await rendered.click(rendered.getByText('Start production'));
+    assert.deepEqual(calls[1].body, { action: 'start', productionId: PRODUCTION_ID, expected_plan_digest: DIGEST });
+    assert.equal(rendered.calls.push[0], `/runs/productions/${PRODUCTION_ID}`);
+  } finally { rendered.cleanup(); }
+});
+
+test('unreadable and stale prepare responses fail closed', async () => {
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    let release: () => void = () => {};
+    (rendered.window as unknown as Record<string, unknown>).fetch = async () => {
+      await new Promise<void>((resolve) => { release = resolve; });
+      return { ok: true, status: 200, json: async () => planResponse };
+    };
+    await fillGoal(rendered);
+    await rendered.click(planButton(rendered));
+    await type(rendered, rendered.document.getElementById('outcome-goal')!, 'A different final deliverable entirely.');
+    await rendered.act(async () => { release(); await new Promise((resolve) => setTimeout(resolve, 5)); });
+    assert.equal(rendered.queryByText('Recommended plan'), null);
+  } finally { rendered.cleanup(); }
+
+  const drifted = await render('outcome-entry.tsx', {});
+  try {
+    stubFetch(drifted, [{ status: 200, body: { ok: true, kind: 'plan', productionId: PRODUCTION_ID, intent, plan: { drifted: true } } }]);
+    await fillGoal(drifted);
+    await drifted.click(planButton(drifted));
+    assert.ok(drifted.document.querySelector('[aria-label="Planning unavailable"]'));
+    assert.equal(drifted.queryByText('Start production'), null);
+  } finally { drifted.cleanup(); }
+});
