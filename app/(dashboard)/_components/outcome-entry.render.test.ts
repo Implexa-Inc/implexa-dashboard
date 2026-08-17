@@ -93,8 +93,40 @@ test('planning shows the full agent chain before root inputs are supplied', asyn
     assert.match(rendered.text(), /Project Bundle \(from step 1\)/);
     assert.match(rendered.text(), /What you’ll provide before starting/);
     assert.match(rendered.text(), /recommendation is complete; these inputs only gate execution/i);
+    assert.ok(rendered.queryByText('Add Presenter Video'));
     assert.equal(rendered.queryByText('Start production'), null);
     assert.equal(rendered.queryByText('One input is still needed'), null);
+  } finally { rendered.cleanup(); }
+});
+
+test('the plan collects its missing root input, replans, and exposes Start production', async () => {
+  const missingPlan = {
+    ...plan,
+    nodes: [{
+      ...plan.nodes[0],
+      agent: { ...plan.nodes[0].agent, required_input_types: ['presenter_video'] },
+    }],
+    unresolved_missing_assets: [{ kind: 'presenter_video', description: 'Final Video Compositor needs presenter_video before this plan can start' }],
+  };
+  const verifiedReference = {
+    kind: 'artifact', id: ARTIFACT_ID, digest: DIGEST, description: 'presenter.mov',
+    input_type: 'presenter_video', input_session_id: INPUT_SESSION_ID,
+  };
+  const rendered = await render('outcome-entry.tsx', {}, { bridge: { pickRunInput: async () => ({
+    ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST,
+    displayName: 'presenter.mov', mediaType: 'video/quicktime',
+  }) } });
+  try {
+    const calls = stubFetch(rendered, [
+      { status: 200, body: { ...planResponse, plan: missingPlan } },
+      { status: 200, body: { ...planResponse, intent: { ...intent, input_references: [verifiedReference] } } },
+    ]);
+    await fillGoal(rendered);
+    await rendered.click(planButton(rendered));
+    assert.equal(rendered.queryByText('Start production'), null);
+    await rendered.click(rendered.getByText('Add Presenter Video'));
+    assert.deepEqual((calls[1].body.input_references as Record<string, unknown>[])[0], verifiedReference);
+    assert.ok(rendered.queryByText('Start production'));
   } finally { rendered.cleanup(); }
 });
 

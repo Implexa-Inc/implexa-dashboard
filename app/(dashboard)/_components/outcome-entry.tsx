@@ -72,7 +72,7 @@ export default function OutcomeEntry() {
   const parsedCredits = Number(budgetCredits);
   const requestReady = goal.trim().length >= 8 && Number.isInteger(parsedCredits) && parsedCredits >= 1 && parsedCredits <= 100000;
 
-  async function addArtifact() {
+  async function addArtifact(expectedType?: OutcomeInputType, replan = false) {
     if (pickerInFlight.current) return;
     if (artifacts.length >= MAX_ARTIFACTS) {
       setPickerError(`One outcome can use at most ${MAX_ARTIFACTS} verified artifacts.`);
@@ -96,10 +96,19 @@ export default function OutcomeEntry() {
         const next: VerifiedArtifact = {
           ...result.binding,
           inputSessionId: result.inputSessionId,
-          inputType: suggestOutcomeInputType(result.binding.displayName, result.binding.mediaType),
+          inputType: expectedType || suggestOutcomeInputType(result.binding.displayName, result.binding.mediaType),
         };
-        if (!artifacts.some((artifact) => artifact.artifactId === next.artifactId && artifact.sha256 === next.sha256)) {
-          editArtifacts([...artifacts, next]);
+        const duplicate = artifacts.some((artifact) => artifact.artifactId === next.artifactId && artifact.sha256 === next.sha256);
+        const nextArtifacts = duplicate
+          ? artifacts.map((artifact) => artifact.artifactId === next.artifactId && artifact.sha256 === next.sha256
+            ? { ...artifact, inputType: next.inputType }
+            : artifact)
+          : [...artifacts, next];
+        if (replan) {
+          setArtifacts(nextArtifacts);
+          await requestPlan(undefined, nextArtifacts);
+        } else if (!duplicate) {
+          editArtifacts(nextArtifacts);
         }
       }
     } finally {
@@ -108,7 +117,7 @@ export default function OutcomeEntry() {
     }
   }
 
-  async function requestPlan(clarificationTaskKey?: string) {
+  async function requestPlan(clarificationTaskKey?: string, artifactOverride = artifacts) {
     if (prepareInFlight.current !== null) return;
     const mine = (reqId.current += 1);
     prepareInFlight.current = mine;
@@ -125,7 +134,7 @@ export default function OutcomeEntry() {
           deadline_at: deadline || null,
           max_budget_credits: parsedCredits,
           consequential_action_ceiling: { max_provider_calls: 0, max_spend_minor: 0, currency: 'USD' },
-          input_references: artifacts.map((artifact) => ({
+          input_references: artifactOverride.map((artifact) => ({
             kind: 'artifact', id: artifact.artifactId, digest: artifact.sha256,
             description: artifact.displayName, input_type: artifact.inputType,
             input_session_id: artifact.inputSessionId,
@@ -146,6 +155,14 @@ export default function OutcomeEntry() {
     } finally {
       if (prepareInFlight.current === mine) prepareInFlight.current = null;
     }
+  }
+
+  async function provideMissingInput(kind: string) {
+    if (!OUTCOME_INPUT_TYPES.includes(kind as OutcomeInputType)) {
+      setPickerError(`This plan requires an unsupported input type: ${kind}.`);
+      return;
+    }
+    await addArtifact(kind as OutcomeInputType, true);
   }
 
   async function startProduction() {
@@ -201,7 +218,7 @@ export default function OutcomeEntry() {
               <button type="button" aria-label={`Remove ${artifact.displayName}`} onClick={() => editArtifacts(artifacts.filter((item) => item.artifactId !== artifact.artifactId))} className="text-ink-500 hover:text-ink-200">×</button>
             </li>
           ))}</ul>}
-          <button type="button" onClick={addArtifact} disabled={picking || artifacts.length >= MAX_ARTIFACTS} className="mt-2 rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 disabled:opacity-50">{picking ? 'Verifying…' : 'Add verified artifact'}</button>
+          <button type="button" onClick={() => addArtifact()} disabled={picking || artifacts.length >= MAX_ARTIFACTS} className="mt-2 rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 disabled:opacity-50">{picking ? 'Verifying…' : 'Add verified artifact'}</button>
           {!inDesktop && <p role="status" className="mt-2 text-xs text-amber-300">Open Implexa Desktop to add verified artifacts. Browser filenames cannot be used.</p>}
           {pickerError && <p role="status" className="mt-2 text-xs text-red-400">{pickerError}</p>}
         </div>
@@ -234,7 +251,7 @@ export default function OutcomeEntry() {
           <div className="mt-3 flex flex-wrap gap-2">{plan.outcome.clarification.choices.map((choice) => <button key={choice.taskKey} type="button" onClick={() => requestPlan(choice.taskKey)} className="rounded-lg border border-ink-700 px-3 py-2 text-sm text-ink-200 hover:border-ink-500">{choice.label}</button>)}</div>
         </section>
       )}
-      {plan.phase === 'plan' && plan.outcome.kind !== 'clarification_required' && <div className="mt-5"><OutcomePlanCard outcome={plan.outcome} onStart={startProduction} starting={starting} startError={startError} /></div>}
+      {plan.phase === 'plan' && plan.outcome.kind !== 'clarification_required' && <div className="mt-5"><OutcomePlanCard outcome={plan.outcome} onStart={startProduction} onProvideInput={provideMissingInput} starting={starting} providingInput={picking} startError={startError} /></div>}
     </div>
   );
 }

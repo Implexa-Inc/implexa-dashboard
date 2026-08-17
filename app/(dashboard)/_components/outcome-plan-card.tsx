@@ -50,11 +50,13 @@ function inputSummary(node: OutcomePlan['nodes'][number], plan: OutcomePlan) {
   }).join(', ');
 }
 
-function PlanBody({ intent, plan, onStart, starting, startError }: {
+function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingInput, startError }: {
   intent: OutcomeIntent;
   plan: OutcomePlan;
   onStart: () => void;
+  onProvideInput: (kind: string) => void;
   starting: boolean;
+  providingInput: boolean;
   startError: string | null;
 }) {
   const startable = canStartPlan(plan);
@@ -113,7 +115,17 @@ function PlanBody({ intent, plan, onStart, starting, startError }: {
           <p className="text-sm font-medium text-amber-300">What you’ll provide before starting</p>
           <p className="text-xs text-ink-400 mt-1">The recommendation is complete; these inputs only gate execution.</p>
           {plan.unresolved_missing_assets.map((item) => (
-            <p key={`${item.kind}-${item.description}`} className="text-xs text-ink-300 mt-2">{item.description}</p>
+            <div key={`${item.kind}-${item.description}`} className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-ink-300">{item.description}</p>
+              <button
+                type="button"
+                onClick={() => onProvideInput(item.kind)}
+                disabled={providingInput}
+                className="rounded-lg border border-amber-500/50 px-3 py-2 text-xs font-medium text-amber-200 hover:border-amber-400 disabled:opacity-50"
+              >
+                {providingInput ? 'Verifying…' : `Add ${humanize(item.kind)}`}
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -131,10 +143,12 @@ function PlanBody({ intent, plan, onStart, starting, startError }: {
   );
 }
 
-export default function OutcomePlanCard({ outcome, onStart, starting, startError }: {
+export default function OutcomePlanCard({ outcome, onStart, onProvideInput, starting, providingInput, startError }: {
   outcome: PlanOutcome;
   onStart: () => void;
+  onProvideInput: (kind: string) => void;
   starting: boolean;
+  providingInput: boolean;
   startError: string | null;
 }) {
   if (outcome.kind === 'no_eligible') return <NoEligiblePanel noEligible={outcome.noEligible} />;
@@ -145,5 +159,5 @@ export default function OutcomePlanCard({ outcome, onStart, starting, startError
     return <section role="status" aria-label="Input required" className="card p-5 border-amber-500/40"><h3 className="text-sm font-semibold text-amber-300">One input is still needed</h3><p className="text-sm text-ink-300 mt-1">{outcome.question}</p><p className="text-xs text-ink-500 mt-3">Add a verified artifact above and label it as {outcome.missingInputTypes.join(' or ')}. Nothing was started.</p></section>;
   }
   if (outcome.kind !== 'plan') return null;
-  return <PlanBody intent={outcome.intent} plan={outcome.plan} onStart={onStart} starting={starting} startError={startError} />;
+  return <PlanBody intent={outcome.intent} plan={outcome.plan} onStart={onStart} onProvideInput={onProvideInput} starting={starting} providingInput={providingInput} startError={startError} />;
 }
