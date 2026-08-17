@@ -190,8 +190,13 @@ export default function OutcomeEntry() {
       const productionId = returnedProductionId === selected.productionId ? returnedProductionId : null;
       if (productionId) { router.push(`/runs/productions/${productionId}`); return; }
       if (!current()) return;
-      if (res.status === 409 || res.status === 422) setPlan({ phase: 'invalid', message: 'That plan is no longer current. Plan again to get a fresh one.' });
-      else setStartError(UNCONFIRMED_START_COPY);
+      if (res.status === 409 || (res.status === 422 && body?.reason === 'plan_digest_mismatch')) {
+        setPlan({ phase: 'invalid', message: 'That plan is no longer current. Plan again to get a fresh one.' });
+      } else if (res.status === 422 && body && typeof body.error === 'string') {
+        setStartError(body.error);
+      } else {
+        setStartError(UNCONFIRMED_START_COPY);
+      }
     } catch {
       if (current()) setStartError(UNCONFIRMED_START_COPY);
     } finally {

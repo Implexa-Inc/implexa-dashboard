@@ -195,6 +195,38 @@ test('Start uses Backend production identity and expected plan digest only', asy
   } finally { rendered.cleanup(); }
 });
 
+test('a typed Backend start refusal remains visible without discarding the current plan', async () => {
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    stubFetch(rendered, [
+      { status: 200, body: planResponse },
+      { status: 422, body: { ok: false, reason: 'grant_signing_unavailable', error: 'Child grant signing key is not configured.' } },
+    ]);
+    await fillGoal(rendered);
+    await rendered.click(planButton(rendered));
+    await rendered.click(rendered.getByText('Start production'));
+    assert.match(rendered.text(), /child grant signing key is not configured/i);
+    assert.ok(rendered.queryByText('Recommended agent'));
+    assert.ok(rendered.queryByText('Start production'));
+    assert.equal(rendered.queryByText('That plan is no longer current. Plan again to get a fresh one.'), null);
+  } finally { rendered.cleanup(); }
+});
+
+test('a plan-digest mismatch still invalidates the current plan', async () => {
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    stubFetch(rendered, [
+      { status: 200, body: planResponse },
+      { status: 422, body: { ok: false, reason: 'plan_digest_mismatch', error: 'The approved plan digest is no longer current.' } },
+    ]);
+    await fillGoal(rendered);
+    await rendered.click(planButton(rendered));
+    await rendered.click(rendered.getByText('Start production'));
+    assert.ok(rendered.queryByText('That plan is no longer current. Plan again to get a fresh one.'));
+    assert.equal(rendered.queryByText('Start production'), null);
+  } finally { rendered.cleanup(); }
+});
+
 test('unreadable and stale prepare responses fail closed', async () => {
   const rendered = await render('outcome-entry.tsx', {});
   try {
