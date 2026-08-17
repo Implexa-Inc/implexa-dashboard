@@ -14,24 +14,13 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { listWorkflows } from '@/lib/workflow-catalog';
-import { selectRuns, deriveRunState } from '@/lib/run-state';
+import { selectRuns } from '@/lib/run-state';
 import type { InboxItem, FeedbackQuestion } from '@/app/(dashboard)/inbox/inbox-list';
 import type { Recommendation } from '@/app/(dashboard)/_components/next-agent-cards';
 
-// Tighten a workflow description into a single plain-english line. Catalog
-// descriptions can be a few sentences; the inbox only needs the lead clause.
-function oneLine(text: string | null | undefined): string | null {
-  if (!text) return null;
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-  const firstSentence = trimmed.split(/(?<=[.!?])\s+/)[0] || trimmed;
-  return firstSentence.length > 160 ? `${firstSentence.slice(0, 157).trimEnd()}…` : firstSentence;
-}
-
-// Humanize a slug as a last-resort name so we never render a bare slug alone.
-function humanize(slug: string): string {
-  return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
+// oneLine / humanize / the pure row→item mapper live in lib/inbox-items.ts
+// (alias-free so node:test and the agent-detail envelope path can import them).
+import { buildInboxItems, oneLine, humanize } from './inbox-items';
 
 /**
  * loadInboxItems , the recent deliverables for the caller as todo items,
@@ -100,33 +89,13 @@ export async function loadInboxItems(
     } catch { /* no verdicts rather than no inbox */ }
   }
 
-  return runs
-    // Drop "resolver" rows — bookkeeping placeholders run_agent_now opens during a
-    // continue while the real deliverable records on the linked continuation run.
-    // They self-describe ("Resolver row opened … No separate action needed here")
-    // and must not show as their own todo. (Filter in JS, not a NOT-ILIKE query,
-    // which would also drop legitimate null-output rows.)
-    .filter((r) => !(r.output_markdown || '').startsWith('Resolver row opened'))
-    .map((r) => {
-    const wf = bySlug.get(r.skill_slug);
-    return {
-      id:              r.id,
-      slug:            r.skill_slug,
-      source:          r.source || 'scheduled',
-      name:            wf?.name || humanize(r.skill_slug),
-      why:             oneLine(wf?.primary_outcome) || oneLine(wf?.description),
-      output_markdown: r.output_markdown ?? null,
-      ran_at:          r.ran_at,
-      pending:         r.review_status === 'pending',
-      stepsState:      Array.isArray(r.steps_state) ? r.steps_state : null,
-      holdKind:        r.hold_kind === 'approval_before_action' || r.hold_kind === 'review_delivered_result' || r.hold_kind === 'needs_input' ? r.hold_kind : null,
-      state:           deriveRunState(r),
-      verification:    (r.verification_status ?? null) as InboxItem['verification'],
-      feedbackQuestions: (r as { feedback_questions?: FeedbackQuestion[] | null }).feedback_questions ?? null,
-      feedbackAnswers:   (r as { feedback_answers?: Record<string, string> | null }).feedback_answers ?? null,
-      feedbackAt:        (r as { feedback_at?: string | null }).feedback_at ?? null,
-      recommendations:   recsById.get(r.id) ?? null,
-      judgment:          judgmentByRun.get(r.id) ?? null,
-    } satisfies InboxItem;
-  });
+  return buildInboxItems(
+    runs,
+    (slug2) => {
+      const wf = bySlug.get(slug2);
+      return { name: wf?.name || humanize(slug2), why: oneLine(wf?.primary_outcome) || oneLine(wf?.description) };
+    },
+    recsById,
+    judgmentByRun,
+  );
 }

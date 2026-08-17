@@ -13,7 +13,11 @@ import { join } from 'node:path';
 const dir = import.meta.dirname;
 const notice = readFileSync(join(dir, 'capability-gaps-notice.tsx'), 'utf8');
 const card = readFileSync(join(dir, 'activation-card.tsx'), 'utf8');
-const lib = readFileSync(join(dir, '..', '..', '..', 'lib', 'activation.ts'), 'utf8');
+// The checklist TYPES live in lib/activation.ts; the mapper moved to
+// lib/activation-core.ts (the node:test-importable split, shared with the
+// agent-detail envelope). Read both so the assertions keep guarding the parse.
+const lib = readFileSync(join(dir, '..', '..', '..', 'lib', 'activation.ts'), 'utf8')
+  + readFileSync(join(dir, '..', '..', '..', 'lib', 'activation-core.ts'), 'utf8');
 
 test('the notice renders nothing when there are no gaps (never an empty warning box)', () => {
   assert.match(notice, /if \(!list\.length\) return null;/, 'must short-circuit on an empty/absent list');

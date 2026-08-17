@@ -140,6 +140,13 @@ export type ActivationChecklist = {
   verification?: ActivationVerification;
 };
 
+// The shared checklist mapper lives in lib/activation-core.ts: this file's
+// 'server-only' import makes it unimportable from node:test — the same split
+// as agents-home/agents-feed-core. Re-exported here so server-side callers
+// keep one import site.
+import { mapActivationChecklist } from './activation-core';
+export { mapActivationChecklist };
+
 /** GET /api/v2/agents/:slug/activation with the caller's JWT. null on any failure. */
 export async function getActivationChecklist(slug: string): Promise<ActivationChecklist | null> {
   const { createClient } = await import('@/lib/supabase/server');
@@ -154,37 +161,7 @@ export async function getActivationChecklist(slug: string): Promise<ActivationCh
     });
     if (!res.ok) return null;
     const b = (await res.json()) as Record<string, unknown>;
-    if (!b?.ok) return null;
-    return {
-      slug: String(b.slug ?? slug),
-      name: String(b.name ?? slug),
-      summary: (b.summary as string) ?? null,
-      state: (b.state as ActivationState) ?? 'created',
-      mode: (b.mode as ActivationChecklist['mode']) ?? undefined,
-      requiresLocal: !!b.requiresLocal,
-      nextRunAt: (b.nextRunAt as string) ?? null,
-      // The activation card gates Run on this: a generated agent with unanswered
-      // config questions must surface them at the Run moment, not fire blind.
-      pendingQuestions: Number(b.pendingQuestions ?? 0),
-      // Absent on an older backend → fall back to the total, which is exactly the
-      // pre-change behaviour (every question was required).
-      blockingQuestions: b.blockingQuestions === undefined ? undefined : Number(b.blockingQuestions),
-      optionalQuestions: Number(b.optionalQuestions ?? 0),
-      readyToRun: b.readyToRun === undefined ? undefined : !!b.readyToRun,
-      // Absent on an older backend → [], so the section simply doesn't render.
-      capabilityGaps: Array.isArray(b.capabilityGaps)
-        ? (b.capabilityGaps as unknown[]).filter((g): g is CapabilityGap =>
-            !!g && typeof (g as CapabilityGap).capability === 'string')
-        : [],
-      requirements: (b.requirements as AgentRequirementsPayload) ?? undefined,
-      executionRequirements: parseMarketplaceExecutionRequirements(b.executionRequirements),
-      source: (b.source as string) ?? 'generated',
-      canActivate: !!b.canActivate,
-      stepsLeft: Number(b.stepsLeft ?? 0),
-      steps: Array.isArray(b.steps) ? (b.steps as ActivationStep[]) : [],
-      // Absent (older backend) → treat as verified so the badge never regresses.
-      verification: (b.verification as ActivationVerification) ?? { verified: true, checks: [] },
-    };
+    return mapActivationChecklist(b, slug);
   } catch {
     return null;
   }

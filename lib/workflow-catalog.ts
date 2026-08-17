@@ -271,15 +271,23 @@ export type MyWorkflowCard = {
  * INCLUDING private ones the public catalog hides. Calls the authed backend
  * route GET /api/v2/me/workflows with the caller's Supabase session JWT (so it's
  * owner-scoped, never anyone else's). Degrades to [] on any failure.
+ *
+ * Pass `token` when the caller already holds the session's access token (the
+ * agent page resolves the session ONCE) — the helper then skips its own
+ * getSession() round-trip. Absent, it resolves the session itself as before.
  */
-export async function listMyWorkflows(): Promise<MyWorkflowCard[]> {
-  const { createClient } = await import('@/lib/supabase/server');
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) return [];
+export async function listMyWorkflows(token?: string): Promise<MyWorkflowCard[]> {
+  let accessToken = token;
+  if (!accessToken) {
+    const { createClient } = await import('@/lib/supabase/server');
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    accessToken = session?.access_token;
+  }
+  if (!accessToken) return [];
   try {
     const res = await fetch(`${BACKEND}/api/v2/me/workflows`, {
-      headers: { authorization: `Bearer ${session.access_token}` },
+      headers: { authorization: `Bearer ${accessToken}` },
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });
@@ -498,9 +506,11 @@ export async function getWorkflowRunInputs(
   return w ? workflowRunInputs(w) : null;
 }
 
-// Shared mapper: raw workflow-detail object (from get_workflow or me/workflows)
-// -> the dashboard WorkflowDetail shape.
-function mapWorkflowDetail(w: any, slug: string, source: string): WorkflowDetail {
+// Shared mapper: raw workflow-detail object (from get_workflow, me/workflows,
+// or the me/agents/:slug/detail envelope) -> the dashboard WorkflowDetail
+// shape. Exported so lib/agent-detail.ts maps the envelope's workflow section
+// through the exact same defensive mapping as the legacy reads.
+export function mapWorkflowDetail(w: any, slug: string, source: string): WorkflowDetail {
   const num = (v: unknown) => (typeof v === 'number' && v >= 0 ? v : 0);
   return {
     id: String(w.id ?? ''),
