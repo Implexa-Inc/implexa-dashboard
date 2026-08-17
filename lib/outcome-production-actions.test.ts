@@ -69,12 +69,18 @@ test('start uses the Backend production id and expected digest only', () => {
   assert.deepEqual(target.body, { expected_plan_digest: DIGEST });
 });
 
-test('start and cancel reject malformed production identity', () => {
+test('start, cancel, and reconcile reject malformed production identity', () => {
   assert.equal(typeof resolveOutcomeProductionAction('start', { productionId: 'browser-made', expected_plan_digest: DIGEST }), 'string');
   assert.equal(typeof resolveOutcomeProductionAction('start', { productionId: PRODUCTION_ID, expected_plan_digest: 'short' }), 'string');
   const cancel = resolveOutcomeProductionAction('cancel', { productionId: PRODUCTION_ID });
   assert.ok(typeof cancel !== 'string');
   assert.equal(cancel.path, `/api/v2/outcome-productions/${PRODUCTION_ID}/cancel`);
+  const reconcile = resolveOutcomeProductionAction('reconcile', { productionId: PRODUCTION_ID });
+  assert.ok(typeof reconcile !== 'string');
+  assert.deepEqual(reconcile, {
+    path: `/api/v2/outcome-productions/${PRODUCTION_ID}/reconcile`, method: 'POST', body: {},
+  });
+  assert.equal(typeof resolveOutcomeProductionAction('reconcile', { productionId: 'browser-made' }), 'string');
 });
 
 test('old and unknown actions are refused', () => {

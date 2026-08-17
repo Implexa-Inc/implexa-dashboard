@@ -10,6 +10,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { render, type Rendered } from '../../../lib/test/render.ts';
 import { shouldPollProduction, type Production } from '../../../lib/outcome-production.ts';
 import fixture from '../../../test-fixtures/generated/outcome-orchestration.json' with { type: 'json' };
@@ -99,6 +100,13 @@ test('unsettled work keeps re-reading itself; settled work does not', () => {
   for (const key of ['succeeded', 'partial', 'cancelled', 'failed'] as const) {
     assert.equal(shouldPollProduction(fixture.productions[key] as unknown as Production), false, key);
   }
+});
+
+test('an unsettled monitor wakes backend reconciliation before its next read', () => {
+  const source = readFileSync(new URL('./outcome-production-monitor.tsx', import.meta.url), 'utf8');
+  assert.match(source, /action:\s*'reconcile'/, 'polling must advance durable child state, not only refresh a stale projection');
+  assert.match(source, /setInterval\([^]*reconcileAndRefresh/, 'reconciliation remains attached to the unsettled polling loop');
+  assert.doesNotMatch(source, /setInterval\(\(\)\s*=>\s*router\.refresh\(\)/, 'read-only polling recreates the incident');
 });
 
 test('a failed production renders its blockers and no stop control', async () => {

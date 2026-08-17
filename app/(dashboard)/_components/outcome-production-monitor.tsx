@@ -11,8 +11,9 @@
  * "AI team" tableau, and never offers per-child stop buttons — stopping is a
  * parent decision that the backend propagates to every child grant.
  *
- * All figures are the backend's verbatim. Refresh re-reads the server; this
- * component performs no client-side reconciliation.
+ * All figures are the backend's verbatim. While a production is unsettled the
+ * monitor asks the backend to reconcile its durable child facts, then re-reads
+ * the projection. The browser never derives or writes a child state itself.
  */
 
 import { useEffect, useState } from 'react';
@@ -58,9 +59,28 @@ export default function OutcomeProductionMonitor({ production }: { production: P
   const poll = shouldPollProduction(production);
   useEffect(() => {
     if (!poll) return undefined;
-    const timer = setInterval(() => router.refresh(), REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [poll, router]);
+    let active = true;
+    let reconciling = false;
+    const reconcileAndRefresh = async () => {
+      if (reconciling) return;
+      reconciling = true;
+      try {
+        await fetch('/api/outcome-productions', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'reconcile', productionId: production.id }),
+        });
+      } catch {
+        // A failed wakeup is retried on the next tick. Never claim a state from
+        // the client; the following refresh remains a read of backend truth.
+      } finally {
+        if (active) router.refresh();
+        reconciling = false;
+      }
+    };
+    const timer = setInterval(() => { void reconcileAndRefresh(); }, REFRESH_MS);
+    return () => { active = false; clearInterval(timer); };
+  }, [poll, production.id, router]);
 
   async function stopProduction() {
     setStopping(true);
