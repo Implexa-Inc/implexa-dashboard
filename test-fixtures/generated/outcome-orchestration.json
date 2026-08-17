@@ -1,1459 +1,265 @@
 {
-  "schema": "implexa.outcome-orchestration.fixture.v1",
+  "schema": "implexa.outcome-orchestration.dashboard-fixture.v3",
   "producer": "implexa-backend/scripts/generate-outcome-orchestration-dashboard-fixture.js",
-  "intent": {
-    "id": "00000010-0000-4000-8000-000000000010",
-    "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-    "inputRefs": [
+  "contracts": {
+    "capabilities": [
       {
-        "id": "00000011-0000-4000-8000-000000000011",
-        "kind": "approved_video_sections",
-        "name": "Approved sections (7)",
-        "digest": "b9cdc663a8e66c2d1fa6985600ce9fcdabe3493563b41eb239e3edb6ba7d35a6"
-      },
-      {
-        "id": "00000012-0000-4000-8000-000000000012",
-        "kind": "editable_project",
-        "name": "Editable project file",
-        "digest": "2a1cdae190d5f3db399dc74c18369ea2b4166256805ff215188adf496c2f0c29"
-      }
-    ],
-    "expectedDeliverable": {
-      "kind": "video_master",
-      "format": "mp4"
-    },
-    "acceptanceChecks": [
-      "approved segments unchanged",
-      "master duration matches project timeline"
-    ],
-    "quality": "best",
-    "deadline": null,
-    "maxBudgetCents": 4000,
-    "currency": "USD",
-    "consequentialActionCeiling": "none",
-    "digest": "6461cee9c96d1893f0b288ca9fab9b6fb3147edbbcb87a1ba2d82a74e6dc495d"
-  },
-  "plans": {
-    "single": {
-      "id": "00000040-0000-4000-8000-000000000040",
-      "intentId": "00000010-0000-4000-8000-000000000010",
-      "scorerVersion": "outcome-scorer-v1",
-      "weightSetVersion": "w1",
-      "state": "prepared",
-      "nodes": [
-        {
-          "order": 1,
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "agentId": "00000020-0000-4000-8000-000000000020",
-          "agentName": "Cinematic compositor",
-          "versionNumber": "2.1.0",
-          "taskSignature": {
-            "outcome": "final video master",
-            "inputs": [
-              "approved video sections",
-              "editable project"
-            ]
-          },
-          "reasonCode": "task_signature_match_with_accepted_outcomes",
-          "reasons": [
-            "Task signature matches the requested deliverable (final video master from approved sections).",
-            "Accepted outcomes and verified Judge evidence exist for this exact task signature.",
-            "Input and output contracts are compatible with your attached project.",
-            "Estimated cost and duration fit inside your budget and quality ceiling."
+        "task_key": "video.youtube_master",
+        "digest": "719674a29575042ec36f467bccd74d232855186b2a171bef835fdea302be2b66",
+        "capability": {
+          "contract_version": "agent-task-capability.v1",
+          "task_key": "video.youtube_master",
+          "label": "Finished YouTube video",
+          "professional_phrases": [
+            "edit and render a youtube master"
           ],
-          "estimatedCostCentsRange": [
-            1400,
-            2200
+          "everyday_outcome_phrases": [
+            "finish my youtube video",
+            "make a youtube video"
           ],
-          "estimatedDurationSecondsRange": [
-            420,
-            900
+          "required_input_types": [
+            "project_bundle"
           ],
-          "budgetAllocationCents": 2600,
-          "retryLimit": 1,
-          "stopConditions": [
-            "budget_allocation_exhausted",
-            "verification_failed_twice",
-            "parent_cancelled"
-          ]
+          "optional_input_types": [],
+          "output_types": [
+            "video_master"
+          ],
+          "exclusions": [],
+          "compatible_predecessor_task_keys": [],
+          "compatible_successor_task_keys": []
         }
-      ],
-      "inputs": [
-        {
-          "id": "00000011-0000-4000-8000-000000000011",
-          "kind": "approved_video_sections",
-          "name": "Approved sections (7)",
-          "digest": "b9cdc663a8e66c2d1fa6985600ce9fcdabe3493563b41eb239e3edb6ba7d35a6"
-        },
-        {
-          "id": "00000012-0000-4000-8000-000000000012",
-          "kind": "editable_project",
-          "name": "Editable project file",
-          "digest": "2a1cdae190d5f3db399dc74c18369ea2b4166256805ff215188adf496c2f0c29"
-        }
-      ],
-      "expectedDeliverable": {
-        "kind": "video_master",
-        "format": "mp4"
-      },
-      "verification": {
-        "method": "server_deterministic",
-        "checks": [
-          "approved segments unchanged",
-          "master duration matches project timeline"
-        ]
-      },
-      "totalEstimatedCostCentsRange": [
-        1400,
-        2200
-      ],
-      "maxBudgetCents": 4000,
-      "currency": "USD",
-      "missingSetup": [],
-      "approvals": [
-        {
-          "kind": "spend",
-          "description": "Reserve up to the plan budget from your balance. Unused reservation is returned at settlement.",
-          "ceilingCents": 2600
-        }
-      ],
-      "expiresAt": "2026-08-14T21:00:00.000Z",
-      "digest": "096011bf81b6b428fa254d97c55b1651aa46a98968c57dc347eb455c6e3a8669"
-    },
-    "twoNode": {
-      "id": "00000041-0000-4000-8000-000000000041",
-      "intentId": "00000010-0000-4000-8000-000000000010",
-      "scorerVersion": "outcome-scorer-v1",
-      "weightSetVersion": "w1",
-      "state": "prepared",
-      "nodes": [
-        {
-          "order": 1,
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "agentId": "00000020-0000-4000-8000-000000000020",
-          "agentName": "Cinematic compositor",
-          "versionNumber": "2.1.0",
-          "taskSignature": {
-            "outcome": "final video master",
-            "inputs": [
-              "approved video sections",
-              "editable project"
-            ]
-          },
-          "reasonCode": "task_signature_match_with_accepted_outcomes",
-          "reasons": [
-            "Task signature matches the requested deliverable (final video master from approved sections).",
-            "Accepted outcomes and verified Judge evidence exist for this exact task signature.",
-            "Input and output contracts are compatible with your attached project.",
-            "Estimated cost and duration fit inside your budget and quality ceiling."
-          ],
-          "estimatedCostCentsRange": [
-            1400,
-            2200
-          ],
-          "estimatedDurationSecondsRange": [
-            420,
-            900
-          ],
-          "budgetAllocationCents": 2600,
-          "retryLimit": 1,
-          "stopConditions": [
-            "budget_allocation_exhausted",
-            "verification_failed_twice",
-            "parent_cancelled"
-          ]
-        },
-        {
-          "order": 2,
-          "agentVersionId": "00000031-0000-4000-8000-000000000031",
-          "agentId": "00000030-0000-4000-8000-000000000030",
-          "agentName": "Cinematic shot generator",
-          "versionNumber": "1.4.2",
-          "taskSignature": {
-            "outcome": "typed cinematic asset",
-            "inputs": [
-              "shot brief"
-            ]
-          },
-          "reasonCode": "declared_missing_asset_single_eligible_generator",
-          "reasons": [
-            "The compositor declared exactly one missing cinematic asset (closing establishing shot).",
-            "This installed agent is the only eligible generator for that typed asset.",
-            "It runs under a child grant that cannot modify your approved segments."
-          ],
-          "estimatedCostCentsRange": [
-            300,
-            700
-          ],
-          "estimatedDurationSecondsRange": [
-            120,
-            360
-          ],
-          "budgetAllocationCents": 900,
-          "retryLimit": 1,
-          "stopConditions": [
-            "budget_allocation_exhausted",
-            "parent_cancelled"
-          ]
-        }
-      ],
-      "inputs": [
-        {
-          "id": "00000011-0000-4000-8000-000000000011",
-          "kind": "approved_video_sections",
-          "name": "Approved sections (7)",
-          "digest": "b9cdc663a8e66c2d1fa6985600ce9fcdabe3493563b41eb239e3edb6ba7d35a6"
-        },
-        {
-          "id": "00000012-0000-4000-8000-000000000012",
-          "kind": "editable_project",
-          "name": "Editable project file",
-          "digest": "2a1cdae190d5f3db399dc74c18369ea2b4166256805ff215188adf496c2f0c29"
-        }
-      ],
-      "expectedDeliverable": {
-        "kind": "video_master",
-        "format": "mp4"
-      },
-      "verification": {
-        "method": "server_deterministic",
-        "checks": [
-          "approved segments unchanged",
-          "master duration matches project timeline"
-        ]
-      },
-      "totalEstimatedCostCentsRange": [
-        1700,
-        2900
-      ],
-      "maxBudgetCents": 4000,
-      "currency": "USD",
-      "missingSetup": [],
-      "approvals": [
-        {
-          "kind": "spend",
-          "description": "Reserve up to the plan budget from your balance. Unused reservation is returned at settlement.",
-          "ceilingCents": 3500
-        }
-      ],
-      "expiresAt": "2026-08-14T21:00:00.000Z",
-      "digest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182"
-    },
-    "missingSetup": {
-      "id": "00000042-0000-4000-8000-000000000042",
-      "intentId": "00000010-0000-4000-8000-000000000010",
-      "scorerVersion": "outcome-scorer-v1",
-      "weightSetVersion": "w1",
-      "state": "blocked_on_setup",
-      "nodes": [
-        {
-          "order": 1,
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "agentId": "00000020-0000-4000-8000-000000000020",
-          "agentName": "Cinematic compositor",
-          "versionNumber": "2.1.0",
-          "taskSignature": {
-            "outcome": "final video master",
-            "inputs": [
-              "approved video sections",
-              "editable project"
-            ]
-          },
-          "reasonCode": "task_signature_match_with_accepted_outcomes",
-          "reasons": [
-            "Task signature matches the requested deliverable (final video master from approved sections).",
-            "Accepted outcomes and verified Judge evidence exist for this exact task signature.",
-            "Input and output contracts are compatible with your attached project.",
-            "Estimated cost and duration fit inside your budget and quality ceiling."
-          ],
-          "estimatedCostCentsRange": [
-            1400,
-            2200
-          ],
-          "estimatedDurationSecondsRange": [
-            420,
-            900
-          ],
-          "budgetAllocationCents": 2600,
-          "retryLimit": 1,
-          "stopConditions": [
-            "budget_allocation_exhausted",
-            "verification_failed_twice",
-            "parent_cancelled"
-          ]
-        }
-      ],
-      "inputs": [
-        {
-          "id": "00000011-0000-4000-8000-000000000011",
-          "kind": "approved_video_sections",
-          "name": "Approved sections (7)",
-          "digest": "b9cdc663a8e66c2d1fa6985600ce9fcdabe3493563b41eb239e3edb6ba7d35a6"
-        },
-        {
-          "id": "00000012-0000-4000-8000-000000000012",
-          "kind": "editable_project",
-          "name": "Editable project file",
-          "digest": "2a1cdae190d5f3db399dc74c18369ea2b4166256805ff215188adf496c2f0c29"
-        }
-      ],
-      "expectedDeliverable": {
-        "kind": "video_master",
-        "format": "mp4"
-      },
-      "verification": {
-        "method": "server_deterministic",
-        "checks": [
-          "approved segments unchanged",
-          "master duration matches project timeline"
-        ]
-      },
-      "totalEstimatedCostCentsRange": [
-        1400,
-        2200
-      ],
-      "maxBudgetCents": 4000,
-      "currency": "USD",
-      "missingSetup": [
-        {
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "item": "Render engine connection is not verified on this workspace.",
-          "ownerAction": "Verify the render engine connection in Settings → Connections, then plan again."
-        }
-      ],
-      "approvals": [
-        {
-          "kind": "spend",
-          "description": "Reserve up to the plan budget from your balance. Unused reservation is returned at settlement.",
-          "ceilingCents": 2600
-        }
-      ],
-      "expiresAt": "2026-08-14T21:00:00.000Z",
-      "digest": "c642653d62f565be0f22e1bbd662223b2ab531f512ccb56c1d497f3dfdd457dd"
-    }
-  },
-  "noEligible": {
-    "reasonCode": "no_eligible_candidate",
-    "message": "No installed, ready agent matches this outcome within your budget and quality constraints.",
-    "exclusions": [
-      {
-        "agentName": "Cinematic compositor",
-        "reasonCode": "budget_ceiling_incompatible",
-        "detail": "Estimated minimum cost exceeds the stated maximum budget."
       },
       {
-        "agentName": "Archive transcoder",
-        "reasonCode": "task_signature_mismatch",
-        "detail": "Produces transcodes, not edited masters."
+        "task_key": "marketing.launch_campaign",
+        "digest": "84413d2af0e114b22d57e7e5b739921ca5b1311ac6efe76af432d4591d1884d3",
+        "capability": {
+          "contract_version": "agent-task-capability.v1",
+          "task_key": "marketing.launch_campaign",
+          "label": "Launch campaign plan",
+          "professional_phrases": [
+            "develop a product launch campaign"
+          ],
+          "everyday_outcome_phrases": [
+            "help me launch my product"
+          ],
+          "required_input_types": [
+            "project_bundle"
+          ],
+          "optional_input_types": [],
+          "output_types": [
+            "launch_campaign_plan"
+          ],
+          "exclusions": [],
+          "compatible_predecessor_task_keys": [],
+          "compatible_successor_task_keys": []
+        }
+      },
+      {
+        "task_key": "web.launch_landing_page",
+        "digest": "191101f695550d92a906f2758547c010b548c241ad883a7fd66959a767788186",
+        "capability": {
+          "contract_version": "agent-task-capability.v1",
+          "task_key": "web.launch_landing_page",
+          "label": "Launch landing page",
+          "professional_phrases": [
+            "design and implement a launch landing page"
+          ],
+          "everyday_outcome_phrases": [
+            "help me launch my product"
+          ],
+          "required_input_types": [
+            "project_bundle"
+          ],
+          "optional_input_types": [],
+          "output_types": [
+            "landing_page"
+          ],
+          "exclusions": [],
+          "compatible_predecessor_task_keys": [],
+          "compatible_successor_task_keys": []
+        }
       }
     ]
   },
-  "childGrant": {
-    "parentProductionId": "00000050-0000-4000-8000-000000000050",
-    "runId": "00000052-0000-4000-8000-000000000052",
-    "agentVersionId": "00000031-0000-4000-8000-000000000031",
-    "inputRefs": [
-      {
-        "id": "00000013-0000-4000-8000-000000000013",
-        "kind": "shot_brief",
-        "name": "Closing establishing shot brief",
-        "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-      }
-    ],
-    "expectedArtifact": {
-      "kind": "cinematic_asset",
-      "format": "mp4"
-    },
-    "ceilings": {
-      "maxDurationSeconds": 600,
-      "maxRetries": 1,
-      "maxInvocations": 1,
-      "maxProviderSpendCents": 900
-    },
-    "authority": "intersection_of_parent_and_agent",
-    "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-    "keyId": "fixture"
-  },
-  "productions": {
-    "running": {
-      "id": "00000050-0000-4000-8000-000000000050",
-      "workItemId": "00000060-0000-4000-8000-000000000060",
-      "state": "running",
-      "settled": false,
-      "planId": "00000041-0000-4000-8000-000000000041",
-      "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-      "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-      "quality": "best",
-      "budget": {
-        "reservedCents": 3500,
-        "spentCents": 1900,
-        "maxBudgetCents": 4000,
-        "currency": "USD"
-      },
-      "progress": {
-        "completedNodes": 1,
-        "totalNodes": 2
-      },
-      "blockers": [],
-      "canCancel": true,
-      "children": [
-        {
-          "runId": "00000051-0000-4000-8000-000000000051",
-          "order": 1,
-          "agentName": "Cinematic compositor",
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "state": "completed",
-          "startedAt": "2026-08-14T18:05:00.000Z",
-          "finishedAt": "2026-08-14T18:19:00.000Z",
-          "budgetAllocationCents": 2600,
-          "spentCents": 1700,
-          "grant": null,
-          "blocker": null,
-          "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-        },
-        {
-          "runId": "00000052-0000-4000-8000-000000000052",
-          "order": 2,
-          "agentName": "Cinematic shot generator",
-          "agentVersionId": "00000031-0000-4000-8000-000000000031",
-          "state": "running",
-          "startedAt": "2026-08-14T18:20:00.000Z",
-          "finishedAt": null,
-          "budgetAllocationCents": 900,
-          "spentCents": 200,
-          "grant": {
-            "parentProductionId": "00000050-0000-4000-8000-000000000050",
-            "runId": "00000052-0000-4000-8000-000000000052",
-            "agentVersionId": "00000031-0000-4000-8000-000000000031",
-            "inputRefs": [
-              {
-                "id": "00000013-0000-4000-8000-000000000013",
-                "kind": "shot_brief",
-                "name": "Closing establishing shot brief",
-                "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-              }
-            ],
-            "expectedArtifact": {
-              "kind": "cinematic_asset",
-              "format": "mp4"
-            },
-            "ceilings": {
-              "maxDurationSeconds": 600,
-              "maxRetries": 1,
-              "maxInvocations": 1,
-              "maxProviderSpendCents": 900
-            },
-            "authority": "intersection_of_parent_and_agent",
-            "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-            "keyId": "fixture"
-          },
-          "blocker": null
-        }
-      ]
-    },
-    "blocked": {
-      "id": "00000050-0000-4000-8000-000000000050",
-      "workItemId": "00000060-0000-4000-8000-000000000060",
-      "state": "blocked",
-      "settled": false,
-      "planId": "00000041-0000-4000-8000-000000000041",
-      "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-      "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-      "quality": "best",
-      "budget": {
-        "reservedCents": 3500,
-        "spentCents": 2050,
-        "maxBudgetCents": 4000,
-        "currency": "USD"
-      },
-      "progress": {
-        "completedNodes": 1,
-        "totalNodes": 2
-      },
-      "blockers": [
-        {
-          "reasonCode": "child_run_failed",
-          "detail": "The shot generator failed within its grant. The parent holds a typed partial result and awaits your decision."
-        }
-      ],
-      "canCancel": true,
-      "children": [
-        {
-          "runId": "00000051-0000-4000-8000-000000000051",
-          "order": 1,
-          "agentName": "Cinematic compositor",
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "state": "completed",
-          "startedAt": "2026-08-14T18:05:00.000Z",
-          "finishedAt": "2026-08-14T18:19:00.000Z",
-          "budgetAllocationCents": 2600,
-          "spentCents": 1700,
-          "grant": null,
-          "blocker": null,
-          "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-        },
-        {
-          "runId": "00000052-0000-4000-8000-000000000052",
-          "order": 2,
-          "agentName": "Cinematic shot generator",
-          "agentVersionId": "00000031-0000-4000-8000-000000000031",
-          "state": "failed",
-          "startedAt": "2026-08-14T18:20:00.000Z",
-          "finishedAt": "2026-08-14T18:25:00.000Z",
-          "budgetAllocationCents": 900,
-          "spentCents": 350,
-          "grant": {
-            "parentProductionId": "00000050-0000-4000-8000-000000000050",
-            "runId": "00000052-0000-4000-8000-000000000052",
-            "agentVersionId": "00000031-0000-4000-8000-000000000031",
-            "inputRefs": [
-              {
-                "id": "00000013-0000-4000-8000-000000000013",
-                "kind": "shot_brief",
-                "name": "Closing establishing shot brief",
-                "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-              }
-            ],
-            "expectedArtifact": {
-              "kind": "cinematic_asset",
-              "format": "mp4"
-            },
-            "ceilings": {
-              "maxDurationSeconds": 600,
-              "maxRetries": 1,
-              "maxInvocations": 1,
-              "maxProviderSpendCents": 900
-            },
-            "authority": "intersection_of_parent_and_agent",
-            "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-            "keyId": "fixture"
-          },
-          "blocker": {
-            "reasonCode": "child_run_failed",
-            "detail": "Shot generation exceeded its retry ceiling."
-          }
-        }
-      ]
-    },
-    "cancelled": {
-      "id": "00000050-0000-4000-8000-000000000050",
-      "workItemId": "00000060-0000-4000-8000-000000000060",
-      "state": "cancelled",
-      "settled": true,
-      "planId": "00000041-0000-4000-8000-000000000041",
-      "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-      "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-      "quality": "best",
-      "budget": {
-        "reservedCents": 3500,
-        "spentCents": 1900,
-        "maxBudgetCents": 4000,
-        "currency": "USD"
-      },
-      "progress": {
-        "completedNodes": 1,
-        "totalNodes": 2
-      },
-      "blockers": [],
-      "canCancel": false,
-      "children": [
-        {
-          "runId": "00000051-0000-4000-8000-000000000051",
-          "order": 1,
-          "agentName": "Cinematic compositor",
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "state": "completed",
-          "startedAt": "2026-08-14T18:05:00.000Z",
-          "finishedAt": "2026-08-14T18:19:00.000Z",
-          "budgetAllocationCents": 2600,
-          "spentCents": 1700,
-          "grant": null,
-          "blocker": null,
-          "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-        },
-        {
-          "runId": "00000052-0000-4000-8000-000000000052",
-          "order": 2,
-          "agentName": "Cinematic shot generator",
-          "agentVersionId": "00000031-0000-4000-8000-000000000031",
-          "state": "cancelled",
-          "startedAt": "2026-08-14T18:20:00.000Z",
-          "finishedAt": "2026-08-14T18:22:00.000Z",
-          "budgetAllocationCents": 900,
-          "spentCents": 200,
-          "grant": {
-            "parentProductionId": "00000050-0000-4000-8000-000000000050",
-            "runId": "00000052-0000-4000-8000-000000000052",
-            "agentVersionId": "00000031-0000-4000-8000-000000000031",
-            "inputRefs": [
-              {
-                "id": "00000013-0000-4000-8000-000000000013",
-                "kind": "shot_brief",
-                "name": "Closing establishing shot brief",
-                "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-              }
-            ],
-            "expectedArtifact": {
-              "kind": "cinematic_asset",
-              "format": "mp4"
-            },
-            "ceilings": {
-              "maxDurationSeconds": 600,
-              "maxRetries": 1,
-              "maxInvocations": 1,
-              "maxProviderSpendCents": 900
-            },
-            "authority": "intersection_of_parent_and_agent",
-            "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-            "keyId": "fixture"
-          },
-          "blocker": null
-        }
-      ]
-    },
-    "completed": {
-      "id": "00000050-0000-4000-8000-000000000050",
-      "workItemId": "00000060-0000-4000-8000-000000000060",
-      "state": "completed",
-      "settled": true,
-      "planId": "00000041-0000-4000-8000-000000000041",
-      "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-      "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-      "quality": "best",
-      "budget": {
-        "reservedCents": 3500,
-        "spentCents": 2250,
-        "maxBudgetCents": 4000,
-        "currency": "USD"
-      },
-      "progress": {
-        "completedNodes": 2,
-        "totalNodes": 2
-      },
-      "blockers": [],
-      "canCancel": false,
-      "children": [
-        {
-          "runId": "00000051-0000-4000-8000-000000000051",
-          "order": 1,
-          "agentName": "Cinematic compositor",
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "state": "completed",
-          "startedAt": "2026-08-14T18:05:00.000Z",
-          "finishedAt": "2026-08-14T18:19:00.000Z",
-          "budgetAllocationCents": 2600,
-          "spentCents": 1700,
-          "grant": null,
-          "blocker": null,
-          "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-        },
-        {
-          "runId": "00000052-0000-4000-8000-000000000052",
-          "order": 2,
-          "agentName": "Cinematic shot generator",
-          "agentVersionId": "00000031-0000-4000-8000-000000000031",
-          "state": "completed",
-          "startedAt": "2026-08-14T18:20:00.000Z",
-          "finishedAt": "2026-08-14T18:31:00.000Z",
-          "budgetAllocationCents": 900,
-          "spentCents": 550,
-          "grant": {
-            "parentProductionId": "00000050-0000-4000-8000-000000000050",
-            "runId": "00000052-0000-4000-8000-000000000052",
-            "agentVersionId": "00000031-0000-4000-8000-000000000031",
-            "inputRefs": [
-              {
-                "id": "00000013-0000-4000-8000-000000000013",
-                "kind": "shot_brief",
-                "name": "Closing establishing shot brief",
-                "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-              }
-            ],
-            "expectedArtifact": {
-              "kind": "cinematic_asset",
-              "format": "mp4"
-            },
-            "ceilings": {
-              "maxDurationSeconds": 600,
-              "maxRetries": 1,
-              "maxInvocations": 1,
-              "maxProviderSpendCents": 900
-            },
-            "authority": "intersection_of_parent_and_agent",
-            "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-            "keyId": "fixture"
-          },
-          "blocker": null,
-          "artifactDigest": "8f0e0ba538e59683d156e3f2988128d954a95b2282f77ad350aaa8b41e631140"
-        }
-      ]
-    },
-    "failed": {
-      "id": "00000050-0000-4000-8000-000000000050",
-      "workItemId": "00000060-0000-4000-8000-000000000060",
-      "state": "failed",
-      "settled": true,
-      "planId": "00000041-0000-4000-8000-000000000041",
-      "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-      "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-      "quality": "best",
-      "budget": {
-        "reservedCents": 3500,
-        "spentCents": 400,
-        "maxBudgetCents": 4000,
-        "currency": "USD"
-      },
-      "progress": {
-        "completedNodes": 0,
-        "totalNodes": 2
-      },
-      "blockers": [
-        {
-          "reasonCode": "production_failed",
-          "detail": "No master was produced. The unused reservation was returned."
-        }
-      ],
-      "canCancel": false,
-      "children": [
-        {
-          "runId": "00000051-0000-4000-8000-000000000051",
-          "order": 1,
-          "agentName": "Cinematic compositor",
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "state": "failed",
-          "startedAt": "2026-08-14T18:05:00.000Z",
-          "finishedAt": "2026-08-14T18:12:00.000Z",
-          "budgetAllocationCents": 2600,
-          "spentCents": 400,
-          "grant": null,
-          "blocker": {
-            "reasonCode": "child_run_failed",
-            "detail": "The compositor failed before producing a master."
-          }
-        }
-      ]
-    }
-  },
-  "receipts": {
-    "success": {
-      "productionId": "00000050-0000-4000-8000-000000000050",
-      "workItemId": "00000060-0000-4000-8000-000000000060",
-      "scorerVersion": "outcome-scorer-v1",
-      "weightSetVersion": "w1",
-      "planId": "00000041-0000-4000-8000-000000000041",
-      "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-      "selectedPath": [
-        {
-          "order": 1,
-          "agentName": "Cinematic compositor",
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "versionNumber": "2.1.0"
-        },
-        {
-          "order": 2,
-          "agentName": "Cinematic shot generator",
-          "agentVersionId": "00000031-0000-4000-8000-000000000031",
-          "versionNumber": "1.4.2"
-        }
-      ],
-      "totals": {
-        "costCents": 2250,
-        "durationSeconds": 1560,
-        "reservedCents": 3500,
-        "refundedCents": 1250,
-        "currency": "USD"
-      },
-      "childReceipts": [
-        {
-          "runId": "00000051-0000-4000-8000-000000000051",
-          "order": 1,
-          "costCents": 1700,
-          "durationSeconds": 840,
-          "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef",
-          "verification": "verified_complete",
-          "judge": "accepted"
-        },
-        {
-          "runId": "00000052-0000-4000-8000-000000000052",
-          "order": 2,
-          "costCents": 550,
-          "durationSeconds": 660,
-          "artifactDigest": "8f0e0ba538e59683d156e3f2988128d954a95b2282f77ad350aaa8b41e631140",
-          "verification": "verified_complete",
-          "judge": "accepted"
-        }
-      ],
-      "artifacts": [
-        {
-          "id": "00000070-0000-4000-8000-000000000070",
-          "name": "final-master.mp4",
-          "kind": "video_master",
-          "digest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-        },
-        {
-          "id": "00000071-0000-4000-8000-000000000071",
-          "name": "closing-shot.mp4",
-          "kind": "cinematic_asset",
-          "digest": "8f0e0ba538e59683d156e3f2988128d954a95b2282f77ad350aaa8b41e631140"
-        }
-      ],
-      "integration": {
-        "approvedSegmentsUnchanged": true,
-        "verifiedBy": "server_deterministic"
-      },
-      "review": {
-        "state": "pending_owner_review"
-      },
-      "outcome": {
-        "type": "success",
-        "reasonCode": "delivered_verified_master",
-        "detail": null
-      }
-    },
-    "partial": {
-      "productionId": "00000050-0000-4000-8000-000000000050",
-      "workItemId": "00000060-0000-4000-8000-000000000060",
-      "scorerVersion": "outcome-scorer-v1",
-      "weightSetVersion": "w1",
-      "planId": "00000040-0000-4000-8000-000000000040",
-      "planDigest": "096011bf81b6b428fa254d97c55b1651aa46a98968c57dc347eb455c6e3a8669",
-      "selectedPath": [
-        {
-          "order": 1,
-          "agentName": "Cinematic compositor",
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "versionNumber": "2.1.0"
-        }
-      ],
-      "totals": {
-        "costCents": 2050,
-        "durationSeconds": 1240,
-        "reservedCents": 3500,
-        "refundedCents": 1450,
-        "currency": "USD"
-      },
-      "childReceipts": [
-        {
-          "runId": "00000051-0000-4000-8000-000000000051",
-          "order": 1,
-          "costCents": 1700,
-          "durationSeconds": 840,
-          "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef",
-          "verification": "verified_complete",
-          "judge": "accepted"
-        },
-        {
-          "runId": "00000052-0000-4000-8000-000000000052",
-          "order": 2,
-          "costCents": 350,
-          "durationSeconds": 300,
-          "artifactDigest": null,
-          "verification": "not_verified",
-          "judge": "not_evaluated"
-        }
-      ],
-      "artifacts": [
-        {
-          "id": "00000070-0000-4000-8000-000000000070",
-          "name": "final-master.mp4",
-          "kind": "video_master",
-          "digest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-        }
-      ],
-      "integration": {
-        "approvedSegmentsUnchanged": true,
-        "verifiedBy": "server_deterministic"
-      },
-      "review": {
-        "state": "pending_owner_review"
-      },
-      "outcome": {
-        "type": "partial",
-        "reasonCode": "child_run_failed",
-        "detail": "Master was produced and verified; the optional closing shot failed within its grant."
-      }
-    },
-    "cancelled": {
-      "productionId": "00000050-0000-4000-8000-000000000050",
-      "workItemId": "00000060-0000-4000-8000-000000000060",
-      "scorerVersion": "outcome-scorer-v1",
-      "weightSetVersion": "w1",
-      "planId": "00000040-0000-4000-8000-000000000040",
-      "planDigest": "096011bf81b6b428fa254d97c55b1651aa46a98968c57dc347eb455c6e3a8669",
-      "selectedPath": [
-        {
-          "order": 1,
-          "agentName": "Cinematic compositor",
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "versionNumber": "2.1.0"
-        }
-      ],
-      "totals": {
-        "costCents": 1900,
-        "durationSeconds": 1020,
-        "reservedCents": 3500,
-        "refundedCents": 1600,
-        "currency": "USD"
-      },
-      "childReceipts": [
-        {
-          "runId": "00000051-0000-4000-8000-000000000051",
-          "order": 1,
-          "costCents": 1700,
-          "durationSeconds": 840,
-          "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef",
-          "verification": "verified_complete",
-          "judge": "accepted"
-        }
-      ],
-      "artifacts": [
-        {
-          "id": "00000070-0000-4000-8000-000000000070",
-          "name": "final-master.mp4",
-          "kind": "video_master",
-          "digest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-        }
-      ],
-      "integration": {
-        "approvedSegmentsUnchanged": true,
-        "verifiedBy": "server_deterministic"
-      },
-      "review": {
-        "state": "not_required"
-      },
-      "outcome": {
-        "type": "partial",
-        "reasonCode": "cancelled_by_owner",
-        "detail": "You stopped this production. The verified master produced before the stop is kept."
-      }
-    },
-    "failure": {
-      "productionId": "00000050-0000-4000-8000-000000000050",
-      "workItemId": "00000060-0000-4000-8000-000000000060",
-      "scorerVersion": "outcome-scorer-v1",
-      "weightSetVersion": "w1",
-      "planId": "00000040-0000-4000-8000-000000000040",
-      "planDigest": "096011bf81b6b428fa254d97c55b1651aa46a98968c57dc347eb455c6e3a8669",
-      "selectedPath": [
-        {
-          "order": 1,
-          "agentName": "Cinematic compositor",
-          "agentVersionId": "00000021-0000-4000-8000-000000000021",
-          "versionNumber": "2.1.0"
-        }
-      ],
-      "totals": {
-        "costCents": 400,
-        "durationSeconds": 360,
-        "reservedCents": 3500,
-        "refundedCents": 3100,
-        "currency": "USD"
-      },
-      "childReceipts": [
-        {
-          "runId": "00000051-0000-4000-8000-000000000051",
-          "order": 1,
-          "costCents": 400,
-          "durationSeconds": 360,
-          "artifactDigest": null,
-          "verification": "not_verified",
-          "judge": "not_evaluated"
-        }
-      ],
-      "artifacts": [],
-      "integration": {
-        "approvedSegmentsUnchanged": true,
-        "verifiedBy": "server_deterministic"
-      },
-      "review": {
-        "state": "not_required"
-      },
-      "outcome": {
-        "type": "failure",
-        "reasonCode": "child_run_failed",
-        "detail": "The compositor failed before producing a master. Nothing was delivered."
-      }
-    }
-  },
   "responses": {
-    "planPrepared": {
-      "ok": true,
-      "result": "plan",
-      "intent": {
-        "id": "00000010-0000-4000-8000-000000000010",
-        "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-        "inputRefs": [
-          {
-            "id": "00000011-0000-4000-8000-000000000011",
-            "kind": "approved_video_sections",
-            "name": "Approved sections (7)",
-            "digest": "b9cdc663a8e66c2d1fa6985600ce9fcdabe3493563b41eb239e3edb6ba7d35a6"
-          },
-          {
-            "id": "00000012-0000-4000-8000-000000000012",
-            "kind": "editable_project",
-            "name": "Editable project file",
-            "digest": "2a1cdae190d5f3db399dc74c18369ea2b4166256805ff215188adf496c2f0c29"
-          }
-        ],
-        "expectedDeliverable": {
-          "kind": "video_master",
-          "format": "mp4"
-        },
-        "acceptanceChecks": [
-          "approved segments unchanged",
-          "master duration matches project timeline"
-        ],
-        "quality": "best",
-        "deadline": null,
-        "maxBudgetCents": 4000,
-        "currency": "USD",
-        "consequentialActionCeiling": "none",
-        "digest": "6461cee9c96d1893f0b288ca9fab9b6fb3147edbbcb87a1ba2d82a74e6dc495d"
-      },
-      "plan": {
-        "id": "00000040-0000-4000-8000-000000000040",
-        "intentId": "00000010-0000-4000-8000-000000000010",
-        "scorerVersion": "outcome-scorer-v1",
-        "weightSetVersion": "w1",
-        "state": "prepared",
-        "nodes": [
-          {
-            "order": 1,
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "agentId": "00000020-0000-4000-8000-000000000020",
-            "agentName": "Cinematic compositor",
-            "versionNumber": "2.1.0",
-            "taskSignature": {
-              "outcome": "final video master",
-              "inputs": [
-                "approved video sections",
-                "editable project"
+    "prepare": {
+      "clarification": {
+        "ok": true,
+        "kind": "clarification_required",
+        "clarification": {
+          "kind": "clarification_required",
+          "question": "What would you like delivered?",
+          "choices": [
+            {
+              "taskKey": "marketing.launch_campaign",
+              "label": "Launch campaign plan",
+              "outputTypes": [
+                "launch_campaign_plan"
               ]
             },
-            "reasonCode": "task_signature_match_with_accepted_outcomes",
-            "reasons": [
-              "Task signature matches the requested deliverable (final video master from approved sections).",
-              "Accepted outcomes and verified Judge evidence exist for this exact task signature.",
-              "Input and output contracts are compatible with your attached project.",
-              "Estimated cost and duration fit inside your budget and quality ceiling."
-            ],
-            "estimatedCostCentsRange": [
-              1400,
-              2200
-            ],
-            "estimatedDurationSecondsRange": [
-              420,
-              900
-            ],
-            "budgetAllocationCents": 2600,
-            "retryLimit": 1,
-            "stopConditions": [
-              "budget_allocation_exhausted",
-              "verification_failed_twice",
-              "parent_cancelled"
-            ]
-          }
-        ],
-        "inputs": [
-          {
-            "id": "00000011-0000-4000-8000-000000000011",
-            "kind": "approved_video_sections",
-            "name": "Approved sections (7)",
-            "digest": "b9cdc663a8e66c2d1fa6985600ce9fcdabe3493563b41eb239e3edb6ba7d35a6"
-          },
-          {
-            "id": "00000012-0000-4000-8000-000000000012",
-            "kind": "editable_project",
-            "name": "Editable project file",
-            "digest": "2a1cdae190d5f3db399dc74c18369ea2b4166256805ff215188adf496c2f0c29"
-          }
-        ],
-        "expectedDeliverable": {
-          "kind": "video_master",
-          "format": "mp4"
-        },
-        "verification": {
-          "method": "server_deterministic",
-          "checks": [
-            "approved segments unchanged",
-            "master duration matches project timeline"
+            {
+              "taskKey": "web.launch_landing_page",
+              "label": "Launch landing page",
+              "outputTypes": [
+                "landing_page"
+              ]
+            }
+          ],
+          "reasons": [
+            "Multiple capabilities materially overlap the requested outcome."
           ]
-        },
-        "totalEstimatedCostCentsRange": [
-          1400,
-          2200
-        ],
-        "maxBudgetCents": 4000,
-        "currency": "USD",
-        "missingSetup": [],
-        "approvals": [
-          {
-            "kind": "spend",
-            "description": "Reserve up to the plan budget from your balance. Unused reservation is returned at settlement.",
-            "ceilingCents": 2600
-          }
-        ],
-        "expiresAt": "2026-08-14T21:00:00.000Z",
-        "digest": "096011bf81b6b428fa254d97c55b1651aa46a98968c57dc347eb455c6e3a8669"
-      }
-    },
-    "planTwoNode": {
-      "ok": true,
-      "result": "plan",
-      "intent": {
-        "id": "00000010-0000-4000-8000-000000000010",
-        "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-        "inputRefs": [
-          {
-            "id": "00000011-0000-4000-8000-000000000011",
-            "kind": "approved_video_sections",
-            "name": "Approved sections (7)",
-            "digest": "b9cdc663a8e66c2d1fa6985600ce9fcdabe3493563b41eb239e3edb6ba7d35a6"
-          },
-          {
-            "id": "00000012-0000-4000-8000-000000000012",
-            "kind": "editable_project",
-            "name": "Editable project file",
-            "digest": "2a1cdae190d5f3db399dc74c18369ea2b4166256805ff215188adf496c2f0c29"
-          }
-        ],
-        "expectedDeliverable": {
-          "kind": "video_master",
-          "format": "mp4"
-        },
-        "acceptanceChecks": [
-          "approved segments unchanged",
-          "master duration matches project timeline"
-        ],
-        "quality": "best",
-        "deadline": null,
-        "maxBudgetCents": 4000,
-        "currency": "USD",
-        "consequentialActionCeiling": "none",
-        "digest": "6461cee9c96d1893f0b288ca9fab9b6fb3147edbbcb87a1ba2d82a74e6dc495d"
+        }
       },
-      "plan": {
-        "id": "00000041-0000-4000-8000-000000000041",
-        "intentId": "00000010-0000-4000-8000-000000000010",
-        "scorerVersion": "outcome-scorer-v1",
-        "weightSetVersion": "w1",
-        "state": "prepared",
-        "nodes": [
-          {
-            "order": 1,
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "agentId": "00000020-0000-4000-8000-000000000020",
-            "agentName": "Cinematic compositor",
-            "versionNumber": "2.1.0",
-            "taskSignature": {
-              "outcome": "final video master",
-              "inputs": [
-                "approved video sections",
-                "editable project"
-              ]
-            },
-            "reasonCode": "task_signature_match_with_accepted_outcomes",
-            "reasons": [
-              "Task signature matches the requested deliverable (final video master from approved sections).",
-              "Accepted outcomes and verified Judge evidence exist for this exact task signature.",
-              "Input and output contracts are compatible with your attached project.",
-              "Estimated cost and duration fit inside your budget and quality ceiling."
-            ],
-            "estimatedCostCentsRange": [
-              1400,
-              2200
-            ],
-            "estimatedDurationSecondsRange": [
-              420,
-              900
-            ],
-            "budgetAllocationCents": 2600,
-            "retryLimit": 1,
-            "stopConditions": [
-              "budget_allocation_exhausted",
-              "verification_failed_twice",
-              "parent_cancelled"
-            ]
-          },
-          {
-            "order": 2,
-            "agentVersionId": "00000031-0000-4000-8000-000000000031",
-            "agentId": "00000030-0000-4000-8000-000000000030",
-            "agentName": "Cinematic shot generator",
-            "versionNumber": "1.4.2",
-            "taskSignature": {
-              "outcome": "typed cinematic asset",
-              "inputs": [
-                "shot brief"
-              ]
-            },
-            "reasonCode": "declared_missing_asset_single_eligible_generator",
-            "reasons": [
-              "The compositor declared exactly one missing cinematic asset (closing establishing shot).",
-              "This installed agent is the only eligible generator for that typed asset.",
-              "It runs under a child grant that cannot modify your approved segments."
-            ],
-            "estimatedCostCentsRange": [
-              300,
-              700
-            ],
-            "estimatedDurationSecondsRange": [
-              120,
-              360
-            ],
-            "budgetAllocationCents": 900,
-            "retryLimit": 1,
-            "stopConditions": [
-              "budget_allocation_exhausted",
-              "parent_cancelled"
-            ]
-          }
-        ],
-        "inputs": [
-          {
-            "id": "00000011-0000-4000-8000-000000000011",
-            "kind": "approved_video_sections",
-            "name": "Approved sections (7)",
-            "digest": "b9cdc663a8e66c2d1fa6985600ce9fcdabe3493563b41eb239e3edb6ba7d35a6"
-          },
-          {
-            "id": "00000012-0000-4000-8000-000000000012",
-            "kind": "editable_project",
-            "name": "Editable project file",
-            "digest": "2a1cdae190d5f3db399dc74c18369ea2b4166256805ff215188adf496c2f0c29"
-          }
-        ],
-        "expectedDeliverable": {
-          "kind": "video_master",
-          "format": "mp4"
-        },
-        "verification": {
-          "method": "server_deterministic",
-          "checks": [
-            "approved segments unchanged",
-            "master duration matches project timeline"
-          ]
-        },
-        "totalEstimatedCostCentsRange": [
-          1700,
-          2900
-        ],
-        "maxBudgetCents": 4000,
-        "currency": "USD",
-        "missingSetup": [],
-        "approvals": [
-          {
-            "kind": "spend",
-            "description": "Reserve up to the plan budget from your balance. Unused reservation is returned at settlement.",
-            "ceilingCents": 3500
-          }
-        ],
-        "expiresAt": "2026-08-14T21:00:00.000Z",
-        "digest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182"
-      }
-    },
-    "planBlockedOnSetup": {
-      "ok": true,
-      "result": "plan",
-      "intent": {
-        "id": "00000010-0000-4000-8000-000000000010",
-        "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-        "inputRefs": [
-          {
-            "id": "00000011-0000-4000-8000-000000000011",
-            "kind": "approved_video_sections",
-            "name": "Approved sections (7)",
-            "digest": "b9cdc663a8e66c2d1fa6985600ce9fcdabe3493563b41eb239e3edb6ba7d35a6"
-          },
-          {
-            "id": "00000012-0000-4000-8000-000000000012",
-            "kind": "editable_project",
-            "name": "Editable project file",
-            "digest": "2a1cdae190d5f3db399dc74c18369ea2b4166256805ff215188adf496c2f0c29"
-          }
-        ],
-        "expectedDeliverable": {
-          "kind": "video_master",
-          "format": "mp4"
-        },
-        "acceptanceChecks": [
-          "approved segments unchanged",
-          "master duration matches project timeline"
-        ],
-        "quality": "best",
-        "deadline": null,
-        "maxBudgetCents": 4000,
-        "currency": "USD",
-        "consequentialActionCeiling": "none",
-        "digest": "6461cee9c96d1893f0b288ca9fab9b6fb3147edbbcb87a1ba2d82a74e6dc495d"
-      },
-      "plan": {
-        "id": "00000042-0000-4000-8000-000000000042",
-        "intentId": "00000010-0000-4000-8000-000000000010",
-        "scorerVersion": "outcome-scorer-v1",
-        "weightSetVersion": "w1",
-        "state": "blocked_on_setup",
-        "nodes": [
-          {
-            "order": 1,
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "agentId": "00000020-0000-4000-8000-000000000020",
-            "agentName": "Cinematic compositor",
-            "versionNumber": "2.1.0",
-            "taskSignature": {
-              "outcome": "final video master",
-              "inputs": [
-                "approved video sections",
-                "editable project"
-              ]
-            },
-            "reasonCode": "task_signature_match_with_accepted_outcomes",
-            "reasons": [
-              "Task signature matches the requested deliverable (final video master from approved sections).",
-              "Accepted outcomes and verified Judge evidence exist for this exact task signature.",
-              "Input and output contracts are compatible with your attached project.",
-              "Estimated cost and duration fit inside your budget and quality ceiling."
-            ],
-            "estimatedCostCentsRange": [
-              1400,
-              2200
-            ],
-            "estimatedDurationSecondsRange": [
-              420,
-              900
-            ],
-            "budgetAllocationCents": 2600,
-            "retryLimit": 1,
-            "stopConditions": [
-              "budget_allocation_exhausted",
-              "verification_failed_twice",
-              "parent_cancelled"
-            ]
-          }
-        ],
-        "inputs": [
-          {
-            "id": "00000011-0000-4000-8000-000000000011",
-            "kind": "approved_video_sections",
-            "name": "Approved sections (7)",
-            "digest": "b9cdc663a8e66c2d1fa6985600ce9fcdabe3493563b41eb239e3edb6ba7d35a6"
-          },
-          {
-            "id": "00000012-0000-4000-8000-000000000012",
-            "kind": "editable_project",
-            "name": "Editable project file",
-            "digest": "2a1cdae190d5f3db399dc74c18369ea2b4166256805ff215188adf496c2f0c29"
-          }
-        ],
-        "expectedDeliverable": {
-          "kind": "video_master",
-          "format": "mp4"
-        },
-        "verification": {
-          "method": "server_deterministic",
-          "checks": [
-            "approved segments unchanged",
-            "master duration matches project timeline"
-          ]
-        },
-        "totalEstimatedCostCentsRange": [
-          1400,
-          2200
-        ],
-        "maxBudgetCents": 4000,
-        "currency": "USD",
-        "missingSetup": [
-          {
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "item": "Render engine connection is not verified on this workspace.",
-            "ownerAction": "Verify the render engine connection in Settings → Connections, then plan again."
-          }
-        ],
-        "approvals": [
-          {
-            "kind": "spend",
-            "description": "Reserve up to the plan budget from your balance. Unused reservation is returned at settlement.",
-            "ceilingCents": 2600
-          }
-        ],
-        "expiresAt": "2026-08-14T21:00:00.000Z",
-        "digest": "c642653d62f565be0f22e1bbd662223b2ab531f512ccb56c1d497f3dfdd457dd"
-      }
-    },
-    "planNoEligible": {
-      "ok": true,
-      "result": "no_eligible",
-      "intent": {
-        "id": "00000010-0000-4000-8000-000000000010",
-        "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-        "inputRefs": [
-          {
-            "id": "00000011-0000-4000-8000-000000000011",
-            "kind": "approved_video_sections",
-            "name": "Approved sections (7)",
-            "digest": "b9cdc663a8e66c2d1fa6985600ce9fcdabe3493563b41eb239e3edb6ba7d35a6"
-          },
-          {
-            "id": "00000012-0000-4000-8000-000000000012",
-            "kind": "editable_project",
-            "name": "Editable project file",
-            "digest": "2a1cdae190d5f3db399dc74c18369ea2b4166256805ff215188adf496c2f0c29"
-          }
-        ],
-        "expectedDeliverable": {
-          "kind": "video_master",
-          "format": "mp4"
-        },
-        "acceptanceChecks": [
-          "approved segments unchanged",
-          "master duration matches project timeline"
-        ],
-        "quality": "best",
-        "deadline": null,
-        "maxBudgetCents": 4000,
-        "currency": "USD",
-        "consequentialActionCeiling": "none",
-        "digest": "6461cee9c96d1893f0b288ca9fab9b6fb3147edbbcb87a1ba2d82a74e6dc495d"
-      },
-      "noEligible": {
-        "reasonCode": "no_eligible_candidate",
-        "message": "No installed, ready agent matches this outcome within your budget and quality constraints.",
-        "exclusions": [
-          {
-            "agentName": "Cinematic compositor",
-            "reasonCode": "budget_ceiling_incompatible",
-            "detail": "Estimated minimum cost exceeds the stated maximum budget."
-          },
-          {
-            "agentName": "Archive transcoder",
-            "reasonCode": "task_signature_mismatch",
-            "detail": "Produces transcodes, not edited masters."
-          }
+      "needs_input": {
+        "ok": true,
+        "kind": "needs_input",
+        "taskKey": "video.youtube_master",
+        "question": "Add the project_bundle this outcome starts from.",
+        "missingInputTypes": [
+          "project_bundle"
         ]
+      },
+      "no_match": {
+        "ok": true,
+        "kind": "no_match",
+        "reason": "no_confident_task_match",
+        "message": "No installed agent confidently matches that requested outcome."
+      },
+      "no_eligible": {
+        "ok": true,
+        "kind": "no_eligible",
+        "productionId": "00000040-0000-4000-8000-000000000040",
+        "noEligible": {
+          "reasonCode": "no_eligible_candidate",
+          "message": "Matching agents exist, but none is currently eligible and ready to run.",
+          "exclusions": [
+            {
+              "agentName": "final-video-compositor",
+              "reasonCode": "not_ready",
+              "detail": "Excluded by not ready."
+            }
+          ]
+        }
+      },
+      "plan": {
+        "ok": true,
+        "kind": "plan",
+        "productionId": "00000040-0000-4000-8000-000000000040",
+        "intent": {
+          "contract_version": "outcome-intent.v1",
+          "goal": "Make a YouTube video from my project bundle.",
+          "task_signature": {
+            "outcome": "video.youtube_master",
+            "inputs": [
+              "project_bundle"
+            ]
+          },
+          "input_references": [
+            {
+              "kind": "artifact",
+              "description": "project-bundle.zip",
+              "input_type": "project_bundle",
+              "id": "88888888-8888-4888-8888-888888888888",
+              "input_session_id": "77777777-7777-4777-8777-777777777777",
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "expected_deliverable": {
+            "kind": "video_master",
+            "description": "Finished YouTube video delivered as video_master"
+          },
+          "acceptance_checks": [
+            "the declared deliverable is durable and reviewable"
+          ],
+          "quality": "balanced",
+          "deadline_at": null,
+          "max_budget_credits": 100,
+          "consequential_action_ceiling": {
+            "max_provider_calls": 0,
+            "max_spend_minor": 0,
+            "currency": "USD"
+          },
+          "missing_assets": []
+        },
+        "plan": {
+          "id": "00000041-0000-4000-8000-000000000041",
+          "digest": "a8bcc4e9d9bd321cacb49fbb1dd5a9c61762278fed7043e0716a12508bf8c5dd",
+          "contract_version": "outcome-production-plan.v1",
+          "scorer_version": "outcome-scorer.v1",
+          "weight_set_digest": "a033bd1f860359e298ba3e6f91c7c1275472b1ed187157301f964a06bff90764",
+          "intent_digest": "9a7e083e67c45c473de20d29342e084a21ec79fb7a25dacf3e77f9a0d698dc44",
+          "quality": "balanced",
+          "deadline_at": null,
+          "nodes": [
+            {
+              "ordinal": 0,
+              "role": "produce_outcome",
+              "workflow_id": "11111111-1111-4111-8111-111111111111",
+              "workflow_version_id": "22222222-2222-4222-8222-222222222222",
+              "input_contract_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "slug": "final-video-compositor",
+              "score": 0.875,
+              "inputs": [
+                {
+                  "kind": "artifact",
+                  "description": "project-bundle.zip",
+                  "input_type": "project_bundle",
+                  "id": "88888888-8888-4888-8888-888888888888",
+                  "input_session_id": "77777777-7777-4777-8777-777777777777",
+                  "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ],
+              "expected_artifact": {
+                "kind": "video_master",
+                "description": "Finished YouTube video delivered as video_master"
+              },
+              "budget_credits": 100,
+              "max_duration_ms": 3600000,
+              "max_retries": 1,
+              "max_invocations": 1000,
+              "verification": {
+                "require_durable_result": true,
+                "acceptance_checks": [
+                  "the declared deliverable is durable and reviewable"
+                ]
+              }
+            }
+          ],
+          "budget": {
+            "max_budget_credits": 100,
+            "allocations": [
+              {
+                "ordinal": 0,
+                "budget_credits": 100
+              }
+            ]
+          },
+          "unresolved_missing_assets": [],
+          "stop_conditions": {
+            "max_nodes": 2,
+            "sequential_only": true,
+            "on_child_failure": "stop_with_typed_failure",
+            "on_budget_exhausted": "stop_with_typed_failure",
+            "on_cancel": "release_and_cancel_children"
+          }
+        }
       }
-    },
-    "startAccepted": {
-      "ok": true,
-      "productionId": "00000050-0000-4000-8000-000000000050",
-      "workItemId": "00000060-0000-4000-8000-000000000060"
     },
     "statusRunning": {
       "ok": true,
       "production": {
-        "id": "00000050-0000-4000-8000-000000000050",
-        "workItemId": "00000060-0000-4000-8000-000000000060",
+        "id": "00000010-0000-4000-8000-000000000003",
+        "workItemId": "00000010-0000-4000-8000-000000000003",
         "state": "running",
         "settled": false,
-        "planId": "00000041-0000-4000-8000-000000000041",
-        "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-        "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-        "quality": "best",
+        "planId": "00000020-0000-4000-8000-000000000003",
+        "planDigest": "0000000000000000000000000000000000000000000000000000000000000003",
+        "goal": "Create the finished launch video.",
+        "quality": "balanced",
         "budget": {
-          "reservedCents": 3500,
-          "spentCents": 1900,
-          "maxBudgetCents": 4000,
-          "currency": "USD"
+          "reservedCredits": 40,
+          "spentCredits": 10,
+          "maxBudgetCredits": 100
         },
         "progress": {
           "completedNodes": 1,
@@ -1463,221 +269,33 @@
         "canCancel": true,
         "children": [
           {
-            "runId": "00000051-0000-4000-8000-000000000051",
-            "order": 1,
-            "agentName": "Cinematic compositor",
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "state": "completed",
-            "startedAt": "2026-08-14T18:05:00.000Z",
-            "finishedAt": "2026-08-14T18:19:00.000Z",
-            "budgetAllocationCents": 2600,
-            "spentCents": 1700,
-            "grant": null,
-            "blocker": null,
-            "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-          },
-          {
-            "runId": "00000052-0000-4000-8000-000000000052",
-            "order": 2,
-            "agentName": "Cinematic shot generator",
-            "agentVersionId": "00000031-0000-4000-8000-000000000031",
-            "state": "running",
-            "startedAt": "2026-08-14T18:20:00.000Z",
-            "finishedAt": null,
-            "budgetAllocationCents": 900,
-            "spentCents": 200,
-            "grant": {
-              "parentProductionId": "00000050-0000-4000-8000-000000000050",
-              "runId": "00000052-0000-4000-8000-000000000052",
-              "agentVersionId": "00000031-0000-4000-8000-000000000031",
-              "inputRefs": [
-                {
-                  "id": "00000013-0000-4000-8000-000000000013",
-                  "kind": "shot_brief",
-                  "name": "Closing establishing shot brief",
-                  "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-                }
-              ],
-              "expectedArtifact": {
-                "kind": "cinematic_asset",
-                "format": "mp4"
-              },
-              "ceilings": {
-                "maxDurationSeconds": 600,
-                "maxRetries": 1,
-                "maxInvocations": 1,
-                "maxProviderSpendCents": 900
-              },
-              "authority": "intersection_of_parent_and_agent",
-              "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-              "keyId": "fixture"
-            },
+            "runId": "00000070-0000-4000-8000-000000000030",
+            "requestId": "00000060-0000-4000-8000-000000000030",
+            "order": 0,
+            "agentName": "Cinematic Shot Generator",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3",
+            "state": "settled",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "finishedAt": "2026-08-16T10:09:00.000Z",
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 0,
+            "spentCredits": 10,
             "blocker": null
-          }
-        ]
-      }
-    },
-    "statusBlocked": {
-      "ok": true,
-      "production": {
-        "id": "00000050-0000-4000-8000-000000000050",
-        "workItemId": "00000060-0000-4000-8000-000000000060",
-        "state": "blocked",
-        "settled": false,
-        "planId": "00000041-0000-4000-8000-000000000041",
-        "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-        "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-        "quality": "best",
-        "budget": {
-          "reservedCents": 3500,
-          "spentCents": 2050,
-          "maxBudgetCents": 4000,
-          "currency": "USD"
-        },
-        "progress": {
-          "completedNodes": 1,
-          "totalNodes": 2
-        },
-        "blockers": [
-          {
-            "reasonCode": "child_run_failed",
-            "detail": "The shot generator failed within its grant. The parent holds a typed partial result and awaits your decision."
-          }
-        ],
-        "canCancel": true,
-        "children": [
-          {
-            "runId": "00000051-0000-4000-8000-000000000051",
-            "order": 1,
-            "agentName": "Cinematic compositor",
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "state": "completed",
-            "startedAt": "2026-08-14T18:05:00.000Z",
-            "finishedAt": "2026-08-14T18:19:00.000Z",
-            "budgetAllocationCents": 2600,
-            "spentCents": 1700,
-            "grant": null,
-            "blocker": null,
-            "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
           },
           {
-            "runId": "00000052-0000-4000-8000-000000000052",
-            "order": 2,
-            "agentName": "Cinematic shot generator",
-            "agentVersionId": "00000031-0000-4000-8000-000000000031",
-            "state": "failed",
-            "startedAt": "2026-08-14T18:20:00.000Z",
-            "finishedAt": "2026-08-14T18:25:00.000Z",
-            "budgetAllocationCents": 900,
-            "spentCents": 350,
-            "grant": {
-              "parentProductionId": "00000050-0000-4000-8000-000000000050",
-              "runId": "00000052-0000-4000-8000-000000000052",
-              "agentVersionId": "00000031-0000-4000-8000-000000000031",
-              "inputRefs": [
-                {
-                  "id": "00000013-0000-4000-8000-000000000013",
-                  "kind": "shot_brief",
-                  "name": "Closing establishing shot brief",
-                  "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-                }
-              ],
-              "expectedArtifact": {
-                "kind": "cinematic_asset",
-                "format": "mp4"
-              },
-              "ceilings": {
-                "maxDurationSeconds": 600,
-                "maxRetries": 1,
-                "maxInvocations": 1,
-                "maxProviderSpendCents": 900
-              },
-              "authority": "intersection_of_parent_and_agent",
-              "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-              "keyId": "fixture"
-            },
-            "blocker": {
-              "reasonCode": "child_run_failed",
-              "detail": "Shot generation exceeded its retry ceiling."
-            }
-          }
-        ]
-      }
-    },
-    "statusCancelled": {
-      "ok": true,
-      "production": {
-        "id": "00000050-0000-4000-8000-000000000050",
-        "workItemId": "00000060-0000-4000-8000-000000000060",
-        "state": "cancelled",
-        "settled": true,
-        "planId": "00000041-0000-4000-8000-000000000041",
-        "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-        "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-        "quality": "best",
-        "budget": {
-          "reservedCents": 3500,
-          "spentCents": 1900,
-          "maxBudgetCents": 4000,
-          "currency": "USD"
-        },
-        "progress": {
-          "completedNodes": 1,
-          "totalNodes": 2
-        },
-        "blockers": [],
-        "canCancel": false,
-        "children": [
-          {
-            "runId": "00000051-0000-4000-8000-000000000051",
+            "runId": null,
+            "requestId": "00000060-0000-4000-8000-000000000031",
             "order": 1,
-            "agentName": "Cinematic compositor",
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "state": "completed",
-            "startedAt": "2026-08-14T18:05:00.000Z",
-            "finishedAt": "2026-08-14T18:19:00.000Z",
-            "budgetAllocationCents": 2600,
-            "spentCents": 1700,
-            "grant": null,
-            "blocker": null,
-            "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-          },
-          {
-            "runId": "00000052-0000-4000-8000-000000000052",
-            "order": 2,
-            "agentName": "Cinematic shot generator",
-            "agentVersionId": "00000031-0000-4000-8000-000000000031",
-            "state": "cancelled",
-            "startedAt": "2026-08-14T18:20:00.000Z",
-            "finishedAt": "2026-08-14T18:22:00.000Z",
-            "budgetAllocationCents": 900,
-            "spentCents": 200,
-            "grant": {
-              "parentProductionId": "00000050-0000-4000-8000-000000000050",
-              "runId": "00000052-0000-4000-8000-000000000052",
-              "agentVersionId": "00000031-0000-4000-8000-000000000031",
-              "inputRefs": [
-                {
-                  "id": "00000013-0000-4000-8000-000000000013",
-                  "kind": "shot_brief",
-                  "name": "Closing establishing shot brief",
-                  "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-                }
-              ],
-              "expectedArtifact": {
-                "kind": "cinematic_asset",
-                "format": "mp4"
-              },
-              "ceilings": {
-                "maxDurationSeconds": 600,
-                "maxRetries": 1,
-                "maxInvocations": 1,
-                "maxProviderSpendCents": 900
-              },
-              "authority": "intersection_of_parent_and_agent",
-              "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-              "keyId": "fixture"
-            },
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7",
+            "state": "dispatched",
+            "startedAt": "2026-08-16T10:10:01.000Z",
+            "finishedAt": null,
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 40,
+            "spentCredits": 0,
             "blocker": null
           }
         ]
@@ -1686,19 +304,18 @@
     "statusCompleted": {
       "ok": true,
       "production": {
-        "id": "00000050-0000-4000-8000-000000000050",
-        "workItemId": "00000060-0000-4000-8000-000000000060",
-        "state": "completed",
+        "id": "00000010-0000-4000-8000-000000000004",
+        "workItemId": "00000010-0000-4000-8000-000000000004",
+        "state": "succeeded",
         "settled": true,
-        "planId": "00000041-0000-4000-8000-000000000041",
-        "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-        "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-        "quality": "best",
+        "planId": "00000020-0000-4000-8000-000000000004",
+        "planDigest": "0000000000000000000000000000000000000000000000000000000000000004",
+        "goal": "Create the finished launch video.",
+        "quality": "balanced",
         "budget": {
-          "reservedCents": 3500,
-          "spentCents": 2250,
-          "maxBudgetCents": 4000,
-          "currency": "USD"
+          "reservedCredits": 0,
+          "spentCredits": 35,
+          "maxBudgetCredits": 100
         },
         "progress": {
           "completedNodes": 2,
@@ -1708,377 +325,54 @@
         "canCancel": false,
         "children": [
           {
-            "runId": "00000051-0000-4000-8000-000000000051",
-            "order": 1,
-            "agentName": "Cinematic compositor",
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "state": "completed",
-            "startedAt": "2026-08-14T18:05:00.000Z",
-            "finishedAt": "2026-08-14T18:19:00.000Z",
-            "budgetAllocationCents": 2600,
-            "spentCents": 1700,
-            "grant": null,
-            "blocker": null,
-            "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
+            "runId": "00000070-0000-4000-8000-000000000040",
+            "requestId": "00000060-0000-4000-8000-000000000040",
+            "order": 0,
+            "agentName": "Cinematic Shot Generator",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3",
+            "state": "settled",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "finishedAt": "2026-08-16T10:09:00.000Z",
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 0,
+            "spentCredits": 10,
+            "blocker": null
           },
           {
-            "runId": "00000052-0000-4000-8000-000000000052",
-            "order": 2,
-            "agentName": "Cinematic shot generator",
-            "agentVersionId": "00000031-0000-4000-8000-000000000031",
-            "state": "completed",
-            "startedAt": "2026-08-14T18:20:00.000Z",
-            "finishedAt": "2026-08-14T18:31:00.000Z",
-            "budgetAllocationCents": 900,
-            "spentCents": 550,
-            "grant": {
-              "parentProductionId": "00000050-0000-4000-8000-000000000050",
-              "runId": "00000052-0000-4000-8000-000000000052",
-              "agentVersionId": "00000031-0000-4000-8000-000000000031",
-              "inputRefs": [
-                {
-                  "id": "00000013-0000-4000-8000-000000000013",
-                  "kind": "shot_brief",
-                  "name": "Closing establishing shot brief",
-                  "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-                }
-              ],
-              "expectedArtifact": {
-                "kind": "cinematic_asset",
-                "format": "mp4"
-              },
-              "ceilings": {
-                "maxDurationSeconds": 600,
-                "maxRetries": 1,
-                "maxInvocations": 1,
-                "maxProviderSpendCents": 900
-              },
-              "authority": "intersection_of_parent_and_agent",
-              "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-              "keyId": "fixture"
-            },
-            "blocker": null,
-            "artifactDigest": "8f0e0ba538e59683d156e3f2988128d954a95b2282f77ad350aaa8b41e631140"
+            "runId": "00000070-0000-4000-8000-000000000041",
+            "requestId": "00000060-0000-4000-8000-000000000041",
+            "order": 1,
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7",
+            "state": "settled",
+            "startedAt": "2026-08-16T10:10:01.000Z",
+            "finishedAt": "2026-08-16T10:29:00.000Z",
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 0,
+            "spentCredits": 25,
+            "blocker": null
           }
         ]
-      }
-    },
-    "statusFailed": {
-      "ok": true,
-      "production": {
-        "id": "00000050-0000-4000-8000-000000000050",
-        "workItemId": "00000060-0000-4000-8000-000000000060",
-        "state": "failed",
-        "settled": true,
-        "planId": "00000041-0000-4000-8000-000000000041",
-        "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-        "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-        "quality": "best",
-        "budget": {
-          "reservedCents": 3500,
-          "spentCents": 400,
-          "maxBudgetCents": 4000,
-          "currency": "USD"
-        },
-        "progress": {
-          "completedNodes": 0,
-          "totalNodes": 2
-        },
-        "blockers": [
-          {
-            "reasonCode": "production_failed",
-            "detail": "No master was produced. The unused reservation was returned."
-          }
-        ],
-        "canCancel": false,
-        "children": [
-          {
-            "runId": "00000051-0000-4000-8000-000000000051",
-            "order": 1,
-            "agentName": "Cinematic compositor",
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "state": "failed",
-            "startedAt": "2026-08-14T18:05:00.000Z",
-            "finishedAt": "2026-08-14T18:12:00.000Z",
-            "budgetAllocationCents": 2600,
-            "spentCents": 400,
-            "grant": null,
-            "blocker": {
-              "reasonCode": "child_run_failed",
-              "detail": "The compositor failed before producing a master."
-            }
-          }
-        ]
-      }
-    },
-    "receiptSuccess": {
-      "ok": true,
-      "receipt": {
-        "productionId": "00000050-0000-4000-8000-000000000050",
-        "workItemId": "00000060-0000-4000-8000-000000000060",
-        "scorerVersion": "outcome-scorer-v1",
-        "weightSetVersion": "w1",
-        "planId": "00000041-0000-4000-8000-000000000041",
-        "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-        "selectedPath": [
-          {
-            "order": 1,
-            "agentName": "Cinematic compositor",
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "versionNumber": "2.1.0"
-          },
-          {
-            "order": 2,
-            "agentName": "Cinematic shot generator",
-            "agentVersionId": "00000031-0000-4000-8000-000000000031",
-            "versionNumber": "1.4.2"
-          }
-        ],
-        "totals": {
-          "costCents": 2250,
-          "durationSeconds": 1560,
-          "reservedCents": 3500,
-          "refundedCents": 1250,
-          "currency": "USD"
-        },
-        "childReceipts": [
-          {
-            "runId": "00000051-0000-4000-8000-000000000051",
-            "order": 1,
-            "costCents": 1700,
-            "durationSeconds": 840,
-            "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef",
-            "verification": "verified_complete",
-            "judge": "accepted"
-          },
-          {
-            "runId": "00000052-0000-4000-8000-000000000052",
-            "order": 2,
-            "costCents": 550,
-            "durationSeconds": 660,
-            "artifactDigest": "8f0e0ba538e59683d156e3f2988128d954a95b2282f77ad350aaa8b41e631140",
-            "verification": "verified_complete",
-            "judge": "accepted"
-          }
-        ],
-        "artifacts": [
-          {
-            "id": "00000070-0000-4000-8000-000000000070",
-            "name": "final-master.mp4",
-            "kind": "video_master",
-            "digest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-          },
-          {
-            "id": "00000071-0000-4000-8000-000000000071",
-            "name": "closing-shot.mp4",
-            "kind": "cinematic_asset",
-            "digest": "8f0e0ba538e59683d156e3f2988128d954a95b2282f77ad350aaa8b41e631140"
-          }
-        ],
-        "integration": {
-          "approvedSegmentsUnchanged": true,
-          "verifiedBy": "server_deterministic"
-        },
-        "review": {
-          "state": "pending_owner_review"
-        },
-        "outcome": {
-          "type": "success",
-          "reasonCode": "delivered_verified_master",
-          "detail": null
-        }
-      }
-    },
-    "receiptPartial": {
-      "ok": true,
-      "receipt": {
-        "productionId": "00000050-0000-4000-8000-000000000050",
-        "workItemId": "00000060-0000-4000-8000-000000000060",
-        "scorerVersion": "outcome-scorer-v1",
-        "weightSetVersion": "w1",
-        "planId": "00000040-0000-4000-8000-000000000040",
-        "planDigest": "096011bf81b6b428fa254d97c55b1651aa46a98968c57dc347eb455c6e3a8669",
-        "selectedPath": [
-          {
-            "order": 1,
-            "agentName": "Cinematic compositor",
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "versionNumber": "2.1.0"
-          }
-        ],
-        "totals": {
-          "costCents": 2050,
-          "durationSeconds": 1240,
-          "reservedCents": 3500,
-          "refundedCents": 1450,
-          "currency": "USD"
-        },
-        "childReceipts": [
-          {
-            "runId": "00000051-0000-4000-8000-000000000051",
-            "order": 1,
-            "costCents": 1700,
-            "durationSeconds": 840,
-            "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef",
-            "verification": "verified_complete",
-            "judge": "accepted"
-          },
-          {
-            "runId": "00000052-0000-4000-8000-000000000052",
-            "order": 2,
-            "costCents": 350,
-            "durationSeconds": 300,
-            "artifactDigest": null,
-            "verification": "not_verified",
-            "judge": "not_evaluated"
-          }
-        ],
-        "artifacts": [
-          {
-            "id": "00000070-0000-4000-8000-000000000070",
-            "name": "final-master.mp4",
-            "kind": "video_master",
-            "digest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-          }
-        ],
-        "integration": {
-          "approvedSegmentsUnchanged": true,
-          "verifiedBy": "server_deterministic"
-        },
-        "review": {
-          "state": "pending_owner_review"
-        },
-        "outcome": {
-          "type": "partial",
-          "reasonCode": "child_run_failed",
-          "detail": "Master was produced and verified; the optional closing shot failed within its grant."
-        }
-      }
-    },
-    "receiptCancelled": {
-      "ok": true,
-      "receipt": {
-        "productionId": "00000050-0000-4000-8000-000000000050",
-        "workItemId": "00000060-0000-4000-8000-000000000060",
-        "scorerVersion": "outcome-scorer-v1",
-        "weightSetVersion": "w1",
-        "planId": "00000040-0000-4000-8000-000000000040",
-        "planDigest": "096011bf81b6b428fa254d97c55b1651aa46a98968c57dc347eb455c6e3a8669",
-        "selectedPath": [
-          {
-            "order": 1,
-            "agentName": "Cinematic compositor",
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "versionNumber": "2.1.0"
-          }
-        ],
-        "totals": {
-          "costCents": 1900,
-          "durationSeconds": 1020,
-          "reservedCents": 3500,
-          "refundedCents": 1600,
-          "currency": "USD"
-        },
-        "childReceipts": [
-          {
-            "runId": "00000051-0000-4000-8000-000000000051",
-            "order": 1,
-            "costCents": 1700,
-            "durationSeconds": 840,
-            "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef",
-            "verification": "verified_complete",
-            "judge": "accepted"
-          }
-        ],
-        "artifacts": [
-          {
-            "id": "00000070-0000-4000-8000-000000000070",
-            "name": "final-master.mp4",
-            "kind": "video_master",
-            "digest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
-          }
-        ],
-        "integration": {
-          "approvedSegmentsUnchanged": true,
-          "verifiedBy": "server_deterministic"
-        },
-        "review": {
-          "state": "not_required"
-        },
-        "outcome": {
-          "type": "partial",
-          "reasonCode": "cancelled_by_owner",
-          "detail": "You stopped this production. The verified master produced before the stop is kept."
-        }
-      }
-    },
-    "receiptFailure": {
-      "ok": true,
-      "receipt": {
-        "productionId": "00000050-0000-4000-8000-000000000050",
-        "workItemId": "00000060-0000-4000-8000-000000000060",
-        "scorerVersion": "outcome-scorer-v1",
-        "weightSetVersion": "w1",
-        "planId": "00000040-0000-4000-8000-000000000040",
-        "planDigest": "096011bf81b6b428fa254d97c55b1651aa46a98968c57dc347eb455c6e3a8669",
-        "selectedPath": [
-          {
-            "order": 1,
-            "agentName": "Cinematic compositor",
-            "agentVersionId": "00000021-0000-4000-8000-000000000021",
-            "versionNumber": "2.1.0"
-          }
-        ],
-        "totals": {
-          "costCents": 400,
-          "durationSeconds": 360,
-          "reservedCents": 3500,
-          "refundedCents": 3100,
-          "currency": "USD"
-        },
-        "childReceipts": [
-          {
-            "runId": "00000051-0000-4000-8000-000000000051",
-            "order": 1,
-            "costCents": 400,
-            "durationSeconds": 360,
-            "artifactDigest": null,
-            "verification": "not_verified",
-            "judge": "not_evaluated"
-          }
-        ],
-        "artifacts": [],
-        "integration": {
-          "approvedSegmentsUnchanged": true,
-          "verifiedBy": "server_deterministic"
-        },
-        "review": {
-          "state": "not_required"
-        },
-        "outcome": {
-          "type": "failure",
-          "reasonCode": "child_run_failed",
-          "detail": "The compositor failed before producing a master. Nothing was delivered."
-        }
       }
     },
     "list": {
       "ok": true,
       "productions": [
         {
-          "id": "00000050-0000-4000-8000-000000000050",
-          "workItemId": "00000060-0000-4000-8000-000000000060",
+          "id": "00000010-0000-4000-8000-000000000003",
+          "workItemId": "00000010-0000-4000-8000-000000000003",
           "state": "running",
           "settled": false,
-          "planId": "00000041-0000-4000-8000-000000000041",
-          "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-          "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-          "quality": "best",
+          "planId": "00000020-0000-4000-8000-000000000003",
+          "planDigest": "0000000000000000000000000000000000000000000000000000000000000003",
+          "goal": "Create the finished launch video.",
+          "quality": "balanced",
           "budget": {
-            "reservedCents": 3500,
-            "spentCents": 1900,
-            "maxBudgetCents": 4000,
-            "currency": "USD"
+            "reservedCredits": 40,
+            "spentCredits": 10,
+            "maxBudgetCredits": 100
           },
           "progress": {
             "completedNodes": 1,
@@ -2088,73 +382,94 @@
           "canCancel": true,
           "children": [
             {
-              "runId": "00000051-0000-4000-8000-000000000051",
-              "order": 1,
-              "agentName": "Cinematic compositor",
-              "agentVersionId": "00000021-0000-4000-8000-000000000021",
-              "state": "completed",
-              "startedAt": "2026-08-14T18:05:00.000Z",
-              "finishedAt": "2026-08-14T18:19:00.000Z",
-              "budgetAllocationCents": 2600,
-              "spentCents": 1700,
-              "grant": null,
-              "blocker": null,
-              "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
+              "runId": "00000070-0000-4000-8000-000000000030",
+              "requestId": "00000060-0000-4000-8000-000000000030",
+              "order": 0,
+              "agentName": "Cinematic Shot Generator",
+              "agentVersionId": "40000000-0000-4000-8000-000000000001",
+              "versionNumber": "3",
+              "state": "settled",
+              "startedAt": "2026-08-16T10:00:01.000Z",
+              "finishedAt": "2026-08-16T10:09:00.000Z",
+              "budgetAllocationCredits": 40,
+              "reservedCredits": 0,
+              "spentCredits": 10,
+              "blocker": null
             },
             {
-              "runId": "00000052-0000-4000-8000-000000000052",
-              "order": 2,
-              "agentName": "Cinematic shot generator",
-              "agentVersionId": "00000031-0000-4000-8000-000000000031",
-              "state": "running",
-              "startedAt": "2026-08-14T18:20:00.000Z",
+              "runId": null,
+              "requestId": "00000060-0000-4000-8000-000000000031",
+              "order": 1,
+              "agentName": "Visual Evidence & Remotion Compositor",
+              "agentVersionId": "40000000-0000-4000-8000-000000000002",
+              "versionNumber": "7",
+              "state": "dispatched",
+              "startedAt": "2026-08-16T10:10:01.000Z",
               "finishedAt": null,
-              "budgetAllocationCents": 900,
-              "spentCents": 200,
-              "grant": {
-                "parentProductionId": "00000050-0000-4000-8000-000000000050",
-                "runId": "00000052-0000-4000-8000-000000000052",
-                "agentVersionId": "00000031-0000-4000-8000-000000000031",
-                "inputRefs": [
-                  {
-                    "id": "00000013-0000-4000-8000-000000000013",
-                    "kind": "shot_brief",
-                    "name": "Closing establishing shot brief",
-                    "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-                  }
-                ],
-                "expectedArtifact": {
-                  "kind": "cinematic_asset",
-                  "format": "mp4"
-                },
-                "ceilings": {
-                  "maxDurationSeconds": 600,
-                  "maxRetries": 1,
-                  "maxInvocations": 1,
-                  "maxProviderSpendCents": 900
-                },
-                "authority": "intersection_of_parent_and_agent",
-                "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-                "keyId": "fixture"
-              },
+              "budgetAllocationCredits": 40,
+              "reservedCredits": 40,
+              "spentCredits": 0,
               "blocker": null
             }
           ]
         },
         {
-          "id": "00000053-0000-4000-8000-000000000053",
-          "workItemId": "00000063-0000-4000-8000-000000000063",
-          "state": "completed",
-          "settled": true,
-          "planId": "00000041-0000-4000-8000-000000000041",
-          "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-          "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-          "quality": "best",
+          "id": "00000010-0000-4000-8000-000000000002",
+          "workItemId": "00000010-0000-4000-8000-000000000002",
+          "state": "ready",
+          "settled": false,
+          "planId": "00000020-0000-4000-8000-000000000002",
+          "planDigest": "0000000000000000000000000000000000000000000000000000000000000002",
+          "goal": "Create the finished launch video.",
+          "quality": "balanced",
           "budget": {
-            "reservedCents": 3500,
-            "spentCents": 2250,
-            "maxBudgetCents": 4000,
-            "currency": "USD"
+            "reservedCredits": 0,
+            "spentCredits": 0,
+            "maxBudgetCredits": 100
+          },
+          "progress": {
+            "completedNodes": 0,
+            "totalNodes": 2
+          },
+          "blockers": [],
+          "canCancel": true,
+          "children": []
+        },
+        {
+          "id": "00000010-0000-4000-8000-000000000001",
+          "workItemId": "00000010-0000-4000-8000-000000000001",
+          "state": "planning",
+          "settled": false,
+          "planId": null,
+          "planDigest": null,
+          "goal": "Create the finished launch video.",
+          "quality": "balanced",
+          "budget": {
+            "reservedCredits": 0,
+            "spentCredits": 0,
+            "maxBudgetCredits": 100
+          },
+          "progress": {
+            "completedNodes": 0,
+            "totalNodes": 0
+          },
+          "blockers": [],
+          "canCancel": false,
+          "children": []
+        },
+        {
+          "id": "00000010-0000-4000-8000-000000000004",
+          "workItemId": "00000010-0000-4000-8000-000000000004",
+          "state": "succeeded",
+          "settled": true,
+          "planId": "00000020-0000-4000-8000-000000000004",
+          "planDigest": "0000000000000000000000000000000000000000000000000000000000000004",
+          "goal": "Create the finished launch video.",
+          "quality": "balanced",
+          "budget": {
+            "reservedCredits": 0,
+            "spentCredits": 35,
+            "maxBudgetCredits": 100
           },
           "progress": {
             "completedNodes": 2,
@@ -2164,137 +479,1011 @@
           "canCancel": false,
           "children": [
             {
-              "runId": "00000051-0000-4000-8000-000000000051",
-              "order": 1,
-              "agentName": "Cinematic compositor",
-              "agentVersionId": "00000021-0000-4000-8000-000000000021",
-              "state": "completed",
-              "startedAt": "2026-08-14T18:05:00.000Z",
-              "finishedAt": "2026-08-14T18:19:00.000Z",
-              "budgetAllocationCents": 2600,
-              "spentCents": 1700,
-              "grant": null,
-              "blocker": null,
-              "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
+              "runId": "00000070-0000-4000-8000-000000000040",
+              "requestId": "00000060-0000-4000-8000-000000000040",
+              "order": 0,
+              "agentName": "Cinematic Shot Generator",
+              "agentVersionId": "40000000-0000-4000-8000-000000000001",
+              "versionNumber": "3",
+              "state": "settled",
+              "startedAt": "2026-08-16T10:00:01.000Z",
+              "finishedAt": "2026-08-16T10:09:00.000Z",
+              "budgetAllocationCredits": 40,
+              "reservedCredits": 0,
+              "spentCredits": 10,
+              "blocker": null
             },
             {
-              "runId": "00000052-0000-4000-8000-000000000052",
-              "order": 2,
-              "agentName": "Cinematic shot generator",
-              "agentVersionId": "00000031-0000-4000-8000-000000000031",
-              "state": "completed",
-              "startedAt": "2026-08-14T18:20:00.000Z",
-              "finishedAt": "2026-08-14T18:31:00.000Z",
-              "budgetAllocationCents": 900,
-              "spentCents": 550,
-              "grant": {
-                "parentProductionId": "00000050-0000-4000-8000-000000000050",
-                "runId": "00000052-0000-4000-8000-000000000052",
-                "agentVersionId": "00000031-0000-4000-8000-000000000031",
-                "inputRefs": [
-                  {
-                    "id": "00000013-0000-4000-8000-000000000013",
-                    "kind": "shot_brief",
-                    "name": "Closing establishing shot brief",
-                    "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-                  }
-                ],
-                "expectedArtifact": {
-                  "kind": "cinematic_asset",
-                  "format": "mp4"
-                },
-                "ceilings": {
-                  "maxDurationSeconds": 600,
-                  "maxRetries": 1,
-                  "maxInvocations": 1,
-                  "maxProviderSpendCents": 900
-                },
-                "authority": "intersection_of_parent_and_agent",
-                "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-                "keyId": "fixture"
-              },
-              "blocker": null,
-              "artifactDigest": "8f0e0ba538e59683d156e3f2988128d954a95b2282f77ad350aaa8b41e631140"
+              "runId": "00000070-0000-4000-8000-000000000041",
+              "requestId": "00000060-0000-4000-8000-000000000041",
+              "order": 1,
+              "agentName": "Visual Evidence & Remotion Compositor",
+              "agentVersionId": "40000000-0000-4000-8000-000000000002",
+              "versionNumber": "7",
+              "state": "settled",
+              "startedAt": "2026-08-16T10:10:01.000Z",
+              "finishedAt": "2026-08-16T10:29:00.000Z",
+              "budgetAllocationCredits": 40,
+              "reservedCredits": 0,
+              "spentCredits": 25,
+              "blocker": null
             }
           ]
         },
         {
-          "id": "00000054-0000-4000-8000-000000000054",
-          "workItemId": "00000064-0000-4000-8000-000000000064",
-          "state": "cancelled",
+          "id": "00000010-0000-4000-8000-000000000005",
+          "workItemId": "00000010-0000-4000-8000-000000000005",
+          "state": "partial",
           "settled": true,
-          "planId": "00000041-0000-4000-8000-000000000041",
-          "planDigest": "f301bef15a6a977cf181d71f2f1db68c25596a6493c46a76d31d308345059182",
-          "goal": "Use my approved video sections and editable project to produce a high-quality final master under the stated budget.",
-          "quality": "best",
+          "planId": "00000020-0000-4000-8000-000000000005",
+          "planDigest": "0000000000000000000000000000000000000000000000000000000000000005",
+          "goal": "Create the finished launch video.",
+          "quality": "balanced",
           "budget": {
-            "reservedCents": 3500,
-            "spentCents": 1900,
-            "maxBudgetCents": 4000,
-            "currency": "USD"
+            "reservedCredits": 0,
+            "spentCredits": 35,
+            "maxBudgetCredits": 100
           },
           "progress": {
-            "completedNodes": 1,
+            "completedNodes": 2,
             "totalNodes": 2
           },
-          "blockers": [],
+          "blockers": [
+            {
+              "reasonCode": "failed",
+              "detail": "Child failed verification."
+            },
+            {
+              "reasonCode": "production_partial",
+              "detail": "One child did not complete."
+            }
+          ],
           "canCancel": false,
           "children": [
             {
-              "runId": "00000051-0000-4000-8000-000000000051",
-              "order": 1,
-              "agentName": "Cinematic compositor",
-              "agentVersionId": "00000021-0000-4000-8000-000000000021",
-              "state": "completed",
-              "startedAt": "2026-08-14T18:05:00.000Z",
-              "finishedAt": "2026-08-14T18:19:00.000Z",
-              "budgetAllocationCents": 2600,
-              "spentCents": 1700,
-              "grant": null,
-              "blocker": null,
-              "artifactDigest": "f85011a5b01284e5492552a2a01cdc2b167659524761470122289d41f2bd24ef"
+              "runId": "00000070-0000-4000-8000-000000000050",
+              "requestId": "00000060-0000-4000-8000-000000000050",
+              "order": 0,
+              "agentName": "Cinematic Shot Generator",
+              "agentVersionId": "40000000-0000-4000-8000-000000000001",
+              "versionNumber": "3",
+              "state": "settled",
+              "startedAt": "2026-08-16T10:00:01.000Z",
+              "finishedAt": "2026-08-16T10:09:00.000Z",
+              "budgetAllocationCredits": 40,
+              "reservedCredits": 0,
+              "spentCredits": 10,
+              "blocker": null
             },
             {
-              "runId": "00000052-0000-4000-8000-000000000052",
-              "order": 2,
-              "agentName": "Cinematic shot generator",
-              "agentVersionId": "00000031-0000-4000-8000-000000000031",
-              "state": "cancelled",
-              "startedAt": "2026-08-14T18:20:00.000Z",
-              "finishedAt": "2026-08-14T18:22:00.000Z",
-              "budgetAllocationCents": 900,
-              "spentCents": 200,
-              "grant": {
-                "parentProductionId": "00000050-0000-4000-8000-000000000050",
-                "runId": "00000052-0000-4000-8000-000000000052",
-                "agentVersionId": "00000031-0000-4000-8000-000000000031",
-                "inputRefs": [
-                  {
-                    "id": "00000013-0000-4000-8000-000000000013",
-                    "kind": "shot_brief",
-                    "name": "Closing establishing shot brief",
-                    "digest": "82978d9b61867cb2efcd144cbfbce29b5efb88f90db20e9d5626a2211b6f5b29"
-                  }
-                ],
-                "expectedArtifact": {
-                  "kind": "cinematic_asset",
-                  "format": "mp4"
-                },
-                "ceilings": {
-                  "maxDurationSeconds": 600,
-                  "maxRetries": 1,
-                  "maxInvocations": 1,
-                  "maxProviderSpendCents": 900
-                },
-                "authority": "intersection_of_parent_and_agent",
-                "signature": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-                "keyId": "fixture"
-              },
-              "blocker": null
+              "runId": "00000070-0000-4000-8000-000000000051",
+              "requestId": "00000060-0000-4000-8000-000000000051",
+              "order": 1,
+              "agentName": "Visual Evidence & Remotion Compositor",
+              "agentVersionId": "40000000-0000-4000-8000-000000000002",
+              "versionNumber": "7",
+              "state": "settled",
+              "startedAt": "2026-08-16T10:10:01.000Z",
+              "finishedAt": "2026-08-16T10:29:00.000Z",
+              "budgetAllocationCredits": 40,
+              "reservedCredits": 0,
+              "spentCredits": 25,
+              "blocker": {
+                "reasonCode": "failed",
+                "detail": "Child failed verification."
+              }
+            }
+          ]
+        },
+        {
+          "id": "00000010-0000-4000-8000-000000000006",
+          "workItemId": "00000010-0000-4000-8000-000000000006",
+          "state": "failed",
+          "settled": true,
+          "planId": "00000020-0000-4000-8000-000000000006",
+          "planDigest": "0000000000000000000000000000000000000000000000000000000000000006",
+          "goal": "Create the finished launch video.",
+          "quality": "balanced",
+          "budget": {
+            "reservedCredits": 0,
+            "spentCredits": 35,
+            "maxBudgetCredits": 100
+          },
+          "progress": {
+            "completedNodes": 2,
+            "totalNodes": 2
+          },
+          "blockers": [
+            {
+              "reasonCode": "failed",
+              "detail": "Child failed verification."
+            },
+            {
+              "reasonCode": "failed",
+              "detail": "Child failed verification."
+            },
+            {
+              "reasonCode": "production_failed",
+              "detail": "No deliverable completed."
+            }
+          ],
+          "canCancel": false,
+          "children": [
+            {
+              "runId": "00000070-0000-4000-8000-000000000060",
+              "requestId": "00000060-0000-4000-8000-000000000060",
+              "order": 0,
+              "agentName": "Cinematic Shot Generator",
+              "agentVersionId": "40000000-0000-4000-8000-000000000001",
+              "versionNumber": "3",
+              "state": "settled",
+              "startedAt": "2026-08-16T10:00:01.000Z",
+              "finishedAt": "2026-08-16T10:09:00.000Z",
+              "budgetAllocationCredits": 40,
+              "reservedCredits": 0,
+              "spentCredits": 10,
+              "blocker": {
+                "reasonCode": "failed",
+                "detail": "Child failed verification."
+              }
+            },
+            {
+              "runId": "00000070-0000-4000-8000-000000000061",
+              "requestId": "00000060-0000-4000-8000-000000000061",
+              "order": 1,
+              "agentName": "Visual Evidence & Remotion Compositor",
+              "agentVersionId": "40000000-0000-4000-8000-000000000002",
+              "versionNumber": "7",
+              "state": "settled",
+              "startedAt": "2026-08-16T10:10:01.000Z",
+              "finishedAt": "2026-08-16T10:29:00.000Z",
+              "budgetAllocationCredits": 40,
+              "reservedCredits": 0,
+              "spentCredits": 25,
+              "blocker": {
+                "reasonCode": "failed",
+                "detail": "Child failed verification."
+              }
+            }
+          ]
+        },
+        {
+          "id": "00000010-0000-4000-8000-000000000007",
+          "workItemId": "00000010-0000-4000-8000-000000000007",
+          "state": "cancelled",
+          "settled": true,
+          "planId": "00000020-0000-4000-8000-000000000007",
+          "planDigest": "0000000000000000000000000000000000000000000000000000000000000007",
+          "goal": "Create the finished launch video.",
+          "quality": "balanced",
+          "budget": {
+            "reservedCredits": 0,
+            "spentCredits": 0,
+            "maxBudgetCredits": 100
+          },
+          "progress": {
+            "completedNodes": 2,
+            "totalNodes": 2
+          },
+          "blockers": [
+            {
+              "reasonCode": "cancelled",
+              "detail": "Cancelled before execution."
+            },
+            {
+              "reasonCode": "cancelled",
+              "detail": "Cancelled before execution."
+            },
+            {
+              "reasonCode": "production_cancelled",
+              "detail": "Cancelled by owner."
+            }
+          ],
+          "canCancel": false,
+          "children": [
+            {
+              "runId": null,
+              "requestId": "00000060-0000-4000-8000-000000000070",
+              "order": 0,
+              "agentName": "Cinematic Shot Generator",
+              "agentVersionId": "40000000-0000-4000-8000-000000000001",
+              "versionNumber": "3",
+              "state": "released",
+              "startedAt": "2026-08-16T10:00:01.000Z",
+              "finishedAt": "2026-08-16T10:09:00.000Z",
+              "budgetAllocationCredits": 40,
+              "reservedCredits": 0,
+              "spentCredits": 0,
+              "blocker": {
+                "reasonCode": "cancelled",
+                "detail": "Cancelled before execution."
+              }
+            },
+            {
+              "runId": null,
+              "requestId": "00000060-0000-4000-8000-000000000071",
+              "order": 1,
+              "agentName": "Visual Evidence & Remotion Compositor",
+              "agentVersionId": "40000000-0000-4000-8000-000000000002",
+              "versionNumber": "7",
+              "state": "released",
+              "startedAt": "2026-08-16T10:10:01.000Z",
+              "finishedAt": "2026-08-16T10:29:00.000Z",
+              "budgetAllocationCredits": 40,
+              "reservedCredits": 0,
+              "spentCredits": 0,
+              "blocker": {
+                "reasonCode": "cancelled",
+                "detail": "Cancelled before execution."
+              }
             }
           ]
         }
       ]
+    },
+    "receiptSuccess": {
+      "ok": true,
+      "receipt": {
+        "productionId": "00000010-0000-4000-8000-000000000004",
+        "workItemId": "00000010-0000-4000-8000-000000000004",
+        "receiptDigest": "43925276b6c035395928e2a3d3dc3630a3470c2beb04e00b9e4873b2549dea62",
+        "scorerVersion": "outcome-scorer.v1",
+        "weightSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "planId": "00000020-0000-4000-8000-000000000004",
+        "planDigest": "0000000000000000000000000000000000000000000000000000000000000004",
+        "selectedPath": [
+          {
+            "order": 0,
+            "agentName": "Cinematic Shot Generator",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3"
+          },
+          {
+            "order": 1,
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7"
+          }
+        ],
+        "budget": {
+          "reservedCredits": 0,
+          "spentCredits": 35,
+          "maxBudgetCredits": 100
+        },
+        "durationSeconds": 1740,
+        "childReceipts": [
+          {
+            "runId": "00000070-0000-4000-8000-000000000040",
+            "requestId": "00000060-0000-4000-8000-000000000040",
+            "order": 0,
+            "agentName": "Cinematic Shot Generator",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3",
+            "costCredits": 10,
+            "durationSeconds": 540,
+            "artifactDigests": [
+              "3333333333333333333333333333333333333333333333333333333333333333"
+            ],
+            "verification": "verified_complete",
+            "judge": "pass",
+            "outcome": "succeeded"
+          },
+          {
+            "runId": "00000070-0000-4000-8000-000000000041",
+            "requestId": "00000060-0000-4000-8000-000000000041",
+            "order": 1,
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7",
+            "costCredits": 25,
+            "durationSeconds": 1200,
+            "artifactDigests": [
+              "4444444444444444444444444444444444444444444444444444444444444444"
+            ],
+            "verification": "verified_complete",
+            "judge": "pass",
+            "outcome": "succeeded"
+          }
+        ],
+        "artifacts": [
+          {
+            "id": "00000080-0000-4000-8000-000000000040",
+            "runId": "00000070-0000-4000-8000-000000000040",
+            "name": "shot.mp4",
+            "relativePath": "out/shot.mp4",
+            "kind": "final_output",
+            "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+            "sizeBytes": 1234
+          },
+          {
+            "id": "00000080-0000-4000-8000-000000000041",
+            "runId": "00000070-0000-4000-8000-000000000041",
+            "name": "final-master.mp4",
+            "relativePath": "out/final-master.mp4",
+            "kind": "final_output",
+            "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+            "sizeBytes": 9876
+          }
+        ],
+        "review": {
+          "state": "not_recorded"
+        },
+        "outcome": {
+          "type": "success",
+          "reasonCode": "completed",
+          "detail": null
+        }
+      }
+    }
+  },
+  "productions": {
+    "intake": {
+      "id": "00000010-0000-4000-8000-000000000001",
+      "workItemId": "00000010-0000-4000-8000-000000000001",
+      "state": "planning",
+      "settled": false,
+      "planId": null,
+      "planDigest": null,
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 0,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 0,
+        "totalNodes": 0
+      },
+      "blockers": [],
+      "canCancel": false,
+      "children": []
+    },
+    "ready": {
+      "id": "00000010-0000-4000-8000-000000000002",
+      "workItemId": "00000010-0000-4000-8000-000000000002",
+      "state": "ready",
+      "settled": false,
+      "planId": "00000020-0000-4000-8000-000000000002",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000002",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 0,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 0,
+        "totalNodes": 2
+      },
+      "blockers": [],
+      "canCancel": true,
+      "children": []
+    },
+    "running": {
+      "id": "00000010-0000-4000-8000-000000000003",
+      "workItemId": "00000010-0000-4000-8000-000000000003",
+      "state": "running",
+      "settled": false,
+      "planId": "00000020-0000-4000-8000-000000000003",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000003",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 40,
+        "spentCredits": 10,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 1,
+        "totalNodes": 2
+      },
+      "blockers": [],
+      "canCancel": true,
+      "children": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000030",
+          "requestId": "00000060-0000-4000-8000-000000000030",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 10,
+          "blocker": null
+        },
+        {
+          "runId": null,
+          "requestId": "00000060-0000-4000-8000-000000000031",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "dispatched",
+          "startedAt": "2026-08-16T10:10:01.000Z",
+          "finishedAt": null,
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 40,
+          "spentCredits": 0,
+          "blocker": null
+        }
+      ]
+    },
+    "succeeded": {
+      "id": "00000010-0000-4000-8000-000000000004",
+      "workItemId": "00000010-0000-4000-8000-000000000004",
+      "state": "succeeded",
+      "settled": true,
+      "planId": "00000020-0000-4000-8000-000000000004",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000004",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 35,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 2,
+        "totalNodes": 2
+      },
+      "blockers": [],
+      "canCancel": false,
+      "children": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000040",
+          "requestId": "00000060-0000-4000-8000-000000000040",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 10,
+          "blocker": null
+        },
+        {
+          "runId": "00000070-0000-4000-8000-000000000041",
+          "requestId": "00000060-0000-4000-8000-000000000041",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:10:01.000Z",
+          "finishedAt": "2026-08-16T10:29:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 25,
+          "blocker": null
+        }
+      ]
+    },
+    "partial": {
+      "id": "00000010-0000-4000-8000-000000000005",
+      "workItemId": "00000010-0000-4000-8000-000000000005",
+      "state": "partial",
+      "settled": true,
+      "planId": "00000020-0000-4000-8000-000000000005",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000005",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 35,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 2,
+        "totalNodes": 2
+      },
+      "blockers": [
+        {
+          "reasonCode": "failed",
+          "detail": "Child failed verification."
+        },
+        {
+          "reasonCode": "production_partial",
+          "detail": "One child did not complete."
+        }
+      ],
+      "canCancel": false,
+      "children": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000050",
+          "requestId": "00000060-0000-4000-8000-000000000050",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 10,
+          "blocker": null
+        },
+        {
+          "runId": "00000070-0000-4000-8000-000000000051",
+          "requestId": "00000060-0000-4000-8000-000000000051",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:10:01.000Z",
+          "finishedAt": "2026-08-16T10:29:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 25,
+          "blocker": {
+            "reasonCode": "failed",
+            "detail": "Child failed verification."
+          }
+        }
+      ]
+    },
+    "failed": {
+      "id": "00000010-0000-4000-8000-000000000006",
+      "workItemId": "00000010-0000-4000-8000-000000000006",
+      "state": "failed",
+      "settled": true,
+      "planId": "00000020-0000-4000-8000-000000000006",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000006",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 35,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 2,
+        "totalNodes": 2
+      },
+      "blockers": [
+        {
+          "reasonCode": "failed",
+          "detail": "Child failed verification."
+        },
+        {
+          "reasonCode": "failed",
+          "detail": "Child failed verification."
+        },
+        {
+          "reasonCode": "production_failed",
+          "detail": "No deliverable completed."
+        }
+      ],
+      "canCancel": false,
+      "children": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000060",
+          "requestId": "00000060-0000-4000-8000-000000000060",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 10,
+          "blocker": {
+            "reasonCode": "failed",
+            "detail": "Child failed verification."
+          }
+        },
+        {
+          "runId": "00000070-0000-4000-8000-000000000061",
+          "requestId": "00000060-0000-4000-8000-000000000061",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:10:01.000Z",
+          "finishedAt": "2026-08-16T10:29:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 25,
+          "blocker": {
+            "reasonCode": "failed",
+            "detail": "Child failed verification."
+          }
+        }
+      ]
+    },
+    "cancelled": {
+      "id": "00000010-0000-4000-8000-000000000007",
+      "workItemId": "00000010-0000-4000-8000-000000000007",
+      "state": "cancelled",
+      "settled": true,
+      "planId": "00000020-0000-4000-8000-000000000007",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000007",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 0,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 2,
+        "totalNodes": 2
+      },
+      "blockers": [
+        {
+          "reasonCode": "cancelled",
+          "detail": "Cancelled before execution."
+        },
+        {
+          "reasonCode": "cancelled",
+          "detail": "Cancelled before execution."
+        },
+        {
+          "reasonCode": "production_cancelled",
+          "detail": "Cancelled by owner."
+        }
+      ],
+      "canCancel": false,
+      "children": [
+        {
+          "runId": null,
+          "requestId": "00000060-0000-4000-8000-000000000070",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "released",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 0,
+          "blocker": {
+            "reasonCode": "cancelled",
+            "detail": "Cancelled before execution."
+          }
+        },
+        {
+          "runId": null,
+          "requestId": "00000060-0000-4000-8000-000000000071",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "released",
+          "startedAt": "2026-08-16T10:10:01.000Z",
+          "finishedAt": "2026-08-16T10:29:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 0,
+          "blocker": {
+            "reasonCode": "cancelled",
+            "detail": "Cancelled before execution."
+          }
+        }
+      ]
+    }
+  },
+  "receipts": {
+    "success": {
+      "productionId": "00000010-0000-4000-8000-000000000004",
+      "workItemId": "00000010-0000-4000-8000-000000000004",
+      "receiptDigest": "43925276b6c035395928e2a3d3dc3630a3470c2beb04e00b9e4873b2549dea62",
+      "scorerVersion": "outcome-scorer.v1",
+      "weightSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "planId": "00000020-0000-4000-8000-000000000004",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000004",
+      "selectedPath": [
+        {
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3"
+        },
+        {
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7"
+        }
+      ],
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 35,
+        "maxBudgetCredits": 100
+      },
+      "durationSeconds": 1740,
+      "childReceipts": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000040",
+          "requestId": "00000060-0000-4000-8000-000000000040",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "costCredits": 10,
+          "durationSeconds": 540,
+          "artifactDigests": [
+            "3333333333333333333333333333333333333333333333333333333333333333"
+          ],
+          "verification": "verified_complete",
+          "judge": "pass",
+          "outcome": "succeeded"
+        },
+        {
+          "runId": "00000070-0000-4000-8000-000000000041",
+          "requestId": "00000060-0000-4000-8000-000000000041",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "costCredits": 25,
+          "durationSeconds": 1200,
+          "artifactDigests": [
+            "4444444444444444444444444444444444444444444444444444444444444444"
+          ],
+          "verification": "verified_complete",
+          "judge": "pass",
+          "outcome": "succeeded"
+        }
+      ],
+      "artifacts": [
+        {
+          "id": "00000080-0000-4000-8000-000000000040",
+          "runId": "00000070-0000-4000-8000-000000000040",
+          "name": "shot.mp4",
+          "relativePath": "out/shot.mp4",
+          "kind": "final_output",
+          "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "sizeBytes": 1234
+        },
+        {
+          "id": "00000080-0000-4000-8000-000000000041",
+          "runId": "00000070-0000-4000-8000-000000000041",
+          "name": "final-master.mp4",
+          "relativePath": "out/final-master.mp4",
+          "kind": "final_output",
+          "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+          "sizeBytes": 9876
+        }
+      ],
+      "review": {
+        "state": "not_recorded"
+      },
+      "outcome": {
+        "type": "success",
+        "reasonCode": "completed",
+        "detail": null
+      }
+    },
+    "partial": {
+      "productionId": "00000010-0000-4000-8000-000000000005",
+      "workItemId": "00000010-0000-4000-8000-000000000005",
+      "receiptDigest": "d8c4d896fdbd9f46dcf084a328796eb7d2cb0a970596da865ad5b14e60ce5642",
+      "scorerVersion": "outcome-scorer.v1",
+      "weightSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "planId": "00000020-0000-4000-8000-000000000005",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000005",
+      "selectedPath": [
+        {
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3"
+        },
+        {
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7"
+        }
+      ],
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 35,
+        "maxBudgetCredits": 100
+      },
+      "durationSeconds": 1740,
+      "childReceipts": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000050",
+          "requestId": "00000060-0000-4000-8000-000000000050",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "costCredits": 10,
+          "durationSeconds": 540,
+          "artifactDigests": [
+            "3333333333333333333333333333333333333333333333333333333333333333"
+          ],
+          "verification": "verified_complete",
+          "judge": "pass",
+          "outcome": "succeeded"
+        },
+        {
+          "runId": "00000070-0000-4000-8000-000000000051",
+          "requestId": "00000060-0000-4000-8000-000000000051",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "costCredits": 25,
+          "durationSeconds": 1200,
+          "artifactDigests": [],
+          "verification": "failed",
+          "judge": "fail",
+          "outcome": "failed"
+        }
+      ],
+      "artifacts": [
+        {
+          "id": "00000080-0000-4000-8000-000000000050",
+          "runId": "00000070-0000-4000-8000-000000000050",
+          "name": "shot.mp4",
+          "relativePath": "out/shot.mp4",
+          "kind": "final_output",
+          "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "sizeBytes": 1234
+        }
+      ],
+      "review": {
+        "state": "not_recorded"
+      },
+      "outcome": {
+        "type": "partial",
+        "reasonCode": "partial_delivery",
+        "detail": "One child did not complete."
+      }
+    },
+    "failed": {
+      "productionId": "00000010-0000-4000-8000-000000000006",
+      "workItemId": "00000010-0000-4000-8000-000000000006",
+      "receiptDigest": "e0b6c68e52bff5bf9f88c34b9fc21ffc254f65ff1a74672d213719f65ef45e38",
+      "scorerVersion": "outcome-scorer.v1",
+      "weightSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "planId": "00000020-0000-4000-8000-000000000006",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000006",
+      "selectedPath": [
+        {
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3"
+        },
+        {
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7"
+        }
+      ],
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 35,
+        "maxBudgetCredits": 100
+      },
+      "durationSeconds": 1740,
+      "childReceipts": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000060",
+          "requestId": "00000060-0000-4000-8000-000000000060",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "costCredits": 10,
+          "durationSeconds": 540,
+          "artifactDigests": [],
+          "verification": "failed",
+          "judge": "fail",
+          "outcome": "failed"
+        },
+        {
+          "runId": "00000070-0000-4000-8000-000000000061",
+          "requestId": "00000060-0000-4000-8000-000000000061",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "costCredits": 25,
+          "durationSeconds": 1200,
+          "artifactDigests": [],
+          "verification": "failed",
+          "judge": "fail",
+          "outcome": "failed"
+        }
+      ],
+      "artifacts": [],
+      "review": {
+        "state": "not_recorded"
+      },
+      "outcome": {
+        "type": "failure",
+        "reasonCode": "production_failed",
+        "detail": "No deliverable completed."
+      }
+    },
+    "cancelled": {
+      "productionId": "00000010-0000-4000-8000-000000000007",
+      "workItemId": "00000010-0000-4000-8000-000000000007",
+      "receiptDigest": "94d45522d917a0207dc4240bbd1ea368d9260680299ad6c9ddfb1eaaac07bda5",
+      "scorerVersion": "outcome-scorer.v1",
+      "weightSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "planId": "00000020-0000-4000-8000-000000000007",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000007",
+      "selectedPath": [
+        {
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3"
+        },
+        {
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7"
+        }
+      ],
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 0,
+        "maxBudgetCredits": 100
+      },
+      "durationSeconds": null,
+      "childReceipts": [
+        {
+          "runId": null,
+          "requestId": "00000060-0000-4000-8000-000000000070",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "costCredits": 0,
+          "durationSeconds": null,
+          "artifactDigests": [],
+          "verification": "not_recorded",
+          "judge": "not_recorded",
+          "outcome": "cancelled"
+        },
+        {
+          "runId": null,
+          "requestId": "00000060-0000-4000-8000-000000000071",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "costCredits": 0,
+          "durationSeconds": null,
+          "artifactDigests": [],
+          "verification": "not_recorded",
+          "judge": "not_recorded",
+          "outcome": "cancelled"
+        }
+      ],
+      "artifacts": [],
+      "review": {
+        "state": "not_recorded"
+      },
+      "outcome": {
+        "type": "failure",
+        "reasonCode": "cancelled",
+        "detail": "Cancelled by owner."
+      }
     }
   }
 }

@@ -1,23 +1,11 @@
 #!/usr/bin/env node
 /**
- * Mutation harness for the outcome-orchestration surface.
+ * Mutation harness for the Backend-owned, credit-native Outcome Orchestration
+ * Dashboard contract.
  *
- * Shape follows scripts/mutation-test-executor-fallback.mjs: a full-tree copy
- * per mutant with node_modules symlinked (rendered suites need jsdom/esbuild),
- * a GREEN UNMUTATED BASELINE before anything is judged, and anchors that must
- * occur exactly once. A survived mutant is a suite that cannot tell you
- * anything and exits non-zero.
- *
- * Boundaries covered: contract parsing (fail-closed), plan identity
- * (verbatim digest), stale-plan invalidation, approval gating, the single
- * confirm-gated stop, the loader's unavailable-vs-not-found distinction, the
- * write-path allowlist, and Work-item outcome honesty.
- *
- * NOT mutated, deliberately: canStartPlan's `state === 'prepared'` half. The
- * producer only emits missingSetup alongside state 'blocked_on_setup', so
- * each half of that conjunction is EQUIVALENT under the contract; the
- * blocked-plan behavior is enforced through the card's `startable` gate
- * mutants below instead.
+ * Each mutant runs in a full-tree copy with node_modules symlinked. The
+ * unmodified focused suites MUST be green first, every source anchor MUST be
+ * unique, and every mutant MUST make at least one suite red.
  */
 
 import fs from 'node:fs';
@@ -26,7 +14,6 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..');
-
 const suites = [
   'lib/outcome-production.test.ts',
   'lib/outcome-production-actions.test.ts',
@@ -41,122 +28,134 @@ const CONTRACT = 'lib/outcome-production.ts';
 const ACTIONS = 'lib/outcome-production-actions.ts';
 const LOAD = 'lib/outcome-production-load.ts';
 const ENTRY = 'app/(dashboard)/_components/outcome-entry.tsx';
-const CARD = 'app/(dashboard)/_components/outcome-plan-card.tsx';
 const MONITOR = 'app/(dashboard)/_components/outcome-production-monitor.tsx';
 const WORK_ITEM = 'app/(dashboard)/_components/outcome-work-item.tsx';
 const LIST = 'app/(dashboard)/work/_components/outcome-productions-list.tsx';
 
 const mutants = [
-  ['fail-closed', 'drifted plan body renders instead of failing closed', CONTRACT,
-    'if (!intent || !plan) return null;',
-    'if (!intent) return null;'],
-  ['fail-closed', 'a selection with no reasons renders', CONTRACT,
-    "if (!Array.isArray(v.reasons) || !v.reasons.every(str) || v.reasons.length === 0) return null;",
-    "if (!Array.isArray(v.reasons) || !v.reasons.every(str)) return null;"],
-  ['fail-closed', 'a three-node plan is accepted past the two-node contract', CONTRACT,
-    'if (!Array.isArray(v.nodes) || v.nodes.length < 1 || v.nodes.length > 2) return null;',
-    'if (!Array.isArray(v.nodes) || v.nodes.length < 1 || v.nodes.length > 3) return null;'],
-  ['fail-closed', 'an approval without its ceiling is acknowledged anyway', CONTRACT,
-    'if (!isObj(raw) || !str(raw.kind) || !str(raw.description) || !num(raw.ceilingCents)) return null;',
-    'if (!isObj(raw) || !str(raw.kind) || !str(raw.description)) return null;'],
-  ['fail-closed', 'an unreadable answer becomes the no-eligible claim', ENTRY,
-    "const UNAVAILABLE_COPY = 'We can’t plan this outcome right now. Nothing was selected and nothing will run — this is not the same as having no eligible agent.';",
-    "const UNAVAILABLE_COPY = 'No installed agent matches this outcome.';"],
-  ['plan-identity', 'start recomputes the digest instead of echoing it verbatim', ENTRY,
-    'planDigest: plan.outcome.plan.digest,',
-    'planDigest: plan.outcome.plan.digest.toUpperCase(),'],
-  ['plan-identity', 'editing an input keeps the stale plan startable', ENTRY,
-    "setPlan((current) => (current.phase === 'idle' ? current : { phase: 'idle' }));",
-    'setPlan((current) => current);'],
-  ['approval-gate', 'Start ignores the unacknowledged approvals', CARD,
-    'disabled={!allApproved || starting}',
-    'disabled={starting}'],
-  ['approval-gate', 'a blocked-on-setup plan grows a Start button', CARD,
-    '{startable && (\n        <div className="mt-4">',
-    '{true && (\n        <div className="mt-4">'],
-  ['single-stop', 'a settled production keeps its stop control', MONITOR,
-    '{production.canCancel && (',
-    '{true && ('],
-  ['single-stop', 'stop fires without the confirm', MONITOR,
-    'onClick={() => setConfirmStop(true)}',
-    'onClick={stopProduction}'],
-  ['loader', 'a drifted production body reads as not_found instead of unavailable', LOAD,
-    "if (!production) return { status: 'unavailable', reason: 'The production response did not match the contract.' };",
-    "if (!production) return { status: 'not_found' };"],
-  ['allowlist', 'the budget ceiling is unbounded', ACTIONS,
-    '|| (b.maxBudgetCents as number) > 500000',
-    '|| false'],
-  ['allowlist', 'a malformed plan digest passes to the backend', ACTIONS,
-    "if (typeof b.planDigest !== 'string' || !SHA256.test(b.planDigest)) return 'A valid planDigest is required.';",
-    "if (typeof b.planDigest !== 'string') return 'A valid planDigest is required.';"],
-  ['work-item-honesty', 'a partial outcome wears the success badge', WORK_ITEM,
-    "partial: { label: 'Partially delivered',",
-    "partial: { label: 'Delivered',"],
+  // Backend identity is echoed, never invented or recomputed in the browser.
+  ['identity', 'drifted nested plan renders instead of failing closed', CONTRACT,
+    'if (!intent || !plan) return null;', 'if (!intent) return null;'],
+  ['identity', 'a browser-invented production id is accepted from prepare', CONTRACT,
+    'if (!str(v.productionId) || !UUID.test(v.productionId)) return null;',
+    'if (!str(v.productionId)) return null;'],
+  ['identity', 'a non-digest plan identity is accepted from prepare', CONTRACT,
+    'if (!str(rawDigest) || !SHA256.test(rawDigest)) return null;',
+    'if (!str(rawDigest)) return null;'],
+  ['identity', 'a child without spent-credit evidence is rendered', CONTRACT,
+    'if (!str(v.state) || !num(v.budgetAllocationCredits) || !num(v.spentCredits)) return null;',
+    'if (!str(v.state) || !num(v.budgetAllocationCredits)) return null;'],
+  ['identity', 'a malformed verified-artifact digest crosses prepare', ACTIONS,
+    "if (typeof a.digest !== 'string' || !SHA256.test(a.digest)) return 'Each input needs a valid SHA-256 digest.';",
+    "if (typeof a.digest !== 'string') return 'Each input needs a valid SHA-256 digest.';"],
+  ['identity', 'start recomputes the Backend plan digest', ENTRY,
+    "body: JSON.stringify({ action: 'start', productionId: selected.productionId, expected_plan_digest: selected.plan.digest }),",
+    "body: JSON.stringify({ action: 'start', productionId: selected.productionId, expected_plan_digest: selected.plan.digest.toUpperCase() }),"],
+  ['identity', 'start forwards an extra browser identity in its body', ACTIONS,
+    'body: { expected_plan_digest: b.expected_plan_digest },',
+    'body: { expected_plan_digest: b.expected_plan_digest, productionId },'],
 
-  // ── the review fixes (2026-08-15) ────────────────────────────────────
-  // Each of these restores a bug an independent review found in the first
-  // draft, so the mutant is the exact defect that shipped, not an invented one.
-  ['stale-response', 'RESTORES: an edit no longer invalidates an in-flight plan', ENTRY,
-    '      reqId.current += 1;\n      set(value);',
-    '      set(value);'],
-  ['stale-response', 'RESTORES: a superseded plan answer is applied anyway', ENTRY,
-    '      if (!current()) return;\n      if (res.status === 400 || res.status === 401) {',
-    '      if (res.status === 400 || res.status === 401) {'],
-  ['currency', 'RESTORES: any string passes as a currency and render throws', CONTRACT,
-    "const currency = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z]{3}$/.test(v);",
-    "const currency = (v: unknown): v is string => typeof v === 'string' && v.length > 0;"],
-  ['settlement', 'RESTORES: settlement inferred from the state string', LOAD,
-    '  if (!production.settled) return { status: \'ok\', production, receipt: null, receiptStatus: \'none\' };',
-    "  if (production.state !== 'completed') return { status: 'ok', production, receipt: null, receiptStatus: 'none' };"],
-  ['settlement', 'settlement flag is optional on the wire', CONTRACT,
-    "  if (typeof v.settled !== 'boolean') return null;",
-    "  if (false) return null;"],
-  ['receipt-scope', 'RESTORES: a drifted receipt blanks the whole production', LOAD,
-    "    if (!receipt) return { status: 'ok', production, receipt: null, receiptStatus: 'unavailable' };",
-    "    if (!receipt) return { status: 'unavailable', reason: 'The production receipt did not match the contract.' };"],
-  ['list-honesty', 'a drifted member is dropped and the list still claims to be complete', CONTRACT,
-    '    const production = parseProduction(raw);\n    if (!production) return null;\n    out.push(production);',
-    '    const production = parseProduction(raw);\n    if (production) out.push(production);'],
-  ['list-honesty', 'an unreadable list renders as an empty one', LIST,
-    "  if (load.status === 'unavailable') {",
-    '  if (false) {'],
-  ['polling', 'settled work keeps polling / unsettled work stops', CONTRACT,
+  // Credits are positive integers and are forwarded verbatim.
+  ['credits', 'zero credits become a valid production budget', ACTIONS,
+    '(b.max_budget_credits as number) < 1', '(b.max_budget_credits as number) < 0'],
+  ['credits', 'fractional credits become a valid production budget', ACTIONS,
+    '!Number.isInteger(b.max_budget_credits) || ', ''],
+  ['credits', 'the Dashboard alters the Backend credit ceiling in transit', ACTIONS,
+    'max_budget_credits: b.max_budget_credits,',
+    'max_budget_credits: (b.max_budget_credits as number) + 1,'],
+
+  // V1 is a hard maximum of two sequential nodes.
+  ['two-node', 'the two-node contract is reinterpreted as one node', CONTRACT,
+    'if (!isObj(stop) || stop.max_nodes !== 2 || stop.sequential_only !== true) return null;',
+    'if (!isObj(stop) || stop.max_nodes !== 1 || stop.sequential_only !== true) return null;'],
+  ['two-node', 'a sequential plan is rejected in favor of parallel execution', CONTRACT,
+    'if (!isObj(stop) || stop.max_nodes !== 2 || stop.sequential_only !== true) return null;',
+    'if (!isObj(stop) || stop.max_nodes !== 2 || stop.sequential_only !== false) return null;'],
+  ['two-node', 'a plan with unresolved inputs grows a Start button', CONTRACT,
+    'return plan.unresolved_missing_assets.length === 0;', 'return true;'],
+
+  // Lifecycle truth comes from the Backend settled flag and typed states.
+  ['lifecycle', 'settled work polls forever and live work stops updating', CONTRACT,
     'export function shouldPollProduction(production: Production): boolean {\n  return !production.settled;',
     'export function shouldPollProduction(production: Production): boolean {\n  return production.settled;'],
-  ['start-retry', 'RESTORES: an unconfirmed start sends the user to re-plan', ENTRY,
-    "const UNCONFIRMED_START_COPY = 'We couldn’t confirm the start. Press Start production again — it reuses this plan’s approval, so it cannot reserve your budget twice.';",
-    "const UNCONFIRMED_START_COPY = 'We couldn’t confirm the start. Nothing shows as running — plan again rather than assuming it began.';"],
-  ['attachment-cap', 'RESTORES: files past the cap are dropped silently', ENTRY,
-    '      if (next.length >= MAX_ATTACHMENTS) { dropped += 1; continue; }',
-    '      if (next.length >= MAX_ATTACHMENTS) { continue; }'],
-
-  // ── review round 2 (2026-08-15) ──────────────────────────────────────
-  // Round 1's own fixes introduced these. Same rule: the mutant restores the
-  // exact defect that shipped.
-  ['start-lifecycle', 'RESTORES: an edit mid-start wedges Start forever', ENTRY,
-    '      setStarting(false);\n    }\n  }',
-    '      if (current()) setStarting(false);\n    }\n  }'],
-  ['absent-route', 'RESTORES: a missing list route warns every /work user', LOAD,
-    "    if (error instanceof BackendError && error.status === 404) return { status: 'absent' };",
-    '    if (false) return { status: \'absent\' };'],
-  ['absent-route', 'an absent route renders the unavailable banner anyway', LIST,
-    "  if (load.status === 'absent') return null;",
-    "  if (false) return null;"],
-  ['receipt-copy', 'RESTORES: an unread receipt is promised as on its way', LOAD,
-    "    return { status: 'ok', production, receipt: null, receiptStatus: 'unavailable' };\n  }\n}",
-    "    return { status: 'ok', production, receipt: null, receiptStatus: error instanceof BackendError && error.status === 404 ? 'ready' : 'unavailable' };\n  }\n}"],
-  ['count-honesty', 'a blocked production is counted as running', LIST,
+  ['lifecycle', 'the authoritative settled flag is inverted by the loader', LOAD,
+    "if (!production.settled) return { status: 'ok', production, receipt: null, receiptStatus: 'none' };",
+    "if (production.settled) return { status: 'ok', production, receipt: null, receiptStatus: 'none' };"],
+  ['lifecycle', 'ready and blocked productions are counted as running', LIST,
     "  const running = unsettled.filter((p) => p.state === 'running').length;",
     '  const running = unsettled.length;'],
+
+  // Receipt facts remain typed and independently readable.
+  ['receipt', 'the typed success receipt is rejected for an invented label', CONTRACT,
+    "if (!isObj(o) || (o.type !== 'success' && o.type !== 'partial' && o.type !== 'failure')) return null;",
+    "if (!isObj(o) || (o.type !== 'succeeded' && o.type !== 'partial' && o.type !== 'failure')) return null;"],
+  ['receipt', 'a drifted receipt hides the production that read cleanly', LOAD,
+    "if (!receipt) return { status: 'ok', production, receipt: null, receiptStatus: 'unavailable' };",
+    "if (!receipt) return { status: 'unavailable', reason: 'The production receipt did not match the contract.' };"],
+  ['receipt', 'a failed receipt read is promised as ready', LOAD,
+    "return { status: 'ok', production, receipt: null, receiptStatus: 'unavailable' };\n  }\n}",
+    "return { status: 'ok', production, receipt: null, receiptStatus: 'ready' };\n  }\n}"],
+  ['receipt', 'the receipt digest is displayed as the selected plan identity', WORK_ITEM,
+    'plan {receipt.planDigest.slice(0, 12)}',
+    'plan {receipt.receiptDigest.slice(0, 12)}'],
+
+  // Cancellation is one parent-scoped, confirm-gated operation.
+  ['cancel', 'a settled production keeps its stop control', MONITOR,
+    '{production.canCancel && (', '{true && ('],
+  ['cancel', 'stop fires without confirmation', MONITOR,
+    'onClick={() => setConfirmStop(true)}', 'onClick={stopProduction}'],
+  ['cancel', 'cancel is routed to start instead of the parent cancel endpoint', ACTIONS,
+    "return { path: `/api/v2/outcome-productions/${productionId}/cancel`, method: 'POST', body: {} };",
+    "return { path: `/api/v2/outcome-productions/${productionId}/start`, method: 'POST', body: {} };"],
+
+  // Reads are three-valued. Unknown/unreadable is never silently empty.
+  ['loader', 'a drifted production body reads as not_found', LOAD,
+    "if (!production) return { status: 'unavailable', reason: 'The production response did not match the contract.' };",
+    "if (!production) return { status: 'not_found' };"],
+  ['loader', 'a deployment without the list route is reported as a fault', LOAD,
+    "if (error instanceof BackendError && error.status === 404) return { status: 'absent' };",
+    "if (false) return { status: 'absent' };"],
+  ['loader', 'one drifted production is dropped from a supposedly complete list', CONTRACT,
+    '    const production = parseProduction(raw);\n    if (!production) return null;\n    out.push(production);',
+    '    const production = parseProduction(raw);\n    if (production) out.push(production);'],
+  ['loader', 'an unreadable production list renders as an empty one', LIST,
+    "  if (load.status === 'unavailable') {", '  if (false) {'],
+  ['loader', 'an absent route renders the unavailable banner', LIST,
+    "  if (load.status === 'absent') return null;", "  if (false) return null;"],
+
+  // Work-item outcome, credits, artifacts and provenance stay honest.
+  ['work-item', 'a partial outcome wears the success badge', WORK_ITEM,
+    "partial: { label: 'Partially delivered',", "partial: { label: 'Delivered',"],
+  ['work-item', 'actual cost is replaced with the maximum budget', WORK_ITEM,
+    '{budget.spentCredits.toLocaleString()} credits',
+    '{budget.maxBudgetCredits.toLocaleString()} credits'],
+  ['work-item', 'validated artifact names disappear', WORK_ITEM,
+    '{artifact.name}</span>', '{artifact.kind}</span>'],
+  ['work-item', 'artifact provenance shows filename bytes instead of its digest', WORK_ITEM,
+    '{artifact.kind} · digest {artifact.digest.slice(0, 16)}',
+    '{artifact.kind} · digest {artifact.name.slice(0, 16)}'],
+  ['work-item', 'the selected path loses one-based human ordering', WORK_ITEM,
+    '{step.order + 1}. {step.agentName}', '{step.order}. {step.agentName}'],
+
+  // Edits invalidate displayed and in-flight plans.
+  ['stale-response', 'an edit no longer invalidates an in-flight plan', ENTRY,
+    '      reqId.current += 1;\n      prepareInFlight.current = null;',
+    '      prepareInFlight.current = null;'],
+  ['stale-response', 'a superseded plan answer is applied anyway', ENTRY,
+    '      if (!current()) return;\n      if (res.status === 400 || res.status === 401) {',
+    '      if (res.status === 400 || res.status === 401) {'],
 ];
 
 function run(cwd) {
-  const env = { ...process.env, IMPLEXA_MUTANT_ROOT: cwd, IMPLEXA_SOURCE_ROOT: root, NODE_PATH: path.join(root, 'node_modules') };
-  // node:test sets NODE_TEST_CONTEXT for its children; inheriting it silences
-  // the spawned runner's summary and a red suite looks green.
+  const env = {
+    ...process.env,
+    IMPLEXA_MUTANT_ROOT: cwd,
+    IMPLEXA_SOURCE_ROOT: root,
+    NODE_PATH: path.join(root, 'node_modules'),
+  };
   delete env.NODE_TEST_CONTEXT;
   return spawnSync(process.execPath, ['--test', '--test-timeout=60000', ...suites], {
-    cwd, encoding: 'utf8', timeout: 300_000, killSignal: 'SIGKILL', env,
+    cwd, encoding: 'utf8', timeout: 30_000, killSignal: 'SIGKILL', env,
   });
 }
 
@@ -179,7 +178,9 @@ for (const [boundary, name, file, from, to] of mutants) {
     const target = path.join(dir, file);
     const source = fs.readFileSync(target, 'utf8');
     const first = source.indexOf(from);
-    if (first < 0 || source.indexOf(from, first + 1) >= 0) throw new Error(`${name}: anchor must exist exactly once in ${file}`);
+    if (first < 0 || source.indexOf(from, first + 1) >= 0) {
+      throw new Error(`${name}: anchor must exist exactly once in ${file}`);
+    }
     fs.writeFileSync(target, source.replace(from, to));
     const result = run(dir);
     if (result.status === 0) {
@@ -187,11 +188,13 @@ for (const [boundary, name, file, from, to] of mutants) {
       process.exitCode = 1;
     } else {
       killed += 1;
-      process.stdout.write(`killed [${boundary}] ${name}\n`);
+      const suffix = result.error?.code === 'ETIMEDOUT' ? ' (timeout)' : '';
+      process.stdout.write(`killed${suffix} [${boundary}] ${name}\n`);
     }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 
-process.stdout.write(`Mutation result: ${killed}/${mutants.length} killed across 19 boundaries.\n`);
+const boundaries = new Set(mutants.map(([boundary]) => boundary)).size;
+process.stdout.write(`Mutation result: ${killed}/${mutants.length} killed across ${boundaries} boundaries.\n`);

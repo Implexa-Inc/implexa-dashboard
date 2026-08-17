@@ -27,18 +27,15 @@ test('every production links to its own monitor', async () => {
   } finally { rendered.cleanup(); }
 });
 
-test('a blocked production is never counted as running', async () => {
-  // Blocked is unsettled but stalled on the user. Calling it "running" would
-  // contradict the Blocked badge on its own row and tell the user work is
-  // progressing when in fact it is the item that needs them.
-  const blocked = { ...productions[0], id: productions[0].id, state: 'blocked', settled: false };
+test('a ready production is never counted as running', async () => {
+  const ready = { ...productions[0], id: productions[0].id, state: 'ready', settled: false };
   const rendered = await render('../work/_components/outcome-productions-list.tsx', {
-    load: { status: 'ready', productions: [blocked] },
+    load: { status: 'ready', productions: [ready] },
   });
   try {
-    assert.match(rendered.text(), /1 waiting on you/);
+    assert.match(rendered.text(), /1 pending/);
     assert.doesNotMatch(rendered.text(), /1 running/);
-    assert.ok(rendered.queryByText('Blocked'), 'the row still states what it is');
+    assert.ok(rendered.queryByText('Ready'), 'the row still states what it is');
   } finally { rendered.cleanup(); }
 });
 

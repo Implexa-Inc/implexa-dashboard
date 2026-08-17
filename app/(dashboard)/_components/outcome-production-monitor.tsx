@@ -18,7 +18,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from './modal';
-import { formatMinor, shouldPollProduction, type Production } from '@/lib/outcome-production';
+import { shouldPollProduction, type Production } from '@/lib/outcome-production';
 
 /**
  * How often an unsettled production re-reads itself.
@@ -32,16 +32,20 @@ import { formatMinor, shouldPollProduction, type Production } from '@/lib/outcom
 const REFRESH_MS = 10_000;
 
 const STATE_LABELS: Record<string, string> = {
+  planning: 'Planning',
+  ready: 'Ready',
   running: 'Running',
-  blocked: 'Blocked',
   cancelled: 'Stopped',
-  completed: 'Completed',
+  succeeded: 'Completed',
+  partial: 'Partially delivered',
+  failed: 'Failed',
 };
 
 function stateBadgeClass(state: string): string {
   if (state === 'running') return 'bg-brand-500/15 text-brand-300 border-brand-500/30';
-  if (state === 'blocked') return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
-  if (state === 'completed') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+  if (state === 'planning' || state === 'ready') return 'bg-brand-500/15 text-brand-300 border-brand-500/30';
+  if (state === 'succeeded') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+  if (state === 'failed' || state === 'partial') return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
   return 'bg-ink-800 text-ink-300 border-ink-700';
 }
 
@@ -92,7 +96,7 @@ export default function OutcomeProductionMonitor({ production }: { production: P
             <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${stateBadgeClass(production.state)}`}>
               {STATE_LABELS[production.state] || production.state}
             </span>
-            <span className="text-xs text-ink-500">plan {production.planDigest.slice(0, 12)}</span>
+            {production.planDigest && <span className="text-xs text-ink-500">plan {production.planDigest.slice(0, 12)}</span>}
           </div>
           <h2 className="text-lg font-semibold text-ink-50 mt-2">{production.goal}</h2>
         </div>
@@ -112,9 +116,9 @@ export default function OutcomeProductionMonitor({ production }: { production: P
         <div>
           <dt className="text-xs uppercase tracking-wide text-ink-500">Budget</dt>
           <dd className="text-sm text-ink-100 mt-1">
-            {formatMinor(budget.spentCents, budget.currency)} spent
+            {budget.spentCredits.toLocaleString()} credits spent
             <span className="block text-xs text-ink-400">
-              of {formatMinor(budget.reservedCents, budget.currency)} reserved · max {formatMinor(budget.maxBudgetCents, budget.currency)}
+              of {budget.reservedCredits.toLocaleString()} reserved · max {budget.maxBudgetCredits.toLocaleString()}
             </span>
           </dd>
         </div>
@@ -134,8 +138,8 @@ export default function OutcomeProductionMonitor({ production }: { production: P
         <div role="status" aria-label="Blockers" className="mt-5 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
           <p className="text-sm font-medium text-amber-300">Waiting on you</p>
           <ul className="mt-1.5 space-y-1">
-            {production.blockers.map((blocker) => (
-              <li key={blocker.reasonCode} className="text-sm text-ink-300">{blocker.detail}</li>
+            {production.blockers.map((blocker, index) => (
+              <li key={`${blocker.reasonCode}:${index}`} className="text-sm text-ink-300">{blocker.detail}</li>
             ))}
           </ul>
         </div>
@@ -147,13 +151,13 @@ export default function OutcomeProductionMonitor({ production }: { production: P
         </summary>
         <ol className="mt-3 space-y-3">
           {production.children.map((child) => (
-            <li key={child.runId} className="border border-ink-800 rounded-lg p-4">
+            <li key={child.requestId || `${child.agentVersionId}:${child.order}`} className="border border-ink-800 rounded-lg p-4">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-sm text-ink-100">{child.order}. {child.agentName}</span>
+                <span className="text-sm text-ink-100">{child.order + 1}. {child.agentName}</span>
                 <span className="text-xs text-ink-400 capitalize">{child.state}</span>
               </div>
               <p className="text-xs text-ink-500 mt-1.5">
-                {formatMinor(child.spentCents, budget.currency)} of {formatMinor(child.budgetAllocationCents, budget.currency)} allocated
+                {child.spentCredits.toLocaleString()} of {child.budgetAllocationCredits.toLocaleString()} credits allocated
               </p>
               {child.blocker && (
                 <p className="text-xs text-amber-300 mt-1.5">{child.blocker.detail}</p>

@@ -48,8 +48,8 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json(
       // "Nothing was changed" would overclaim: a timed-out start may have
-      // landed. The idempotency key means re-starting CANNOT double-reserve,
-      // and the UI re-reads the production to learn what actually happened.
+      // landed. Retrying the same production + expected digest is the
+      // backend-owned idempotent interaction; the browser never mints an id.
       { ok: false, error: 'unreachable', unavailable: true },
       { status: 503 },
     );

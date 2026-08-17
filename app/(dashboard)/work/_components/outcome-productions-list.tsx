@@ -13,21 +13,23 @@
  */
 
 import Link from 'next/link';
-import { formatMinor, type Production } from '@/lib/outcome-production';
+import type { Production } from '@/lib/outcome-production';
 import type { OutcomeProductionListLoad } from '@/lib/outcome-production-load';
 
 const STATE_LABELS: Record<string, string> = {
+  planning: 'Planning',
+  ready: 'Ready',
   running: 'Running',
-  blocked: 'Blocked',
   cancelled: 'Stopped',
-  completed: 'Completed',
+  succeeded: 'Completed',
+  partial: 'Partially delivered',
   failed: 'Failed',
 };
 
 function stateClass(state: string): string {
   if (state === 'running') return 'bg-brand-500/15 text-brand-300 border-brand-500/30';
-  if (state === 'blocked' || state === 'failed') return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
-  if (state === 'completed') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+  if (state === 'failed' || state === 'partial') return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+  if (state === 'succeeded') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
   return 'bg-ink-800 text-ink-300 border-ink-700';
 }
 
@@ -47,7 +49,7 @@ function Row({ production }: { production: Production }) {
         </div>
         <span className="block text-xs text-ink-500 mt-1.5">
           {production.progress.completedNodes} of {production.progress.totalNodes} steps ·{' '}
-          {formatMinor(budget.spentCents, budget.currency)} spent
+          {budget.spentCredits.toLocaleString()} credits spent
         </span>
       </Link>
     </li>
@@ -82,7 +84,7 @@ export default function OutcomeProductionsList({ load }: { load: OutcomeProducti
   const waiting = unsettled.length - running;
   const counts = [
     running > 0 ? `${running} running` : null,
-    waiting > 0 ? `${waiting} waiting on you` : null,
+    waiting > 0 ? `${waiting} pending` : null,
   ].filter(Boolean);
 
   return (

@@ -59,18 +59,18 @@ test('EVERY settled production loads its receipt — stopped and failed included
   // account of what was spent and what came back. Reading the receipt only for
   // 'completed' left those two states with no Work item at all.
   const cases = [
-    ['statusCancelled', 'receiptCancelled', 'partial'],
-    ['statusFailed', 'receiptFailure', 'failure'],
+    [fixture.productions.cancelled, fixture.receipts.cancelled, 'failure'],
+    [fixture.productions.failed, fixture.receipts.failed, 'failure'],
   ] as const;
-  for (const [statusKey, receiptKey, outcomeType] of cases) {
+  for (const [production, receipt, outcomeType] of cases) {
     const restore = stubFetch((url) => (
       url.endsWith('/receipt')
-        ? { status: 200, body: fixture.responses[receiptKey] }
-        : { status: 200, body: fixture.responses[statusKey] }
+        ? { status: 200, body: { ok: true, receipt } }
+        : { status: 200, body: { ok: true, production } }
     ));
     try {
       const load = await loadOutcomeProduction(ID, 'jwt');
-      assert.ok(load.status === 'ok' && load.receipt, statusKey);
+      assert.ok(load.status === 'ok' && load.receipt, production.state);
       assert.equal(load.status === 'ok' && load.receipt!.outcome.type, outcomeType);
     } finally { restore(); }
   }
@@ -135,7 +135,7 @@ test('the productions list is three-valued: readable, or explicitly unavailable'
   try {
     const load = await listOutcomeProductions('jwt');
     assert.equal(load.status, 'ready');
-    assert.equal(load.status === 'ready' && load.productions.length, 3);
+    assert.equal(load.status === 'ready' && load.productions.length, fixture.responses.list.productions.length);
   } finally { restore(); }
 
   // An unreadable list must never render as "you have no productions".

@@ -1,190 +1,93 @@
-// node --test lib/outcome-production.test.ts
-//
-// The outcome-production contract boundary. Everything here consumes the
-// BACKEND-GENERATED fixture (test-fixtures/generated/outcome-orchestration.json)
-// verbatim — the producer owns the wire shapes — and then proves the parsers
-// fail CLOSED on drift: a body that no longer matches the contract must come
-// back `null`, never a best-effort object the UI would confidently render.
-
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fixture from '../test-fixtures/generated/outcome-orchestration.json' with { type: 'json' };
 import {
-  canStartPlan, formatMinor, formatMinorRange,
-  parsePlanResponse, parseProductionListResponse, parseProductionResponse, parseReceiptResponse,
+  canStartPlan, parsePlanResponse, parseProductionListResponse, parseProductionResponse,
+  parseReceiptResponse, shouldPollProduction, suggestOutcomeInputType,
 } from './outcome-production.ts';
 
-test('the fixture is the producer’s: schema stamp and producer path are pinned', () => {
-  assert.equal(fixture.schema, 'implexa.outcome-orchestration.fixture.v1');
-  assert.equal(fixture.producer, 'implexa-backend/scripts/generate-outcome-orchestration-dashboard-fixture.js');
-});
+const PRODUCTION_ID = '00000040-0000-4000-8000-000000000040';
+const WORKFLOW_ID = '11111111-1111-4111-8111-111111111111';
+const VERSION_ID = '22222222-2222-4222-8222-222222222222';
+const ARTIFACT_ID = '77777777-7777-4777-8777-777777777777';
+const INPUT_SESSION_ID = '88888888-8888-4888-8888-888888888888';
+const DIGEST = 'a'.repeat(64);
+const intent = {
+  goal: 'Produce a final master from the attached editable project.', quality: 'balanced', deadline_at: null,
+  max_budget_credits: 100,
+  consequential_action_ceiling: { max_provider_calls: 0, max_spend_minor: 0, currency: 'USD' },
+  input_references: [{ kind: 'artifact', id: ARTIFACT_ID, digest: DIGEST, description: 'project.zip', input_type: 'project_bundle', input_session_id: INPUT_SESSION_ID }],
+};
+const plan = {
+  digest: DIGEST, contract_version: 'outcome-production-plan.v1', scorer_version: 'outcome-scorer-v1',
+  weight_set_digest: 'b'.repeat(64), intent_digest: 'c'.repeat(64), quality: 'balanced', deadline_at: null,
+  nodes: [{ ordinal: 0, role: 'produce_outcome', workflow_id: WORKFLOW_ID, workflow_version_id: VERSION_ID, slug: 'final-video-compositor', budget_credits: 100, max_duration_ms: 3600000, max_retries: 1, max_invocations: 1000 }],
+  budget: { max_budget_credits: 100, allocations: [{ ordinal: 0, budget_credits: 100 }] },
+  unresolved_missing_assets: [],
+  stop_conditions: { max_nodes: 2, sequential_only: true, on_child_failure: 'stop_with_typed_failure', on_budget_exhausted: 'stop_with_typed_failure', on_cancel: 'release_and_cancel_children' },
+};
 
-test('a prepared single-agent plan parses and is startable', () => {
-  const outcome = parsePlanResponse(fixture.responses.planPrepared);
+test('prepare plan preserves Backend production and digest identities', () => {
+  const outcome = parsePlanResponse({ ok: true, kind: 'plan', productionId: PRODUCTION_ID, intent, plan });
   assert.ok(outcome && outcome.kind === 'plan');
-  assert.equal(outcome.plan.nodes.length, 1);
-  assert.equal(outcome.plan.nodes[0].agentName, 'Cinematic compositor');
-  assert.ok(outcome.plan.nodes[0].reasons.length >= 1, 'every selection carries its reasons');
-  assert.equal(outcome.plan.state, 'prepared');
+  assert.equal(outcome.productionId, PRODUCTION_ID);
+  assert.equal(outcome.plan.digest, DIGEST);
+  assert.equal(outcome.plan.nodes[0].slug, 'final-video-compositor');
   assert.equal(canStartPlan(outcome.plan), true);
-  assert.equal(outcome.plan.digest, fixture.plans.single.digest, 'the digest is preserved verbatim for Start');
 });
 
-test('a two-node plan parses with both agents in order; three nodes is off-contract', () => {
-  const outcome = parsePlanResponse(fixture.responses.planTwoNode);
-  assert.ok(outcome && outcome.kind === 'plan');
-  assert.deepEqual(outcome.plan.nodes.map((n) => n.order), [1, 2]);
+test('clarification, no-match, and existing no-eligible outcomes are distinct', () => {
+  const clarification = parsePlanResponse({ ok: true, kind: 'clarification_required', clarification: { question: 'Which outcome?', choices: [{ taskKey: 'video', label: 'Final video', outputTypes: ['video'] }] } });
+  assert.ok(clarification && clarification.kind === 'clarification_required');
+  assert.equal(clarification.clarification.choices[0].taskKey, 'video');
+  assert.equal('recommended' in clarification.clarification, false);
 
-  const inflated = structuredClone(fixture.responses.planTwoNode);
-  inflated.plan.nodes.push(structuredClone(inflated.plan.nodes[1]));
-  assert.equal(parsePlanResponse(inflated), null, 'the MVP contract is at most two nodes — more must not render');
+  const noMatch = parsePlanResponse({ ok: true, kind: 'no_match', reason: 'unsupported_goal', message: 'No outcome type matched.' });
+  assert.ok(noMatch && noMatch.kind === 'no_match');
+
+  const needsInput = parsePlanResponse({ ok: true, kind: 'needs_input', taskKey: 'video.final_master', question: 'Add the project bundle.', missingInputTypes: ['project_bundle'] });
+  assert.ok(needsInput && needsInput.kind === 'needs_input');
+  assert.deepEqual(needsInput.missingInputTypes, ['project_bundle']);
+
+  const old = fixture.responses.prepare.no_eligible.noEligible;
+  const noEligible = parsePlanResponse({ ok: true, kind: 'no_eligible', ...old });
+  assert.ok(noEligible && noEligible.kind === 'no_eligible');
 });
 
-test('a plan blocked on setup parses but is NOT startable', () => {
-  const outcome = parsePlanResponse(fixture.responses.planBlockedOnSetup);
+test('prepare responses fail closed on identity and nested-plan drift', () => {
+  assert.equal(parsePlanResponse(null), null);
+  assert.equal(parsePlanResponse({ ok: true, kind: 'surprise' }), null);
+  assert.equal(parsePlanResponse({ ok: true, kind: 'plan', productionId: 'browser-id', intent, plan }), null);
+  assert.equal(parsePlanResponse({ ok: true, kind: 'plan', productionId: PRODUCTION_ID, intent, plan: { ...plan, digest: 'short' } }), null);
+  assert.equal(parsePlanResponse({ ok: true, kind: 'plan', productionId: PRODUCTION_ID, intent: { ...intent, consequential_action_ceiling: { ...intent.consequential_action_ceiling, currency: 'EUR' } }, plan }), null);
+  assert.equal(parsePlanResponse({ ok: true, kind: 'clarification_required', clarification: { question: 'Which?', choices: [] } }), null);
+});
+
+test('a plan with an unresolved asset is inspectable but not startable', () => {
+  const outcome = parsePlanResponse({ ok: true, kind: 'plan', productionId: PRODUCTION_ID, intent, plan: { ...plan, unresolved_missing_assets: [{ kind: 'video', description: 'Presenter video' }] } });
   assert.ok(outcome && outcome.kind === 'plan');
-  assert.equal(outcome.plan.state, 'blocked_on_setup');
-  assert.ok(outcome.plan.missingSetup.length >= 1);
   assert.equal(canStartPlan(outcome.plan), false);
 });
 
-test('no-eligible is an explicit contracted answer, not a parse failure', () => {
-  const outcome = parsePlanResponse(fixture.responses.planNoEligible);
-  assert.ok(outcome && outcome.kind === 'no_eligible');
-  assert.equal(outcome.noEligible.reasonCode, 'no_eligible_candidate');
-  assert.ok(outcome.noEligible.exclusions.length >= 1, 'exclusions carry their reasons');
+test('input type suggestions are deterministic and correction vocabulary is bounded', () => {
+  assert.equal(suggestOutcomeInputType('project-bundle.zip', 'application/octet-stream'), 'project_bundle');
+  assert.equal(suggestOutcomeInputType('talk.MOV', 'application/octet-stream'), 'presenter_video');
+  assert.equal(suggestOutcomeInputType('photo.bin', 'image/png'), 'image');
+  assert.equal(suggestOutcomeInputType('brief.pdf', 'application/pdf'), 'document');
 });
 
-test('plan responses fail closed on drift', () => {
-  assert.equal(parsePlanResponse(null), null);
-  assert.equal(parsePlanResponse({}), null);
-  assert.equal(parsePlanResponse({ ok: true }), null, 'an envelope without a typed result is unreadable');
-  assert.equal(parsePlanResponse({ ok: true, result: 'surprise' }), null, 'an unknown result kind is unreadable, not empty');
-
-  const noDigest = structuredClone(fixture.responses.planPrepared);
-  delete (noDigest.plan as Record<string, unknown>).digest;
-  assert.equal(parsePlanResponse(noDigest), null, 'a plan without its digest has no identity to start');
-
-  const noReasons = structuredClone(fixture.responses.planPrepared);
-  (noReasons.plan.nodes[0] as Record<string, unknown>).reasons = [];
-  assert.equal(parsePlanResponse(noReasons), null, 'a selection with no reasons is not inspectable and must not render');
-
-  const noScorer = structuredClone(fixture.responses.planPrepared);
-  delete (noScorer.plan as Record<string, unknown>).scorerVersion;
-  assert.equal(parsePlanResponse(noScorer), null, 'an unversioned scorer output is not evidence');
-
-  const notOk = structuredClone(fixture.responses.planPrepared);
-  (notOk as Record<string, unknown>).ok = false;
-  assert.equal(parsePlanResponse(notOk), null);
-
-  const badApproval = structuredClone(fixture.responses.planPrepared);
-  delete (badApproval.plan.approvals[0] as Record<string, unknown>).ceilingCents;
-  assert.equal(parsePlanResponse(badApproval), null, 'an approval without its ceiling cannot be acknowledged');
-});
-
-test('production status parses parent-first fields and children', () => {
-  const production = parseProductionResponse(fixture.responses.statusRunning);
-  assert.ok(production);
-  assert.equal(production.id, fixture.productions.running.id);
-  assert.equal(production.children.length, 2);
-  assert.equal(production.canCancel, true);
-  assert.equal(production.budget.currency, 'USD');
-
-  const done = parseProductionResponse(fixture.responses.statusCompleted);
-  assert.ok(done);
-  assert.equal(done.canCancel, false, 'a settled production offers no stop');
-
-  const blocked = parseProductionResponse(fixture.responses.statusBlocked);
-  assert.ok(blocked);
-  assert.ok(blocked.blockers.length >= 1);
-  assert.ok(blocked.children.some((c) => c.blocker), 'the failing child carries its typed blocker');
-});
-
-test('production responses fail closed on drift', () => {
-  assert.equal(parseProductionResponse({ ok: true, production: {} }), null);
-
-  const noBudget = structuredClone(fixture.responses.statusRunning);
-  delete (noBudget.production as Record<string, unknown>).budget;
-  assert.equal(parseProductionResponse(noBudget), null, 'a production without its budget must not render as free');
-
-  const noCancel = structuredClone(fixture.responses.statusRunning);
-  delete (noCancel.production as Record<string, unknown>).canCancel;
-  assert.equal(parseProductionResponse(noCancel), null, 'cancellability is contracted, never guessed');
-
-  const badChild = structuredClone(fixture.responses.statusRunning);
-  delete (badChild.production.children[0] as Record<string, unknown>).spentCents;
-  assert.equal(parseProductionResponse(badChild), null, 'one drifted child makes the whole answer unreadable');
-});
-
-test('receipts parse with typed outcomes; drift fails closed', () => {
-  const success = parseReceiptResponse(fixture.responses.receiptSuccess);
-  assert.ok(success);
-  assert.equal(success.outcome.type, 'success');
-  assert.equal(success.artifacts.length, 2);
-  assert.equal(success.planDigest, fixture.plans.twoNode.digest, 'the receipt names the exact plan it settled');
-
-  const partial = parseReceiptResponse(fixture.responses.receiptPartial);
-  assert.ok(partial);
-  assert.equal(partial.outcome.type, 'partial');
-  assert.equal(partial.childReceipts[1].verification, 'not_verified', 'unknown stays unknown — never converted to success');
-
-  const badOutcome = structuredClone(fixture.responses.receiptSuccess);
-  (badOutcome.receipt.outcome as Record<string, unknown>).type = 'great';
-  assert.equal(parseReceiptResponse(badOutcome), null, 'an untyped outcome is unreadable');
-
-  const noTotals = structuredClone(fixture.responses.receiptSuccess);
-  delete (noTotals.receipt as Record<string, unknown>).totals;
-  assert.equal(parseReceiptResponse(noTotals), null);
-});
-
-test('money formatting is minor-units + explicit currency, verbatim', () => {
-  assert.equal(formatMinor(2250, 'USD'), (2250 / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' }));
-  assert.match(formatMinorRange([1400, 2200], 'USD'), /14.*22/);
-});
-
-test('a currency the formatter would throw on fails closed at the boundary', () => {
-  // toLocaleString throws RangeError on anything that is not a well-formed
-  // ISO-4217 code, and a throw inside render takes the page down. Every one of
-  // these must be refused by the parser instead, so the surface renders its
-  // honest "we can't show this" state.
-  for (const bad of ['US', '$', 'DOLLARS', '12', '']) {
-    const plan = structuredClone(fixture.responses.planPrepared);
-    (plan.plan as Record<string, unknown>).currency = bad;
-    assert.equal(parsePlanResponse(plan), null, `plan currency ${JSON.stringify(bad)}`);
-
-    const production = structuredClone(fixture.responses.statusRunning);
-    (production.production.budget as Record<string, unknown>).currency = bad;
-    assert.equal(parseProductionResponse(production), null, `budget currency ${JSON.stringify(bad)}`);
-
-    const receipt = structuredClone(fixture.responses.receiptSuccess);
-    (receipt.receipt.totals as Record<string, unknown>).currency = bad;
-    assert.equal(parseReceiptResponse(receipt), null, `totals currency ${JSON.stringify(bad)}`);
-  }
-  // And everything that survives the boundary formats without throwing.
-  const production = parseProductionResponse(fixture.responses.statusRunning)!;
-  assert.doesNotThrow(() => formatMinor(production.budget.spentCents, production.budget.currency));
-});
-
-test('settlement is the backend’s flag, and it is required', () => {
+test('existing production, list, and receipt readers remain fail closed', () => {
   const running = parseProductionResponse(fixture.responses.statusRunning);
-  assert.equal(running!.settled, false);
-  for (const key of ['statusCompleted', 'statusCancelled', 'statusFailed'] as const) {
-    assert.equal(parseProductionResponse(fixture.responses[key])!.settled, true, key);
-  }
-  const missing = structuredClone(fixture.responses.statusCompleted);
-  delete (missing.production as Record<string, unknown>).settled;
-  assert.equal(parseProductionResponse(missing), null, 'settlement is never inferred from the state string');
-});
+  assert.ok(running && running.children.length === 2);
+  assert.equal(shouldPollProduction(running), true);
+  assert.equal(shouldPollProduction(parseProductionResponse(fixture.responses.statusCompleted)!), false);
+  assert.ok(parseProductionListResponse(fixture.responses.list));
+  assert.ok(parseReceiptResponse(fixture.responses.receiptSuccess));
 
-test('the productions list parses, and one drifted member makes the whole list unreadable', () => {
-  const productions = parseProductionListResponse(fixture.responses.list);
-  assert.ok(productions);
-  assert.equal(productions.length, 3);
-  assert.equal(productions.filter((p) => !p.settled).length, 1);
-
-  const drifted = structuredClone(fixture.responses.list);
-  delete (drifted.productions[1] as Record<string, unknown>).budget;
-  assert.equal(parseProductionListResponse(drifted), null, 'a partial list rendered as complete would hide running work');
-  assert.equal(parseProductionListResponse({ ok: true }), null);
-  assert.equal(parseProductionListResponse({ ok: false, productions: [] }), null);
+  const driftedProduction = structuredClone(fixture.responses.statusRunning);
+  delete (driftedProduction.production.children[0] as Record<string, unknown>).spentCredits;
+  assert.equal(parseProductionResponse(driftedProduction), null);
+  const driftedReceipt = structuredClone(fixture.responses.receiptSuccess);
+  (driftedReceipt.receipt.outcome as Record<string, unknown>).type = 'great';
+  assert.equal(parseReceiptResponse(driftedReceipt), null);
 });

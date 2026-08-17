@@ -28,7 +28,7 @@ test('the parent renders first, with budget, progress, and expandable child acti
   try {
     const text = rendered.text();
     const parentAt = text.indexOf(fixture.productions.running.goal);
-    const childAt = text.indexOf('Cinematic shot generator');
+    const childAt = text.indexOf('Cinematic Shot Generator');
     assert.ok(parentAt >= 0 && childAt >= 0 && parentAt < childAt, 'the parent leads; children follow');
 
     assert.ok(rendered.queryByText(/1 of 2 steps complete/));
@@ -71,7 +71,7 @@ test('declining the confirm sends nothing', async () => {
 });
 
 test('a settled production offers no stop control at all', async () => {
-  for (const state of ['completed', 'cancelled'] as const) {
+  for (const state of ['succeeded', 'cancelled'] as const) {
     const rendered = await render('outcome-production-monitor.tsx', { production: fixture.productions[state] });
     try {
       assert.equal(rendered.document.querySelector('[aria-label="Stop this production"]'), null, state);
@@ -79,14 +79,13 @@ test('a settled production offers no stop control at all', async () => {
   }
 });
 
-test('a blocked production surfaces its typed blockers in a status region, on parent and child', async () => {
-  const rendered = await render('outcome-production-monitor.tsx', { production: fixture.productions.blocked });
+test('a failed production surfaces its typed blockers and is no longer cancellable', async () => {
+  const rendered = await render('outcome-production-monitor.tsx', { production: fixture.productions.failed });
   try {
     const region = rendered.document.querySelector('[role="status"][aria-label="Blockers"]');
     assert.ok(region, 'blockers are an explicit status region');
-    assert.match(region!.textContent || '', /typed partial result/);
-    assert.ok(rendered.queryByText(/exceeded its retry ceiling/), 'the failing child names its own blocker');
-    assert.ok(rendered.document.querySelector('[aria-label="Stop this production"]'), 'a blocked production can still be stopped');
+    assert.match(region!.textContent || '', /failed verification/i);
+    assert.equal(rendered.document.querySelector('[aria-label="Stop this production"]'), null);
   } finally { rendered.cleanup(); }
 });
 
@@ -94,10 +93,10 @@ test('unsettled work keeps re-reading itself; settled work does not', () => {
   // A monitor that never re-reads shows a snapshot that quietly becomes a lie:
   // the parent keeps claiming "Running · 1 of 2 steps · $19.00" while children
   // finish and real money moves.
-  for (const key of ['running', 'blocked'] as const) {
+  for (const key of ['running', 'ready'] as const) {
     assert.equal(shouldPollProduction(fixture.productions[key] as unknown as Production), true, key);
   }
-  for (const key of ['completed', 'cancelled', 'failed'] as const) {
+  for (const key of ['succeeded', 'partial', 'cancelled', 'failed'] as const) {
     assert.equal(shouldPollProduction(fixture.productions[key] as unknown as Production), false, key);
   }
 });
@@ -105,7 +104,7 @@ test('unsettled work keeps re-reading itself; settled work does not', () => {
 test('a failed production renders its blockers and no stop control', async () => {
   const rendered = await render('outcome-production-monitor.tsx', { production: fixture.productions.failed });
   try {
-    assert.ok(rendered.queryByText(/No master was produced/));
+    assert.ok(rendered.queryByText(/No deliverable completed/));
     assert.equal(rendered.document.querySelector('[aria-label="Stop this production"]'), null);
   } finally { rendered.cleanup(); }
 });
