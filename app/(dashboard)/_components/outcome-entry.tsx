@@ -106,6 +106,11 @@ export default function OutcomeEntry() {
           : [...artifacts, next];
         if (replan) {
           setArtifacts(nextArtifacts);
+          // The verified input changes the canonical OutcomeIntent. A prepare
+          // idempotency key is bound to one exact intent, so reusing the key
+          // from the input-free recommendation is correctly refused by the
+          // Backend as an integrity violation.
+          prepareIdempotencyKey.current = undefined;
           await requestPlan(undefined, nextArtifacts);
         } else if (!duplicate) {
           editArtifacts(nextArtifacts);
@@ -144,7 +149,7 @@ export default function OutcomeEntry() {
       });
       const body = await res.json().catch(() => null);
       if (!current()) return;
-      if (res.status === 400 || res.status === 401) {
+      if (!res.ok && res.status >= 400 && res.status < 500) {
         setPlan({ phase: 'invalid', message: body && typeof body.error === 'string' ? body.error : 'That request was refused.' });
         return;
       }

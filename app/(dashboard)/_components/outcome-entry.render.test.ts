@@ -126,6 +126,8 @@ test('the plan collects its missing root input, replans, and exposes Start produ
     assert.equal(rendered.queryByText('Start production'), null);
     await rendered.click(rendered.getByText('Add Presenter Video'));
     assert.deepEqual((calls[1].body.input_references as Record<string, unknown>[])[0], verifiedReference);
+    assert.notEqual(calls[1].body.idempotency_key, calls[0].body.idempotency_key,
+      'a verified input changes the intent and therefore requires a fresh idempotency key');
     assert.ok(rendered.queryByText('Start production'));
   } finally { rendered.cleanup(); }
 });
@@ -216,4 +218,18 @@ test('unreadable and stale prepare responses fail closed', async () => {
     assert.ok(drifted.document.querySelector('[aria-label="Planning unavailable"]'));
     assert.equal(drifted.queryByText('Start production'), null);
   } finally { drifted.cleanup(); }
+});
+
+test('a typed Backend prepare refusal is visible instead of masquerading as an outage', async () => {
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    stubFetch(rendered, [{
+      status: 422,
+      body: { ok: false, reason: 'artifact_not_verified', error: 'The selected artifact is no longer verified.' },
+    }]);
+    await fillGoal(rendered);
+    await rendered.click(planButton(rendered));
+    assert.match(rendered.text(), /selected artifact is no longer verified/i);
+    assert.equal(rendered.document.querySelector('[aria-label="Planning unavailable"]'), null);
+  } finally { rendered.cleanup(); }
 });
