@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  OUTCOME_INPUT_TYPES, OUTCOME_QUALITIES, parsePlanResponse, suggestOutcomeInputType,
+  OUTCOME_INPUT_TYPES, OUTCOME_QUALITIES, parsePlanResponse,
   type OutcomeInputType, type OutcomeQuality, type PlanOutcome,
 } from '@/lib/outcome-production';
 import { desktopBridge } from './run-attachments';
@@ -25,10 +25,13 @@ type PlanPhase =
 const UNAVAILABLE_COPY = 'We can’t plan this outcome right now. Nothing was selected and nothing will run — this is not the same as having no eligible agent.';
 const UNCONFIRMED_START_COPY = 'We couldn’t confirm the start. Press Start production again to retry the same Backend production and plan digest.';
 const MAX_ARTIFACTS = 10;
-const PICKER_FIELD: WorkflowInputField = {
-  key: 'outcome_inputs', label: 'Outcome input', description: 'A verified artifact this outcome starts from.',
-  kind: 'file', required: false, cardinality: 'many', order: 0,
-};
+function pickerField(inputType: OutcomeInputType): WorkflowInputField {
+  return {
+    key: inputType, label: inputType.replaceAll('_', ' '),
+    description: 'A verified artifact this outcome starts from.',
+    kind: 'file', required: false, cardinality: 'many', order: 0,
+  };
+}
 
 export default function OutcomeEntry() {
   const router = useRouter();
@@ -36,6 +39,7 @@ export default function OutcomeEntry() {
   const [quality, setQuality] = useState<OutcomeQuality>('balanced');
   const [deadline, setDeadline] = useState('');
   const [budgetCredits, setBudgetCredits] = useState('100');
+  const [artifactType, setArtifactType] = useState<OutcomeInputType>('presenter_video');
   const [artifacts, setArtifacts] = useState<VerifiedArtifact[]>([]);
   const [plan, setPlan] = useState<PlanPhase>({ phase: 'idle' });
   const [starting, setStarting] = useState(false);
@@ -44,7 +48,6 @@ export default function OutcomeEntry() {
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const reqId = useRef(0);
-  const pickerKey = useRef(0);
   const inputSessionId = useRef<string | undefined>(undefined);
   const pickerInFlight = useRef(false);
   const prepareInFlight = useRef<number | null>(null);
@@ -86,17 +89,18 @@ export default function OutcomeEntry() {
     pickerInFlight.current = true;
     setPicking(true);
     setPickerError(null);
-    const key = `${PICKER_FIELD.key}_${pickerKey.current++}`;
+    const inputType = expectedType || artifactType;
+    const field = pickerField(inputType);
     try {
-      const raw = await bridge.pickRunInput({ inputKey: key, inputSessionId: inputSessionId.current, selection: 'file' }).catch(() => null);
-      const result = resolvePickerResult(raw, { ...PICKER_FIELD, key });
+      const raw = await bridge.pickRunInput({ inputKey: field.key, inputSessionId: inputSessionId.current, selection: 'file' }).catch(() => null);
+      const result = resolvePickerResult(raw, field);
       if (result.kind === 'failed') setPickerError(result.message);
       if (result.kind === 'bound') {
         inputSessionId.current = result.inputSessionId;
         const next: VerifiedArtifact = {
           ...result.binding,
           inputSessionId: result.inputSessionId,
-          inputType: expectedType || suggestOutcomeInputType(result.binding.displayName, result.binding.mediaType),
+          inputType,
         };
         const duplicate = artifacts.some((artifact) => artifact.artifactId === next.artifactId && artifact.sha256 === next.sha256);
         const nextArtifacts = duplicate
@@ -222,13 +226,16 @@ export default function OutcomeEntry() {
           {artifacts.length > 0 && <ul className="mt-2 space-y-2">{artifacts.map((artifact) => (
             <li key={`${artifact.artifactId}-${artifact.sha256}`} className="flex flex-wrap items-center gap-2 text-xs text-ink-300">
               <span className="truncate max-w-xs">{artifact.displayName}</span>
-              <select aria-label={`Input type for ${artifact.displayName}`} value={artifact.inputType} onChange={(event) => editArtifacts(artifacts.map((item) => item.artifactId === artifact.artifactId ? { ...item, inputType: event.target.value as OutcomeInputType } : item))} className="rounded bg-ink-900 border border-ink-700 px-2 py-1 text-xs">
-                {OUTCOME_INPUT_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}
-              </select>
+              <span className="rounded bg-ink-900 border border-ink-700 px-2 py-1 text-xs">{artifact.inputType.replaceAll('_', ' ')}</span>
               <button type="button" aria-label={`Remove ${artifact.displayName}`} onClick={() => editArtifacts(artifacts.filter((item) => item.artifactId !== artifact.artifactId))} className="text-ink-500 hover:text-ink-200">×</button>
             </li>
           ))}</ul>}
-          <button type="button" onClick={() => addArtifact()} disabled={picking || artifacts.length >= MAX_ARTIFACTS} className="mt-2 rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 disabled:opacity-50">{picking ? 'Verifying…' : 'Add verified artifact'}</button>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <select aria-label="Type of verified artifact to add" value={artifactType} onChange={(event) => setArtifactType(event.target.value as OutcomeInputType)} className="rounded bg-ink-900 border border-ink-700 px-2 py-1.5 text-xs text-ink-300">
+              {OUTCOME_INPUT_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}
+            </select>
+            <button type="button" onClick={() => addArtifact()} disabled={picking || artifacts.length >= MAX_ARTIFACTS} className="rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 disabled:opacity-50">{picking ? 'Verifying…' : 'Add verified artifact'}</button>
+          </div>
           {!inDesktop && <p role="status" className="mt-2 text-xs text-amber-300">Open Implexa Desktop to add verified artifacts. Browser filenames cannot be used.</p>}
           {pickerError && <p role="status" className="mt-2 text-xs text-red-400">{pickerError}</p>}
         </div>
