@@ -103,6 +103,11 @@ export function resolveOutcomeProductionAction(action: string, b: Record<string,
       if (!productionId) return 'A valid productionId is required.';
       return { path: `/api/v2/outcome-productions/${productionId}/cancel`, method: 'POST', body: {} };
     }
+    case 'reconcile': {
+      const productionId = id(b.productionId);
+      if (!productionId) return 'A valid productionId is required.';
+      return { path: `/api/v2/outcome-productions/${productionId}/reconcile`, method: 'POST', body: {} };
+    }
     default:
       return 'Unknown action.';
   }
