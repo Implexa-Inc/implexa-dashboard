@@ -46,6 +46,17 @@ async function fillGoal(rendered: Rendered) {
   await type(rendered, rendered.document.getElementById('outcome-goal')!, 'Produce a final master from my approved sections.');
 }
 
+async function selectValue(rendered: Rendered, element: HTMLSelectElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(
+    (rendered.window as unknown as { HTMLSelectElement: { prototype: unknown } }).HTMLSelectElement.prototype,
+    'value',
+  )!.set!;
+  await rendered.act(() => {
+    setter.call(element, value);
+    element.dispatchEvent(new rendered.window.Event('change', { bubbles: true }));
+  });
+}
+
 const planButton = (rendered: Rendered) => rendered.getByText('Plan this outcome') as HTMLButtonElement;
 
 test('a positive credit ceiling and zero consequential-spend default are explicit', async () => {
@@ -112,10 +123,14 @@ test('the plan collects its missing root input, replans, and exposes Start produ
     kind: 'artifact', id: ARTIFACT_ID, digest: DIGEST, description: 'presenter.mov',
     input_type: 'presenter_video', input_session_id: INPUT_SESSION_ID,
   };
-  const rendered = await render('outcome-entry.tsx', {}, { bridge: { pickRunInput: async () => ({
-    ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST,
-    displayName: 'presenter.mov', mediaType: 'video/quicktime',
-  }) } });
+  const pickerCalls: Record<string, unknown>[] = [];
+  const rendered = await render('outcome-entry.tsx', {}, { bridge: { pickRunInput: async (options: Record<string, unknown>) => {
+    pickerCalls.push(options);
+    return {
+      ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST,
+      displayName: 'presenter.mov', mediaType: 'video/quicktime',
+    };
+  } } });
   try {
     const calls = stubFetch(rendered, [
       { status: 200, body: { ...planResponse, plan: missingPlan } },
@@ -125,6 +140,8 @@ test('the plan collects its missing root input, replans, and exposes Start produ
     await rendered.click(planButton(rendered));
     assert.equal(rendered.queryByText('Start production'), null);
     await rendered.click(rendered.getByText('Add Presenter Video'));
+    assert.equal(pickerCalls[0].inputKey, 'presenter_video',
+      'the Desktop registry key must equal the child request binding key');
     assert.deepEqual((calls[1].body.input_references as Record<string, unknown>[])[0], verifiedReference);
     assert.notEqual(calls[1].body.idempotency_key, calls[0].body.idempotency_key,
       'a verified input changes the intent and therefore requires a fresh idempotency key');
@@ -150,9 +167,9 @@ test('Desktop artifacts keep local metadata but send only the four reference fie
   } } });
   try {
     const calls = stubFetch(rendered, [{ status: 200, body: { ...planResponse, intent: { ...intent, input_references: [{ kind: 'artifact', id: ARTIFACT_ID, digest: DIGEST, description: 'project-bundle.zip', input_type: 'project_bundle', input_session_id: INPUT_SESSION_ID }] } } }]);
+    await selectValue(rendered, rendered.document.querySelector('[aria-label="Type of verified artifact to add"]') as HTMLSelectElement, 'project_bundle');
     await rendered.click(rendered.getByText('Add verified artifact'));
     assert.ok(rendered.queryByText('project-bundle.zip'));
-    assert.equal((rendered.document.querySelector('select') as HTMLSelectElement).value, 'project_bundle');
     await fillGoal(rendered);
     await rendered.click(planButton(rendered));
     const reference = (calls[0].body.input_references as Record<string, unknown>[])[0];
@@ -160,6 +177,7 @@ test('Desktop artifacts keep local metadata but send only the four reference fie
     assert.equal('displayName' in reference, false);
     assert.equal('mediaType' in reference, false);
     assert.equal('inputSessionId' in reference, false);
+    assert.equal(pickerCalls[0].inputKey, 'project_bundle');
     assert.equal(pickerCalls[0].selection, 'file');
   } finally { rendered.cleanup(); }
 });
