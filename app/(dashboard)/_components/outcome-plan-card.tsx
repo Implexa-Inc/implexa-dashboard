@@ -24,6 +24,32 @@ function NoEligiblePanel({ noEligible }: { noEligible: NoEligible }) {
   );
 }
 
+function humanize(value: string) {
+  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function nodePurpose(node: OutcomePlan['nodes'][number], final: boolean) {
+  const outputs = node.agent?.output_types || [];
+  if (final) return `Delivers the final ${outputs.map(humanize).join(' and ') || 'outcome'}.`;
+  return `Creates ${outputs.map(humanize).join(' and ') || 'the working material'} for the next agent.`;
+}
+
+function inputSummary(node: OutcomePlan['nodes'][number], plan: OutcomePlan) {
+  const required = node.agent?.required_input_types || [];
+  if (required.length === 0) return 'No required input';
+  const producedEarlier = new Map<string, number>();
+  for (const earlier of plan.nodes.slice(0, node.ordinal)) {
+    for (const output of earlier.agent?.output_types || []) producedEarlier.set(output, earlier.ordinal + 1);
+  }
+  const unresolved = new Set(plan.unresolved_missing_assets.map((item) => item.kind));
+  return required.map((input) => {
+    const sourceStep = producedEarlier.get(input);
+    if (sourceStep) return `${humanize(input)} (from step ${sourceStep})`;
+    if (unresolved.has(input)) return `${humanize(input)} (you provide)`;
+    return `${humanize(input)} (provided)`;
+  }).join(', ');
+}
+
 function PlanBody({ intent, plan, onStart, starting, startError }: {
   intent: OutcomeIntent;
   plan: OutcomePlan;
@@ -36,7 +62,12 @@ function PlanBody({ intent, plan, onStart, starting, startError }: {
   return (
     <section aria-label="Recommended plan" className="card p-5">
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-semibold text-ink-50">Recommended plan</h3>
+        <div>
+          <h3 className="text-sm font-semibold text-ink-50">Recommended {plan.nodes.length === 1 ? 'agent' : 'agent chain'}</h3>
+          <p className="text-xs text-ink-400 mt-1">
+            {plan.nodes.length === 1 ? 'One agent can deliver this outcome.' : `${plan.nodes.length} agents will work in this order.`}
+          </p>
+        </div>
         <span className="text-[11px] text-ink-500" title="The immutable Backend plan identity echoed at Start.">
           {plan.scorer_version} · plan {plan.digest.slice(0, 12)}
         </span>
@@ -47,12 +78,21 @@ function PlanBody({ intent, plan, onStart, starting, startError }: {
           <li key={node.workflow_version_id} className="border border-ink-800 rounded-lg p-4">
             <div className="flex items-baseline justify-between gap-3">
               <div className="text-sm font-medium text-ink-100">
-                {node.ordinal + 1}. {node.slug || `Agent ${node.workflow_id.slice(0, 8)}`}
+                {node.ordinal + 1}. {node.agent?.name || node.slug || `Agent ${node.workflow_id.slice(0, 8)}`}
               </div>
               <span className="text-xs text-ink-400">{node.budget_credits.toLocaleString()} credits</span>
             </div>
-            <p className="text-xs text-ink-500 mt-2">
-              {node.role.replaceAll('_', ' ')} · up to {Math.round(node.max_duration_ms / 60000)} min · {node.max_retries} {node.max_retries === 1 ? 'retry' : 'retries'} · {node.max_invocations.toLocaleString()} invocations maximum
+            <p className="text-sm text-ink-300 mt-2">
+              {nodePurpose(node, node.ordinal === plan.nodes.length - 1)}
+            </p>
+            {node.agent && (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 text-xs">
+                <p className="text-ink-400"><span className="text-ink-200">Needs:</span> {inputSummary(node, plan)}</p>
+                <p className="text-ink-400"><span className="text-ink-200">Produces:</span> {node.agent.output_types.map(humanize).join(', ')}</p>
+              </div>
+            )}
+            <p className="text-[11px] text-ink-500 mt-3">
+              Up to {Math.round(node.max_duration_ms / 60000)} min · {node.max_retries} {node.max_retries === 1 ? 'retry' : 'retries'} · {node.max_invocations.toLocaleString()} invocations maximum
             </p>
           </li>
         ))}
@@ -70,7 +110,8 @@ function PlanBody({ intent, plan, onStart, starting, startError }: {
 
       {plan.unresolved_missing_assets.length > 0 && (
         <div role="status" aria-label="Missing inputs" className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
-          <p className="text-sm font-medium text-amber-300">Add the missing input before this plan can start</p>
+          <p className="text-sm font-medium text-amber-300">What you’ll provide before starting</p>
+          <p className="text-xs text-ink-400 mt-1">The recommendation is complete; these inputs only gate execution.</p>
           {plan.unresolved_missing_assets.map((item) => (
             <p key={`${item.kind}-${item.description}`} className="text-xs text-ink-300 mt-2">{item.description}</p>
           ))}

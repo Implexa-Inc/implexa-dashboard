@@ -183,7 +183,7 @@
         },
         "plan": {
           "id": "00000041-0000-4000-8000-000000000041",
-          "digest": "a8bcc4e9d9bd321cacb49fbb1dd5a9c61762278fed7043e0716a12508bf8c5dd",
+          "digest": "285c21196fea23c5be2b4451231e253e18f1d7c5ae50d1183a94f667a73140d0",
           "contract_version": "outcome-production-plan.v1",
           "scorer_version": "outcome-scorer.v1",
           "weight_set_digest": "a033bd1f860359e298ba3e6f91c7c1275472b1ed187157301f964a06bff90764",
@@ -198,6 +198,17 @@
               "workflow_version_id": "22222222-2222-4222-8222-222222222222",
               "input_contract_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
               "slug": "final-video-compositor",
+              "agent": {
+                "name": "Final Video Compositor",
+                "task_key": "video.youtube_master",
+                "task_label": "Finished YouTube video",
+                "required_input_types": [
+                  "project_bundle"
+                ],
+                "output_types": [
+                  "video_master"
+                ]
+              },
               "score": 0.875,
               "inputs": [
                 {
