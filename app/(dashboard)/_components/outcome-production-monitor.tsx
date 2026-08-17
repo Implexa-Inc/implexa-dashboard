@@ -17,9 +17,12 @@
  */
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Modal from './modal';
 import { shouldPollProduction, type Production } from '@/lib/outcome-production';
+import type { FinalDeliverable } from '@/lib/outcome-production-detail';
+import VerifiedArtifacts, { type VerifiedArtifact } from './verified-artifacts';
 
 /**
  * How often an unsettled production re-reads itself.
@@ -50,7 +53,21 @@ function stateBadgeClass(state: string): string {
   return 'bg-ink-800 text-ink-300 border-ink-700';
 }
 
-export default function OutcomeProductionMonitor({ production }: { production: Production }) {
+export default function OutcomeProductionMonitor({
+  production,
+  finalDeliverable = null,
+  /**
+   * The flat child list. The canonical Production page renders a full section
+   * per agent instead, and two renderings of the same children — one detailed,
+   * one a bare state word — is exactly the ambiguity this work removes. So the
+   * page turns this off; every other caller keeps the summary.
+   */
+  showChildActivity = true,
+}: {
+  production: Production;
+  finalDeliverable?: FinalDeliverable | null;
+  showChildActivity?: boolean;
+}) {
   const router = useRouter();
   const [confirmStop, setConfirmStop] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -154,6 +171,45 @@ export default function OutcomeProductionMonitor({ production }: { production: P
         </div>
       </dl>
 
+      {/* The finished thing, first — a completed production's whole point. It
+          renders through the same verified-artifact control as a run page, so
+          Open and Reveal act on the desktop-validated path rather than on a
+          path copied out of prose. */}
+      {finalDeliverable && finalDeliverable.relativePath && finalDeliverable.validatedPath && (
+        <div aria-label="Final deliverable" className="mt-5 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.06] p-4">
+          <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300 font-medium">Final deliverable</p>
+          <p className="text-sm text-ink-100 mt-1">
+            {finalDeliverable.name}
+            <span className="block text-xs text-ink-500 mt-0.5">
+              produced by {finalDeliverable.agentName} (agent {finalDeliverable.ordinal + 1})
+              {finalDeliverable.digest ? ` · ${finalDeliverable.digest.slice(0, 12)}` : ''}
+            </span>
+          </p>
+          <div className="mt-3">
+            <VerifiedArtifacts
+              artifacts={[{
+                relativePath: finalDeliverable.relativePath,
+                validatedPath: finalDeliverable.validatedPath,
+                role: finalDeliverable.role,
+                sizeBytes: finalDeliverable.sizeBytes,
+              } satisfies VerifiedArtifact]}
+            />
+          </div>
+          {/* Review is the existing Review Room, opened on the run that
+              actually produced this file and focused on this artifact — so a
+              human verdict is recorded against the same digest the production
+              validated, not against a look-alike. */}
+          {finalDeliverable.runId && (
+            <Link
+              href={`/review/${finalDeliverable.runId}${finalDeliverable.id ? `?artifact=${encodeURIComponent(finalDeliverable.id)}` : ''}`}
+              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+            >
+              Review this deliverable <span aria-hidden="true">→</span>
+            </Link>
+          )}
+        </div>
+      )}
+
       {production.blockers.length > 0 && (
         <div role="status" aria-label="Blockers" className="mt-5 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
           <p className="text-sm font-medium text-amber-300">Waiting on you</p>
@@ -165,6 +221,7 @@ export default function OutcomeProductionMonitor({ production }: { production: P
         </div>
       )}
 
+      {showChildActivity && (
       <details className="mt-6 group">
         <summary className="cursor-pointer text-sm text-ink-300 hover:text-ink-100 select-none">
           Activity ({production.children.length} {production.children.length === 1 ? 'step' : 'steps'})
@@ -186,6 +243,7 @@ export default function OutcomeProductionMonitor({ production }: { production: P
           ))}
         </ol>
       </details>
+      )}
 
       {stopError && <p role="status" className="mt-4 text-sm text-red-400">{stopError}</p>}
 

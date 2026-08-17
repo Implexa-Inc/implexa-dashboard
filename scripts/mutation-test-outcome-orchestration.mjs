@@ -22,6 +22,9 @@ const suites = [
   'app/(dashboard)/_components/outcome-production-monitor.render.test.ts',
   'app/(dashboard)/_components/outcome-work-item.render.test.ts',
   'app/(dashboard)/work/_components/outcome-productions-list.render.test.ts',
+  'lib/outcome-production-detail.test.ts',
+  'app/(dashboard)/_components/outcome-production-detail.render.test.ts',
+  'app/(dashboard)/runs/[id]/superseded-shell.test.ts',
 ];
 
 const CONTRACT = 'lib/outcome-production.ts';
@@ -31,6 +34,13 @@ const ENTRY = 'app/(dashboard)/_components/outcome-entry.tsx';
 const MONITOR = 'app/(dashboard)/_components/outcome-production-monitor.tsx';
 const WORK_ITEM = 'app/(dashboard)/_components/outcome-work-item.tsx';
 const LIST = 'app/(dashboard)/work/_components/outcome-productions-list.tsx';
+const DETAIL = 'lib/outcome-production-detail.ts';
+const NODE = 'app/(dashboard)/_components/outcome-node-section.tsx';
+const HANDOFF = 'app/(dashboard)/_components/outcome-handoff-row.tsx';
+const TRACE = 'app/(dashboard)/_components/outcome-production-trace.tsx';
+const ENGINE = 'app/(dashboard)/_components/engine-truth-badge.tsx';
+const NARRATIVE = 'app/(dashboard)/_components/production-lineage-narrative.ts';
+const LINEAGE_BANNER = 'app/(dashboard)/_components/production-lineage-banner.tsx';
 
 const mutants = [
   // Backend identity is echoed, never invented or recomputed in the browser.
@@ -136,6 +146,109 @@ const mutants = [
     '{artifact.kind} · digest {artifact.name.slice(0, 16)}'],
   ['work-item', 'the selected path loses one-based human ordering', WORK_ITEM,
     '{step.order + 1}. {step.agentName}', '{step.order}. {step.agentName}'],
+
+
+  // ── Canonical multi-agent Production detail ─────────────────────────
+  // Every one of these is a way the page could go back to being unreadable
+  // about a two-agent job.
+  ['engine-truth', 'a node is labelled by its pin when nothing actually ran', ENGINE,
+    'if (!actualEngine) {', 'if (false) {'],
+  ['engine-truth', 'the requested engine is presented as the one that ran', ENGINE,
+    'Ran on {ENGINE_LABELS[actualEngine]}', 'Ran on {ENGINE_LABELS[requestedEngine ?? actualEngine]}'],
+  ['engine-truth', 'a failover hides the engine that was actually asked for', ENGINE,
+    '{failover && requestedEngine && requestedEngine !== actualEngine && (',
+    '{false && requestedEngine && requestedEngine !== actualEngine && ('],
+  ['engine-truth', 'an unrecognised engine string is rendered as an engine', DETAIL,
+    "  return ENGINES.includes(v as ExecutionEngine) ? (v as ExecutionEngine) : undefined;",
+    '  return v as ExecutionEngine;'],
+
+  // Node evidence stays attached to the node that produced it.
+  ['node-scope', 'nodes are re-sorted into a plausible order instead of failing closed', DETAIL,
+    '  for (let i = 0; i < nodes.length; i += 1) if (nodes[i].ordinal !== i) return null;',
+    '  nodes.sort((a, b) => a.ordinal - b.ordinal);'],
+  ['node-scope', 'a handoff naming an absent node is rendered anyway', DETAIL,
+    '    if (!nodes.some((n) => n.ordinal === handoff.producerOrdinal)) return null;',
+    '    if (false) return null;'],
+  ['node-scope', 'a trace entry attributed to an absent node is rendered anyway', DETAIL,
+    '    if (entry.ordinal !== null && !nodes.some((n) => n.ordinal === entry.ordinal)) return null;',
+    '    if (false) return null;'],
+  ['node-scope', 'a node section shows the neighbouring agent as its own', NODE,
+    '          Agent {node.ordinal + 1}{node.role ? ` · ${node.role.replace(/_/g, \' \')}` : \'\'}',
+    '          Agent {node.ordinal + 2}{node.role ? ` · ${node.role.replace(/_/g, \' \')}` : \'\'}'],
+  ['node-scope', 'a node loses its own step summary', NODE,
+    '            Steps — {execution.stepSummary.done}/{execution.stepSummary.total}',
+    '            Steps'],
+  ['node-scope', 'the run permalink stops being labelled a diagnostic', NODE,
+    "          Open this agent&apos;s run for diagnostics <span aria-hidden=\"true\">→</span>",
+    "          Open this agent&apos;s run <span aria-hidden=\"true\">→</span>"],
+
+  // Handoff identity belongs to the producer.
+  ['handoff', 'the handoff row swaps producer and consumer', HANDOFF,
+    "  const producer = `Agent ${handoff.producerOrdinal + 1}`;\n  const consumer = `Agent ${handoff.consumerOrdinal + 1}`;",
+    "  const producer = `Agent ${handoff.consumerOrdinal + 1}`;\n  const consumer = `Agent ${handoff.producerOrdinal + 1}`;"],
+  ['handoff', 'an unvalidated handoff claims its digest was verified', HANDOFF,
+    "  const validated = handoff.validationStatus === 'validated';",
+    '  const validated = true;'],
+  ['handoff', 'the handed artifact loses its digest', HANDOFF,
+    '          {handoff.digestPrefix && (',
+    '          {false && ('],
+  ['handoff', 'a typed handoff failure is swallowed', HANDOFF,
+    '      {handoff.failureReason && (', '      {false && ('],
+  ['handoff', 'an unknown handoff state renders instead of failing closed', DETAIL,
+    '  if (!HANDOFF_STATES.includes(v.state as HandoffState)) return null;',
+    '  if (false) return null;'],
+
+  // The combined trace is evidence, so it must be complete and attributed.
+  ['trace', 'an unknown event type is dropped from the trace', TRACE,
+    '                <span className="text-ink-100">{traceLabel(entry)}</span>',
+    '                <span className="text-ink-100">{TRACE_LABELS[entry.type] ? traceLabel(entry) : null}</span>'],
+  ['trace', 'trace entries lose the agent they belong to', TRACE,
+    "                {entry.ordinal === null ? 'Production' : `Agent ${entry.ordinal + 1}`}",
+    "                {'Production'}"],
+  ['trace', 'a failover in the timeline reads as an ordinary pickup', TRACE,
+    '    if (d.failover === true && requested && requested !== actual) {',
+    '    if (false) {'],
+  ['trace', 'a sourceless event is accepted as evidence', DETAIL,
+    '  if (!TRACE_SOURCES.includes(v.source as TraceSource)) return null;',
+    '  if (false) return null;'],
+
+  // The finished thing, and what counts as one.
+  ['deliverable', 'an unattributed final deliverable is rendered', DETAIL,
+    '    if (!artifact || !integer(raw.ordinal) || !str(raw.agentName)) return null;',
+    '    if (!artifact) return null;'],
+  ['deliverable', 'the final deliverable region disappears', MONITOR,
+    '      {finalDeliverable && finalDeliverable.relativePath && finalDeliverable.validatedPath && (',
+    '      {false && ('],
+
+  // The superseded shell — the incident this work exists for.
+  ['superseded', 'a superseded shell stops being treated as superseded', NARRATIVE,
+    '  return Boolean(lineage && lineage.superseded);', '  return false;'],
+  ['superseded', 'the superseded banner disappears', LINEAGE_BANNER,
+    '      {lineage.superseded && (', '      {false && ('],
+  ['superseded', 'the superseded shell stops linking to the authoritative run', LINEAGE_BANNER,
+    '          {lineage.authoritativeRunId && (', '          {false && ('],
+  ['superseded', 'a run inside a production stops pointing at its parent', LINEAGE_BANNER,
+    '  if (!lineage) return null;', '  return null;\n  if (!lineage) return null;'],
+  ['superseded', 'a completed authoritative run is reported as unfinished', LINEAGE_BANNER,
+    "  if (lineage.authoritativeRunStatus === 'completed' && lineage.authoritativeRunState === 'completed') return 'completed';",
+    "  if (false) return 'completed';"],
+  ['superseded', 'a missing superseded verdict silently defaults to false', DETAIL,
+    '  if (!bool(v.isAuthoritative) || !bool(v.superseded) || !bool(v.suppressRunAgain)) return null;',
+    '  if (!bool(v.isAuthoritative)) return null;'],
+
+  // The detail read model itself.
+  ['detail-loader', 'a drifted detail body renders as a page missing an agent', LOAD,
+    "  if (!detail) return { status: 'unavailable', reason: 'The production detail did not match the contract.' };",
+    "  if (!detail) return { status: 'absent', production, receipt: null, receiptStatus: 'none' } as OutcomeProductionDetailLoad;"],
+  ['detail-loader', 'a backend without the detail route reports the production missing', LOAD,
+    "      if (fallback.status === 'ok') {",
+    '      if (false) {'],
+  ['detail-loader', 'settled detail keeps polling forever', DETAIL,
+    'export function shouldPollDetail(detail: ProductionDetail): boolean {\n  return !detail.settled;',
+    'export function shouldPollDetail(detail: ProductionDetail): boolean {\n  return true;'],
+  ['detail-loader', 'a live node no longer opens by default', DETAIL,
+    "  return ['running', 'stalled', 'dispatched', 'failed', 'partial'].includes(node.execution.state);",
+    '  return false;'],
 
   // Edits invalidate displayed and in-flight plans.
   ['stale-response', 'an edit no longer invalidates an in-flight plan', ENTRY,

@@ -23,6 +23,10 @@ import { getWorkflow, getMyWorkflow } from '@/lib/workflow-catalog';
 import { deriveRunState, runLiveness, type RunRow, type RunProgress, type RunStep } from '@/lib/run-state';
 import RunStepChecklist from '../../_components/run-step-checklist';
 import StepTraceRefresh from '../../_components/step-trace-refresh';
+import RunStepTrace from '../../_components/run-step-trace';
+import ProductionLineageBanner from '../../_components/production-lineage-banner';
+import { supersedesFailureNarrative } from '../../_components/production-lineage-narrative';
+import { loadProductionLineage } from '@/lib/outcome-production-load';
 import { RunStateBadge } from '../../_components/run-state-badge';
 import { RunVerificationBadge, type VerificationStatus } from '../../_components/run-verification-badge';
 import BackLink from '../../_components/back-link';
@@ -49,6 +53,8 @@ import VerifiedArtifacts, { type VerifiedArtifact } from '../../_components/veri
 import { isValidatedVideoOutput } from '@/lib/generation-entry-eligibility';
 
 export const dynamic = 'force-dynamic';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // A legacy held deliverable that names a step the AGENT runs ON APPROVAL
 // (render/publish/deploy) → continue it. Structured `steps_state` takes precedence
@@ -113,7 +119,34 @@ function rel(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-export default async function RunDetailPage({ params }: { params: { id: string } }) {
+/**
+ * Is it SAFE to send the reader straight to the run that actually carried this
+ * production node?
+ *
+ * Redirecting is preferred — landing on a superseded shell is how a succeeded
+ * production reads as stalled — but it silently changes the page the user asked
+ * for, so it is only done when nothing is lost: the shell recorded no
+ * deliverable of its own, and the authoritative run genuinely completed. A
+ * shell that wrote something, or an authority that is itself unfinished, keeps
+ * the explicit "superseded" label instead, where the reader chooses.
+ */
+function safeToRedirectToAuthority(
+  lineage: { superseded: boolean; authoritativeRunId: string | null; authoritativeRunState: string | null; authoritativeRunStatus: string | null } | null,
+  ownOutput: string | null | undefined,
+): string | null {
+  if (!lineage?.superseded || !lineage.authoritativeRunId) return null;
+  if (ownOutput && ownOutput.trim()) return null;
+  if (lineage.authoritativeRunState !== 'completed' || lineage.authoritativeRunStatus === 'failed') return null;
+  return lineage.authoritativeRunId;
+}
+
+export default async function RunDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { superseded?: string; keep?: string };
+}) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
@@ -542,10 +575,53 @@ export default async function RunDetailPage({ params }: { params: { id: string }
   // path instead. Best-effort; never blocks the page.
   const workspaceRoot = await getWorkspaceRoot(session.access_token);
 
+  // Is this run part of an outcome production, and is it the run the parent
+  // considers authoritative? Answered by the backend from the production's own
+  // persisted lineage — this page never re-derives it from run state. Returns
+  // null for every failure mode (no such route, network, drift), so a run
+  // outside a production, or a deployment without the route, renders exactly
+  // as it did before.
+  const productionLineage = await loadProductionLineage(r.id, session.access_token);
+  // A completed related run must never leave the user with a primary "this run
+  // stalled" conclusion. When another run is the authority for this production
+  // node, the stall below is a fact about an abandoned attempt, so it is
+  // demoted from headline to footnote and the banner carries the real answer.
+  const supersededByRelated = supersedesFailureNarrative(productionLineage);
+  // Prefer sending the reader to the run that actually did the work — but only
+  // when the shell has nothing of its own to lose. The destination discloses
+  // where it came from rather than moving the user silently.
+  // `?keep=1` is the escape hatch: a reader who deliberately came back to
+  // inspect the superseded attempt must not be bounced away from it again.
+  const authority = searchParams?.keep === '1'
+    ? null : safeToRedirectToAuthority(productionLineage, r.output_markdown);
+  if (authority) redirect(`/runs/${authority}?superseded=${encodeURIComponent(r.id)}`);
+  const arrivedFromSupersededShell = typeof searchParams?.superseded === 'string'
+    && UUID_RE.test(searchParams.superseded) ? searchParams.superseded : null;
+
   return (
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
         <BackLink fallback="/work" label="Work" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
+
+        {/* A run inside an outcome production points at its parent FIRST: the
+            production is the canonical account of the job, and this page is a
+            diagnostic on one of its steps. */}
+        {/* Arrived here from a superseded execution shell. Say so — a silent
+            redirect that swaps the run out from under the reader is worse than
+            the confusion it was meant to fix. */}
+        {arrivedFromSupersededShell && (
+          <p role="status" className="mt-4 rounded-lg border border-ink-800 bg-ink-950/40 px-3 py-2 text-xs text-ink-400 leading-relaxed">
+            You followed a link to an earlier execution attempt that was superseded. This is the run that actually
+            carried out that step.{' '}
+            <Link href={`/runs/${arrivedFromSupersededShell}?keep=1`} className="text-ink-300 hover:underline">
+              See the superseded attempt
+            </Link>
+          </p>
+        )}
+
+        <div className="mt-4">
+          <ProductionLineageBanner lineage={productionLineage} />
+        </div>
 
         {/* web→app handoff: the https email link lands here; offer the bounce into
             the desktop app. Dormant until the app ships (desktopAppLive). */}
@@ -753,44 +829,19 @@ export default async function RunDetailPage({ params }: { params: { id: string }
         )}
 
         {/* Live step trace: where the run is / where it got stuck. Only when the
-            run reported step notes (on-demand + long runs via record_run_heartbeat). */}
+            run reported step notes (on-demand + long runs via record_run_heartbeat).
+            Rendered through <RunStepTrace>, the same component each Production
+            node section uses — one trace renderer, two surfaces. */}
         {steps.length > 0 && (
-          <div className="mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs font-semibold text-ink-300">Step trace</span>
-              {info.state === 'running' && (
-                <span className="text-[10px] uppercase tracking-wide font-semibold text-sky-700 dark:text-sky-300 bg-sky-500/15 rounded px-1.5 py-0.5">live</span>
-              )}
-              {/* The trace is server-rendered and doesn't auto-update mid-run —
-                  give a manual refresh so a long run isn't stuck on stale steps. */}
-              <StepTraceRefresh />
-            </div>
-            <ol className="space-y-2">
-              {steps.map((e, i) => {
-                const isLast = i === steps.length - 1;
-                const dot = isLast && info.attention
-                  ? 'bg-amber-500 dark:bg-amber-400'
-                  : isLast && info.state === 'running'
-                    ? 'bg-sky-500 dark:bg-sky-400'
-                    : 'bg-ink-600';
-                return (
-                  <li key={i} className="flex items-start gap-2.5 text-sm">
-                    <span className={`mt-[7px] h-1.5 w-1.5 rounded-full shrink-0 ${dot}`} aria-hidden="true" />
-                    <div className="min-w-0 flex-1">
-                      {e.step && <span className="font-mono text-xs text-ink-500 mr-1.5">{e.step}</span>}
-                      <span className="text-ink-200">{e.note || 'progress'}</span>
-                      <span className="text-ink-600 text-xs ml-2">{rel(e.at)}</span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-            {info.state === 'stalled' && (
-              <p className="text-xs text-amber-700 dark:text-amber-300 mt-3 leading-relaxed">
-                Stuck here. This is the last step it reported before it stopped making progress.
-              </p>
-            )}
-          </div>
+          <RunStepTrace
+            entries={steps}
+            live={info.state === 'running'}
+            attention={info.attention}
+            stalled={info.state === 'stalled'}
+            /* The trace is server-rendered and doesn't auto-update mid-run —
+               give a manual refresh so a long run isn't stuck on stale steps. */
+            action={<StepTraceRefresh />}
+          />
         )}
 
         {r.output_markdown ? (
@@ -807,9 +858,19 @@ export default async function RunDetailPage({ params }: { params: { id: string }
           // also fires for a run that A0's watchdog force-closed (run_close_reason
           // set) even when info.attention is false — the exact case that used to
           // render a bare, unexplained "Failed" with nothing else on the page.
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.06] p-5">
-            <div className="text-sm font-semibold text-ink-50 mb-1">
-              {info.label === 'Failed' ? 'This run did not finish' : 'This run stalled'}
+          <div className={`rounded-lg border p-5 ${
+            supersededByRelated ? 'border-ink-800 bg-ink-950/40' : 'border-amber-500/40 bg-amber-500/[0.06]'
+          }`}>
+            {/* When a related run is the authority for this production node,
+                the stall is a fact about an ABANDONED ATTEMPT, not about the
+                work — the banner above already says what actually happened. So
+                this stops being the page's conclusion and becomes a footnote.
+                Leading with "This run stalled" over a completed sibling is the
+                exact reading that made a successful production look broken. */}
+            <div className={`text-sm mb-1 ${supersededByRelated ? 'text-ink-300' : 'font-semibold text-ink-50'}`}>
+              {supersededByRelated
+                ? 'What this superseded attempt recorded before it was replaced'
+                : info.label === 'Failed' ? 'This run did not finish' : 'This run stalled'}
             </div>
             <p className="text-sm text-ink-300 leading-relaxed">{closeReasonMessage(closeReason) ?? info.reason}</p>
             {info.permissionBlocked && (
@@ -818,7 +879,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
                 pre-approved set). Open the agent, grant it on the setup card, then run it again.
               </p>
             )}
-            {siblingRun && (
+            {siblingRun && !productionLineage && (
               <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-2.5 text-sm">
                 {/* Honest lead-in: only call it "good news" when the sibling is an
                     actual clean success. A held run (needs_input/pending) or a
@@ -862,15 +923,30 @@ export default async function RunDetailPage({ params }: { params: { id: string }
               </div>
             )}
             <div className="mt-4 flex flex-wrap gap-3">
-              <StuckRunButton
-                engine={executionContext?.executor || 'claude'}
-                threadId={executionContext?.thread_id}
-                workspace={executionContext?.workspace}
-                runId={r.id}
-                claudeTaskId={claudeTaskId}
-                permissionCapability={info.permissionBlocked ? (NEEDS_BROWSER_GRANT_RE.test(r.output_markdown || '') ? 'computerUse' : 'browser') : null}
-              />
-              <Link href={agentHref} className="btn-outline text-sm px-4 py-2">Run again</Link>
+              {/* Restarting a superseded attempt would race the run that is
+                  actually carrying this production node. */}
+              {!supersededByRelated && (
+                <StuckRunButton
+                  engine={executionContext?.executor || 'claude'}
+                  threadId={executionContext?.thread_id}
+                  workspace={executionContext?.workspace}
+                  runId={r.id}
+                  claudeTaskId={claudeTaskId}
+                  permissionCapability={info.permissionBlocked ? (NEEDS_BROWSER_GRANT_RE.test(r.output_markdown || '') ? 'computerUse' : 'browser') : null}
+                />
+              )}
+              {/* "Run again" is withheld once the parent has SETTLED this node
+                  as a success: it would duplicate work the production already
+                  finished and already paid for. More work is ordered from the
+                  production, not from a diagnostic page for one of its steps. */}
+              {!productionLineage?.suppressRunAgain && (
+                <Link href={agentHref} className="btn-outline text-sm px-4 py-2">Run again</Link>
+              )}
+              {productionLineage && (
+                <Link href={`/runs/productions/${productionLineage.productionId}`} className="btn-outline text-sm px-4 py-2">
+                  Open the production
+                </Link>
+              )}
               <Link href="/work" className="btn-outline text-sm px-4 py-2">Back to Work</Link>
             </div>
           </div>

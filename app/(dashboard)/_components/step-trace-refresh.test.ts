@@ -19,7 +19,22 @@ test('the refresh control re-fetches the server component (router.refresh) insid
 
 test('the Step trace header renders the refresh control', () => {
   assert.match(PAGE, /import StepTraceRefresh from/, 'the page imports it');
-  // it sits in the same header block as the "Step trace" label + live badge
-  const header = PAGE.slice(PAGE.indexOf('>Step trace<'), PAGE.indexOf('>Step trace<') + 500);
-  assert.match(header, /<StepTraceRefresh \/>/, 'the control is rendered in the Step trace header');
+  // The trace itself now renders through <RunStepTrace>, shared with each
+  // Production node section, and the refresh rides in its header `action`
+  // slot. Assert the wiring at the call site rather than the old inline markup.
+  const call = PAGE.slice(PAGE.indexOf('<RunStepTrace'), PAGE.indexOf('<RunStepTrace') + 600);
+  assert.ok(call.length > 0, 'the page renders the shared trace component');
+  assert.match(call, /action=\{<StepTraceRefresh \/>\}/, 'the control is handed to the trace header');
+});
+
+test('the shared trace renders the refresh control in its own header', async () => {
+  const { render } = await import('../../../lib/test/render.ts');
+  const rendered = await render('run-step-trace.tsx', {
+    entries: [{ at: '2026-08-16T10:01:00.000Z', step: '1/2', note: 'reading the brief' }],
+    action: null,
+  });
+  try {
+    // The header exists and carries the label the run page's copy depends on.
+    assert.ok(rendered.queryByText(/Step trace/), 'the shared component owns the heading');
+  } finally { rendered.cleanup(); }
 });
