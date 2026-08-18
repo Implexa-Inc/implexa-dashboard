@@ -148,7 +148,9 @@ export async function loadOutcomeProductionDetail(
   }
 
   const production = parseProductionResponse(body);
-  if (!production) return { status: 'unavailable', reason: 'The production response did not match the contract.' };
+  // Distinct wording from loadOutcomeProduction's: the two reads have two
+  // failure modes and a reader who sees this needs to know WHICH route drifted.
+  if (!production) return { status: 'unavailable', reason: 'The production detail response did not match the contract.' };
   const detail = parseProductionDetail((body as { production?: unknown })?.production, production);
   if (!detail) return { status: 'unavailable', reason: 'The production detail did not match the contract.' };
 

@@ -24,7 +24,14 @@ const suites = [
   'app/(dashboard)/work/_components/outcome-productions-list.render.test.ts',
   'lib/outcome-production-detail.test.ts',
   'app/(dashboard)/_components/outcome-production-detail.render.test.ts',
-  'app/(dashboard)/runs/[id]/superseded-shell.test.ts',
+  // NOT app/(dashboard)/runs/[id]/superseded-shell.test.ts. `node --test`
+  // treats positional arguments as GLOB patterns and `[id]` is a valid
+  // character class, so that path matches nothing and the suite is silently
+  // skipped — the harness would report a confident kill count over a file it
+  // never ran (the same trap scripts/run-tests.mjs exists to prevent). The
+  // superseded-shell guards it carries are graded here by
+  // outcome-production-detail.render.test.ts, which lives in a bracket-free
+  // directory; the page-wiring assertions run under `npm test`.
 ];
 
 const CONTRACT = 'lib/outcome-production.ts';
@@ -229,9 +236,9 @@ const mutants = [
     '          {lineage.authoritativeRunId && (', '          {false && ('],
   ['superseded', 'a run inside a production stops pointing at its parent', LINEAGE_BANNER,
     '  if (!lineage) return null;', '  return null;\n  if (!lineage) return null;'],
-  ['superseded', 'a completed authoritative run is reported as unfinished', LINEAGE_BANNER,
-    "  if (lineage.authoritativeRunStatus === 'completed' && lineage.authoritativeRunState === 'completed') return 'completed';",
-    "  if (false) return 'completed';"],
+  ['superseded', 'a failed authoritative run is announced as completed', LINEAGE_BANNER,
+    "  if (lineage.authoritativeRunState === 'failed' || lineage.authoritativeRunStatus === 'failed') return 'failed';",
+    "  if (lineage.authoritativeRunState === 'failed') return 'failed';"],
   ['superseded', 'a missing superseded verdict silently defaults to false', DETAIL,
     '  if (!bool(v.isAuthoritative) || !bool(v.superseded) || !bool(v.suppressRunAgain)) return null;',
     '  if (!bool(v.isAuthoritative)) return null;'],
@@ -254,9 +261,13 @@ const mutants = [
   ['stale-response', 'an edit no longer invalidates an in-flight plan', ENTRY,
     '      reqId.current += 1;\n      prepareInFlight.current = null;',
     '      prepareInFlight.current = null;'],
+  // Re-anchored 2026-08-17: the line AFTER the guard was rewritten
+  // (`res.status === 400 || res.status === 401` became a 4xx range), which
+  // silently broke this mutant at origin/main — the harness aborted before
+  // reporting. The guard itself is unchanged; only the anchor moved.
   ['stale-response', 'a superseded plan answer is applied anyway', ENTRY,
-    '      if (!current()) return;\n      if (res.status === 400 || res.status === 401) {',
-    '      if (res.status === 400 || res.status === 401) {'],
+    '      const body = await res.json().catch(() => null);\n      if (!current()) return;\n      if (!res.ok && res.status >= 400 && res.status < 500) {',
+    '      const body = await res.json().catch(() => null);\n      if (!res.ok && res.status >= 400 && res.status < 500) {'],
 ];
 
 function run(cwd) {

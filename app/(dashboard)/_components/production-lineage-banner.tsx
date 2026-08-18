@@ -26,10 +26,20 @@ import type { ProductionLineage } from '@/lib/outcome-production-detail';
 
 export { supersedesFailureNarrative } from './production-lineage-narrative';
 
+/**
+ * How the authoritative run finished, in one word.
+ *
+ * skill_runs carries TWO orthogonal axes and both are read here. `run_state`
+ * is liveness; `status` is terminal QUALITY. A partial or failed delivery
+ * still reads run_state='completed', so reporting liveness alone would tell
+ * the reader their superseded attempt was replaced by a success that never
+ * happened. Quality is checked FIRST, and is never promoted.
+ */
 function authoritativeOutcome(lineage: ProductionLineage): string {
-  if (lineage.authoritativeRunStatus === 'completed' && lineage.authoritativeRunState === 'completed') return 'completed';
   if (lineage.authoritativeRunState === 'failed' || lineage.authoritativeRunStatus === 'failed') return 'failed';
+  if (lineage.authoritativeRunStatus === 'partial') return 'was only partially delivered';
   if (lineage.authoritativeRunState === 'stalled') return 'stalled';
+  if (lineage.authoritativeRunState === 'completed') return 'completed';
   if (lineage.authoritativeRunState) return lineage.authoritativeRunState;
   return 'has the result';
 }

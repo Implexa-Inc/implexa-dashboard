@@ -23,6 +23,7 @@ import {
   parseProductionDetail, parseLineageResponse, nodeNeedsAttention,
   shouldPollDetail, type ProductionDetail,
 } from '../../../lib/outcome-production-detail.ts';
+import { supersedesFailureNarrative } from './production-lineage-narrative.ts';
 import { parseProduction } from '../../../lib/outcome-production.ts';
 
 /** The fixture, through the real parsers — never a hand-shaped object. */
@@ -224,6 +225,14 @@ test('a superseded shell says so, links to both authorities, and suppresses Run 
   assert.equal(lineage!.superseded, true);
   assert.equal(lineage!.suppressRunAgain, true, 'a settled success must not invite a duplicate');
 
+  // The run page reads this to decide whether to demote its own "this run
+  // stalled" headline. If it ever returned false, a completed related run
+  // would once again lose to a stalled shell.
+  assert.equal(supersedesFailureNarrative(lineage!), true);
+  assert.equal(supersedesFailureNarrative(
+    parseLineageResponse((fixture as Record<string, any>).responses.lineageAuthoritative)!), false);
+  assert.equal(supersedesFailureNarrative(null), false);
+
   const rendered = await render('production-lineage-banner.tsx', { lineage });
   try {
     const text = rendered.text();
@@ -250,6 +259,22 @@ test('the authoritative run points at its production without calling itself supe
     assert.equal(rendered.document.querySelector('[aria-label="Superseded execution attempt"]'), null);
     assert.ok(rendered.queryByText(/Part of a production/));
     assert.ok(rendered.document.querySelector(`a[href="/runs/productions/${lineage!.productionId}"]`));
+  } finally { rendered.cleanup(); }
+});
+
+test('a related run that finished BADLY is never announced as completed', async () => {
+  // skill_runs carries two orthogonal axes: run_state is liveness, status is
+  // terminal quality. A partial or failed delivery still reads
+  // run_state='completed', so reporting liveness alone would tell the reader
+  // the superseded attempt was replaced by a success that never happened.
+  const base = parseLineageResponse((fixture as Record<string, any>).responses.lineageSupersededShell)!;
+  const rendered = await render('production-lineage-banner.tsx', {
+    lineage: { ...base, authoritativeRunState: 'completed', authoritativeRunStatus: 'failed' },
+  });
+  try {
+    const text = rendered.text();
+    assert.match(text, /which failed/, 'the terminal quality wins over liveness');
+    assert.ok(!/which completed/.test(text));
   } finally { rendered.cleanup(); }
 });
 
@@ -314,6 +339,11 @@ test('agent 1 genuinely failed: agent 2 is RELEASED by the parent, not independe
     assert.match(text, /did not succeed/);
     assert.match(text, /never produced/);
     assert.match(text, /Agent 2 released/);
+    // The parent already decided WHY the handoff never happened; the row must
+    // render that reason rather than leaving a seam with no explanation.
+    const reason = row.document.querySelector('[role="status"]');
+    assert.ok(reason, 'the typed failure is announced, not silently dropped');
+    assert.equal(reason!.textContent!.trim(), handoff.failureReason);
   } finally { row.cleanup(); }
 
   // And the PARENT failure stays the authoritative account of the job.
