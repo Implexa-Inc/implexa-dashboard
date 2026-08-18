@@ -51,3 +51,15 @@ test('the renderer is actually mounted on the accounts page', () => {
   assert.match(page, /import \{ ConnectionAdvisoryNote \}/);
   assert.match(page, /<ConnectionAdvisoryNote advisories=\{status\.advisories\}/);
 });
+
+test('agent_browser is LABELLED as itself, not as main Chrome', () => {
+  // A two-way isPrimary check displayed the strongest evidence — proof from the browser
+  // agents actually drive — as "main · backup", the weakest.
+  const page = read('app/(dashboard)/settings/connections/page.tsx');
+  assert.match(page, /const PROFILE_TAG: Record<NonNullable<ConnectionAccount\['profile'\]>/,
+    'exhaustive by value, so a new home cannot inherit someone else’s label');
+  assert.match(page, /agent_browser: \{/);
+  assert.match(page, /label: 'agents’ browser'/);
+  assert.doesNotMatch(page, /const isPrimary = profile === 'dedicated';/,
+    'the two-way check is what produced the mislabel');
+});
