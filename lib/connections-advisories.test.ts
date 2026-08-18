@@ -63,3 +63,19 @@ test('agent_browser is LABELLED as itself, not as main Chrome', () => {
   assert.doesNotMatch(page, /const isPrimary = profile === 'dedicated';/,
     'the two-way check is what produced the mislabel');
 });
+
+// ── the three advisory cases (reviewed defect) ──────────────────────────────
+
+test('advisory copy distinguishes workspace-only, stale-pin and mixed', () => {
+  // The heading hardcoded "not yet checked in your agents' browser" for every advisory.
+  // For a stale-pin advisory that is false: it WAS checked in an agents' browser, just
+  // not the one selected now.
+  const src = read('app/(dashboard)/_components/connection-attention-banner.tsx');
+  assert.match(src, /const onlyStale = reasons\.size === 1 && reasons\.has\('verified_in_a_different_agent_browser'\)/);
+  assert.match(src, /checked in a different agents’ browser than the one currently selected/);
+  assert.match(src, /checked in the workspace browser, not yet in the browser your agents use/);
+  assert.match(src, /signed in, but their proof does not match the browser your agents currently use/,
+    'a mixed set must get neutral copy rather than one story that is wrong for the rest');
+  // The old unconditional heading must be gone.
+  assert.doesNotMatch(src, /\? `\$\{advisories\.length\} account\$\{advisories\.length === 1 \? '' : 's'\} not yet checked/);
+});

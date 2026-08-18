@@ -201,10 +201,20 @@ export function ConnectionAdvisoryNote({
 }) {
   if (advisories.length === 0) return null;
 
-  const heading =
-    scope === 'agent'
-      ? `${advisories.length} account${advisories.length === 1 ? '' : 's'} not yet checked in your agents’ browser`
-      : `${advisories.length} connection${advisories.length === 1 ? '' : 's'} not yet checked in your agents’ browser`;
+  // THREE CASES, because they are three different facts and one of them was being
+  // misreported. A stale-pin advisory WAS checked in an agents' browser — just not the
+  // one currently selected — so "not yet checked" is false for it. A mixed set gets
+  // neutral copy rather than picking one story and being wrong about the rest.
+  const noun = scope === 'agent' ? 'account' : 'connection';
+  const plural = advisories.length === 1 ? '' : 's';
+  const reasons = new Set(advisories.map((a) => a.reason));
+  const onlyStale = reasons.size === 1 && reasons.has('verified_in_a_different_agent_browser');
+  const onlyWorkspace = reasons.size === 1 && reasons.has('not_verified_in_agent_browser');
+  const heading = onlyStale
+    ? `${advisories.length} ${noun}${plural} checked in a different agents’ browser than the one currently selected`
+    : onlyWorkspace
+      ? `${advisories.length} ${noun}${plural} checked in the workspace browser, not yet in the browser your agents use`
+      : `${advisories.length} ${noun}${plural} signed in, but their proof does not match the browser your agents currently use`;
 
   return (
     <section
