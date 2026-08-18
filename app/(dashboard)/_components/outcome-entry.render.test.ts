@@ -59,6 +59,17 @@ async function selectValue(rendered: Rendered, element: HTMLSelectElement, value
 
 const planButton = (rendered: Rendered) => rendered.getByText('Plan this outcome') as HTMLButtonElement;
 
+/** What the plan surface is currently offering, as booleans a failure can print. */
+function planSurface(rendered: Rendered) {
+  return {
+    section: rendered.document.querySelector('[aria-label="Recommended plan"]') !== null,
+    heading: rendered.queryByText('Recommended agent') !== null,
+    agent: rendered.queryByText('Final Video Compositor') !== null,
+    digest: rendered.queryByText(`plan ${DIGEST.slice(0, 12)}`) !== null,
+    start: rendered.queryByText('Start production') !== null,
+  };
+}
+
 test('a positive credit ceiling and zero consequential-spend default are explicit', async () => {
   const rendered = await render('outcome-entry.tsx', {});
   try {
@@ -245,21 +256,59 @@ test('a plan-digest mismatch still invalidates the current plan', async () => {
   } finally { rendered.cleanup(); }
 });
 
-test('unreadable and stale prepare responses fail closed', async () => {
+// A plan is an answer to one exact goal. Editing the goal while a prepare is
+// still in flight makes that answer stale, and a stale plan must not become the
+// thing the user starts: the production would run the PREVIOUS goal under a
+// digest that looks current. Two independent guards enforce this — the edit
+// bumps `reqId`, and the resolved prepare re-checks it before applying — so this
+// asserts the observable outcome (nothing shown, nothing startable) rather than
+// either mechanism, and stays honest if only one of them is left standing.
+test('a goal edited mid-flight discards the stale plan — it is neither shown nor startable', async () => {
+  const FIRST_GOAL = 'Produce a final master from my approved sections.';
+  const EDITED_GOAL = 'Produce a subtitled social cutdown for launch week instead.';
   const rendered = await render('outcome-entry.tsx', {});
   try {
+    const calls: FetchCall[] = [];
     let release: () => void = () => {};
-    (rendered.window as unknown as Record<string, unknown>).fetch = async () => {
-      await new Promise<void>((resolve) => { release = resolve; });
+    (rendered.window as unknown as Record<string, unknown>).fetch = async (url: string, init: { body: string }) => {
+      calls.push({ url, body: JSON.parse(init.body) });
+      // Only the first prepare is held open; the replan at the end resolves at once.
+      if (calls.length === 1) await new Promise<void>((resolve) => { release = resolve; });
       return { ok: true, status: 200, json: async () => planResponse };
     };
-    await fillGoal(rendered);
-    await rendered.click(planButton(rendered));
-    await type(rendered, rendered.document.getElementById('outcome-goal')!, 'A different final deliverable entirely.');
-    await rendered.act(async () => { release(); await new Promise((resolve) => setTimeout(resolve, 5)); });
-    assert.equal(rendered.queryByText('Recommended plan'), null);
-  } finally { rendered.cleanup(); }
+    const goalField = rendered.document.getElementById('outcome-goal') as HTMLTextAreaElement;
 
+    await type(rendered, goalField, FIRST_GOAL);
+    await rendered.click(planButton(rendered));
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].body.goal, FIRST_GOAL);
+
+    // The goal changes while the answer to the previous goal is still in flight.
+    await type(rendered, goalField, EDITED_GOAL);
+    await rendered.act(async () => { release(); await new Promise((resolve) => setTimeout(resolve, 5)); });
+
+    // Asserted as booleans, never as the elements themselves: node:test serialises
+    // an AssertionError's `actual`, and a jsdom node drags the whole document into
+    // that dump — the failure then costs ~50s and dies before it is ever reported.
+    assert.deepEqual(planSurface(rendered), {
+      section: false, heading: false, agent: false, digest: false, start: false,
+    }, 'a plan prepared for the replaced goal must be neither shown nor startable');
+    assert.equal(calls.length, 1, 'the discarded plan must not reach the start endpoint');
+    assert.deepEqual(rendered.calls.push, [], 'nothing was started, so nothing was navigated to');
+
+    // The edit survives, and planning the goal the user actually typed still works.
+    assert.equal(goalField.value, EDITED_GOAL);
+    assert.equal(planButton(rendered).disabled, false);
+    await rendered.click(planButton(rendered));
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].body.goal, EDITED_GOAL);
+    assert.deepEqual(planSurface(rendered), {
+      section: true, heading: true, agent: true, digest: true, start: true,
+    }, 'the plan for the goal actually typed is shown and startable');
+  } finally { rendered.cleanup(); }
+});
+
+test('an unreadable prepare response fails closed', async () => {
   const drifted = await render('outcome-entry.tsx', {});
   try {
     stubFetch(drifted, [{ status: 200, body: { ok: true, kind: 'plan', productionId: PRODUCTION_ID, intent, plan: { drifted: true } } }]);
