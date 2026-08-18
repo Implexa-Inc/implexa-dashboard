@@ -41,7 +41,10 @@ const BACKEND = (
 export type ReachState = 'reachable' | 'unreachable' | 'unknown';
 // PRIMARY = the dedicated profile (the reliable home). BACKUP = the user's main
 // Chrome profile (best-effort, inherits the flaky cross-profile pairing).
-export type ConnProfile = 'dedicated' | 'main';
+// 'agent_browser' is not a Chrome profile at all: it is the separate application the
+// agents drive. Omitting it here converted every agent-browser row's profile to null,
+// which is precisely the provenance the backend added.
+export type ConnProfile = 'dedicated' | 'main' | 'agent_browser';
 
 // One account/app the user has (or needs) signed in. `domain` is always present
 // (it is what the agent navigates to); `account` is the identity bound to it
@@ -75,16 +78,35 @@ export type AgentConnections = {
   needs: AgentNeed[];
 };
 
+/**
+ * Signed in, but not PROVEN where the agent will act.
+ *
+ * Distinct from a warning on purpose: the account works, so this must never block
+ * scheduling or read as a broken connection. It exists because reachability verified in
+ * Implexa's workspace browser is not evidence about the browser agents actually drive,
+ * and presenting the weaker proof as the stronger claim is the thing being fixed.
+ */
+export type ConnectionAdvisory = {
+  agent_slug: string;
+  agent_name: string;
+  account: string | null;
+  domain: string;
+  reason: string;
+  detail: string;
+  detected_at: string | null;
+};
+
 export type ConnectionStatus = {
   connections: ConnectionAccount[];
   agents: AgentConnections[];
   warnings: ConnectionWarning[];
+  advisories: ConnectionAdvisory[];
   /** True when this is real backend data; false on the degraded empty fallback. */
   live: boolean;
 };
 
 const REACH: ReadonlySet<ReachState> = new Set(['reachable', 'unreachable', 'unknown']);
-const PROFILES: ReadonlySet<ConnProfile> = new Set(['dedicated', 'main']);
+const PROFILES: ReadonlySet<ConnProfile> = new Set(['dedicated', 'main', 'agent_browser']);
 
 function asReach(v: unknown): ReachState {
   return typeof v === 'string' && REACH.has(v as ReachState) ? (v as ReachState) : 'unknown';
@@ -177,6 +199,38 @@ function mapAgents(raw: unknown): AgentConnections[] {
 
 // Warnings: prefer the backend's own list; otherwise derive from each agent's
 // unreachable needs so the loud banner still works against a half-built endpoint.
+/**
+ * Advisories from the backend. Strict about the fields that carry meaning: an advisory
+ * with no agent or no explanation cannot be rendered honestly, so it is dropped rather
+ * than shown as a vague alarm.
+ */
+function mapAdvisories(raw: unknown): ConnectionAdvisory[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((a: any): ConnectionAdvisory | null => {
+      const slug = asStr(a?.agent_slug) || asStr(a?.slug);
+      const detail = asStr(a?.detail);
+      if (!slug || !detail) return null;
+      const domain = asStr(a?.domain) || asStr(a?.account) || '';
+      return {
+        agent_slug: slug,
+        agent_name: asStr(a?.agent_name) || asStr(a?.name) || slug.replace(/[-_]+/g, ' '),
+        account: asStr(a?.account),
+        domain,
+        reason: asStr(a?.reason) || 'not_verified_in_agent_browser',
+        detail,
+        detected_at: asStr(a?.detected_at) || asStr(a?.at),
+      };
+    })
+    .filter((a): a is ConnectionAdvisory => a !== null);
+}
+
+/** Advisories for one agent. */
+export function advisoriesForAgent(status: ConnectionStatus | null, slug: string): ConnectionAdvisory[] {
+  if (!status) return [];
+  return status.advisories.filter((a) => a.agent_slug === slug);
+}
+
 function mapWarnings(raw: unknown, agents: AgentConnections[]): ConnectionWarning[] {
   if (Array.isArray(raw) && raw.length > 0) {
     return raw
@@ -245,7 +299,8 @@ export async function getConnectionStatus(): Promise<ConnectionStatus | null> {
     const connections = mapConnections(body?.connections);
     const agents = mapAgents(body?.agents);
     const warnings = mapWarnings(body?.warnings, agents);
-    return { connections, agents, warnings, live: true };
+    const advisories = mapAdvisories(body?.advisories);
+    return { connections, agents, warnings, advisories, live: true };
   } catch {
     return null;
   }

@@ -30,6 +30,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { RECONNECT_HREF, type ConnectionWarning } from '@/lib/connection-warning-types';
+import type { ConnectionAdvisory } from '@/lib/connections';
 
 function rel(iso: string | null): string {
   if (!iso) return '';
@@ -174,6 +175,64 @@ export function ConnectionAttentionBanner({
               </Link>
             )}
             <ConnectionWarningRow w={w} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Signed in, but not proven where the agent acts.
+ *
+ * Deliberately NOT the rose alarm used for warnings. These accounts work; the weaker
+ * claim is about WHERE the proof came from. Styling it as a failure would send the user
+ * to fix something that is not broken — and the point of surfacing it is honesty, not
+ * urgency.
+ */
+export function ConnectionAdvisoryNote({
+  advisories,
+  scope = 'global',
+  className = '',
+}: {
+  advisories: ConnectionAdvisory[];
+  scope?: 'global' | 'agent';
+  className?: string;
+}) {
+  if (advisories.length === 0) return null;
+
+  const heading =
+    scope === 'agent'
+      ? `${advisories.length} account${advisories.length === 1 ? '' : 's'} not yet checked in your agents’ browser`
+      : `${advisories.length} connection${advisories.length === 1 ? '' : 's'} not yet checked in your agents’ browser`;
+
+  return (
+    <section
+      className={`rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 ${className}`}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-base leading-none" aria-hidden="true">ℹ</span>
+        <h2 className="text-sm font-semibold text-ink-50">{heading}</h2>
+      </div>
+      <p className="text-xs text-ink-300 mt-1">
+        These are signed in, but the check ran in Implexa’s workspace browser rather than the browser your agents
+        drive. Run “Check agents’ connections” from the Implexa menu bar to confirm them where it counts.
+      </p>
+      <ul className="mt-3 space-y-2">
+        {advisories.map((a, i) => (
+          <li key={`${a.agent_slug}-${a.domain}-${i}`} className="text-xs text-ink-200">
+            {scope === 'global' && (
+              <Link
+                href={`/workflows/${a.agent_slug}`}
+                className="text-[11px] uppercase tracking-wide text-ink-400 hover:text-ink-200 mr-2"
+              >
+                {a.agent_name}
+              </Link>
+            )}
+            <span className="font-medium">{a.domain || a.account}</span>
+            <span className="text-ink-400"> — {a.detail}</span>
           </li>
         ))}
       </ul>

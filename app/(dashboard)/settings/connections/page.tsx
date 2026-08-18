@@ -19,6 +19,7 @@ import {
   type AgentConnections,
 } from '@/lib/connections';
 import BackLink from '../../_components/back-link';
+import { ConnectionAdvisoryNote } from '../../_components/connection-attention-banner';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,6 +154,14 @@ export default async function AllConnectionsPage() {
             You sign in once; agents use what you can, no API keys. Set-up happens on each agent&apos;s activation card.
           </p>
         </header>
+
+        {/* Signed in, but proven only in Implexa's workspace browser — not the browser
+         * the agents drive. Shown here because this page is the answer to "what can my
+         * agents reach", and a green list that quietly rests on the weaker evidence is
+         * the exact overstatement this surface exists to avoid. */}
+        {status && status.advisories.length > 0 && (
+          <ConnectionAdvisoryNote advisories={status.advisories} className="mb-6" />
+        )}
 
         {!hasData ? (
           <div className="card-glow">
