@@ -1,5 +1,5 @@
 {
-  "schema": "implexa.outcome-orchestration.dashboard-fixture.v3",
+  "schema": "implexa.outcome-orchestration.dashboard-fixture.v4",
   "producer": "implexa-backend/scripts/generate-outcome-orchestration-dashboard-fixture.js",
   "contracts": {
     "capabilities": [
@@ -825,6 +825,2036 @@
           "detail": null
         }
       }
+    },
+    "detailRunning": {
+      "ok": true,
+      "production": {
+        "id": "00000010-0000-4000-8000-000000000003",
+        "workItemId": "00000010-0000-4000-8000-000000000003",
+        "state": "running",
+        "settled": false,
+        "planId": "00000020-0000-4000-8000-000000000003",
+        "planDigest": "0000000000000000000000000000000000000000000000000000000000000003",
+        "goal": "Create the finished launch video.",
+        "quality": "balanced",
+        "budget": {
+          "reservedCredits": 40,
+          "spentCredits": 10,
+          "maxBudgetCredits": 100
+        },
+        "progress": {
+          "completedNodes": 1,
+          "totalNodes": 2
+        },
+        "blockers": [],
+        "canCancel": true,
+        "children": [
+          {
+            "runId": "00000070-0000-4000-8000-000000000030",
+            "requestId": "00000060-0000-4000-8000-000000000030",
+            "order": 0,
+            "agentName": "Cinematic Shot Generator",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3",
+            "state": "settled",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "finishedAt": "2026-08-16T10:09:00.000Z",
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 0,
+            "spentCredits": 10,
+            "blocker": null
+          },
+          {
+            "runId": null,
+            "requestId": "00000060-0000-4000-8000-000000000031",
+            "order": 1,
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7",
+            "state": "dispatched",
+            "startedAt": "2026-08-16T10:10:01.000Z",
+            "finishedAt": null,
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 40,
+            "spentCredits": 0,
+            "blocker": null
+          }
+        ],
+        "nodes": [
+          {
+            "ordinal": 0,
+            "agentName": "Cinematic Shot Generator",
+            "workflowId": "30000000-0000-4000-8000-000000000001",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3",
+            "role": "generate_asset",
+            "taskLabel": "Visual treatment",
+            "expectedArtifact": {
+              "kind": "project_bundle",
+              "description": "A Remotion project bundle."
+            },
+            "execution": {
+              "grantId": "00000050-0000-4000-8000-000000000030",
+              "requestId": "00000060-0000-4000-8000-000000000030",
+              "runId": "00000070-0000-4000-8000-000000000030",
+              "state": "succeeded",
+              "grantState": "settled",
+              "outcomeLabel": "succeeded",
+              "startedAt": "2026-08-16T10:00:01.000Z",
+              "completedAt": "2026-08-16T10:09:00.000Z",
+              "runStartedAt": "2026-08-16T10:00:02.000Z",
+              "runCompletedAt": "2026-08-16T10:08:30.000Z",
+              "durationMs": 508000,
+              "requestedEngine": "codex",
+              "selectedExecutor": "codex",
+              "actualEngine": "codex",
+              "failover": false,
+              "failoverReason": null,
+              "avoidedEngine": null,
+              "engineObservedAt": "2026-08-16T10:00:05.000Z",
+              "verificationStatus": "verified_complete",
+              "completenessStatus": "complete",
+              "creditsSpent": 10,
+              "budgetCredits": 40,
+              "failureReason": null,
+              "stepSummary": {
+                "done": 11,
+                "total": 11
+              },
+              "steps": [
+                {
+                  "index": 1,
+                  "label": "Read the brief",
+                  "status": "done"
+                },
+                {
+                  "index": 2,
+                  "label": "Resolve the input bundle",
+                  "status": "done"
+                },
+                {
+                  "index": 3,
+                  "label": "Draft the treatment",
+                  "status": "done"
+                },
+                {
+                  "index": 4,
+                  "label": "Storyboard the beats",
+                  "status": "done"
+                },
+                {
+                  "index": 5,
+                  "label": "Pick the shots",
+                  "status": "done"
+                },
+                {
+                  "index": 6,
+                  "label": "Write the shot prompts",
+                  "status": "done"
+                },
+                {
+                  "index": 7,
+                  "label": "Generate the clips",
+                  "status": "done"
+                },
+                {
+                  "index": 8,
+                  "label": "Grade the clips",
+                  "status": "done"
+                },
+                {
+                  "index": 9,
+                  "label": "Assemble the Remotion project",
+                  "status": "done"
+                },
+                {
+                  "index": 10,
+                  "label": "Verify the bundle",
+                  "status": "done"
+                },
+                {
+                  "index": 11,
+                  "label": "Hand over the bundle",
+                  "status": "done"
+                }
+              ],
+              "trace": [
+                {
+                  "at": "2026-08-16T10:00:02.000Z",
+                  "step": "1/6",
+                  "note": "read the brief"
+                },
+                {
+                  "at": "2026-08-16T10:01:02.000Z",
+                  "step": "2/6",
+                  "note": "resolve the input bundle"
+                },
+                {
+                  "at": "2026-08-16T10:02:02.000Z",
+                  "step": "3/6",
+                  "note": "draft the treatment"
+                },
+                {
+                  "at": "2026-08-16T10:03:02.000Z",
+                  "step": "4/6",
+                  "note": "storyboard the beats"
+                },
+                {
+                  "at": "2026-08-16T10:04:02.000Z",
+                  "step": "5/6",
+                  "note": "pick the shots"
+                },
+                {
+                  "at": "2026-08-16T10:05:02.000Z",
+                  "step": "6/6",
+                  "note": "write the shot prompts"
+                }
+              ],
+              "artifacts": [
+                {
+                  "id": "00000090-0000-4000-8000-000000000000",
+                  "runId": "00000070-0000-4000-8000-000000000030",
+                  "name": "project-bundle.zip",
+                  "relativePath": "out/project-bundle.zip",
+                  "validatedPath": "/Users/owner/Implexa Agents/out/project-bundle.zip",
+                  "role": "final_output",
+                  "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+                  "sizeBytes": 2411520,
+                  "validatedAt": "2026-08-16T10:08:45.000Z"
+                }
+              ],
+              "truncated": []
+            }
+          },
+          {
+            "ordinal": 1,
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "workflowId": "30000000-0000-4000-8000-000000000002",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7",
+            "role": "produce_outcome",
+            "taskLabel": "Finished video",
+            "expectedArtifact": {
+              "kind": "video_master",
+              "description": "The rendered video master."
+            },
+            "execution": {
+              "grantId": "00000050-0000-4000-8000-000000000031",
+              "requestId": "00000060-0000-4000-8000-000000000031",
+              "runId": null,
+              "state": "dispatched",
+              "grantState": "dispatched",
+              "outcomeLabel": null,
+              "startedAt": "2026-08-16T10:10:01.000Z",
+              "completedAt": null,
+              "runStartedAt": null,
+              "runCompletedAt": null,
+              "durationMs": null,
+              "requestedEngine": "codex",
+              "selectedExecutor": "claude",
+              "actualEngine": null,
+              "failover": true,
+              "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+              "avoidedEngine": "codex",
+              "engineObservedAt": null,
+              "verificationStatus": null,
+              "completenessStatus": null,
+              "creditsSpent": null,
+              "budgetCredits": 40,
+              "failureReason": null,
+              "stepSummary": null,
+              "steps": [],
+              "trace": [],
+              "artifacts": [],
+              "truncated": []
+            }
+          }
+        ],
+        "handoffs": [
+          {
+            "producerOrdinal": 0,
+            "consumerOrdinal": 1,
+            "producerAgentName": "Cinematic Shot Generator",
+            "consumerAgentName": "Visual Evidence & Remotion Compositor",
+            "artifactId": "00000090-0000-4000-8000-000000000000",
+            "artifactName": "project-bundle.zip",
+            "artifactKind": "project_bundle",
+            "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+            "digestPrefix": "333333333333",
+            "validationStatus": "validated",
+            "validatedAt": "2026-08-16T10:08:45.000Z",
+            "dispatchedAt": "2026-08-16T10:10:01.000Z",
+            "state": "accepted",
+            "failureReason": null
+          }
+        ],
+        "trace": [
+          {
+            "at": "2026-08-16T09:58:00.000Z",
+            "type": "production_created",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T09:59:00.000Z",
+            "type": "plan_prepared",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T09:59:30.000Z",
+            "type": "production_started",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:00.000Z",
+            "type": "child_budget_reserved",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": 40,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:01.000Z",
+            "type": "child_dispatched",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": "00000060-0000-4000-8000-000000000030",
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:05.000Z",
+            "type": "child_engine_selected",
+            "source": "run_execution_contexts",
+            "ordinal": 0,
+            "detail": {
+              "requestedEngine": "codex",
+              "selectedExecutor": "codex",
+              "actualEngine": "codex",
+              "failover": false,
+              "failoverReason": null,
+              "runId": "00000070-0000-4000-8000-000000000030"
+            }
+          },
+          {
+            "at": "2026-08-16T10:08:45.000Z",
+            "type": "child_artifact_validated",
+            "source": "run_artifacts",
+            "ordinal": 0,
+            "detail": {
+              "artifactId": "00000090-0000-4000-8000-000000000000",
+              "artifactName": "project-bundle.zip",
+              "role": "final_output",
+              "digestPrefix": "333333333333",
+              "runId": "00000070-0000-4000-8000-000000000030"
+            }
+          },
+          {
+            "at": "2026-08-16T10:09:00.000Z",
+            "type": "child_settled",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": "succeeded",
+              "reason": null,
+              "actualCredits": 10,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": "00000070-0000-4000-8000-000000000030"
+            }
+          },
+          {
+            "at": "2026-08-16T10:10:00.000Z",
+            "type": "child_budget_reserved",
+            "source": "outcome_production_events",
+            "ordinal": 1,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": 40,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:10:01.000Z",
+            "type": "child_dispatched",
+            "source": "outcome_production_events",
+            "ordinal": 1,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": "00000060-0000-4000-8000-000000000031",
+              "runId": null
+            }
+          }
+        ],
+        "traceTruncated": false,
+        "finalDeliverable": null
+      }
+    },
+    "detailSucceeded": {
+      "ok": true,
+      "production": {
+        "id": "00000010-0000-4000-8000-000000000004",
+        "workItemId": "00000010-0000-4000-8000-000000000004",
+        "state": "succeeded",
+        "settled": true,
+        "planId": "00000020-0000-4000-8000-000000000004",
+        "planDigest": "0000000000000000000000000000000000000000000000000000000000000004",
+        "goal": "Create the finished launch video.",
+        "quality": "balanced",
+        "budget": {
+          "reservedCredits": 0,
+          "spentCredits": 35,
+          "maxBudgetCredits": 100
+        },
+        "progress": {
+          "completedNodes": 2,
+          "totalNodes": 2
+        },
+        "blockers": [],
+        "canCancel": false,
+        "children": [
+          {
+            "runId": "00000070-0000-4000-8000-000000000040",
+            "requestId": "00000060-0000-4000-8000-000000000040",
+            "order": 0,
+            "agentName": "Cinematic Shot Generator",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3",
+            "state": "settled",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "finishedAt": "2026-08-16T10:09:00.000Z",
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 0,
+            "spentCredits": 10,
+            "blocker": null
+          },
+          {
+            "runId": "00000070-0000-4000-8000-000000000041",
+            "requestId": "00000060-0000-4000-8000-000000000041",
+            "order": 1,
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7",
+            "state": "settled",
+            "startedAt": "2026-08-16T10:10:01.000Z",
+            "finishedAt": "2026-08-16T10:29:00.000Z",
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 0,
+            "spentCredits": 25,
+            "blocker": null
+          }
+        ],
+        "nodes": [
+          {
+            "ordinal": 0,
+            "agentName": "Cinematic Shot Generator",
+            "workflowId": "30000000-0000-4000-8000-000000000001",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3",
+            "role": "generate_asset",
+            "taskLabel": "Visual treatment",
+            "expectedArtifact": {
+              "kind": "project_bundle",
+              "description": "A Remotion project bundle."
+            },
+            "execution": {
+              "grantId": "00000050-0000-4000-8000-000000000040",
+              "requestId": "00000060-0000-4000-8000-000000000040",
+              "runId": "00000070-0000-4000-8000-000000000040",
+              "state": "succeeded",
+              "grantState": "settled",
+              "outcomeLabel": "succeeded",
+              "startedAt": "2026-08-16T10:00:01.000Z",
+              "completedAt": "2026-08-16T10:09:00.000Z",
+              "runStartedAt": "2026-08-16T10:00:02.000Z",
+              "runCompletedAt": "2026-08-16T10:08:30.000Z",
+              "durationMs": 508000,
+              "requestedEngine": "codex",
+              "selectedExecutor": "codex",
+              "actualEngine": "codex",
+              "failover": false,
+              "failoverReason": null,
+              "avoidedEngine": null,
+              "engineObservedAt": "2026-08-16T10:00:05.000Z",
+              "verificationStatus": "verified_complete",
+              "completenessStatus": "complete",
+              "creditsSpent": 10,
+              "budgetCredits": 40,
+              "failureReason": null,
+              "stepSummary": {
+                "done": 11,
+                "total": 11
+              },
+              "steps": [
+                {
+                  "index": 1,
+                  "label": "Read the brief",
+                  "status": "done"
+                },
+                {
+                  "index": 2,
+                  "label": "Resolve the input bundle",
+                  "status": "done"
+                },
+                {
+                  "index": 3,
+                  "label": "Draft the treatment",
+                  "status": "done"
+                },
+                {
+                  "index": 4,
+                  "label": "Storyboard the beats",
+                  "status": "done"
+                },
+                {
+                  "index": 5,
+                  "label": "Pick the shots",
+                  "status": "done"
+                },
+                {
+                  "index": 6,
+                  "label": "Write the shot prompts",
+                  "status": "done"
+                },
+                {
+                  "index": 7,
+                  "label": "Generate the clips",
+                  "status": "done"
+                },
+                {
+                  "index": 8,
+                  "label": "Grade the clips",
+                  "status": "done"
+                },
+                {
+                  "index": 9,
+                  "label": "Assemble the Remotion project",
+                  "status": "done"
+                },
+                {
+                  "index": 10,
+                  "label": "Verify the bundle",
+                  "status": "done"
+                },
+                {
+                  "index": 11,
+                  "label": "Hand over the bundle",
+                  "status": "done"
+                }
+              ],
+              "trace": [
+                {
+                  "at": "2026-08-16T10:00:02.000Z",
+                  "step": "1/6",
+                  "note": "read the brief"
+                },
+                {
+                  "at": "2026-08-16T10:01:02.000Z",
+                  "step": "2/6",
+                  "note": "resolve the input bundle"
+                },
+                {
+                  "at": "2026-08-16T10:02:02.000Z",
+                  "step": "3/6",
+                  "note": "draft the treatment"
+                },
+                {
+                  "at": "2026-08-16T10:03:02.000Z",
+                  "step": "4/6",
+                  "note": "storyboard the beats"
+                },
+                {
+                  "at": "2026-08-16T10:04:02.000Z",
+                  "step": "5/6",
+                  "note": "pick the shots"
+                },
+                {
+                  "at": "2026-08-16T10:05:02.000Z",
+                  "step": "6/6",
+                  "note": "write the shot prompts"
+                }
+              ],
+              "artifacts": [
+                {
+                  "id": "00000090-0000-4000-8000-000000000000",
+                  "runId": "00000070-0000-4000-8000-000000000040",
+                  "name": "project-bundle.zip",
+                  "relativePath": "out/project-bundle.zip",
+                  "validatedPath": "/Users/owner/Implexa Agents/out/project-bundle.zip",
+                  "role": "final_output",
+                  "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+                  "sizeBytes": 2411520,
+                  "validatedAt": "2026-08-16T10:08:45.000Z"
+                }
+              ],
+              "truncated": []
+            }
+          },
+          {
+            "ordinal": 1,
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "workflowId": "30000000-0000-4000-8000-000000000002",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7",
+            "role": "produce_outcome",
+            "taskLabel": "Finished video",
+            "expectedArtifact": {
+              "kind": "video_master",
+              "description": "The rendered video master."
+            },
+            "execution": {
+              "grantId": "00000050-0000-4000-8000-000000000041",
+              "requestId": "00000060-0000-4000-8000-000000000041",
+              "runId": "00000070-0000-4000-8000-000000000041",
+              "state": "succeeded",
+              "grantState": "settled",
+              "outcomeLabel": "succeeded",
+              "startedAt": "2026-08-16T10:10:01.000Z",
+              "completedAt": "2026-08-16T10:29:00.000Z",
+              "runStartedAt": "2026-08-16T10:10:02.000Z",
+              "runCompletedAt": "2026-08-16T10:28:30.000Z",
+              "durationMs": 1108000,
+              "requestedEngine": "codex",
+              "selectedExecutor": "claude",
+              "actualEngine": "claude",
+              "failover": true,
+              "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+              "avoidedEngine": "codex",
+              "engineObservedAt": "2026-08-16T10:10:05.000Z",
+              "verificationStatus": "verified_complete",
+              "completenessStatus": "complete",
+              "creditsSpent": 25,
+              "budgetCredits": 40,
+              "failureReason": null,
+              "stepSummary": {
+                "done": 11,
+                "total": 11
+              },
+              "steps": [
+                {
+                  "index": 1,
+                  "label": "Read the brief",
+                  "status": "done"
+                },
+                {
+                  "index": 2,
+                  "label": "Resolve the input bundle",
+                  "status": "done"
+                },
+                {
+                  "index": 3,
+                  "label": "Draft the treatment",
+                  "status": "done"
+                },
+                {
+                  "index": 4,
+                  "label": "Storyboard the beats",
+                  "status": "done"
+                },
+                {
+                  "index": 5,
+                  "label": "Pick the shots",
+                  "status": "done"
+                },
+                {
+                  "index": 6,
+                  "label": "Write the shot prompts",
+                  "status": "done"
+                },
+                {
+                  "index": 7,
+                  "label": "Generate the clips",
+                  "status": "done"
+                },
+                {
+                  "index": 8,
+                  "label": "Grade the clips",
+                  "status": "done"
+                },
+                {
+                  "index": 9,
+                  "label": "Assemble the Remotion project",
+                  "status": "done"
+                },
+                {
+                  "index": 10,
+                  "label": "Verify the bundle",
+                  "status": "done"
+                },
+                {
+                  "index": 11,
+                  "label": "Hand over the bundle",
+                  "status": "done"
+                }
+              ],
+              "trace": [
+                {
+                  "at": "2026-08-16T10:10:02.000Z",
+                  "step": "1/6",
+                  "note": "read the brief"
+                },
+                {
+                  "at": "2026-08-16T10:11:02.000Z",
+                  "step": "2/6",
+                  "note": "resolve the input bundle"
+                },
+                {
+                  "at": "2026-08-16T10:12:02.000Z",
+                  "step": "3/6",
+                  "note": "draft the treatment"
+                },
+                {
+                  "at": "2026-08-16T10:13:02.000Z",
+                  "step": "4/6",
+                  "note": "storyboard the beats"
+                },
+                {
+                  "at": "2026-08-16T10:14:02.000Z",
+                  "step": "5/6",
+                  "note": "pick the shots"
+                },
+                {
+                  "at": "2026-08-16T10:15:02.000Z",
+                  "step": "6/6",
+                  "note": "write the shot prompts"
+                }
+              ],
+              "artifacts": [
+                {
+                  "id": "00000090-0000-4000-8000-000000000001",
+                  "runId": "00000070-0000-4000-8000-000000000041",
+                  "name": "video_master.mp4",
+                  "relativePath": "out/render/video_master.mp4",
+                  "validatedPath": "/Users/owner/Implexa Agents/out/render/video_master.mp4",
+                  "role": "final_output",
+                  "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+                  "sizeBytes": 48234496,
+                  "validatedAt": "2026-08-16T10:28:45.000Z"
+                }
+              ],
+              "truncated": []
+            }
+          }
+        ],
+        "handoffs": [
+          {
+            "producerOrdinal": 0,
+            "consumerOrdinal": 1,
+            "producerAgentName": "Cinematic Shot Generator",
+            "consumerAgentName": "Visual Evidence & Remotion Compositor",
+            "artifactId": "00000090-0000-4000-8000-000000000000",
+            "artifactName": "project-bundle.zip",
+            "artifactKind": "project_bundle",
+            "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+            "digestPrefix": "333333333333",
+            "validationStatus": "validated",
+            "validatedAt": "2026-08-16T10:08:45.000Z",
+            "dispatchedAt": "2026-08-16T10:10:01.000Z",
+            "state": "accepted",
+            "failureReason": null
+          }
+        ],
+        "trace": [
+          {
+            "at": "2026-08-16T09:58:00.000Z",
+            "type": "production_created",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T09:59:00.000Z",
+            "type": "plan_prepared",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T09:59:30.000Z",
+            "type": "production_started",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:00.000Z",
+            "type": "child_budget_reserved",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": 40,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:01.000Z",
+            "type": "child_dispatched",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": "00000060-0000-4000-8000-000000000040",
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:05.000Z",
+            "type": "child_engine_selected",
+            "source": "run_execution_contexts",
+            "ordinal": 0,
+            "detail": {
+              "requestedEngine": "codex",
+              "selectedExecutor": "codex",
+              "actualEngine": "codex",
+              "failover": false,
+              "failoverReason": null,
+              "runId": "00000070-0000-4000-8000-000000000040"
+            }
+          },
+          {
+            "at": "2026-08-16T10:08:45.000Z",
+            "type": "child_artifact_validated",
+            "source": "run_artifacts",
+            "ordinal": 0,
+            "detail": {
+              "artifactId": "00000090-0000-4000-8000-000000000000",
+              "artifactName": "project-bundle.zip",
+              "role": "final_output",
+              "digestPrefix": "333333333333",
+              "runId": "00000070-0000-4000-8000-000000000040"
+            }
+          },
+          {
+            "at": "2026-08-16T10:09:00.000Z",
+            "type": "child_settled",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": "succeeded",
+              "reason": null,
+              "actualCredits": 10,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": "00000070-0000-4000-8000-000000000040"
+            }
+          },
+          {
+            "at": "2026-08-16T10:10:00.000Z",
+            "type": "child_budget_reserved",
+            "source": "outcome_production_events",
+            "ordinal": 1,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": 40,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:10:01.000Z",
+            "type": "child_dispatched",
+            "source": "outcome_production_events",
+            "ordinal": 1,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": "00000060-0000-4000-8000-000000000041",
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:10:05.000Z",
+            "type": "child_engine_selected",
+            "source": "run_execution_contexts",
+            "ordinal": 1,
+            "detail": {
+              "requestedEngine": "codex",
+              "selectedExecutor": "claude",
+              "actualEngine": "claude",
+              "failover": true,
+              "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+              "runId": "00000070-0000-4000-8000-000000000041"
+            }
+          },
+          {
+            "at": "2026-08-16T10:28:45.000Z",
+            "type": "child_artifact_validated",
+            "source": "run_artifacts",
+            "ordinal": 1,
+            "detail": {
+              "artifactId": "00000090-0000-4000-8000-000000000001",
+              "artifactName": "video_master.mp4",
+              "role": "final_output",
+              "digestPrefix": "444444444444",
+              "runId": "00000070-0000-4000-8000-000000000041"
+            }
+          },
+          {
+            "at": "2026-08-16T10:29:00.000Z",
+            "type": "child_settled",
+            "source": "outcome_production_events",
+            "ordinal": 1,
+            "detail": {
+              "outcomeLabel": "succeeded",
+              "reason": null,
+              "actualCredits": 25,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": "00000070-0000-4000-8000-000000000041"
+            }
+          },
+          {
+            "at": "2026-08-16T10:29:30.000Z",
+            "type": "receipt_recorded",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+              "finalStatus": "succeeded",
+              "requestId": null,
+              "runId": null
+            }
+          }
+        ],
+        "traceTruncated": false,
+        "finalDeliverable": {
+          "id": "00000090-0000-4000-8000-000000000001",
+          "runId": "00000070-0000-4000-8000-000000000041",
+          "name": "video_master.mp4",
+          "relativePath": "out/render/video_master.mp4",
+          "validatedPath": "/Users/owner/Implexa Agents/out/render/video_master.mp4",
+          "role": "final_output",
+          "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+          "sizeBytes": 48234496,
+          "validatedAt": "2026-08-16T10:28:45.000Z",
+          "ordinal": 1,
+          "agentName": "Visual Evidence & Remotion Compositor"
+        }
+      }
+    },
+    "detailFailed": {
+      "ok": true,
+      "production": {
+        "id": "00000010-0000-4000-8000-000000000006",
+        "workItemId": "00000010-0000-4000-8000-000000000006",
+        "state": "failed",
+        "settled": true,
+        "planId": "00000020-0000-4000-8000-000000000006",
+        "planDigest": "0000000000000000000000000000000000000000000000000000000000000006",
+        "goal": "Create the finished launch video.",
+        "quality": "balanced",
+        "budget": {
+          "reservedCredits": 0,
+          "spentCredits": 35,
+          "maxBudgetCredits": 100
+        },
+        "progress": {
+          "completedNodes": 2,
+          "totalNodes": 2
+        },
+        "blockers": [
+          {
+            "reasonCode": "failed",
+            "detail": "Child failed verification."
+          },
+          {
+            "reasonCode": "failed",
+            "detail": "Child failed verification."
+          },
+          {
+            "reasonCode": "production_failed",
+            "detail": "No deliverable completed."
+          }
+        ],
+        "canCancel": false,
+        "children": [
+          {
+            "runId": "00000070-0000-4000-8000-000000000060",
+            "requestId": "00000060-0000-4000-8000-000000000060",
+            "order": 0,
+            "agentName": "Cinematic Shot Generator",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3",
+            "state": "settled",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "finishedAt": "2026-08-16T10:09:00.000Z",
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 0,
+            "spentCredits": 10,
+            "blocker": {
+              "reasonCode": "failed",
+              "detail": "Child failed verification."
+            }
+          },
+          {
+            "runId": "00000070-0000-4000-8000-000000000061",
+            "requestId": "00000060-0000-4000-8000-000000000061",
+            "order": 1,
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7",
+            "state": "settled",
+            "startedAt": "2026-08-16T10:10:01.000Z",
+            "finishedAt": "2026-08-16T10:29:00.000Z",
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 0,
+            "spentCredits": 25,
+            "blocker": {
+              "reasonCode": "failed",
+              "detail": "Child failed verification."
+            }
+          }
+        ],
+        "nodes": [
+          {
+            "ordinal": 0,
+            "agentName": "Cinematic Shot Generator",
+            "workflowId": "30000000-0000-4000-8000-000000000001",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3",
+            "role": "generate_asset",
+            "taskLabel": "Visual treatment",
+            "expectedArtifact": {
+              "kind": "project_bundle",
+              "description": "A Remotion project bundle."
+            },
+            "execution": {
+              "grantId": "00000050-0000-4000-8000-000000000060",
+              "requestId": "00000060-0000-4000-8000-000000000060",
+              "runId": "00000070-0000-4000-8000-000000000060",
+              "state": "failed",
+              "grantState": "settled",
+              "outcomeLabel": "failed",
+              "startedAt": "2026-08-16T10:00:01.000Z",
+              "completedAt": "2026-08-16T10:09:00.000Z",
+              "runStartedAt": "2026-08-16T10:00:02.000Z",
+              "runCompletedAt": "2026-08-16T10:08:30.000Z",
+              "durationMs": 508000,
+              "requestedEngine": "codex",
+              "selectedExecutor": "codex",
+              "actualEngine": "codex",
+              "failover": false,
+              "failoverReason": null,
+              "avoidedEngine": null,
+              "engineObservedAt": "2026-08-16T10:00:05.000Z",
+              "verificationStatus": "failed",
+              "completenessStatus": "incomplete",
+              "creditsSpent": 10,
+              "budgetCredits": 40,
+              "failureReason": "Child failed verification.",
+              "stepSummary": {
+                "done": 6,
+                "total": 11
+              },
+              "steps": [
+                {
+                  "index": 1,
+                  "label": "Read the brief",
+                  "status": "done"
+                },
+                {
+                  "index": 2,
+                  "label": "Resolve the input bundle",
+                  "status": "done"
+                },
+                {
+                  "index": 3,
+                  "label": "Draft the treatment",
+                  "status": "done"
+                },
+                {
+                  "index": 4,
+                  "label": "Storyboard the beats",
+                  "status": "done"
+                },
+                {
+                  "index": 5,
+                  "label": "Pick the shots",
+                  "status": "done"
+                },
+                {
+                  "index": 6,
+                  "label": "Write the shot prompts",
+                  "status": "done"
+                },
+                {
+                  "index": 7,
+                  "label": "Generate the clips",
+                  "status": "failed"
+                },
+                {
+                  "index": 8,
+                  "label": "Grade the clips",
+                  "status": "pending"
+                },
+                {
+                  "index": 9,
+                  "label": "Assemble the Remotion project",
+                  "status": "pending"
+                },
+                {
+                  "index": 10,
+                  "label": "Verify the bundle",
+                  "status": "pending"
+                },
+                {
+                  "index": 11,
+                  "label": "Hand over the bundle",
+                  "status": "pending"
+                }
+              ],
+              "trace": [
+                {
+                  "at": "2026-08-16T10:00:02.000Z",
+                  "step": "1/3",
+                  "note": "read the brief"
+                },
+                {
+                  "at": "2026-08-16T10:01:02.000Z",
+                  "step": "2/3",
+                  "note": "resolve the input bundle"
+                },
+                {
+                  "at": "2026-08-16T10:02:02.000Z",
+                  "step": "3/3",
+                  "note": "draft the treatment"
+                }
+              ],
+              "artifacts": [],
+              "truncated": []
+            }
+          },
+          {
+            "ordinal": 1,
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "workflowId": "30000000-0000-4000-8000-000000000002",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7",
+            "role": "produce_outcome",
+            "taskLabel": "Finished video",
+            "expectedArtifact": {
+              "kind": "video_master",
+              "description": "The rendered video master."
+            },
+            "execution": {
+              "grantId": "00000050-0000-4000-8000-000000000061",
+              "requestId": "00000060-0000-4000-8000-000000000061",
+              "runId": "00000070-0000-4000-8000-000000000061",
+              "state": "failed",
+              "grantState": "settled",
+              "outcomeLabel": "failed",
+              "startedAt": "2026-08-16T10:10:01.000Z",
+              "completedAt": "2026-08-16T10:29:00.000Z",
+              "runStartedAt": "2026-08-16T10:10:02.000Z",
+              "runCompletedAt": "2026-08-16T10:28:30.000Z",
+              "durationMs": 1108000,
+              "requestedEngine": "codex",
+              "selectedExecutor": "claude",
+              "actualEngine": "claude",
+              "failover": true,
+              "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+              "avoidedEngine": "codex",
+              "engineObservedAt": "2026-08-16T10:10:05.000Z",
+              "verificationStatus": "failed",
+              "completenessStatus": "incomplete",
+              "creditsSpent": 25,
+              "budgetCredits": 40,
+              "failureReason": "Child failed verification.",
+              "stepSummary": {
+                "done": 6,
+                "total": 11
+              },
+              "steps": [
+                {
+                  "index": 1,
+                  "label": "Read the brief",
+                  "status": "done"
+                },
+                {
+                  "index": 2,
+                  "label": "Resolve the input bundle",
+                  "status": "done"
+                },
+                {
+                  "index": 3,
+                  "label": "Draft the treatment",
+                  "status": "done"
+                },
+                {
+                  "index": 4,
+                  "label": "Storyboard the beats",
+                  "status": "done"
+                },
+                {
+                  "index": 5,
+                  "label": "Pick the shots",
+                  "status": "done"
+                },
+                {
+                  "index": 6,
+                  "label": "Write the shot prompts",
+                  "status": "done"
+                },
+                {
+                  "index": 7,
+                  "label": "Generate the clips",
+                  "status": "failed"
+                },
+                {
+                  "index": 8,
+                  "label": "Grade the clips",
+                  "status": "pending"
+                },
+                {
+                  "index": 9,
+                  "label": "Assemble the Remotion project",
+                  "status": "pending"
+                },
+                {
+                  "index": 10,
+                  "label": "Verify the bundle",
+                  "status": "pending"
+                },
+                {
+                  "index": 11,
+                  "label": "Hand over the bundle",
+                  "status": "pending"
+                }
+              ],
+              "trace": [
+                {
+                  "at": "2026-08-16T10:10:02.000Z",
+                  "step": "1/3",
+                  "note": "read the brief"
+                },
+                {
+                  "at": "2026-08-16T10:11:02.000Z",
+                  "step": "2/3",
+                  "note": "resolve the input bundle"
+                },
+                {
+                  "at": "2026-08-16T10:12:02.000Z",
+                  "step": "3/3",
+                  "note": "draft the treatment"
+                }
+              ],
+              "artifacts": [],
+              "truncated": []
+            }
+          }
+        ],
+        "handoffs": [
+          {
+            "producerOrdinal": 0,
+            "consumerOrdinal": 1,
+            "producerAgentName": "Cinematic Shot Generator",
+            "consumerAgentName": "Visual Evidence & Remotion Compositor",
+            "artifactId": null,
+            "artifactName": null,
+            "artifactKind": "project_bundle",
+            "digest": null,
+            "digestPrefix": null,
+            "validationStatus": "not_reached",
+            "validatedAt": null,
+            "dispatchedAt": "2026-08-16T10:10:01.000Z",
+            "state": "blocked",
+            "failureReason": "Child failed verification."
+          }
+        ],
+        "trace": [
+          {
+            "at": "2026-08-16T09:58:00.000Z",
+            "type": "production_created",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T09:59:00.000Z",
+            "type": "plan_prepared",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T09:59:30.000Z",
+            "type": "production_started",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:00.000Z",
+            "type": "child_budget_reserved",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": 40,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:01.000Z",
+            "type": "child_dispatched",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": "00000060-0000-4000-8000-000000000060",
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:05.000Z",
+            "type": "child_engine_selected",
+            "source": "run_execution_contexts",
+            "ordinal": 0,
+            "detail": {
+              "requestedEngine": "codex",
+              "selectedExecutor": "codex",
+              "actualEngine": "codex",
+              "failover": false,
+              "failoverReason": null,
+              "runId": "00000070-0000-4000-8000-000000000060"
+            }
+          },
+          {
+            "at": "2026-08-16T10:09:00.000Z",
+            "type": "child_settled",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": "failed",
+              "reason": null,
+              "actualCredits": 10,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": "00000070-0000-4000-8000-000000000060"
+            }
+          },
+          {
+            "at": "2026-08-16T10:10:00.000Z",
+            "type": "child_budget_reserved",
+            "source": "outcome_production_events",
+            "ordinal": 1,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": 40,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:10:01.000Z",
+            "type": "child_dispatched",
+            "source": "outcome_production_events",
+            "ordinal": 1,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": "00000060-0000-4000-8000-000000000061",
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:10:05.000Z",
+            "type": "child_engine_selected",
+            "source": "run_execution_contexts",
+            "ordinal": 1,
+            "detail": {
+              "requestedEngine": "codex",
+              "selectedExecutor": "claude",
+              "actualEngine": "claude",
+              "failover": true,
+              "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+              "runId": "00000070-0000-4000-8000-000000000061"
+            }
+          },
+          {
+            "at": "2026-08-16T10:29:00.000Z",
+            "type": "child_settled",
+            "source": "outcome_production_events",
+            "ordinal": 1,
+            "detail": {
+              "outcomeLabel": "failed",
+              "reason": null,
+              "actualCredits": 25,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": "00000070-0000-4000-8000-000000000061"
+            }
+          },
+          {
+            "at": "2026-08-16T10:29:30.000Z",
+            "type": "receipt_recorded",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+              "finalStatus": "failed",
+              "requestId": null,
+              "runId": null
+            }
+          }
+        ],
+        "traceTruncated": false,
+        "finalDeliverable": null
+      }
+    },
+    "detailBlocked": {
+      "ok": true,
+      "production": {
+        "id": "00000010-0000-4000-8000-000000000008",
+        "workItemId": "00000010-0000-4000-8000-000000000008",
+        "state": "failed",
+        "settled": true,
+        "planId": "00000020-0000-4000-8000-000000000008",
+        "planDigest": "0000000000000000000000000000000000000000000000000000000000000008",
+        "goal": "Create the finished launch video.",
+        "quality": "balanced",
+        "budget": {
+          "reservedCredits": 0,
+          "spentCredits": 10,
+          "maxBudgetCredits": 100
+        },
+        "progress": {
+          "completedNodes": 2,
+          "totalNodes": 2
+        },
+        "blockers": [
+          {
+            "reasonCode": "failed",
+            "detail": "Child failed verification."
+          },
+          {
+            "reasonCode": "cancelled",
+            "detail": "upstream node did not succeed, so this sequential node cannot run"
+          },
+          {
+            "reasonCode": "production_failed",
+            "detail": "node 0: failed — Child failed verification."
+          }
+        ],
+        "canCancel": false,
+        "children": [
+          {
+            "runId": "00000070-0000-4000-8000-000000000080",
+            "requestId": "00000060-0000-4000-8000-000000000080",
+            "order": 0,
+            "agentName": "Cinematic Shot Generator",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3",
+            "state": "settled",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "finishedAt": "2026-08-16T10:09:00.000Z",
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 0,
+            "spentCredits": 10,
+            "blocker": {
+              "reasonCode": "failed",
+              "detail": "Child failed verification."
+            }
+          },
+          {
+            "runId": null,
+            "requestId": null,
+            "order": 1,
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7",
+            "state": "released",
+            "startedAt": null,
+            "finishedAt": "2026-08-16T10:29:00.000Z",
+            "budgetAllocationCredits": 40,
+            "reservedCredits": 0,
+            "spentCredits": 0,
+            "blocker": {
+              "reasonCode": "cancelled",
+              "detail": "upstream node did not succeed, so this sequential node cannot run"
+            }
+          }
+        ],
+        "nodes": [
+          {
+            "ordinal": 0,
+            "agentName": "Cinematic Shot Generator",
+            "workflowId": "30000000-0000-4000-8000-000000000001",
+            "agentVersionId": "40000000-0000-4000-8000-000000000001",
+            "versionNumber": "3",
+            "role": "generate_asset",
+            "taskLabel": "Visual treatment",
+            "expectedArtifact": {
+              "kind": "project_bundle",
+              "description": "A Remotion project bundle."
+            },
+            "execution": {
+              "grantId": "00000050-0000-4000-8000-000000000080",
+              "requestId": "00000060-0000-4000-8000-000000000080",
+              "runId": "00000070-0000-4000-8000-000000000080",
+              "state": "failed",
+              "grantState": "settled",
+              "outcomeLabel": "failed",
+              "startedAt": "2026-08-16T10:00:01.000Z",
+              "completedAt": "2026-08-16T10:09:00.000Z",
+              "runStartedAt": "2026-08-16T10:00:02.000Z",
+              "runCompletedAt": "2026-08-16T10:08:30.000Z",
+              "durationMs": 508000,
+              "requestedEngine": "codex",
+              "selectedExecutor": "codex",
+              "actualEngine": "codex",
+              "failover": false,
+              "failoverReason": null,
+              "avoidedEngine": null,
+              "engineObservedAt": "2026-08-16T10:00:05.000Z",
+              "verificationStatus": "failed",
+              "completenessStatus": "incomplete",
+              "creditsSpent": 10,
+              "budgetCredits": 40,
+              "failureReason": "Child failed verification.",
+              "stepSummary": {
+                "done": 6,
+                "total": 11
+              },
+              "steps": [
+                {
+                  "index": 1,
+                  "label": "Read the brief",
+                  "status": "done"
+                },
+                {
+                  "index": 2,
+                  "label": "Resolve the input bundle",
+                  "status": "done"
+                },
+                {
+                  "index": 3,
+                  "label": "Draft the treatment",
+                  "status": "done"
+                },
+                {
+                  "index": 4,
+                  "label": "Storyboard the beats",
+                  "status": "done"
+                },
+                {
+                  "index": 5,
+                  "label": "Pick the shots",
+                  "status": "done"
+                },
+                {
+                  "index": 6,
+                  "label": "Write the shot prompts",
+                  "status": "done"
+                },
+                {
+                  "index": 7,
+                  "label": "Generate the clips",
+                  "status": "failed"
+                },
+                {
+                  "index": 8,
+                  "label": "Grade the clips",
+                  "status": "pending"
+                },
+                {
+                  "index": 9,
+                  "label": "Assemble the Remotion project",
+                  "status": "pending"
+                },
+                {
+                  "index": 10,
+                  "label": "Verify the bundle",
+                  "status": "pending"
+                },
+                {
+                  "index": 11,
+                  "label": "Hand over the bundle",
+                  "status": "pending"
+                }
+              ],
+              "trace": [
+                {
+                  "at": "2026-08-16T10:00:02.000Z",
+                  "step": "1/3",
+                  "note": "read the brief"
+                },
+                {
+                  "at": "2026-08-16T10:01:02.000Z",
+                  "step": "2/3",
+                  "note": "resolve the input bundle"
+                },
+                {
+                  "at": "2026-08-16T10:02:02.000Z",
+                  "step": "3/3",
+                  "note": "draft the treatment"
+                }
+              ],
+              "artifacts": [],
+              "truncated": []
+            }
+          },
+          {
+            "ordinal": 1,
+            "agentName": "Visual Evidence & Remotion Compositor",
+            "workflowId": "30000000-0000-4000-8000-000000000002",
+            "agentVersionId": "40000000-0000-4000-8000-000000000002",
+            "versionNumber": "7",
+            "role": "produce_outcome",
+            "taskLabel": "Finished video",
+            "expectedArtifact": {
+              "kind": "video_master",
+              "description": "The rendered video master."
+            },
+            "execution": {
+              "grantId": "00000050-0000-4000-8000-000000000081",
+              "requestId": null,
+              "runId": null,
+              "state": "cancelled",
+              "grantState": "released",
+              "outcomeLabel": "cancelled",
+              "startedAt": null,
+              "completedAt": "2026-08-16T10:29:00.000Z",
+              "runStartedAt": null,
+              "runCompletedAt": null,
+              "durationMs": null,
+              "requestedEngine": null,
+              "selectedExecutor": null,
+              "actualEngine": null,
+              "failover": false,
+              "failoverReason": null,
+              "avoidedEngine": null,
+              "engineObservedAt": null,
+              "verificationStatus": null,
+              "completenessStatus": null,
+              "creditsSpent": null,
+              "budgetCredits": 40,
+              "failureReason": "upstream node did not succeed, so this sequential node cannot run",
+              "stepSummary": null,
+              "steps": [],
+              "trace": [],
+              "artifacts": [],
+              "truncated": []
+            }
+          }
+        ],
+        "handoffs": [
+          {
+            "producerOrdinal": 0,
+            "consumerOrdinal": 1,
+            "producerAgentName": "Cinematic Shot Generator",
+            "consumerAgentName": "Visual Evidence & Remotion Compositor",
+            "artifactId": null,
+            "artifactName": null,
+            "artifactKind": "project_bundle",
+            "digest": null,
+            "digestPrefix": null,
+            "validationStatus": "not_reached",
+            "validatedAt": null,
+            "dispatchedAt": null,
+            "state": "blocked",
+            "failureReason": "Child failed verification."
+          }
+        ],
+        "trace": [
+          {
+            "at": "2026-08-16T09:58:00.000Z",
+            "type": "production_created",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T09:59:00.000Z",
+            "type": "plan_prepared",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T09:59:30.000Z",
+            "type": "production_started",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:00.000Z",
+            "type": "child_budget_reserved",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": 40,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:01.000Z",
+            "type": "child_dispatched",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": "00000060-0000-4000-8000-000000000080",
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:00:05.000Z",
+            "type": "child_engine_selected",
+            "source": "run_execution_contexts",
+            "ordinal": 0,
+            "detail": {
+              "requestedEngine": "codex",
+              "selectedExecutor": "codex",
+              "actualEngine": "codex",
+              "failover": false,
+              "failoverReason": null,
+              "runId": "00000070-0000-4000-8000-000000000080"
+            }
+          },
+          {
+            "at": "2026-08-16T10:09:00.000Z",
+            "type": "child_settled",
+            "source": "outcome_production_events",
+            "ordinal": 0,
+            "detail": {
+              "outcomeLabel": "failed",
+              "reason": null,
+              "actualCredits": 10,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": "00000070-0000-4000-8000-000000000080"
+            }
+          },
+          {
+            "at": "2026-08-16T10:29:00.000Z",
+            "type": "child_dispatch_released",
+            "source": "outcome_production_events",
+            "ordinal": 1,
+            "detail": {
+              "outcomeLabel": "cancelled",
+              "reason": "upstream node did not succeed, so this sequential node cannot run",
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": null,
+              "finalStatus": null,
+              "requestId": null,
+              "runId": null
+            }
+          },
+          {
+            "at": "2026-08-16T10:29:30.000Z",
+            "type": "receipt_recorded",
+            "source": "outcome_production_events",
+            "ordinal": null,
+            "detail": {
+              "outcomeLabel": null,
+              "reason": null,
+              "actualCredits": null,
+              "budgetCredits": null,
+              "planDigest": null,
+              "receiptDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+              "finalStatus": "failed",
+              "requestId": null,
+              "runId": null
+            }
+          }
+        ],
+        "traceTruncated": false,
+        "finalDeliverable": null
+      }
+    },
+    "lineageAuthoritative": {
+      "ok": true,
+      "lineage": {
+        "productionId": "00000010-0000-4000-8000-000000000004",
+        "productionState": "succeeded",
+        "productionGoal": "Create the finished launch video.",
+        "settled": true,
+        "ordinal": 1,
+        "agentName": "Visual Evidence & Remotion Compositor",
+        "role": "produce_outcome",
+        "nodeState": "settled",
+        "nodeOutcomeLabel": "succeeded",
+        "nodeFailureReason": null,
+        "viewedRunId": "00000070-0000-4000-8000-000000000041",
+        "authoritativeRunId": "00000070-0000-4000-8000-000000000041",
+        "isAuthoritative": true,
+        "superseded": false,
+        "authoritativeRunState": "completed",
+        "authoritativeRunStatus": "completed",
+        "authoritativeRunCompletedAt": "2026-08-16T10:28:30.000Z",
+        "suppressRunAgain": true
+      }
+    },
+    "lineageSupersededShell": {
+      "ok": true,
+      "lineage": {
+        "productionId": "00000010-0000-4000-8000-000000000004",
+        "productionState": "succeeded",
+        "productionGoal": "Create the finished launch video.",
+        "settled": true,
+        "ordinal": 1,
+        "agentName": "Visual Evidence & Remotion Compositor",
+        "role": "produce_outcome",
+        "nodeState": "settled",
+        "nodeOutcomeLabel": "succeeded",
+        "nodeFailureReason": null,
+        "viewedRunId": "00000070-0000-4000-8000-000000000099",
+        "authoritativeRunId": "00000070-0000-4000-8000-000000000041",
+        "isAuthoritative": false,
+        "superseded": true,
+        "authoritativeRunState": "completed",
+        "authoritativeRunStatus": "completed",
+        "authoritativeRunCompletedAt": "2026-08-16T10:28:30.000Z",
+        "suppressRunAgain": true
+      }
+    },
+    "lineageAbsent": {
+      "ok": true,
+      "lineage": null
     }
   },
   "productions": {
@@ -1186,6 +3216,3025 @@
           }
         }
       ]
+    },
+    "blocked": {
+      "id": "00000010-0000-4000-8000-000000000008",
+      "workItemId": "00000010-0000-4000-8000-000000000008",
+      "state": "failed",
+      "settled": true,
+      "planId": "00000020-0000-4000-8000-000000000008",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000008",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 10,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 2,
+        "totalNodes": 2
+      },
+      "blockers": [
+        {
+          "reasonCode": "failed",
+          "detail": "Child failed verification."
+        },
+        {
+          "reasonCode": "cancelled",
+          "detail": "upstream node did not succeed, so this sequential node cannot run"
+        },
+        {
+          "reasonCode": "production_failed",
+          "detail": "node 0: failed — Child failed verification."
+        }
+      ],
+      "canCancel": false,
+      "children": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000080",
+          "requestId": "00000060-0000-4000-8000-000000000080",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 10,
+          "blocker": {
+            "reasonCode": "failed",
+            "detail": "Child failed verification."
+          }
+        },
+        {
+          "runId": null,
+          "requestId": null,
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "released",
+          "startedAt": null,
+          "finishedAt": "2026-08-16T10:29:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 0,
+          "blocker": {
+            "reasonCode": "cancelled",
+            "detail": "upstream node did not succeed, so this sequential node cannot run"
+          }
+        }
+      ]
+    }
+  },
+  "details": {
+    "running": {
+      "id": "00000010-0000-4000-8000-000000000003",
+      "workItemId": "00000010-0000-4000-8000-000000000003",
+      "state": "running",
+      "settled": false,
+      "planId": "00000020-0000-4000-8000-000000000003",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000003",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 40,
+        "spentCredits": 10,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 1,
+        "totalNodes": 2
+      },
+      "blockers": [],
+      "canCancel": true,
+      "children": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000030",
+          "requestId": "00000060-0000-4000-8000-000000000030",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 10,
+          "blocker": null
+        },
+        {
+          "runId": null,
+          "requestId": "00000060-0000-4000-8000-000000000031",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "dispatched",
+          "startedAt": "2026-08-16T10:10:01.000Z",
+          "finishedAt": null,
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 40,
+          "spentCredits": 0,
+          "blocker": null
+        }
+      ],
+      "nodes": [
+        {
+          "ordinal": 0,
+          "agentName": "Cinematic Shot Generator",
+          "workflowId": "30000000-0000-4000-8000-000000000001",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "role": "generate_asset",
+          "taskLabel": "Visual treatment",
+          "expectedArtifact": {
+            "kind": "project_bundle",
+            "description": "A Remotion project bundle."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000030",
+            "requestId": "00000060-0000-4000-8000-000000000030",
+            "runId": "00000070-0000-4000-8000-000000000030",
+            "state": "succeeded",
+            "grantState": "settled",
+            "outcomeLabel": "succeeded",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "completedAt": "2026-08-16T10:09:00.000Z",
+            "runStartedAt": "2026-08-16T10:00:02.000Z",
+            "runCompletedAt": "2026-08-16T10:08:30.000Z",
+            "durationMs": 508000,
+            "requestedEngine": "codex",
+            "selectedExecutor": "codex",
+            "actualEngine": "codex",
+            "failover": false,
+            "failoverReason": null,
+            "avoidedEngine": null,
+            "engineObservedAt": "2026-08-16T10:00:05.000Z",
+            "verificationStatus": "verified_complete",
+            "completenessStatus": "complete",
+            "creditsSpent": 10,
+            "budgetCredits": 40,
+            "failureReason": null,
+            "stepSummary": {
+              "done": 11,
+              "total": 11
+            },
+            "steps": [
+              {
+                "index": 1,
+                "label": "Read the brief",
+                "status": "done"
+              },
+              {
+                "index": 2,
+                "label": "Resolve the input bundle",
+                "status": "done"
+              },
+              {
+                "index": 3,
+                "label": "Draft the treatment",
+                "status": "done"
+              },
+              {
+                "index": 4,
+                "label": "Storyboard the beats",
+                "status": "done"
+              },
+              {
+                "index": 5,
+                "label": "Pick the shots",
+                "status": "done"
+              },
+              {
+                "index": 6,
+                "label": "Write the shot prompts",
+                "status": "done"
+              },
+              {
+                "index": 7,
+                "label": "Generate the clips",
+                "status": "done"
+              },
+              {
+                "index": 8,
+                "label": "Grade the clips",
+                "status": "done"
+              },
+              {
+                "index": 9,
+                "label": "Assemble the Remotion project",
+                "status": "done"
+              },
+              {
+                "index": 10,
+                "label": "Verify the bundle",
+                "status": "done"
+              },
+              {
+                "index": 11,
+                "label": "Hand over the bundle",
+                "status": "done"
+              }
+            ],
+            "trace": [
+              {
+                "at": "2026-08-16T10:00:02.000Z",
+                "step": "1/6",
+                "note": "read the brief"
+              },
+              {
+                "at": "2026-08-16T10:01:02.000Z",
+                "step": "2/6",
+                "note": "resolve the input bundle"
+              },
+              {
+                "at": "2026-08-16T10:02:02.000Z",
+                "step": "3/6",
+                "note": "draft the treatment"
+              },
+              {
+                "at": "2026-08-16T10:03:02.000Z",
+                "step": "4/6",
+                "note": "storyboard the beats"
+              },
+              {
+                "at": "2026-08-16T10:04:02.000Z",
+                "step": "5/6",
+                "note": "pick the shots"
+              },
+              {
+                "at": "2026-08-16T10:05:02.000Z",
+                "step": "6/6",
+                "note": "write the shot prompts"
+              }
+            ],
+            "artifacts": [
+              {
+                "id": "00000090-0000-4000-8000-000000000000",
+                "runId": "00000070-0000-4000-8000-000000000030",
+                "name": "project-bundle.zip",
+                "relativePath": "out/project-bundle.zip",
+                "validatedPath": "/Users/owner/Implexa Agents/out/project-bundle.zip",
+                "role": "final_output",
+                "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+                "sizeBytes": 2411520,
+                "validatedAt": "2026-08-16T10:08:45.000Z"
+              }
+            ],
+            "truncated": []
+          }
+        },
+        {
+          "ordinal": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "workflowId": "30000000-0000-4000-8000-000000000002",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "role": "produce_outcome",
+          "taskLabel": "Finished video",
+          "expectedArtifact": {
+            "kind": "video_master",
+            "description": "The rendered video master."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000031",
+            "requestId": "00000060-0000-4000-8000-000000000031",
+            "runId": null,
+            "state": "dispatched",
+            "grantState": "dispatched",
+            "outcomeLabel": null,
+            "startedAt": "2026-08-16T10:10:01.000Z",
+            "completedAt": null,
+            "runStartedAt": null,
+            "runCompletedAt": null,
+            "durationMs": null,
+            "requestedEngine": "codex",
+            "selectedExecutor": "claude",
+            "actualEngine": null,
+            "failover": true,
+            "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+            "avoidedEngine": "codex",
+            "engineObservedAt": null,
+            "verificationStatus": null,
+            "completenessStatus": null,
+            "creditsSpent": null,
+            "budgetCredits": 40,
+            "failureReason": null,
+            "stepSummary": null,
+            "steps": [],
+            "trace": [],
+            "artifacts": [],
+            "truncated": []
+          }
+        }
+      ],
+      "handoffs": [
+        {
+          "producerOrdinal": 0,
+          "consumerOrdinal": 1,
+          "producerAgentName": "Cinematic Shot Generator",
+          "consumerAgentName": "Visual Evidence & Remotion Compositor",
+          "artifactId": "00000090-0000-4000-8000-000000000000",
+          "artifactName": "project-bundle.zip",
+          "artifactKind": "project_bundle",
+          "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "digestPrefix": "333333333333",
+          "validationStatus": "validated",
+          "validatedAt": "2026-08-16T10:08:45.000Z",
+          "dispatchedAt": "2026-08-16T10:10:01.000Z",
+          "state": "accepted",
+          "failureReason": null
+        }
+      ],
+      "trace": [
+        {
+          "at": "2026-08-16T09:58:00.000Z",
+          "type": "production_created",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:00.000Z",
+          "type": "plan_prepared",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:30.000Z",
+          "type": "production_started",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:00.000Z",
+          "type": "child_budget_reserved",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": 40,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:01.000Z",
+          "type": "child_dispatched",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": "00000060-0000-4000-8000-000000000030",
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:05.000Z",
+          "type": "child_engine_selected",
+          "source": "run_execution_contexts",
+          "ordinal": 0,
+          "detail": {
+            "requestedEngine": "codex",
+            "selectedExecutor": "codex",
+            "actualEngine": "codex",
+            "failover": false,
+            "failoverReason": null,
+            "runId": "00000070-0000-4000-8000-000000000030"
+          }
+        },
+        {
+          "at": "2026-08-16T10:08:45.000Z",
+          "type": "child_artifact_validated",
+          "source": "run_artifacts",
+          "ordinal": 0,
+          "detail": {
+            "artifactId": "00000090-0000-4000-8000-000000000000",
+            "artifactName": "project-bundle.zip",
+            "role": "final_output",
+            "digestPrefix": "333333333333",
+            "runId": "00000070-0000-4000-8000-000000000030"
+          }
+        },
+        {
+          "at": "2026-08-16T10:09:00.000Z",
+          "type": "child_settled",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": "succeeded",
+            "reason": null,
+            "actualCredits": 10,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": "00000070-0000-4000-8000-000000000030"
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:00.000Z",
+          "type": "child_budget_reserved",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": 40,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:01.000Z",
+          "type": "child_dispatched",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": "00000060-0000-4000-8000-000000000031",
+            "runId": null
+          }
+        }
+      ],
+      "traceTruncated": false,
+      "finalDeliverable": null
+    },
+    "succeeded": {
+      "id": "00000010-0000-4000-8000-000000000004",
+      "workItemId": "00000010-0000-4000-8000-000000000004",
+      "state": "succeeded",
+      "settled": true,
+      "planId": "00000020-0000-4000-8000-000000000004",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000004",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 35,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 2,
+        "totalNodes": 2
+      },
+      "blockers": [],
+      "canCancel": false,
+      "children": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000040",
+          "requestId": "00000060-0000-4000-8000-000000000040",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 10,
+          "blocker": null
+        },
+        {
+          "runId": "00000070-0000-4000-8000-000000000041",
+          "requestId": "00000060-0000-4000-8000-000000000041",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:10:01.000Z",
+          "finishedAt": "2026-08-16T10:29:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 25,
+          "blocker": null
+        }
+      ],
+      "nodes": [
+        {
+          "ordinal": 0,
+          "agentName": "Cinematic Shot Generator",
+          "workflowId": "30000000-0000-4000-8000-000000000001",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "role": "generate_asset",
+          "taskLabel": "Visual treatment",
+          "expectedArtifact": {
+            "kind": "project_bundle",
+            "description": "A Remotion project bundle."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000040",
+            "requestId": "00000060-0000-4000-8000-000000000040",
+            "runId": "00000070-0000-4000-8000-000000000040",
+            "state": "succeeded",
+            "grantState": "settled",
+            "outcomeLabel": "succeeded",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "completedAt": "2026-08-16T10:09:00.000Z",
+            "runStartedAt": "2026-08-16T10:00:02.000Z",
+            "runCompletedAt": "2026-08-16T10:08:30.000Z",
+            "durationMs": 508000,
+            "requestedEngine": "codex",
+            "selectedExecutor": "codex",
+            "actualEngine": "codex",
+            "failover": false,
+            "failoverReason": null,
+            "avoidedEngine": null,
+            "engineObservedAt": "2026-08-16T10:00:05.000Z",
+            "verificationStatus": "verified_complete",
+            "completenessStatus": "complete",
+            "creditsSpent": 10,
+            "budgetCredits": 40,
+            "failureReason": null,
+            "stepSummary": {
+              "done": 11,
+              "total": 11
+            },
+            "steps": [
+              {
+                "index": 1,
+                "label": "Read the brief",
+                "status": "done"
+              },
+              {
+                "index": 2,
+                "label": "Resolve the input bundle",
+                "status": "done"
+              },
+              {
+                "index": 3,
+                "label": "Draft the treatment",
+                "status": "done"
+              },
+              {
+                "index": 4,
+                "label": "Storyboard the beats",
+                "status": "done"
+              },
+              {
+                "index": 5,
+                "label": "Pick the shots",
+                "status": "done"
+              },
+              {
+                "index": 6,
+                "label": "Write the shot prompts",
+                "status": "done"
+              },
+              {
+                "index": 7,
+                "label": "Generate the clips",
+                "status": "done"
+              },
+              {
+                "index": 8,
+                "label": "Grade the clips",
+                "status": "done"
+              },
+              {
+                "index": 9,
+                "label": "Assemble the Remotion project",
+                "status": "done"
+              },
+              {
+                "index": 10,
+                "label": "Verify the bundle",
+                "status": "done"
+              },
+              {
+                "index": 11,
+                "label": "Hand over the bundle",
+                "status": "done"
+              }
+            ],
+            "trace": [
+              {
+                "at": "2026-08-16T10:00:02.000Z",
+                "step": "1/6",
+                "note": "read the brief"
+              },
+              {
+                "at": "2026-08-16T10:01:02.000Z",
+                "step": "2/6",
+                "note": "resolve the input bundle"
+              },
+              {
+                "at": "2026-08-16T10:02:02.000Z",
+                "step": "3/6",
+                "note": "draft the treatment"
+              },
+              {
+                "at": "2026-08-16T10:03:02.000Z",
+                "step": "4/6",
+                "note": "storyboard the beats"
+              },
+              {
+                "at": "2026-08-16T10:04:02.000Z",
+                "step": "5/6",
+                "note": "pick the shots"
+              },
+              {
+                "at": "2026-08-16T10:05:02.000Z",
+                "step": "6/6",
+                "note": "write the shot prompts"
+              }
+            ],
+            "artifacts": [
+              {
+                "id": "00000090-0000-4000-8000-000000000000",
+                "runId": "00000070-0000-4000-8000-000000000040",
+                "name": "project-bundle.zip",
+                "relativePath": "out/project-bundle.zip",
+                "validatedPath": "/Users/owner/Implexa Agents/out/project-bundle.zip",
+                "role": "final_output",
+                "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+                "sizeBytes": 2411520,
+                "validatedAt": "2026-08-16T10:08:45.000Z"
+              }
+            ],
+            "truncated": []
+          }
+        },
+        {
+          "ordinal": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "workflowId": "30000000-0000-4000-8000-000000000002",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "role": "produce_outcome",
+          "taskLabel": "Finished video",
+          "expectedArtifact": {
+            "kind": "video_master",
+            "description": "The rendered video master."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000041",
+            "requestId": "00000060-0000-4000-8000-000000000041",
+            "runId": "00000070-0000-4000-8000-000000000041",
+            "state": "succeeded",
+            "grantState": "settled",
+            "outcomeLabel": "succeeded",
+            "startedAt": "2026-08-16T10:10:01.000Z",
+            "completedAt": "2026-08-16T10:29:00.000Z",
+            "runStartedAt": "2026-08-16T10:10:02.000Z",
+            "runCompletedAt": "2026-08-16T10:28:30.000Z",
+            "durationMs": 1108000,
+            "requestedEngine": "codex",
+            "selectedExecutor": "claude",
+            "actualEngine": "claude",
+            "failover": true,
+            "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+            "avoidedEngine": "codex",
+            "engineObservedAt": "2026-08-16T10:10:05.000Z",
+            "verificationStatus": "verified_complete",
+            "completenessStatus": "complete",
+            "creditsSpent": 25,
+            "budgetCredits": 40,
+            "failureReason": null,
+            "stepSummary": {
+              "done": 11,
+              "total": 11
+            },
+            "steps": [
+              {
+                "index": 1,
+                "label": "Read the brief",
+                "status": "done"
+              },
+              {
+                "index": 2,
+                "label": "Resolve the input bundle",
+                "status": "done"
+              },
+              {
+                "index": 3,
+                "label": "Draft the treatment",
+                "status": "done"
+              },
+              {
+                "index": 4,
+                "label": "Storyboard the beats",
+                "status": "done"
+              },
+              {
+                "index": 5,
+                "label": "Pick the shots",
+                "status": "done"
+              },
+              {
+                "index": 6,
+                "label": "Write the shot prompts",
+                "status": "done"
+              },
+              {
+                "index": 7,
+                "label": "Generate the clips",
+                "status": "done"
+              },
+              {
+                "index": 8,
+                "label": "Grade the clips",
+                "status": "done"
+              },
+              {
+                "index": 9,
+                "label": "Assemble the Remotion project",
+                "status": "done"
+              },
+              {
+                "index": 10,
+                "label": "Verify the bundle",
+                "status": "done"
+              },
+              {
+                "index": 11,
+                "label": "Hand over the bundle",
+                "status": "done"
+              }
+            ],
+            "trace": [
+              {
+                "at": "2026-08-16T10:10:02.000Z",
+                "step": "1/6",
+                "note": "read the brief"
+              },
+              {
+                "at": "2026-08-16T10:11:02.000Z",
+                "step": "2/6",
+                "note": "resolve the input bundle"
+              },
+              {
+                "at": "2026-08-16T10:12:02.000Z",
+                "step": "3/6",
+                "note": "draft the treatment"
+              },
+              {
+                "at": "2026-08-16T10:13:02.000Z",
+                "step": "4/6",
+                "note": "storyboard the beats"
+              },
+              {
+                "at": "2026-08-16T10:14:02.000Z",
+                "step": "5/6",
+                "note": "pick the shots"
+              },
+              {
+                "at": "2026-08-16T10:15:02.000Z",
+                "step": "6/6",
+                "note": "write the shot prompts"
+              }
+            ],
+            "artifacts": [
+              {
+                "id": "00000090-0000-4000-8000-000000000001",
+                "runId": "00000070-0000-4000-8000-000000000041",
+                "name": "video_master.mp4",
+                "relativePath": "out/render/video_master.mp4",
+                "validatedPath": "/Users/owner/Implexa Agents/out/render/video_master.mp4",
+                "role": "final_output",
+                "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+                "sizeBytes": 48234496,
+                "validatedAt": "2026-08-16T10:28:45.000Z"
+              }
+            ],
+            "truncated": []
+          }
+        }
+      ],
+      "handoffs": [
+        {
+          "producerOrdinal": 0,
+          "consumerOrdinal": 1,
+          "producerAgentName": "Cinematic Shot Generator",
+          "consumerAgentName": "Visual Evidence & Remotion Compositor",
+          "artifactId": "00000090-0000-4000-8000-000000000000",
+          "artifactName": "project-bundle.zip",
+          "artifactKind": "project_bundle",
+          "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "digestPrefix": "333333333333",
+          "validationStatus": "validated",
+          "validatedAt": "2026-08-16T10:08:45.000Z",
+          "dispatchedAt": "2026-08-16T10:10:01.000Z",
+          "state": "accepted",
+          "failureReason": null
+        }
+      ],
+      "trace": [
+        {
+          "at": "2026-08-16T09:58:00.000Z",
+          "type": "production_created",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:00.000Z",
+          "type": "plan_prepared",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:30.000Z",
+          "type": "production_started",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:00.000Z",
+          "type": "child_budget_reserved",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": 40,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:01.000Z",
+          "type": "child_dispatched",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": "00000060-0000-4000-8000-000000000040",
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:05.000Z",
+          "type": "child_engine_selected",
+          "source": "run_execution_contexts",
+          "ordinal": 0,
+          "detail": {
+            "requestedEngine": "codex",
+            "selectedExecutor": "codex",
+            "actualEngine": "codex",
+            "failover": false,
+            "failoverReason": null,
+            "runId": "00000070-0000-4000-8000-000000000040"
+          }
+        },
+        {
+          "at": "2026-08-16T10:08:45.000Z",
+          "type": "child_artifact_validated",
+          "source": "run_artifacts",
+          "ordinal": 0,
+          "detail": {
+            "artifactId": "00000090-0000-4000-8000-000000000000",
+            "artifactName": "project-bundle.zip",
+            "role": "final_output",
+            "digestPrefix": "333333333333",
+            "runId": "00000070-0000-4000-8000-000000000040"
+          }
+        },
+        {
+          "at": "2026-08-16T10:09:00.000Z",
+          "type": "child_settled",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": "succeeded",
+            "reason": null,
+            "actualCredits": 10,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": "00000070-0000-4000-8000-000000000040"
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:00.000Z",
+          "type": "child_budget_reserved",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": 40,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:01.000Z",
+          "type": "child_dispatched",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": "00000060-0000-4000-8000-000000000041",
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:05.000Z",
+          "type": "child_engine_selected",
+          "source": "run_execution_contexts",
+          "ordinal": 1,
+          "detail": {
+            "requestedEngine": "codex",
+            "selectedExecutor": "claude",
+            "actualEngine": "claude",
+            "failover": true,
+            "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+            "runId": "00000070-0000-4000-8000-000000000041"
+          }
+        },
+        {
+          "at": "2026-08-16T10:28:45.000Z",
+          "type": "child_artifact_validated",
+          "source": "run_artifacts",
+          "ordinal": 1,
+          "detail": {
+            "artifactId": "00000090-0000-4000-8000-000000000001",
+            "artifactName": "video_master.mp4",
+            "role": "final_output",
+            "digestPrefix": "444444444444",
+            "runId": "00000070-0000-4000-8000-000000000041"
+          }
+        },
+        {
+          "at": "2026-08-16T10:29:00.000Z",
+          "type": "child_settled",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": "succeeded",
+            "reason": null,
+            "actualCredits": 25,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": "00000070-0000-4000-8000-000000000041"
+          }
+        },
+        {
+          "at": "2026-08-16T10:29:30.000Z",
+          "type": "receipt_recorded",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+            "finalStatus": "succeeded",
+            "requestId": null,
+            "runId": null
+          }
+        }
+      ],
+      "traceTruncated": false,
+      "finalDeliverable": {
+        "id": "00000090-0000-4000-8000-000000000001",
+        "runId": "00000070-0000-4000-8000-000000000041",
+        "name": "video_master.mp4",
+        "relativePath": "out/render/video_master.mp4",
+        "validatedPath": "/Users/owner/Implexa Agents/out/render/video_master.mp4",
+        "role": "final_output",
+        "digest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "sizeBytes": 48234496,
+        "validatedAt": "2026-08-16T10:28:45.000Z",
+        "ordinal": 1,
+        "agentName": "Visual Evidence & Remotion Compositor"
+      }
+    },
+    "partial": {
+      "id": "00000010-0000-4000-8000-000000000005",
+      "workItemId": "00000010-0000-4000-8000-000000000005",
+      "state": "partial",
+      "settled": true,
+      "planId": "00000020-0000-4000-8000-000000000005",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000005",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 35,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 2,
+        "totalNodes": 2
+      },
+      "blockers": [
+        {
+          "reasonCode": "failed",
+          "detail": "Child failed verification."
+        },
+        {
+          "reasonCode": "production_partial",
+          "detail": "One child did not complete."
+        }
+      ],
+      "canCancel": false,
+      "children": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000050",
+          "requestId": "00000060-0000-4000-8000-000000000050",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 10,
+          "blocker": null
+        },
+        {
+          "runId": "00000070-0000-4000-8000-000000000051",
+          "requestId": "00000060-0000-4000-8000-000000000051",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:10:01.000Z",
+          "finishedAt": "2026-08-16T10:29:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 25,
+          "blocker": {
+            "reasonCode": "failed",
+            "detail": "Child failed verification."
+          }
+        }
+      ],
+      "nodes": [
+        {
+          "ordinal": 0,
+          "agentName": "Cinematic Shot Generator",
+          "workflowId": "30000000-0000-4000-8000-000000000001",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "role": "generate_asset",
+          "taskLabel": "Visual treatment",
+          "expectedArtifact": {
+            "kind": "project_bundle",
+            "description": "A Remotion project bundle."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000050",
+            "requestId": "00000060-0000-4000-8000-000000000050",
+            "runId": "00000070-0000-4000-8000-000000000050",
+            "state": "succeeded",
+            "grantState": "settled",
+            "outcomeLabel": "succeeded",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "completedAt": "2026-08-16T10:09:00.000Z",
+            "runStartedAt": "2026-08-16T10:00:02.000Z",
+            "runCompletedAt": "2026-08-16T10:08:30.000Z",
+            "durationMs": 508000,
+            "requestedEngine": "codex",
+            "selectedExecutor": "codex",
+            "actualEngine": "codex",
+            "failover": false,
+            "failoverReason": null,
+            "avoidedEngine": null,
+            "engineObservedAt": "2026-08-16T10:00:05.000Z",
+            "verificationStatus": "verified_complete",
+            "completenessStatus": "complete",
+            "creditsSpent": 10,
+            "budgetCredits": 40,
+            "failureReason": null,
+            "stepSummary": {
+              "done": 11,
+              "total": 11
+            },
+            "steps": [
+              {
+                "index": 1,
+                "label": "Read the brief",
+                "status": "done"
+              },
+              {
+                "index": 2,
+                "label": "Resolve the input bundle",
+                "status": "done"
+              },
+              {
+                "index": 3,
+                "label": "Draft the treatment",
+                "status": "done"
+              },
+              {
+                "index": 4,
+                "label": "Storyboard the beats",
+                "status": "done"
+              },
+              {
+                "index": 5,
+                "label": "Pick the shots",
+                "status": "done"
+              },
+              {
+                "index": 6,
+                "label": "Write the shot prompts",
+                "status": "done"
+              },
+              {
+                "index": 7,
+                "label": "Generate the clips",
+                "status": "done"
+              },
+              {
+                "index": 8,
+                "label": "Grade the clips",
+                "status": "done"
+              },
+              {
+                "index": 9,
+                "label": "Assemble the Remotion project",
+                "status": "done"
+              },
+              {
+                "index": 10,
+                "label": "Verify the bundle",
+                "status": "done"
+              },
+              {
+                "index": 11,
+                "label": "Hand over the bundle",
+                "status": "done"
+              }
+            ],
+            "trace": [
+              {
+                "at": "2026-08-16T10:00:02.000Z",
+                "step": "1/6",
+                "note": "read the brief"
+              },
+              {
+                "at": "2026-08-16T10:01:02.000Z",
+                "step": "2/6",
+                "note": "resolve the input bundle"
+              },
+              {
+                "at": "2026-08-16T10:02:02.000Z",
+                "step": "3/6",
+                "note": "draft the treatment"
+              },
+              {
+                "at": "2026-08-16T10:03:02.000Z",
+                "step": "4/6",
+                "note": "storyboard the beats"
+              },
+              {
+                "at": "2026-08-16T10:04:02.000Z",
+                "step": "5/6",
+                "note": "pick the shots"
+              },
+              {
+                "at": "2026-08-16T10:05:02.000Z",
+                "step": "6/6",
+                "note": "write the shot prompts"
+              }
+            ],
+            "artifacts": [
+              {
+                "id": "00000090-0000-4000-8000-000000000000",
+                "runId": "00000070-0000-4000-8000-000000000050",
+                "name": "project-bundle.zip",
+                "relativePath": "out/project-bundle.zip",
+                "validatedPath": "/Users/owner/Implexa Agents/out/project-bundle.zip",
+                "role": "final_output",
+                "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+                "sizeBytes": 2411520,
+                "validatedAt": "2026-08-16T10:08:45.000Z"
+              }
+            ],
+            "truncated": []
+          }
+        },
+        {
+          "ordinal": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "workflowId": "30000000-0000-4000-8000-000000000002",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "role": "produce_outcome",
+          "taskLabel": "Finished video",
+          "expectedArtifact": {
+            "kind": "video_master",
+            "description": "The rendered video master."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000051",
+            "requestId": "00000060-0000-4000-8000-000000000051",
+            "runId": "00000070-0000-4000-8000-000000000051",
+            "state": "failed",
+            "grantState": "settled",
+            "outcomeLabel": "failed",
+            "startedAt": "2026-08-16T10:10:01.000Z",
+            "completedAt": "2026-08-16T10:29:00.000Z",
+            "runStartedAt": "2026-08-16T10:10:02.000Z",
+            "runCompletedAt": "2026-08-16T10:28:30.000Z",
+            "durationMs": 1108000,
+            "requestedEngine": "codex",
+            "selectedExecutor": "claude",
+            "actualEngine": "claude",
+            "failover": true,
+            "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+            "avoidedEngine": "codex",
+            "engineObservedAt": "2026-08-16T10:10:05.000Z",
+            "verificationStatus": "failed",
+            "completenessStatus": "incomplete",
+            "creditsSpent": 25,
+            "budgetCredits": 40,
+            "failureReason": "Child failed verification.",
+            "stepSummary": {
+              "done": 6,
+              "total": 11
+            },
+            "steps": [
+              {
+                "index": 1,
+                "label": "Read the brief",
+                "status": "done"
+              },
+              {
+                "index": 2,
+                "label": "Resolve the input bundle",
+                "status": "done"
+              },
+              {
+                "index": 3,
+                "label": "Draft the treatment",
+                "status": "done"
+              },
+              {
+                "index": 4,
+                "label": "Storyboard the beats",
+                "status": "done"
+              },
+              {
+                "index": 5,
+                "label": "Pick the shots",
+                "status": "done"
+              },
+              {
+                "index": 6,
+                "label": "Write the shot prompts",
+                "status": "done"
+              },
+              {
+                "index": 7,
+                "label": "Generate the clips",
+                "status": "failed"
+              },
+              {
+                "index": 8,
+                "label": "Grade the clips",
+                "status": "pending"
+              },
+              {
+                "index": 9,
+                "label": "Assemble the Remotion project",
+                "status": "pending"
+              },
+              {
+                "index": 10,
+                "label": "Verify the bundle",
+                "status": "pending"
+              },
+              {
+                "index": 11,
+                "label": "Hand over the bundle",
+                "status": "pending"
+              }
+            ],
+            "trace": [
+              {
+                "at": "2026-08-16T10:10:02.000Z",
+                "step": "1/3",
+                "note": "read the brief"
+              },
+              {
+                "at": "2026-08-16T10:11:02.000Z",
+                "step": "2/3",
+                "note": "resolve the input bundle"
+              },
+              {
+                "at": "2026-08-16T10:12:02.000Z",
+                "step": "3/3",
+                "note": "draft the treatment"
+              }
+            ],
+            "artifacts": [],
+            "truncated": []
+          }
+        }
+      ],
+      "handoffs": [
+        {
+          "producerOrdinal": 0,
+          "consumerOrdinal": 1,
+          "producerAgentName": "Cinematic Shot Generator",
+          "consumerAgentName": "Visual Evidence & Remotion Compositor",
+          "artifactId": "00000090-0000-4000-8000-000000000000",
+          "artifactName": "project-bundle.zip",
+          "artifactKind": "project_bundle",
+          "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "digestPrefix": "333333333333",
+          "validationStatus": "validated",
+          "validatedAt": "2026-08-16T10:08:45.000Z",
+          "dispatchedAt": "2026-08-16T10:10:01.000Z",
+          "state": "accepted",
+          "failureReason": null
+        }
+      ],
+      "trace": [
+        {
+          "at": "2026-08-16T09:58:00.000Z",
+          "type": "production_created",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:00.000Z",
+          "type": "plan_prepared",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:30.000Z",
+          "type": "production_started",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:00.000Z",
+          "type": "child_budget_reserved",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": 40,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:01.000Z",
+          "type": "child_dispatched",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": "00000060-0000-4000-8000-000000000050",
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:05.000Z",
+          "type": "child_engine_selected",
+          "source": "run_execution_contexts",
+          "ordinal": 0,
+          "detail": {
+            "requestedEngine": "codex",
+            "selectedExecutor": "codex",
+            "actualEngine": "codex",
+            "failover": false,
+            "failoverReason": null,
+            "runId": "00000070-0000-4000-8000-000000000050"
+          }
+        },
+        {
+          "at": "2026-08-16T10:08:45.000Z",
+          "type": "child_artifact_validated",
+          "source": "run_artifacts",
+          "ordinal": 0,
+          "detail": {
+            "artifactId": "00000090-0000-4000-8000-000000000000",
+            "artifactName": "project-bundle.zip",
+            "role": "final_output",
+            "digestPrefix": "333333333333",
+            "runId": "00000070-0000-4000-8000-000000000050"
+          }
+        },
+        {
+          "at": "2026-08-16T10:09:00.000Z",
+          "type": "child_settled",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": "succeeded",
+            "reason": null,
+            "actualCredits": 10,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": "00000070-0000-4000-8000-000000000050"
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:00.000Z",
+          "type": "child_budget_reserved",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": 40,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:01.000Z",
+          "type": "child_dispatched",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": "00000060-0000-4000-8000-000000000051",
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:05.000Z",
+          "type": "child_engine_selected",
+          "source": "run_execution_contexts",
+          "ordinal": 1,
+          "detail": {
+            "requestedEngine": "codex",
+            "selectedExecutor": "claude",
+            "actualEngine": "claude",
+            "failover": true,
+            "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+            "runId": "00000070-0000-4000-8000-000000000051"
+          }
+        },
+        {
+          "at": "2026-08-16T10:29:00.000Z",
+          "type": "child_settled",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": "failed",
+            "reason": null,
+            "actualCredits": 25,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": "00000070-0000-4000-8000-000000000051"
+          }
+        },
+        {
+          "at": "2026-08-16T10:29:30.000Z",
+          "type": "receipt_recorded",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+            "finalStatus": "partial",
+            "requestId": null,
+            "runId": null
+          }
+        }
+      ],
+      "traceTruncated": false,
+      "finalDeliverable": null
+    },
+    "failed": {
+      "id": "00000010-0000-4000-8000-000000000006",
+      "workItemId": "00000010-0000-4000-8000-000000000006",
+      "state": "failed",
+      "settled": true,
+      "planId": "00000020-0000-4000-8000-000000000006",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000006",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 35,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 2,
+        "totalNodes": 2
+      },
+      "blockers": [
+        {
+          "reasonCode": "failed",
+          "detail": "Child failed verification."
+        },
+        {
+          "reasonCode": "failed",
+          "detail": "Child failed verification."
+        },
+        {
+          "reasonCode": "production_failed",
+          "detail": "No deliverable completed."
+        }
+      ],
+      "canCancel": false,
+      "children": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000060",
+          "requestId": "00000060-0000-4000-8000-000000000060",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 10,
+          "blocker": {
+            "reasonCode": "failed",
+            "detail": "Child failed verification."
+          }
+        },
+        {
+          "runId": "00000070-0000-4000-8000-000000000061",
+          "requestId": "00000060-0000-4000-8000-000000000061",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:10:01.000Z",
+          "finishedAt": "2026-08-16T10:29:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 25,
+          "blocker": {
+            "reasonCode": "failed",
+            "detail": "Child failed verification."
+          }
+        }
+      ],
+      "nodes": [
+        {
+          "ordinal": 0,
+          "agentName": "Cinematic Shot Generator",
+          "workflowId": "30000000-0000-4000-8000-000000000001",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "role": "generate_asset",
+          "taskLabel": "Visual treatment",
+          "expectedArtifact": {
+            "kind": "project_bundle",
+            "description": "A Remotion project bundle."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000060",
+            "requestId": "00000060-0000-4000-8000-000000000060",
+            "runId": "00000070-0000-4000-8000-000000000060",
+            "state": "failed",
+            "grantState": "settled",
+            "outcomeLabel": "failed",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "completedAt": "2026-08-16T10:09:00.000Z",
+            "runStartedAt": "2026-08-16T10:00:02.000Z",
+            "runCompletedAt": "2026-08-16T10:08:30.000Z",
+            "durationMs": 508000,
+            "requestedEngine": "codex",
+            "selectedExecutor": "codex",
+            "actualEngine": "codex",
+            "failover": false,
+            "failoverReason": null,
+            "avoidedEngine": null,
+            "engineObservedAt": "2026-08-16T10:00:05.000Z",
+            "verificationStatus": "failed",
+            "completenessStatus": "incomplete",
+            "creditsSpent": 10,
+            "budgetCredits": 40,
+            "failureReason": "Child failed verification.",
+            "stepSummary": {
+              "done": 6,
+              "total": 11
+            },
+            "steps": [
+              {
+                "index": 1,
+                "label": "Read the brief",
+                "status": "done"
+              },
+              {
+                "index": 2,
+                "label": "Resolve the input bundle",
+                "status": "done"
+              },
+              {
+                "index": 3,
+                "label": "Draft the treatment",
+                "status": "done"
+              },
+              {
+                "index": 4,
+                "label": "Storyboard the beats",
+                "status": "done"
+              },
+              {
+                "index": 5,
+                "label": "Pick the shots",
+                "status": "done"
+              },
+              {
+                "index": 6,
+                "label": "Write the shot prompts",
+                "status": "done"
+              },
+              {
+                "index": 7,
+                "label": "Generate the clips",
+                "status": "failed"
+              },
+              {
+                "index": 8,
+                "label": "Grade the clips",
+                "status": "pending"
+              },
+              {
+                "index": 9,
+                "label": "Assemble the Remotion project",
+                "status": "pending"
+              },
+              {
+                "index": 10,
+                "label": "Verify the bundle",
+                "status": "pending"
+              },
+              {
+                "index": 11,
+                "label": "Hand over the bundle",
+                "status": "pending"
+              }
+            ],
+            "trace": [
+              {
+                "at": "2026-08-16T10:00:02.000Z",
+                "step": "1/3",
+                "note": "read the brief"
+              },
+              {
+                "at": "2026-08-16T10:01:02.000Z",
+                "step": "2/3",
+                "note": "resolve the input bundle"
+              },
+              {
+                "at": "2026-08-16T10:02:02.000Z",
+                "step": "3/3",
+                "note": "draft the treatment"
+              }
+            ],
+            "artifacts": [],
+            "truncated": []
+          }
+        },
+        {
+          "ordinal": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "workflowId": "30000000-0000-4000-8000-000000000002",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "role": "produce_outcome",
+          "taskLabel": "Finished video",
+          "expectedArtifact": {
+            "kind": "video_master",
+            "description": "The rendered video master."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000061",
+            "requestId": "00000060-0000-4000-8000-000000000061",
+            "runId": "00000070-0000-4000-8000-000000000061",
+            "state": "failed",
+            "grantState": "settled",
+            "outcomeLabel": "failed",
+            "startedAt": "2026-08-16T10:10:01.000Z",
+            "completedAt": "2026-08-16T10:29:00.000Z",
+            "runStartedAt": "2026-08-16T10:10:02.000Z",
+            "runCompletedAt": "2026-08-16T10:28:30.000Z",
+            "durationMs": 1108000,
+            "requestedEngine": "codex",
+            "selectedExecutor": "claude",
+            "actualEngine": "claude",
+            "failover": true,
+            "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+            "avoidedEngine": "codex",
+            "engineObservedAt": "2026-08-16T10:10:05.000Z",
+            "verificationStatus": "failed",
+            "completenessStatus": "incomplete",
+            "creditsSpent": 25,
+            "budgetCredits": 40,
+            "failureReason": "Child failed verification.",
+            "stepSummary": {
+              "done": 6,
+              "total": 11
+            },
+            "steps": [
+              {
+                "index": 1,
+                "label": "Read the brief",
+                "status": "done"
+              },
+              {
+                "index": 2,
+                "label": "Resolve the input bundle",
+                "status": "done"
+              },
+              {
+                "index": 3,
+                "label": "Draft the treatment",
+                "status": "done"
+              },
+              {
+                "index": 4,
+                "label": "Storyboard the beats",
+                "status": "done"
+              },
+              {
+                "index": 5,
+                "label": "Pick the shots",
+                "status": "done"
+              },
+              {
+                "index": 6,
+                "label": "Write the shot prompts",
+                "status": "done"
+              },
+              {
+                "index": 7,
+                "label": "Generate the clips",
+                "status": "failed"
+              },
+              {
+                "index": 8,
+                "label": "Grade the clips",
+                "status": "pending"
+              },
+              {
+                "index": 9,
+                "label": "Assemble the Remotion project",
+                "status": "pending"
+              },
+              {
+                "index": 10,
+                "label": "Verify the bundle",
+                "status": "pending"
+              },
+              {
+                "index": 11,
+                "label": "Hand over the bundle",
+                "status": "pending"
+              }
+            ],
+            "trace": [
+              {
+                "at": "2026-08-16T10:10:02.000Z",
+                "step": "1/3",
+                "note": "read the brief"
+              },
+              {
+                "at": "2026-08-16T10:11:02.000Z",
+                "step": "2/3",
+                "note": "resolve the input bundle"
+              },
+              {
+                "at": "2026-08-16T10:12:02.000Z",
+                "step": "3/3",
+                "note": "draft the treatment"
+              }
+            ],
+            "artifacts": [],
+            "truncated": []
+          }
+        }
+      ],
+      "handoffs": [
+        {
+          "producerOrdinal": 0,
+          "consumerOrdinal": 1,
+          "producerAgentName": "Cinematic Shot Generator",
+          "consumerAgentName": "Visual Evidence & Remotion Compositor",
+          "artifactId": null,
+          "artifactName": null,
+          "artifactKind": "project_bundle",
+          "digest": null,
+          "digestPrefix": null,
+          "validationStatus": "not_reached",
+          "validatedAt": null,
+          "dispatchedAt": "2026-08-16T10:10:01.000Z",
+          "state": "blocked",
+          "failureReason": "Child failed verification."
+        }
+      ],
+      "trace": [
+        {
+          "at": "2026-08-16T09:58:00.000Z",
+          "type": "production_created",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:00.000Z",
+          "type": "plan_prepared",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:30.000Z",
+          "type": "production_started",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:00.000Z",
+          "type": "child_budget_reserved",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": 40,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:01.000Z",
+          "type": "child_dispatched",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": "00000060-0000-4000-8000-000000000060",
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:05.000Z",
+          "type": "child_engine_selected",
+          "source": "run_execution_contexts",
+          "ordinal": 0,
+          "detail": {
+            "requestedEngine": "codex",
+            "selectedExecutor": "codex",
+            "actualEngine": "codex",
+            "failover": false,
+            "failoverReason": null,
+            "runId": "00000070-0000-4000-8000-000000000060"
+          }
+        },
+        {
+          "at": "2026-08-16T10:09:00.000Z",
+          "type": "child_settled",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": "failed",
+            "reason": null,
+            "actualCredits": 10,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": "00000070-0000-4000-8000-000000000060"
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:00.000Z",
+          "type": "child_budget_reserved",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": 40,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:01.000Z",
+          "type": "child_dispatched",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": "00000060-0000-4000-8000-000000000061",
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:05.000Z",
+          "type": "child_engine_selected",
+          "source": "run_execution_contexts",
+          "ordinal": 1,
+          "detail": {
+            "requestedEngine": "codex",
+            "selectedExecutor": "claude",
+            "actualEngine": "claude",
+            "failover": true,
+            "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+            "runId": "00000070-0000-4000-8000-000000000061"
+          }
+        },
+        {
+          "at": "2026-08-16T10:29:00.000Z",
+          "type": "child_settled",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": "failed",
+            "reason": null,
+            "actualCredits": 25,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": "00000070-0000-4000-8000-000000000061"
+          }
+        },
+        {
+          "at": "2026-08-16T10:29:30.000Z",
+          "type": "receipt_recorded",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+            "finalStatus": "failed",
+            "requestId": null,
+            "runId": null
+          }
+        }
+      ],
+      "traceTruncated": false,
+      "finalDeliverable": null
+    },
+    "cancelled": {
+      "id": "00000010-0000-4000-8000-000000000007",
+      "workItemId": "00000010-0000-4000-8000-000000000007",
+      "state": "cancelled",
+      "settled": true,
+      "planId": "00000020-0000-4000-8000-000000000007",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000007",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 0,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 2,
+        "totalNodes": 2
+      },
+      "blockers": [
+        {
+          "reasonCode": "cancelled",
+          "detail": "Cancelled before execution."
+        },
+        {
+          "reasonCode": "cancelled",
+          "detail": "Cancelled before execution."
+        },
+        {
+          "reasonCode": "production_cancelled",
+          "detail": "Cancelled by owner."
+        }
+      ],
+      "canCancel": false,
+      "children": [
+        {
+          "runId": null,
+          "requestId": "00000060-0000-4000-8000-000000000070",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "released",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 0,
+          "blocker": {
+            "reasonCode": "cancelled",
+            "detail": "Cancelled before execution."
+          }
+        },
+        {
+          "runId": null,
+          "requestId": "00000060-0000-4000-8000-000000000071",
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "released",
+          "startedAt": "2026-08-16T10:10:01.000Z",
+          "finishedAt": "2026-08-16T10:29:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 0,
+          "blocker": {
+            "reasonCode": "cancelled",
+            "detail": "Cancelled before execution."
+          }
+        }
+      ],
+      "nodes": [
+        {
+          "ordinal": 0,
+          "agentName": "Cinematic Shot Generator",
+          "workflowId": "30000000-0000-4000-8000-000000000001",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "role": "generate_asset",
+          "taskLabel": "Visual treatment",
+          "expectedArtifact": {
+            "kind": "project_bundle",
+            "description": "A Remotion project bundle."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000070",
+            "requestId": "00000060-0000-4000-8000-000000000070",
+            "runId": null,
+            "state": "cancelled",
+            "grantState": "released",
+            "outcomeLabel": "cancelled",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "completedAt": "2026-08-16T10:09:00.000Z",
+            "runStartedAt": null,
+            "runCompletedAt": null,
+            "durationMs": null,
+            "requestedEngine": "codex",
+            "selectedExecutor": "codex",
+            "actualEngine": null,
+            "failover": false,
+            "failoverReason": null,
+            "avoidedEngine": null,
+            "engineObservedAt": null,
+            "verificationStatus": null,
+            "completenessStatus": null,
+            "creditsSpent": null,
+            "budgetCredits": 40,
+            "failureReason": "Cancelled before execution.",
+            "stepSummary": null,
+            "steps": [],
+            "trace": [],
+            "artifacts": [],
+            "truncated": []
+          }
+        },
+        {
+          "ordinal": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "workflowId": "30000000-0000-4000-8000-000000000002",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "role": "produce_outcome",
+          "taskLabel": "Finished video",
+          "expectedArtifact": {
+            "kind": "video_master",
+            "description": "The rendered video master."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000071",
+            "requestId": "00000060-0000-4000-8000-000000000071",
+            "runId": null,
+            "state": "cancelled",
+            "grantState": "released",
+            "outcomeLabel": "cancelled",
+            "startedAt": "2026-08-16T10:10:01.000Z",
+            "completedAt": "2026-08-16T10:29:00.000Z",
+            "runStartedAt": null,
+            "runCompletedAt": null,
+            "durationMs": null,
+            "requestedEngine": "codex",
+            "selectedExecutor": "claude",
+            "actualEngine": null,
+            "failover": true,
+            "failoverReason": "Codex was not connected on this Mac, so the run was routed to Claude.",
+            "avoidedEngine": "codex",
+            "engineObservedAt": null,
+            "verificationStatus": null,
+            "completenessStatus": null,
+            "creditsSpent": null,
+            "budgetCredits": 40,
+            "failureReason": "Cancelled before execution.",
+            "stepSummary": null,
+            "steps": [],
+            "trace": [],
+            "artifacts": [],
+            "truncated": []
+          }
+        }
+      ],
+      "handoffs": [
+        {
+          "producerOrdinal": 0,
+          "consumerOrdinal": 1,
+          "producerAgentName": "Cinematic Shot Generator",
+          "consumerAgentName": "Visual Evidence & Remotion Compositor",
+          "artifactId": null,
+          "artifactName": null,
+          "artifactKind": "project_bundle",
+          "digest": null,
+          "digestPrefix": null,
+          "validationStatus": "not_reached",
+          "validatedAt": null,
+          "dispatchedAt": "2026-08-16T10:10:01.000Z",
+          "state": "blocked",
+          "failureReason": "Cancelled before execution."
+        }
+      ],
+      "trace": [
+        {
+          "at": "2026-08-16T09:58:00.000Z",
+          "type": "production_created",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:00.000Z",
+          "type": "plan_prepared",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:30.000Z",
+          "type": "production_started",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:00.000Z",
+          "type": "child_budget_reserved",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": 40,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:01.000Z",
+          "type": "child_dispatched",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": "00000060-0000-4000-8000-000000000070",
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:09:00.000Z",
+          "type": "child_dispatch_released",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": "cancelled",
+            "reason": "Cancelled before execution.",
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:00.000Z",
+          "type": "child_budget_reserved",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": 40,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:10:01.000Z",
+          "type": "child_dispatched",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": "00000060-0000-4000-8000-000000000071",
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:29:00.000Z",
+          "type": "child_dispatch_released",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": "cancelled",
+            "reason": "Cancelled before execution.",
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:29:30.000Z",
+          "type": "receipt_recorded",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+            "finalStatus": "cancelled",
+            "requestId": null,
+            "runId": null
+          }
+        }
+      ],
+      "traceTruncated": false,
+      "finalDeliverable": null
+    },
+    "blocked": {
+      "id": "00000010-0000-4000-8000-000000000008",
+      "workItemId": "00000010-0000-4000-8000-000000000008",
+      "state": "failed",
+      "settled": true,
+      "planId": "00000020-0000-4000-8000-000000000008",
+      "planDigest": "0000000000000000000000000000000000000000000000000000000000000008",
+      "goal": "Create the finished launch video.",
+      "quality": "balanced",
+      "budget": {
+        "reservedCredits": 0,
+        "spentCredits": 10,
+        "maxBudgetCredits": 100
+      },
+      "progress": {
+        "completedNodes": 2,
+        "totalNodes": 2
+      },
+      "blockers": [
+        {
+          "reasonCode": "failed",
+          "detail": "Child failed verification."
+        },
+        {
+          "reasonCode": "cancelled",
+          "detail": "upstream node did not succeed, so this sequential node cannot run"
+        },
+        {
+          "reasonCode": "production_failed",
+          "detail": "node 0: failed — Child failed verification."
+        }
+      ],
+      "canCancel": false,
+      "children": [
+        {
+          "runId": "00000070-0000-4000-8000-000000000080",
+          "requestId": "00000060-0000-4000-8000-000000000080",
+          "order": 0,
+          "agentName": "Cinematic Shot Generator",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "state": "settled",
+          "startedAt": "2026-08-16T10:00:01.000Z",
+          "finishedAt": "2026-08-16T10:09:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 10,
+          "blocker": {
+            "reasonCode": "failed",
+            "detail": "Child failed verification."
+          }
+        },
+        {
+          "runId": null,
+          "requestId": null,
+          "order": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "state": "released",
+          "startedAt": null,
+          "finishedAt": "2026-08-16T10:29:00.000Z",
+          "budgetAllocationCredits": 40,
+          "reservedCredits": 0,
+          "spentCredits": 0,
+          "blocker": {
+            "reasonCode": "cancelled",
+            "detail": "upstream node did not succeed, so this sequential node cannot run"
+          }
+        }
+      ],
+      "nodes": [
+        {
+          "ordinal": 0,
+          "agentName": "Cinematic Shot Generator",
+          "workflowId": "30000000-0000-4000-8000-000000000001",
+          "agentVersionId": "40000000-0000-4000-8000-000000000001",
+          "versionNumber": "3",
+          "role": "generate_asset",
+          "taskLabel": "Visual treatment",
+          "expectedArtifact": {
+            "kind": "project_bundle",
+            "description": "A Remotion project bundle."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000080",
+            "requestId": "00000060-0000-4000-8000-000000000080",
+            "runId": "00000070-0000-4000-8000-000000000080",
+            "state": "failed",
+            "grantState": "settled",
+            "outcomeLabel": "failed",
+            "startedAt": "2026-08-16T10:00:01.000Z",
+            "completedAt": "2026-08-16T10:09:00.000Z",
+            "runStartedAt": "2026-08-16T10:00:02.000Z",
+            "runCompletedAt": "2026-08-16T10:08:30.000Z",
+            "durationMs": 508000,
+            "requestedEngine": "codex",
+            "selectedExecutor": "codex",
+            "actualEngine": "codex",
+            "failover": false,
+            "failoverReason": null,
+            "avoidedEngine": null,
+            "engineObservedAt": "2026-08-16T10:00:05.000Z",
+            "verificationStatus": "failed",
+            "completenessStatus": "incomplete",
+            "creditsSpent": 10,
+            "budgetCredits": 40,
+            "failureReason": "Child failed verification.",
+            "stepSummary": {
+              "done": 6,
+              "total": 11
+            },
+            "steps": [
+              {
+                "index": 1,
+                "label": "Read the brief",
+                "status": "done"
+              },
+              {
+                "index": 2,
+                "label": "Resolve the input bundle",
+                "status": "done"
+              },
+              {
+                "index": 3,
+                "label": "Draft the treatment",
+                "status": "done"
+              },
+              {
+                "index": 4,
+                "label": "Storyboard the beats",
+                "status": "done"
+              },
+              {
+                "index": 5,
+                "label": "Pick the shots",
+                "status": "done"
+              },
+              {
+                "index": 6,
+                "label": "Write the shot prompts",
+                "status": "done"
+              },
+              {
+                "index": 7,
+                "label": "Generate the clips",
+                "status": "failed"
+              },
+              {
+                "index": 8,
+                "label": "Grade the clips",
+                "status": "pending"
+              },
+              {
+                "index": 9,
+                "label": "Assemble the Remotion project",
+                "status": "pending"
+              },
+              {
+                "index": 10,
+                "label": "Verify the bundle",
+                "status": "pending"
+              },
+              {
+                "index": 11,
+                "label": "Hand over the bundle",
+                "status": "pending"
+              }
+            ],
+            "trace": [
+              {
+                "at": "2026-08-16T10:00:02.000Z",
+                "step": "1/3",
+                "note": "read the brief"
+              },
+              {
+                "at": "2026-08-16T10:01:02.000Z",
+                "step": "2/3",
+                "note": "resolve the input bundle"
+              },
+              {
+                "at": "2026-08-16T10:02:02.000Z",
+                "step": "3/3",
+                "note": "draft the treatment"
+              }
+            ],
+            "artifacts": [],
+            "truncated": []
+          }
+        },
+        {
+          "ordinal": 1,
+          "agentName": "Visual Evidence & Remotion Compositor",
+          "workflowId": "30000000-0000-4000-8000-000000000002",
+          "agentVersionId": "40000000-0000-4000-8000-000000000002",
+          "versionNumber": "7",
+          "role": "produce_outcome",
+          "taskLabel": "Finished video",
+          "expectedArtifact": {
+            "kind": "video_master",
+            "description": "The rendered video master."
+          },
+          "execution": {
+            "grantId": "00000050-0000-4000-8000-000000000081",
+            "requestId": null,
+            "runId": null,
+            "state": "cancelled",
+            "grantState": "released",
+            "outcomeLabel": "cancelled",
+            "startedAt": null,
+            "completedAt": "2026-08-16T10:29:00.000Z",
+            "runStartedAt": null,
+            "runCompletedAt": null,
+            "durationMs": null,
+            "requestedEngine": null,
+            "selectedExecutor": null,
+            "actualEngine": null,
+            "failover": false,
+            "failoverReason": null,
+            "avoidedEngine": null,
+            "engineObservedAt": null,
+            "verificationStatus": null,
+            "completenessStatus": null,
+            "creditsSpent": null,
+            "budgetCredits": 40,
+            "failureReason": "upstream node did not succeed, so this sequential node cannot run",
+            "stepSummary": null,
+            "steps": [],
+            "trace": [],
+            "artifacts": [],
+            "truncated": []
+          }
+        }
+      ],
+      "handoffs": [
+        {
+          "producerOrdinal": 0,
+          "consumerOrdinal": 1,
+          "producerAgentName": "Cinematic Shot Generator",
+          "consumerAgentName": "Visual Evidence & Remotion Compositor",
+          "artifactId": null,
+          "artifactName": null,
+          "artifactKind": "project_bundle",
+          "digest": null,
+          "digestPrefix": null,
+          "validationStatus": "not_reached",
+          "validatedAt": null,
+          "dispatchedAt": null,
+          "state": "blocked",
+          "failureReason": "Child failed verification."
+        }
+      ],
+      "trace": [
+        {
+          "at": "2026-08-16T09:58:00.000Z",
+          "type": "production_created",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:00.000Z",
+          "type": "plan_prepared",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T09:59:30.000Z",
+          "type": "production_started",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:00.000Z",
+          "type": "child_budget_reserved",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": 40,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:01.000Z",
+          "type": "child_dispatched",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": "00000060-0000-4000-8000-000000000080",
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:00:05.000Z",
+          "type": "child_engine_selected",
+          "source": "run_execution_contexts",
+          "ordinal": 0,
+          "detail": {
+            "requestedEngine": "codex",
+            "selectedExecutor": "codex",
+            "actualEngine": "codex",
+            "failover": false,
+            "failoverReason": null,
+            "runId": "00000070-0000-4000-8000-000000000080"
+          }
+        },
+        {
+          "at": "2026-08-16T10:09:00.000Z",
+          "type": "child_settled",
+          "source": "outcome_production_events",
+          "ordinal": 0,
+          "detail": {
+            "outcomeLabel": "failed",
+            "reason": null,
+            "actualCredits": 10,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": "00000070-0000-4000-8000-000000000080"
+          }
+        },
+        {
+          "at": "2026-08-16T10:29:00.000Z",
+          "type": "child_dispatch_released",
+          "source": "outcome_production_events",
+          "ordinal": 1,
+          "detail": {
+            "outcomeLabel": "cancelled",
+            "reason": "upstream node did not succeed, so this sequential node cannot run",
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": null,
+            "finalStatus": null,
+            "requestId": null,
+            "runId": null
+          }
+        },
+        {
+          "at": "2026-08-16T10:29:30.000Z",
+          "type": "receipt_recorded",
+          "source": "outcome_production_events",
+          "ordinal": null,
+          "detail": {
+            "outcomeLabel": null,
+            "reason": null,
+            "actualCredits": null,
+            "budgetCredits": null,
+            "planDigest": null,
+            "receiptDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+            "finalStatus": "failed",
+            "requestId": null,
+            "runId": null
+          }
+        }
+      ],
+      "traceTruncated": false,
+      "finalDeliverable": null
+    }
+  },
+  "lineages": {
+    "authoritative": {
+      "productionId": "00000010-0000-4000-8000-000000000004",
+      "productionState": "succeeded",
+      "productionGoal": "Create the finished launch video.",
+      "settled": true,
+      "ordinal": 1,
+      "agentName": "Visual Evidence & Remotion Compositor",
+      "role": "produce_outcome",
+      "nodeState": "settled",
+      "nodeOutcomeLabel": "succeeded",
+      "nodeFailureReason": null,
+      "viewedRunId": "00000070-0000-4000-8000-000000000041",
+      "authoritativeRunId": "00000070-0000-4000-8000-000000000041",
+      "isAuthoritative": true,
+      "superseded": false,
+      "authoritativeRunState": "completed",
+      "authoritativeRunStatus": "completed",
+      "authoritativeRunCompletedAt": "2026-08-16T10:28:30.000Z",
+      "suppressRunAgain": true
+    },
+    "supersededShell": {
+      "productionId": "00000010-0000-4000-8000-000000000004",
+      "productionState": "succeeded",
+      "productionGoal": "Create the finished launch video.",
+      "settled": true,
+      "ordinal": 1,
+      "agentName": "Visual Evidence & Remotion Compositor",
+      "role": "produce_outcome",
+      "nodeState": "settled",
+      "nodeOutcomeLabel": "succeeded",
+      "nodeFailureReason": null,
+      "viewedRunId": "00000070-0000-4000-8000-000000000099",
+      "authoritativeRunId": "00000070-0000-4000-8000-000000000041",
+      "isAuthoritative": false,
+      "superseded": true,
+      "authoritativeRunState": "completed",
+      "authoritativeRunStatus": "completed",
+      "authoritativeRunCompletedAt": "2026-08-16T10:28:30.000Z",
+      "suppressRunAgain": true
+    },
+    "liveNode": {
+      "productionId": "00000010-0000-4000-8000-000000000004",
+      "productionState": "executing",
+      "productionGoal": "Create the finished launch video.",
+      "settled": false,
+      "ordinal": 1,
+      "agentName": "Visual Evidence & Remotion Compositor",
+      "role": "produce_outcome",
+      "nodeState": "dispatched",
+      "nodeOutcomeLabel": null,
+      "nodeFailureReason": null,
+      "viewedRunId": "00000070-0000-4000-8000-000000000041",
+      "authoritativeRunId": "00000070-0000-4000-8000-000000000041",
+      "isAuthoritative": true,
+      "superseded": false,
+      "authoritativeRunState": "completed",
+      "authoritativeRunStatus": "completed",
+      "authoritativeRunCompletedAt": "2026-08-16T10:28:30.000Z",
+      "suppressRunAgain": false
     }
   },
   "receipts": {

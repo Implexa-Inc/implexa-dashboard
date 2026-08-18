@@ -22,6 +22,16 @@ const suites = [
   'app/(dashboard)/_components/outcome-production-monitor.render.test.ts',
   'app/(dashboard)/_components/outcome-work-item.render.test.ts',
   'app/(dashboard)/work/_components/outcome-productions-list.render.test.ts',
+  'lib/outcome-production-detail.test.ts',
+  'app/(dashboard)/_components/outcome-production-detail.render.test.ts',
+  // NOT app/(dashboard)/runs/[id]/superseded-shell.test.ts. `node --test`
+  // treats positional arguments as GLOB patterns and `[id]` is a valid
+  // character class, so that path matches nothing and the suite is silently
+  // skipped — the harness would report a confident kill count over a file it
+  // never ran (the same trap scripts/run-tests.mjs exists to prevent). The
+  // superseded-shell guards it carries are graded here by
+  // outcome-production-detail.render.test.ts, which lives in a bracket-free
+  // directory; the page-wiring assertions run under `npm test`.
 ];
 
 const CONTRACT = 'lib/outcome-production.ts';
@@ -31,6 +41,13 @@ const ENTRY = 'app/(dashboard)/_components/outcome-entry.tsx';
 const MONITOR = 'app/(dashboard)/_components/outcome-production-monitor.tsx';
 const WORK_ITEM = 'app/(dashboard)/_components/outcome-work-item.tsx';
 const LIST = 'app/(dashboard)/work/_components/outcome-productions-list.tsx';
+const DETAIL = 'lib/outcome-production-detail.ts';
+const NODE = 'app/(dashboard)/_components/outcome-node-section.tsx';
+const HANDOFF = 'app/(dashboard)/_components/outcome-handoff-row.tsx';
+const TRACE = 'app/(dashboard)/_components/outcome-production-trace.tsx';
+const ENGINE = 'app/(dashboard)/_components/engine-truth-badge.tsx';
+const NARRATIVE = 'app/(dashboard)/_components/production-lineage-narrative.ts';
+const LINEAGE_BANNER = 'app/(dashboard)/_components/production-lineage-banner.tsx';
 
 const mutants = [
   // Backend identity is echoed, never invented or recomputed in the browser.
@@ -137,13 +154,169 @@ const mutants = [
   ['work-item', 'the selected path loses one-based human ordering', WORK_ITEM,
     '{step.order + 1}. {step.agentName}', '{step.order}. {step.agentName}'],
 
+
+  // ── Canonical multi-agent Production detail ─────────────────────────
+  // Every one of these is a way the page could go back to being unreadable
+  // about a two-agent job.
+  ['engine-truth', 'a node is labelled by its pin when nothing actually ran', ENGINE,
+    'if (!actualEngine) {', 'if (false) {'],
+  ['engine-truth', 'the requested engine is presented as the one that ran', ENGINE,
+    'Ran on {ENGINE_LABELS[actualEngine]}', 'Ran on {ENGINE_LABELS[requestedEngine ?? actualEngine]}'],
+  ['engine-truth', 'a failover hides the engine that was actually asked for', ENGINE,
+    '{failover && requestedEngine && requestedEngine !== actualEngine && (',
+    '{false && requestedEngine && requestedEngine !== actualEngine && ('],
+  ['engine-truth', 'an unrecognised engine string is rendered as an engine', DETAIL,
+    "  return ENGINES.includes(v as ExecutionEngine) ? (v as ExecutionEngine) : undefined;",
+    '  return v as ExecutionEngine;'],
+
+  // Node evidence stays attached to the node that produced it.
+  ['node-scope', 'nodes are re-sorted into a plausible order instead of failing closed', DETAIL,
+    '  for (let i = 0; i < nodes.length; i += 1) if (nodes[i].ordinal !== i) return null;',
+    '  nodes.sort((a, b) => a.ordinal - b.ordinal);'],
+  // Re-anchored: the producer/consumer existence check merged into the single
+  // lookup the provenance guards below need anyway.
+  ['node-scope', 'a handoff naming an absent node is rendered anyway', DETAIL,
+    '    if (!producer || !consumer) return null;',
+    '    if (false) return null;'],
+  // Re-anchored: the ordinal-existence check became the `owner` lookup the
+  // trace provenance guards need.
+  ['node-scope', 'a trace entry attributed to an absent node is rendered anyway', DETAIL,
+    '    const owner = nodes.find((n) => n.ordinal === entry.ordinal);\n    if (!owner) return null;',
+    '    const owner = nodes.find((n) => n.ordinal === entry.ordinal) ?? nodes[0];\n    if (!owner) return null;'],
+  ['node-scope', 'a node section shows the neighbouring agent as its own', NODE,
+    '          Agent {node.ordinal + 1}{node.role ? ` · ${node.role.replace(/_/g, \' \')}` : \'\'}',
+    '          Agent {node.ordinal + 2}{node.role ? ` · ${node.role.replace(/_/g, \' \')}` : \'\'}'],
+  ['node-scope', 'a node loses its own step summary', NODE,
+    '            Steps — {execution.stepSummary.done}/{execution.stepSummary.total}',
+    '            Steps'],
+  ['node-scope', 'the run permalink stops being labelled a diagnostic', NODE,
+    "          Open this agent&apos;s run for diagnostics <span aria-hidden=\"true\">→</span>",
+    "          Open this agent&apos;s run <span aria-hidden=\"true\">→</span>"],
+
+  // Handoff identity belongs to the producer.
+  ['handoff', 'the handoff row swaps producer and consumer', HANDOFF,
+    "  const producer = `Agent ${handoff.producerOrdinal + 1}`;\n  const consumer = `Agent ${handoff.consumerOrdinal + 1}`;",
+    "  const producer = `Agent ${handoff.consumerOrdinal + 1}`;\n  const consumer = `Agent ${handoff.producerOrdinal + 1}`;"],
+  ['handoff', 'an unvalidated handoff claims its digest was verified', HANDOFF,
+    "  const validated = handoff.validationStatus === 'validated';",
+    '  const validated = true;'],
+  ['handoff', 'the handed artifact loses its digest', HANDOFF,
+    '          {handoff.digestPrefix && (',
+    '          {false && ('],
+  ['handoff', 'a typed handoff failure is swallowed', HANDOFF,
+    '      {handoff.failureReason && (', '      {false && ('],
+  ['handoff', 'an unknown handoff state renders instead of failing closed', DETAIL,
+    '  if (!HANDOFF_STATES.includes(v.state as HandoffState)) return null;',
+    '  if (false) return null;'],
+
+  // The combined trace is evidence, so it must be complete and attributed.
+  ['trace', 'an unknown event type is dropped from the trace', TRACE,
+    '                <span className="text-ink-100">{traceLabel(entry)}</span>',
+    '                <span className="text-ink-100">{TRACE_LABELS[entry.type] ? traceLabel(entry) : null}</span>'],
+  ['trace', 'trace entries lose the agent they belong to', TRACE,
+    "                {entry.ordinal === null ? 'Production' : `Agent ${entry.ordinal + 1}`}",
+    "                {'Production'}"],
+  ['trace', 'a failover in the timeline reads as an ordinary pickup', TRACE,
+    '    if (d.failover === true && requested && requested !== actual) {',
+    '    if (false) {'],
+  ['trace', 'a sourceless event is accepted as evidence', DETAIL,
+    '  if (!TRACE_SOURCES.includes(v.source as TraceSource)) return null;',
+    '  if (false) return null;'],
+
+  // The finished thing, and what counts as one.
+  // (The old 'an unattributed final deliverable is rendered' mutant lived here.
+  // It became EQUIVALENT once provenance landed: a non-integer ordinal or a
+  // wrong agentName is now rejected downstream by the producer lookup, so the
+  // shape check can no longer be the thing that catches it. The shape check
+  // stays — it is what narrows the types — but mutating it proves nothing, and
+  // an equivalent mutant is a permanently red run that teaches nothing. The
+  // provenance boundary below grades this behaviour directly.)
+  ['deliverable', 'the final deliverable region disappears', MONITOR,
+    '      {finalDeliverable && finalDeliverable.relativePath && finalDeliverable.validatedPath && (',
+    '      {false && ('],
+
+  // The superseded shell — the incident this work exists for.
+  ['superseded', 'a superseded shell stops being treated as superseded', NARRATIVE,
+    '  return Boolean(lineage && lineage.superseded);', '  return false;'],
+  ['superseded', 'the superseded banner disappears', LINEAGE_BANNER,
+    '      {lineage.superseded && (', '      {false && ('],
+  ['superseded', 'the superseded shell stops linking to the authoritative run', LINEAGE_BANNER,
+    '          {lineage.authoritativeRunId && (', '          {false && ('],
+  ['superseded', 'a run inside a production stops pointing at its parent', LINEAGE_BANNER,
+    '  if (!lineage) return null;', '  return null;\n  if (!lineage) return null;'],
+  ['superseded', 'a failed authoritative run is announced as completed', LINEAGE_BANNER,
+    "  if (lineage.authoritativeRunState === 'failed' || lineage.authoritativeRunStatus === 'failed') return 'failed';",
+    "  if (lineage.authoritativeRunState === 'failed') return 'failed';"],
+  ['superseded', 'a missing superseded verdict silently defaults to false', DETAIL,
+    '  if (!bool(v.isAuthoritative) || !bool(v.superseded) || !bool(v.suppressRunAgain)) return null;',
+    '  if (!bool(v.isAuthoritative)) return null;'],
+
+  // The detail read model itself.
+  ['detail-loader', 'a drifted detail body renders as a page missing an agent', LOAD,
+    "  if (!detail) return { status: 'unavailable', reason: 'The production detail did not match the contract.' };",
+    "  if (!detail) return { status: 'absent', production, receipt: null, receiptStatus: 'none' } as OutcomeProductionDetailLoad;"],
+  ['detail-loader', 'a backend without the detail route reports the production missing', LOAD,
+    "      if (fallback.status === 'ok') {",
+    '      if (false) {'],
+  ['detail-loader', 'settled detail keeps polling forever', DETAIL,
+    'export function shouldPollDetail(detail: ProductionDetail): boolean {\n  return !detail.settled;',
+    'export function shouldPollDetail(detail: ProductionDetail): boolean {\n  return true;'],
+  ['detail-loader', 'a live node no longer opens by default', DETAIL,
+    "  return ['running', 'stalled', 'dispatched', 'failed', 'partial'].includes(node.execution.state);",
+    '  return false;'],
+
+  // Provenance: shape-valid evidence attributed to the wrong agent.
+  ['provenance', 'the final deliverable is credited to an agent that did not make it', DETAIL,
+    "    if (!producer || producer.agentName !== raw.agentName) return null;",
+    '    if (!producer) return null;'],
+  ['provenance', 'the final deliverable names a run its agent never had', DETAIL,
+    '    if (artifact.runId !== producer.execution.runId) return null;',
+    '    if (false) return null;'],
+  ['provenance', 'the final deliverable digest is absent from its agent\'s outputs', DETAIL,
+    "    if (!producer.execution.artifacts.some((candidate) =>\n      candidate.id === artifact.id && candidate.digest === artifact.digest\n      && candidate.relativePath === artifact.relativePath)) return null;",
+    '    if (false) return null;'],
+  ['provenance', 'a handoff carries the consumer\'s artifact instead of the producer\'s', DETAIL,
+    "      if (!producer.execution.truncated.includes('artifacts')\n        && !producer.execution.artifacts.some((candidate) =>\n          candidate.id === handoff.artifactId && candidate.digest === handoff.digest)) return null;",
+    '      if (false) return null;'],
+  ['provenance', 'a handoff row names agents its ordinals do not point at', DETAIL,
+    '    if (handoff.producerAgentName !== null && handoff.producerAgentName !== producer.agentName) return null;',
+    '    if (false) return null;'],
+  ['provenance', 'a displayed digest prefix need not belong to its digest', DETAIL,
+    '    if (handoff.digest !== null && handoff.digestPrefix !== null\n      && !handoff.digest.startsWith(handoff.digestPrefix)) return null;',
+    '    if (false) return null;'],
+  ['provenance', 'a node hands off to itself', DETAIL,
+    '    if (handoff.producerOrdinal === handoff.consumerOrdinal) return null;',
+    '    if (false) return null;'],
+  ['provenance', 'a trace row carries another agent\'s run', DETAIL,
+    "    if (str(detail.runId) && owner.execution.runId !== null\n      && detail.runId !== owner.execution.runId) return null;",
+    '    if (false) return null;'],
+  ['provenance', 'a trace row carries another agent\'s digest', DETAIL,
+    "    if (str(detail.digestPrefix) && !owner.execution.truncated.includes('artifacts')\n      && owner.execution.artifacts.length > 0\n      && !owner.execution.artifacts.some((candidate) =>\n        candidate.digest !== null && candidate.digest.startsWith(detail.digestPrefix as string))) return null;",
+    '    if (false) return null;'],
+
+  // Lineage coherence: the fields the run page turns into navigation.
+  ['superseded', 'a superseded lineage may point at the run you are already on', DETAIL,
+    '  if (v.superseded && (authoritativeRunId === null || authoritativeRunId === viewedRunId)) return null;',
+    '  if (false) return null;'],
+  // (The 'both the authority and superseded by one' mutant lived here. The
+  // guard it targeted was provably redundant — see the comment on the two
+  // coherence checks in parseLineage — so both the guard and the mutant are
+  // gone rather than left as decoration.)
+  ['superseded', 'a run may claim authority while naming a different run', DETAIL,
+    '  if (v.isAuthoritative && (authoritativeRunId === null || authoritativeRunId !== viewedRunId)) return null;',
+    '  if (false) return null;'],
+
   // Edits invalidate displayed and in-flight plans.
   ['stale-response', 'an edit no longer invalidates an in-flight plan', ENTRY,
     '      reqId.current += 1;\n      prepareInFlight.current = null;',
     '      prepareInFlight.current = null;'],
+  // Re-anchored 2026-08-17: the line AFTER the guard was rewritten
+  // (`res.status === 400 || res.status === 401` became a 4xx range), which
+  // silently broke this mutant at origin/main — the harness aborted before
+  // reporting. The guard itself is unchanged; only the anchor moved.
   ['stale-response', 'a superseded plan answer is applied anyway', ENTRY,
-    '      if (!current()) return;\n      if (res.status === 400 || res.status === 401) {',
-    '      if (res.status === 400 || res.status === 401) {'],
+    '      const body = await res.json().catch(() => null);\n      if (!current()) return;\n      if (!res.ok && res.status >= 400 && res.status < 500) {',
+    '      const body = await res.json().catch(() => null);\n      if (!res.ok && res.status >= 400 && res.status < 500) {'],
 ];
 
 function run(cwd) {
@@ -158,6 +331,28 @@ function run(cwd) {
     cwd, encoding: 'utf8', timeout: 30_000, killSignal: 'SIGKILL', env,
   });
 }
+
+// PRE-FLIGHT: validate every anchor before running anything.
+//
+// A stale anchor throws mid-run, after minutes of work, and reports only the
+// FIRST one — so a refactor that moved three guards costs three full harness
+// runs to discover. Worse, a mutant whose anchor silently drifted is a mutant
+// that stopped grading anything, and the run before the throw looked green.
+// Checking up front costs a second and names all of them at once.
+const stale = [];
+for (const [boundary, name, file, from] of mutants) {
+  const text = fs.readFileSync(path.join(root, file), 'utf8');
+  const matches = text.split(from).length - 1;
+  if (matches !== 1) stale.push(`  ${matches} matches — [${boundary}] ${name}  (${file})`);
+}
+if (stale.length > 0) {
+  process.stderr.write(
+    `HARNESS BROKEN: ${stale.length} mutant anchor(s) no longer match their source exactly once.\n`
+    + 'Each of these grades NOTHING until re-anchored:\n'
+    + `${stale.join('\n')}\n`);
+  process.exit(1);
+}
+process.stdout.write(`pre-flight: all ${mutants.length} mutant anchors are unique\n`);
 
 const baseline = run(root);
 if (baseline.status !== 0) {

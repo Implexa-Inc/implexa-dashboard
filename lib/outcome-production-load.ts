@@ -16,6 +16,10 @@ import {
   parseProductionListResponse, parseProductionResponse, parseReceiptResponse,
   type Production, type ProductionReceipt,
 } from './outcome-production.ts';
+import {
+  parseProductionDetail, parseLineageResponse,
+  type ProductionDetail, type ProductionLineage,
+} from './outcome-production-detail.ts';
 
 /**
  * - `ready`       the receipt is here.
@@ -94,5 +98,89 @@ export async function listOutcomeProductions(jwt: string): Promise<OutcomeProduc
     // exist yet.
     if (error instanceof BackendError && error.status === 404) return { status: 'absent' };
     return { status: 'unavailable', reason: error instanceof Error ? error.message : 'Your productions are unavailable.' };
+  }
+}
+
+export type OutcomeProductionDetailLoad =
+  | { status: 'ok'; detail: ProductionDetail; receipt: ProductionReceipt | null; receiptStatus: ReceiptStatus }
+  | { status: 'not_found' }
+  /**
+   * This deployment has the monitor route but not the detail one — an older
+   * backend. The production still renders from the monitor projection; only
+   * the per-agent breakdown is missing, and the page says which.
+   */
+  | { status: 'absent'; production: Production; receipt: ProductionReceipt | null; receiptStatus: ReceiptStatus }
+  | { status: 'unavailable'; reason: string };
+
+/**
+ * The Production page's read: ONE bounded server request for the canonical
+ * multi-agent view, plus the receipt once the production has settled.
+ *
+ * Deliberately NOT two reads of the same production. The detail route already
+ * returns the whole monitor contract, so asking for /:id as well would double
+ * the parent read on every poll to save nothing.
+ */
+export async function loadOutcomeProductionDetail(
+  productionId: string, jwt: string,
+): Promise<OutcomeProductionDetailLoad> {
+  let body: unknown;
+  try {
+    body = await callBackend(`/api/v2/outcome-productions/${encodeURIComponent(productionId)}/detail`, { jwt });
+  } catch (error) {
+    // A 404 is ambiguous between "no such production" and "no such route", and
+    // the two must not be conflated: falling back to the monitor read settles
+    // it — if THAT answers, the deployment simply predates this page.
+    if (error instanceof BackendError && error.status === 404) {
+      const fallback = await loadOutcomeProduction(productionId, jwt);
+      if (fallback.status === 'ok') {
+        return {
+          status: 'absent',
+          production: fallback.production,
+          receipt: fallback.receipt,
+          receiptStatus: fallback.receiptStatus,
+        };
+      }
+      return fallback.status === 'not_found'
+        ? { status: 'not_found' }
+        : { status: 'unavailable', reason: fallback.reason };
+    }
+    return { status: 'unavailable', reason: error instanceof Error ? error.message : 'The production is unavailable.' };
+  }
+
+  const production = parseProductionResponse(body);
+  // Distinct wording from loadOutcomeProduction's: the two reads have two
+  // failure modes and a reader who sees this needs to know WHICH route drifted.
+  if (!production) return { status: 'unavailable', reason: 'The production detail response did not match the contract.' };
+  const detail = parseProductionDetail((body as { production?: unknown })?.production, production);
+  if (!detail) return { status: 'unavailable', reason: 'The production detail did not match the contract.' };
+
+  if (!detail.settled) return { status: 'ok', detail, receipt: null, receiptStatus: 'none' };
+  try {
+    const response = await callBackend(`/api/v2/outcome-productions/${encodeURIComponent(productionId)}/receipt`, { jwt });
+    const receipt = parseReceiptResponse(response);
+    if (!receipt) return { status: 'ok', detail, receipt: null, receiptStatus: 'unavailable' };
+    return { status: 'ok', detail, receipt, receiptStatus: 'ready' };
+  } catch {
+    return { status: 'ok', detail, receipt: null, receiptStatus: 'unavailable' };
+  }
+}
+
+/**
+ * Is this run part of an outcome production, and is it the run the parent
+ * considers authoritative?
+ *
+ * Asked by the run permalink so it can point at the parent rather than present
+ * a superseded execution shell as the final result. EVERY failure mode answers
+ * `null`: this is an enrichment of an existing page, and a backend without the
+ * route, a network blip, or a drifted body must all leave the run page exactly
+ * as it was — never break it, and never assert a lineage we could not read.
+ */
+export async function loadProductionLineage(runId: string, jwt: string): Promise<ProductionLineage | null> {
+  try {
+    const response = await callBackend(
+      `/api/v2/outcome-productions/runs/${encodeURIComponent(runId)}/lineage`, { jwt });
+    return parseLineageResponse(response) ?? null;
+  } catch {
+    return null;
   }
 }

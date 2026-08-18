@@ -12,30 +12,19 @@
  *
  * Seeded with the server-fetched steps so it paints instantly; polling only takes
  * over to keep it fresh. Stops polling the moment the run leaves 'running'.
+ *
+ * This component is now the LIVE half only — the list itself renders through
+ * <RunStepsList>, which each Production node section uses too.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
-import type { RunStep, StepStatus } from '@/lib/run-state';
+import type { RunStep } from '@/lib/run-state';
+import RunStepsList from './run-steps-list';
 
 const POLL_MS = 6000;
-
-// Per-status glyph + tint. running = spinner (it's the live one), done = check,
-// failed = ✕, pending = hollow dot.
-function StepIcon({ status }: { status: StepStatus }) {
-  if (status === 'running') {
-    return <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-sky-500/25 border-t-sky-500 animate-spin" aria-hidden="true" />;
-  }
-  if (status === 'done') {
-    return <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center text-[9px] font-bold" aria-hidden="true">✓</span>;
-  }
-  if (status === 'failed') {
-    return <span className="h-3.5 w-3.5 shrink-0 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 grid place-items-center text-[9px] font-bold" aria-hidden="true">✕</span>;
-  }
-  return <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-ink-700" aria-hidden="true" />;
-}
 
 export default function RunStepChecklist({
   runId,
@@ -86,29 +75,8 @@ export default function RunStepChecklist({
   }, [runId, live]);
 
   if (!steps?.length) return null;
-  const done = steps.filter((s) => s.status === 'done').length;
-  const total = steps.length;
-
-  return (
-    <div className="mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-xs font-semibold text-ink-300">Steps</span>
-        {running && (
-          <span className="text-[10px] uppercase tracking-wide font-semibold text-sky-700 dark:text-sky-300 bg-sky-500/15 rounded px-1.5 py-0.5">live</span>
-        )}
-        <span className="text-[11px] text-ink-500 ml-auto">{done}/{total} done</span>
-      </div>
-      <ol className="space-y-2">
-        {steps.map((s) => (
-          <li key={s.index} className="flex items-center gap-2.5 text-sm">
-            <StepIcon status={s.status} />
-            <span className="text-[11px] font-mono text-ink-600 shrink-0">{s.index}/{total}</span>
-            <span className={s.status === 'pending' ? 'text-ink-500 truncate' : 'text-ink-100 truncate'}>
-              {s.label || `Step ${s.index}`}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
+  // One renderer, shared with each Production node section: two implementations
+  // of "which steps are done" is how the same run reads finished on one page
+  // and stuck on the other.
+  return <RunStepsList steps={steps} live={running} />;
 }

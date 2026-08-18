@@ -20,6 +20,11 @@ const GENERATOR = 'scripts/generate-outcome-orchestration-dashboard-fixture.js';
 test('checked-in fixture is byte-equivalent JSON to the backend producer', () => {
   const candidates = [
     process.env.IMPLEXA_BACKEND_DIR,
+    // The matching backend worktree for THIS branch comes first: the generic
+    // ../implexa-backend below is whatever that checkout happens to be on, and
+    // grading this branch's fixture against another branch's producer reports a
+    // contract break that does not exist.
+    resolve(root, '../implexa-backend-production-detail'),
     resolve(root, '../../Implexa-backend-outcome-orchestration'),
     resolve(root, '../implexa-backend'),
   ].filter(Boolean) as string[];
