@@ -173,12 +173,16 @@ const mutants = [
   ['node-scope', 'nodes are re-sorted into a plausible order instead of failing closed', DETAIL,
     '  for (let i = 0; i < nodes.length; i += 1) if (nodes[i].ordinal !== i) return null;',
     '  nodes.sort((a, b) => a.ordinal - b.ordinal);'],
+  // Re-anchored: the producer/consumer existence check merged into the single
+  // lookup the provenance guards below need anyway.
   ['node-scope', 'a handoff naming an absent node is rendered anyway', DETAIL,
-    '    if (!nodes.some((n) => n.ordinal === handoff.producerOrdinal)) return null;',
+    '    if (!producer || !consumer) return null;',
     '    if (false) return null;'],
+  // Re-anchored: the ordinal-existence check became the `owner` lookup the
+  // trace provenance guards need.
   ['node-scope', 'a trace entry attributed to an absent node is rendered anyway', DETAIL,
-    '    if (entry.ordinal !== null && !nodes.some((n) => n.ordinal === entry.ordinal)) return null;',
-    '    if (false) return null;'],
+    '    const owner = nodes.find((n) => n.ordinal === entry.ordinal);\n    if (!owner) return null;',
+    '    const owner = nodes.find((n) => n.ordinal === entry.ordinal) ?? nodes[0];\n    if (!owner) return null;'],
   ['node-scope', 'a node section shows the neighbouring agent as its own', NODE,
     '          Agent {node.ordinal + 1}{node.role ? ` · ${node.role.replace(/_/g, \' \')}` : \'\'}',
     '          Agent {node.ordinal + 2}{node.role ? ` · ${node.role.replace(/_/g, \' \')}` : \'\'}'],
@@ -220,9 +224,13 @@ const mutants = [
     '  if (false) return null;'],
 
   // The finished thing, and what counts as one.
-  ['deliverable', 'an unattributed final deliverable is rendered', DETAIL,
-    '    if (!artifact || !integer(raw.ordinal) || !str(raw.agentName)) return null;',
-    '    if (!artifact) return null;'],
+  // (The old 'an unattributed final deliverable is rendered' mutant lived here.
+  // It became EQUIVALENT once provenance landed: a non-integer ordinal or a
+  // wrong agentName is now rejected downstream by the producer lookup, so the
+  // shape check can no longer be the thing that catches it. The shape check
+  // stays — it is what narrows the types — but mutating it proves nothing, and
+  // an equivalent mutant is a permanently red run that teaches nothing. The
+  // provenance boundary below grades this behaviour directly.)
   ['deliverable', 'the final deliverable region disappears', MONITOR,
     '      {finalDeliverable && finalDeliverable.relativePath && finalDeliverable.validatedPath && (',
     '      {false && ('],
@@ -257,6 +265,47 @@ const mutants = [
     "  return ['running', 'stalled', 'dispatched', 'failed', 'partial'].includes(node.execution.state);",
     '  return false;'],
 
+  // Provenance: shape-valid evidence attributed to the wrong agent.
+  ['provenance', 'the final deliverable is credited to an agent that did not make it', DETAIL,
+    "    if (!producer || producer.agentName !== raw.agentName) return null;",
+    '    if (!producer) return null;'],
+  ['provenance', 'the final deliverable names a run its agent never had', DETAIL,
+    '    if (artifact.runId !== producer.execution.runId) return null;',
+    '    if (false) return null;'],
+  ['provenance', 'the final deliverable digest is absent from its agent\'s outputs', DETAIL,
+    "    if (!producer.execution.artifacts.some((candidate) =>\n      candidate.id === artifact.id && candidate.digest === artifact.digest\n      && candidate.relativePath === artifact.relativePath)) return null;",
+    '    if (false) return null;'],
+  ['provenance', 'a handoff carries the consumer\'s artifact instead of the producer\'s', DETAIL,
+    "      if (!producer.execution.truncated.includes('artifacts')\n        && !producer.execution.artifacts.some((candidate) =>\n          candidate.id === handoff.artifactId && candidate.digest === handoff.digest)) return null;",
+    '      if (false) return null;'],
+  ['provenance', 'a handoff row names agents its ordinals do not point at', DETAIL,
+    '    if (handoff.producerAgentName !== null && handoff.producerAgentName !== producer.agentName) return null;',
+    '    if (false) return null;'],
+  ['provenance', 'a displayed digest prefix need not belong to its digest', DETAIL,
+    '    if (handoff.digest !== null && handoff.digestPrefix !== null\n      && !handoff.digest.startsWith(handoff.digestPrefix)) return null;',
+    '    if (false) return null;'],
+  ['provenance', 'a node hands off to itself', DETAIL,
+    '    if (handoff.producerOrdinal === handoff.consumerOrdinal) return null;',
+    '    if (false) return null;'],
+  ['provenance', 'a trace row carries another agent\'s run', DETAIL,
+    "    if (str(detail.runId) && owner.execution.runId !== null\n      && detail.runId !== owner.execution.runId) return null;",
+    '    if (false) return null;'],
+  ['provenance', 'a trace row carries another agent\'s digest', DETAIL,
+    "    if (str(detail.digestPrefix) && !owner.execution.truncated.includes('artifacts')\n      && owner.execution.artifacts.length > 0\n      && !owner.execution.artifacts.some((candidate) =>\n        candidate.digest !== null && candidate.digest.startsWith(detail.digestPrefix as string))) return null;",
+    '    if (false) return null;'],
+
+  // Lineage coherence: the fields the run page turns into navigation.
+  ['superseded', 'a superseded lineage may point at the run you are already on', DETAIL,
+    '  if (v.superseded && (authoritativeRunId === null || authoritativeRunId === viewedRunId)) return null;',
+    '  if (false) return null;'],
+  // (The 'both the authority and superseded by one' mutant lived here. The
+  // guard it targeted was provably redundant — see the comment on the two
+  // coherence checks in parseLineage — so both the guard and the mutant are
+  // gone rather than left as decoration.)
+  ['superseded', 'a run may claim authority while naming a different run', DETAIL,
+    '  if (v.isAuthoritative && (authoritativeRunId === null || authoritativeRunId !== viewedRunId)) return null;',
+    '  if (false) return null;'],
+
   // Edits invalidate displayed and in-flight plans.
   ['stale-response', 'an edit no longer invalidates an in-flight plan', ENTRY,
     '      reqId.current += 1;\n      prepareInFlight.current = null;',
@@ -282,6 +331,28 @@ function run(cwd) {
     cwd, encoding: 'utf8', timeout: 30_000, killSignal: 'SIGKILL', env,
   });
 }
+
+// PRE-FLIGHT: validate every anchor before running anything.
+//
+// A stale anchor throws mid-run, after minutes of work, and reports only the
+// FIRST one — so a refactor that moved three guards costs three full harness
+// runs to discover. Worse, a mutant whose anchor silently drifted is a mutant
+// that stopped grading anything, and the run before the throw looked green.
+// Checking up front costs a second and names all of them at once.
+const stale = [];
+for (const [boundary, name, file, from] of mutants) {
+  const text = fs.readFileSync(path.join(root, file), 'utf8');
+  const matches = text.split(from).length - 1;
+  if (matches !== 1) stale.push(`  ${matches} matches — [${boundary}] ${name}  (${file})`);
+}
+if (stale.length > 0) {
+  process.stderr.write(
+    `HARNESS BROKEN: ${stale.length} mutant anchor(s) no longer match their source exactly once.\n`
+    + 'Each of these grades NOTHING until re-anchored:\n'
+    + `${stale.join('\n')}\n`);
+  process.exit(1);
+}
+process.stdout.write(`pre-flight: all ${mutants.length} mutant anchors are unique\n`);
 
 const baseline = run(root);
 if (baseline.status !== 0) {

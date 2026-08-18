@@ -133,8 +133,15 @@ function rel(iso: string): string {
 function safeToRedirectToAuthority(
   lineage: { superseded: boolean; authoritativeRunId: string | null; authoritativeRunState: string | null; authoritativeRunStatus: string | null } | null,
   ownOutput: string | null | undefined,
+  viewedRunId: string,
 ): string | null {
   if (!lineage?.superseded || !lineage.authoritativeRunId) return null;
+  // Never redirect a run to ITSELF. The parser already refuses an incoherent
+  // lineage, and the backend cannot currently emit one — but this is the site
+  // that turns the field into navigation, and the failure mode here is not a
+  // wrong label, it is an infinite redirect that takes the page down. Cheap
+  // guard, unbounded downside.
+  if (lineage.authoritativeRunId === viewedRunId) return null;
   if (ownOutput && ownOutput.trim()) return null;
   if (lineage.authoritativeRunState !== 'completed' || lineage.authoritativeRunStatus === 'failed') return null;
   return lineage.authoritativeRunId;
@@ -593,7 +600,7 @@ export default async function RunDetailPage({
   // `?keep=1` is the escape hatch: a reader who deliberately came back to
   // inspect the superseded attempt must not be bounced away from it again.
   const authority = searchParams?.keep === '1'
-    ? null : safeToRedirectToAuthority(productionLineage, r.output_markdown);
+    ? null : safeToRedirectToAuthority(productionLineage, r.output_markdown, r.id);
   if (authority) redirect(`/runs/${authority}?superseded=${encodeURIComponent(r.id)}`);
   const arrivedFromSupersededShell = typeof searchParams?.superseded === 'string'
     && UUID_RE.test(searchParams.superseded) ? searchParams.superseded : null;

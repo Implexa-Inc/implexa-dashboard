@@ -69,6 +69,10 @@ test('redirecting to the authoritative run is preferred, but only when nothing i
   // …and a reader who deliberately returns to the shell is not bounced again.
   assert.match(PAGE, /searchParams\?\.keep === '1'/);
   assert.match(PAGE, /\?keep=1/);
+  // A run is never redirected to itself: the failure mode here is not a wrong
+  // label, it is an infinite redirect that takes the page down.
+  assert.match(PAGE, /if \(lineage\.authoritativeRunId === viewedRunId\) return null;/);
+  assert.match(PAGE, /safeToRedirectToAuthority\(productionLineage, r\.output_markdown, r\.id\)/);
 });
 
 test('the production lineage supersedes the generic same-agent sibling hint', () => {

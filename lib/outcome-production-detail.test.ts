@@ -106,6 +106,117 @@ test('a handoff with an unknown state is refused', () => {
   assert.equal(parseProductionDetail(drifted, production), null);
 });
 
+// ── provenance, not just shape ────────────────────────────────────────
+// Everything above proves a body is well-formed. None of it proves the
+// evidence belongs to the agent it names — and a wrong-agent attribution here
+// renders as a confident, checkable-looking claim: "digest verified",
+// "produced by Visual Evidence & Remotion Compositor".
+
+test('a final deliverable credited to the wrong agent is refused', () => {
+  const { raw, production } = parsed('succeeded');
+  const other = raw.nodes[0];
+
+  // Agent 1's name over agent 2's file.
+  const misnamed = structuredClone(raw);
+  misnamed.finalDeliverable.agentName = other.agentName;
+  assert.equal(parseProductionDetail(misnamed, production), null);
+
+  // Agent 1's ordinal over agent 2's file.
+  const misordinal = structuredClone(raw);
+  misordinal.finalDeliverable.ordinal = 0;
+  assert.equal(parseProductionDetail(misordinal, production), null);
+
+  // The right agent, but a file that agent never produced.
+  const misrun = structuredClone(raw);
+  misrun.finalDeliverable.runId = other.execution.runId;
+  assert.equal(parseProductionDetail(misrun, production), null);
+
+  // The right agent and run, but a digest absent from its validated outputs.
+  const misdigest = structuredClone(raw);
+  misdigest.finalDeliverable.digest = 'f'.repeat(64);
+  assert.equal(parseProductionDetail(misdigest, production), null);
+});
+
+test('a handoff carrying the CONSUMER\'s artifact is refused', () => {
+  const { raw, production } = parsed('succeeded');
+  const consumerArtifact = raw.nodes[1].execution.artifacts[0];
+
+  // The finished video presented as what agent 1 handed over.
+  const swapped = structuredClone(raw);
+  swapped.handoffs[0].artifactId = consumerArtifact.id;
+  swapped.handoffs[0].digest = consumerArtifact.digest;
+  swapped.handoffs[0].digestPrefix = consumerArtifact.digest.slice(0, 12);
+  swapped.handoffs[0].artifactName = consumerArtifact.name;
+  assert.equal(parseProductionDetail(swapped, production), null,
+    'the row would have rendered "digest verified" over a file agent 1 never made');
+
+  // A digest whose displayed prefix does not belong to it.
+  const lyingPrefix = structuredClone(raw);
+  lyingPrefix.handoffs[0].digestPrefix = 'abcabcabcabc';
+  assert.equal(parseProductionDetail(lyingPrefix, production), null);
+
+  // Agent names that contradict the ordinals they sit on.
+  const misnamed = structuredClone(raw);
+  misnamed.handoffs[0].producerAgentName = raw.nodes[1].agentName;
+  assert.equal(parseProductionDetail(misnamed, production), null);
+
+  // A node handing off to itself is not a seam. The consumer NAME is fixed up
+  // too, or the name check above rejects it first and this asserts nothing —
+  // a mutation run caught exactly that: the guard was untested while the test
+  // passed.
+  const selfHandoff = structuredClone(raw);
+  selfHandoff.handoffs[0].consumerOrdinal = 0;
+  selfHandoff.handoffs[0].consumerAgentName = raw.nodes[0].agentName;
+  assert.equal(parseProductionDetail(selfHandoff, production), null);
+});
+
+test('a trace row naming one agent while carrying another\'s evidence is refused', () => {
+  const { raw, production } = parsed('succeeded');
+  const agentOneRun = raw.nodes[0].execution.runId;
+
+  const wrongRun = structuredClone(raw);
+  const settled = wrongRun.trace.find((e: any) => e.ordinal === 1 && e.detail?.runId);
+  assert.ok(settled, 'the fixture has a node-scoped row carrying a run id');
+  settled.detail.runId = agentOneRun;
+  assert.equal(parseProductionDetail(wrongRun, production), null);
+
+  const wrongDigest = structuredClone(raw);
+  const validated = wrongDigest.trace.find((e: any) => e.type === 'child_artifact_validated' && e.ordinal === 1);
+  assert.ok(validated);
+  validated.detail.digestPrefix = raw.nodes[0].execution.artifacts[0].digest.slice(0, 12);
+  assert.equal(parseProductionDetail(wrongDigest, production), null);
+});
+
+test('the honest fixture still parses — these checks reject drift, not real data', () => {
+  for (const name of ['running', 'succeeded', 'partial', 'failed', 'cancelled', 'blocked']) {
+    const { raw, production } = parsed(name);
+    assert.ok(parseProductionDetail(raw, production), `${name} must still parse`);
+  }
+});
+
+test('an incoherent lineage cannot become a self-redirect', () => {
+  const base = RAW.lineages.supersededShell;
+
+  // "Superseded" pointing at the run you are already on: the run page would
+  // redirect to itself, forever.
+  const selfSuperseded = { ...base, authoritativeRunId: base.viewedRunId };
+  assert.equal(parseLineage(selfSuperseded), null);
+
+  // Superseded with nothing better to point at.
+  assert.equal(parseLineage({ ...base, authoritativeRunId: null }), null);
+
+  // "Both the authority and superseded by one" needs no guard of its own: it
+  // requires authoritativeRunId to simultaneously differ from and equal
+  // viewedRunId, so the two checks below already make it unrepresentable.
+  assert.equal(parseLineage({ ...base, isAuthoritative: true }), null);
+  assert.equal(parseLineage({ ...RAW.lineages.authoritative, superseded: true }), null);
+
+  // Claiming to be the authority while naming a different run.
+  const authoritative = RAW.lineages.authoritative;
+  assert.equal(parseLineage({ ...authoritative, authoritativeRunId: base.viewedRunId }), null);
+  assert.ok(parseLineage(authoritative), 'the honest authoritative lineage still parses');
+});
+
 test('lineage parses, and null lineage is an ANSWER rather than a parse failure', () => {
   assert.ok(parseLineage(RAW.lineages.supersededShell));
   assert.equal(parseLineageResponse({ ok: true, lineage: null }), null);

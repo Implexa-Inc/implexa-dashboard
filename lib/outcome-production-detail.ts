@@ -350,8 +350,27 @@ export function parseProductionDetail(v: unknown, production: Production): Produ
     // A handoff between nodes this production does not have would attribute an
     // artifact to an agent that is not on the page.
     if (!handoff) return null;
-    if (!nodes.some((n) => n.ordinal === handoff.producerOrdinal)) return null;
-    if (!nodes.some((n) => n.ordinal === handoff.consumerOrdinal)) return null;
+    const producer = nodes.find((n) => n.ordinal === handoff.producerOrdinal);
+    const consumer = nodes.find((n) => n.ordinal === handoff.consumerOrdinal);
+    if (!producer || !consumer) return null;
+    if (handoff.producerOrdinal === handoff.consumerOrdinal) return null;
+    // Names must match the nodes the ordinals point at, or the row can read
+    // "Agent 1 — <agent 2's name>" and the seam becomes unattributable.
+    if (handoff.producerAgentName !== null && handoff.producerAgentName !== producer.agentName) return null;
+    if (handoff.consumerAgentName !== null && handoff.consumerAgentName !== consumer.agentName) return null;
+    // And the handed artifact must be the PRODUCER's own validated output.
+    // Without this, a body can pair the consumer's finished video with the
+    // producer's ordinal and the row renders "digest verified" over a file the
+    // producer never made — the wrong-agent attribution in its purest form.
+    // Skipped only when the producer's artifact list was itself truncated,
+    // where absence is not evidence.
+    if (handoff.artifactId !== null || handoff.digest !== null) {
+      if (!producer.execution.truncated.includes('artifacts')
+        && !producer.execution.artifacts.some((candidate) =>
+          candidate.id === handoff.artifactId && candidate.digest === handoff.digest)) return null;
+    }
+    if (handoff.digest !== null && handoff.digestPrefix !== null
+      && !handoff.digest.startsWith(handoff.digestPrefix)) return null;
     handoffs.push(handoff);
   }
 
@@ -359,7 +378,19 @@ export function parseProductionDetail(v: unknown, production: Production): Produ
   for (const raw of v.trace) {
     const entry = readTrace(raw);
     if (!entry) return null;
-    if (entry.ordinal !== null && !nodes.some((n) => n.ordinal === entry.ordinal)) return null;
+    if (entry.ordinal === null) { trace.push(entry); continue; }
+    const owner = nodes.find((n) => n.ordinal === entry.ordinal);
+    if (!owner) return null;
+    // A timeline row that names one agent while carrying another's run or
+    // digest is the same wrong-agent attribution, in the surface a reader
+    // turns to precisely when the per-agent cards look ambiguous.
+    const detail = entry.detail as Record<string, unknown>;
+    if (str(detail.runId) && owner.execution.runId !== null
+      && detail.runId !== owner.execution.runId) return null;
+    if (str(detail.digestPrefix) && !owner.execution.truncated.includes('artifacts')
+      && owner.execution.artifacts.length > 0
+      && !owner.execution.artifacts.some((candidate) =>
+        candidate.digest !== null && candidate.digest.startsWith(detail.digestPrefix as string))) return null;
     trace.push(entry);
   }
 
@@ -368,6 +399,17 @@ export function parseProductionDetail(v: unknown, production: Production): Produ
     const artifact = readArtifact(v.finalDeliverable);
     const raw = v.finalDeliverable as Record<string, unknown>;
     if (!artifact || !integer(raw.ordinal) || !str(raw.agentName)) return null;
+    // PROVENANCE, not just shape. Everything above proves the deliverable is
+    // well-formed; none of it proves it belongs to the agent it names. A body
+    // that pairs agent 1's file with agent 2's name would render "produced by
+    // Visual Evidence & Remotion Compositor" over the Remotion BUNDLE — a
+    // confident, checkable-looking lie about who made the finished thing.
+    const producer = nodes.find((node) => node.ordinal === raw.ordinal);
+    if (!producer || producer.agentName !== raw.agentName) return null;
+    if (artifact.runId !== producer.execution.runId) return null;
+    if (!producer.execution.artifacts.some((candidate) =>
+      candidate.id === artifact.id && candidate.digest === artifact.digest
+      && candidate.relativePath === artifact.relativePath)) return null;
     finalDeliverable = { ...artifact, ordinal: raw.ordinal, agentName: raw.agentName };
   }
 
@@ -382,6 +424,19 @@ export function parseLineage(v: unknown): ProductionLineage | null {
   if (!bool(v.isAuthoritative) || !bool(v.superseded) || !bool(v.suppressRunAgain)) return null;
   if (!strOrNull(v.authoritativeRunState ?? null) || !strOrNull(v.authoritativeRunStatus ?? null)) return null;
   if (!strOrNull(v.authoritativeRunCompletedAt ?? null)) return null;
+  // Coherence between the three identity fields, because the run page turns
+  // them into NAVIGATION. "Superseded" pointing at the run you are already on
+  // is a self-redirect loop, and a run cannot be both the authority and
+  // superseded by one. The backend cannot currently emit either, which is
+  // exactly why the surface should not depend on that staying true.
+  const viewedRunId = (v.viewedRunId as string | null) ?? null;
+  const authoritativeRunId = (v.authoritativeRunId as string | null) ?? null;
+  // These two make "both the authority AND superseded by one" unrepresentable
+  // without a third check: it would need authoritativeRunId to simultaneously
+  // differ from and equal viewedRunId. A guard that can never fire reads like
+  // protection and grades nothing, so it is deliberately absent.
+  if (v.superseded && (authoritativeRunId === null || authoritativeRunId === viewedRunId)) return null;
+  if (v.isAuthoritative && (authoritativeRunId === null || authoritativeRunId !== viewedRunId)) return null;
   return {
     productionId: v.productionId, productionState: v.productionState,
     productionGoal: (v.productionGoal as string | null) ?? null,
@@ -391,8 +446,7 @@ export function parseLineage(v: unknown): ProductionLineage | null {
     nodeState: v.nodeState,
     nodeOutcomeLabel: (v.nodeOutcomeLabel as string | null) ?? null,
     nodeFailureReason: (v.nodeFailureReason as string | null) ?? null,
-    viewedRunId: (v.viewedRunId as string | null) ?? null,
-    authoritativeRunId: (v.authoritativeRunId as string | null) ?? null,
+    viewedRunId, authoritativeRunId,
     isAuthoritative: v.isAuthoritative, superseded: v.superseded,
     authoritativeRunState: (v.authoritativeRunState as string | null) ?? null,
     authoritativeRunStatus: (v.authoritativeRunStatus as string | null) ?? null,
