@@ -101,6 +101,12 @@ const mutants = [
   ['lifecycle', 'ready and blocked productions are counted as running', LIST,
     "  const running = unsettled.filter((p) => p.state === 'running').length;",
     '  const running = unsettled.length;'],
+  ['lifecycle', 'a terminal system failure asks the user to repair it', MONITOR,
+    "  const blockerHeading = production.settled ? 'Production error' : 'Waiting on you';",
+    "  const blockerHeading = 'Waiting on you';"],
+  ['lifecycle', 'failed terminal nodes are described as complete', MONITOR,
+    "{progress.completedNodes} of {progress.totalNodes} steps {terminalWithIncompleteOutcome ? 'settled' : 'complete'}",
+    "{progress.completedNodes} of {progress.totalNodes} steps complete"],
 
   // Receipt facts remain typed and independently readable.
   ['receipt', 'the typed success receipt is rejected for an invented label', CONTRACT,

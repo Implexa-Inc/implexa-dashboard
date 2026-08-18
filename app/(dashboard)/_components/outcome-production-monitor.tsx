@@ -123,6 +123,8 @@ export default function OutcomeProductionMonitor({
   }
 
   const { budget, progress } = production;
+  const terminalWithIncompleteOutcome = production.settled && production.state !== 'succeeded';
+  const blockerHeading = production.settled ? 'Production error' : 'Waiting on you';
 
   return (
     <section aria-label="Production" className="card p-6">
@@ -162,7 +164,7 @@ export default function OutcomeProductionMonitor({
         <div>
           <dt className="text-xs uppercase tracking-wide text-ink-500">Progress</dt>
           <dd className="text-sm text-ink-100 mt-1">
-            {progress.completedNodes} of {progress.totalNodes} steps complete
+            {progress.completedNodes} of {progress.totalNodes} steps {terminalWithIncompleteOutcome ? 'settled' : 'complete'}
           </dd>
         </div>
         <div>
@@ -211,8 +213,12 @@ export default function OutcomeProductionMonitor({
       )}
 
       {production.blockers.length > 0 && (
-        <div role="status" aria-label="Blockers" className="mt-5 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
-          <p className="text-sm font-medium text-amber-300">Waiting on you</p>
+        <div
+          role="status"
+          aria-label={production.settled ? 'Production error' : 'Blockers'}
+          className="mt-5 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4"
+        >
+          <p className="text-sm font-medium text-amber-300">{blockerHeading}</p>
           <ul className="mt-1.5 space-y-1">
             {production.blockers.map((blocker, index) => (
               <li key={`${blocker.reasonCode}:${index}`} className="text-sm text-ink-300">{blocker.detail}</li>

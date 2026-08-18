@@ -83,10 +83,34 @@ test('a settled production offers no stop control at all', async () => {
 test('a failed production surfaces its typed blockers and is no longer cancellable', async () => {
   const rendered = await render('outcome-production-monitor.tsx', { production: fixture.productions.failed });
   try {
-    const region = rendered.document.querySelector('[role="status"][aria-label="Blockers"]');
+    const region = rendered.document.querySelector('[role="status"][aria-label="Production error"]');
     assert.ok(region, 'blockers are an explicit status region');
     assert.match(region!.textContent || '', /failed verification/i);
+    assert.match(region!.textContent || '', /Production error/);
+    assert.equal(rendered.queryByText('Waiting on you'), null);
     assert.equal(rendered.document.querySelector('[aria-label="Stop this production"]'), null);
+  } finally { rendered.cleanup(); }
+});
+
+test('a partial production says its nodes settled and never asks the user to repair terminal work', async () => {
+  const rendered = await render('outcome-production-monitor.tsx', { production: fixture.productions.partial });
+  try {
+    assert.ok(rendered.queryByText('Production error'));
+    assert.ok(rendered.queryByText('2 of 2 steps settled'));
+    assert.equal(rendered.queryByText('Waiting on you'), null);
+    assert.equal(rendered.queryByText('2 of 2 steps complete'), null);
+  } finally { rendered.cleanup(); }
+});
+
+test('an unsettled actionable blocker still says Waiting on you', async () => {
+  const production = {
+    ...fixture.productions.running,
+    blockers: [{ reasonCode: 'input_required', detail: 'Choose a presenter video.' }],
+  };
+  const rendered = await render('outcome-production-monitor.tsx', { production });
+  try {
+    assert.ok(rendered.queryByText('Waiting on you'));
+    assert.equal(rendered.queryByText('Production error'), null);
   } finally { rendered.cleanup(); }
 });
 
