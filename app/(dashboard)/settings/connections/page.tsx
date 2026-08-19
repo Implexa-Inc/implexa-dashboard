@@ -54,11 +54,11 @@ function ReachBadge({ status }: { status: ConnectionAccount['status'] }) {
 const PROFILE_TAG: Record<NonNullable<ConnectionAccount['profile']>, { label: string; title: string }> = {
   agent_browser: {
     label: 'agents’ browser',
-    title: 'Verified in the browser your agents actually drive. This is the strongest evidence: it describes the place the work happens.',
+    title: 'Proven through the browser extension your agents drive. This is the strongest evidence: it describes the place the work happens.',
   },
   dedicated: {
     label: 'workspace',
-    title: 'Signed in to Implexa’s workspace browser. Useful, but it is not the browser your agents drive.',
+    title: 'Signed in to Implexa’s workspace browser over CDP. Useful, but this proof did not come through the browser extension your agents drive — even if it is the same application.',
   },
   main: {
     label: 'main · backup',
@@ -177,7 +177,7 @@ export default async function AllConnectionsPage() {
           </p>
         </header>
 
-        {/* Signed in, but proven only in Implexa's workspace browser — not the browser
+        {/* Signed in, but not proven through the pinned agents'-browser extension — not the browser
          * the agents drive. Shown here because this page is the answer to "what can my
          * agents reach", and a green list that quietly rests on the weaker evidence is
          * the exact overstatement this surface exists to avoid. */}

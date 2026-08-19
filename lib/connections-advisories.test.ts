@@ -73,7 +73,7 @@ test('advisory copy distinguishes workspace-only, stale-pin and mixed', () => {
   const src = read('app/(dashboard)/_components/connection-attention-banner.tsx');
   assert.match(src, /const onlyStale = reasons\.size === 1 && reasons\.has\('verified_in_a_different_agent_browser'\)/);
   assert.match(src, /checked in a different agents’ browser than the one currently selected/);
-  assert.match(src, /checked in the workspace browser, not yet in the browser your agents use/);
+  assert.match(src, /signed in, but not proven through the browser extension your agents use/);
   assert.match(src, /signed in, but their proof does not match the browser your agents currently use/,
     'a mixed set must get neutral copy rather than one story that is wrong for the rest');
   // The old unconditional heading must be gone.

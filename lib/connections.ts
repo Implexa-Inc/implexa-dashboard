@@ -83,8 +83,9 @@ export type AgentConnections = {
  *
  * Distinct from a warning on purpose: the account works, so this must never block
  * scheduling or read as a broken connection. It exists because reachability verified in
- * Implexa's workspace browser is not evidence about the browser agents actually drive,
- * and presenting the weaker proof as the stronger claim is the thing being fixed.
+ * Implexa's workspace browser over CDP is not evidence about what the PINNED agent-browser
+ * extension can reach — the two can be the same application and still differ in what they
+ * prove — and presenting the weaker proof as the stronger claim is the thing being fixed.
  */
 export type ConnectionAdvisory = {
   agent_slug: string;

@@ -213,7 +213,10 @@ export function ConnectionAdvisoryNote({
   const heading = onlyStale
     ? `${advisories.length} ${noun}${plural} checked in a different agents’ browser than the one currently selected`
     : onlyWorkspace
-      ? `${advisories.length} ${noun}${plural} checked in the workspace browser, not yet in the browser your agents use`
+      // NOT "the workspace browser, not yet the agents' browser" — the managed workspace
+      // can BE the agents' browser once its extension is connected. What is actually
+      // known is narrower: the proof did not come through the pinned extension.
+      ? `${advisories.length} ${noun}${plural} signed in, but not proven through the browser extension your agents use`
       : `${advisories.length} ${noun}${plural} signed in, but their proof does not match the browser your agents currently use`;
 
   return (
@@ -226,9 +229,17 @@ export function ConnectionAdvisoryNote({
         <span className="text-base leading-none" aria-hidden="true">ℹ</span>
         <h2 className="text-sm font-semibold text-ink-50">{heading}</h2>
       </div>
+      {/* Conditional, because the two cases are different facts. This paragraph used to
+          say "the check ran in Implexa's workspace browser" for EVERY advisory — which is
+          simply untrue of a stale pin, where the check did run through an agents'-browser
+          extension, just not the one selected now. Telling that user to re-check "where it
+          counts" described the wrong problem. */}
       <p className="text-xs text-ink-300 mt-1">
-        These are signed in, but the check ran in Implexa’s workspace browser rather than the browser your agents
-        drive. Run “Check agents’ connections” from the Implexa menu bar to confirm them where it counts.
+        {onlyStale
+          ? 'These were proven through an agents’ browser extension, but not the one currently selected. Run “Check agents’ connections” from the Implexa menu bar to re-confirm them in the browser your agents use now.'
+          : onlyWorkspace
+            ? 'These are signed in, but the proof did not come through the browser extension your agents use. Run “Check agents’ connections” from the Implexa menu bar to confirm them where it counts.'
+            : 'These are signed in, but their proof does not match the browser your agents currently use. Run “Check agents’ connections” from the Implexa menu bar to confirm them where it counts.'}
       </p>
       <ul className="mt-3 space-y-2">
         {advisories.map((a, i) => (
