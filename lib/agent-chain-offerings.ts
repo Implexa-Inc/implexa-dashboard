@@ -1,6 +1,6 @@
 /**
  * Consumer-side parser for the chain offering wire shape
- * (`marketplace-chain-offering.v1`, backend migration 0207).
+ * (`marketplace-chain-offering.v1`, backend migration 0213).
  *
  * FAIL CLOSED, LIKE THE EVIDENCE PARSER IT BUILDS ON. A chain offering the
  * buyer is about to acquire must be exactly what the server published: the
