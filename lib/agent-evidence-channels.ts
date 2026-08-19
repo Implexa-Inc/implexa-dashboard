@@ -120,7 +120,12 @@ function parseChannel(key: EvidenceChannelKey, value: unknown): EvidenceChannel 
   }
   // More favorable runs than runs is arithmetically impossible. A card built
   // from it would publish a number nothing could have produced.
-  if (favorable > exactVersionRunCount) return null;
+  //
+  // POSITIVE counts only, on purpose. A zero count can exceed only a NEGATIVE
+  // run count, which the bounded-count rule already refuses — so without this
+  // restriction the two rules overlap and neither can be isolated. Together
+  // they still guarantee exactly what the unrestricted form did.
+  if (favorable > 0 && favorable > exactVersionRunCount) return null;
   // A channel claiming evidence with none inside it, or claiming none while
   // holding some, is a contradiction rather than a sparse result.
   const anyFavorable = EVIDENCE_TYPE_KEYS.some((typeKey) => evidence[typeKey].count > 0);
