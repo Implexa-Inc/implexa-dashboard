@@ -19,6 +19,7 @@ import {
   type AgentConnections,
 } from '@/lib/connections';
 import BackLink from '../../_components/back-link';
+import { ConnectionAdvisoryNote } from '../../_components/connection-attention-banner';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,17 +43,39 @@ function ReachBadge({ status }: { status: ConnectionAccount['status'] }) {
   );
 }
 
+/**
+ * WHERE this connection lives. Three homes now, not two.
+ *
+ * A two-way isPrimary check labelled everything non-dedicated as "main · backup", so an
+ * agent_browser connection — the STRONGEST evidence there is, proven in the browser the
+ * agents actually drive — was displayed as the weakest. Exhaustive by value, so a fourth
+ * home cannot silently inherit someone else's label.
+ */
+const PROFILE_TAG: Record<NonNullable<ConnectionAccount['profile']>, { label: string; title: string }> = {
+  agent_browser: {
+    label: 'agents’ browser',
+    title: 'Proven through the browser extension your agents drive. This is the strongest evidence: it describes the place the work happens.',
+  },
+  dedicated: {
+    label: 'workspace',
+    title: 'Signed in to Implexa’s workspace browser over CDP. Useful, but this proof did not come through the browser extension your agents drive — even if it is the same application.',
+  },
+  main: {
+    label: 'main · backup',
+    title: 'Found in your main Chrome profile (backup). Move it into your agents’ browser for a reliable connection.',
+  },
+};
+
 function ProfileTag({ profile }: { profile: ConnectionAccount['profile'] }) {
   if (!profile) return null;
-  const isPrimary = profile === 'dedicated';
+  const tag = PROFILE_TAG[profile];
+  if (!tag) return null;
   return (
     <span
-      title={isPrimary
-        ? 'Signed in to your dedicated Implexa profile, the reliable home for your agents.'
-        : 'Found in your main Chrome profile (backup). Move it into the dedicated Implexa profile for a reliable connection.'}
+      title={tag.title}
       className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-ink-700 text-ink-400"
     >
-      {isPrimary ? 'dedicated' : 'main · backup'}
+      {tag.label}
     </span>
   );
 }
@@ -153,6 +176,14 @@ export default async function AllConnectionsPage() {
             You sign in once; agents use what you can, no API keys. Set-up happens on each agent&apos;s activation card.
           </p>
         </header>
+
+        {/* Signed in, but not proven through the pinned agents'-browser extension — not the browser
+         * the agents drive. Shown here because this page is the answer to "what can my
+         * agents reach", and a green list that quietly rests on the weaker evidence is
+         * the exact overstatement this surface exists to avoid. */}
+        {status && status.advisories.length > 0 && (
+          <ConnectionAdvisoryNote advisories={status.advisories} className="mb-6" />
+        )}
 
         {!hasData ? (
           <div className="card-glow">

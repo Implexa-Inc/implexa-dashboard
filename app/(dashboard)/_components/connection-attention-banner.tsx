@@ -30,6 +30,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { RECONNECT_HREF, type ConnectionWarning } from '@/lib/connection-warning-types';
+import type { ConnectionAdvisory } from '@/lib/connections';
 
 function rel(iso: string | null): string {
   if (!iso) return '';
@@ -174,6 +175,85 @@ export function ConnectionAttentionBanner({
               </Link>
             )}
             <ConnectionWarningRow w={w} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Signed in, but not proven where the agent acts.
+ *
+ * Deliberately NOT the rose alarm used for warnings. These accounts work; the weaker
+ * claim is about WHERE the proof came from. Styling it as a failure would send the user
+ * to fix something that is not broken — and the point of surfacing it is honesty, not
+ * urgency.
+ */
+export function ConnectionAdvisoryNote({
+  advisories,
+  scope = 'global',
+  className = '',
+}: {
+  advisories: ConnectionAdvisory[];
+  scope?: 'global' | 'agent';
+  className?: string;
+}) {
+  if (advisories.length === 0) return null;
+
+  // THREE CASES, because they are three different facts and one of them was being
+  // misreported. A stale-pin advisory WAS checked in an agents' browser — just not the
+  // one currently selected — so "not yet checked" is false for it. A mixed set gets
+  // neutral copy rather than picking one story and being wrong about the rest.
+  const noun = scope === 'agent' ? 'account' : 'connection';
+  const plural = advisories.length === 1 ? '' : 's';
+  const reasons = new Set(advisories.map((a) => a.reason));
+  const onlyStale = reasons.size === 1 && reasons.has('verified_in_a_different_agent_browser');
+  const onlyWorkspace = reasons.size === 1 && reasons.has('not_verified_in_agent_browser');
+  const heading = onlyStale
+    ? `${advisories.length} ${noun}${plural} checked in a different agents’ browser than the one currently selected`
+    : onlyWorkspace
+      // NOT "the workspace browser, not yet the agents' browser" — the managed workspace
+      // can BE the agents' browser once its extension is connected. What is actually
+      // known is narrower: the proof did not come through the pinned extension.
+      ? `${advisories.length} ${noun}${plural} signed in, but not proven through the browser extension your agents use`
+      : `${advisories.length} ${noun}${plural} signed in, but their proof does not match the browser your agents currently use`;
+
+  return (
+    <section
+      className={`rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 ${className}`}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-base leading-none" aria-hidden="true">ℹ</span>
+        <h2 className="text-sm font-semibold text-ink-50">{heading}</h2>
+      </div>
+      {/* Conditional, because the two cases are different facts. This paragraph used to
+          say "the check ran in Implexa's workspace browser" for EVERY advisory — which is
+          simply untrue of a stale pin, where the check did run through an agents'-browser
+          extension, just not the one selected now. Telling that user to re-check "where it
+          counts" described the wrong problem. */}
+      <p className="text-xs text-ink-300 mt-1">
+        {onlyStale
+          ? 'These were proven through an agents’ browser extension, but not the one currently selected. Run “Check agents’ connections” from the Implexa menu bar to re-confirm them in the browser your agents use now.'
+          : onlyWorkspace
+            ? 'These are signed in, but the proof did not come through the browser extension your agents use. Run “Check agents’ connections” from the Implexa menu bar to confirm them where it counts.'
+            : 'These are signed in, but their proof does not match the browser your agents currently use. Run “Check agents’ connections” from the Implexa menu bar to confirm them where it counts.'}
+      </p>
+      <ul className="mt-3 space-y-2">
+        {advisories.map((a, i) => (
+          <li key={`${a.agent_slug}-${a.domain}-${i}`} className="text-xs text-ink-200">
+            {scope === 'global' && (
+              <Link
+                href={`/workflows/${a.agent_slug}`}
+                className="text-[11px] uppercase tracking-wide text-ink-400 hover:text-ink-200 mr-2"
+              >
+                {a.agent_name}
+              </Link>
+            )}
+            <span className="font-medium">{a.domain || a.account}</span>
+            <span className="text-ink-400"> — {a.detail}</span>
           </li>
         ))}
       </ul>
