@@ -25,6 +25,9 @@ import { spawnSync } from 'node:child_process';
 const root = path.resolve(import.meta.dirname, '..');
 const suites = [
   'lib/agent-evidence-channels.test.ts',
+  // The shared cross-repo corpus. The backend runs the mirror of this suite
+  // against the same file, so a rule on only one side is a failing test.
+  'lib/agent-evidence-channel-refusals.test.ts',
   'app/(dashboard)/_components/agent-resume-evidence-channels-render.test.ts',
   'app/(dashboard)/_components/agent-resume-render.test.ts',
   'app/(dashboard)/_components/agent-marketplace-boundaries.test.ts',
@@ -32,6 +35,7 @@ const suites = [
 
 const PARSER = 'lib/agent-evidence-channels.ts';
 const RESUME = 'app/(dashboard)/_components/agent-resume.tsx';
+const CORPUS = ['lib/agent-evidence-channel-refusals.test.ts'];
 
 const mutants = [
   // ---- parser permissiveness ----------------------------------------------
@@ -62,7 +66,7 @@ const mutants = [
     "  if (evidence.certification.status !== 'unknown' || evidence.certification.count !== 0) return null;",
     '  if (false) return null;'],
   ['semantics', 'a measured neutral benchmark is accepted', PARSER,
-    "    if (value.status !== 'unknown' || exactVersionRunCount !== 0 || value.latestEvidenceAt !== null) return null;\n    if (EVIDENCE_TYPE_KEYS.some((typeKey) => evidence[typeKey].status !== 'unknown' || evidence[typeKey].count !== 0)) return null;",
+    "    if (value.status !== 'unknown' || exactVersionRunCount !== 0 || value.latestEvidenceAt !== null) return null;",
     '    if (false) return null;'],
   ['semantics', 'an unknown channel may hold measured evidence', PARSER,
     "  if (value.status === 'unknown') {\n    if (measurable.some((typeKey) => evidence[typeKey].status !== 'unknown')) return null;\n  } else if (measurable.some((typeKey) => evidence[typeKey].status === 'unknown')) return null;",
@@ -74,13 +78,87 @@ const mutants = [
   ['semantics', 'a normalized-but-noncanonical date is accepted', PARSER,
     'new Date(parsed).toISOString() === value;', 'true;'],
 
+  // ---- ONE MUTANT PER GUARD, GRADED AGAINST THE CORPUS ALONE ---------------
+  // The isolation proof, and the reason "one changed path" was not enough.
+  // Deleting a single guard must make that guard's corpus cases PARSE, turning
+  // the corpus suite red. A SURVIVOR means the rule has no isolated case — some
+  // neighbouring invariant masks it — and the corpus claimed coverage it did
+  // not have.
+
+  ['corpus', 'isolates top-level-shape', PARSER,
+    "  if (!isPlainObject(value) || !keysAre(value, ['contractVersion', 'channels'])) {",
+    "  if (false) {", CORPUS],
+  ['corpus', 'isolates contract-version', PARSER,
+    "  if (value.contractVersion !== EVIDENCE_CHANNELS_CONTRACT_VERSION) {",
+    "  if (false) {", CORPUS],
+  ['corpus', 'isolates channels-whitelist', PARSER,
+    "  if (!isPlainObject(value.channels) || !keysAre(value.channels, EVIDENCE_CHANNEL_KEYS)) {",
+    "  if (false) {", CORPUS],
+  ['corpus', 'isolates withheld-form-status', PARSER,
+    "    return key === 'personalFit' && value.status === 'unavailable' ? { status: 'unavailable' } : null;",
+    "    return key === 'personalFit' ? { status: 'unavailable' } : null;", CORPUS],
+  ['corpus', 'isolates withheld-personal-fit-only', PARSER,
+    "    return key === 'personalFit' && value.status === 'unavailable' ? { status: 'unavailable' } : null;",
+    "    return value.status === 'unavailable' ? { status: 'unavailable' } : null;", CORPUS],
+  ['corpus', 'isolates channel-shape', PARSER,
+    "  if (!keysAre(value, CHANNEL_ENTRY_KEYS)) return null;",
+    "  if (false) return null;", CORPUS],
+  ['corpus', 'isolates channel-status-vocabulary', PARSER,
+    "  if (value.status === 'unavailable' || !CHANNEL_STATUSES.includes(value.status as EvidenceStatus)) return null;",
+    "  if (value.status === 'unavailable') return null;", CORPUS],
+  ['corpus', 'isolates answered-channel-unavailable', PARSER,
+    "  if (value.status === 'unavailable' || !CHANNEL_STATUSES.includes(value.status as EvidenceStatus)) return null;",
+    "  if (!CHANNEL_STATUSES.includes(value.status as EvidenceStatus)) return null;", CORPUS],
+  ['corpus', 'isolates run-count-bounded', PARSER,
+    "  const exactVersionRunCount = boundedCount(value.exactVersionRunCount);\n  if (exactVersionRunCount === null) return null;",
+    "  const exactVersionRunCount = Number(value.exactVersionRunCount);", CORPUS],
+  ['corpus', 'isolates timestamp-canonical-day', PARSER,
+    "  if (value.latestEvidenceAt !== null && !isCanonicalUtcDay(value.latestEvidenceAt)) return null;",
+    "  if (false) return null;", CORPUS],
+  ['corpus', 'isolates evidence-keys-whitelist', PARSER,
+    "  if (!isPlainObject(value.evidence) || !keysAre(value.evidence, EVIDENCE_TYPE_KEYS)) return null;",
+    "  if (!isPlainObject(value.evidence)) return null;", CORPUS],
+  ['corpus', 'isolates evidence-entry-shape', PARSER,
+    "  if (!isPlainObject(value) || !keysAre(value, EVIDENCE_TYPE_ENTRY_KEYS)) return null;",
+    "  if (!isPlainObject(value)) return null;", CORPUS],
+  ['corpus', 'isolates evidence-status-vocabulary', PARSER,
+    "  if (!CHANNEL_STATUSES.includes(value.status as EvidenceStatus)) return null;",
+    "  if (false) return null;", CORPUS],
+  ['corpus', 'isolates evidence-count-bounded', PARSER,
+    "  const count = boundedCount(value.count);\n  if (count === null) return null;",
+    "  const count = Number(value.count);", CORPUS],
+  ['corpus', 'isolates evidence-type-withheld', PARSER,
+    "  if (value.status === 'unavailable') return null;",
+    "  if (false) return null;", CORPUS],
+  ['corpus', 'isolates evidence-type-coherence', PARSER,
+    "  if (value.status === 'evidence_available' && count === 0) return null;\n  if (value.status !== 'evidence_available' && count !== 0) return null;",
+    "  if (false) return null;", CORPUS],
+  ['corpus', 'isolates count-within-runs', PARSER,
+    "  if (favorable > 0 && favorable > exactVersionRunCount) return null;",
+    "  if (false) return null;", CORPUS],
+  ['corpus', 'isolates channel-coherence', PARSER,
+    "  if ((value.status === 'evidence_available') !== anyFavorable) return null;",
+    "  if (false) return null;", CORPUS],
+  ['corpus', 'isolates certification-authority', PARSER,
+    "  if (evidence.certification.status !== 'unknown' || evidence.certification.count !== 0) return null;",
+    "  if (false) return null;", CORPUS],
+  ['corpus', 'isolates neutral-benchmark-authority', PARSER,
+    "  if (key === 'neutralBenchmark') {",
+    "  if (false) {", CORPUS],
+  ['corpus', 'isolates unknown-channel-coherence', PARSER,
+    "    if (measurable.some((typeKey) => evidence[typeKey].status !== 'unknown')) return null;",
+    "    if (false) return null;", CORPUS],
+  ['corpus', 'isolates measured-channel-coherence', PARSER,
+    "  } else if (measurable.some((typeKey) => evidence[typeKey].status === 'unknown')) return null;",
+    "  } else if (false) return null;", CORPUS],
+
   // ---- fabricated counts ---------------------------------------------------
   ['fabrication', 'a negative or fractional count is accepted', PARSER,
     '  return typeof value === \'number\' && Number.isSafeInteger(value) && value >= 0 ? value : null;',
     "  return typeof value === 'number' ? value : null;"],
   ['fabrication', 'more favorable runs than runs is published', PARSER,
-    '  if (favorable > exactVersionRunCount) return null;',
-    '  if (false) return null;'],
+    '  if (favorable > 0 && favorable > exactVersionRunCount) return null;',
+    '  if (favorable > 0 && false) return null;'],
   ['fabrication', 'a status that contradicts its own counts is accepted', PARSER,
     "  if ((value.status === 'evidence_available') !== anyFavorable) return null;",
     '  if (false) return null;'],
@@ -122,10 +200,10 @@ const mutants = [
     '  const evidenceChannels = parseEvidenceChannels(agent.trust);'],
 ];
 
-function run(cwd) {
+function run(cwd, only = suites) {
   const env = { ...process.env, IMPLEXA_MUTANT_ROOT: cwd, IMPLEXA_SOURCE_ROOT: root, NODE_PATH: path.join(root, 'node_modules') };
   delete env.NODE_TEST_CONTEXT;
-  return spawnSync(process.execPath, ['scripts/run-selected-tests.mjs', ...suites], {
+  return spawnSync(process.execPath, ['scripts/run-selected-tests.mjs', ...only], {
     cwd, encoding: 'utf8', timeout: 180_000, killSignal: 'SIGKILL', env,
   });
 }
@@ -161,7 +239,7 @@ for (const [boundary, name, file, from, to] of mutants) {
     const target = path.join(dir, file);
     const source = fs.readFileSync(target, 'utf8');
     fs.writeFileSync(target, source.replace(from, to));
-    const result = run(dir);
+    const result = run(dir, boundary === 'corpus' ? CORPUS : suites);
     if (result.status === 0) { process.stderr.write(`SURVIVED [${boundary}] ${name}\n`); process.exitCode = 1; }
     else { killed += 1; process.stdout.write(`killed [${boundary}] ${name}\n`); }
   } finally {

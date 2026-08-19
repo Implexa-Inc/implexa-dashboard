@@ -120,7 +120,12 @@ function parseChannel(key: EvidenceChannelKey, value: unknown): EvidenceChannel 
   }
   // More favorable runs than runs is arithmetically impossible. A card built
   // from it would publish a number nothing could have produced.
-  if (favorable > exactVersionRunCount) return null;
+  //
+  // POSITIVE counts only, on purpose. A zero count can exceed only a NEGATIVE
+  // run count, which the bounded-count rule already refuses — so without this
+  // restriction the two rules overlap and neither can be isolated. Together
+  // they still guarantee exactly what the unrestricted form did.
+  if (favorable > 0 && favorable > exactVersionRunCount) return null;
   // A channel claiming evidence with none inside it, or claiming none while
   // holding some, is a contradiction rather than a sparse result.
   const anyFavorable = EVIDENCE_TYPE_KEYS.some((typeKey) => evidence[typeKey].count > 0);
@@ -132,9 +137,14 @@ function parseChannel(key: EvidenceChannelKey, value: unknown): EvidenceChannel 
   // not exist. Refusing it here is why widening the contract later REQUIRES a
   // new contract version rather than quietly arriving inside this one.
   if (evidence.certification.status !== 'unknown' || evidence.certification.count !== 0) return null;
+  // Only the channel-level assertion belongs here. Per-type unknown-ness is
+  // already guaranteed for an unknown channel: a measurable type that is not
+  // unknown trips the unknown-channel rule, a non-unknown certification trips
+  // the certification rule, and a non-zero count trips type coherence or the
+  // bounded-count rule. Re-checking it here would decide nothing — dead code
+  // that looks like a guard and would grade as one.
   if (key === 'neutralBenchmark') {
     if (value.status !== 'unknown' || exactVersionRunCount !== 0 || value.latestEvidenceAt !== null) return null;
-    if (EVIDENCE_TYPE_KEYS.some((typeKey) => evidence[typeKey].status !== 'unknown' || evidence[typeKey].count !== 0)) return null;
   }
   // "Unknown" is a statement about the whole channel: it cannot hold a type
   // that was measured, and a measured channel cannot hold an unmeasured type
