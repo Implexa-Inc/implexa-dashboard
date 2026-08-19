@@ -66,7 +66,7 @@ const mutants = [
     "  if (evidence.certification.status !== 'unknown' || evidence.certification.count !== 0) return null;",
     '  if (false) return null;'],
   ['semantics', 'a measured neutral benchmark is accepted', PARSER,
-    "    if (value.status !== 'unknown' || exactVersionRunCount !== 0 || value.latestEvidenceAt !== null) return null;\n    if (EVIDENCE_TYPE_KEYS.some((typeKey) => evidence[typeKey].status !== 'unknown' || evidence[typeKey].count !== 0)) return null;",
+    "    if (value.status !== 'unknown' || exactVersionRunCount !== 0 || value.latestEvidenceAt !== null) return null;",
     '    if (false) return null;'],
   ['semantics', 'an unknown channel may hold measured evidence', PARSER,
     "  if (value.status === 'unknown') {\n    if (measurable.some((typeKey) => evidence[typeKey].status !== 'unknown')) return null;\n  } else if (measurable.some((typeKey) => evidence[typeKey].status === 'unknown')) return null;",

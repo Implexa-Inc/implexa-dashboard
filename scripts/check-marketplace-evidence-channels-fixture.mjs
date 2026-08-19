@@ -41,7 +41,7 @@ const ARTIFACTS = [
 //
 // This commit stays reachable through a true merge. If the producing PR is ever
 // SQUASHED, update this to the squash commit; the check will say so by failing.
-const DEFAULT_REF = '371f086d3f82133801116a65ffb73040750d51bb';
+const DEFAULT_REF = '3f9539a57bdc35d3dd2cc130158aedb33ab67c8d';
 
 const wantsShape = process.argv.includes('--shape');
 const wantsProvenance = process.argv.includes('--provenance');
