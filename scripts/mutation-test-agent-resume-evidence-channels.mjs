@@ -25,6 +25,9 @@ import { spawnSync } from 'node:child_process';
 const root = path.resolve(import.meta.dirname, '..');
 const suites = [
   'lib/agent-evidence-channels.test.ts',
+  // The shared cross-repo corpus. The backend runs the mirror of this suite
+  // against the same file, so a rule on only one side is a failing test.
+  'lib/agent-evidence-channel-refusals.test.ts',
   'app/(dashboard)/_components/agent-resume-evidence-channels-render.test.ts',
   'app/(dashboard)/_components/agent-resume-render.test.ts',
   'app/(dashboard)/_components/agent-marketplace-boundaries.test.ts',
@@ -32,6 +35,7 @@ const suites = [
 
 const PARSER = 'lib/agent-evidence-channels.ts';
 const RESUME = 'app/(dashboard)/_components/agent-resume.tsx';
+const CORPUS = ['lib/agent-evidence-channel-refusals.test.ts'];
 
 const mutants = [
   // ---- parser permissiveness ----------------------------------------------
@@ -73,6 +77,20 @@ const mutants = [
     '  return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;', '  return true;'],
   ['semantics', 'a normalized-but-noncanonical date is accepted', PARSER,
     'new Date(parsed).toISOString() === value;', 'true;'],
+
+  // ---- the shared corpus grades rules on its own ---------------------------
+  // Duplicates of rule mutants above, proving the corpus catches them by itself
+  // rather than only alongside the hand-written tests.
+  ['corpus', 'the corpus does not catch a withheld public channel', PARSER,
+    "    return key === 'personalFit' && value.status === 'unavailable' ? { status: 'unavailable' } : null;",
+    "    return value.status === 'unavailable' ? { status: 'unavailable' } : null;", CORPUS],
+  ['corpus', 'the corpus does not catch a count exceeding its runs', PARSER,
+    '  if (favorable > exactVersionRunCount) return null;', '  if (false) return null;', CORPUS],
+  ['corpus', 'the corpus does not catch an invented certification authority', PARSER,
+    "  if (evidence.certification.status !== 'unknown' || evidence.certification.count !== 0) return null;",
+    '  if (false) return null;', CORPUS],
+  ['corpus', 'the corpus does not catch a date that only looks like a day', PARSER,
+    '  return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;', '  return true;', CORPUS],
 
   // ---- fabricated counts ---------------------------------------------------
   ['fabrication', 'a negative or fractional count is accepted', PARSER,
@@ -122,10 +140,10 @@ const mutants = [
     '  const evidenceChannels = parseEvidenceChannels(agent.trust);'],
 ];
 
-function run(cwd) {
+function run(cwd, only = suites) {
   const env = { ...process.env, IMPLEXA_MUTANT_ROOT: cwd, IMPLEXA_SOURCE_ROOT: root, NODE_PATH: path.join(root, 'node_modules') };
   delete env.NODE_TEST_CONTEXT;
-  return spawnSync(process.execPath, ['scripts/run-selected-tests.mjs', ...suites], {
+  return spawnSync(process.execPath, ['scripts/run-selected-tests.mjs', ...only], {
     cwd, encoding: 'utf8', timeout: 180_000, killSignal: 'SIGKILL', env,
   });
 }
@@ -161,7 +179,7 @@ for (const [boundary, name, file, from, to] of mutants) {
     const target = path.join(dir, file);
     const source = fs.readFileSync(target, 'utf8');
     fs.writeFileSync(target, source.replace(from, to));
-    const result = run(dir);
+    const result = run(dir, boundary === 'corpus' ? CORPUS : suites);
     if (result.status === 0) { process.stderr.write(`SURVIVED [${boundary}] ${name}\n`); process.exitCode = 1; }
     else { killed += 1; process.stdout.write(`killed [${boundary}] ${name}\n`); }
   } finally {

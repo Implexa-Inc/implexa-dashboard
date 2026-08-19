@@ -27,11 +27,21 @@ import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = resolve(import.meta.dirname, '..');
-const RELATIVE = 'test-fixtures/generated/marketplace-evidence-channels.json';
-// The backend commit that merged Work Package 1. Pinning the ref is what makes
+// Both generated artifacts: the valid fixture and the shared refusal corpus.
+// A corpus that drifted from its producer would let this repository agree with
+// a contract the server no longer enforces.
+const ARTIFACTS = [
+  { relative: 'test-fixtures/generated/marketplace-evidence-channels.json', schema: 'implexa.marketplace-evidence-channels.fixture.v1' },
+  { relative: 'test-fixtures/generated/marketplace-evidence-channels-refusals.v1.json', schema: 'implexa.marketplace-evidence-channels-refusals.v1' },
+];
+// The backend commit that PRODUCED the vendored bytes. Pinning is what makes
 // this a provenance check rather than a comparison against whatever happens to
-// be checked out.
-const DEFAULT_REF = 'd6ec6ace3ab1abb0086c9442535af4cd702eb1b2';
+// be checked out — and a stale pin fails loudly ("could not read"), where a
+// drifting branch ref would pass quietly.
+//
+// This commit stays reachable through a true merge. If the producing PR is ever
+// SQUASHED, update this to the squash commit; the check will say so by failing.
+const DEFAULT_REF = 'ae69e30be9a541c802245c7072f4febe0ab3d8fb';
 
 const wantsShape = process.argv.includes('--shape');
 const wantsProvenance = process.argv.includes('--provenance');
@@ -40,38 +50,40 @@ if (wantsShape === wantsProvenance) {
   process.exit(2);
 }
 
-const vendored = readFileSync(join(root, RELATIVE), 'utf8');
-
 if (wantsShape) {
-  const parsed = JSON.parse(vendored);
-  // These two are the contract the parser is written against. A fixture that
-  // drifted off them would make every suite here green about the wrong shape.
-  const expected = { schema: 'implexa.marketplace-evidence-channels.fixture.v1', contractVersion: 'marketplace-evidence-channels.v1' };
-  for (const [key, value] of Object.entries(expected)) {
-    if (parsed[key] !== value) {
-      process.stderr.write(`Vendored fixture ${key} is ${JSON.stringify(parsed[key])}, expected ${JSON.stringify(value)}.\n`);
-      process.exit(1);
+  for (const { relative, schema } of ARTIFACTS) {
+    const parsed = JSON.parse(readFileSync(join(root, relative), 'utf8'));
+    // These two are the contract this repository is written against. A file
+    // that drifted off them would make every suite here green about the wrong
+    // shape.
+    for (const [key, value] of Object.entries({ schema, contractVersion: 'marketplace-evidence-channels.v1' })) {
+      if (parsed[key] !== value) {
+        process.stderr.write(`${relative}: ${key} is ${JSON.stringify(parsed[key])}, expected ${JSON.stringify(value)}.\n`);
+        process.exit(1);
+      }
     }
   }
-  process.stdout.write('Vendored evidence-channel fixture matches the contract shape this repository parses. Provenance NOT checked — run --provenance for that.\n');
+  process.stdout.write(`Vendored evidence-channel artifacts (${ARTIFACTS.length}) match the contract shape this repository parses. Provenance NOT checked — run --provenance for that.\n`);
   process.exit(0);
 }
 
 const backend = process.env.IMPLEXA_BACKEND_REPO;
 if (!backend || !existsSync(join(backend, '.git'))) {
-  process.stderr.write(`PROVENANCE UNVERIFIABLE: set IMPLEXA_BACKEND_REPO to the backend checkout that produces ${RELATIVE}.\nA provenance check that passes without the producer would be a guarantee nobody made.\n`);
+  process.stderr.write('PROVENANCE UNVERIFIABLE: set IMPLEXA_BACKEND_REPO to the backend checkout that produces these files.\nA provenance check that passes without the producer would be a guarantee nobody made.\n');
   process.exit(1);
 }
 const ref = process.env.IMPLEXA_BACKEND_REF || DEFAULT_REF;
-// Read the producer file out of GIT, not the working tree: a dirty or
-// mid-edit backend checkout must not be able to vouch for this copy.
-const shown = spawnSync('git', ['-C', backend, 'show', `${ref}:${RELATIVE}`], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-if (shown.status !== 0) {
-  process.stderr.write(`PROVENANCE UNVERIFIABLE: could not read ${RELATIVE} at ${ref} from ${backend}.\n${(shown.stderr || '').trim()}\n`);
-  process.exit(1);
+for (const { relative } of ARTIFACTS) {
+  // Read the producer file out of GIT, not the working tree: a dirty or
+  // mid-edit backend checkout must not be able to vouch for this copy.
+  const shown = spawnSync('git', ['-C', backend, 'show', `${ref}:${relative}`], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  if (shown.status !== 0) {
+    process.stderr.write(`PROVENANCE UNVERIFIABLE: could not read ${relative} at ${ref} from ${backend}.\n${(shown.stderr || '').trim()}\n`);
+    process.exit(1);
+  }
+  if (shown.stdout !== readFileSync(join(root, relative), 'utf8')) {
+    process.stderr.write(`${relative} differs from the backend-generated file at ${ref}.\nRegenerate in the backend, then copy it here.\n`);
+    process.exit(1);
+  }
 }
-if (shown.stdout !== vendored) {
-  process.stderr.write(`Vendored evidence-channel fixture differs from the backend-generated file at ${ref}.\nRegenerate in the backend, then copy it here.\n`);
-  process.exit(1);
-}
-process.stdout.write(`Vendored evidence-channel fixture is byte-identical to the backend-generated file at ${ref}.\n`);
+process.stdout.write(`Vendored evidence-channel artifacts (${ARTIFACTS.length}) are byte-identical to the backend-generated files at ${ref}.\n`);

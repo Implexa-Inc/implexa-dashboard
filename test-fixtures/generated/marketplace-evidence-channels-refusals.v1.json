@@ -1,0 +1,3142 @@
+{
+  "schema": "implexa.marketplace-evidence-channels-refusals.v1",
+  "contractVersion": "marketplace-evidence-channels.v1",
+  "note": "Every entry is a complete projection that the producer guard AND every consumer parser must refuse. The baseline must be accepted by both. Error wording is deliberately not part of this contract.",
+  "baseline": {
+    "contractVersion": "marketplace-evidence-channels.v1",
+    "channels": {
+      "builderTraining": {
+        "status": "evidence_available",
+        "exactVersionRunCount": 1,
+        "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+        "evidence": {
+          "deterministicVerification": {
+            "status": "evidence_available",
+            "count": 1
+          },
+          "judgeReview": {
+            "status": "insufficient_evidence",
+            "count": 0
+          },
+          "humanAcceptance": {
+            "status": "insufficient_evidence",
+            "count": 0
+          },
+          "certification": {
+            "status": "unknown",
+            "count": 0
+          }
+        }
+      },
+      "neutralBenchmark": {
+        "status": "unknown",
+        "exactVersionRunCount": 0,
+        "latestEvidenceAt": null,
+        "evidence": {
+          "deterministicVerification": {
+            "status": "unknown",
+            "count": 0
+          },
+          "judgeReview": {
+            "status": "unknown",
+            "count": 0
+          },
+          "humanAcceptance": {
+            "status": "unknown",
+            "count": 0
+          },
+          "certification": {
+            "status": "unknown",
+            "count": 0
+          }
+        }
+      },
+      "customerField": {
+        "status": "evidence_available",
+        "exactVersionRunCount": 1,
+        "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+        "evidence": {
+          "deterministicVerification": {
+            "status": "evidence_available",
+            "count": 1
+          },
+          "judgeReview": {
+            "status": "evidence_available",
+            "count": 1
+          },
+          "humanAcceptance": {
+            "status": "evidence_available",
+            "count": 1
+          },
+          "certification": {
+            "status": "unknown",
+            "count": 0
+          }
+        }
+      },
+      "personalFit": {
+        "status": "evidence_available",
+        "exactVersionRunCount": 1,
+        "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+        "evidence": {
+          "deterministicVerification": {
+            "status": "evidence_available",
+            "count": 1
+          },
+          "judgeReview": {
+            "status": "evidence_available",
+            "count": 1
+          },
+          "humanAcceptance": {
+            "status": "evidence_available",
+            "count": 1
+          },
+          "certification": {
+            "status": "unknown",
+            "count": 0
+          }
+        }
+      }
+    }
+  },
+  "refusals": [
+    {
+      "name": "unsupported-contract-version",
+      "why": "A later contract version must never be read as this one.",
+      "mutatedPath": [
+        "contractVersion"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v2",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unexpected-top-level-key",
+      "why": "An unexpected key is corruption, not an extension.",
+      "mutatedPath": [
+        "unexpectedTopLevelKey"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        },
+        "unexpectedTopLevelKey": true
+      }
+    },
+    {
+      "name": "missing-channel",
+      "why": "All four channels are always published.",
+      "mutatedPath": [
+        "channels",
+        "personalFit"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "invented-fifth-channel",
+      "why": "A fifth channel needs a new contract version.",
+      "mutatedPath": [
+        "channels",
+        "communityVibes"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "communityVibes": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "public-channel-withheld",
+      "why": "Public channels are always answerable; only personal fit may be withheld.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "unavailable"
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "answered-channel-claims-unavailable",
+      "why": "A channel that answered cannot also claim it could not look.",
+      "mutatedPath": [
+        "channels",
+        "customerField",
+        "status"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "unavailable",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "withheld-form-with-wrong-status",
+      "why": "The one-key form is the withheld form and nothing else.",
+      "mutatedPath": [
+        "channels",
+        "personalFit"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "unknown"
+          }
+        }
+      }
+    },
+    {
+      "name": "channel-extra-key",
+      "why": "A channel carries exactly its four contract fields.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "trustScore"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            },
+            "trustScore": 0.98
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "channel-status-not-canonical",
+      "why": "A status outside the canonical set is not a status.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "status"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "excellent",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "run-count-negative",
+      "why": "A run count is a bounded non-negative integer.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "exactVersionRunCount"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": -1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "run-count-fractional",
+      "why": "A run count is a bounded non-negative integer.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "exactVersionRunCount"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1.5,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "timestamp-invalid-calendar-day",
+      "why": "Matches the shape and throws RangeError when rendered.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "latestEvidenceAt"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-99-99T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "timestamp-normalized-noncanonical",
+      "why": "February 30th does not throw: it silently becomes March 2nd.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "latestEvidenceAt"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-02-30T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "timestamp-non-leap-february-29",
+      "why": "Not a leap year: silently becomes March 1st.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "latestEvidenceAt"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2025-02-29T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "timestamp-full-precision",
+      "why": "The contract promises a bounded UTC day, not an exact time.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "latestEvidenceAt"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T13:47:52.123Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "evidence-type-extra-key",
+      "why": "An evidence entry is exactly a status and a count.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "evidence",
+        "deterministicVerification",
+        "weight"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1,
+                "weight": 3
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "evidence-type-withheld",
+      "why": "Only a whole personal fit may be withheld; a withheld TYPE reads as a measured zero.",
+      "mutatedPath": [
+        "channels",
+        "customerField",
+        "evidence",
+        "judgeReview"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "unavailable",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "evidence-type-counted-while-empty",
+      "why": "A type cannot report no evidence and carry evidence.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "evidence",
+        "judgeReview"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "evidence-type-hollow",
+      "why": "A type cannot claim evidence and count none.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "evidence",
+        "deterministicVerification"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "count-exceeds-run-count",
+      "why": "A favorable count is a count of runs, so it cannot exceed them.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "evidence",
+        "deterministicVerification",
+        "count"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 2
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "channel-claims-evidence-it-lacks",
+      "why": "A channel cannot claim evidence none of its types carry.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "channel-hides-evidence-it-has",
+      "why": "A channel cannot report none while holding some.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "status"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "insufficient_evidence",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "certification-authority-invented",
+      "why": "v1 has no certification authority anywhere.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "evidence",
+        "certification"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "evidence_available",
+                "count": 1
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "certification-measured-empty",
+      "why": "Even measured-and-empty asserts an authority v1 does not have.",
+      "mutatedPath": [
+        "channels",
+        "builderTraining",
+        "evidence",
+        "certification"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "insufficient_evidence",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "neutral-benchmark-measured",
+      "why": "v1 has no benchmark authority, so a benchmark result cannot exist.",
+      "mutatedPath": [
+        "channels",
+        "neutralBenchmark"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 3,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 3
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "neutral-benchmark-counted",
+      "why": "An unmeasured channel cannot have run against anything.",
+      "mutatedPath": [
+        "channels",
+        "neutralBenchmark",
+        "exactVersionRunCount"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 2,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "neutral-benchmark-timestamped",
+      "why": "An unmeasured channel has no latest evidence to date.",
+      "mutatedPath": [
+        "channels",
+        "neutralBenchmark",
+        "latestEvidenceAt"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown-channel-holds-measured-evidence",
+      "why": "Unknown is a statement about a whole channel.",
+      "mutatedPath": [
+        "channels",
+        "neutralBenchmark",
+        "evidence",
+        "judgeReview"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "measured-channel-holds-unmeasured-evidence",
+      "why": "A measured channel cannot contain an unmeasured type other than certification.",
+      "mutatedPath": [
+        "channels",
+        "customerField",
+        "evidence",
+        "judgeReview"
+      ],
+      "projection": {
+        "contractVersion": "marketplace-evidence-channels.v1",
+        "channels": {
+          "builderTraining": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "insufficient_evidence",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "neutralBenchmark": {
+            "status": "unknown",
+            "exactVersionRunCount": 0,
+            "latestEvidenceAt": null,
+            "evidence": {
+              "deterministicVerification": {
+                "status": "unknown",
+                "count": 0
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "unknown",
+                "count": 0
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "customerField": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "unknown",
+                "count": 0
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          },
+          "personalFit": {
+            "status": "evidence_available",
+            "exactVersionRunCount": 1,
+            "latestEvidenceAt": "2026-08-15T00:00:00.000Z",
+            "evidence": {
+              "deterministicVerification": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "judgeReview": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "humanAcceptance": {
+                "status": "evidence_available",
+                "count": 1
+              },
+              "certification": {
+                "status": "unknown",
+                "count": 0
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
