@@ -12,6 +12,8 @@
     "test:mutation:learning-influence": "node scripts/mutation-test-learning-influence.mjs",
     "test:mutation:trainer-proof": "node scripts/mutation-test-trainer-compounding-proof.mjs",
     "test:marketplace-mutations": "node scripts/mutation-test-agent-marketplace.mjs",
+    "test:marketplace-evidence-channel-mutations": "node scripts/mutation-test-agent-resume-evidence-channels.mjs",
+    "fixtures:marketplace-evidence-channels:check": "node scripts/check-marketplace-evidence-channels-fixture.mjs",
     "test:mutation:marketplace-audition": "node scripts/mutation-test-marketplace-audition.mjs",
     "test:mutation:marketplace-handoff": "node scripts/mutation-test-marketplace-handoff.mjs",
     "test:generation-contract-mutations": "node scripts/mutation-test-generation-proposal.mjs",

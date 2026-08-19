@@ -12,6 +12,13 @@ export type DiscoveredAgent = {
   audience?: string | null;
   prerequisites?: string | null;
   trust?: Record<string, { status: string; count?: number }>;
+  /**
+   * The `marketplace-evidence-channels.v1` projection. Deliberately UNTYPED
+   * here: it arrives from the network and only `parseEvidenceChannels` may
+   * decide it is readable. Typing it as trusted would let a malformed payload
+   * be rendered as if it had been validated.
+   */
+  evidenceChannels?: unknown;
   capabilities?: string[];
   permissions?: string[];
   requiredInputs?: { version: 1; fields: Array<{ key: string; label: string; description: string; kind: 'text' | 'choice' | 'file'; required: boolean; options?: string[] }> } | null;

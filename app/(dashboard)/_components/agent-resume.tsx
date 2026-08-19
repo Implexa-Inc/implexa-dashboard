@@ -6,14 +6,28 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import type { DiscoveredAgent } from '@/lib/agent-discovery';
+import { parseEvidenceChannels, EVIDENCE_CHANNEL_KEYS, EVIDENCE_TYPE_KEYS, type EvidenceChannelKey } from '@/lib/agent-evidence-channels';
 
 const TRUST_LABELS: Record<string, string> = { deterministicVerification: 'Deterministic verification', judgeReview: 'Judge review', humanAcceptance: 'Human acceptance', certification: 'Certification' };
-const TRUST_KEYS = Object.keys(TRUST_LABELS);
-function trustChannel(agent: DiscoveredAgent, key: string) {
-  const channel = agent.trust?.[key];
-  if (channel?.status === 'evidence_available' && Number.isInteger(channel.count) && Number(channel.count) > 0) return channel;
-  if (channel?.status === 'insufficient_evidence') return { status: 'insufficient_evidence' as const };
-  return { status: 'unknown' as const };
+// Provenance is a SECOND axis, not a replacement for the evidence types above.
+// A card answers "where did this evidence come from"; the rows inside it keep
+// answering "what kind of evidence is it". Neither is ever collapsed into the
+// other, and nothing here is ever combined into one number.
+const CHANNEL_LABELS: Record<EvidenceChannelKey, string> = {
+  builderTraining: 'Builder training',
+  neutralBenchmark: 'Neutral benchmark',
+  customerField: 'Customer field',
+  personalFit: 'Personal fit',
+};
+const CHANNEL_DESCRIPTIONS: Record<EvidenceChannelKey, string> = {
+  builderTraining: "Runs by the builder's own organization on this exact version.",
+  neutralBenchmark: 'An independent benchmark run by neither the builder nor a buyer. Implexa has not established a benchmark authority, so this is not measured.',
+  customerField: 'Runs by other organizations that acquired or auditioned this exact version.',
+  personalFit: 'Your own organization’s runs of this exact version. Private to you — the builder and other buyers never see it.',
+};
+function describeEvidenceType(entry: { status: string; count: number }): string {
+  if (entry.status === 'evidence_available' && Number(entry.count) > 0) return `${entry.count} run${entry.count === 1 ? '' : 's'}`;
+  return entry.status === 'unknown' ? 'not measured' : 'none yet';
 }
 function stableJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
@@ -32,6 +46,10 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
     && typeof projectedAuditionConfiguration.disclosure === 'string'
     && projectedAuditionConfiguration.disclosure.length > 0
     ? projectedAuditionConfiguration : null;
+  // Fail closed and say WHICH kind of nothing this is. A malformed projection
+  // must never be rendered as four confident empty cards: that would turn "the
+  // server did not tell us" into "this agent has no evidence".
+  const evidenceChannels = parseEvidenceChannels(agent.evidenceChannels);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +135,36 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
       <div className="grid gap-8 py-8 md:grid-cols-2">
         <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">What it can and cannot do</h2><p className="mt-3 text-sm text-ink-300">{agent.limitations}</p></section>
         <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Tested compatibility</h2><p className="mt-3 text-sm text-ink-300">{agent.testedCompatibility.executionEngines.length ? agent.testedCompatibility.executionEngines.join(', ') : 'No supported engine has been established.'}</p></section>
-        <section className="md:col-span-2"><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Trust evidence</h2><ul className="mt-3 grid gap-3 sm:grid-cols-2">{TRUST_KEYS.map((key) => { const channel = trustChannel(agent, key); return <li key={key} className="rounded-md border border-ink-800 p-3"><p className="text-sm text-ink-200">{TRUST_LABELS[key]}</p><p className="mt-1 text-xs text-ink-500">{channel.status === 'evidence_available' ? `${channel.count} exact-version evidence record${channel.count === 1 ? '' : 's'}` : channel.status.replaceAll('_', ' ')}</p></li>; })}</ul></section>
+        <section className="md:col-span-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Evidence by source</h2>
+          <p className="mt-2 text-xs text-ink-500">Each source is counted separately for this exact version. Implexa does not combine them into a score, rating, or rank.</p>
+          {evidenceChannels.status === 'ready' ? (
+            <ul className="mt-3 grid gap-3 sm:grid-cols-2">{EVIDENCE_CHANNEL_KEYS.map((key) => {
+              const channel = evidenceChannels.channels[key];
+              return (
+                <li key={key} className="rounded-md border border-ink-800 p-3">
+                  <p className="text-sm font-medium text-ink-200">{CHANNEL_LABELS[key]}</p>
+                  <p className="mt-1 text-xs text-ink-500">{CHANNEL_DESCRIPTIONS[key]}</p>
+                  {channel.status === 'unavailable' ? (
+                    <p className="mt-2 text-xs text-ink-400">Sign in to see your own evidence for this version. It stays private to your organization.</p>
+                  ) : (
+                    <>
+                      <p className="mt-2 text-xs text-ink-400">{channel.status === 'unknown' ? 'Not measured' : `${channel.exactVersionRunCount} exact-version run${channel.exactVersionRunCount === 1 ? '' : 's'}`}{channel.latestEvidenceAt ? ` · latest ${new Date(channel.latestEvidenceAt).toISOString().slice(0, 10)}` : ''}</p>
+                      <dl className="mt-2 space-y-1">{EVIDENCE_TYPE_KEYS.map((typeKey) => (
+                        <div key={typeKey} className="flex items-baseline justify-between gap-3 text-xs">
+                          <dt className="text-ink-400">{TRUST_LABELS[typeKey]}</dt>
+                          <dd className="text-ink-300">{describeEvidenceType(channel.evidence[typeKey])}</dd>
+                        </div>
+                      ))}</dl>
+                    </>
+                  )}
+                </li>
+              );
+            })}</ul>
+          ) : (
+            <p role="status" className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">Evidence by source is unavailable for this version, so none is shown. {evidenceChannels.reason}</p>
+          )}
+        </section>
         <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Required inputs</h2>{fields.length ? <ul className="mt-3 space-y-3">{fields.map((field) => <li key={field.key} className="text-sm text-ink-300"><label className="font-medium" htmlFor={`agent-input-${field.key}`}>{field.label}{field.required ? ' · required' : ' · optional'}</label><p className="text-xs text-ink-500">{field.description}</p>{field.kind === 'choice' ? <select id={`agent-input-${field.key}`} value={inputBindings[field.key] || ''} onChange={(event) => setInputBindings((current) => ({ ...current, [field.key]: event.target.value }))} className="mt-2 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm"><option value="">Choose…</option>{field.options?.map((option) => <option key={option} value={option}>{option}</option>)}</select> : field.kind === 'text' ? <input id={`agent-input-${field.key}`} value={inputBindings[field.key] || ''} onChange={(event) => setInputBindings((current) => ({ ...current, [field.key]: event.target.value }))} className="mt-2 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm" /> : <p id={`agent-input-${field.key}`} className="mt-2 text-xs text-amber-300">Choose and verify this file in the Desktop setup flow. Local paths are never sent to the server.</p>}</li>)}</ul> : <p className="mt-3 text-sm text-ink-500">No per-run inputs declared.</p>}</section>
         <section><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Integrations and permissions</h2>{agent.requirements?.requirements.length ? <ul className="mt-3 space-y-3">{agent.requirements.requirements.map((requirement) => <li key={requirement.id} className="text-sm text-ink-300"><span className="font-medium">{requirement.setup.title}</span><p className="text-xs text-ink-500">{requirement.permission_category.replaceAll('_', ' ')} · {requirement.requirement_type.replaceAll('_', ' ')}</p><ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-ink-400">{requirement.setup.instructions.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol></li>)}</ul> : <p className="mt-3 text-sm text-ink-500">No integration requirements declared.</p>}</section>
         {agent.examples?.length ? <section className="md:col-span-2"><h2 className="text-sm font-semibold uppercase tracking-wide text-ink-300">Examples</h2>{agent.examples.map((example, index) => <div key={index} className="mt-3 rounded-md border border-ink-800 p-4"><p className="text-sm font-medium text-ink-200">{example.title || 'Example result'}</p><p className="mt-2 whitespace-pre-wrap text-sm text-ink-400">{example.body}</p></div>)}</section> : null}
