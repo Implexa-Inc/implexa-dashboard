@@ -149,7 +149,8 @@ export default function AgentResume({ agent }: { agent: DiscoveredAgent }) {
                     <p className="mt-2 text-xs text-ink-400">Sign in to see your own evidence for this version. It stays private to your organization.</p>
                   ) : (
                     <>
-                      <p className="mt-2 text-xs text-ink-400">{channel.status === 'unknown' ? 'Not measured' : `${channel.exactVersionRunCount} exact-version run${channel.exactVersionRunCount === 1 ? '' : 's'}`}{channel.latestEvidenceAt ? ` · latest ${new Date(channel.latestEvidenceAt).toISOString().slice(0, 10)}` : ''}</p>
+                      {/* Sliced, not round-tripped through Date: the parser has already proven this is a canonical UTC day, and constructing a Date is the one operation here that can throw. */}
+                      <p className="mt-2 text-xs text-ink-400">{channel.status === 'unknown' ? 'Not measured' : `${channel.exactVersionRunCount} exact-version run${channel.exactVersionRunCount === 1 ? '' : 's'}`}{channel.latestEvidenceAt ? ` · latest ${channel.latestEvidenceAt.slice(0, 10)}` : ''}</p>
                       <dl className="mt-2 space-y-1">{EVIDENCE_TYPE_KEYS.map((typeKey) => (
                         <div key={typeKey} className="flex items-baseline justify-between gap-3 text-xs">
                           <dt className="text-ink-400">{TRUST_LABELS[typeKey]}</dt>

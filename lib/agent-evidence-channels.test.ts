@@ -174,6 +174,86 @@ test('an unbounded timestamp is refused, because the contract promises a UTC day
   assert.equal(parseEvidenceChannels(absent).status, 'ready', 'null is the honest absence of a timestamp');
 });
 
+test('V1 has no certification authority, so any certification claim is refused', () => {
+  for (const claim of [{ status: 'evidence_available', count: 1 }, { status: 'insufficient_evidence', count: 0 }]) {
+    const claimed = clone(canonical);
+    (claimed.channels.builderTraining as { evidence: Record<string, unknown> }).evidence.certification = claim;
+    refused(claimed, `certification ${claim.status} describes an authority V1 does not have`);
+  }
+  // The only state V1 can produce.
+  assert.equal(parseEvidenceChannels(clone(canonical)).status, 'ready');
+});
+
+test('V1 has no benchmark authority, so a measured neutral benchmark is refused', () => {
+  const measured = clone(canonical);
+  const benchmark = measured.channels.neutralBenchmark as {
+    status: string; exactVersionRunCount: number; latestEvidenceAt: string | null; evidence: Record<string, { status: string; count: number }>;
+  };
+  benchmark.status = 'evidence_available';
+  benchmark.exactVersionRunCount = 3;
+  benchmark.evidence.deterministicVerification = { status: 'evidence_available', count: 3 };
+  refused(measured, 'a benchmark result cannot exist while no benchmark authority does');
+
+  const counted = clone(canonical);
+  (counted.channels.neutralBenchmark as { exactVersionRunCount: number }).exactVersionRunCount = 2;
+  refused(counted, 'an unmeasured channel cannot have run against anything');
+
+  const stamped = clone(canonical);
+  (stamped.channels.neutralBenchmark as { latestEvidenceAt: string | null }).latestEvidenceAt = '2026-08-11T00:00:00.000Z';
+  refused(stamped, 'an unmeasured channel has no latest evidence to date');
+
+  const measuredEmpty = clone(canonical);
+  (measuredEmpty.channels.neutralBenchmark as { status: string; evidence: Record<string, { status: string; count: number }> }).status = 'insufficient_evidence';
+  (measuredEmpty.channels.neutralBenchmark as { evidence: Record<string, { status: string; count: number }> }).evidence.deterministicVerification = { status: 'insufficient_evidence', count: 0 };
+  (measuredEmpty.channels.neutralBenchmark as { evidence: Record<string, { status: string; count: number }> }).evidence.judgeReview = { status: 'insufficient_evidence', count: 0 };
+  (measuredEmpty.channels.neutralBenchmark as { evidence: Record<string, { status: string; count: number }> }).evidence.humanAcceptance = { status: 'insufficient_evidence', count: 0 };
+  refused(measuredEmpty, 'measured-and-empty is a different claim from never measured');
+});
+
+test('an individual evidence type may never be withheld', () => {
+  // Only a WHOLE personalFit is withheld. A withheld TYPE has no honest
+  // rendering: the resume would call it "none yet", which is a measured zero.
+  for (const channelKey of ['builderTraining', 'customerField', 'personalFit'] as const) {
+    const withheld = clone(buyer);
+    const channel = withheld.channels[channelKey] as { evidence?: Record<string, unknown> };
+    if (!channel.evidence) continue;
+    channel.evidence.deterministicVerification = { status: 'unavailable', count: 0 };
+    refused(withheld, `${channelKey} cannot withhold one evidence type`);
+  }
+});
+
+test('unknown is a statement about a whole channel, never a mix', () => {
+  const mixed = clone(canonical);
+  const benchmark = mixed.channels.neutralBenchmark as { evidence: Record<string, { status: string; count: number }> };
+  benchmark.evidence.judgeReview = { status: 'insufficient_evidence', count: 0 };
+  refused(mixed, 'an unknown channel cannot contain a measured type');
+
+  const unmeasuredInside = clone(canonical);
+  (unmeasuredInside.channels.builderTraining as { evidence: Record<string, { status: string; count: number }> })
+    .evidence.judgeReview = { status: 'unknown', count: 0 };
+  refused(unmeasuredInside, 'a measured channel cannot contain an unmeasured type');
+});
+
+test('a date that only looks like a day is refused, including one that silently normalizes', () => {
+  for (const stamp of [
+    '2026-99-99T00:00:00.000Z', // matches the shape, throws RangeError when rendered
+    '2026-13-01T00:00:00.000Z',
+    '2026-00-10T00:00:00.000Z',
+    '2026-08-00T00:00:00.000Z',
+    '2026-08-32T00:00:00.000Z',
+    '2026-02-30T00:00:00.000Z', // normalizes to March 2nd rather than throwing
+    '2025-02-29T00:00:00.000Z', // not a leap year: normalizes to March 1st
+  ]) {
+    const invalid = clone(canonical);
+    (invalid.channels.builderTraining as { latestEvidenceAt: string }).latestEvidenceAt = stamp;
+    refused(invalid, `${stamp} is not a real UTC day`);
+  }
+  // A genuine leap day is a real day and must still parse.
+  const leapDay = clone(canonical);
+  (leapDay.channels.builderTraining as { latestEvidenceAt: string }).latestEvidenceAt = '2024-02-29T00:00:00.000Z';
+  assert.equal(parseEvidenceChannels(leapDay).status, 'ready', 'a real leap day is a real day');
+});
+
 test('a projection carrying identity, a path, an email or a secret is refused', () => {
   for (const leak of ['11111111-1111-4111-8111-111111111111', 'builder@example.com', '/Users/alice/private.txt', 'sk_live_1234567890abcdef']) {
     const leaky = clone(canonical);

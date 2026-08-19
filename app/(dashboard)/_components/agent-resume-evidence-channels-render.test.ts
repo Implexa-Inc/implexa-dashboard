@@ -194,3 +194,47 @@ test('no raw identity, path, credential or prompt reaches the rendered resume', 
     assert.doesNotMatch(evidence, /\/Users\/|\/home\/|sk_live_|whsec_|@[a-z0-9-]+\.[a-z]{2,}/i);
   } finally { rendered.cleanup(); }
 });
+
+test('a date that only looks like a day cannot crash the resume', async () => {
+  // The shape-only check used to admit this; rendering then threw RangeError
+  // and took the WHOLE resume down — the one outcome the fail-closed contract
+  // exists to prevent.
+  const invalid = clone(channels.canonicalProduction.anonymousViewer);
+  (invalid.channels.builderTraining as { latestEvidenceAt: string }).latestEvidenceAt = '2026-99-99T00:00:00.000Z';
+  const rendered = await render('agent-resume.tsx', { agent: agent(invalid) });
+  try {
+    assert.match(rendered.text(), /Evidence by source is unavailable for this version/);
+    assert.match(rendered.text(), /What it can and cannot do/);
+    assert.ok(rendered.getByText('Use agent'));
+  } finally { rendered.cleanup(); }
+});
+
+test('a normalized-but-noncanonical date is refused rather than silently redated', async () => {
+  // February 30th does not throw: it becomes March 2nd. Publishing that would
+  // show a date the server never sent.
+  const drifted = clone(channels.canonicalProduction.anonymousViewer);
+  (drifted.channels.builderTraining as { latestEvidenceAt: string }).latestEvidenceAt = '2026-02-30T00:00:00.000Z';
+  const rendered = await render('agent-resume.tsx', { agent: agent(drifted) });
+  try {
+    assert.match(rendered.text(), /Evidence by source is unavailable for this version/);
+    assert.doesNotMatch(rendered.text(), /2026-03-02/);
+  } finally { rendered.cleanup(); }
+});
+
+test('a real day is published exactly as the server sent it', async () => {
+  const rendered = await render('agent-resume.tsx', { agent: agent(channels.canonicalProduction.anonymousViewer) });
+  try {
+    assert.match(card(rendered, 'Builder training'), /latest 2026-08-11/);
+  } finally { rendered.cleanup(); }
+});
+
+test('an evidence type that claims to be unavailable is never described as none yet', async () => {
+  const withheldType = clone(channels.afterIndependentUserTest.buyerViewer);
+  (withheldType.channels.customerField as { evidence: Record<string, unknown> })
+    .evidence.deterministicVerification = { status: 'unavailable', count: 0 };
+  const rendered = await render('agent-resume.tsx', { agent: agent(withheldType) });
+  try {
+    assert.match(rendered.text(), /Evidence by source is unavailable for this version/);
+    assert.equal(rendered.queryByText('Customer field'), null);
+  } finally { rendered.cleanup(); }
+});
