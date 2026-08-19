@@ -2,11 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { render } from '../../../lib/test/render.ts';
 import generated from '../../../test-fixtures/generated/agent-marketplace-slice1.json' with { type: 'json' };
+import channels from '../../../test-fixtures/generated/marketplace-evidence-channels.json' with { type: 'json' };
 
 function agent(state: string, extra: Record<string, unknown> = {}) {
   const producer = state === 'Blocked' ? generated.blocked : state === 'Needs setup' ? generated.needsSetup : generated.available;
   return {
     ...producer,
+    // The backend publishes the provenance projection alongside every resume.
+    evidenceChannels: channels.canonicalProduction.anonymousViewer,
     ownership: state === 'Available' ? 'Available' : 'Hired',
     readiness: { state, reason: state === 'Blocked' ? 'Structured execution remains disabled until cross-vault credential binding is reviewed.' : state === 'Needs setup' ? 'Required integrations have not been verified.' : null },
     primaryAction: state === 'Available' || state === 'Ready' ? 'Use agent' : 'Finish setup',
@@ -14,10 +17,11 @@ function agent(state: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-test('Available resume renders flat evidence and Use agent acquires the exact version', async () => {
+test('Available resume renders channel evidence and Use agent acquires the exact version', async () => {
   const rendered = await render('agent-resume.tsx', { agent: agent('Available') });
   try {
-    assert.match(rendered.text(), /Available/); assert.ok(rendered.queryByText('Deterministic verification')); assert.ok(rendered.queryByText('1 exact-version evidence record'));
+    assert.match(rendered.text(), /Available/); assert.ok(rendered.queryByText('Deterministic verification'));
+    assert.ok(rendered.queryByText('Builder training')); assert.match(rendered.text(), /1 exact-version run\b/);
     assert.doesNotMatch(rendered.text(), /Ready/);
     const button = rendered.getByText('Use agent'); assert.equal(button.tagName, 'BUTTON');
     await rendered.click(button);
@@ -233,19 +237,25 @@ test('Blocked resume never offers setup, use, or update even when stale update m
   } finally { rendered.cleanup(); }
 });
 
-test('trust channels are complete and malformed hollow evidence is rendered as unknown, never positive', async () => {
+test('a malformed channel projection reads as unavailable and never as fabricated evidence', async () => {
   const rendered = await render('agent-resume.tsx', { agent: agent('Available', {
-    trust: {
-      deterministicVerification: { status: 'evidence_available' },
-      judgeReview: { status: 'evidence_available', count: 0 },
-      humanAcceptance: { status: 'failed', count: 99 },
+    evidenceChannels: {
+      contractVersion: 'marketplace-evidence-channels.v1',
+      channels: {
+        ...channels.canonicalProduction.anonymousViewer.channels,
+        builderTraining: { status: 'evidence_available', exactVersionRunCount: 1, latestEvidenceAt: null, evidence: { deterministicVerification: { status: 'evidence_available', count: 99 }, judgeReview: { status: 'evidence_available', count: 0 }, humanAcceptance: { status: 'failed', count: 99 }, certification: { status: 'unknown', count: 0 } } },
+      },
     },
   }) });
   try {
-    for (const label of ['Deterministic verification', 'Judge review', 'Human acceptance', 'Certification']) assert.ok(rendered.queryByText(label));
-    assert.doesNotMatch(rendered.text(), /undefined exact-version/i);
-    assert.doesNotMatch(rendered.text(), /99 exact-version/i);
-    assert.equal(rendered.queryAllByText(/exact-version evidence record/).length, 0);
+    assert.match(rendered.text(), /Evidence by source is unavailable for this version/);
+    // Not one fabricated number, and not four confident empty cards either.
+    assert.doesNotMatch(rendered.text(), /99/);
+    assert.doesNotMatch(rendered.text(), /undefined/i);
+    assert.equal(rendered.queryByText('Builder training'), null);
+    // And the rest of the resume is still entirely readable.
+    assert.match(rendered.text(), /What it can and cannot do/);
+    assert.ok(rendered.getByText('Use agent'));
   } finally { rendered.cleanup(); }
 });
 

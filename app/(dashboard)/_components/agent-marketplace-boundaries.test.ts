@@ -35,13 +35,44 @@ test('agent resume uses locked ownership/action language and never package-insta
   assert.match(resume, /Configure/); assert.match(resume, /Train/);
 });
 
-test('trust channels remain separate and sparse evidence is described without a score', () => {
+test('evidence keeps two axes: four provenance channels, four evidence types inside each', () => {
   for (const phrase of ['Deterministic verification', 'Judge review', 'Human acceptance', 'Certification']) assert.match(resume, new RegExp(phrase));
-  assert.match(resume, /TRUST_KEYS\.map/);
-  assert.match(resume, /Number\.isInteger\(channel\.count\)/);
-  assert.match(resume, /Number\(channel\.count\) > 0/);
-  assert.match(resume, /channel\.status\.replaceAll\('_', ' '\)/);
-  assert.doesNotMatch(resume, /trust score|reliability score/i);
+  for (const phrase of ['Builder training', 'Neutral benchmark', 'Customer field', 'Personal fit']) assert.match(resume, new RegExp(phrase));
+  assert.match(resume, /EVIDENCE_CHANNEL_KEYS\.map/);
+  assert.match(resume, /EVIDENCE_TYPE_KEYS\.map/);
+  assert.match(resume, /Number\(entry\.count\) > 0/);
+  // A channel is projected, never trusted straight off the wire.
+  assert.match(resume, /parseEvidenceChannels\(agent\.evidenceChannels\)/);
+  assert.match(resume, /evidenceChannels\.status === 'ready'/);
+  assert.doesNotMatch(resume, /trust score|reliability score|star rating|leaderboard/i);
+});
+
+const DISCLAIMER = 'Implexa does not combine them into a score, rating, or rank.';
+
+test('nothing in the resume blends channels into a single number', () => {
+  const parser = readFileSync(join(root, 'lib', 'agent-evidence-channels.ts'), 'utf8');
+  // The disclaimer NAMES the forbidden things, so it is removed before looking
+  // for them — otherwise the promise not to compute a score would read as one.
+  assert.match(resume, new RegExp(DISCLAIMER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  for (const source of [resume.replace(DISCLAIMER, ''), parser]) {
+    assert.doesNotMatch(source, /\bscore\b|\brating\b|\bstars\b|percent|\brank\b|reliability|\baverage\b|\bweighted\b/i);
+    // No arithmetic across channels or across evidence types.
+    assert.doesNotMatch(source, /reduce\(\(/);
+  }
+});
+
+test('personal fit is described as private and never as shared or global', () => {
+  assert.match(resume, /Private to you/);
+  assert.match(resume, /the builder and other buyers never see it/);
+  assert.match(resume, /It stays private to your organization/);
+  assert.doesNotMatch(resume, /personalFit[\s\S]{0,200}(public|shared|everyone|global)/i);
+});
+
+test('an unreadable projection is announced, never rendered as measured zero', () => {
+  assert.match(resume, /Evidence by source is unavailable for this version, so none is shown/);
+  assert.match(resume, /role="status"/);
+  // The unavailable branch renders NO cards at all.
+  assert.doesNotMatch(resume, /evidenceChannels\.status !== 'ready' \? [\s\S]{0,80}EVIDENCE_CHANNEL_KEYS/);
 });
 
 test('readiness cannot falsely collapse Blocked or Needs setup into Ready', () => {
