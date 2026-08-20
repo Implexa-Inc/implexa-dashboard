@@ -99,6 +99,38 @@ test('an unsupported contract version and a leaked path are both refused', () =>
   refused(leaky, 'a creator path must never reach the buyer');
 });
 
+test('producer-impossible admission, mode, engine, and evidence states are refused', () => {
+  const blocked = buyerResume();
+  (blocked as { admission: string }).admission = 'blocked';
+  (blocked as { privatePreview: boolean }).privatePreview = false;
+  refused(blocked, 'blocked offerings never reach the wire');
+  const contradictoryPreview = buyerResume();
+  (contradictoryPreview as { privatePreview: boolean }).privatePreview = false;
+  refused(contradictoryPreview, 'private-preview admission derives the preview marker');
+  const unknownMode = buyerResume();
+  (unknownMode as { qualityModes: string[] }).qualityModes = ['bestest'];
+  refused(unknownMode, 'quality modes are a closed v1 vocabulary');
+  const unknownEngine = buyerResume();
+  (unknownEngine as { supportedEngines: string[] }).supportedEngines = ['arc'];
+  refused(unknownEngine, 'execution engines are a closed v1 vocabulary');
+  const wrongEvidenceVersion = buyerResume();
+  (wrongEvidenceVersion as { evidenceContractVersion: string }).evidenceContractVersion = 'marketplace-evidence-channels.v2';
+  refused(wrongEvidenceVersion, 'a later evidence contract is not implicitly accepted');
+});
+
+test('acquisition authority is derived from the exact displayed version and digest', () => {
+  const wrongVersion = buyerResume();
+  (wrongVersion.acquisition as { offeringVersionId: string }).offeringVersionId = '00000099-0000-4000-8000-000000000099';
+  refused(wrongVersion, 'an exact claim cannot move v1 consent to v2');
+  const honestUpgrade = buyerResume();
+  (honestUpgrade.acquisition as { offeringVersionId: string; authority: string }).offeringVersionId = '00000099-0000-4000-8000-000000000099';
+  (honestUpgrade.acquisition as { authority: string }).authority = 'upgrade_required';
+  assert.equal(ready(honestUpgrade).acquisition?.authority, 'upgrade_required');
+  const wrongDigest = buyerResume();
+  (wrongDigest.acquisition as { offeringDigest: string }).offeringDigest = '1'.repeat(64);
+  refused(wrongDigest, 'a foreign digest cannot claim exact authority');
+});
+
 test('the fixture proves matcher, marker identity, failure gate, and reconciliation', () => {
   for (const phrasing of ['plain', 'marked', 'constrained'] as const) {
     assert.equal(fixture.matcher[phrasing].kind, 'matched');

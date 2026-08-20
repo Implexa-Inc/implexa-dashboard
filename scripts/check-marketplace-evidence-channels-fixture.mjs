@@ -44,7 +44,7 @@ const expectedContractVersion = (artifact) => artifact.contractVersion || 'marke
 //
 // This commit stays reachable through a true merge. If the producing PR is ever
 // SQUASHED, update this to the squash commit; the check will say so by failing.
-const DEFAULT_REF = 'f1dc21e3b657abc34d0f0154592cf6271aea5a57';
+const DEFAULT_REF = '5c59eb64bc706c38667a020fcca0a430e63c7421';
 
 const wantsShape = process.argv.includes('--shape');
 const wantsProvenance = process.argv.includes('--provenance');

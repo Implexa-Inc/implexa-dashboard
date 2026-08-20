@@ -71,7 +71,9 @@ export default function ChainOfferingResume({ offering }: { offering: ChainOffer
     } catch (e) { setError(e instanceof Error ? e.message : 'The chain could not be updated.'); }
     finally { inFlight.current = false; setBusy(false); }
   }
-  const acquired = offering.acquisition?.lifecycle === 'installed';
+  const installed = offering.acquisition?.lifecycle === 'installed';
+  const acquired = installed && offering.acquisition?.authority === 'exact';
+  const upgradeRequired = installed && offering.acquisition?.authority === 'upgrade_required';
   return (
     <main className="min-h-screen px-4 py-10"><article className="mx-auto max-w-4xl">
       <Link href="/workflows" className="text-sm text-ink-500 hover:text-ink-200">← Agents</Link>
@@ -88,10 +90,13 @@ export default function ChainOfferingResume({ offering }: { offering: ChainOffer
           </div>
           {acquired
             ? <Link href="/work" className="btn-primary px-4 py-2 text-sm">Start a production</Link>
-            : <button disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/chains/${encodeURIComponent(offering.slug)}/acquire`, { offeringVersionId: offering.version.id, offeringDigest: offering.version.digest })} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Acquiring chain…' : 'Use this chain'}</button>}
+            : upgradeRequired
+              ? <span className="rounded border border-amber-500/40 px-4 py-2 text-sm text-amber-300">Upgrade required</span>
+              : <button disabled={busy} onClick={() => mutate(`/api/v2/agents/discovery/chains/${encodeURIComponent(offering.slug)}/acquire`, { offeringVersionId: offering.version.id, offeringDigest: offering.version.digest })} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Acquiring chain…' : 'Use this chain'}</button>}
         </div>
         {error && <p role="alert" className="mt-3 text-sm text-rose-400">{error}</p>}
-        {acquired && (
+        {upgradeRequired && <p role="status" className="mt-3 text-sm text-amber-300">Your installed chain is an older immutable version. It cannot run this newer composition until an explicit upgrade is available.</p>}
+        {installed && (
           <div className="mt-5 border-t border-ink-800 pt-4">
             <p className="text-xs text-ink-500">{offering.historyLanguage}</p>
             <div className="mt-3 flex flex-wrap items-center gap-3">

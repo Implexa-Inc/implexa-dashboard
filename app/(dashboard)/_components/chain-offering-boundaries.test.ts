@@ -46,6 +46,8 @@ test('acquisition consents to the exact composition and cannot double-fire', () 
   assert.match(resume, /if \(inFlight\.current\) return;/);
   assert.match(resume, /operationKeys\.current\.get\(fingerprint\)/);
   assert.match(resume, /disabled=\{busy \|\| !confirmUninstall\}/);
+  assert.match(resume, /offering\.acquisition\?\.authority === 'exact'/);
+  assert.match(resume, /offering\.acquisition\?\.authority === 'upgrade_required'/);
 });
 
 test('the chain resume preserves the no-blending and privacy language', () => {

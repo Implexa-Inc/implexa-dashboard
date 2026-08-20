@@ -692,7 +692,9 @@
       "acquisition": {
         "id": "00000093-0000-4000-8000-000000000093",
         "lifecycle": "installed",
-        "offeringDigest": "6a40954c095d6a5e2675a89b2cf6aa516084491644560b16af7455b9f56d076e"
+        "offeringDigest": "6a40954c095d6a5e2675a89b2cf6aa516084491644560b16af7455b9f56d076e",
+        "offeringVersionId": "00000092-0000-4000-8000-000000000092",
+        "authority": "exact"
       },
       "historyLanguage": "Removing this chain removes access, not history. Prior runs, receipts, reviews, learning evidence, and version provenance stay intact."
     }

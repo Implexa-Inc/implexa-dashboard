@@ -58,6 +58,19 @@ test('an unacquired publisher view offers acquisition pinned to the exact versio
   } finally { rendered.cleanup(); }
 });
 
+test('an older acquisition is upgrade-required and cannot start or reacquire the latest composition', async () => {
+  const upgraded = clone(fixture.resumes.grantedBuyer);
+  (upgraded.acquisition as { offeringVersionId: string; authority: string }).offeringVersionId = '00000099-0000-4000-8000-000000000099';
+  (upgraded.acquisition as { authority: string }).authority = 'upgrade_required';
+  const rendered = await render('chain-offering-resume.tsx', { offering: offering(upgraded) });
+  try {
+    assert.ok(rendered.queryByText('Upgrade required'));
+    assert.match(rendered.text(), /older immutable version/);
+    assert.equal(rendered.queryByText('Start a production'), null);
+    assert.equal(rendered.queryByText('Use this chain'), null);
+  } finally { rendered.cleanup(); }
+});
+
 test('a double click cannot acquire twice and a retry reuses the first idempotency key', async () => {
   let release!: () => void;
   const pending = new Promise<void>((resolve) => { release = resolve; });

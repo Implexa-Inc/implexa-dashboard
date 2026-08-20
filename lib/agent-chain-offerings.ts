@@ -34,7 +34,7 @@ export type ChainOffering = {
   slug: string;
   name: string;
   builder: { name: string };
-  admission: string;
+  admission: 'private_preview' | 'admitted';
   privatePreview: boolean;
   version: { id: string; number: number; digest: string; publishedAt: string | null };
   outcome: string;
@@ -42,12 +42,12 @@ export type ChainOffering = {
   handoffKind: 'project_bundle';
   requiredInput: { key: 'presenter_video'; kind: 'file'; label: string; disclosure: string };
   finalArtifactKind: 'video_master';
-  qualityModes: string[];
+  qualityModes: Array<'fast' | 'balanced' | 'best'>;
   creditPolicy: { maxTotalCredits: number; generatorBudgetSharePercent: number };
   consequentialCeiling: { maxProviderCalls: number; maxSpendMinor: number; currency: string; zeroDefault: boolean };
-  supportedEngines: string[];
-  evidenceContractVersion: string;
-  acquisition: { id: string; lifecycle: string; offeringDigest: string } | null;
+  supportedEngines: Array<'claude' | 'codex'>;
+  evidenceContractVersion: 'marketplace-evidence-channels.v1';
+  acquisition: { id: string; lifecycle: 'installed'; offeringDigest: string; offeringVersionId: string; authority: 'exact' | 'upgrade_required' } | null;
   historyLanguage: string;
 };
 
@@ -106,6 +106,8 @@ export function parseChainOffering(value: unknown): ChainOfferingResult {
   if (value.contractVersion !== CHAIN_OFFERING_CONTRACT_VERSION) return unavailable('The chain offering uses an unsupported contract version.');
   if (typeof value.slug !== 'string' || typeof value.name !== 'string' || !value.name.trim()) return unavailable('The chain offering could not be read.');
   if (!isPlainObject(value.builder) || typeof value.builder.name !== 'string') return unavailable('The chain offering could not be read.');
+  if (value.admission !== 'private_preview' && value.admission !== 'admitted') return unavailable('The chain offering could not be read.');
+  if (value.privatePreview !== (value.admission === 'private_preview')) return unavailable('The chain offering could not be read.');
   const version = value.version;
   if (!isPlainObject(version) || typeof version.id !== 'string' || !UUID_RE.test(version.id)
     || typeof version.digest !== 'string' || !SHA256_RE.test(version.digest)
@@ -142,17 +144,32 @@ export function parseChainOffering(value: unknown): ChainOfferingResult {
   const primary = parseNode(value.orderedChain[1], 1);
   if (!generator || !primary) return unavailable('A component of this chain could not be verified, so the offering is withheld.');
   if (generator.version.id === primary.version.id) return unavailable('The chain offering could not be read.');
+  const qualityModes = value.qualityModes;
+  if (!Array.isArray(qualityModes) || qualityModes.length < 1 || qualityModes.length > 3
+    || qualityModes.some((mode) => !['fast', 'balanced', 'best'].includes(String(mode)))
+    || new Set(qualityModes).size !== qualityModes.length) return unavailable('The chain offering could not be read.');
+  const supportedEngines = value.supportedEngines;
+  if (!Array.isArray(supportedEngines) || supportedEngines.length < 1
+    || supportedEngines.some((engine) => !['claude', 'codex'].includes(String(engine)))
+    || new Set(supportedEngines).size !== supportedEngines.length) return unavailable('The chain offering could not be read.');
+  if (value.evidenceContractVersion !== 'marketplace-evidence-channels.v1') return unavailable('The chain offering could not be read.');
   if (typeof value.historyLanguage !== 'string' || !value.historyLanguage.includes('removes access, not history')) {
     return unavailable('The chain offering could not be read.');
   }
   let acquisition: ChainOffering['acquisition'] = null;
   if (value.acquisition !== null && value.acquisition !== undefined) {
     const raw = value.acquisition;
-    if (!isPlainObject(raw) || typeof raw.id !== 'string' || typeof raw.lifecycle !== 'string'
-      || typeof raw.offeringDigest !== 'string' || !SHA256_RE.test(raw.offeringDigest)) {
+    if (!isPlainObject(raw) || typeof raw.id !== 'string' || raw.lifecycle !== 'installed'
+      || typeof raw.offeringDigest !== 'string' || !SHA256_RE.test(raw.offeringDigest)
+      || typeof raw.offeringVersionId !== 'string' || !UUID_RE.test(raw.offeringVersionId)
+      || (raw.authority !== 'exact' && raw.authority !== 'upgrade_required')) {
       return unavailable('The chain offering could not be read.');
     }
-    acquisition = { id: raw.id, lifecycle: raw.lifecycle, offeringDigest: raw.offeringDigest };
+    const isExact = raw.offeringVersionId.toLowerCase() === version.id.toLowerCase()
+      && raw.offeringDigest === version.digest;
+    if ((raw.authority === 'exact') !== isExact) return unavailable('The chain offering could not be read.');
+    acquisition = { id: raw.id, lifecycle: 'installed', offeringDigest: raw.offeringDigest,
+      offeringVersionId: raw.offeringVersionId.toLowerCase(), authority: raw.authority };
   }
   const offering: ChainOffering = {
     kind: 'chain_offering',
@@ -160,19 +177,19 @@ export function parseChainOffering(value: unknown): ChainOfferingResult {
     slug: value.slug,
     name: value.name,
     builder: { name: value.builder.name },
-    admission: String(value.admission || ''),
-    privatePreview: value.privatePreview === true,
+    admission: value.admission,
+    privatePreview: value.privatePreview,
     version: { id: version.id.toLowerCase(), number: version.number, digest: version.digest, publishedAt: typeof version.publishedAt === 'string' ? version.publishedAt : null },
     outcome: typeof value.outcome === 'string' ? value.outcome : '',
     orderedChain: [generator, primary],
     handoffKind: 'project_bundle',
     requiredInput: { key: 'presenter_video', kind: 'file', label: requiredInput.label, disclosure: requiredInput.disclosure },
     finalArtifactKind: 'video_master',
-    qualityModes: Array.isArray(value.qualityModes) ? value.qualityModes.filter((mode): mode is string => typeof mode === 'string') : [],
+    qualityModes: [...qualityModes] as Array<'fast' | 'balanced' | 'best'>,
     creditPolicy: { maxTotalCredits: creditPolicy.maxTotalCredits, generatorBudgetSharePercent: creditPolicy.generatorBudgetSharePercent },
     consequentialCeiling: { maxProviderCalls: ceiling.maxProviderCalls, maxSpendMinor: ceiling.maxSpendMinor, currency: ceiling.currency, zeroDefault: ceiling.zeroDefault === true },
-    supportedEngines: Array.isArray(value.supportedEngines) ? value.supportedEngines.filter((engine): engine is string => typeof engine === 'string') : [],
-    evidenceContractVersion: String(value.evidenceContractVersion || ''),
+    supportedEngines: [...supportedEngines] as Array<'claude' | 'codex'>,
+    evidenceContractVersion: 'marketplace-evidence-channels.v1',
     acquisition,
     historyLanguage: value.historyLanguage,
   };
