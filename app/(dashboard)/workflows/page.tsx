@@ -25,6 +25,8 @@ import ManageTips from '../_components/manage-tips';
 import RetryButton from '../_components/retry-button';
 import ChainSuggestions from '../_components/chain-suggestions';
 import { listAgentDiscovery } from '@/lib/agent-discovery';
+import { listChainOfferings } from '@/lib/agent-chain-offerings';
+import ChainOfferingsSection from '../_components/chain-offerings-section';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,12 +39,13 @@ export default async function WorkflowsPage() {
     .eq('id', session.user.id).maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const [feed, mine, dismissed, favoriteSlugs, discovery] = await Promise.all([
+  const [feed, mine, dismissed, favoriteSlugs, discovery, chainOfferings] = await Promise.all([
     getMyAgents(),
     listMyWorkflows(),
     listDismissedWorkflows(),
     listFavoriteSlugs(),
     listAgentDiscovery(session.access_token),
+    listChainOfferings(session.access_token),
   ]);
   const favSet = new Set(favoriteSlugs);
   const archived: ArchivedAgent[] = dismissed.map((d) => ({ slug: d.slug, name: d.name, source: d.source }));
@@ -122,6 +125,13 @@ export default async function WorkflowsPage() {
           availableAgents={discovery.agents}
           discoveryUnavailable={discovery.status === 'unavailable' ? discovery.reason : null}
         />
+
+        {/* Marketplace chain offerings — outcome-first compositions the
+            organization can actually acquire. Preview-scoped server-side;
+            renders nothing for anyone without a grant, indistinguishable from
+            there being nothing. An unavailable read also renders nothing:
+            fail closed, never an invented catalog. */}
+        <ChainOfferingsSection offerings={chainOfferings.status === 'ready' ? chainOfferings.offerings : []} />
 
         {/* Agent Chains, folded in as an in-page suggestion (Codex's design
             audit, 2026-07-01) rather than its own nav tab — "Agent Chains"

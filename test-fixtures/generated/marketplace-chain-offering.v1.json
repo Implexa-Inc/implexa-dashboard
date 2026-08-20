@@ -1,0 +1,713 @@
+{
+  "schema": "implexa.marketplace-chain-offering.fixture.v1",
+  "contractVersion": "marketplace-chain-offering.v1",
+  "note": "Deterministic acceptance proofs for the private-preview chain offering. Runtime-only behaviour is proven by the named PostgreSQL suites, not restated here. The offering is private_preview; nothing here admits it publicly, and no neutral-benchmark, personal-fit, failover, or independent-user evidence is fabricated.",
+  "offering": {
+    "document": {
+      "contract_version": "marketplace-chain-offering.v1",
+      "slug": "youtube-video-from-presenter-recording",
+      "nodes": [
+        {
+          "ordinal": 0,
+          "role": "generator",
+          "workflow_id": "edfd7e4b-4eba-4f06-b2cd-840b2b9f45ea",
+          "workflow_version_id": "791ac3a1-6c70-476a-84c3-c7651308893d",
+          "authority_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "ordinal": 1,
+          "role": "primary",
+          "workflow_id": "7b7de024-42df-4ddd-9a4a-d0c899b76c79",
+          "workflow_version_id": "40228894-0525-40f5-b807-33aeb7e27c02",
+          "authority_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "handoff_kind": "project_bundle",
+      "root_required_input": "presenter_video",
+      "final_artifact_kind": "video_master",
+      "quality_modes": [
+        "fast",
+        "balanced",
+        "best"
+      ],
+      "generator_budget_share_percent": 30,
+      "max_total_credits": 100,
+      "max_provider_calls": 0,
+      "max_spend_minor": 0,
+      "spend_currency": "USD",
+      "supported_engines": [
+        "claude"
+      ],
+      "evidence_contract_version": "marketplace-evidence-channels.v1"
+    },
+    "digest": "6a40954c095d6a5e2675a89b2cf6aa516084491644560b16af7455b9f56d076e"
+  },
+  "matcher": {
+    "plain": {
+      "goal": "Make a YouTube video from this presenter recording.",
+      "kind": "matched",
+      "taskKey": "video.final_master",
+      "confidence": 0.92,
+      "matchedRule": "Matched professional phrase \"produce a youtube video from a presenter recording\" via weighted token overlap (create, from, presenter, video, youtube)."
+    },
+    "marked": {
+      "goal": "Create a short YouTube production video from this raw presenter recording. Repeatability marker: GATE-A-7f3a9c1e.",
+      "kind": "matched",
+      "taskKey": "video.final_master",
+      "confidence": 0.814,
+      "matchedRule": "Matched professional phrase \"produce a youtube video from a presenter recording\" via weighted token overlap (create, from, presenter, video, youtube) (single sentence)."
+    },
+    "constrained": {
+      "goal": "Create a short YouTube production video from this raw presenter recording. Repeatability marker: GATE-A-7f3a9c1e. Use only supplied footage and local Remotion assets; provider calls must remain zero.",
+      "kind": "matched",
+      "taskKey": "video.final_master",
+      "confidence": 0.814,
+      "matchedRule": "Matched professional phrase \"produce a youtube video from a presenter recording\" via weighted token overlap (create, from, presenter, video, youtube) (single sentence)."
+    }
+  },
+  "markerIdentity": {
+    "marker": "GATE-A-7f3a9c1e",
+    "markedIntentDigest": "1bb1019dde43da1dfd5a6bd8475d085d64042120d77a4f55e6f3bd336282ebde",
+    "otherMarkerIntentDigest": "0ba31d5db896e7105fbbd0a35c5835d2b815dcf4b2907e001e01031e9c8265e6"
+  },
+  "plan": {
+    "digest": "bb403f994b0057366a1bab2a541597faf75a0c26e9e2290deffd0828f5d2f062",
+    "recordDigest": "113c467b7833f1f905f13426da3facdd65f3daba293b4a7b906db5e8d31d69b8",
+    "intentDigest": "ccebc7a8f41d5edcd8a6efec0a8ea8e4bf4ac79336c7e142ce8058a9edf357d7",
+    "nodes": [
+      {
+        "ordinal": 0,
+        "role": "generate_asset",
+        "workflow_id": "edfd7e4b-4eba-4f06-b2cd-840b2b9f45ea",
+        "workflow_version_id": "791ac3a1-6c70-476a-84c3-c7651308893d",
+        "budget_credits": 30,
+        "expected_artifact_kind": "project_bundle"
+      },
+      {
+        "ordinal": 1,
+        "role": "produce_outcome",
+        "workflow_id": "7b7de024-42df-4ddd-9a4a-d0c899b76c79",
+        "workflow_version_id": "40228894-0525-40f5-b807-33aeb7e27c02",
+        "budget_credits": 70,
+        "expected_artifact_kind": "video_master"
+      }
+    ],
+    "typedHandoff": {
+      "consumerOrdinal": 1,
+      "producerOrdinal": 0,
+      "expectedKind": "project_bundle"
+    },
+    "handoffKind": "project_bundle",
+    "finalArtifactKind": "video_master"
+  },
+  "requiredInputDisclosure": {
+    "withPresenter": {
+      "unresolvedMissingAssets": [],
+      "generatedHandoffs": [
+        "project_bundle"
+      ]
+    },
+    "withoutPresenter": {
+      "unresolvedMissingAssets": [
+        "presenter_video"
+      ]
+    }
+  },
+  "failureGate": {
+    "onGeneratorFailure": "blocked_upstream_unsuccessful",
+    "onGeneratorSuccess": "ready",
+    "releaseReason": "upstream node did not succeed, so this sequential node cannot run",
+    "deterministicFailureProduction": "18b4da2a-ead4-4414-bcbf-a43a67abadb1"
+  },
+  "creditReconciliation": {
+    "example": {
+      "production": "a226144d-a171-4a05-a861-fa35a943015d",
+      "nodes": [
+        {
+          "ordinal": 0,
+          "actualCredits": 1
+        },
+        {
+          "ordinal": 1,
+          "actualCredits": 1
+        }
+      ],
+      "settledCredits": 2,
+      "reservedCreditsAtClose": 0
+    },
+    "identity": "settled_credits === sum(node actual_credits) && reserved_credits === 0 at receipt"
+  },
+  "resumes": {
+    "publisher": {
+      "kind": "chain_offering",
+      "contractVersion": "marketplace-chain-offering.v1",
+      "slug": "youtube-video-from-presenter-recording",
+      "name": "YouTube video from a presenter recording",
+      "builder": {
+        "name": "Implexa"
+      },
+      "admission": "private_preview",
+      "privatePreview": true,
+      "version": {
+        "id": "00000092-0000-4000-8000-000000000092",
+        "number": 1,
+        "digest": "6a40954c095d6a5e2675a89b2cf6aa516084491644560b16af7455b9f56d076e",
+        "publishedAt": "2026-08-19T00:00:00.000Z"
+      },
+      "outcome": "YouTube video from a presenter recording",
+      "orderedChain": [
+        {
+          "ordinal": 0,
+          "role": "generator",
+          "name": "Visual Treatment Planner — Runway + Remotion",
+          "taskLabel": "Visual Treatment Planner",
+          "version": {
+            "id": "791ac3a1-6c70-476a-84c3-c7651308893d",
+            "number": "1.0.0",
+            "authorityDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "capabilityDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "permissionDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          },
+          "limitations": "Plans only from the supplied recording; makes zero provider calls under this offering.",
+          "supportedEngines": [
+            "claude"
+          ],
+          "evidenceChannels": {
+            "contractVersion": "marketplace-evidence-channels.v1",
+            "channels": {
+              "builderTraining": {
+                "status": "evidence_available",
+                "exactVersionRunCount": 1,
+                "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "evidence_available",
+                    "count": 1
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "neutralBenchmark": {
+                "status": "unknown",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "customerField": {
+                "status": "insufficient_evidence",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "personalFit": {
+                "status": "insufficient_evidence",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 1,
+          "role": "primary",
+          "name": "Visual Evidence & Remotion Compositor",
+          "taskLabel": "Final video master",
+          "version": {
+            "id": "40228894-0525-40f5-b807-33aeb7e27c02",
+            "number": "1.0.0",
+            "authorityDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "capabilityDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "permissionDigest": "9999999999999999999999999999999999999999999999999999999999999999"
+          },
+          "limitations": "Renders with supplied footage and local Remotion assets only.",
+          "supportedEngines": [
+            "claude"
+          ],
+          "evidenceChannels": {
+            "contractVersion": "marketplace-evidence-channels.v1",
+            "channels": {
+              "builderTraining": {
+                "status": "evidence_available",
+                "exactVersionRunCount": 1,
+                "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "evidence_available",
+                    "count": 1
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "neutralBenchmark": {
+                "status": "unknown",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "customerField": {
+                "status": "insufficient_evidence",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "personalFit": {
+                "status": "insufficient_evidence",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "handoffKind": "project_bundle",
+      "requiredInput": {
+        "key": "presenter_video",
+        "kind": "file",
+        "label": "Presenter recording",
+        "disclosure": "Choose and verify this file in the Desktop setup flow. Local paths are never sent to the server."
+      },
+      "finalArtifactKind": "video_master",
+      "qualityModes": [
+        "fast",
+        "balanced",
+        "best"
+      ],
+      "creditPolicy": {
+        "maxTotalCredits": 100,
+        "generatorBudgetSharePercent": 30
+      },
+      "consequentialCeiling": {
+        "maxProviderCalls": 0,
+        "maxSpendMinor": 0,
+        "currency": "USD",
+        "zeroDefault": true
+      },
+      "supportedEngines": [
+        "claude"
+      ],
+      "evidenceContractVersion": "marketplace-evidence-channels.v1",
+      "acquisition": null,
+      "historyLanguage": "Removing this chain removes access, not history. Prior runs, receipts, reviews, learning evidence, and version provenance stay intact."
+    },
+    "grantedBuyer": {
+      "kind": "chain_offering",
+      "contractVersion": "marketplace-chain-offering.v1",
+      "slug": "youtube-video-from-presenter-recording",
+      "name": "YouTube video from a presenter recording",
+      "builder": {
+        "name": "Implexa"
+      },
+      "admission": "private_preview",
+      "privatePreview": true,
+      "version": {
+        "id": "00000092-0000-4000-8000-000000000092",
+        "number": 1,
+        "digest": "6a40954c095d6a5e2675a89b2cf6aa516084491644560b16af7455b9f56d076e",
+        "publishedAt": "2026-08-19T00:00:00.000Z"
+      },
+      "outcome": "YouTube video from a presenter recording",
+      "orderedChain": [
+        {
+          "ordinal": 0,
+          "role": "generator",
+          "name": "Visual Treatment Planner — Runway + Remotion",
+          "taskLabel": "Visual Treatment Planner",
+          "version": {
+            "id": "791ac3a1-6c70-476a-84c3-c7651308893d",
+            "number": "1.0.0",
+            "authorityDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "capabilityDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "permissionDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          },
+          "limitations": "Plans only from the supplied recording; makes zero provider calls under this offering.",
+          "supportedEngines": [
+            "claude"
+          ],
+          "evidenceChannels": {
+            "contractVersion": "marketplace-evidence-channels.v1",
+            "channels": {
+              "builderTraining": {
+                "status": "evidence_available",
+                "exactVersionRunCount": 1,
+                "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "evidence_available",
+                    "count": 1
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "neutralBenchmark": {
+                "status": "unknown",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "customerField": {
+                "status": "insufficient_evidence",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "personalFit": {
+                "status": "insufficient_evidence",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 1,
+          "role": "primary",
+          "name": "Visual Evidence & Remotion Compositor",
+          "taskLabel": "Final video master",
+          "version": {
+            "id": "40228894-0525-40f5-b807-33aeb7e27c02",
+            "number": "1.0.0",
+            "authorityDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "capabilityDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "permissionDigest": "9999999999999999999999999999999999999999999999999999999999999999"
+          },
+          "limitations": "Renders with supplied footage and local Remotion assets only.",
+          "supportedEngines": [
+            "claude"
+          ],
+          "evidenceChannels": {
+            "contractVersion": "marketplace-evidence-channels.v1",
+            "channels": {
+              "builderTraining": {
+                "status": "evidence_available",
+                "exactVersionRunCount": 1,
+                "latestEvidenceAt": "2026-08-11T00:00:00.000Z",
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "evidence_available",
+                    "count": 1
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "neutralBenchmark": {
+                "status": "unknown",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "unknown",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "customerField": {
+                "status": "insufficient_evidence",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              },
+              "personalFit": {
+                "status": "insufficient_evidence",
+                "exactVersionRunCount": 0,
+                "latestEvidenceAt": null,
+                "evidence": {
+                  "deterministicVerification": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "judgeReview": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "humanAcceptance": {
+                    "status": "insufficient_evidence",
+                    "count": 0
+                  },
+                  "certification": {
+                    "status": "unknown",
+                    "count": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "handoffKind": "project_bundle",
+      "requiredInput": {
+        "key": "presenter_video",
+        "kind": "file",
+        "label": "Presenter recording",
+        "disclosure": "Choose and verify this file in the Desktop setup flow. Local paths are never sent to the server."
+      },
+      "finalArtifactKind": "video_master",
+      "qualityModes": [
+        "fast",
+        "balanced",
+        "best"
+      ],
+      "creditPolicy": {
+        "maxTotalCredits": 100,
+        "generatorBudgetSharePercent": 30
+      },
+      "consequentialCeiling": {
+        "maxProviderCalls": 0,
+        "maxSpendMinor": 0,
+        "currency": "USD",
+        "zeroDefault": true
+      },
+      "supportedEngines": [
+        "claude"
+      ],
+      "evidenceContractVersion": "marketplace-evidence-channels.v1",
+      "acquisition": {
+        "id": "00000093-0000-4000-8000-000000000093",
+        "lifecycle": "installed",
+        "offeringDigest": "6a40954c095d6a5e2675a89b2cf6aa516084491644560b16af7455b9f56d076e",
+        "offeringVersionId": "00000092-0000-4000-8000-000000000092",
+        "authority": "exact"
+      },
+      "historyLanguage": "Removing this chain removes access, not history. Prior runs, receipts, reviews, learning evidence, and version provenance stay intact."
+    }
+  },
+  "visibility": {
+    "unauthorizedOrganizationIsRefusedAs": "chain_not_available (404, indistinguishable from nonexistence)"
+  },
+  "provenBy": {
+    "atomicAcquisition": "scripts/smoke-marketplace-chain-postgres.js",
+    "previewGrantScoping": "scripts/smoke-marketplace-chain-postgres.js",
+    "revocationStopsNewRuns": "scripts/smoke-marketplace-chain-postgres.js",
+    "duplicateProductionIdempotency": "scripts/smoke-outcome-orchestration-postgres.js",
+    "agentOneFailureReleasesReservations": "scripts/smoke-outcome-orchestration-postgres.js",
+    "evidenceChannelIntegrity": "scripts/smoke-marketplace-evidence-channels-postgres.js"
+  }
+}

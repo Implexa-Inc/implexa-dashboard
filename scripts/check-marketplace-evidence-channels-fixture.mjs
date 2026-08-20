@@ -33,7 +33,10 @@ const root = resolve(import.meta.dirname, '..');
 const ARTIFACTS = [
   { relative: 'test-fixtures/generated/marketplace-evidence-channels.json', schema: 'implexa.marketplace-evidence-channels.fixture.v1' },
   { relative: 'test-fixtures/generated/marketplace-evidence-channels-refusals.v1.json', schema: 'implexa.marketplace-evidence-channels-refusals.v1' },
+  // The chain fixture carries its own contract version.
+  { relative: 'test-fixtures/generated/marketplace-chain-offering.v1.json', schema: 'implexa.marketplace-chain-offering.fixture.v1', contractVersion: 'marketplace-chain-offering.v1' },
 ];
+const expectedContractVersion = (artifact) => artifact.contractVersion || 'marketplace-evidence-channels.v1';
 // The backend commit that PRODUCED the vendored bytes. Pinning is what makes
 // this a provenance check rather than a comparison against whatever happens to
 // be checked out — and a stale pin fails loudly ("could not read"), where a
@@ -41,7 +44,7 @@ const ARTIFACTS = [
 //
 // This commit stays reachable through a true merge. If the producing PR is ever
 // SQUASHED, update this to the squash commit; the check will say so by failing.
-const DEFAULT_REF = '3f9539a57bdc35d3dd2cc130158aedb33ab67c8d';
+const DEFAULT_REF = '5c59eb64bc706c38667a020fcca0a430e63c7421';
 
 const wantsShape = process.argv.includes('--shape');
 const wantsProvenance = process.argv.includes('--provenance');
@@ -51,12 +54,13 @@ if (wantsShape === wantsProvenance) {
 }
 
 if (wantsShape) {
-  for (const { relative, schema } of ARTIFACTS) {
+  for (const artifact of ARTIFACTS) {
+    const { relative, schema } = artifact;
     const parsed = JSON.parse(readFileSync(join(root, relative), 'utf8'));
     // These two are the contract this repository is written against. A file
     // that drifted off them would make every suite here green about the wrong
     // shape.
-    for (const [key, value] of Object.entries({ schema, contractVersion: 'marketplace-evidence-channels.v1' })) {
+    for (const [key, value] of Object.entries({ schema, contractVersion: expectedContractVersion(artifact) })) {
       if (parsed[key] !== value) {
         process.stderr.write(`${relative}: ${key} is ${JSON.stringify(parsed[key])}, expected ${JSON.stringify(value)}.\n`);
         process.exit(1);
