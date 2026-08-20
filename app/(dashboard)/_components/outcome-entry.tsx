@@ -266,8 +266,11 @@ export default function OutcomeEntry() {
             <li key={`${artifact.artifactId}-${artifact.sha256}`} className="flex flex-wrap items-center gap-2 text-xs text-ink-300">
               <span className="truncate max-w-xs">{artifact.displayName}</span>
               <span className="rounded bg-ink-900 border border-ink-700 px-2 py-1 text-xs">{artifact.inputType.replaceAll('_', ' ')}</span>
-              {artifact.storageMode === 'reference-in-place' && (
+              {artifact.storageMode === 'local_range_capability' && (
                 <span className="basis-full text-[11px] text-amber-300">Kept on its current drive — keep the drive connected and the file unchanged.</span>
+              )}
+              {artifact.storageMode === 'managed_copy' && (
+                <span className="basis-full text-[11px] text-ink-500">Copied into Implexa-managed storage for this run.</span>
               )}
               <button type="button" aria-label={`Remove ${artifact.displayName}`} onClick={() => editArtifacts(artifacts.filter((item) => item.artifactId !== artifact.artifactId))} className="text-ink-500 hover:text-ink-200">×</button>
             </li>

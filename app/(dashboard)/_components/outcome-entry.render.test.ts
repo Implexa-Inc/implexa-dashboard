@@ -170,11 +170,11 @@ test('browser mode requires Implexa Desktop and has no file input fallback', asy
   } finally { rendered.cleanup(); }
 });
 
-test('Desktop artifacts keep local metadata but send only the four reference fields plus kind', async () => {
+test('Desktop reference-in-place artifacts use the canonical wire value, warn about the drive, and never send local metadata', async () => {
   const pickerCalls: Record<string, unknown>[] = [];
   const rendered = await render('outcome-entry.tsx', {}, { bridge: { pickRunInput: async (options: Record<string, unknown>) => {
     pickerCalls.push(options);
-    return { ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST, displayName: 'project-bundle.zip', mediaType: 'application/zip', storageMode: 'reference-in-place' };
+    return { ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST, displayName: 'project-bundle.zip', mediaType: 'application/zip', storageMode: 'local_range_capability' };
   } } });
   try {
     const calls = stubFetch(rendered, [{ status: 200, body: { ...planResponse, intent: { ...intent, input_references: [{ kind: 'artifact', id: ARTIFACT_ID, digest: DIGEST, description: 'project-bundle.zip', input_type: 'project_bundle', input_session_id: INPUT_SESSION_ID }] } } }]);
@@ -192,6 +192,31 @@ test('Desktop artifacts keep local metadata but send only the four reference fie
     assert.equal('storageMode' in reference, false);
     assert.equal(pickerCalls[0].inputKey, 'project_bundle');
     assert.equal(pickerCalls[0].selection, 'file');
+  } finally { rendered.cleanup(); }
+});
+
+test('Desktop managed copies use the canonical wire value and render their local storage posture', async () => {
+  const rendered = await render('outcome-entry.tsx', {}, { bridge: { pickRunInput: async () => ({
+    ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST,
+    displayName: 'small-video.mp4', mediaType: 'video/mp4', storageMode: 'managed_copy',
+  }) } });
+  try {
+    await rendered.click(rendered.getByText('Add verified artifact'));
+    assert.ok(rendered.queryByText('Copied into Implexa-managed storage for this run.'));
+    assert.equal(rendered.queryByText(/Kept on its current drive/), null);
+  } finally { rendered.cleanup(); }
+});
+
+test('an unknown Desktop storage mode is not assigned either storage authority', async () => {
+  const rendered = await render('outcome-entry.tsx', {}, { bridge: { pickRunInput: async () => ({
+    ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST,
+    displayName: 'future-video.mp4', mediaType: 'video/mp4', storageMode: 'future_transport',
+  }) } });
+  try {
+    await rendered.click(rendered.getByText('Add verified artifact'));
+    assert.ok(rendered.queryByText('future-video.mp4'));
+    assert.equal(rendered.queryByText(/Kept on its current drive/), null);
+    assert.equal(rendered.queryByText(/Copied into Implexa-managed storage/), null);
   } finally { rendered.cleanup(); }
 });
 

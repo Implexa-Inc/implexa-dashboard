@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import type { LocalInputStorageMode } from '@/lib/workflow-input-contract';
 
 export const MAX_RUN_FILES = 8;
 
@@ -81,7 +82,7 @@ export type DesktopBridge = {
     sha256?: string;
     displayName?: string;
     mediaType?: string;
-    storageMode?: 'reference-in-place' | 'managed-copy';
+    storageMode?: LocalInputStorageMode;
   }>;
   /** Subscribe before opening the picker: hashing may begin immediately after
    * the native dialog resolves. The returned function removes this listener. */
@@ -111,7 +112,7 @@ export type DesktopBridge = {
     sha256?: string;
     displayName?: string;
     mediaType?: string;
-    storageMode?: 'reference-in-place' | 'managed-copy';
+    storageMode?: LocalInputStorageMode;
   }>;
 };
 export function desktopBridge(): DesktopBridge | undefined {
