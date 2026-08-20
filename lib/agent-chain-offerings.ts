@@ -22,7 +22,7 @@ export type ChainNode = {
   role: 'generator' | 'primary';
   name: string;
   taskLabel: string | null;
-  version: { id: string; number: string | null; authorityDigest: string; capabilityDigest: string | null; permissionDigest: string | null };
+  version: { id: string; number: string; authorityDigest: string; capabilityDigest: string; permissionDigest: string };
   limitations: string;
   supportedEngines: string[];
   evidenceChannels: EvidenceChannels;
@@ -71,8 +71,12 @@ function parseNode(value: unknown, ordinal: number): ChainNode | null {
   const version = value.version;
   if (!isPlainObject(version) || typeof version.id !== 'string' || !UUID_RE.test(version.id)) return null;
   if (typeof version.authorityDigest !== 'string' || !SHA256_RE.test(version.authorityDigest)) return null;
+  if (typeof version.number !== 'string' || !/^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/.test(version.number)) return null;
+  if (typeof version.capabilityDigest !== 'string' || !SHA256_RE.test(version.capabilityDigest)) return null;
+  if (typeof version.permissionDigest !== 'string' || !SHA256_RE.test(version.permissionDigest)) return null;
   if (typeof value.limitations !== 'string' || !value.limitations.trim()) return null;
-  if (!Array.isArray(value.supportedEngines) || value.supportedEngines.some((engine) => typeof engine !== 'string')) return null;
+  if (!Array.isArray(value.supportedEngines) || value.supportedEngines.length < 1 || value.supportedEngines.length > 8) return null;
+  if (value.supportedEngines.some((engine) => engine !== 'claude' && engine !== 'codex')) return null;
   // The component's evidence is a full WP1/WP2 projection, parsed by the same
   // fail-closed parser the agent resume uses. Its refusal refuses the node.
   const evidence = parseEvidenceChannels(value.evidenceChannels);
@@ -84,13 +88,13 @@ function parseNode(value: unknown, ordinal: number): ChainNode | null {
     taskLabel: typeof value.taskLabel === 'string' ? value.taskLabel : null,
     version: {
       id: version.id.toLowerCase(),
-      number: typeof version.number === 'string' ? version.number : null,
+      number: version.number,
       authorityDigest: version.authorityDigest,
-      capabilityDigest: typeof version.capabilityDigest === 'string' && SHA256_RE.test(version.capabilityDigest) ? version.capabilityDigest : null,
-      permissionDigest: typeof version.permissionDigest === 'string' && SHA256_RE.test(version.permissionDigest) ? version.permissionDigest : null,
+      capabilityDigest: version.capabilityDigest,
+      permissionDigest: version.permissionDigest,
     },
     limitations: value.limitations,
-    supportedEngines: [...value.supportedEngines] as string[],
+    supportedEngines: [...value.supportedEngines] as Array<'claude' | 'codex'>,
     evidenceChannels: evidence.channels,
   };
 }

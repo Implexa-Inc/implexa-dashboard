@@ -118,6 +118,24 @@ test('producer-impossible admission, mode, engine, and evidence states are refus
   refused(wrongEvidenceVersion, 'a later evidence contract is not implicitly accepted');
 });
 
+test('component version authority mirrors the frozen 0181 publication contract', () => {
+  const emptyEngines = buyerResume();
+  (emptyEngines.orderedChain[0] as { supportedEngines: string[] }).supportedEngines = [];
+  refused(emptyEngines, 'a published component always has at least one engine');
+  const unknownEngine = buyerResume();
+  (unknownEngine.orderedChain[0] as { supportedEngines: string[] }).supportedEngines = ['arc'];
+  refused(unknownEngine, 'component engines use the same closed vocabulary as publication');
+  const missingVersion = buyerResume();
+  (missingVersion.orderedChain[0] as { version: { number: unknown } }).version.number = null;
+  refused(missingVersion, 'a published component has an immutable marketplace version');
+  const malformedCapability = buyerResume();
+  (malformedCapability.orderedChain[0] as { version: { capabilityDigest: string } }).version.capabilityDigest = 'bad';
+  refused(malformedCapability, 'capability authority cannot be softened to null');
+  const malformedPermission = buyerResume();
+  (malformedPermission.orderedChain[0] as { version: { permissionDigest: string } }).version.permissionDigest = 'bad';
+  refused(malformedPermission, 'permission authority cannot be softened to null');
+});
+
 test('acquisition authority is derived from the exact displayed version and digest', () => {
   const wrongVersion = buyerResume();
   (wrongVersion.acquisition as { offeringVersionId: string }).offeringVersionId = '00000099-0000-4000-8000-000000000099';
