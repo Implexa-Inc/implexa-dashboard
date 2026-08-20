@@ -39,6 +39,9 @@ export type ArtifactBinding = {
   mediaType?: string;
   /** Local display metadata — never serialized to the backend. */
   origin?: 'file' | 'directory-snapshot';
+  /** Desktop's local storage posture. `reference-in-place` means the source
+   * drive remains authoritative and must stay available for the run. */
+  storageMode?: 'reference-in-place' | 'managed-copy';
 };
 export type RunInputValue = ArtifactBinding | string | ArtifactBinding[] | string[];
 export type RunInputBindings = Record<string, RunInputValue>;
@@ -215,6 +218,7 @@ export type PickRunInputResult = {
    * returning whatever its file dialog produced.
    */
   origin?: 'file' | 'directory-snapshot';
+  storageMode?: 'reference-in-place' | 'managed-copy';
 };
 
 export type PickerOutcome =
@@ -267,6 +271,7 @@ export function resolvePickerResult(
       displayName: result.displayName,
       ...(result.mediaType ? { mediaType: result.mediaType } : {}),
       ...(result.origin ? { origin: result.origin } : {}),
+      ...(result.storageMode ? { storageMode: result.storageMode } : {}),
     },
   };
 }

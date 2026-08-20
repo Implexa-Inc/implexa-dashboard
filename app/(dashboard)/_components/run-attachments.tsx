@@ -14,6 +14,17 @@ import { useEffect, useState } from 'react';
 
 export const MAX_RUN_FILES = 8;
 
+/** Progress emitted while Desktop reads a local typed input to establish its
+ * content identity. No file bytes cross this bridge. */
+export type RunInputProgress = {
+  operationId: string;
+  inputKey: string;
+  phase: 'hashing';
+  bytesRead: number;
+  totalBytes: number;
+  percent: number;
+};
+
 // Label for the per-run attachment line baked into the note. The hands-off run is
 // told to Read these paths as context/feedback.
 export const ATTACH_MARKER = '📎 Attached for this run';
@@ -70,6 +81,17 @@ export type DesktopBridge = {
     sha256?: string;
     displayName?: string;
     mediaType?: string;
+    storageMode?: 'reference-in-place' | 'managed-copy';
+  }>;
+  /** Subscribe before opening the picker: hashing may begin immediately after
+   * the native dialog resolves. The returned function removes this listener. */
+  onRunInputProgress?: (cb: (progress: RunInputProgress) => void) => (() => void);
+  /** Stop one exact verification operation. Cancellation never targets an
+   * input key globally, because another surface may be verifying the same key. */
+  cancelRunInputVerification?: (operationId: string) => Promise<{
+    ok: boolean;
+    canceled?: boolean;
+    error?: string;
   }>;
   /** Verify and bind the file this agent's SETUP already holds for `inputKey`,
    * so a saved source is not re-picked before every run. No path crosses from
@@ -89,6 +111,7 @@ export type DesktopBridge = {
     sha256?: string;
     displayName?: string;
     mediaType?: string;
+    storageMode?: 'reference-in-place' | 'managed-copy';
   }>;
 };
 export function desktopBridge(): DesktopBridge | undefined {
