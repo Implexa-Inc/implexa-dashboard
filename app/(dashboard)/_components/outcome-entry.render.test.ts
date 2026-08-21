@@ -242,15 +242,33 @@ test('large local input verification reports byte progress, makes the no-upload 
     await rendered.click(add);
 
     await rendered.act(() => progressListener?.({
-      operationId: 'old-operation', inputKey: 'project_bundle', phase: 'hashing',
-      bytesRead: 7 * 1024 ** 3, totalBytes: 8 * 1024 ** 3, percent: 88,
+      operationId: 'old-operation', inputKey: 'project_bundle', phase: 'verifying_local',
+      bytesRead: 7 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: true,
     }));
     assert.equal(rendered.queryByText(/not uploading/i), null,
       'a global progress event for another input must not attach to this picker');
 
     await rendered.act(() => progressListener?.({
-      operationId: 'verify-8gb-video', inputKey: 'presenter_video', phase: 'hashing',
-      bytesRead: 2 * 1024 ** 3, totalBytes: 8 * 1024 ** 3, percent: 25,
+      operationId: 'registering-video', inputKey: 'presenter_video', phase: 'registering',
+      bytesRead: 8 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: null, etaSeconds: null, cancelable: false,
+    }));
+    assert.equal(rendered.queryByText(/not uploading/i), null,
+      'the registering phase is not presented as cancelable local verification');
+
+    await rendered.act(() => progressListener?.({
+      operationId: 'future-video', inputKey: 'presenter_video', phase: 'future_phase',
+      bytesRead: 2 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: true,
+    }));
+    assert.equal(rendered.queryByText(/not uploading/i), null,
+      'an unknown Desktop phase fails closed instead of becoming a cancel authority');
+
+    await rendered.act(() => progressListener?.({
+      operationId: 'verify-8gb-video', inputKey: 'presenter_video', phase: 'verifying_local',
+      bytesRead: 2 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: true,
     }));
     assert.ok(rendered.queryByText('Reading locally to verify — not uploading'));
     assert.ok(rendered.queryByText(/presenter video · 2\.0 GB of 8\.0 GB · 25%/));
@@ -258,8 +276,9 @@ test('large local input verification reports byte progress, makes the no-upload 
     assert.equal(bar.getAttribute('aria-valuenow'), '25');
 
     await rendered.act(() => progressListener?.({
-      operationId: 'stale-same-key-operation', inputKey: 'presenter_video', phase: 'hashing',
-      bytesRead: 6 * 1024 ** 3, totalBytes: 8 * 1024 ** 3, percent: 75,
+      operationId: 'stale-same-key-operation', inputKey: 'presenter_video', phase: 'verifying_local',
+      bytesRead: 6 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: true,
     }));
     assert.equal(bar.getAttribute('aria-valuenow'), '25',
       'once correlated, a late same-key event from another operation cannot replace it');
@@ -291,8 +310,9 @@ test('missing-plan input verification renders progress beside the input that ini
     await rendered.click(planButton(rendered));
     await rendered.click(rendered.getByText('Add Presenter Video'));
     await rendered.act(() => progressListener?.({
-      operationId: 'plan-video', inputKey: 'presenter_video', phase: 'hashing',
-      bytesRead: 1024 ** 3, totalBytes: 8 * 1024 ** 3, percent: 12.5,
+      operationId: 'plan-video', inputKey: 'presenter_video', phase: 'verifying_local',
+      bytesRead: 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: true,
     }));
     const missing = rendered.document.querySelector('[aria-label="Missing inputs"]')!;
     assert.match(missing.textContent || '', /Reading locally to verify — not uploading/);

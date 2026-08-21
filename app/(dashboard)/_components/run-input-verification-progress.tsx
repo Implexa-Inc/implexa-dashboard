@@ -20,7 +20,13 @@ export default function RunInputVerificationProgress({ progress, canceling, onCa
   canceling: boolean;
   onCancel: () => void;
 }) {
-  const percent = Math.max(0, Math.min(100, Number.isFinite(progress.percent) ? progress.percent : 0));
+  const totalBytes = progress.totalBytes;
+  const totalKnown = typeof totalBytes === 'number' && Number.isFinite(totalBytes) && totalBytes > 0;
+  const percent = Math.max(0, Math.min(100,
+    Number.isFinite(progress.bytesRead) && totalKnown
+      ? (progress.bytesRead / totalBytes) * 100
+      : 0,
+  ));
   const label = progress.inputKey.replaceAll('_', ' ');
   return (
     <div role="status" aria-label="Local input verification" className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
@@ -28,14 +34,14 @@ export default function RunInputVerificationProgress({ progress, canceling, onCa
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium text-sky-200">Reading locally to verify — not uploading</p>
           <p className="mt-1 text-xs text-ink-400">
-            {label} · {formatBytes(progress.bytesRead)} of {formatBytes(progress.totalBytes)} · {Math.round(percent)}%
+            {label} · {formatBytes(progress.bytesRead)}{totalKnown && <> of {formatBytes(totalBytes)} · {Math.round(percent)}%</>}
           </p>
           <div
             role="progressbar"
             aria-label={`Verifying ${label}`}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={Math.round(percent)}
+            aria-valuenow={totalKnown ? Math.round(percent) : undefined}
             className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800"
           >
             <div className="h-full rounded-full bg-sky-400 transition-[width]" style={{ width: `${percent}%` }} />

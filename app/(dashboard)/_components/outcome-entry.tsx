@@ -65,7 +65,7 @@ export default function OutcomeEntry() {
     setInDesktop(!!bridge?.pickRunInput);
     if (!bridge?.onRunInputProgress) return;
     const unsubscribe = bridge.onRunInputProgress((progress) => {
-      if (!pickerInFlight.current || progress.phase !== 'hashing' || progress.inputKey !== pendingInputKey.current) return;
+      if (!pickerInFlight.current || progress.phase !== 'verifying_local' || progress.inputKey !== pendingInputKey.current) return;
       const active = activeVerificationOperation.current;
       if (active && active !== progress.operationId) return;
       activeVerificationOperation.current = progress.operationId;

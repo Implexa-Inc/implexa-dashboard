@@ -20,10 +20,12 @@ export const MAX_RUN_FILES = 8;
 export type RunInputProgress = {
   operationId: string;
   inputKey: string;
-  phase: 'hashing';
+  phase: 'verifying_local' | 'registering';
   bytesRead: number;
-  totalBytes: number;
-  percent: number;
+  totalBytes: number | null;
+  bytesPerSecond: number | null;
+  etaSeconds: number | null;
+  cancelable: boolean;
 };
 
 // Label for the per-run attachment line baked into the note. The hands-off run is
