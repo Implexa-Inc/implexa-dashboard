@@ -116,6 +116,42 @@ export function shouldShowRunProblem(
   return !!failureExplanation && info.state !== 'queued' && info.state !== 'running';
 }
 
+/**
+ * Compatibility recovery for runs closed by the pre-fix broker settlement path.
+ *
+ * That path could turn a clean executor exit plus intermediate artifacts into a
+ * completed run even though its structured checklist was still sitting at an
+ * approval gate. Free-text heartbeat prose is deliberately not authority here:
+ * recovery requires a running approval/review step, completed work before it,
+ * pending work after it, validated review/source evidence, and no final output.
+ */
+export function isApprovalContinuationRecovery({
+  runState,
+  reviewStatus,
+  outputMarkdown,
+  steps,
+  hasReviewEvidence,
+  hasFinalOutput,
+}: {
+  runState: unknown;
+  reviewStatus: unknown;
+  outputMarkdown: unknown;
+  steps: RunStep[];
+  hasReviewEvidence: boolean;
+  hasFinalOutput: boolean;
+}): boolean {
+  if (runState !== 'completed' || reviewStatus === 'pending' || reviewStatus === 'needs_input') return false;
+  if (typeof outputMarkdown === 'string' && outputMarkdown.trim()) return false;
+  if (!hasReviewEvidence || hasFinalOutput || !Array.isArray(steps) || steps.length < 2) return false;
+
+  const gate = steps.find((step) => step.status === 'running');
+  if (!gate || typeof gate.label !== 'string'
+      || !/\b(approval|approve|review|decision|confirm)\b/i.test(gate.label)) return false;
+
+  return steps.some((step) => step.index < gate.index && step.status === 'done')
+    && steps.some((step) => step.index > gate.index && step.status === 'pending');
+}
+
 const VALID: ReadonlySet<RunState> = new Set(['queued', 'running', 'stalled', 'completed', 'failed']);
 
 // A failed run whose output names a missing permission. The run-scheduled wrapper

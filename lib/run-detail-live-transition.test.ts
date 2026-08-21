@@ -1,13 +1,64 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { approvalRecoveryRequestId } from './approval-recovery-request.ts';
 import test from 'node:test';
 
-import { isWatchableRunState, shouldShowRunProblem } from './run-state.ts';
+import { isApprovalContinuationRecovery, isWatchableRunState, shouldShowRunProblem } from './run-state.ts';
 
 test('run details keeps watching across queued to running', () => {
   assert.equal(isWatchableRunState('queued'), true);
   assert.equal(isWatchableRunState('running'), true);
   assert.equal(isWatchableRunState('completed'), false);
   assert.equal(isWatchableRunState('failed'), false);
+});
+
+const approvalSteps = [
+  { index: 1, label: 'Transcribe source', status: 'done' as const },
+  { index: 2, label: 'Review cut list for approval', status: 'running' as const },
+  { index: 3, label: 'Render final MP4', status: 'pending' as const },
+];
+
+test('recovers only a structurally incomplete approval-gated historical completion', () => {
+  const base = {
+    runState: 'completed', reviewStatus: 'none', outputMarkdown: null,
+    steps: approvalSteps, hasReviewEvidence: true, hasFinalOutput: false,
+  };
+  assert.equal(isApprovalContinuationRecovery(base), true);
+  assert.equal(isApprovalContinuationRecovery({ ...base, hasFinalOutput: true }), false);
+  assert.equal(isApprovalContinuationRecovery({ ...base, hasReviewEvidence: false }), false);
+  assert.equal(isApprovalContinuationRecovery({ ...base, reviewStatus: 'pending' }), false);
+  assert.equal(isApprovalContinuationRecovery({ ...base, outputMarkdown: '# Delivered' }), false);
+  assert.equal(isApprovalContinuationRecovery({ ...base, steps: approvalSteps.map((step) => ({ ...step, status: 'done' as const })) }), false);
+  assert.equal(isApprovalContinuationRecovery({
+    ...base,
+    steps: [approvalSteps[0], { ...approvalSteps[1], label: 'Write summary' }, approvalSteps[2]],
+  }), false);
+});
+
+test('run details renders the approval recovery action from structured authority', () => {
+  const page = fs.readFileSync(path.join(import.meta.dirname, '..', 'app', '(dashboard)', 'runs', '[id]', 'page.tsx'), 'utf8');
+  assert.match(page, /isApprovalContinuationRecovery\(\{/);
+  assert.match(page, /artifact\.role === 'manifest'/);
+  assert.match(page, /artifact\.role === 'final_output'/);
+  assert.match(page, /\.eq\('id', approvalRecoveryRequestId\(r\.id\)\)/);
+  assert.match(page, /\.eq\('run_id', r\.id\)\.eq\('kind', 'continue'\)/);
+  assert.match(page, /!approvalContinuationAlreadyQueued/);
+  assert.match(page, /<FinishRunButton runId=\{r\.id\} mode="approval-recovery" \/>/);
+});
+
+test('recovery suppression uses the exact backend deterministic identity', () => {
+  assert.equal(approvalRecoveryRequestId('00000000-0000-4000-8000-000000000002'),
+    'fb41c1fc-7777-5566-877a-1af133ac3c97');
+});
+
+test('approval recovery asks the backend for one server-authoritative continuation', () => {
+  const button = fs.readFileSync(path.join(import.meta.dirname, '..', 'app', '(dashboard)', '_components', 'finish-run-button.tsx'), 'utf8');
+  assert.match(button, /kind: 'continue', runId/);
+  assert.match(button, /approvalRecovery: true/);
+  assert.match(button, /Approve & continue/);
+  assert.doesNotMatch(button, /const APPROVAL_RECOVERY_PROMPT/,
+    'the browser must not be able to author the approval recovery instruction');
 });
 
 test('active queue/start states never render as a terminal stalled run', () => {
