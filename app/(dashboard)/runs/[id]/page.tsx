@@ -20,7 +20,7 @@ import { getWorkspaceRoot } from '@/lib/run-env';
 import RunMarkdown from '../../_components/run-markdown';
 import { desktopAppLive, appRunUrl } from '@/lib/app-links';
 import { getWorkflow, getMyWorkflow } from '@/lib/workflow-catalog';
-import { deriveRunState, runLiveness, type RunRow, type RunProgress, type RunStep } from '@/lib/run-state';
+import { deriveRunState, runLiveness, shouldShowRunProblem, type RunRow, type RunProgress, type RunStep } from '@/lib/run-state';
 import RunStepChecklist from '../../_components/run-step-checklist';
 import StepTraceRefresh from '../../_components/step-trace-refresh';
 import RunStepTrace from '../../_components/run-step-trace';
@@ -537,6 +537,13 @@ export default async function RunDetailPage({
   } catch { /* can't tell → don't nudge */ }
 
   const info = deriveRunState({ ...r, routine_paused: routinePaused });
+  // `run_close_reason` also records successful settlement provenance (for
+  // example brokered_input_settlement_verified). Only a reason that actually
+  // maps to failure copy may create the terminal problem panel; treating every
+  // non-null close reason as failure produced the contradictory live card
+  // "This run stalled — Finished and delivered a result."
+  const closeReasonExplanation = closeReasonMessage(closeReason);
+  const showRunProblem = shouldShowRunProblem(info, closeReasonExplanation);
 
   // This run has NOTHING to show. The real explanation often already exists on a
   // SIBLING run for the same agent — a retry that completed, OR (the case the
@@ -552,7 +559,7 @@ export default async function RunDetailPage({
   // here — output_markdown being non-null is the only signal that matters.
   // Defensive own-query; never regress the page to "not found" on error.
   let siblingRun: { id: string; review_status: string | null; run_state: string | null } | null = null;
-  if ((info.attention || closeReason) && !r.output_markdown) {
+  if (showRunProblem && !r.output_markdown) {
     try {
       let q = supabase
         .from('skill_runs')
@@ -831,8 +838,8 @@ export default async function RunDetailPage({
         {/* Live per-step checklist: which of the chain's steps are done / running
             / pending, updating on poll while in flight. Only when the run reported
             structured step state (a chain/workflow via record_run_heartbeat). */}
-        {(stepsState.length > 0 || info.state === 'running') && (
-          <RunStepChecklist runId={r.id} initialSteps={stepsState} live={info.state === 'running'} />
+        {(stepsState.length > 0 || info.state === 'queued' || info.state === 'running') && (
+          <RunStepChecklist runId={r.id} initialSteps={stepsState} initialRunState={info.state} />
         )}
 
         {/* Live step trace: where the run is / where it got stuck. Only when the
@@ -859,7 +866,7 @@ export default async function RunDetailPage({
             {/* (Share moved to the top of the run view — see the amber "Share this
                 run" button under the header. The growth-loop Run Card lives there.) */}
           </>
-        ) : (info.attention || closeReason) ? (
+        ) : showRunProblem ? (
           // A stalled/failed run has no deliverable. Don't dead-end at a blank
           // "no deliverable" line: say what happened + give the one action. This
           // also fires for a run that A0's watchdog force-closed (run_close_reason
@@ -879,7 +886,7 @@ export default async function RunDetailPage({
                 ? 'What this superseded attempt recorded before it was replaced'
                 : info.label === 'Failed' ? 'This run did not finish' : 'This run stalled'}
             </div>
-            <p className="text-sm text-ink-300 leading-relaxed">{closeReasonMessage(closeReason) ?? info.reason}</p>
+            <p className="text-sm text-ink-300 leading-relaxed">{closeReasonExplanation ?? info.reason}</p>
             {info.permissionBlocked && (
               <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 leading-relaxed">
                 It was blocked on a permission it could not auto-approve (often a file write or a tool outside the

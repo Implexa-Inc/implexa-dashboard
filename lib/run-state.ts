@@ -96,6 +96,26 @@ export type RunStateInfo = {
   estimated: boolean;
 };
 
+/** Queue and execution are one watchable lifecycle on the run details page. */
+export function isWatchableRunState(state: unknown): boolean {
+  return state === 'queued' || state === 'running';
+}
+
+/**
+ * A stale close reason on a reserved row must never turn an active queue/start
+ * transition into the terminal amber "This run stalled" conclusion. Close
+ * failure explanations become user-facing only after the run has actually left
+ * its active queued/running lifecycle (or when the authoritative state itself
+ * needs attention). Successful settlement provenance must be passed as null.
+ */
+export function shouldShowRunProblem(
+  info: Pick<RunStateInfo, 'state' | 'attention'>,
+  failureExplanation: string | null,
+): boolean {
+  if (info.attention || info.state === 'failed') return true;
+  return !!failureExplanation && info.state !== 'queued' && info.state !== 'running';
+}
+
 const VALID: ReadonlySet<RunState> = new Set(['queued', 'running', 'stalled', 'completed', 'failed']);
 
 // A failed run whose output names a missing permission. The run-scheduled wrapper
