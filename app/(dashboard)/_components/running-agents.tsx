@@ -30,7 +30,7 @@ const NOTIFY: ReadonlySet<string> = new Set(['waiting_approval', 'needs_attentio
 // is NOT in NOTIFY, so it never fires a noisy desktop notification).
 const ALERT_STATUSES: ReadonlySet<string> = new Set([...NOTIFY, 'queued']);
 
-type LiveStatus = 'queued' | 'preparing_inputs' | 'selecting' | 'picked_up' | 'starting' | 'switching' | 'resuming' | 'fallback_blocked' | 'start_failed' | 'claim_expired' | 'waiting_approval' | 'needs_attention' | 'running' | 'verifying' | 'built' | 'failed' | 'finished' | 'action_available';
+type LiveStatus = 'queued' | 'installing_media_support' | 'preparing_inputs' | 'selecting' | 'picked_up' | 'starting' | 'switching' | 'resuming' | 'fallback_blocked' | 'start_failed' | 'claim_expired' | 'waiting_approval' | 'needs_attention' | 'running' | 'verifying' | 'built' | 'failed' | 'finished' | 'action_available';
 type LiveCard = {
   runId: string | null;
   /** Set on a 'queued' card (a pending run_request with no skill_run yet). */
@@ -40,7 +40,7 @@ type LiveCard = {
   source: string | null;
   status: LiveStatus;
   /** Canonical request lifecycle for definition work without a run row. */
-  lifecyclePhase?: 'queued' | 'preparing_inputs' | 'selecting_executor' | 'claimed' | 'starting' | 'switching_executor' | 'resuming' | 'fallback_blocked' | 'running' | 'verifying' | 'built' | 'start_failed' | 'claim_expired' | 'failed' | 'cancelled' | null;
+  lifecyclePhase?: 'queued' | 'installing_media_support' | 'preparing_inputs' | 'selecting_executor' | 'claimed' | 'starting' | 'switching_executor' | 'resuming' | 'fallback_blocked' | 'running' | 'verifying' | 'built' | 'start_failed' | 'claim_expired' | 'failed' | 'cancelled' | null;
   since: string | null;
   bytesRead?: number | null;
   totalBytes?: number | null;
@@ -93,6 +93,7 @@ function visibleFailure(reason: string | null | undefined): string | null {
   if (reason === 'desktop_preparation_not_started') return 'Your Desktop did not start checking the selected file. Select it again and retry.';
   if (reason === 'desktop_preparation_lease_expired') return 'File verification stopped before it finished. Select the file again and retry.';
   if (reason === 'run_enqueue_interrupted') return 'The file was checked, but the run could not be queued. Try again.';
+  if (reason === 'desktop_media_runtime_unavailable') return 'Media support is required before this agent can start. Reopen Implexa and retry; setup will continue before file verification.';
   return reason;
 }
 
@@ -108,6 +109,7 @@ function visibleFailure(reason: string | null | undefined): string | null {
 // unmissable at a glance regardless of whether step detail is present.
 const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: string; label: string; chip: string; chipCls: string }> = {
   queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your AI engine', chip: 'Queued',          chipCls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30' },
+  installing_media_support: { spin: true, spinCls: 'border-amber-500/25 border-t-amber-500', dotCls: 'bg-amber-500', label: 'Installing one-time media support before checking the file', chip: 'Setting up media', chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
   preparing_inputs: { spin: true,  spinCls: 'border-amber-500/25 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Hashing and verifying the selected file',   chip: 'Preparing file',  chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
   selecting:        { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Selecting executor',                         chip: 'Selecting',       chipCls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30' },
   picked_up:        { spin: true,  spinCls: 'border-cyan-500/25 border-t-cyan-500',       dotCls: 'bg-cyan-500',                label: 'A worker picked this up and is starting',    chip: 'Picked up',       chipCls: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30' },
@@ -130,6 +132,7 @@ const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: strin
 function statusFromLifecycle(card: LiveCard): LiveStatus {
   switch (card.lifecyclePhase) {
     case 'queued': return 'queued';
+    case 'installing_media_support': return 'installing_media_support';
     case 'preparing_inputs': return 'preparing_inputs';
     case 'selecting_executor': return 'selecting';
     case 'claimed': return 'picked_up';
@@ -242,7 +245,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           jwt: session?.access_token, method: 'POST',
         });
         setStoppingRunIds((p) => { const n = new Set(p); n.add(card.runId!); return n; });
-      } else if (card.status === 'preparing_inputs' && card.requestId) {
+      } else if ((card.status === 'preparing_inputs' || card.status === 'installing_media_support') && card.requestId) {
         await callBackend(`/api/v2/me/run-input-preparations/${encodeURIComponent(card.requestId)}/cancel`, {
           jwt: session?.access_token, method: 'POST',
         });
@@ -491,7 +494,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               )}
               {/* Cancel a QUEUED run before it's picked up (catch it before it
                   spends). Opens a confirm; stops the drainer/Claude from running it. */}
-              {(['queued', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'] as LiveStatus[]).includes(c.status) && c.requestId && !c.runId && c.preparationCancelable !== false && (
+              {(['queued', 'installing_media_support', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'] as LiveStatus[]).includes(c.status) && c.requestId && !c.runId && c.preparationCancelable !== false && (
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancel(c); }}

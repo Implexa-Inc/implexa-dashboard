@@ -24,7 +24,7 @@ test('renders every executor fallback lifecycle state distinctly', () => {
 });
 
 test('Cancel remains pre-live and Stop is fenced to running only', () => {
-  assert.match(source, /\['queued', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\]/);
+  assert.match(source, /\['queued', 'installing_media_support', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\]/);
   assert.match(source, /c\.status === 'running'[\s\S]{0,700}Stop run/);
   assert.doesNotMatch(source, /c\.status === 'switching'[\s\S]{0,120}Stop run/);
 });

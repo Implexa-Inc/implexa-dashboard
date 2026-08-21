@@ -13,7 +13,7 @@ test('revise request cards render every request-level lifecycle phase', () => {
 
 test('the queued wait notice is gated on the canonical queued status', () => {
   assert.match(source, /queuedWaitNotice\(\{[\s\S]*?status:\s*c\.status/);
-  assert.match(source, /\['queued', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\][\s\S]*\.includes\(c\.status\)[\s\S]*c\.requestId && !c\.runId/);
+  assert.match(source, /\['queued', 'installing_media_support', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\][\s\S]*\.includes\(c\.status\)[\s\S]*c\.requestId && !c\.runId/);
   assert.doesNotMatch(source, /picked_up[^\n]*Waiting to be picked up/i);
 });
 

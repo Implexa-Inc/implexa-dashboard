@@ -11,7 +11,10 @@ const mutants = [
   ['switching collapses to running', "case 'switching_executor': return 'switching';", "case 'switching_executor': return 'running';"],
   ['resuming collapses to running', "case 'resuming': return 'resuming';", "case 'resuming': return 'running';"],
   ['fallback blocked collapses to running', "case 'fallback_blocked': return 'fallback_blocked';", "case 'fallback_blocked': return 'running';"],
-  ['selecting loses its pre-live Cancel action', "['queued', 'selecting', 'picked_up', 'starting', 'switching', 'resuming']", "['queued', 'picked_up', 'starting', 'switching', 'resuming']"],
+  ['selecting loses its pre-live Cancel action', "['queued', 'installing_media_support', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming']", "['queued', 'installing_media_support', 'preparing_inputs', 'picked_up', 'starting', 'switching', 'resuming']"],
+  ['media setup collapses into file verification', "case 'installing_media_support': return 'installing_media_support';", "case 'installing_media_support': return 'preparing_inputs';"],
+  ['media setup loses its pre-live Cancel action', "['queued', 'installing_media_support', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming']", "['queued', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming']"],
+  ['install-required refusal leaks raw code', "if (reason === 'desktop_media_runtime_unavailable') return 'Media support is required before this agent can start. Reopen Implexa and retry; setup will continue before file verification.';", "if (reason === 'desktop_media_runtime_unavailable') return reason;"],
   ['running loses its Stop action', "{c.status === 'running' && (c.runId || c.requestId)", "{false && c.status === 'running' && (c.runId || c.requestId)"],
 ];
 

@@ -227,6 +227,23 @@ test('deferred input preparation stays visible with progress and Cancel before e
   assert.equal(container.querySelector('button[aria-label="Stop this run"]'), null);
 });
 
+test('one-time media support setup is visible and cancellable before hashing begins', async () => {
+  await mount([terminalCard({ lifecyclePhase: 'installing_media_support', status: 'installing_media_support',
+    headline: 'Installing media support', bytesRead: 0, totalBytes: 8_589_934_592 })]);
+  assert.match(text(), /Setting up media/);
+  assert.match(text(), /Installing one-time media support before checking the file/);
+  assert.doesNotMatch(text(), /% verified/, 'installation bytes are not file-verification progress');
+  assert.ok(container.querySelector('button[aria-label="Cancel this request"]'));
+});
+
+test('legacy prelaunch refusal gets friendly install-required copy, never raw code or Finished', async () => {
+  await mount([terminalCard({ lifecyclePhase: 'start_failed', status: 'start_failed',
+    failureReason: 'desktop_media_runtime_unavailable' })]);
+  assert.match(text(), /Media support is required before this agent can start/);
+  assert.doesNotMatch(text(), /desktop_media_runtime_unavailable/);
+  assert.doesNotMatch(text(), /Finished/);
+});
+
 test('rendered controls switch from Cancel before launch to Stop only while running', async () => {
   await mount([
     terminalCard({ requestId: 'req-switch', lifecyclePhase: 'switching_executor', status: 'switching' }),
