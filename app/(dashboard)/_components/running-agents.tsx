@@ -443,7 +443,13 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
   // to show YET, which is emphatically not the same fact as "there is nothing".
   const list = (alertsOnly ? (cards ?? []).filter((c) => ALERT_STATUSES.has(c.status) || recentlyDone(c)) : (cards ?? []))
     .filter((c) => !(c.runId && dismissed.has(c.runId)))
-    .filter((c) => !(c.requestId && cancelledReqIds.has(c.requestId)));
+    // A cancel we fired locally hides the card optimistically — but ONLY while the
+    // request never became a run. Now that a run card carries its request's
+    // identity, an unqualified filter would hide work that started anyway
+    // (a cancel that lost the race), leaving the user with no card and no Stop
+    // for a run that is genuinely executing. If a run exists, the cancel did not
+    // take, and the honest thing is to show it.
+    .filter((c) => !(c.requestId && !c.runId && cancelledReqIds.has(c.requestId)));
 
   // The card the confirm dialog is CURRENTLY about. Resolved from the live list
   // every render, so a state change while the dialog is open is graded by the

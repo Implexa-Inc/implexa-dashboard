@@ -322,3 +322,24 @@ test('confirming a cancel after the state moved on does not fire at the old stat
     assert.ok(rendered.queryByText(/100% verified/), 'and the card itself is untouched');
   } finally { rendered.cleanup(); }
 });
+
+// ── a cancel that lost the race must not hide the run ───────────────────────
+test('a locally cancelled request that ran anyway stays visible, with Stop', async () => {
+  const { rendered, at } = await renderFeed([
+    { items: [prep({ status: 'queued', lifecyclePhase: 'queued', bytesRead: null, totalBytes: null })] },
+    // The cancel lost the race: the executor picked it up and the run is live.
+    { items: [prep({ status: 'running', lifecyclePhase: 'running', runId: RUN, bytesRead: null, totalBytes: null })] },
+  ]);
+  try {
+    await rendered.click(buttons(rendered, /Cancel request/)[0]);
+    await rendered.click(buttons(rendered, /^\s*Cancel run\s*$/)[0]);
+    assert.equal(cardCount(rendered), 0, 'the queued card is hidden optimistically');
+
+    await at(1);
+    assert.equal(cardCount(rendered), 1,
+      'a run that started anyway must not be hidden by a cancel that did not take');
+    assert.ok(rendered.queryByText(/Running/));
+    assert.equal(buttons(rendered, /Stop run/).length, 1,
+      'and the user must still be able to stop it');
+  } finally { rendered.cleanup(); }
+});

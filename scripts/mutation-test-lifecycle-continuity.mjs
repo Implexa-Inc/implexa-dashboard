@@ -216,6 +216,12 @@ const mutations = [
     to: "              {c.status === 'running' && (c.runId || c.requestId)",
   },
 
+  {
+    boundary: 'cancellation', name: 'a cancel that lost the race hides the run that started anyway', file: COMPONENT,
+    from: '    .filter((c) => !(c.requestId && !c.runId && cancelledReqIds.has(c.requestId)));',
+    to: '    .filter((c) => !(c.requestId && cancelledReqIds.has(c.requestId)));',
+  },
+
   // ── honesty ──────────────────────────────────────────────────────────────
   {
     boundary: 'honesty', name: 'a held card is presented as if it were current', file: COMPONENT,
