@@ -840,7 +840,7 @@ export default async function RunDetailPage({
             next" for a DELIVERED run (publish / approve render / …). Held runs use
             RunActions above; this is for the delivered-with-next-steps case the
             founder flagged (a run that shipped real follow-ups but went silent). */}
-        {!held && runActions.length > 0 && (
+        {!held && !approvalContinuationRecovery && runActions.length > 0 && (
           <div className="mb-6">
             <RunActionItems runId={r.id} actions={runActions} />
           </div>
@@ -862,7 +862,7 @@ export default async function RunDetailPage({
             approval receipts were enforced. The structured checklist and
             validated review artifacts prove there is work to resume; heartbeat
             prose alone never creates approval authority. */}
-        {!held && approvalContinuationRecovery && !approvalContinuationAlreadyQueued && runActions.length === 0 && (
+        {!held && approvalContinuationRecovery && !approvalContinuationAlreadyQueued && (
           <div className="mb-6">
             <FinishRunButton runId={r.id} mode="approval-recovery" />
           </div>
