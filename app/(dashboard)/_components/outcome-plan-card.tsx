@@ -4,6 +4,8 @@ import {
   canStartPlan, formatMinor,
   type NoEligible, type OutcomeIntent, type OutcomePlan, type PlanOutcome,
 } from '@/lib/outcome-production';
+import type { RunInputProgress } from './run-attachments';
+import RunInputVerificationProgress from './run-input-verification-progress';
 
 function NoEligiblePanel({ noEligible }: { noEligible: NoEligible }) {
   return (
@@ -50,7 +52,7 @@ function inputSummary(node: OutcomePlan['nodes'][number], plan: OutcomePlan) {
   }).join(', ');
 }
 
-function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingInput, startError }: {
+function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingInput, startError, verificationProgress, cancelingVerification, onCancelVerification }: {
   intent: OutcomeIntent;
   plan: OutcomePlan;
   onStart: () => void;
@@ -58,6 +60,9 @@ function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingIn
   starting: boolean;
   providingInput: boolean;
   startError: string | null;
+  verificationProgress?: RunInputProgress | null;
+  cancelingVerification?: boolean;
+  onCancelVerification?: () => void;
 }) {
   const startable = canStartPlan(plan);
   const ceiling = intent.consequential_action_ceiling;
@@ -127,6 +132,9 @@ function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingIn
               </button>
             </div>
           ))}
+          {verificationProgress && onCancelVerification && (
+            <RunInputVerificationProgress progress={verificationProgress} canceling={!!cancelingVerification} onCancel={onCancelVerification} />
+          )}
         </div>
       )}
 
@@ -143,13 +151,16 @@ function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingIn
   );
 }
 
-export default function OutcomePlanCard({ outcome, onStart, onProvideInput, starting, providingInput, startError }: {
+export default function OutcomePlanCard({ outcome, onStart, onProvideInput, starting, providingInput, startError, verificationProgress, cancelingVerification, onCancelVerification }: {
   outcome: PlanOutcome;
   onStart: () => void;
   onProvideInput: (kind: string) => void;
   starting: boolean;
   providingInput: boolean;
   startError: string | null;
+  verificationProgress?: RunInputProgress | null;
+  cancelingVerification?: boolean;
+  onCancelVerification?: () => void;
 }) {
   if (outcome.kind === 'no_eligible') return <NoEligiblePanel noEligible={outcome.noEligible} />;
   if (outcome.kind === 'no_match') {
@@ -159,5 +170,5 @@ export default function OutcomePlanCard({ outcome, onStart, onProvideInput, star
     return <section role="status" aria-label="Input required" className="card p-5 border-amber-500/40"><h3 className="text-sm font-semibold text-amber-300">One input is still needed</h3><p className="text-sm text-ink-300 mt-1">{outcome.question}</p><p className="text-xs text-ink-500 mt-3">Add a verified artifact above and label it as {outcome.missingInputTypes.join(' or ')}. Nothing was started.</p></section>;
   }
   if (outcome.kind !== 'plan') return null;
-  return <PlanBody intent={outcome.intent} plan={outcome.plan} onStart={onStart} onProvideInput={onProvideInput} starting={starting} providingInput={providingInput} startError={startError} />;
+  return <PlanBody intent={outcome.intent} plan={outcome.plan} onStart={onStart} onProvideInput={onProvideInput} starting={starting} providingInput={providingInput} startError={startError} verificationProgress={verificationProgress} cancelingVerification={cancelingVerification} onCancelVerification={onCancelVerification} />;
 }

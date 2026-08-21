@@ -32,6 +32,7 @@ export type WorkflowInputField = {
 };
 
 export type WorkflowInputContract = { version: 1; fields: WorkflowInputField[] };
+export type LocalInputStorageMode = 'local_range_capability' | 'managed_copy';
 export type ArtifactBinding = {
   artifactId: string;
   sha256: string;
@@ -39,6 +40,9 @@ export type ArtifactBinding = {
   mediaType?: string;
   /** Local display metadata — never serialized to the backend. */
   origin?: 'file' | 'directory-snapshot';
+  /** Desktop's canonical local storage posture. `local_range_capability`
+   * means the source drive remains authoritative and must stay available. */
+  storageMode?: LocalInputStorageMode;
 };
 export type RunInputValue = ArtifactBinding | string | ArtifactBinding[] | string[];
 export type RunInputBindings = Record<string, RunInputValue>;
@@ -215,6 +219,9 @@ export type PickRunInputResult = {
    * returning whatever its file dialog produced.
    */
   origin?: 'file' | 'directory-snapshot';
+  /** Canonical Desktop wire value. Unknown future values are ignored below
+   * instead of being treated as either storage authority. */
+  storageMode?: LocalInputStorageMode;
 };
 
 export type PickerOutcome =
@@ -267,6 +274,9 @@ export function resolvePickerResult(
       displayName: result.displayName,
       ...(result.mediaType ? { mediaType: result.mediaType } : {}),
       ...(result.origin ? { origin: result.origin } : {}),
+      ...(result.storageMode === 'local_range_capability' || result.storageMode === 'managed_copy'
+        ? { storageMode: result.storageMode }
+        : {}),
     },
   };
 }

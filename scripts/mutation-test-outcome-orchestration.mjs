@@ -38,6 +38,7 @@ const CONTRACT = 'lib/outcome-production.ts';
 const ACTIONS = 'lib/outcome-production-actions.ts';
 const LOAD = 'lib/outcome-production-load.ts';
 const ENTRY = 'app/(dashboard)/_components/outcome-entry.tsx';
+const INPUT_PROGRESS = 'app/(dashboard)/_components/run-input-verification-progress.tsx';
 const MONITOR = 'app/(dashboard)/_components/outcome-production-monitor.tsx';
 const WORK_ITEM = 'app/(dashboard)/_components/outcome-work-item.tsx';
 const LIST = 'app/(dashboard)/work/_components/outcome-productions-list.tsx';
@@ -130,6 +131,18 @@ const mutants = [
   ['cancel', 'cancel is routed to start instead of the parent cancel endpoint', ACTIONS,
     "return { path: `/api/v2/outcome-productions/${productionId}/cancel`, method: 'POST', body: {} };",
     "return { path: `/api/v2/outcome-productions/${productionId}/start`, method: 'POST', body: {} };"],
+  ['local-input', 'a non-verification Desktop phase becomes cancel authority', ENTRY,
+    "progress.phase !== 'verifying_local'", 'false'],
+  ['local-input', 'a noncancelable progress event mints a cancel authority', ENTRY,
+    "progress.cancelable !== true", 'false'],
+  ['local-input', 'another input field can seize the pending picker', ENTRY,
+    'progress.inputKey !== pendingInputKey.current', 'false'],
+  ['local-input', 'another same-key operation can replace the correlated operation', ENTRY,
+    'if (active && active !== progress.operationId) return;', 'if (false) return;'],
+  ['local-input', 'registration leaves the obsolete cancel affordance visible', ENTRY,
+    'if (active === progress.operationId) setVerificationProgress(null);', 'if (false) setVerificationProgress(null);'],
+  ['local-input', 'byte progress is presented as a fixed zero percent', INPUT_PROGRESS,
+    '? (progress.bytesRead / totalBytes) * 100', '? 0'],
 
   // Reads are three-valued. Unknown/unreadable is never silently empty.
   ['loader', 'a drifted production body reads as not_found', LOAD,

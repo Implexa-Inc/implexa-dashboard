@@ -170,17 +170,18 @@ test('browser mode requires Implexa Desktop and has no file input fallback', asy
   } finally { rendered.cleanup(); }
 });
 
-test('Desktop artifacts keep local metadata but send only the four reference fields plus kind', async () => {
+test('Desktop reference-in-place artifacts use the canonical wire value, warn about the drive, and never send local metadata', async () => {
   const pickerCalls: Record<string, unknown>[] = [];
   const rendered = await render('outcome-entry.tsx', {}, { bridge: { pickRunInput: async (options: Record<string, unknown>) => {
     pickerCalls.push(options);
-    return { ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST, displayName: 'project-bundle.zip', mediaType: 'application/zip' };
+    return { ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST, displayName: 'project-bundle.zip', mediaType: 'application/zip', storageMode: 'local_range_capability' };
   } } });
   try {
     const calls = stubFetch(rendered, [{ status: 200, body: { ...planResponse, intent: { ...intent, input_references: [{ kind: 'artifact', id: ARTIFACT_ID, digest: DIGEST, description: 'project-bundle.zip', input_type: 'project_bundle', input_session_id: INPUT_SESSION_ID }] } } }]);
     await selectValue(rendered, rendered.document.querySelector('[aria-label="Type of verified artifact to add"]') as HTMLSelectElement, 'project_bundle');
     await rendered.click(rendered.getByText('Add verified artifact'));
     assert.ok(rendered.queryByText('project-bundle.zip'));
+    assert.ok(rendered.queryByText(/Kept on its current drive/));
     await fillGoal(rendered);
     await rendered.click(planButton(rendered));
     const reference = (calls[0].body.input_references as Record<string, unknown>[])[0];
@@ -188,8 +189,158 @@ test('Desktop artifacts keep local metadata but send only the four reference fie
     assert.equal('displayName' in reference, false);
     assert.equal('mediaType' in reference, false);
     assert.equal('inputSessionId' in reference, false);
+    assert.equal('storageMode' in reference, false);
     assert.equal(pickerCalls[0].inputKey, 'project_bundle');
     assert.equal(pickerCalls[0].selection, 'file');
+  } finally { rendered.cleanup(); }
+});
+
+test('Desktop managed copies use the canonical wire value and render their local storage posture', async () => {
+  const rendered = await render('outcome-entry.tsx', {}, { bridge: { pickRunInput: async () => ({
+    ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST,
+    displayName: 'small-video.mp4', mediaType: 'video/mp4', storageMode: 'managed_copy',
+  }) } });
+  try {
+    await rendered.click(rendered.getByText('Add verified artifact'));
+    assert.ok(rendered.queryByText('Copied into Implexa-managed storage for this run.'));
+    assert.equal(rendered.queryByText(/Kept on its current drive/), null);
+  } finally { rendered.cleanup(); }
+});
+
+test('an unknown Desktop storage mode is not assigned either storage authority', async () => {
+  const rendered = await render('outcome-entry.tsx', {}, { bridge: { pickRunInput: async () => ({
+    ok: true, inputSessionId: INPUT_SESSION_ID, artifactId: ARTIFACT_ID, sha256: DIGEST,
+    displayName: 'future-video.mp4', mediaType: 'video/mp4', storageMode: 'future_transport',
+  }) } });
+  try {
+    await rendered.click(rendered.getByText('Add verified artifact'));
+    assert.ok(rendered.queryByText('future-video.mp4'));
+    assert.equal(rendered.queryByText(/Kept on its current drive/), null);
+    assert.equal(rendered.queryByText(/Copied into Implexa-managed storage/), null);
+  } finally { rendered.cleanup(); }
+});
+
+test('large local input verification reports byte progress, makes the no-upload boundary explicit, and cancels only its operation', async () => {
+  let progressListener: ((progress: Record<string, unknown>) => void) | null = null;
+  let unsubscribeCount = 0;
+  let finishPick: (value: Record<string, unknown>) => void = () => {};
+  const canceled: string[] = [];
+  const rendered = await render('outcome-entry.tsx', {}, { bridge: {
+    onRunInputProgress: (listener: (progress: Record<string, unknown>) => void) => {
+      progressListener = listener;
+      return () => { unsubscribeCount += 1; };
+    },
+    pickRunInput: async () => new Promise<Record<string, unknown>>((resolve) => { finishPick = resolve; }),
+    cancelRunInputVerification: async (operationId: string) => {
+      canceled.push(operationId);
+      finishPick({ ok: false, canceled: true });
+      return { ok: true, canceled: true };
+    },
+  } });
+  try {
+    const add = rendered.getByText('Add verified artifact');
+    await rendered.click(add);
+
+    await rendered.act(() => progressListener?.({
+      operationId: 'old-operation', inputKey: 'project_bundle', phase: 'verifying_local',
+      bytesRead: 7 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: true,
+    }));
+    assert.equal(rendered.queryByText(/not uploading/i), null,
+      'a global progress event for another input must not attach to this picker');
+
+    await rendered.act(() => progressListener?.({
+      operationId: 'registering-video', inputKey: 'presenter_video', phase: 'registering',
+      bytesRead: 8 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: null, etaSeconds: null, cancelable: false,
+    }));
+    assert.equal(rendered.queryByText(/not uploading/i), null,
+      'the registering phase is not presented as cancelable local verification');
+
+    await rendered.act(() => progressListener?.({
+      operationId: 'future-video', inputKey: 'presenter_video', phase: 'future_phase',
+      bytesRead: 2 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: true,
+    }));
+    assert.equal(rendered.queryByText(/not uploading/i), null,
+      'an unknown Desktop phase fails closed instead of becoming a cancel authority');
+
+    await rendered.act(() => progressListener?.({
+      operationId: 'noncancelable-video', inputKey: 'presenter_video', phase: 'verifying_local',
+      bytesRead: 2 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: false,
+    }));
+    assert.equal(rendered.queryByText(/not uploading/i), null,
+      'a noncancelable event cannot mint a cancel affordance merely by naming the verification phase');
+
+    await rendered.act(() => progressListener?.({
+      operationId: 'verify-8gb-video', inputKey: 'presenter_video', phase: 'verifying_local',
+      bytesRead: 2 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: true,
+    }));
+    assert.ok(rendered.queryByText('Reading locally to verify — not uploading'));
+    assert.ok(rendered.queryByText(/presenter video · 2\.0 GB of 8\.0 GB · 25%/));
+    const bar = rendered.document.querySelector('[role="progressbar"]')!;
+    assert.equal(bar.getAttribute('aria-valuenow'), '25');
+
+    await rendered.act(() => progressListener?.({
+      operationId: 'stale-same-key-operation', inputKey: 'presenter_video', phase: 'verifying_local',
+      bytesRead: 6 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: true,
+    }));
+    assert.equal(bar.getAttribute('aria-valuenow'), '25',
+      'once correlated, a late same-key event from another operation cannot replace it');
+
+    await rendered.click(rendered.getByText('Cancel'));
+    assert.deepEqual(canceled, ['verify-8gb-video']);
+    assert.equal(rendered.queryByText(/not uploading/i), null);
+  } finally {
+    rendered.cleanup();
+    assert.equal(unsubscribeCount, 1, 'unmount removes the global Desktop progress listener');
+  }
+});
+
+test('missing-plan input verification renders progress beside the input that initiated it', async () => {
+  const missingPlan = {
+    ...plan,
+    nodes: [{ ...plan.nodes[0], agent: { ...plan.nodes[0].agent, required_input_types: ['presenter_video'] } }],
+    unresolved_missing_assets: [{ kind: 'presenter_video', description: 'Final Video Compositor needs presenter_video before this plan can start' }],
+  };
+  let progressListener: ((progress: Record<string, unknown>) => void) | null = null;
+  const rendered = await render('outcome-entry.tsx', {}, { bridge: {
+    onRunInputProgress: (listener: (progress: Record<string, unknown>) => void) => { progressListener = listener; return () => {}; },
+    pickRunInput: async () => new Promise(() => {}),
+    cancelRunInputVerification: async () => ({ ok: true }),
+  } });
+  try {
+    stubFetch(rendered, [{ status: 200, body: { ...planResponse, plan: missingPlan } }]);
+    await fillGoal(rendered);
+    await rendered.click(planButton(rendered));
+    await rendered.click(rendered.getByText('Add Presenter Video'));
+    await rendered.act(() => progressListener?.({
+      operationId: 'plan-video', inputKey: 'presenter_video', phase: 'verifying_local',
+      bytesRead: 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: true,
+    }));
+    const missing = rendered.document.querySelector('[aria-label="Missing inputs"]')!;
+    assert.match(missing.textContent || '', /Reading locally to verify — not uploading/);
+    assert.match(missing.textContent || '', /presenter video · 1\.0 GB of 8\.0 GB · 13%/);
+    assert.equal(rendered.document.querySelectorAll('[aria-label="Local input verification"]').length, 1,
+      'the same operation is not duplicated above and inside the plan');
+    await rendered.act(() => progressListener?.({
+      operationId: 'other-plan-video', inputKey: 'presenter_video', phase: 'registering',
+      bytesRead: 8 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: null, etaSeconds: null, cancelable: false,
+    }));
+    assert.equal(rendered.document.querySelectorAll('[aria-label="Local input verification"]').length, 1,
+      'another same-key operation cannot hide the active operation');
+    await rendered.act(() => progressListener?.({
+      operationId: 'plan-video', inputKey: 'presenter_video', phase: 'registering',
+      bytesRead: 8 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: null, etaSeconds: null, cancelable: false,
+    }));
+    assert.equal(rendered.queryByText(/not uploading/i), null,
+      'the exact operation loses its cancel affordance before registration commits');
   } finally { rendered.cleanup(); }
 });
 

@@ -6,9 +6,10 @@ import {
   OUTCOME_INPUT_TYPES, OUTCOME_QUALITIES, parsePlanResponse,
   type OutcomeInputType, type OutcomeQuality, type PlanOutcome,
 } from '@/lib/outcome-production';
-import { desktopBridge } from './run-attachments';
+import { desktopBridge, type RunInputProgress } from './run-attachments';
 import { resolvePickerResult, type ArtifactBinding, type WorkflowInputField } from '@/lib/workflow-input-contract';
 import OutcomePlanCard from './outcome-plan-card';
+import RunInputVerificationProgress from './run-input-verification-progress';
 
 type VerifiedArtifact = ArtifactBinding & {
   inputSessionId: string;
@@ -46,15 +47,37 @@ export default function OutcomeEntry() {
   const [picking, setPicking] = useState(false);
   const [inDesktop, setInDesktop] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
+  const [verificationProgress, setVerificationProgress] = useState<RunInputProgress | null>(null);
+  const [cancelingVerification, setCancelingVerification] = useState(false);
+  const [verificationSurface, setVerificationSurface] = useState<'inputs' | 'plan'>('inputs');
   const [startError, setStartError] = useState<string | null>(null);
   const reqId = useRef(0);
   const inputSessionId = useRef<string | undefined>(undefined);
   const pickerInFlight = useRef(false);
+  const pendingInputKey = useRef<string | null>(null);
+  const activeVerificationOperation = useRef<string | null>(null);
   const prepareInFlight = useRef<number | null>(null);
   const startInFlight = useRef(false);
   const prepareIdempotencyKey = useRef<string | undefined>(undefined);
 
-  useEffect(() => { setInDesktop(!!desktopBridge()?.pickRunInput); }, []);
+  useEffect(() => {
+    const bridge = desktopBridge();
+    setInDesktop(!!bridge?.pickRunInput);
+    if (!bridge?.onRunInputProgress) return;
+    const unsubscribe = bridge.onRunInputProgress((progress) => {
+      if (!pickerInFlight.current || progress.inputKey !== pendingInputKey.current) return;
+      const active = activeVerificationOperation.current;
+      if (active && active !== progress.operationId) return;
+      if (progress.phase === 'registering') {
+        if (active === progress.operationId) setVerificationProgress(null);
+        return;
+      }
+      if (progress.phase !== 'verifying_local' || progress.cancelable !== true) return;
+      activeVerificationOperation.current = progress.operationId;
+      setVerificationProgress(progress);
+    });
+    return () => { try { unsubscribe?.(); } catch { /* old Desktop listener */ } };
+  }, []);
 
   function edit<T>(set: (value: T) => void) {
     return (value: T) => {
@@ -86,11 +109,16 @@ export default function OutcomeEntry() {
       setPickerError('Open Implexa Desktop to add verified artifacts. Browser filenames are not accepted.');
       return;
     }
-    pickerInFlight.current = true;
-    setPicking(true);
-    setPickerError(null);
     const inputType = expectedType || artifactType;
     const field = pickerField(inputType);
+    pickerInFlight.current = true;
+    pendingInputKey.current = field.key;
+    activeVerificationOperation.current = null;
+    setPicking(true);
+    setPickerError(null);
+    setVerificationProgress(null);
+    setCancelingVerification(false);
+    setVerificationSurface(replan ? 'plan' : 'inputs');
     try {
       const raw = await bridge.pickRunInput({ inputKey: field.key, inputSessionId: inputSessionId.current, selection: 'file' }).catch(() => null);
       const result = resolvePickerResult(raw, field);
@@ -122,7 +150,23 @@ export default function OutcomeEntry() {
       }
     } finally {
       pickerInFlight.current = false;
+      pendingInputKey.current = null;
+      activeVerificationOperation.current = null;
       setPicking(false);
+      setVerificationProgress(null);
+      setCancelingVerification(false);
+    }
+  }
+
+  async function cancelVerification() {
+    const operationId = activeVerificationOperation.current;
+    const bridge = desktopBridge();
+    if (!operationId || !bridge?.cancelRunInputVerification || cancelingVerification) return;
+    setCancelingVerification(true);
+    const result = await bridge.cancelRunInputVerification(operationId).catch(() => null);
+    if (!result?.ok) {
+      setPickerError(result?.error || 'Implexa Desktop could not cancel this verification.');
+      setCancelingVerification(false);
     }
   }
 
@@ -227,6 +271,12 @@ export default function OutcomeEntry() {
             <li key={`${artifact.artifactId}-${artifact.sha256}`} className="flex flex-wrap items-center gap-2 text-xs text-ink-300">
               <span className="truncate max-w-xs">{artifact.displayName}</span>
               <span className="rounded bg-ink-900 border border-ink-700 px-2 py-1 text-xs">{artifact.inputType.replaceAll('_', ' ')}</span>
+              {artifact.storageMode === 'local_range_capability' && (
+                <span className="basis-full text-[11px] text-amber-300">Kept on its current drive — keep the drive connected and the file unchanged.</span>
+              )}
+              {artifact.storageMode === 'managed_copy' && (
+                <span className="basis-full text-[11px] text-ink-500">Copied into Implexa-managed storage for this run.</span>
+              )}
               <button type="button" aria-label={`Remove ${artifact.displayName}`} onClick={() => editArtifacts(artifacts.filter((item) => item.artifactId !== artifact.artifactId))} className="text-ink-500 hover:text-ink-200">×</button>
             </li>
           ))}</ul>}
@@ -236,6 +286,9 @@ export default function OutcomeEntry() {
             </select>
             <button type="button" onClick={() => addArtifact()} disabled={picking || artifacts.length >= MAX_ARTIFACTS} className="rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 disabled:opacity-50">{picking ? 'Verifying…' : 'Add verified artifact'}</button>
           </div>
+          {verificationSurface === 'inputs' && verificationProgress && (
+            <RunInputVerificationProgress progress={verificationProgress} canceling={cancelingVerification} onCancel={cancelVerification} />
+          )}
           {!inDesktop && <p role="status" className="mt-2 text-xs text-amber-300">Open Implexa Desktop to add verified artifacts. Browser filenames cannot be used.</p>}
           {pickerError && <p role="status" className="mt-2 text-xs text-red-400">{pickerError}</p>}
         </div>
@@ -268,7 +321,7 @@ export default function OutcomeEntry() {
           <div className="mt-3 flex flex-wrap gap-2">{plan.outcome.clarification.choices.map((choice) => <button key={choice.taskKey} type="button" onClick={() => requestPlan(choice.taskKey)} className="rounded-lg border border-ink-700 px-3 py-2 text-sm text-ink-200 hover:border-ink-500">{choice.label}</button>)}</div>
         </section>
       )}
-      {plan.phase === 'plan' && plan.outcome.kind !== 'clarification_required' && <div className="mt-5"><OutcomePlanCard outcome={plan.outcome} onStart={startProduction} onProvideInput={provideMissingInput} starting={starting} providingInput={picking} startError={startError} /></div>}
+      {plan.phase === 'plan' && plan.outcome.kind !== 'clarification_required' && <div className="mt-5"><OutcomePlanCard outcome={plan.outcome} onStart={startProduction} onProvideInput={provideMissingInput} starting={starting} providingInput={picking} startError={startError} verificationProgress={verificationSurface === 'plan' ? verificationProgress : null} cancelingVerification={cancelingVerification} onCancelVerification={cancelVerification} /></div>}
     </div>
   );
 }
