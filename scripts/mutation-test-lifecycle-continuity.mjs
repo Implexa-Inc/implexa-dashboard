@@ -264,6 +264,17 @@ const mutations = [
     to: "    ordered.push({ key, card, freshness: 'fresh' });",
   },
 
+  {
+    boundary: 'cancellation', name: 'a stale dialog key approximates a target instead of resolving to nothing', file: REDUCER,
+    from: '  return cards.find((card) => card && card.continuityKey === key) ?? null;',
+    to: '  return cards.find((card) => card && card.continuityKey === key) ?? cards[0] ?? null;',
+  },
+  {
+    boundary: 'cancellation', name: 'the dialog key outlives the card it named', file: COMPONENT,
+    from: '    if (confirmCancelKey && !confirmCancel) setConfirmCancelKey(null);',
+    to: '    if (false) setConfirmCancelKey(null);',
+  },
+
   // ── honesty ──────────────────────────────────────────────────────────────
   {
     boundary: 'honesty', name: 'a held card is presented as if it were current', file: COMPONENT,

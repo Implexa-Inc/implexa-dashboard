@@ -21,6 +21,7 @@ import {
   reduceLiveFeed,
   emptyContinuityState,
   cancellationTarget,
+  resolveConfirmTarget,
   freshnessNotice,
   type ContinuityState,
   type Freshness,
@@ -462,9 +463,15 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
   // authority rule rather than by a snapshot taken when it opened. If the item
   // leaves the feed entirely the dialog closes with it — there is nothing left
   // to confirm.
-  const confirmCancel = confirmCancelKey
-    ? (list.find((c) => c.continuityKey === confirmCancelKey) ?? null)
-    : null;
+  const confirmCancel = resolveConfirmTarget(list, confirmCancelKey);
+  // A DIALOG THE USER DID NOT REOPEN MUST NOT REOPEN. The key outlived the card
+  // it named: open Stop, let the item drop out of the feed (the dialog closes
+  // with it), and when the same request came back the key still matched — so a
+  // live "Stop run" confirm appeared on its own, unasked. Retire the key with
+  // the card.
+  useEffect(() => {
+    if (confirmCancelKey && !confirmCancel) setConfirmCancelKey(null);
+  }, [confirmCancelKey, confirmCancel]);
 
   // Report what the live read KNOWS, so a parent that owns the all-clear
   // (TodayFeed) can distinguish nothing-live from not-known-yet from

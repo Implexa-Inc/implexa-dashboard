@@ -11,6 +11,7 @@ import {
   emptyContinuityState,
   continuityKey,
   cancellationTarget,
+  resolveConfirmTarget,
   freshnessNotice,
   statusRank,
   isTerminalStatus,
@@ -456,4 +457,47 @@ test('the ladder is ordered and terminals sit at the top', () => {
   for (const live of ['running', 'queued', 'preparing_inputs', 'waiting_approval', 'needs_attention']) {
     assert.ok(!isTerminalStatus(live), `${live} is not an end`);
   }
+});
+
+// ── a destructive dialog is bound to an identity, and dies with it ───────────
+//
+// The release path is what matters here and it needs the grace window to expire,
+// which a rendered test at a 10ms cadence cannot reach — so the rule is graded
+// where release IS deterministic.
+
+test('a confirm dialog resolves to the card it named, held or fresh', () => {
+  const first = feed(emptyContinuityState(), [card({ status: 'running', runId: RUN })], T0);
+  assert.equal(resolveConfirmTarget(first.cards, REQ)?.continuityKey, REQ);
+
+  // Held through an omission: still the same card, still the same dialog.
+  const held = feed(first.state, [], T0 + 1_000);
+  assert.equal(resolveConfirmTarget(held.cards, REQ)?.freshness, 'retained');
+});
+
+test('a confirm dialog whose card was RELEASED resolves to nothing', () => {
+  let state = feed(emptyContinuityState(), [card({ status: 'running', runId: RUN })], T0).state;
+  const released = feed(state, [], T0 + CONTINUITY_GRACE_MS);
+  assert.deepEqual(released.releasedKeys, [REQ]);
+  assert.equal(resolveConfirmTarget(released.cards, REQ), null,
+    'nothing to confirm — and the key must be retired, or the dialog springs back '
+    + 'unasked when the same request returns');
+
+  // …and when it does return, a stale key must not resurrect a destructive dialog.
+  state = released.state;
+  const returned = feed(state, [card({ status: 'running', runId: RUN })], T0 + CONTINUITY_GRACE_MS + 1_000);
+  assert.equal(returned.cards.length, 1);
+  assert.equal(resolveConfirmTarget(returned.cards, REQ)?.continuityKey, REQ,
+    'the card is back — but only a key the user set may open a dialog for it');
+});
+
+test('a confirm dialog never approximates a target', () => {
+  const two = feed(emptyContinuityState(), [
+    card({ status: 'running', runId: RUN }),
+    card({ requestId: OTHER_REQ, runId: null, status: 'queued' }),
+  ], T0);
+  assert.equal(resolveConfirmTarget(two.cards, 'no-such-key'), null,
+    'an unmatched key resolves to nothing, never to the first card at hand');
+  assert.equal(resolveConfirmTarget(two.cards, null), null);
+  assert.equal(resolveConfirmTarget(null, REQ), null);
+  assert.equal(resolveConfirmTarget(two.cards, OTHER_REQ)?.continuityKey, OTHER_REQ);
 });

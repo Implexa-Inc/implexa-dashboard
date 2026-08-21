@@ -339,6 +339,27 @@ export function cancellationTarget(
   return { requestId };
 }
 
+/**
+ * resolveConfirmTarget(cards, key) — the card a confirm dialog is CURRENTLY about.
+ *
+ * A dialog is bound to an identity, not to a card object, so that a state change
+ * while it is open is graded by the authority rule rather than by a snapshot. The
+ * other half of that is this: when the identity no longer resolves, there is
+ * nothing left to confirm. Without it the key outlived its card — open Stop, let
+ * the item drop out of the feed, and when the same request came back the key
+ * still matched, so a live destructive confirm reappeared unasked.
+ *
+ * Returns null rather than approximating. Never falls back to "the card at hand":
+ * that is how one request's dialog ends up firing at another's work.
+ */
+export function resolveConfirmTarget<T extends { continuityKey?: string }>(
+  cards: readonly T[] | null | undefined,
+  key: string | null | undefined,
+): T | null {
+  if (!key || !Array.isArray(cards)) return null;
+  return cards.find((card) => card && card.continuityKey === key) ?? null;
+}
+
 /** Honest copy for a card we are holding rather than confirming. */
 export function freshnessNotice(freshness: Freshness | undefined): string | null {
   if (freshness === 'retained') return 'Updating status…';

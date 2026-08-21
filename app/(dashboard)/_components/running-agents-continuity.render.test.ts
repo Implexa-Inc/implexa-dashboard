@@ -434,7 +434,16 @@ test('confirming a Stop after the card went stale does not fire the kill', async
 });
 
 // ── the monotonic hold withholds certainty, not just the repaint ────────────
-test('a fenced executor fallback never shows Running with a live Stop', async () => {
+//
+// The HELD state itself is graded deterministically in
+// lib/live-lifecycle-continuity.test.ts ("a regression-held card offers no
+// destructive control while it is held"). A rendered test cannot pin it: the
+// hold is counted in polls, the component owns its own timer, and under the
+// 144-file concurrent suite the backend has usually already won by the time any
+// assertion runs — an earlier draft of this test asserted the held state and was
+// silently vacuous in CI for exactly that reason. What a rendered test CAN grade
+// is the end state, which is what it grades.
+test('a fenced executor fallback reaches the screen with its reason and its control', async () => {
   const fenced = prep({
     status: 'switching', lifecyclePhase: 'switching_executor', runId: null,
     fallbackReason: 'the executor was fenced mid-step', cancelable: true,
@@ -442,45 +451,89 @@ test('a fenced executor fallback never shows Running with a live Stop', async ()
   });
   const { rendered, at } = await renderFeed([
     { items: [prep({ status: 'running', lifecyclePhase: 'running', runId: RUN, bytesRead: null, totalBytes: null })] },
-    { items: [fenced] },
+    { items: [fenced] }, { items: [fenced] }, { items: [fenced] }, { items: [fenced] },
   ]);
   try {
     assert.equal(buttons(rendered, /Stop run/).length, 1, 'a live run can be stopped');
-    await at(1);
+    for (const step of [1, 2, 3, 4]) await at(step);
 
-    // The hold is counted in POLLS, so a test cannot pin which side of it any
-    // single observation lands on — and pinning one is how a test flakes. The
-    // INVARIANT is what matters, and it must hold at every observation: once the
-    // backend has said the executor was fenced and this request has no bound run,
-    // the display may keep reading "Running" (that is the hold doing its job) but
-    // it must never offer to kill RUN — that would kill the abandoned attempt
-    // while the work carries on under a new executor.
-    let sawHeld = false;
-    let sawAccepted = false;
-    for (let observation = 0; observation < 8; observation += 1) {
-      const showsRunning = !!rendered.queryByText(/Running/);
-      const stops = buttons(rendered, /Stop run/).length;
-      assert.equal(showsRunning && stops > 0, false,
-        'a superseded state must never carry a live kill');
-      if (showsRunning) {
-        sawHeld = true;
-        assert.ok(rendered.queryByText(/Updating status…/), 'a held card says it is being re-checked');
-      }
-      if (showsRunning) {
-        assert.equal(buttons(rendered, /Cancel request/).length, 0,
-          'nor any other action, while the state is only held');
-      }
-      if (rendered.queryByText(/Switching/)) sawAccepted = true;
-      await rendered.act(async () => { await new Promise((r) => setTimeout(r, 20)); });
-    }
-    assert.ok(sawHeld || sawAccepted, 'the card must be in one of the two legitimate states');
-    assert.ok(sawAccepted, 'and the backend must win within a bounded number of polls');
+    assert.ok(rendered.queryByText(/Switching/),
+      'a real step back must reach the screen within a bounded number of polls');
     assert.ok(rendered.queryByText(/the executor was fenced mid-step/),
       'bringing the reason the user needs with it');
-    // And once accepted, the control the frozen card had been hiding is back —
-    // correctly bound to the request rather than to the abandoned run.
+    assert.equal(cardCount(rendered), 1);
+    // The control the frozen card had been hiding, bound to the request rather
+    // than to the run it abandoned.
     assert.equal(buttons(rendered, /Cancel request/).length, 1,
-      'a switching request IS cancellable; the hold was withholding that too');
-    assert.equal(buttons(rendered, /Stop run/).length, 0, 'and there is no run to stop');
+      'a switching request IS cancellable');
+    assert.equal(buttons(rendered, /Stop run/).length, 0,
+      'and there is no run left to stop');
+  } finally { rendered.cleanup(); }
+});
+
+// ── a destructive dialog must not reopen by itself ──────────────────────────
+//
+// The RELEASE path — key outlives its card, card returns, dialog springs back —
+// needs the grace window to expire, i.e. 45s of wall time, which a rendered test
+// at a 10ms cadence cannot reach. It is graded deterministically in
+// lib/live-lifecycle-continuity.test.ts against `resolveConfirmTarget`, and the
+// component clears the key whenever that returns null. What a rendered test CAN
+// show is that a dialog stays bound to its own card across a gap rather than
+// re-targeting something else.
+test('a dialog stays bound to its own card across a gap', async () => {
+  const running = prep({
+    status: 'running', lifecyclePhase: 'running', runId: RUN,
+    bytesRead: null, totalBytes: null,
+  });
+  const { rendered, at } = await renderFeed([
+    { items: [running] },
+    { items: [prep({ requestId: OTHER_REQ, runId: null, status: 'queued', lifecyclePhase: 'queued', bytesRead: null, totalBytes: null })] },
+  ]);
+  try {
+    await rendered.click(buttons(rendered, /Stop run/)[0]);
+    assert.ok(rendered.queryByText(/This will stop/), 'the dialog opened because the user asked');
+
+    // A different request arrives; the held card is still ours.
+    await at(1);
+    const confirm = [...rendered.document.querySelectorAll('button')]
+      .filter((b) => /^\s*(Stop run|Cancel run)\s*$/.test(b.textContent || ''));
+    if (confirm.length) await rendered.click(confirm[confirm.length - 1]);
+
+    const calls = rendered.calls.backend.filter((c) => c.path.includes('/cancel')
+      || c.path.includes('/run-requests/'));
+    for (const call of calls) {
+      assert.ok(!call.path.includes(OTHER_REQ),
+        `a dialog must never re-target another request, got ${call.path}`);
+    }
+  } finally { rendered.cleanup(); }
+});
+
+test('a dialog does not spring back open when its card returns', async () => {
+  // A TERMINAL state retires from the cache immediately — no grace window — so
+  // this reaches the release path deterministically at a 10ms cadence, which the
+  // 45s omission grace cannot.
+  const running = prep({
+    status: 'running', lifecyclePhase: 'running', runId: RUN,
+    bytesRead: null, totalBytes: null,
+  });
+  const { rendered, at } = await renderFeed([
+    { items: [running] },
+    { items: [prep({ status: 'finished', lifecyclePhase: null, runId: RUN, isTerminal: true, finishedAt: '2026-08-21T10:05:00.000Z', bytesRead: null, totalBytes: null })] },
+    { items: [] },          // terminal → retired at once, the card is gone
+    { items: [running] },   // …and the same request comes back
+  ]);
+  try {
+    await rendered.click(buttons(rendered, /Stop run/)[0]);
+    assert.ok(rendered.queryByText(/This will stop/), 'the dialog opened because the user asked');
+
+    await at(1);
+    await at(2);
+    assert.equal(cardCount(rendered), 0, 'the card is gone, and the dialog with it');
+
+    await at(3);
+    assert.equal(cardCount(rendered), 1, 'the request is back');
+    assert.equal(rendered.queryByText(/This will stop/), null,
+      'a destructive dialog the user did not reopen must not reopen');
+    assert.equal(rendered.queryByText(/This will cancel/), null);
   } finally { rendered.cleanup(); }
 });
