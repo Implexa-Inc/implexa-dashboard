@@ -7,7 +7,7 @@ const running = fs.readFileSync(path.join(process.cwd(), 'app/(dashboard)/_compo
 const building = fs.readFileSync(path.join(process.cwd(), 'app/(dashboard)/_components/building-agents.tsx'), 'utf8');
 
 test('claim-only requests expose Cancel, never Stop', () => {
-  assert.match(running, /\['queued', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\][\s\S]*c\.requestId && !c\.runId/);
+  assert.match(running, /\['queued', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\][\s\S]*c\.requestId && !c\.runId/);
   assert.match(running, /c\.status === 'running' && \(c\.runId \|\| c\.requestId\)/);
   assert.match(running, /const isRunningCancel = \(c:[^\n]+c\.status === 'running' && !!\(c\.runId \|\| c\.requestId\)/);
   assert.match(running, />\s*Cancel request\s*<\/button>/);
@@ -28,6 +28,15 @@ test('startup failures remain visible on Home and can notify the owner', () => {
 test('terminal startup failures expose a Retry path', () => {
   assert.match(running, /c\.status === 'start_failed' \|\| c\.status === 'claim_expired'/);
   assert.match(running, />\s*Retry from agent\s*<\/Link>/);
+});
+
+test('terminal file preparation failures stay actionable and user-facing', () => {
+  assert.match(running, /desktop_preparation_lease_expired[\s\S]*File verification stopped before it finished/);
+  assert.match(running, /run_enqueue_interrupted[\s\S]*showPreparationRetry/,
+    'a post-verification queue interruption must retain the same direct retry action');
+  assert.match(running, />\s*Select file and try again\s*<\/Link>/);
+  assert.match(running, /c\.preparationCancelable !== false/,
+    'the finalizing fence must not offer a cancel the backend refuses');
 });
 
 test('cancel copy does not claim the request is still unpicked', () => {

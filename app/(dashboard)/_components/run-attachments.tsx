@@ -28,6 +28,17 @@ export type RunInputProgress = {
   cancelable: boolean;
 };
 
+export type DeferredRunInputSelection = {
+  selectionId: string;
+  inputSessionId: string;
+  inputKey: string;
+  displayName: string;
+  sizeBytes: number;
+  mediaType: string;
+  fileExtension: string | null;
+  requiredMachineId: string;
+};
+
 // Label for the per-run attachment line baked into the note. The hands-off run is
 // told to Read these paths as context/feedback.
 export const ATTACH_MARKER = '📎 Attached for this run';
@@ -86,6 +97,17 @@ export type DesktopBridge = {
     mediaType?: string;
     storageMode?: LocalInputStorageMode;
   }>;
+  pickDeferredRunInput?: (opts: {
+    inputKey: string;
+    inputSessionId?: string;
+    accept?: { mediaTypes?: string[]; extensions?: string[]; directorySnapshot?: boolean };
+  }) => Promise<{ ok: boolean; canceled?: boolean; error?: string } & Partial<DeferredRunInputSelection>>;
+  startRunInputPreparation?: (opts: { preparationId: string; selectionIds: string[] }) => Promise<{
+    ok: boolean; error?: string; preparationId?: string;
+  }>;
+  cancelRunInputPreparation?: (preparationId: string) => Promise<{ ok: boolean; error?: string }>;
+  onRunInputPreparationProgress?: (cb: (progress: RunInputProgress & { preparationId: string }) => void) => (() => void);
+  onRunInputPreparationComplete?: (cb: (receipt: { preparationId: string; requestId: string }) => void) => (() => void);
   /** Subscribe before opening the picker: hashing may begin immediately after
    * the native dialog resolves. The returned function removes this listener. */
   onRunInputProgress?: (cb: (progress: RunInputProgress) => void) => (() => void);

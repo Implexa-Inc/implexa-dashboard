@@ -44,7 +44,7 @@ import type { NeedsYou } from './needs-you';
  * the lifecycle vocabulary running-agents.tsx renders.
  */
 export const LIVE_IN_FLIGHT_STATUSES: ReadonlySet<string> = new Set([
-  'queued', 'selecting', 'picked_up', 'starting', 'switching', 'resuming', 'running', 'verifying',
+  'queued', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming', 'running', 'verifying',
 ]);
 
 /**
