@@ -45,6 +45,13 @@ test('run details renders the approval recovery action from structured authority
   assert.match(page, /\.eq\('run_id', r\.id\)\.eq\('kind', 'continue'\)/);
   assert.match(page, /!approvalContinuationAlreadyQueued/);
   assert.match(page, /<FinishRunButton runId=\{r\.id\} mode="approval-recovery" \/>/);
+  assert.match(page, /!held && !approvalContinuationRecovery && runActions\.length > 0/,
+    'a legacy proposed action must not replace the authority-preserving recovery action');
+  assert.match(page, /!held && approvalContinuationRecovery && !approvalContinuationAlreadyQueued && \(/,
+    'recovery must remain visible even when the historical run also persisted a generic run_action');
+  assert.doesNotMatch(page,
+    /approvalContinuationRecovery && !approvalContinuationAlreadyQueued && runActions\.length === 0/,
+    'generic run_actions must never suppress the only Desktop-authorized continuation');
 });
 
 test('recovery suppression uses the exact backend deterministic identity', () => {
