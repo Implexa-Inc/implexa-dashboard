@@ -41,7 +41,7 @@ test('a bound file shows its filename and that it is verified and keyed', () => 
   assert.match(src, /\{item\.displayName\}/, 'the filename is shown');
   assert.match(src, /verified, bound to \{field\.key\}/,
     'the bound state names the contract key, so upload order is visibly irrelevant');
-  assert.match(src, /field\.cardinality === 'many' \? 'Add file' : artifacts\.length \? 'Replace file' : 'Choose file'/,
+  assert.match(src, /field\.cardinality === 'many' \? 'Add file' : \(artifacts\.length \|\| deferred\) \? 'Replace file' : 'Choose file'/,
     'the button reads Replace once a file is bound, never still Choose file — including a file bound from the saved setup, which arrives as a default rather than through the picker');
 });
 
@@ -73,12 +73,23 @@ test('removing a file clears its error and takes the value out of THIS run', () 
 });
 
 test('required typed inputs still gate the Run button', () => {
-  assert.match(src, /disabled=\{setupSaving \|\| Object\.keys\(preparingInputs\)\.length > 0 \|\| blankRequired\.length > 0 \|\| missingRequiredInputs\(inputContract, inputBindings\)\.length > 0\}/);
-  assert.match(src, /if \(blankRequired\.length \|\| missingRequiredInputs\(inputContract, inputBindings\)\.length[\s\S]*?\|\| Object\.keys\(preparingInputRef\.current\)\.length\) return;/,
+  assert.match(src, /disabled=\{setupSaving \|\| Object\.keys\(preparingInputs\)\.length > 0 \|\| blankRequired\.length > 0 \|\| missingRequiredForRun\(\)\.length > 0\}/);
+  assert.match(src, /if \(blankRequired\.length \|\| missingRequiredForRun\(\)\.length[\s\S]*?\|\| Object\.keys\(preparingInputRef\.current\)\.length\) return;/,
     'the synchronous submit boundary must refuse while a folder snapshot is still being prepared');
 });
 
 test('only digest identity crosses the wire — never a local path', () => {
   assert.match(src, /inputBindings: serializeArtifactBindings\(inputBindings\)/,
     'the run-create payload is the stripped serialization, not raw component state');
+  assert.match(src, /deferredInputManifest:[\s\S]*selectionId: value\.selectionId[\s\S]*sizeBytes: value\.sizeBytes/,
+    'a selected large file crosses only as opaque identity and bounded metadata before hashing');
+  assert.doesNotMatch(src, /deferredInputManifest:[\s\S]{0,400}(?:path|sha256):/,
+    'the deferred manifest cannot carry a local path or invent a digest before reading bytes');
+});
+
+test('background selection is fail-closed to cardinality one', () => {
+  assert.match(src, /selection === 'file' && field\.cardinality === 'one' && bridge\.pickDeferredRunInput/,
+    'v1 must not turn a many-file contract into a replacing scalar selection');
+  assert.match(src, /field\.cardinality === 'many' \? 'Add file'/,
+    'many-file fields retain the existing append/register picker');
 });

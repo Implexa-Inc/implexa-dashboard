@@ -28,7 +28,8 @@ import Modal from './modal';
 import SetupChoiceField from './setup-choice-field';
 import { firstRunPermsSeen, markFirstRunPermsSeen } from './first-run-permissions-note';
 import { getAgentNoteDraft, clearAgentNoteDraft } from '@/lib/agent-note-draft';
-import { AttachFiles, composeNoteWithFiles, desktopBridge, fileName, useRunAttachments } from './run-attachments';
+import { AttachFiles, composeNoteWithFiles, desktopBridge, fileName, useRunAttachments,
+  type DeferredRunInputSelection } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import {
   acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
@@ -42,7 +43,7 @@ import {
   type RunInputOverrides,
 } from '@/lib/run-input-defaults';
 
-type RunState = 'idle' | 'queuing' | 'queued' | 'running' | 'done' | 'error';
+type RunState = 'idle' | 'queuing' | 'preparing' | 'queued' | 'running' | 'done' | 'error';
 type SetupField = {
   key: string; question: string; kind: 'text' | 'choice' | 'file'; options?: string[];
   /** A PREFERENCE — must never block Run. */
@@ -182,6 +183,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // setup was complete still opened Run now with every control blank.
   const [inputDefaults, setInputDefaults] = useState<RunInputBindings>({});
   const [inputOverrides, setInputOverrides] = useState<RunInputOverrides>({});
+  const [deferredSelections, setDeferredSelections] = useState<Record<string, DeferredRunInputSelection>>({});
   /** The saved answers as text, for naming the source a file field starts from. */
   const [savedInputValues, setSavedInputValues] = useState<Record<string, string>>({});
   /** File keys whose saved path this machine is still verifying. */
@@ -203,6 +205,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // promise continuation can tell whether it is stale before touching UI state.
   const inputRevisionRef = useRef<Record<string, number>>({});
   const inputBindings = resolveEffectiveInputs(inputContract, inputDefaults, inputOverrides);
+  const missingRequiredForRun = () => missingRequiredInputs(inputContract, inputBindings)
+    .filter((field) => !deferredSelections[field.key]);
   // Per-field picker/registration failures. Keyed by contract field key so the
   // message lands on the field the user was actually filling in.
   const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
@@ -281,6 +285,28 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     const replaced = field.cardinality === 'one' && current && typeof current === 'object' && !Array.isArray(current)
       ? current as ArtifactBinding : null;
     try {
+      // The v1 background receipt carries one retained selection per semantic
+      // field. Cardinality-many keeps the existing append/register path until
+      // the durable manifest models ordered arrays end to end; never silently
+      // replace prior files or submit a scalar the backend must reject.
+      if (selection === 'file' && field.cardinality === 'one' && bridge.pickDeferredRunInput) {
+        const raw: ({ ok: boolean; canceled?: boolean; error?: string } & Partial<DeferredRunInputSelection>) = await bridge.pickDeferredRunInput({ inputKey: field.key, inputSessionId: sessionId,
+          ...(field.accept ? { accept: field.accept } : {}) })
+          .catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
+        if (!inputRevisionIsCurrent(inputRevisionRef.current, field.key, manualRevision)) return;
+        if (raw.canceled) return;
+        if (!raw.ok || !raw.selectionId || !raw.inputSessionId || !raw.displayName
+            || !Number.isSafeInteger(raw.sizeBytes) || !raw.mediaType || !raw.requiredMachineId
+            || raw.inputKey !== field.key || raw.inputSessionId !== sessionId) {
+          setInputError(field.key, raw.error || 'Desktop could not retain this file for background preparation.');
+          return;
+        }
+        setInputError(field.key, null);
+        setDeferredSelections((previous) => ({ ...previous, [field.key]: raw as DeferredRunInputSelection }));
+        // A deferred selection supersedes any already-registered default for this run.
+        setInputOverrides((previous) => ({ ...previous, [field.key]: '' }));
+        return;
+      }
       const result = await bridge.pickRunInput({
         inputKey: field.key,
         inputSessionId: sessionId,
@@ -315,6 +341,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // A picked file is a change made HERE, so it lands in the override layer and
       // affects this run alone. The saved answer stays exactly as Setup left it.
       setInputOverrides((previous) => bindInputValue(previous, field, outcome.binding));
+      setDeferredSelections((previous) => {
+        if (!(field.key in previous)) return previous;
+        const next = { ...previous }; delete next[field.key]; return next;
+      });
     } finally {
       delete preparingInputRef.current[field.key];
       setPreparingInputs((previous) => {
@@ -571,7 +601,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // REQUIRED-ONLY. Blocking on every displayed field made an optional preference
     // — correctly skippable during activation — required again at the first Run
     // click, which silently undid the whole tier split one surface later.
-    if (blankRequired.length || missingRequiredInputs(inputContract, inputBindings).length
+    if (blankRequired.length || missingRequiredForRun().length
         || Object.keys(preparingInputRef.current).length) return;
     setSetupSaving(true);
     setMsg('');
@@ -673,9 +703,49 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             inputContractDigest,
             inputBindings: serializeArtifactBindings(inputBindings),
             inputSessionId,
+            ...(Object.keys(deferredSelections).length ? {
+              deferredInputManifest: Object.fromEntries(Object.entries(deferredSelections).map(([key, value]) => [key, {
+                selectionId: value.selectionId, sizeBytes: value.sizeBytes, mediaType: value.mediaType,
+                fileExtension: value.fileExtension,
+              }])),
+              requiredMachineId: Object.values(deferredSelections)[0]?.requiredMachineId,
+            } : {}),
           } : {}),
         },
       });
+      if (res?.ok === true && res?.preparing === true && typeof res?.preparation?.id === 'string') {
+        const preparationId = res.preparation.id as string;
+        const bridge = desktopBridge();
+        const selectionIds = Object.values(deferredSelections).map((value) => value.selectionId);
+        try {
+          if (!bridge?.startRunInputPreparation || !selectionIds.length) {
+            throw new Error('This Desktop cannot prepare the selected file in the background. Update Implexa and try again.');
+          }
+          const started = await bridge.startRunInputPreparation({ preparationId, selectionIds });
+          if (!started.ok) throw new Error(started.error || 'Desktop could not start input preparation.');
+        } catch (error) {
+          // The durable intent already exists. If Desktop cannot take ownership,
+          // close it immediately so Active Agents never shows an immortal
+          // "Preparing file" row with no local worker behind it.
+          await callBackend(`/api/v2/me/run-input-preparations/${encodeURIComponent(preparationId)}/cancel`, {
+            jwt: session?.access_token, method: 'POST',
+          }).catch(() => null);
+          throw error;
+        }
+        requestId.current = preparationId;
+        pollStart.current = Date.now();
+        setInputOverrides({});
+        setDeferredSelections({});
+        inputSessionRef.current = null;
+        setInputSessionId(null);
+        setState('preparing');
+        notifyRunActivity();
+        setMsg('Preparing your file in the background. You can leave this page; the agent will start automatically when verification finishes.');
+        setShowRunModal(false);
+        setShowSetupModal(false);
+        router.push('/workflows');
+        return;
+      }
       // A 2xx transport response is not a queue receipt.  Do not clear inputs,
       // redirect, or render Queued unless the server confirms the one request it
       // created.  This also protects against a proxy accidentally normalising a
@@ -1082,6 +1152,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             const scalar = typeof value === 'string' ? value : '';
             const scalarMany = Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
             const savedPath = savedInputValues[field.key];
+            const deferred = deferredSelections[field.key];
             const verifying = verifyingInputs.includes(field.key);
             const preparing = preparingInputs[field.key];
             // A change made here, in the override layer. Blank IS the clear: it
@@ -1122,8 +1193,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                       disabled={!desktopBridge()?.pickRunInput || !!preparing}
                       className="btn-outline text-xs px-3 py-1.5 disabled:opacity-40"
                     >
-                      {preparing === 'file' ? 'Verifying file…'
-                        : field.cardinality === 'many' ? 'Add file' : artifacts.length ? 'Replace file' : 'Choose file'}
+                      {preparing === 'file' ? 'Choosing file…'
+                        : field.cardinality === 'many' ? 'Add file' : (artifacts.length || deferred) ? 'Replace file' : 'Choose file'}
                     </button>
                     {acceptsDirectorySnapshot(field) && <button
                       type="button"
@@ -1138,7 +1209,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                   {preparing && <p className="text-[11px] text-amber-300 mt-2" role="status" aria-live="polite">
                     {preparing === 'directory'
                       ? 'Preparing and verifying a ZIP from this folder… Large folders can take a moment.'
-                      : 'Hashing and verifying this file…'}
+                      : 'Opening the file picker…'}
                   </p>}
                 </div>
                 {field.kind === 'text' ? (
@@ -1161,6 +1232,16 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                     <option value="">Select…</option>
                     {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
+                ) : deferred ? (
+                  <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-300">
+                    <span className="truncate min-w-0" title={deferred.displayName}>
+                      <span className="text-emerald-400">✓</span> {deferred.displayName}
+                      {' '}<span className="text-ink-500">— selected; verification starts after you press Run</span>
+                    </span>
+                    <button type="button" onClick={() => setDeferredSelections((previous) => {
+                      const next = { ...previous }; delete next[field.key]; return next;
+                    })} className="text-ink-500 hover:text-rose-400 shrink-0">Remove</button>
+                  </div>
                 ) : artifacts.length ? (
                   <div className="mt-2 space-y-1">
                     {artifacts.map((item) => <div key={item.artifactId} className="flex items-center justify-between gap-2 text-xs text-ink-300">
@@ -1291,7 +1372,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <button
           type="button"
           onClick={submitPreRun}
-          disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredInputs(inputContract, inputBindings).length > 0}
+          disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0}
           className="btn-success text-sm px-5 py-2 disabled:opacity-50"
         >
           {setupSaving ? 'Saving…' : preRunMode === 'watch' ? 'Open in Claude →' : setupFields.length ? 'Save & run' : '▶ Run now'}

@@ -20,6 +20,7 @@ import { parseLiveItems } from '@/lib/live-feed';
 import { queuedWaitNotice } from '@/lib/queued-wait-copy';
 import Modal from './modal';
 import StuckRunButton from './stuck-run-button';
+import { desktopBridge } from './run-attachments';
 
 // The statuses worth a native desktop notification (yellow/red — they need you).
 // action_available = a delivered run has a READY one-tap action (publish, etc.).
@@ -29,7 +30,7 @@ const NOTIFY: ReadonlySet<string> = new Set(['waiting_approval', 'needs_attentio
 // is NOT in NOTIFY, so it never fires a noisy desktop notification).
 const ALERT_STATUSES: ReadonlySet<string> = new Set([...NOTIFY, 'queued']);
 
-type LiveStatus = 'queued' | 'selecting' | 'picked_up' | 'starting' | 'switching' | 'resuming' | 'fallback_blocked' | 'start_failed' | 'claim_expired' | 'waiting_approval' | 'needs_attention' | 'running' | 'verifying' | 'built' | 'failed' | 'finished' | 'action_available';
+type LiveStatus = 'queued' | 'preparing_inputs' | 'selecting' | 'picked_up' | 'starting' | 'switching' | 'resuming' | 'fallback_blocked' | 'start_failed' | 'claim_expired' | 'waiting_approval' | 'needs_attention' | 'running' | 'verifying' | 'built' | 'failed' | 'finished' | 'action_available';
 type LiveCard = {
   runId: string | null;
   /** Set on a 'queued' card (a pending run_request with no skill_run yet). */
@@ -39,8 +40,11 @@ type LiveCard = {
   source: string | null;
   status: LiveStatus;
   /** Canonical request lifecycle for definition work without a run row. */
-  lifecyclePhase?: 'queued' | 'selecting_executor' | 'claimed' | 'starting' | 'switching_executor' | 'resuming' | 'fallback_blocked' | 'running' | 'verifying' | 'built' | 'start_failed' | 'claim_expired' | 'failed' | 'cancelled' | null;
+  lifecyclePhase?: 'queued' | 'preparing_inputs' | 'selecting_executor' | 'claimed' | 'starting' | 'switching_executor' | 'resuming' | 'fallback_blocked' | 'running' | 'verifying' | 'built' | 'start_failed' | 'claim_expired' | 'failed' | 'cancelled' | null;
   since: string | null;
+  bytesRead?: number | null;
+  totalBytes?: number | null;
+  preparationCancelable?: boolean;
   /** When the run actually completed (null while running/queued). The Home linger
    *  and a finished card's "Nm ago" measure from THIS, not `since` (start time). */
   finishedAt?: string | null;
@@ -84,6 +88,14 @@ type LiveCard = {
 
 const POLL_MS = 15000;
 
+function visibleFailure(reason: string | null | undefined): string | null {
+  if (!reason) return null;
+  if (reason === 'desktop_preparation_not_started') return 'Your Desktop did not start checking the selected file. Select it again and retry.';
+  if (reason === 'desktop_preparation_lease_expired') return 'File verification stopped before it finished. Select the file again and retry.';
+  if (reason === 'run_enqueue_interrupted') return 'The file was checked, but the run could not be queued. Try again.';
+  return reason;
+}
+
 // Active states (green/amber) show a clean spinner — they're still working or
 // waiting on you. Done states (red/grey) stay a static dot. Every card opens the
 // run page, so there's no per-status button label — just a chevron.
@@ -96,6 +108,7 @@ const POLL_MS = 15000;
 // unmissable at a glance regardless of whether step detail is present.
 const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: string; label: string; chip: string; chipCls: string }> = {
   queued:           { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Waiting to be picked up by your AI engine', chip: 'Queued',          chipCls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30' },
+  preparing_inputs: { spin: true,  spinCls: 'border-amber-500/25 border-t-amber-500',     dotCls: 'bg-amber-500',               label: 'Hashing and verifying the selected file',   chip: 'Preparing file',  chipCls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' },
   selecting:        { spin: true,  spinCls: 'border-sky-500/25 border-t-sky-500',         dotCls: 'bg-sky-500',                 label: 'Selecting executor',                         chip: 'Selecting',       chipCls: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30' },
   picked_up:        { spin: true,  spinCls: 'border-cyan-500/25 border-t-cyan-500',       dotCls: 'bg-cyan-500',                label: 'A worker picked this up and is starting',    chip: 'Picked up',       chipCls: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30' },
   starting:         { spin: true,  spinCls: 'border-cyan-500/25 border-t-cyan-500',       dotCls: 'bg-cyan-500',                label: 'Starting the selected executor',             chip: 'Starting',         chipCls: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30' },
@@ -117,6 +130,7 @@ const STATUS: Record<LiveStatus, { spin: boolean; spinCls: string; dotCls: strin
 function statusFromLifecycle(card: LiveCard): LiveStatus {
   switch (card.lifecyclePhase) {
     case 'queued': return 'queued';
+    case 'preparing_inputs': return 'preparing_inputs';
     case 'selecting_executor': return 'selecting';
     case 'claimed': return 'picked_up';
     case 'starting': return 'starting';
@@ -228,6 +242,12 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           jwt: session?.access_token, method: 'POST',
         });
         setStoppingRunIds((p) => { const n = new Set(p); n.add(card.runId!); return n; });
+      } else if (card.status === 'preparing_inputs' && card.requestId) {
+        await callBackend(`/api/v2/me/run-input-preparations/${encodeURIComponent(card.requestId)}/cancel`, {
+          jwt: session?.access_token, method: 'POST',
+        });
+        await desktopBridge()?.cancelRunInputPreparation?.(card.requestId).catch(() => null);
+        setCancelledReqIds((p) => { const n = new Set(p); n.add(card.requestId!); return n; });
       } else if (card.requestId) {
         await callBackend(`/api/v2/me/run-requests/${encodeURIComponent(card.requestId)}`, {
           jwt: session?.access_token, method: 'PATCH', body: { status: 'cancelled' },
@@ -428,9 +448,14 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     {c.currentStepLabel ? ` · ${c.currentStepLabel}` : ''}
                   </div>
                 ) : null}
+                {c.status === 'preparing_inputs' && c.totalBytes && c.totalBytes > 0 ? (
+                  <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300 mt-0.5">
+                    {Math.min(100, Math.floor((Number(c.bytesRead || 0) / c.totalBytes) * 100))}% verified
+                  </div>
+                ) : null}
                 {(['failed', 'start_failed', 'claim_expired'] as LiveStatus[]).includes(c.status) && c.failureReason ? (
                   <div className="mt-1 text-[11px] text-rose-500 leading-snug line-clamp-2">
-                    {c.failureReason}
+                    {visibleFailure(c.failureReason)}
                   </div>
                 ) : null}
                 {(['switching', 'resuming', 'fallback_blocked'] as LiveStatus[]).includes(c.status) && c.fallbackReason ? (
@@ -466,7 +491,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               )}
               {/* Cancel a QUEUED run before it's picked up (catch it before it
                   spends). Opens a confirm; stops the drainer/Claude from running it. */}
-              {(['queued', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'] as LiveStatus[]).includes(c.status) && c.requestId && !c.runId && (
+              {(['queued', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'] as LiveStatus[]).includes(c.status) && c.requestId && !c.runId && c.preparationCancelable !== false && (
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancel(c); }}
@@ -525,6 +550,9 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           // the card, never within it. (No stopPropagation needed out here — there
           // is no longer an ancestor navigation to swallow.)
           const showRetry = (c.status === 'start_failed' || c.status === 'claim_expired') && !!c.skillSlug;
+          const showPreparationRetry = c.status === 'failed' && !c.runId && !!c.requestId
+            && (String(c.failureReason || '').startsWith('desktop_preparation_')
+              || c.failureReason === 'run_enqueue_interrupted');
           const card = linkable ? (
             <Link href={href!} className={`${cls} hover:border-ink-700 transition-colors`}>{body}</Link>
           ) : (
@@ -540,6 +568,14 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     className="inline-block text-[11px] font-medium text-sky-500 hover:text-sky-400 px-2 py-1 rounded border border-sky-500/30"
                   >
                     Retry from agent
+                  </Link>
+                </div>
+              )}
+              {showPreparationRetry && (
+                <div className="mt-1.5 ml-7">
+                  <Link href={`/workflows/${encodeURIComponent(c.skillSlug)}`}
+                    className="inline-block text-[11px] font-medium text-sky-500 hover:text-sky-400 px-2 py-1 rounded border border-sky-500/30">
+                    Select file and try again
                   </Link>
                 </div>
               )}

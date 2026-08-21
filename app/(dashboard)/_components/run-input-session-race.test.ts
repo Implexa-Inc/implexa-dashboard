@@ -49,7 +49,7 @@ test('a late saved-source result cannot overwrite a newer manual file or folder'
     'saved verification checks its starting revision before applying either a binding or an error');
 });
 
-test('manual input preparation is single-flight and blocks submission', () => {
+test('native selection is single-flight but byte verification is deferred until after Run', () => {
   const pick = SRC.slice(SRC.indexOf("async function chooseTypedInput"), SRC.indexOf("async function verifySavedFileInputs"));
   const submit = SRC.slice(SRC.indexOf("async function submitPreRun"), SRC.indexOf("async function precheckDuplicate"));
   assert.match(pick, /if \(preparingInputRef\.current\[field\.key\]\) return;/);
@@ -57,7 +57,11 @@ test('manual input preparation is single-flight and blocks submission', () => {
   assert.match(submit, /Object\.keys\(preparingInputRef\.current\)\.length/,
     'the handler refuses a click even before React commits the disabled button');
   assert.match(SRC, /disabled=\{setupSaving \|\| Object\.keys\(preparingInputs\)\.length > 0/,
-    'the rendered primary action stays disabled for the whole native preparation boundary');
+    'the rendered primary action is disabled only while the native selection boundary is open');
+  assert.match(pick, /bridge\.pickDeferredRunInput[\s\S]*setDeferredSelections/,
+    'regular files become opaque selections without waiting for a digest');
+  assert.match(SRC, /startRunInputPreparation\(\{ preparationId, selectionIds \}\)/,
+    'hashing starts only after the durable preparation receipt exists');
 });
 
 test('a successfully queued run retires its session before the next run', () => {

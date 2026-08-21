@@ -217,6 +217,16 @@ test('selecting renders as its own lifecycle phase with a pre-live Cancel action
   assert.equal(container.querySelector('button[aria-label="Stop this run"]'), null);
 });
 
+test('deferred input preparation stays visible with progress and Cancel before executor birth', async () => {
+  await mount([terminalCard({ lifecyclePhase: 'preparing_inputs', status: 'preparing_inputs',
+    headline: 'Preparing local input', bytesRead: 4_294_967_296, totalBytes: 8_589_934_592 })]);
+  assert.match(text(), /Preparing file/);
+  assert.match(text(), /50% verified/);
+  assert.match(text(), /Hashing and verifying the selected file/);
+  assert.ok(container.querySelector('button[aria-label="Cancel this request"]'));
+  assert.equal(container.querySelector('button[aria-label="Stop this run"]'), null);
+});
+
 test('rendered controls switch from Cancel before launch to Stop only while running', async () => {
   await mount([
     terminalCard({ requestId: 'req-switch', lifecyclePhase: 'switching_executor', status: 'switching' }),
