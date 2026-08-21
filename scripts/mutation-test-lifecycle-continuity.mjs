@@ -258,6 +258,12 @@ const mutations = [
       + "    !!c && c.status === 'running' && !!(c.runId || c.requestId);",
   },
 
+  {
+    boundary: 'honesty', name: 'a regression-held card claims to be freshly confirmed', file: REDUCER,
+    from: "    ordered.push({ key, card, freshness: card === item ? 'fresh' : 'retained' });",
+    to: "    ordered.push({ key, card, freshness: 'fresh' });",
+  },
+
   // ── honesty ──────────────────────────────────────────────────────────────
   {
     boundary: 'honesty', name: 'a held card is presented as if it were current', file: COMPONENT,

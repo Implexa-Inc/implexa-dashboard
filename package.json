@@ -36,7 +36,7 @@
     "test:review-spatial-annotation-mutations": "node scripts/mutation-test-review-spatial-annotation.mjs",
     "test:reviewer-resolution-mutations": "node scripts/mutation-test-reviewer-resolution.mjs",
     "test:outcome-orchestration-mutations": "node scripts/mutation-test-outcome-orchestration.mjs",
-  "test:lifecycle-continuity-mutations": "node scripts/mutation-test-lifecycle-continuity.mjs"
+    "test:lifecycle-continuity-mutations": "node scripts/mutation-test-lifecycle-continuity.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

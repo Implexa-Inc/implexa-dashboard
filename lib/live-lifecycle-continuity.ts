@@ -255,7 +255,16 @@ export function reduceLiveFeed<T extends ContinuityCard>(
       key, card, rank: heldRank, terminal: heldTerminal,
       confirmedAt: nowMs, regressionCount, index: ordered.length,
     });
-    ordered.push({ key, card, freshness: 'fresh' });
+    // A HELD CARD IS NOT A CONFIRMED ONE, whichever way it came to be held.
+    //
+    // The monotonic hold keeps the OLD, higher card on screen while the backend
+    // reports a lower state. Publishing that as 'fresh' let both destructive
+    // paths act on it: for up to REGRESSION_TOLERANCE_POLLS the user saw
+    // "Running" with a live Stop for a request the backend had already said was
+    // switching executors and had no bound run — and confirming killed the
+    // ABANDONED attempt while the request carried on under a new one. Same rule
+    // as an omission: hold the display, withhold the certainty.
+    ordered.push({ key, card, freshness: card === item ? 'fresh' : 'retained' });
   }
 
   // Anything the response did not mention. A terminal state retires immediately

@@ -272,7 +272,26 @@ test('progression is monotonic: a lower state does not flicker over a higher one
   const running = feed(emptyContinuityState(), [card({ status: 'running', runId: RUN })], T0);
   const flicker = feed(running.state, [card({ status: 'queued', runId: null })], T0 + 5_000);
   assert.equal(flicker.cards[0].status, 'running', 'a backwards report inside the window does not repaint');
-  assert.equal(flicker.cards[0].freshness, 'fresh');
+  // …but it is HELD, not confirmed, and it says so. Publishing a held card as
+  // fresh let a Stop fire at a state the backend had already superseded.
+  assert.equal(flicker.cards[0].freshness, 'retained');
+  assert.equal(cancellationTarget(flicker.cards[0]), null,
+    'no destructive action on a state we are not confirming');
+});
+
+test('a regression-held card offers no destructive control while it is held', () => {
+  // The exact shape: the backend says the executor was fenced and the request
+  // now has NO bound run, while the display still reads "Running" with the old
+  // run id. Acting on that killed the abandoned attempt.
+  const running = feed(emptyContinuityState(), [card({ status: 'running', runId: RUN })], T0);
+  const fenced = feed(running.state, [card({
+    status: 'switching', runId: null, cancelable: true,
+    fallbackReason: 'the executor was fenced mid-step',
+  })], T0 + 15_000);
+  assert.equal(fenced.cards[0].status, 'running', 'the display stays monotonic');
+  assert.equal(fenced.cards[0].freshness, 'retained', 'the certainty does not');
+  assert.equal(cancellationTarget(fenced.cards[0]), null);
+  assert.equal(freshnessNotice(fenced.cards[0].freshness), 'Updating status…');
 });
 
 test('AT THE REAL POLL CADENCE the backend wins — the window must not self-refresh', () => {

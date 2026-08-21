@@ -66,7 +66,11 @@ async function renderFeed(steps: Step[]) {
   const at = async (index: number) => {
     const before = backend.polls();
     backend.release(index);
-    const deadline = Date.now() + 5_000;
+    // A WALL-CLOCK deadline in a suite that runs 144 files concurrently is a
+    // flake waiting to happen: the component's interval is 10ms of its own time,
+    // but a loaded event loop can take far longer to get there. Generous, and it
+    // still fails loudly rather than silently grading the wrong step.
+    const deadline = Date.now() + 30_000;
     while ((backend.lastServed() !== index || backend.polls() <= before) && Date.now() < deadline) {
       await flush(POLL_MS);
     }
@@ -412,11 +416,71 @@ test('confirming a Stop after the card went stale does not fire the kill', async
 
     await at(1);   // a poll lands while the user reads
 
-    const confirm = buttons(rendered, /^\s*Stop run\s*$/);
-    if (confirm.length) await rendered.click(confirm[confirm.length - 1]);
-    const kills = rendered.calls.backend.filter((c) => c.path.includes('/cancel'));
+    // The dialog is still open and its confirm button is still there — it has
+    // simply stopped calling itself "Stop run", because the card is no longer a
+    // state we confirm. CLICK IT ANYWAY: the point is that confirming does
+    // nothing, not that the button vanished. (Matching only /Stop run/ here
+    // would skip the click entirely on green and assert nothing.)
+    const confirm = [...rendered.document.querySelectorAll('button')]
+      .filter((b) => /^\s*(Stop run|Cancel run)\s*$/.test(b.textContent || ''));
+    assert.ok(confirm.length >= 1, 'the dialog is still open and still confirmable');
+    await rendered.click(confirm[confirm.length - 1]);
+    const kills = rendered.calls.backend.filter((c) => c.path.includes('/cancel')
+      || c.path.includes('/run-requests/'));
     assert.equal(kills.length, 0,
       'a kill must not fire at a state we are no longer confirming');
     assert.ok(rendered.queryByText(/Updating status…/), 'and the card is honest about why');
+  } finally { rendered.cleanup(); }
+});
+
+// ── the monotonic hold withholds certainty, not just the repaint ────────────
+test('a fenced executor fallback never shows Running with a live Stop', async () => {
+  const fenced = prep({
+    status: 'switching', lifecyclePhase: 'switching_executor', runId: null,
+    fallbackReason: 'the executor was fenced mid-step', cancelable: true,
+    bytesRead: null, totalBytes: null,
+  });
+  const { rendered, at } = await renderFeed([
+    { items: [prep({ status: 'running', lifecyclePhase: 'running', runId: RUN, bytesRead: null, totalBytes: null })] },
+    { items: [fenced] },
+  ]);
+  try {
+    assert.equal(buttons(rendered, /Stop run/).length, 1, 'a live run can be stopped');
+    await at(1);
+
+    // The hold is counted in POLLS, so a test cannot pin which side of it any
+    // single observation lands on — and pinning one is how a test flakes. The
+    // INVARIANT is what matters, and it must hold at every observation: once the
+    // backend has said the executor was fenced and this request has no bound run,
+    // the display may keep reading "Running" (that is the hold doing its job) but
+    // it must never offer to kill RUN — that would kill the abandoned attempt
+    // while the work carries on under a new executor.
+    let sawHeld = false;
+    let sawAccepted = false;
+    for (let observation = 0; observation < 8; observation += 1) {
+      const showsRunning = !!rendered.queryByText(/Running/);
+      const stops = buttons(rendered, /Stop run/).length;
+      assert.equal(showsRunning && stops > 0, false,
+        'a superseded state must never carry a live kill');
+      if (showsRunning) {
+        sawHeld = true;
+        assert.ok(rendered.queryByText(/Updating status…/), 'a held card says it is being re-checked');
+      }
+      if (showsRunning) {
+        assert.equal(buttons(rendered, /Cancel request/).length, 0,
+          'nor any other action, while the state is only held');
+      }
+      if (rendered.queryByText(/Switching/)) sawAccepted = true;
+      await rendered.act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    }
+    assert.ok(sawHeld || sawAccepted, 'the card must be in one of the two legitimate states');
+    assert.ok(sawAccepted, 'and the backend must win within a bounded number of polls');
+    assert.ok(rendered.queryByText(/the executor was fenced mid-step/),
+      'bringing the reason the user needs with it');
+    // And once accepted, the control the frozen card had been hiding is back —
+    // correctly bound to the request rather than to the abandoned run.
+    assert.equal(buttons(rendered, /Cancel request/).length, 1,
+      'a switching request IS cancellable; the hold was withholding that too');
+    assert.equal(buttons(rendered, /Stop run/).length, 0, 'and there is no run to stop');
   } finally { rendered.cleanup(); }
 });
