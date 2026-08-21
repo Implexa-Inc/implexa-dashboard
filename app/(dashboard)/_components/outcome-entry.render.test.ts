@@ -266,6 +266,14 @@ test('large local input verification reports byte progress, makes the no-upload 
       'an unknown Desktop phase fails closed instead of becoming a cancel authority');
 
     await rendered.act(() => progressListener?.({
+      operationId: 'noncancelable-video', inputKey: 'presenter_video', phase: 'verifying_local',
+      bytesRead: 2 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: 100, etaSeconds: 10, cancelable: false,
+    }));
+    assert.equal(rendered.queryByText(/not uploading/i), null,
+      'a noncancelable event cannot mint a cancel affordance merely by naming the verification phase');
+
+    await rendered.act(() => progressListener?.({
       operationId: 'verify-8gb-video', inputKey: 'presenter_video', phase: 'verifying_local',
       bytesRead: 2 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
       bytesPerSecond: 100, etaSeconds: 10, cancelable: true,
@@ -319,6 +327,20 @@ test('missing-plan input verification renders progress beside the input that ini
     assert.match(missing.textContent || '', /presenter video · 1\.0 GB of 8\.0 GB · 13%/);
     assert.equal(rendered.document.querySelectorAll('[aria-label="Local input verification"]').length, 1,
       'the same operation is not duplicated above and inside the plan');
+    await rendered.act(() => progressListener?.({
+      operationId: 'other-plan-video', inputKey: 'presenter_video', phase: 'registering',
+      bytesRead: 8 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: null, etaSeconds: null, cancelable: false,
+    }));
+    assert.equal(rendered.document.querySelectorAll('[aria-label="Local input verification"]').length, 1,
+      'another same-key operation cannot hide the active operation');
+    await rendered.act(() => progressListener?.({
+      operationId: 'plan-video', inputKey: 'presenter_video', phase: 'registering',
+      bytesRead: 8 * 1024 ** 3, totalBytes: 8 * 1024 ** 3,
+      bytesPerSecond: null, etaSeconds: null, cancelable: false,
+    }));
+    assert.equal(rendered.queryByText(/not uploading/i), null,
+      'the exact operation loses its cancel affordance before registration commits');
   } finally { rendered.cleanup(); }
 });
 

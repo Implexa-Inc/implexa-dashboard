@@ -65,9 +65,14 @@ export default function OutcomeEntry() {
     setInDesktop(!!bridge?.pickRunInput);
     if (!bridge?.onRunInputProgress) return;
     const unsubscribe = bridge.onRunInputProgress((progress) => {
-      if (!pickerInFlight.current || progress.phase !== 'verifying_local' || progress.inputKey !== pendingInputKey.current) return;
+      if (!pickerInFlight.current || progress.inputKey !== pendingInputKey.current) return;
       const active = activeVerificationOperation.current;
       if (active && active !== progress.operationId) return;
+      if (progress.phase === 'registering') {
+        if (active === progress.operationId) setVerificationProgress(null);
+        return;
+      }
+      if (progress.phase !== 'verifying_local' || progress.cancelable !== true) return;
       activeVerificationOperation.current = progress.operationId;
       setVerificationProgress(progress);
     });
