@@ -7,7 +7,7 @@ const running = fs.readFileSync(path.join(process.cwd(), 'app/(dashboard)/_compo
 const building = fs.readFileSync(path.join(process.cwd(), 'app/(dashboard)/_components/building-agents.tsx'), 'utf8');
 
 test('claim-only requests expose Cancel, never Stop', () => {
-  assert.match(running, /\['queued', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\][\s\S]*c\.requestId && !c\.runId/);
+  assert.match(running, /\['queued', 'installing_media_support', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\][\s\S]*c\.requestId && !c\.runId/);
   assert.match(running, /c\.status === 'running' && \(c\.runId \|\| c\.requestId\)/);
   assert.match(running, /const isRunningCancel = \(c:[^\n]+c\.status === 'running' && !!\(c\.runId \|\| c\.requestId\)/);
   assert.match(running, />\s*Cancel request\s*<\/button>/);
