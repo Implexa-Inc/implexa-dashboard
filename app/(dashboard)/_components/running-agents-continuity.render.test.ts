@@ -91,6 +91,12 @@ function buttons(rendered: { document: Document }, label: RegExp): HTMLButtonEle
     .filter((b) => label.test(b.textContent || '')) as HTMLButtonElement[];
 }
 
+// ASSERT ON BOOLEANS, NOT ON NODES. `assert.equal(queryByText(…), null)` hands a
+// jsdom Element to assert's inspector when it fails; serialising one drives the
+// runner to SIGKILL at ~30s and the failure is reported with no test name and no
+// message — so a mutation harness records a kill with no evidence of what caught
+// it. `!!x, false` fails in under a second with the message you wrote.
+
 /** The identity each rendered card is actually keyed by, in render order. */
 function renderedKeys(rendered: { document: Document }): string[] {
   return [...rendered.document.querySelectorAll('[data-continuity-key]')]
@@ -132,7 +138,7 @@ test('Preparing → Finalizing → Queued → Selecting → Starting → Running
       if (step > 0) await at(step);
       assert.ok(rendered.queryByText(new RegExp(chip)), `step ${step}: expected the ${chip} chip`);
       assert.equal(cardCount(rendered), 1, `step ${step}: exactly one card`);
-      assert.equal(rendered.queryByText(/Updating status…/), null, `step ${step}: no gap was needed`);
+      assert.equal(!!rendered.queryByText(/Updating status…/), false, `step ${step}: no gap was needed`);
     }
   } finally { rendered.cleanup(); }
 });
@@ -165,7 +171,7 @@ test('a same-id successor replaces its predecessor without duplicating the card'
     assert.deepEqual(renderedKeys(rendered), [REQ],
       'the identity survives the run handoff — the card does not change hands');
     assert.ok(rendered.queryByText(/Running/));
-    assert.equal(rendered.queryByText(/Preparing file/), null);
+    assert.equal(!!rendered.queryByText(/Preparing file/), false);
   } finally { rendered.cleanup(); }
 });
 
@@ -215,7 +221,7 @@ test('a terminal state retires retention immediately — no ghost card', async (
     assert.ok(rendered.queryByText(/Failed/), 'the terminal state renders');
     await at(2);
     assert.equal(cardCount(rendered), 0, 'a terminal item is not held open across the gap');
-    assert.equal(rendered.queryByText(/Updating status…/), null);
+    assert.equal(!!rendered.queryByText(/Updating status…/), false);
   } finally { rendered.cleanup(); }
 });
 
@@ -532,8 +538,8 @@ test('a dialog does not spring back open when its card returns', async () => {
 
     await at(3);
     assert.equal(cardCount(rendered), 1, 'the request is back');
-    assert.equal(rendered.queryByText(/This will stop/), null,
+    assert.equal(!!rendered.queryByText(/This will stop/), false,
       'a destructive dialog the user did not reopen must not reopen');
-    assert.equal(rendered.queryByText(/This will cancel/), null);
+    assert.equal(!!rendered.queryByText(/This will cancel/), false);
   } finally { rendered.cleanup(); }
 });
