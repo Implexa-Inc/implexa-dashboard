@@ -213,11 +213,12 @@ const mutations = [
     from: '  if (isTerminalStatus(card.status) || card.isTerminal === true) return null;',
     to: '  if (false) return null;',
   },
-  {
-    boundary: 'cancellation', name: 'the component cancels whatever id is on the card rather than the resolved target', file: COMPONENT,
-    from: '    const target = cancellationTarget(card);\n    if (!isRunningCancel(card) && !target) return;',
-    to: '    const target = card.requestId ? { requestId: card.requestId } : null;',
-  },
+  // NOT MUTATED, deliberately: doCancel's own no-target guard is unreachable by
+  // construction. The dialog withdraws the destructive action whenever no target
+  // exists (`confirmHeld`), and doCancel is reached only from that button — so no
+  // fixture can drive a targetless call, and a mutant for it could only ever be a
+  // permanent survivor. The guard stays as insurance against a future caller; the
+  // rules it consults are mutated individually above.
   {
     boundary: 'cancellation', name: 'the Cancel button ignores the shared authority rule', file: COMPONENT,
     from: '              {CANCELLABLE_STATUSES.has(c.status) && !c.runId && c.preparationCancelable !== false && cancellationTarget(c) && (',
@@ -273,6 +274,17 @@ const mutations = [
     boundary: 'cancellation', name: 'the dialog key outlives the card it named', file: COMPONENT,
     from: '    if (confirmCancelKey && !confirmCancel) setConfirmCancelKey(null);',
     to: '    if (false) setConfirmCancelKey(null);',
+  },
+
+  {
+    boundary: 'honesty', name: 'a held card is described as pre-execution and offered an inert kill', file: COMPONENT,
+    from: '  const confirmHeld = !!confirmCancel\n    && !isRunningCancel(confirmCancel)\n    && !cancellationTarget(confirmCancel);',
+    to: '  const confirmHeld = false;',
+  },
+  {
+    boundary: 'honesty', name: 'the destructive button stays visible on a held card', file: COMPONENT,
+    from: '          {!confirmHeld && (',
+    to: '          {true && (',
   },
 
   // ── honesty ──────────────────────────────────────────────────────────────

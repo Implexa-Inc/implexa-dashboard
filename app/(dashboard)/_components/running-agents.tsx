@@ -297,6 +297,10 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
     // we are only HOLDING through a gap, a phase the backend has closed, or a
     // terminal state from firing a destructive call at work whose current state
     // we are not confirming. The running case is the run plane's, keyed by run.
+    // Insurance, not the fence. The dialog withdraws this action entirely when no
+    // target exists, so this cannot fire today — it is here so a future caller
+    // that skips the dialog cannot fire a destructive call at a state nothing is
+    // confirming.
     const target = cancellationTarget(card);
     if (!isRunningCancel(card) && !target) return;
     setCancelBusy(true);
@@ -464,6 +468,17 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
   // leaves the feed entirely the dialog closes with it — there is nothing left
   // to confirm.
   const confirmCancel = resolveConfirmTarget(list, confirmCancelKey);
+  /**
+   * The dialog has a card but NO destructive action available for it.
+   *
+   * Derived from the same two authority rules the action itself uses, rather
+   * than re-deriving "is it held" — a duplicated check drifts, and drifts
+   * silently: while the dialog kept its own copy, removing the freshness term
+   * from isRunningCancel changed nothing observable, so nothing could catch it.
+   */
+  const confirmHeld = !!confirmCancel
+    && !isRunningCancel(confirmCancel)
+    && !cancellationTarget(confirmCancel);
   // A DIALOG THE USER DID NOT REOPEN MUST NOT REOPEN. The key outlived the card
   // it named: open Stop, let the item drop out of the feed (the dialog closes
   // with it), and when the same request came back the key still matched — so a
@@ -814,10 +829,24 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
       <Modal
         open={!!confirmCancel}
         onClose={() => { if (!cancelBusy) setConfirmCancelKey(null); }}
-        title={isRunningCancel(confirmCancel) ? 'Stop this run?' : 'Cancel this run?'}
+        title={confirmHeld ? 'Checking on this run…'
+          : isRunningCancel(confirmCancel) ? 'Stop this run?' : 'Cancel this run?'}
         maxWidth="max-w-sm"
       >
-        {isRunningCancel(confirmCancel) ? (
+        {/* A DIALOG MUST NOT DESCRIBE A STATE IT IS NOT CONFIRMING. Both
+            destructive paths refuse a held card — correctly — but the copy
+            underneath fell through to "before an executor begins work" about a
+            run that is executing, and offered an enabled red button that did
+            nothing and said nothing. Say what is actually true, and disable the
+            action rather than letting it silently no-op. */}
+        {confirmHeld ? (
+          <p className="text-sm text-ink-200 leading-relaxed">
+            We&apos;ve lost sight of{' '}
+            <span className="font-medium text-ink-50">{confirmCancel ? humanize(confirmCancel.skillSlug) : 'this run'}</span>{' '}
+            for a moment and are re-checking its status. We won&apos;t stop a run whose
+            current state we can&apos;t confirm — give it a few seconds and try again.
+          </p>
+        ) : isRunningCancel(confirmCancel) ? (
           <p className="text-sm text-ink-200 leading-relaxed">
             This will stop{' '}
             <span className="font-medium text-ink-50">{confirmCancel ? humanize(confirmCancel.skillSlug) : 'this run'}</span>{' '}
@@ -838,16 +867,18 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
             disabled={cancelBusy}
             className="btn-outline text-sm px-4 py-2 disabled:opacity-50"
           >
-            Keep it
+            {confirmHeld ? 'Close' : 'Keep it'}
           </button>
-          <button
-            type="button"
-            onClick={() => confirmCancel && doCancel(confirmCancel)}
-            disabled={cancelBusy}
-            className="text-sm px-4 py-2 rounded-lg bg-rose-500 text-white hover:bg-rose-400 font-medium disabled:opacity-50"
-          >
-            {cancelBusy ? (isRunningCancel(confirmCancel) ? 'Stopping…' : 'Cancelling…') : (isRunningCancel(confirmCancel) ? 'Stop run' : 'Cancel run')}
-          </button>
+          {!confirmHeld && (
+            <button
+              type="button"
+              onClick={() => confirmCancel && doCancel(confirmCancel)}
+              disabled={cancelBusy}
+              className="text-sm px-4 py-2 rounded-lg bg-rose-500 text-white hover:bg-rose-400 font-medium disabled:opacity-50"
+            >
+              {cancelBusy ? (isRunningCancel(confirmCancel) ? 'Stopping…' : 'Cancelling…') : (isRunningCancel(confirmCancel) ? 'Stop run' : 'Cancel run')}
+            </button>
+          )}
         </div>
       </Modal>
     </section>

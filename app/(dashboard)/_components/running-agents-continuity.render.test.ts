@@ -422,15 +422,15 @@ test('confirming a Stop after the card went stale does not fire the kill', async
 
     await at(1);   // a poll lands while the user reads
 
-    // The dialog is still open and its confirm button is still there — it has
-    // simply stopped calling itself "Stop run", because the card is no longer a
-    // state we confirm. CLICK IT ANYWAY: the point is that confirming does
-    // nothing, not that the button vanished. (Matching only /Stop run/ here
-    // would skip the click entirely on green and assert nothing.)
-    const confirm = [...rendered.document.querySelectorAll('button')]
-      .filter((b) => /^\s*(Stop run|Cancel run)\s*$/.test(b.textContent || ''));
-    assert.ok(confirm.length >= 1, 'the dialog is still open and still confirmable');
-    await rendered.click(confirm[confirm.length - 1]);
+    // The dialog is still open, but the destructive action is GONE — a card we
+    // are only holding is not one we may act on, and an enabled button that
+    // silently no-ops is worse than no button. Confirm both halves: nothing is
+    // offered, and nothing fires.
+    assert.equal(buttons(rendered, /^\s*(Stop run|Cancel run)\s*$/).length, 0,
+      'no destructive action may be offered for a state we are not confirming');
+    const closers = buttons(rendered, /^\s*Close\s*$/);
+    assert.equal(closers.length, 1);
+    await rendered.click(closers[0]);
     const kills = rendered.calls.backend.filter((c) => c.path.includes('/cancel')
       || c.path.includes('/run-requests/'));
     assert.equal(kills.length, 0,
@@ -486,7 +486,7 @@ test('a fenced executor fallback reaches the screen with its reason and its cont
 // component clears the key whenever that returns null. What a rendered test CAN
 // show is that a dialog stays bound to its own card across a gap rather than
 // re-targeting something else.
-test('a dialog stays bound to its own card across a gap', async () => {
+test('a held card gets honest copy and no destructive action', async () => {
   const running = prep({
     status: 'running', lifecyclePhase: 'running', runId: RUN,
     bytesRead: null, totalBytes: null,
@@ -501,16 +501,24 @@ test('a dialog stays bound to its own card across a gap', async () => {
 
     // A different request arrives; the held card is still ours.
     await at(1);
-    const confirm = [...rendered.document.querySelectorAll('button')]
-      .filter((b) => /^\s*(Stop run|Cancel run)\s*$/.test(b.textContent || ''));
-    if (confirm.length) await rendered.click(confirm[confirm.length - 1]);
+    // A LOOP OVER ZERO CALLS ASSERTS NOTHING. The freshness rule refuses a held
+    // card, so no call is made — which means "none of the calls named the wrong
+    // request" is vacuously true however the component behaves. Assert the state
+    // the user is actually in.
+    assert.equal(!!rendered.queryByText(/Checking on this run…/), true,
+      'the dialog says it is re-checking rather than describing a state it is not confirming');
+    assert.equal(buttons(rendered, /^\s*(Stop run|Cancel run)\s*$/).length, 0,
+      'and withdraws the destructive action rather than offering an inert one');
+    assert.equal(!!rendered.queryByText(/before an executor begins work/), false,
+      'a running card must never be described as pre-execution');
 
+    const closers = buttons(rendered, /^\s*Close\s*$/);
+    assert.equal(closers.length, 1, 'the only action left is to close it');
+    await rendered.click(closers[0]);
     const calls = rendered.calls.backend.filter((c) => c.path.includes('/cancel')
       || c.path.includes('/run-requests/'));
-    for (const call of calls) {
-      assert.ok(!call.path.includes(OTHER_REQ),
-        `a dialog must never re-target another request, got ${call.path}`);
-    }
+    assert.equal(calls.length, 0, 'and nothing was fired at anything');
+    assert.equal(!!rendered.queryByText(/Checking on this run…/), false, 'the dialog closed');
   } finally { rendered.cleanup(); }
 });
 
