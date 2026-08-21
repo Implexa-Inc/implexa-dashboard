@@ -96,6 +96,62 @@ export type RunStateInfo = {
   estimated: boolean;
 };
 
+/** Queue and execution are one watchable lifecycle on the run details page. */
+export function isWatchableRunState(state: unknown): boolean {
+  return state === 'queued' || state === 'running';
+}
+
+/**
+ * A stale close reason on a reserved row must never turn an active queue/start
+ * transition into the terminal amber "This run stalled" conclusion. Close
+ * failure explanations become user-facing only after the run has actually left
+ * its active queued/running lifecycle (or when the authoritative state itself
+ * needs attention). Successful settlement provenance must be passed as null.
+ */
+export function shouldShowRunProblem(
+  info: Pick<RunStateInfo, 'state' | 'attention'>,
+  failureExplanation: string | null,
+): boolean {
+  if (info.attention || info.state === 'failed') return true;
+  return !!failureExplanation && info.state !== 'queued' && info.state !== 'running';
+}
+
+/**
+ * Compatibility recovery for runs closed by the pre-fix broker settlement path.
+ *
+ * That path could turn a clean executor exit plus intermediate artifacts into a
+ * completed run even though its structured checklist was still sitting at an
+ * approval gate. Free-text heartbeat prose is deliberately not authority here:
+ * recovery requires a running approval/review step, completed work before it,
+ * pending work after it, validated review/source evidence, and no final output.
+ */
+export function isApprovalContinuationRecovery({
+  runState,
+  reviewStatus,
+  outputMarkdown,
+  steps,
+  hasReviewEvidence,
+  hasFinalOutput,
+}: {
+  runState: unknown;
+  reviewStatus: unknown;
+  outputMarkdown: unknown;
+  steps: RunStep[];
+  hasReviewEvidence: boolean;
+  hasFinalOutput: boolean;
+}): boolean {
+  if (runState !== 'completed' || reviewStatus === 'pending' || reviewStatus === 'needs_input') return false;
+  if (typeof outputMarkdown === 'string' && outputMarkdown.trim()) return false;
+  if (!hasReviewEvidence || hasFinalOutput || !Array.isArray(steps) || steps.length < 2) return false;
+
+  const gate = steps.find((step) => step.status === 'running');
+  if (!gate || typeof gate.label !== 'string'
+      || !/\b(approval|approve|review|decision|confirm)\b/i.test(gate.label)) return false;
+
+  return steps.some((step) => step.index < gate.index && step.status === 'done')
+    && steps.some((step) => step.index > gate.index && step.status === 'pending');
+}
+
 const VALID: ReadonlySet<RunState> = new Set(['queued', 'running', 'stalled', 'completed', 'failed']);
 
 // A failed run whose output names a missing permission. The run-scheduled wrapper

@@ -21,7 +21,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
-import type { RunStep } from '@/lib/run-state';
+import { isWatchableRunState, type RunStep } from '@/lib/run-state';
 import RunStepsList from './run-steps-list';
 
 const POLL_MS = 6000;
@@ -29,22 +29,23 @@ const POLL_MS = 6000;
 export default function RunStepChecklist({
   runId,
   initialSteps,
-  live,
+  initialRunState,
 }: {
   runId: string;
   initialSteps: RunStep[];
-  /** True when the run was 'running' at page load — start polling for updates. */
-  live: boolean;
+  /** Queue and execution are one live lifecycle; watch across that boundary. */
+  initialRunState: string;
 }) {
   const supabase = createClient();
   const router = useRouter();
   const [steps, setSteps] = useState<RunStep[]>(initialSteps);
-  const [running, setRunning] = useState(live);
+  const [running, setRunning] = useState(initialRunState === 'running');
   const stop = useRef(false);
 
   useEffect(() => {
-    if (!live) return;
+    if (!isWatchableRunState(initialRunState)) return;
     stop.current = false;
+    let observedState = initialRunState;
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
       try {
@@ -52,27 +53,37 @@ export default function RunStepChecklist({
         const res = await callBackend(`/api/v2/scheduled-skills/runs/${encodeURIComponent(runId)}`, { jwt: session?.access_token });
         const item = res?.item;
         if (item) {
+          let refreshedThisPoll = false;
           if (Array.isArray(item.steps_state)) setSteps(item.steps_state as RunStep[]);
-          // Stop once the run is no longer in flight — the server finalizes the
-          // checklist (all done / mid-step failed) on close, so one last poll
-          // lands the terminal state, then we idle.
-          const stillRunning = item.run_state === 'running' && item.review_status !== 'pending' && item.review_status !== 'needs_input';
+          const held = item.review_status === 'pending' || item.review_status === 'needs_input';
+          const stillRunning = item.run_state === 'running' && !held;
+          const stillWatchable = isWatchableRunState(item.run_state) && !held;
           setRunning(stillRunning);
-          // The run just left "running" (completed, held for approval, or failed).
-          // The steps poll keeps the checklist fresh, but the REST of the page — the
-          // status badge, the Approve/Mark-done actions, the deliverable — is
-          // server-rendered and was going stale until a manual reload (founder: "no
-          // way to know it finished without leaving and coming back"). Refresh the
-          // server components ONCE on that transition so the whole page catches up.
-          if (!stillRunning) { stop.current = true; router.refresh(); }
+          // The page can be opened while the reserved run is still queued. Keep
+          // polling through queued -> running, and refresh the server-rendered
+          // badge once at every observed lifecycle transition. Previously the
+          // poller did not mount for queued runs, so the entire page stayed frozen
+          // until a manual/browser refresh even while heartbeats were arriving.
+          if (item.run_state !== observedState) {
+            observedState = item.run_state;
+            refreshedThisPoll = true;
+            router.refresh();
+          }
+          // The server finalizes the checklist on completion/hold/failure. Land
+          // that final state, refresh the rest of the page, then stop polling.
+          if (!stillWatchable) {
+            stop.current = true;
+            if (!refreshedThisPoll) router.refresh();
+          }
         }
       } catch { /* transient — keep the last good state, try again */ }
       if (!stop.current) timer = setTimeout(poll, POLL_MS);
     }
-    timer = setTimeout(poll, POLL_MS);
+    // Do not add a full polling interval to the already-visible queue handoff.
+    timer = setTimeout(poll, 1_000);
     return () => { stop.current = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runId, live]);
+  }, [runId, initialRunState]);
 
   if (!steps?.length) return null;
   // One renderer, shared with each Production node section: two implementations
