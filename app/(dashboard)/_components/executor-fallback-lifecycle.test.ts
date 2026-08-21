@@ -24,7 +24,11 @@ test('renders every executor fallback lifecycle state distinctly', () => {
 });
 
 test('Cancel remains pre-live and Stop is fenced to running only', () => {
-  assert.match(source, /\['queued', 'installing_media_support', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\]/);
+  // The cancellable phase list became a named set when cancellation gained a
+  // second gate (the backend's per-request `cancelable`, and the rule that a
+  // card we are only HOLDING through a gap may not fire a destructive action).
+  // Same fence, one home: lib/live-lifecycle-continuity#cancellationTarget.
+  assert.match(source, /CANCELLABLE_STATUSES: ReadonlySet<string> = new Set\(\[\s*'queued', 'installing_media_support', 'preparing_inputs', 'selecting',\s*'picked_up', 'starting', 'switching', 'resuming',\s*\]\)/);
   assert.match(source, /c\.status === 'running'[\s\S]{0,700}Stop run/);
   assert.doesNotMatch(source, /c\.status === 'switching'[\s\S]{0,120}Stop run/);
 });

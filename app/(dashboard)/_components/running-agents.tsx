@@ -17,6 +17,14 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import { parseLiveItems } from '@/lib/live-feed';
+import {
+  reduceLiveFeed,
+  emptyContinuityState,
+  cancellationTarget,
+  freshnessNotice,
+  type ContinuityState,
+  type Freshness,
+} from '@/lib/live-lifecycle-continuity';
 import { queuedWaitNotice } from '@/lib/queued-wait-copy';
 import Modal from './modal';
 import StuckRunButton from './stuck-run-button';
@@ -87,6 +95,21 @@ type LiveCard = {
 };
 
 const POLL_MS = 15000;
+
+/**
+ * A card as RENDERED: the backend's item plus what the continuity cache knows
+ * about it — the identity it is being followed under, and whether this is a
+ * state we just confirmed or one we are holding through a gap.
+ */
+type RenderedCard = LiveCard & { continuityKey: string; freshness: Freshness };
+
+// The phases in which cancelling a REQUEST is a coherent thing to offer. The
+// backend's own `cancelable` narrows this further per request (a finalizing
+// preparation is past the fence); both must agree before the button renders.
+const CANCELLABLE_STATUSES: ReadonlySet<string> = new Set([
+  'queued', 'installing_media_support', 'preparing_inputs', 'selecting',
+  'picked_up', 'starting', 'switching', 'resuming',
+]);
 
 function visibleFailure(reason: string | null | undefined): string | null {
   if (!reason) return null;
@@ -181,15 +204,30 @@ function elapsedMs(iso: string | null): number {
  */
 export type LiveState = { status: 'loading' | 'ready' | 'unavailable'; count: number };
 
-export default function RunningAgents({ alertsOnly = false, bare = false, onState }: {
+export default function RunningAgents({ alertsOnly = false, bare = false, onState, pollMs = POLL_MS }: {
   alertsOnly?: boolean;
   /** Nested inside a parent that owns the heading (see TodayFeed). */
   bare?: boolean;
   /** Reports what the live read knows, so the parent can own the all-clear honestly. */
   onState?: (s: LiveState) => void;
+  /**
+   * Poll cadence. Overridable for ONE reason: the continuity behaviour this
+   * component exists to get right — a card surviving a successful response that
+   * omits it — only appears ACROSS polls, and a rendered test that cannot reach
+   * the second poll can only ever grade the first. The pure rules are covered in
+   * lib/live-lifecycle-continuity; this seam is what lets a real DOM grade the
+   * WIRING of those rules. Production never passes it.
+   */
+  pollMs?: number;
 } = {}) {
   const supabase = createClient();
-  const [cards, setCards] = useState<LiveCard[] | null>(null);
+  const [cards, setCards] = useState<RenderedCard[] | null>(null);
+  /**
+   * THE CONTINUITY CACHE. Held in a ref, never persisted: a reload starts from
+   * nothing and converges on whatever the backend says, which is the only way
+   * a local cache can be a gap-filler rather than a second source of truth.
+   */
+  const continuity = useRef<ContinuityState<LiveCard>>(emptyContinuityState<LiveCard>());
   /** The live read failed. Distinct from "no cards" — see the catch in load(). */
   const [failed, setFailed] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -230,13 +268,30 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
   //    flag the executor watches; the headless drainer SIGKILLs its child, an
   //    attended run aborts at its next step. We can't un-spend what's already gone,
   //    so the card flips to "Stopping…" (not hidden) until the executor confirms.
-  const [confirmCancel, setConfirmCancel] = useState<LiveCard | null>(null);
+  /**
+   * The dialog is bound to an IDENTITY, not to a card object.
+   *
+   * Storing the card meant storing a snapshot: the user opens "Cancel this
+   * run?", a poll lands while they read it, and confirming then fired at a state
+   * that had already moved on — a finalizing preparation past its fence, a run
+   * that had already failed, a card we were only holding through a gap. The
+   * current card for this key is resolved at confirm time instead, so the
+   * authority rule grades what is true NOW.
+   */
+  const [confirmCancelKey, setConfirmCancelKey] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelledReqIds, setCancelledReqIds] = useState<Set<string>>(new Set());
   const [stoppingRunIds, setStoppingRunIds] = useState<Set<string>>(new Set());
-  const isRunningCancel = (c: LiveCard | null) => !!c && c.status === 'running' && !!(c.runId || c.requestId);
-  async function doCancel(card: LiveCard) {
+  const isRunningCancel = (c: RenderedCard | null) => !!c && c.status === 'running' && !!(c.runId || c.requestId);
+  async function doCancel(card: RenderedCard) {
     if (cancelBusy) return;
+    // CANCEL NAMES ONE EXACT REQUEST. Resolving the target through the shared
+    // rule — rather than reading `card.requestId` here — is what keeps a card
+    // we are only HOLDING through a gap, a phase the backend has closed, or a
+    // terminal state from firing a destructive call at work whose current state
+    // we are not confirming. The running case is the run plane's, keyed by run.
+    const target = cancellationTarget(card);
+    if (!isRunningCancel(card) && !target) return;
     setCancelBusy(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -245,19 +300,19 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           jwt: session?.access_token, method: 'POST',
         });
         setStoppingRunIds((p) => { const n = new Set(p); n.add(card.runId!); return n; });
-      } else if ((card.status === 'preparing_inputs' || card.status === 'installing_media_support') && card.requestId) {
-        await callBackend(`/api/v2/me/run-input-preparations/${encodeURIComponent(card.requestId)}/cancel`, {
+      } else if (target && (card.status === 'preparing_inputs' || card.status === 'installing_media_support')) {
+        await callBackend(`/api/v2/me/run-input-preparations/${encodeURIComponent(target.requestId)}/cancel`, {
           jwt: session?.access_token, method: 'POST',
         });
-        await desktopBridge()?.cancelRunInputPreparation?.(card.requestId).catch(() => null);
-        setCancelledReqIds((p) => { const n = new Set(p); n.add(card.requestId!); return n; });
-      } else if (card.requestId) {
-        await callBackend(`/api/v2/me/run-requests/${encodeURIComponent(card.requestId)}`, {
+        await desktopBridge()?.cancelRunInputPreparation?.(target.requestId).catch(() => null);
+        setCancelledReqIds((p) => { const n = new Set(p); n.add(target.requestId); return n; });
+      } else if (target) {
+        await callBackend(`/api/v2/me/run-requests/${encodeURIComponent(target.requestId)}`, {
           jwt: session?.access_token, method: 'PATCH', body: { status: 'cancelled' },
         });
-        setCancelledReqIds((p) => { const n = new Set(p); n.add(card.requestId!); return n; });
+        setCancelledReqIds((p) => { const n = new Set(p); n.add(target.requestId); return n; });
       }
-      setConfirmCancel(null);
+      setConfirmCancelKey(null);
     } catch { /* leave the card; the user can retry */ }
     finally { setCancelBusy(false); }
   }
@@ -274,11 +329,15 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
     }
   }, []);
 
-  function maybeNotify(items: LiveCard[]) {
+  function maybeNotify(items: RenderedCard[]) {
     if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
     const first = !seeded.current;
     seeded.current = true;
     for (const c of items) {
+      // A card we are HOLDING through a gap is not a new transition — it is the
+      // same state we already knew. Notifying on it would fire an OS alert for
+      // something that has not changed.
+      if (c.freshness !== 'fresh') continue;
       if (!NOTIFY.has(c.status) || (!c.runId && !c.requestId)) continue;
       const identity = c.runId || c.requestId!;
       const key = `${identity}:${c.status}`;
@@ -302,6 +361,26 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
 
   useEffect(() => {
     let alive = true;
+    /**
+     * Fold one poll into the continuity cache and return what to render.
+     *
+     * THIS USED TO BE `setCards(items)`. The rendered list was therefore only
+     * ever the last response, so a SUCCESSFUL response that happened to omit a
+     * request in flight erased it — which is exactly what the user watched
+     * happen to "Preparing local input — 97% verified" (preparation 5b3c1755-…):
+     * the card vanished, an unrelated older failure floated to the top, and the
+     * same work came back minutes later as "Selecting".
+     *
+     * Folding keeps a known nonterminal request on screen across a lifecycle
+     * handoff, says so honestly while it does, and lets it go on a bound. The
+     * rules — identity, monotonicity, the grace window, terminal retirement —
+     * live in lib/live-lifecycle-continuity, pure and clock-injected.
+     */
+    function fold(input: Parameters<typeof reduceLiveFeed<LiveCard>>[1]): RenderedCard[] {
+      const result = reduceLiveFeed<LiveCard>(continuity.current, input, Date.now());
+      continuity.current = result.state;
+      return result.cards as RenderedCard[];
+    }
     async function load() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -314,27 +393,36 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
         // confident empty list, which is exactly what the all-clear reads.
         // Unreadable is unavailable, not empty. (See lib/live-feed.)
         const items = parseLiveItems<LiveCard>(res);
-        if (items === null) { if (alive) setFailed(true); return; }
+        if (items === null) {
+          const held = fold({ kind: 'unreadable' });
+          if (!alive) return;
+          setFailed(true);
+          if (held.length) setCards(held);
+          return;
+        }
         const normalized = items.map((card) => ({ ...card, status: statusFromLifecycle(card) }));
-        setCards(normalized);
+        const merged = fold({ kind: 'items', items: normalized });
+        setCards(merged);
         setFailed(false);
-        maybeNotify(normalized);
+        maybeNotify(merged);
       } catch {
         // UNAVAILABLE IS NOT EMPTY. This used to `setCards([])`, which made a
         // failed read indistinguishable from "nothing is live" — and a parent
         // counting cards would then report a confident 0. Flag the failure and
-        // LEAVE the last known cards alone: the parent can say "we couldn't
-        // check", and a transient blip doesn't blank a list that was correct a
-        // second ago. (A first-load failure keeps cards null → nothing rendered,
-        // and the parent's warning is the only thing that shows.)
-        if (alive) setFailed(true);
+        // republish the last known cards, marked stale so the surface can say
+        // what it is showing. A first-load failure still leaves cards null →
+        // nothing rendered, and the parent's warning is the only thing that shows.
+        const held = fold({ kind: 'unreadable' });
+        if (!alive) return;
+        setFailed(true);
+        if (held.length) setCards(held);
       }
     }
     load();
-    const t = setInterval(load, POLL_MS);
+    const t = setInterval(load, pollMs);
     return () => { alive = false; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pollMs]);
 
   // On Home we show only the cards that need you (yellow/red); on the Agents page
   // we show everything live. On Home (alertsOnly) we ALSO keep a just-FINISHED run
@@ -356,6 +444,15 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
   const list = (alertsOnly ? (cards ?? []).filter((c) => ALERT_STATUSES.has(c.status) || recentlyDone(c)) : (cards ?? []))
     .filter((c) => !(c.runId && dismissed.has(c.runId)))
     .filter((c) => !(c.requestId && cancelledReqIds.has(c.requestId)));
+
+  // The card the confirm dialog is CURRENTLY about. Resolved from the live list
+  // every render, so a state change while the dialog is open is graded by the
+  // authority rule rather than by a snapshot taken when it opened. If the item
+  // leaves the feed entirely the dialog closes with it — there is nothing left
+  // to confirm.
+  const confirmCancel = confirmCancelKey
+    ? (list.find((c) => c.continuityKey === confirmCancelKey) ?? null)
+    : null;
 
   // Report what the live read KNOWS, so a parent that owns the all-clear
   // (TodayFeed) can distinguish nothing-live from not-known-yet from
@@ -427,7 +524,13 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                 </div>
                 <div className="text-[11px] text-ink-500 truncate">
                   {c.headline ? `${humanize(c.skillSlug)} · ` : ''}
-                  {c.runId && stoppingRunIds.has(c.runId)
+                  {/* HONEST ABOUT WHAT WE ACTUALLY KNOW. A card being held across
+                      a lifecycle handoff, or through a read we couldn't make,
+                      says so instead of presenting a stale state as current —
+                      the card stays, the certainty doesn't. */}
+                  {c.freshness !== 'fresh'
+                    ? <span className="text-ink-400">{freshnessNotice(c.freshness)}</span>
+                    : c.runId && stoppingRunIds.has(c.runId)
                     ? <span className="text-rose-500">Stopping… your Claude wraps up at its next step</span>
                     : c.status === 'action_available' && c.actionLabel
                     ? <span className="text-brand-500">{c.actionLabel}{c.actionCount && c.actionCount > 1 ? ` (+${c.actionCount - 1} more)` : ''}</span>
@@ -494,10 +597,10 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               )}
               {/* Cancel a QUEUED run before it's picked up (catch it before it
                   spends). Opens a confirm; stops the drainer/Claude from running it. */}
-              {(['queued', 'installing_media_support', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'] as LiveStatus[]).includes(c.status) && c.requestId && !c.runId && c.preparationCancelable !== false && (
+              {CANCELLABLE_STATUSES.has(c.status) && !c.runId && c.preparationCancelable !== false && cancellationTarget(c) && (
                 <button
                   type="button"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancel(c); }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancelKey(c.continuityKey); }}
                   title="Cancel this request"
                   aria-label="Cancel this request"
                   className="shrink-0 text-[11px] font-medium text-rose-500 hover:text-rose-400 px-2 py-1 rounded border border-rose-500/30"
@@ -507,10 +610,10 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               )}
               {/* Kill a RUNNING run that's already in flight. The × stays after the
                   flag is set (shows "Stopping…") until the executor confirms the kill. */}
-              {c.status === 'running' && (c.runId || c.requestId) && !(c.runId && stoppingRunIds.has(c.runId)) && (
+              {c.status === 'running' && c.freshness === 'fresh' && (c.runId || c.requestId) && !(c.runId && stoppingRunIds.has(c.runId)) && (
                 <button
                   type="button"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancel(c); }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCancelKey(c.continuityKey); }}
                   title="Stop this run"
                   aria-label="Stop this run"
                   className="shrink-0 text-[11px] font-medium text-rose-500 hover:text-rose-400 px-2 py-1 rounded border border-rose-500/30"
@@ -523,7 +626,11 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
               )}
             </>
           );
-          const key = c.runId || c.requestId || c.skillSlug;
+          // THE DOM IDENTITY IS THE CONTINUITY IDENTITY. This used to fall back
+          // to `skillSlug`, so two live requests for one agent shared a React
+          // key — which is how one request could inherit the other's rendered
+          // card, and with it the Cancel button bound to that card.
+          const key = c.continuityKey;
           const cls = 'group flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3';
           // FOREVER FALLBACK: a run that's stuck (soft heartbeat-stale, or hard
           // stalled) is almost always its dispatcher session waiting on a permission
@@ -562,7 +669,12 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
             <div className={cls}>{body}</div>
           );
           return (
-            <div key={key}>
+            // The continuity identity is both React's reconciliation key and a
+            // DOM attribute. The attribute is not decoration: a React key is
+            // invisible to a rendered test, so without it "this card belongs to
+            // THIS request" is a claim no test can grade — and card identity is
+            // exactly what the production defect got wrong.
+            <div key={key} data-continuity-key={key}>
               {card}
               {showRetry && (
                 <div className="mt-1.5 ml-7">
@@ -682,7 +794,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
 
       <Modal
         open={!!confirmCancel}
-        onClose={() => { if (!cancelBusy) setConfirmCancel(null); }}
+        onClose={() => { if (!cancelBusy) setConfirmCancelKey(null); }}
         title={isRunningCancel(confirmCancel) ? 'Stop this run?' : 'Cancel this run?'}
         maxWidth="max-w-sm"
       >
@@ -703,7 +815,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
         <div className="mt-5 flex items-center justify-end gap-3">
           <button
             type="button"
-            onClick={() => setConfirmCancel(null)}
+            onClick={() => setConfirmCancelKey(null)}
             disabled={cancelBusy}
             className="btn-outline text-sm px-4 py-2 disabled:opacity-50"
           >
