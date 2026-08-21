@@ -343,3 +343,59 @@ test('a locally cancelled request that ran anyway stays visible, with Stop', asy
       'and the user must still be able to stop it');
   } finally { rendered.cleanup(); }
 });
+
+// ── a control that renders must do something ────────────────────────────────
+//
+// An in-flight continue has no bound run: the projection yields
+// {requestId, runId: null, status: 'running'}. The Stop button gate accepts it
+// (status running + a requestId), but if the shared cancellation rule returns no
+// target, doCancel takes no branch at all — the dialog closes and the request
+// keeps running, silently. The base behaviour PATCHed the request.
+test('Stop on a running request with no bound run actually cancels the request', async () => {
+  const CONTINUE = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const { rendered } = await renderFeed([{
+    items: [prep({
+      requestId: CONTINUE, runId: null, status: 'running', lifecyclePhase: 'running',
+      headline: 'tighten the opening', bytesRead: null, totalBytes: null,
+      cancelable: true, preparationCancelable: undefined,
+    })],
+  }]);
+  try {
+    const stop = buttons(rendered, /Stop run/);
+    assert.equal(stop.length, 1, 'the control renders');
+    await rendered.click(stop[0]);
+    const confirm = buttons(rendered, /^\s*Stop run\s*$/).filter((b) => b !== stop[0]);
+    assert.ok(confirm.length >= 1, 'the confirm dialog opened');
+    await rendered.click(confirm[confirm.length - 1]);
+
+    const calls = rendered.calls.backend.filter((c) => c.path.includes('/run-requests/'));
+    assert.equal(calls.length, 1, 'a rendered Stop must issue a call, not close the dialog in silence');
+    assert.ok(calls[0].path.includes(CONTINUE), `and must name the exact request, got ${calls[0].path}`);
+    assert.equal((calls[0].init as { method?: string })?.method, 'PATCH');
+  } finally { rendered.cleanup(); }
+});
+
+// ── the executor fallback, end to end in the DOM ────────────────────────────
+test('a fenced executor fallback reaches the screen instead of freezing on Running', async () => {
+  const fallback = prep({
+    status: 'switching', lifecyclePhase: 'switching_executor', runId: null,
+    fallbackReason: 'the executor was fenced mid-step', cancelable: true,
+    bytesRead: null, totalBytes: null,
+  });
+  const { rendered, at } = await renderFeed([
+    { items: [prep({ status: 'running', lifecyclePhase: 'running', runId: RUN, bytesRead: null, totalBytes: null })] },
+    { items: [fallback] },
+    { items: [fallback] },
+    { items: [fallback] },
+    { items: [fallback] },
+  ]);
+  try {
+    assert.ok(rendered.queryByText(/Running/));
+    for (const step of [1, 2, 3, 4]) await at(step);
+    assert.ok(rendered.queryByText(/Switching/),
+      'a real step back must reach the screen within a bounded number of polls');
+    assert.ok(rendered.queryByText(/the executor was fenced mid-step/),
+      'and bring the reason the user needs with it');
+    assert.equal(cardCount(rendered), 1);
+  } finally { rendered.cleanup(); }
+});

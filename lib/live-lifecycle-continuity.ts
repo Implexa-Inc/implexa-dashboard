@@ -61,6 +61,11 @@ export type ContinuityEntry<T extends ContinuityCard = ContinuityCard> = {
   terminal: boolean;
   /** When this state was last confirmed by a readable response. */
   confirmedAt: number;
+  /**
+   * How many CONSECUTIVE readable polls have reported a lower state than the one
+   * on screen. Reset to 0 the moment the backend agrees, or moves forward.
+   */
+  regressionCount: number;
   /** Where it sat in the last rendered list, so a held card keeps its place. */
   index: number;
 };
@@ -95,12 +100,22 @@ export type ContinuityResult<T extends ContinuityCard = ContinuityCard> = {
 export const CONTINUITY_GRACE_MS = 45_000;
 
 /**
- * How long a HIGHER state is preferred over a lower one the backend reports for
- * the same request. Monotonic display, bounded so the backend still wins: a
- * genuine requeue (a released claim really is queued again) converges within
- * one grace window instead of being frozen on a stale "Running" forever.
+ * How many consecutive disagreeing polls a HIGHER state may outrank the backend
+ * before the backend wins.
+ *
+ * COUNTED, NOT TIMED, and that distinction is the whole point. The first version
+ * of this measured wall-clock from the last poll — which at a 15s cadence and a
+ * 20s window meant the elapsed time was ~15s on every tick and the window never
+ * closed. A card frozen that way survives every fenced executor fallback as
+ * "Running": the fallback reason never renders, and a request the backend says
+ * IS cancellable shows no control.
+ *
+ * A count cannot self-refresh, and it says what we actually mean — one or two
+ * disagreeing polls is a flicker across a lifecycle handoff, a third is the
+ * backend telling us something. It is also independent of the poll cadence, so
+ * it behaves identically in a rendered test and in production.
  */
-export const REGRESSION_GRACE_MS = 20_000;
+export const REGRESSION_TOLERANCE_POLLS = 2;
 
 /**
  * The lifecycle ladder, over the STATUS words every card carries. Ranks are
@@ -121,9 +136,9 @@ const RANK: Readonly<Record<string, number>> = Object.freeze({
   needs_attention: 10,
   waiting_approval: 10,
   action_available: 10,
-  fallback_blocked: 10,
   // Terminals share the top rank — they are alternative ends, not later stages.
   built: 11,
+  fallback_blocked: 11,
   finished: 11,
   failed: 11,
   start_failed: 11,
@@ -132,6 +147,11 @@ const RANK: Readonly<Record<string, number>> = Object.freeze({
 
 const TERMINAL: ReadonlySet<string> = new Set([
   'built', 'finished', 'failed', 'start_failed', 'claim_expired',
+  // Terminal at the REQUEST layer: replaying a consequential step could
+  // duplicate an external side effect, so the backend closes the request and
+  // marks it terminal. It is a standing "needs you" alert, not live work, and
+  // it is emphatically not cancellable.
+  'fallback_blocked',
 ]);
 
 export function isTerminalStatus(status: unknown): boolean {
@@ -215,20 +235,26 @@ export function reduceLiveFeed<T extends ContinuityCard>(
 
     const prior = previous.get(key);
     const terminal = item.isTerminal === true || isTerminalStatus(item.status);
+    const regressing = !!prior && !terminal && rank < prior.rank;
+    const regressionCount = regressing ? (prior as ContinuityEntry<T>).regressionCount + 1 : 0;
     let card = item;
     let heldRank = rank;
     let heldTerminal = terminal;
-    if (prior && !terminal && rank < prior.rank && (nowMs - prior.confirmedAt) < REGRESSION_GRACE_MS) {
+    if (regressing && regressionCount <= REGRESSION_TOLERANCE_POLLS) {
       // MONOTONIC, BUT BOUNDED. Inside the window the higher state stands, so a
       // handoff cannot flicker backwards on screen. Past it the backend wins,
-      // because a request really can be queued again after a released claim and
-      // freezing the display on a stale "Running" would be its own lie.
+      // because a request really can be queued again after a released claim —
+      // and every fenced executor fallback IS such a step back — so freezing the
+      // display on a stale "Running" would be its own lie.
       card = prior.card;
       heldRank = prior.rank;
       heldTerminal = prior.terminal;
     }
 
-    entries.set(key, { key, card, rank: heldRank, terminal: heldTerminal, confirmedAt: nowMs, index: ordered.length });
+    entries.set(key, {
+      key, card, rank: heldRank, terminal: heldTerminal,
+      confirmedAt: nowMs, regressionCount, index: ordered.length,
+    });
     ordered.push({ key, card, freshness: 'fresh' });
   }
 

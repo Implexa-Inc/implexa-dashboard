@@ -165,18 +165,31 @@ const mutations = [
   // ── monotonicity ─────────────────────────────────────────────────────────
   {
     boundary: 'monotonic', name: 'a lower state repaints over a higher one, so the card flickers backwards', file: REDUCER,
-    from: '    if (prior && !terminal && rank < prior.rank && (nowMs - prior.confirmedAt) < REGRESSION_GRACE_MS) {',
+    from: '    if (regressing && regressionCount <= REGRESSION_TOLERANCE_POLLS) {',
     to: '    if (false) {',
   },
   {
     boundary: 'monotonic', name: 'the higher state is held forever, so a real requeue can never be shown', file: REDUCER,
-    from: 'export const REGRESSION_GRACE_MS = 20_000;',
-    to: 'export const REGRESSION_GRACE_MS = Number.MAX_SAFE_INTEGER;',
+    from: 'export const REGRESSION_TOLERANCE_POLLS = 2;',
+    to: 'export const REGRESSION_TOLERANCE_POLLS = Number.MAX_SAFE_INTEGER;',
   },
   {
-    boundary: 'monotonic', name: 'a terminal is suppressed by the regression window', file: REDUCER,
-    from: '    if (prior && !terminal && rank < prior.rank && (nowMs - prior.confirmedAt) < REGRESSION_GRACE_MS) {',
-    to: '    if (prior && rank <= prior.rank && (nowMs - prior.confirmedAt) < REGRESSION_GRACE_MS) {',
+    // THE ORIGINAL DEFECT IN THIS RULE. A hold measured in wall-clock from the
+    // LAST poll self-refreshes at any cadence faster than the window, so it
+    // never closes and every executor fallback freezes as "Running".
+    boundary: 'monotonic', name: 'the hold goes back to wall-clock from the last poll, and self-refreshes', file: REDUCER,
+    from: '    if (regressing && regressionCount <= REGRESSION_TOLERANCE_POLLS) {',
+    to: '    if (regressing && (nowMs - prior.confirmedAt) < 20_000) {',
+  },
+  {
+    boundary: 'monotonic', name: 'the disagreement counter resets while the backend keeps disagreeing', file: REDUCER,
+    from: '    const regressionCount = regressing ? (prior as ContinuityEntry<T>).regressionCount + 1 : 0;',
+    to: '    const regressionCount = regressing ? 1 : 0;',
+  },
+  {
+    boundary: 'monotonic', name: 'a terminal is suppressed by the regression hold', file: REDUCER,
+    from: '    const regressing = !!prior && !terminal && rank < prior.rank;',
+    to: '    const regressing = !!prior && rank <= prior.rank;',
   },
 
   // ── cancellation ─────────────────────────────────────────────────────────
@@ -220,6 +233,21 @@ const mutations = [
     boundary: 'cancellation', name: 'a cancel that lost the race hides the run that started anyway', file: COMPONENT,
     from: '    .filter((c) => !(c.requestId && !c.runId && cancelledReqIds.has(c.requestId)));',
     to: '    .filter((c) => !(c.requestId && cancelledReqIds.has(c.requestId)));',
+  },
+
+  {
+    boundary: 'cancellation', name: 'a fallback_blocked request is offered for cancellation', file: REDUCER,
+    from: "  // Terminal at the REQUEST layer: replaying a consequential step could\n"
+      + "  // duplicate an external side effect, so the backend closes the request and\n"
+      + "  // marks it terminal. It is a standing \"needs you\" alert, not live work, and\n"
+      + "  // it is emphatically not cancellable.\n  'fallback_blocked',\n",
+    to: '',
+  },
+  {
+    boundary: 'cancellation', name: 'a running request with no bound run gets a Stop that issues no call', file: COMPONENT,
+    from: '    const target = cancellationTarget(card);\n    if (!isRunningCancel(card) && !target) return;',
+    to: '    const target = cancellationTarget(card) && card.runId ? cancellationTarget(card) : null;\n'
+      + '    if (!isRunningCancel(card) && !target) return;',
   },
 
   // ── honesty ──────────────────────────────────────────────────────────────

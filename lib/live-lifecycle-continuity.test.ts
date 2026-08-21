@@ -15,7 +15,7 @@ import {
   statusRank,
   isTerminalStatus,
   CONTINUITY_GRACE_MS,
-  REGRESSION_GRACE_MS,
+  REGRESSION_TOLERANCE_POLLS,
   type ContinuityCard,
   type ContinuityState,
 } from './live-lifecycle-continuity.ts';
@@ -155,16 +155,24 @@ test('5 · a terminal state retires continuity retention immediately', () => {
 });
 
 test('5c · terminality declared by the backend flag alone still retires the hold', () => {
-  // fallback_blocked is terminal at the REQUEST layer — replaying a consequential
-  // step could duplicate an external side effect — but its status word is not in
-  // the terminal vocabulary. Only the backend's flag says so, and it must be
-  // believed: holding it open would show an end as if it were still in flight.
-  const blocked = feed(emptyContinuityState(),
-    [card({ status: 'fallback_blocked', isTerminal: true })], T0);
-  assert.equal(blocked.cards.length, 1);
-  const gone = feed(blocked.state, [], T0 + 1_000);
+  // A COMPLETED run held for approval: the run lane reports status
+  // 'waiting_approval' with is_terminal true, because run_state IS terminal even
+  // though the product word is a standing to-do. Only the flag says so, and it
+  // must be believed — holding it open would keep an ended run in the live feed
+  // after the backend stopped listing it.
+  const held = feed(emptyContinuityState(),
+    [card({ status: 'waiting_approval', runId: RUN, isTerminal: true })], T0);
+  assert.equal(held.cards.length, 1);
+  assert.equal(held.cards[0].status, 'waiting_approval');
+  const gone = feed(held.state, [], T0 + 1_000);
   assert.deepEqual(gone.retainedKeys, [], 'a backend-declared terminal is not held');
   assert.deepEqual(gone.releasedKeys, [REQ]);
+
+  // …and without the flag, the same status IS held: the word alone decides nothing.
+  const live = feed(emptyContinuityState(),
+    [card({ status: 'waiting_approval', runId: RUN, isTerminal: false })], T0);
+  const stillThere = feed(live.state, [], T0 + 1_000);
+  assert.deepEqual(stillThere.retainedKeys, [REQ]);
 });
 
 test('5b · a terminal FAILURE retires just as promptly as a success', () => {
@@ -267,20 +275,91 @@ test('progression is monotonic: a lower state does not flicker over a higher one
   assert.equal(flicker.cards[0].freshness, 'fresh');
 });
 
-test('…but the backend wins past the bound, so a real requeue is not frozen out', () => {
+test('AT THE REAL POLL CADENCE the backend wins — the window must not self-refresh', () => {
+  // THE BUG THIS EXISTS TO CATCH. The hold was a wall-clock window measured from
+  // the LAST poll, so at a 15s cadence with a 20s window the elapsed time was
+  // ~15s on every tick and the window never closed. Every fenced executor
+  // fallback (running → switching_executor, a real backwards step written by
+  // 0177) was then frozen as "Running" indefinitely: the fallback reason never
+  // rendered, and a request the backend called cancellable showed no control.
+  //
+  // A single 60s jump passes either way. Only polling like the component polls
+  // can tell the two apart.
+  const POLL_MS = 15_000;
+  let state = feed(emptyContinuityState(), [card({ status: 'running', runId: RUN })], T0).state;
+  const seen: string[] = [];
+  for (let tick = 1; tick <= 8; tick += 1) {
+    const result = feed(state, [card({
+      status: 'switching', runId: null, cancelable: true,
+      fallbackReason: 'the executor was fenced mid-step',
+    })], T0 + tick * POLL_MS);
+    seen.push(String(result.cards[0].status));
+    state = result.state;
+  }
+  assert.ok(seen.includes('switching'),
+    `the backend must win within a bounded number of polls; saw ${seen.join(' → ')}`);
+  const settled = seen.indexOf('switching');
+  assert.ok(settled <= 3, `and within ~2 polls, not ${settled}`);
+  assert.equal(seen.at(-1), 'switching', 'and it must STAY won, not oscillate');
+});
+
+test('the executor-fallback card carries its reason and its cancel control once accepted', () => {
+  let state = feed(emptyContinuityState(), [card({ status: 'running', runId: RUN })], T0).state;
+  const fallback = card({
+    status: 'switching', runId: null, cancelable: true,
+    fallbackReason: 'the executor was fenced mid-step',
+  });
+  let last = feed(state, [fallback], T0);
+  for (const at of [T0 + 15_000, T0 + 30_000, T0 + 45_000]) last = feed(last.state, [fallback], at);
+  assert.equal(last.cards[0].status, 'switching');
+  assert.equal(last.cards[0].fallbackReason, 'the executor was fenced mid-step',
+    'the reason the user needs is on the card the user sees');
+  assert.deepEqual(cancellationTarget(last.cards[0]), { requestId: REQ },
+    'a frozen card also froze cancellation off');
+});
+
+test('a fallback_blocked request is terminal: no hold, and never cancellable', () => {
+  const blocked = feed(emptyContinuityState(),
+    [card({ status: 'fallback_blocked', cancelable: true })], T0);
+  assert.equal(blocked.cards.length, 1);
+  assert.equal(cancellationTarget(blocked.cards[0]), null,
+    'replaying a consequential step could duplicate an external side effect');
+  const gone = feed(blocked.state, [], T0 + 1_000);
+  assert.deepEqual(gone.releasedKeys, [REQ], 'and it is an end, so it is not held open');
+});
+
+test('a SINGLE lower report is a flicker and never repaints', () => {
+  // The counterpart to the cadence test above: one disagreeing poll, however
+  // late it lands, is not evidence of a step back. Only SUSTAINED disagreement
+  // is — which is why the window is measured from the first disagreement rather
+  // than from the last poll.
   const state = feed(emptyContinuityState(), [card({ status: 'running', runId: RUN })], T0).state;
-  // A LITERAL offset, not the constant: asserting at exactly REGRESSION_GRACE_MS
-  // would still pass if the constant were widened to infinity, which is the one
-  // regression this test exists to catch.
   const late = feed(state, [card({ status: 'queued', runId: null })], T0 + 60_000);
-  assert.equal(late.cards[0].status, 'queued', 'a persistent lower state is the truth, not a flicker');
+  assert.equal(late.cards[0].status, 'running');
+});
+
+test('a persistent lower state wins, and progress forward is immediate', () => {
+  // REGRESSION_TOLERANCE_POLLS consecutive disagreeing polls are tolerated as a
+  // flicker; the next one is the backend telling us something.
+  let state = feed(emptyContinuityState(), [card({ status: 'running', runId: RUN })], T0).state;
+  for (const at of [T0 + 15_000, T0 + 30_000]) {
+    const held = feed(state, [card({ status: 'queued', runId: null })], at);
+    assert.equal(held.cards[0].status, 'running', 'inside the window the higher state stands');
+    state = held.state;
+  }
+  const won = feed(state, [card({ status: 'queued', runId: null })], T0 + 45_000);
+  assert.equal(won.cards[0].status, 'queued', 'past it, the backend is the truth');
+
+  const forward = feed(won.state, [card({ status: 'running', runId: RUN })], T0 + 60_000);
+  assert.equal(forward.cards[0].status, 'running', 'moving forward is never held back');
 });
 
 test('both hold windows are BOUNDED — an unbounded one is an indefinite lie', () => {
   assert.ok(Number.isFinite(CONTINUITY_GRACE_MS) && CONTINUITY_GRACE_MS > 0 && CONTINUITY_GRACE_MS <= 120_000,
     `a card may not be held indefinitely; got ${CONTINUITY_GRACE_MS}`);
-  assert.ok(Number.isFinite(REGRESSION_GRACE_MS) && REGRESSION_GRACE_MS > 0 && REGRESSION_GRACE_MS <= 60_000,
-    `a higher state may not outrank the backend indefinitely; got ${REGRESSION_GRACE_MS}`);
+  assert.ok(Number.isInteger(REGRESSION_TOLERANCE_POLLS)
+    && REGRESSION_TOLERANCE_POLLS > 0 && REGRESSION_TOLERANCE_POLLS <= 4,
+    `a higher state may not outrank the backend indefinitely; got ${REGRESSION_TOLERANCE_POLLS}`);
 });
 
 test('a terminal always wins immediately, however it ranks', () => {
