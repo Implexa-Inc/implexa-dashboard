@@ -399,3 +399,24 @@ test('a fenced executor fallback reaches the screen instead of freezing on Runni
     assert.equal(cardCount(rendered), 1);
   } finally { rendered.cleanup(); }
 });
+
+// ── the run-plane kill obeys the same freshness rule ────────────────────────
+test('confirming a Stop after the card went stale does not fire the kill', async () => {
+  const { rendered, at } = await renderFeed([
+    { items: [prep({ status: 'running', lifecyclePhase: 'running', runId: RUN, bytesRead: null, totalBytes: null })] },
+    { items: [] },   // omitted → the card is held, not confirmed
+  ]);
+  try {
+    await rendered.click(buttons(rendered, /Stop run/)[0]);
+    assert.ok(rendered.queryByText(/This will stop/), 'the confirm dialog opened');
+
+    await at(1);   // a poll lands while the user reads
+
+    const confirm = buttons(rendered, /^\s*Stop run\s*$/);
+    if (confirm.length) await rendered.click(confirm[confirm.length - 1]);
+    const kills = rendered.calls.backend.filter((c) => c.path.includes('/cancel'));
+    assert.equal(kills.length, 0,
+      'a kill must not fire at a state we are no longer confirming');
+    assert.ok(rendered.queryByText(/Updating status…/), 'and the card is honest about why');
+  } finally { rendered.cleanup(); }
+});

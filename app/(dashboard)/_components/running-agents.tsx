@@ -282,7 +282,13 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelledReqIds, setCancelledReqIds] = useState<Set<string>>(new Set());
   const [stoppingRunIds, setStoppingRunIds] = useState<Set<string>>(new Set());
-  const isRunningCancel = (c: RenderedCard | null) => !!c && c.status === 'running' && !!(c.runId || c.requestId);
+  // A run-plane kill is as destructive as a request cancellation, so it obeys the
+  // same rule: only a state we are CURRENTLY confirming may be acted on. Without
+  // the freshness term this path bypassed cancellationTarget entirely — open the
+  // dialog on a fresh card, let a poll turn it into a held one while the user
+  // reads, confirm, and the kill fired at a state we were no longer confirming.
+  const isRunningCancel = (c: RenderedCard | null) =>
+    !!c && c.status === 'running' && c.freshness === 'fresh' && !!(c.runId || c.requestId);
   async function doCancel(card: RenderedCard) {
     if (cancelBusy) return;
     // CANCEL NAMES ONE EXACT REQUEST. Resolving the target through the shared

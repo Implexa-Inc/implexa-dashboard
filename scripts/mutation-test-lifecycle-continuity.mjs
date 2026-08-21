@@ -250,6 +250,14 @@ const mutations = [
       + '    if (!isRunningCancel(card) && !target) return;',
   },
 
+  {
+    boundary: 'cancellation', name: 'the run-plane kill bypasses the freshness rule', file: COMPONENT,
+    from: "  const isRunningCancel = (c: RenderedCard | null) =>\n"
+      + "    !!c && c.status === 'running' && c.freshness === 'fresh' && !!(c.runId || c.requestId);",
+    to: "  const isRunningCancel = (c: RenderedCard | null) =>\n"
+      + "    !!c && c.status === 'running' && !!(c.runId || c.requestId);",
+  },
+
   // ── honesty ──────────────────────────────────────────────────────────────
   {
     boundary: 'honesty', name: 'a held card is presented as if it were current', file: COMPONENT,

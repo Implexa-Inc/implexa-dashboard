@@ -12,7 +12,9 @@ test('claim-only requests expose Cancel, never Stop', () => {
   // Stop additionally requires a state we are CURRENTLY confirming: a card held
   // through a gap must not fire a kill at work whose state we do not know.
   assert.match(running, /c\.status === 'running' && c\.freshness === 'fresh' && \(c\.runId \|\| c\.requestId\)/);
-  assert.match(running, /const isRunningCancel = \(c:[^\n]+c\.status === 'running' && !!\(c\.runId \|\| c\.requestId\)/);
+  // The run-plane kill obeys the same freshness rule the request cancellation
+  // does: a card we are only HOLDING through a gap may not be acted on.
+  assert.match(running, /const isRunningCancel = \(c: RenderedCard \| null\) =>\s*\n\s*!!c && c\.status === 'running' && c\.freshness === 'fresh' && !!\(c\.runId \|\| c\.requestId\);/);
   assert.match(running, />\s*Cancel request\s*<\/button>/);
   assert.match(running, />\s*Stop run\s*<\/button>/);
 });
