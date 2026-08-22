@@ -15,9 +15,17 @@ const FILES = [
   'lib/run-detail-live-transition.test.ts',
   BUTTON,
   'app/(dashboard)/runs/[id]/page.tsx',
+  'app/(dashboard)/_components/run-action-items.tsx',
+  'app/(dashboard)/_components/run-action-terminal-retry.test.ts',
+  'lib/test/render.ts',
+  'lib/test/stubs/api.ts',
+  'lib/test/stubs/next-link.tsx',
+  'lib/test/stubs/next-navigation.ts',
+  'lib/test/stubs/supabase.ts',
 ];
 const SUITES = [
   'lib/run-detail-live-transition.test.ts',
+  'app/(dashboard)/_components/run-action-terminal-retry.test.ts',
 ];
 const mutations = [
   { name: 'ordinary running run can recover', file: HELPER,
@@ -43,6 +51,15 @@ const mutations = [
   { name: 'recovery suppression uses an unrelated continuation identity', file: 'app/(dashboard)/runs/[id]/page.tsx',
     from: ".eq('id', approvalRecoveryRequestId(r.id))",
     to: ".eq('id', '00000000-0000-4000-8000-000000000099')" },
+  { name: 'stale broker settlement is not retryable', file: 'app/(dashboard)/_components/run-action-items.tsx',
+    from: "|| (a.linked_request_lifecycle === 'failed'\n        && a.linked_request_failure_reason === 'input_revalidation_unavailable')",
+    to: '' },
+  { name: 'every failed approval becomes retryable', file: 'app/(dashboard)/_components/run-action-items.tsx',
+    from: "&& a.linked_request_failure_reason === 'input_revalidation_unavailable'",
+    to: "&& !!a.linked_request_failure_reason" },
+  { name: 'linked failure reason is not loaded', file: 'app/(dashboard)/runs/[id]/page.tsx',
+    from: ".select('id, status, lifecycle_state, failure_reason')",
+    to: ".select('id, status, lifecycle_state')" },
 ];
 
 announceBaseline({

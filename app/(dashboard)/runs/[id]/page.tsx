@@ -448,15 +448,16 @@ export default async function RunDetailPage({
       .order('rank', { ascending: true });
     if (Array.isArray(ra)) {
       runActions = ra as RunActionItem[];
-      // `acting` normally means queued. A terminal fallback-blocked linked
-      // request is the one exception: the backend exposes an idempotent retry
-      // for the exact approve-render action, and the UI must not strand it as a
-      // permanent green Queued badge. Read failure stays fail-closed as queued.
+      // `acting` normally means queued. The two exact terminal refusal shapes
+      // the backend can retry are the exception: the original fallback fence,
+      // and server-owned stale-broker convergence refusing revalidation. The UI
+      // must not strand either as a permanent green Queued/done receipt. Read
+      // failure stays fail-closed as queued.
       const requestIds = runActions.map((a) => a.request_id).filter((id): id is string => !!id);
       if (requestIds.length) {
         const { data: requests } = await supabase
           .from('run_requests')
-          .select('id, status, lifecycle_state')
+          .select('id, status, lifecycle_state, failure_reason')
           .in('id', requestIds);
         const byId = new Map((requests || []).map((request) => [request.id, request]));
         runActions = runActions.map((action) => {
@@ -465,14 +466,15 @@ export default async function RunDetailPage({
             ...action,
             linked_request_status: linked.status as RunActionItem['linked_request_status'],
             linked_request_lifecycle: linked.lifecycle_state,
+            linked_request_failure_reason: linked.failure_reason,
           } : action;
         });
       }
       // Completed actions normally stay off this live-action shelf. Retain only
       // the one exact completed shape the backend can safely recover: an
-      // approve-render action still linked to a terminal fallback-blocked
-      // request. This also repairs rows falsely marked done by the old adoption
-      // path without resurfacing historical completed actions.
+      // approve-render action still linked to an exactly retryable terminal
+      // request. This also repairs rows falsely marked done by convergence or
+      // the old adoption path without resurfacing historical completed actions.
       runActions = runActions.filter((action) => action.status !== 'done' || isRetryableApprovalAction(action));
     }
   } catch { /* table not present yet — action buttons simply don't render */ }

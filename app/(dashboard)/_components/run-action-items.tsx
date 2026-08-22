@@ -44,13 +44,16 @@ export type RunActionItem = {
   request_id?: string | null;
   linked_request_status?: 'pending' | 'claimed' | 'consumed' | 'done' | 'cancelled' | null;
   linked_request_lifecycle?: string | null;
+  linked_request_failure_reason?: string | null;
 };
 
 export function isRetryableApprovalAction(a: RunActionItem): boolean {
   return a.kind === 'approve_render'
     && ['acting', 'done'].includes(a.status)
     && a.linked_request_status === 'done'
-    && a.linked_request_lifecycle === 'fallback_blocked';
+    && (a.linked_request_lifecycle === 'fallback_blocked'
+      || (a.linked_request_lifecycle === 'failed'
+        && a.linked_request_failure_reason === 'input_revalidation_unavailable'));
 }
 
 function isHumanAction(a: RunActionItem): boolean {

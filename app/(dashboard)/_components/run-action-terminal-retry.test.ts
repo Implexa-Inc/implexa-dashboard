@@ -64,6 +64,42 @@ test('a falsely completed fallback-blocked approval remains recoverable', async 
   } finally { rendered.cleanup(); }
 });
 
+test('a stale broker settlement keeps its completed approval recoverable', async () => {
+  let calls = 0;
+  const rendered = await render('run-action-items.tsx', {
+    runId: '77fd8675-1b02-4881-a59f-c43012d98d9f',
+    actions: [{
+      ...base, status: 'done', linked_request_status: 'done',
+      linked_request_lifecycle: 'failed',
+      linked_request_failure_reason: 'input_revalidation_unavailable',
+    }],
+  }, {
+    backend: () => { calls += 1; return { ok: true, fulfillment: 'agent_run' }; },
+  });
+  try {
+    assert.ok(rendered.queryByText(/^Retry approval$/));
+    assert.equal(rendered.queryByText(/— done$/), null);
+    await rendered.click(rendered.getByText(/^Retry approval$/));
+    assert.equal(calls, 1);
+    assert.match(rendered.text(), /Queued/);
+  } finally { rendered.cleanup(); }
+});
+
+test('an unrelated failed approval remains terminal', async () => {
+  const rendered = await render('run-action-items.tsx', {
+    runId: '77fd8675-1b02-4881-a59f-c43012d98d9f',
+    actions: [{
+      ...base, status: 'done', linked_request_status: 'done',
+      linked_request_lifecycle: 'failed',
+      linked_request_failure_reason: 'executor_failed',
+    }],
+  });
+  try {
+    assert.equal(rendered.queryByText(/^Retry approval$/), null);
+    assert.match(rendered.text(), /— done$/);
+  } finally { rendered.cleanup(); }
+});
+
 test('cancelled approval recovery remains terminal instead of inventing retry authority', async () => {
   const rendered = await render('run-action-items.tsx', {
     runId: '77fd8675-1b02-4881-a59f-c43012d98d9f',
