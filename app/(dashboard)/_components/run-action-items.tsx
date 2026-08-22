@@ -41,7 +41,17 @@ export type RunActionItem = {
   blocker: string | null;
   confidence: number | null;
   status: 'open' | 'acting' | 'done' | 'dismissed';
+  request_id?: string | null;
+  linked_request_status?: 'pending' | 'claimed' | 'consumed' | 'done' | 'cancelled' | null;
+  linked_request_lifecycle?: string | null;
 };
+
+export function isRetryableApprovalAction(a: RunActionItem): boolean {
+  return a.kind === 'approve_render'
+    && a.status === 'acting'
+    && a.linked_request_status === 'done'
+    && a.linked_request_lifecycle === 'fallback_blocked';
+}
 
 function isHumanAction(a: RunActionItem): boolean {
   if (a.fulfillment) return a.fulfillment === 'human_confirm';
@@ -99,7 +109,13 @@ function ActionRow({
   // run-request was spawned), not just local React state — so it survives a
   // refresh. Without this the action re-rendered as a fresh clickable button
   // after reload and looked like the click did nothing (founder hit this).
-  const serverQueued = a.status === 'acting';
+  // An approve-render action can remain `acting` after its linked request has
+  // terminally stopped at the consequential-state fence. The backend owns the
+  // idempotent recovery boundary for that exact action, so this is RETRYABLE,
+  // not queued. Treating every acting row as live hid the only safe recovery
+  // control forever and pushed users toward the generic continuation form.
+  const retryableApproval = isRetryableApprovalAction(a);
+  const serverQueued = a.status === 'acting' && !retryableApproval;
   const serverDone = a.status === 'done';
   const human = isHumanAction(a);
   const confirmation = actedLine
@@ -127,7 +143,9 @@ function ActionRow({
               ? (human ? 'Saving…' : 'Queuing…')
               : confirmation
                 ? (human ? '✓ Done' : '✓ Queued')
-                : (human ? humanConfirmationLabel(a) : a.label)}
+                : retryableApproval
+                  ? 'Retry approval'
+                  : (human ? humanConfirmationLabel(a) : a.label)}
           </button>
           {human && !confirmation && (
             <span className="text-[10px] uppercase tracking-wide text-ink-500 font-medium">
@@ -151,7 +169,11 @@ function ActionRow({
           </div>
         ) : (
           <>
-            {a.summary && <p className="mt-1 text-xs text-ink-400 leading-snug">{a.summary}</p>}
+            {retryableApproval ? (
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 leading-snug">
+                The previous continuation stopped safely before completing. Retry this approval through the protected recovery path.
+              </p>
+            ) : a.summary ? <p className="mt-1 text-xs text-ink-400 leading-snug">{a.summary}</p> : null}
             {!ready && a.blocker && <p className="mt-0.5 text-[11px] text-amber-600/90 dark:text-amber-400/80">{a.blocker}</p>}
 
             {/* needs_setup panel — collect the missing info / confirm setup BEFORE
