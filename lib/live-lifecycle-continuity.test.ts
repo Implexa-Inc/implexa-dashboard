@@ -501,3 +501,47 @@ test('a confirm dialog never approximates a target', () => {
   assert.equal(resolveConfirmTarget(null, REQ), null);
   assert.equal(resolveConfirmTarget(two.cards, OTHER_REQ)?.continuityKey, OTHER_REQ);
 });
+
+// ── the attended-continue handoff, and its cost ─────────────────────────────
+//
+// An attended continue's run is bound to no request — six attempts to infer
+// which continue produced which run were each wrong, so the backend no longer
+// guesses. Its bridge card is keyed by requestId; the run card that replaces it
+// is keyed by runId. The reducer's runIndex only maps a run id a card actually
+// carries, and a bridge carries none, so the handoff crosses keys.
+//
+// The cost is therefore a BOUNDED DUPLICATE, not a gap: the bridge is held for
+// the grace window while the run card shows beside it, then released. Asserted
+// here so it stays a known, bounded property rather than drifting.
+//
+// The alternative — letting the run card inherit the bridge's key — would make
+// the handoff seamless but would hand one request's slot to another request's
+// run, which is the thing this whole change exists to prevent. A transient
+// duplicate that self-heals is the better trade, and it never hides work.
+
+test('the attended-continue handoff overlaps, and never gaps', () => {
+  const bridge = card({ requestId: REQ, runId: null, status: 'running', bytesRead: null, totalBytes: null });
+  const runCard = card({ requestId: null, runId: RUN, status: 'running', bytesRead: null, totalBytes: null });
+
+  const before = feed(emptyContinuityState(), [bridge], T0);
+  assert.equal(before.cards.length, 1);
+  assert.equal(before.cards[0].continuityKey, REQ);
+
+  // The backend retires the bridge the moment the run is on screen.
+  const during = feed(before.state, [runCard], T0 + 1_000);
+  assert.equal(during.cards.length, 2, 'overlap, never a gap — the work is always visible');
+  const keys = during.cards.map((c) => c.continuityKey).sort();
+  assert.deepEqual(keys, [REQ, RUN].sort());
+  const held = during.cards.find((c) => c.continuityKey === REQ);
+  assert.equal(held?.freshness, 'retained', 'the bridge is held, and says so');
+  assert.equal(cancellationTarget(held as never), null, 'a held bridge offers nothing destructive');
+  const live = during.cards.find((c) => c.continuityKey === RUN);
+  assert.equal(live?.freshness, 'fresh');
+  assert.equal(live?.requestId, null, 'the run claims no request — that is the point');
+
+  // …and the overlap is bounded by the grace window, not indefinite.
+  const after = feed(during.state, [runCard], T0 + CONTINUITY_GRACE_MS + 1_000);
+  assert.equal(after.cards.length, 1, 'the bridge is released once the grace expires');
+  assert.equal(after.cards[0].continuityKey, RUN);
+  assert.deepEqual(after.releasedKeys, [REQ]);
+});
