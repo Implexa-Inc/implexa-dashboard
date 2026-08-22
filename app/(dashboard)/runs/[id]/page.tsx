@@ -442,11 +442,33 @@ export default async function RunDetailPage({
   try {
     const { data: ra } = await supabase
       .from('run_actions')
-      .select('id, kind, label, summary, preset_prompt, fulfillment, confirmation_label, readiness, blocker, confidence, status')
+      .select('id, kind, label, summary, preset_prompt, fulfillment, confirmation_label, readiness, blocker, confidence, status, request_id')
       .eq('run_id', params.id)
       .in('status', ['open', 'acting'])
       .order('rank', { ascending: true });
-    if (Array.isArray(ra)) runActions = ra as RunActionItem[];
+    if (Array.isArray(ra)) {
+      runActions = ra as RunActionItem[];
+      // `acting` normally means queued. A terminal fallback-blocked linked
+      // request is the one exception: the backend exposes an idempotent retry
+      // for the exact approve-render action, and the UI must not strand it as a
+      // permanent green Queued badge. Read failure stays fail-closed as queued.
+      const requestIds = runActions.map((a) => a.request_id).filter((id): id is string => !!id);
+      if (requestIds.length) {
+        const { data: requests } = await supabase
+          .from('run_requests')
+          .select('id, status, lifecycle_state')
+          .in('id', requestIds);
+        const byId = new Map((requests || []).map((request) => [request.id, request]));
+        runActions = runActions.map((action) => {
+          const linked = action.request_id ? byId.get(action.request_id) : null;
+          return linked ? {
+            ...action,
+            linked_request_status: linked.status as RunActionItem['linked_request_status'],
+            linked_request_lifecycle: linked.lifecycle_state,
+          } : action;
+        });
+      }
+    }
   } catch { /* table not present yet — action buttons simply don't render */ }
 
   // Completion Controller verdict (migration 0102, skill_runs.verification_status)
