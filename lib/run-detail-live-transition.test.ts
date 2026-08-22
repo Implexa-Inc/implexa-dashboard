@@ -43,6 +43,9 @@ test('run details renders the approval recovery action from structured authority
   assert.match(page, /artifact\.role === 'final_output'/);
   assert.match(page, /\.eq\('id', approvalRecoveryRequestId\(r\.id\)\)/);
   assert.match(page, /\.eq\('run_id', r\.id\)\.eq\('kind', 'continue'\)/);
+  assert.match(page, /\.select\('id, status, lifecycle_state, failure_reason'\)/,
+    'terminal broker settlement reason must reach the exact retry classifier');
+  assert.match(page, /linked_request_failure_reason: linked\.failure_reason/);
   assert.match(page, /!approvalContinuationAlreadyQueued/);
   assert.match(page, /<FinishRunButton runId=\{r\.id\} mode="approval-recovery" \/>/);
   assert.match(page, /!held && !approvalContinuationRecovery && runActions\.length > 0/,
