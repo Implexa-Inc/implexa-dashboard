@@ -22,7 +22,7 @@
  * /runs/:id/review{approved|dismissed}; changes = run-requests{kind:continue,note}.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
@@ -33,6 +33,16 @@ import { deriveHeldRunPrimaryAction } from '@/lib/held-run-action';
 import type { RunStep } from '@/lib/run-state';
 
 const CLAUDE_CODE_MAX = 13000;
+type LocalInputRecoveryBridge = {
+  localInputReauthorizationState?: (runId: string) => Promise<{ ok: boolean; applicable?: boolean; required?: boolean; label?: string }>;
+  reauthorizeRunInputs?: (runId: string) => Promise<{ ok: boolean; recovered?: number; canceled?: boolean; error?: string }>;
+  onRunInputProgress?: (cb: (progress: { bytesRead?: number; totalBytes?: number }) => void) => (() => void);
+};
+
+function localInputBridge(): LocalInputRecoveryBridge | null {
+  if (typeof window === 'undefined') return null;
+  return (window as Window & { implexaDesktop?: LocalInputRecoveryBridge }).implexaDesktop || null;
+}
 
 export default function RunActions({
   runId,
@@ -85,7 +95,27 @@ export default function RunActions({
   // panel offer "restart Codex, then retry" instead of a dead end.
   const [refusal, setRefusal] = useState<RunRequestRefusal | null>(null);
   const [note, setNote] = useState('');
+  const [localRecovery, setLocalRecovery] = useState<'checking' | 'required' | 'verified' | 'ready' | 'unavailable'>(
+    needsInput ? 'checking' : 'unavailable',
+  );
+  const [localRecoveryLabel, setLocalRecoveryLabel] = useState('original local file');
+  const [verificationPercent, setVerificationPercent] = useState<number | null>(null);
   const { files, canAttach, canAttachFolder, attachFile, attachFolder, removeFile, error: attachError } = useRunAttachments();
+
+  useEffect(() => {
+    if (!needsInput) return;
+    let live = true;
+    const bridge = localInputBridge();
+    if (!bridge?.localInputReauthorizationState) { setLocalRecovery('unavailable'); return; }
+    bridge.localInputReauthorizationState(runId).then((result) => {
+      if (!live) return;
+      if (result.ok && result.applicable && result.required) {
+        setLocalRecoveryLabel(result.label || 'original local file'); setLocalRecovery('required');
+      } else if (result.ok && result.applicable) setLocalRecovery('ready');
+      else setLocalRecovery('unavailable');
+    }).catch(() => { if (live) setLocalRecovery('unavailable'); });
+    return () => { live = false; };
+  }, [needsInput, runId]);
 
   async function jwt() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -157,6 +187,46 @@ export default function RunActions({
     }
   }
 
+  async function reconnectAndContinue() {
+    if (busy) return;
+    const bridge = localInputBridge();
+    if (!bridge?.reauthorizeRunInputs) return;
+    setBusy('reconnect'); setErr(null); setRefusal(null); setVerificationPercent(null);
+    const unsubscribe = bridge.onRunInputProgress?.((progress) => {
+      const read = Number(progress.bytesRead || 0); const total = Number(progress.totalBytes || 0);
+      if (total > 0) setVerificationPercent(Math.min(100, Math.floor((read / total) * 100)));
+    });
+    try {
+      if (localRecovery !== 'verified') {
+        const recovered = await bridge.reauthorizeRunInputs(runId);
+        if (!recovered.ok) {
+          if (!recovered.canceled) setErr(recovered.error === 'input_digest_mismatch'
+            ? 'That is not the original file—the bytes do not match the approved run.'
+            : recovered.error === 'local_input_wrong_machine'
+              ? 'Reconnect this file on the Mac that created the run.'
+              : 'Could not verify the original local file. Try again.');
+          setBusy(null); return;
+        }
+        // A transient queue refusal must not make an 8GB source hash again.
+        // The exact authority now lives in Desktop memory until app exit.
+        setLocalRecovery('verified');
+      }
+      await callBackend('/api/v2/me/run-requests', {
+        jwt: await jwt(), method: 'POST',
+        body: {
+          kind: 'continue', runId, source: 'dashboard',
+          note: 'The original typed local input has been reauthorized on Desktop. Preserve every completed step and the approved plan; continue from the first pending step.',
+        },
+      });
+      router.push('/workflows'); router.refresh();
+    } catch (error) {
+      const classified = classifyRunRequestRefusal(error);
+      if (classified?.recoverable) setRefusal(classified);
+      else setErr('The file was verified, but the continuation could not be queued. Try again.');
+      setBusy(null);
+    } finally { unsubscribe?.(); }
+  }
+
   // QUIET: dismiss — close without acting (the gated step won't run).
   async function dismiss() {
     setBusy('dismiss'); setErr(null);
@@ -201,7 +271,10 @@ export default function RunActions({
         {/* PRIMARY */}
         {needsInput ? (
           // needs-input: the changes box below is the action; the primary lives there.
-          <span className="text-xs text-ink-500">Add what it needs below ↓</span>
+          <span className="text-xs text-ink-500">
+            {localRecovery === 'required' || localRecovery === 'verified'
+              ? 'Reconnect the original input below ↓' : 'Add what it needs below ↓'}
+          </span>
         ) : resumesWork ? (
           <button type="button" onClick={approveFinish} disabled={!!busy}
             className="btn-success text-sm px-4 py-2 disabled:opacity-60">
@@ -245,8 +318,27 @@ export default function RunActions({
         </span>
       </div>
 
-      {/* CHANGES box (revealed) */}
-      {showChanges && (
+      {needsInput && localRecovery === 'checking' && (
+        <p className="mt-3 text-xs text-ink-500">Checking the original local input…</p>
+      )}
+      {needsInput && (localRecovery === 'required' || localRecovery === 'verified') && (
+        <div className="mt-3 rounded-md border border-amber-700/50 bg-amber-950/20 p-3">
+          <p className="text-sm text-ink-100">Reconnect the original file to continue from the approved plan.</p>
+          <p className="mt-1 text-xs text-ink-400">Implexa verifies the exact bytes locally. It does not upload or copy the source.</p>
+          <button type="button" onClick={reconnectAndContinue} disabled={!!busy}
+            className="btn-success mt-3 text-sm px-4 py-2 disabled:opacity-50">
+            {busy === 'reconnect'
+              ? localRecovery === 'verified' ? 'Continuing…'
+                : `Verifying${verificationPercent === null ? '…' : `… ${verificationPercent}%`}`
+              : localRecovery === 'verified' ? 'Continue from approved plan'
+                : `Reconnect ${localRecoveryLabel} & continue`}
+          </button>
+        </div>
+      )}
+
+      {/* CHANGES box (revealed). A missing broker authority owns the primary
+          surface; generic attachments cannot restore a typed local binding. */}
+      {showChanges && localRecovery !== 'checking' && localRecovery !== 'required' && localRecovery !== 'verified' && (
         <div className="mt-3">
           <textarea
             value={note}
