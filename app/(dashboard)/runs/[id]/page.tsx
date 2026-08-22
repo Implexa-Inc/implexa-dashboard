@@ -35,7 +35,7 @@ import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
 import RunActions from '../../_components/run-actions';
 import RunContinueBox from '../../_components/run-continue-box';
-import RunActionItems, { type RunActionItem } from '../../_components/run-action-items';
+import RunActionItems, { isRetryableApprovalAction, type RunActionItem } from '../../_components/run-action-items';
 import FinishRunButton from '../../_components/finish-run-button';
 import GrantPermissionsButton from '../../_components/grant-permissions-button';
 import StuckRunButton from '../../_components/stuck-run-button';
@@ -444,7 +444,7 @@ export default async function RunDetailPage({
       .from('run_actions')
       .select('id, kind, label, summary, preset_prompt, fulfillment, confirmation_label, readiness, blocker, confidence, status, request_id')
       .eq('run_id', params.id)
-      .in('status', ['open', 'acting'])
+      .in('status', ['open', 'acting', 'done'])
       .order('rank', { ascending: true });
     if (Array.isArray(ra)) {
       runActions = ra as RunActionItem[];
@@ -468,6 +468,12 @@ export default async function RunDetailPage({
           } : action;
         });
       }
+      // Completed actions normally stay off this live-action shelf. Retain only
+      // the one exact completed shape the backend can safely recover: an
+      // approve-render action still linked to a terminal fallback-blocked
+      // request. This also repairs rows falsely marked done by the old adoption
+      // path without resurfacing historical completed actions.
+      runActions = runActions.filter((action) => action.status !== 'done' || isRetryableApprovalAction(action));
     }
   } catch { /* table not present yet — action buttons simply don't render */ }
 

@@ -48,7 +48,7 @@ export type RunActionItem = {
 
 export function isRetryableApprovalAction(a: RunActionItem): boolean {
   return a.kind === 'approve_render'
-    && a.status === 'acting'
+    && ['acting', 'done'].includes(a.status)
     && a.linked_request_status === 'done'
     && a.linked_request_lifecycle === 'fallback_blocked';
 }
@@ -116,7 +116,7 @@ function ActionRow({
   // control forever and pushed users toward the generic continuation form.
   const retryableApproval = isRetryableApprovalAction(a);
   const serverQueued = a.status === 'acting' && !retryableApproval;
-  const serverDone = a.status === 'done';
+  const serverDone = a.status === 'done' && !retryableApproval;
   const human = isHumanAction(a);
   const confirmation = actedLine
     || (serverQueued ? `Queued — “${a.label}” runs hands-off. Watch it in Active Agents; the result lands on Home.` : null);
