@@ -42,7 +42,7 @@ import {
   reviewRoomActions, ACCEPT_DISCLAIMER,
   revisionCompositionLabel,
   issuesForArtifact, artifactForIssue, isIssueStale, issueClickTarget,
-  resolveInitialArtifact, shouldApplySeek, shouldDropPendingSeek, type PendingSeek,
+  reconcileArtifactSelection, resolveInitialArtifact, shouldApplySeek, shouldDropPendingSeek, type PendingSeek,
 } from '@/lib/review-room-state';
 import {
   finalRenderControl, preferredReviewArtifact, previewRequestIdentity, reviewableArtifacts,
@@ -126,13 +126,20 @@ export default function ReviewRoom(props: Props) {
 
   const allArtifacts = useMemo(() => reviewableArtifacts(artifacts, production), [artifacts, production]);
   const validated = useMemo(() => allArtifacts.filter((a) => a.status === 'validated'), [allArtifacts]);
+  const preferredArtifactId = useMemo(
+    () => preferredReviewArtifact(artifacts, production)?.id ?? null,
+    [artifacts, production],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     return resolveInitialArtifact(
       props.initialArtifactId ?? null,
       reviewableArtifacts(artifacts, production),
-      preferredReviewArtifact(artifacts, production)?.id ?? null,
+      preferredArtifactId,
     );
   });
+  useEffect(() => {
+    setSelectedId((current) => reconcileArtifactSelection(current, allArtifacts, preferredArtifactId));
+  }, [allArtifacts, preferredArtifactId]);
   const artifact = useMemo(() => allArtifacts.find((a) => a.id === selectedId) ?? null, [allArtifacts, selectedId]);
   const selectedSegment = useMemo(() => segmentForArtifact(production, selectedId), [production, selectedId]);
   const proxyPreview = selectedSegment !== null;
