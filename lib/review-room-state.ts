@@ -199,6 +199,22 @@ export function resolveInitialArtifact<A extends ScopableArtifact>(
   return fallbackId;
 }
 
+/**
+ * Reconcile a mounted Review Room with the artifacts in its newest packet.
+ *
+ * Next keeps this client component mounted across `router.refresh()`, so its state
+ * initializer does not run again when validation adds the first artifact. Preserve a
+ * still-live user choice; otherwise adopt the server-preferred artifact.
+ */
+export function reconcileArtifactSelection<A extends ScopableArtifact>(
+  currentId: string | null,
+  reviewable: A[],
+  fallbackId: string | null,
+): string | null {
+  if (currentId && reviewable.some((artifact) => artifact.id === currentId)) return currentId;
+  return resolveInitialArtifact(null, reviewable, fallbackId);
+}
+
 // ── cross-artifact seeking ──────────────────────────────────────────────────
 //
 // Switching artifact and then seeking is a THREE-WAY agreement, and getting it wrong is

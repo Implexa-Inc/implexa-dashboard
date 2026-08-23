@@ -368,7 +368,7 @@ test('LIFECYCLE REPLAY: when B itself fails, its request is dropped rather than 
 
 // ── initial artifact selection (clip deep links) ────────────────────────────
 
-import { resolveInitialArtifact } from './review-room-state.ts';
+import { reconcileArtifactSelection, resolveInitialArtifact } from './review-room-state.ts';
 
 test('a clip deep link opens on its artifact only when the packet contains it', () => {
   const reviewable = [{ id: 'artA' }, { id: 'artB' }];
@@ -381,4 +381,16 @@ test('a stale or foreign deep-link id falls back to the preferred artifact', () 
   assert.equal(resolveInitialArtifact('artZ', reviewable, 'artA'), 'artA');
   assert.equal(resolveInitialArtifact(null, reviewable, 'artA'), 'artA');
   assert.equal(resolveInitialArtifact('artZ', [], null), null);
+});
+
+test('late validated artifacts replace the mounted room\'s empty selection', () => {
+  const reviewable = [{ id: 'artA' }];
+  assert.equal(reconcileArtifactSelection(null, [], null), null);
+  assert.equal(reconcileArtifactSelection(null, reviewable, 'artA'), 'artA');
+});
+
+test('packet refresh preserves a live user selection and replaces a vanished one', () => {
+  const reviewable = [{ id: 'artA' }, { id: 'artB' }];
+  assert.equal(reconcileArtifactSelection('artB', reviewable, 'artA'), 'artB');
+  assert.equal(reconcileArtifactSelection('artZ', reviewable, 'artA'), 'artA');
 });
