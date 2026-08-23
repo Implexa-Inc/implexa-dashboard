@@ -830,6 +830,33 @@ export default async function RunDetailPage({
             path instead of permanently looking as though the run made no files. */}
         <VerifiedArtifacts artifacts={verifiedArtifacts} />
 
+        {/* THE REVISION POINTER (2026-08-23). Beside the files, not buried in the
+            deliverable's else-chain, because a reviewed PARENT usually has its own
+            output and its own older artifacts — so it never reaches that chain and
+            the page reads as the finished answer while the answer the user asked
+            for sits on the child. The child's files stay attributed to the child:
+            merging them here would be the same parent/child confusion wearing the
+            opposite face. */}
+        {revisedResult && (
+          <div className="mb-6 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-4">
+            <p className="text-sm font-semibold text-ink-50">This run was revised, and the revision delivered</p>
+            <p className="mt-1 text-sm text-ink-300 leading-relaxed">
+              The revised result is on its own run
+              {revisedResult.artifactCount > 0
+                ? `, with ${revisedResult.artifactCount} validated file${revisedResult.artifactCount === 1 ? '' : 's'}`
+                : ''}. The files listed above belong to this run.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Link href={`/review/${encodeURIComponent(revisedResult.runId)}`} className="btn-success text-sm px-4 py-2">
+                Open the revised result
+              </Link>
+              <Link href={`/runs/${encodeURIComponent(revisedResult.runId)}`} className="btn-outline text-sm px-4 py-2">
+                Its files &amp; artifacts
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* First quality-mode entry point: only offer B-roll generation beside a
             desktop-validated video deliverable. A markdown path is a worker claim,
             not evidence that there is a video to build from. The proposal itself
@@ -1070,32 +1097,16 @@ export default async function RunDetailPage({
             <div className="text-sm font-semibold text-ink-50 mb-1">{info.label === 'Not started' ? 'This run has not actually started' : 'No progress reported recently'}</div>
             <p className="text-sm text-ink-300 leading-relaxed">{info.reason}</p>
           </div>
-        ) : revisedResult ? (
-          // NEVER "no deliverable" when a revision of this run delivered one. The
-          // deliverable is real, validated and one link away; it just lives on the
-          // child this run was revised into.
-          <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-5">
-            <div className="text-sm font-semibold text-ink-50 mb-1">This run was revised, and the revision delivered</div>
-            <p className="text-sm text-ink-300 leading-relaxed">
-              The result you asked for is on the revision run, not this one
-              {revisedResult.artifactCount > 0
-                ? `, along with ${revisedResult.artifactCount} validated file${revisedResult.artifactCount === 1 ? '' : 's'}`
-                : ''}.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-3">
-              <Link href={`/review/${encodeURIComponent(revisedResult.runId)}`} className="btn-success text-sm px-4 py-2">
-                Open the revised result
-              </Link>
-              <Link href={`/runs/${encodeURIComponent(revisedResult.runId)}`} className="btn-outline text-sm px-4 py-2">
-                Files &amp; Artifacts
-              </Link>
-            </div>
-          </div>
         ) : (
           <p className="text-sm text-ink-400 italic">
             {approvalContinuationRecovery
               ? 'The review plan is ready; the final deliverable will be created after approval.'
-              : 'No deliverable recorded for this run.'}
+              // "No deliverable recorded" is true of THIS row and, on a run that
+              // was revised, the most misleading true sentence on the page. The
+              // pointer above says where the result is; this stops contradicting it.
+              : revisedResult
+                ? 'No written summary on this run — it was revised, and the delivered result is linked above.'
+                : 'No deliverable recorded for this run.'}
           </p>
         )}
 

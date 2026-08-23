@@ -188,6 +188,15 @@ test('the run page resolves the revision child rather than saying "no deliverabl
   assert.match(src, /\.eq\('continued_from_run_id', r\.id\)/);
   assert.match(src, /\.eq\('run_state', 'completed'\)/);
   assert.match(src, /This run was revised, and the revision delivered/);
+  // Beside the files, NOT inside the deliverable else-chain: a reviewed parent
+  // usually has its own output and never reaches that chain, so a pointer hidden
+  // there would be invisible on exactly the page that needs it.
+  const artifactsAt = src.indexOf('<VerifiedArtifacts artifacts={verifiedArtifacts} />');
+  const pointerAt = src.indexOf('{revisedResult && (');
+  assert.ok(pointerAt > artifactsAt && pointerAt - artifactsAt < 900,
+    'the revision pointer must render beside Files & Artifacts, for every revised run');
+  assert.match(src, /it was revised, and the delivered result is linked above/,
+    'the bare "no deliverable" line must stop contradicting the pointer above it');
   // The child's files stay attributed to the child. Merging them into this run's
   // list would be the same parent/child confusion wearing the opposite face.
   const fetchBlock = src.slice(src.indexOf('let revisedResult'), src.indexOf('let engineRouting'));
