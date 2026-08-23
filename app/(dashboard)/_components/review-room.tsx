@@ -264,6 +264,14 @@ export default function ReviewRoom(props: Props) {
   // Local intent only. The DURABLE session row outranks it, so a reload or a second
   // tab reads the queued revision instead of re-offering the send button.
   const [localSubmission, setLocalSubmission] = useState<SubmissionState>(INITIAL_SUBMISSION_STATE);
+  // THE REVISION FINISHED (2026-08-23). `submitted` on the session row is durable
+  // and correct — it says the fixes WERE sent — but it is not a statement about
+  // what happened next, and this block treated it as one: a continuation that had
+  // already delivered nine artifacts and a final MP4 kept rendering "Revision
+  // queued" with a retry offer beneath it, forever. The recovery panel reads the
+  // exact request and knows better; this is where it gets to say so.
+  const [revisionCompleted, setRevisionCompleted] =
+    useState<{ runId: string | null; completedAt: string | null } | null>(null);
   const [revisionNote, setRevisionNote] = useState('');
   // Review is file-first by default. The exact reviewed/attached artifact set is a
   // complete immutable handoff even when the originating run predates input-context
@@ -1575,7 +1583,13 @@ export default function ReviewRoom(props: Props) {
             // every number and identity below came back from the server — none of it
             // is inferred from local drafts or from a refreshed prop.
             <>
-              <p className="text-xs text-emerald-300">{submitView.statusLine}</p>
+              <p className="text-xs text-emerald-300">
+                {revisionCompleted
+                  // Past tense, and about the RESULT rather than the queue. The
+                  // count still comes from the server; only the tense changes.
+                  ? `${submitView.statusLine} The revised result was delivered.`
+                  : submitView.statusLine}
+              </p>
               <dl className="rounded border border-ink-800 bg-ink-950 px-2 py-1.5 text-[11px] text-ink-500">
                 <div className="flex items-baseline justify-between gap-2">
                   <dt>Continuation</dt>
@@ -1605,8 +1619,10 @@ export default function ReviewRoom(props: Props) {
                     requestId={submitView.continuationId}
                     onQueued={() => {
                       setError(null);
+                      setRevisionCompleted(null);
                       setNotice('Revision queued again with the same submitted feedback and evidence.');
                     }}
+                    onCompleted={setRevisionCompleted}
                   />
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     <button
@@ -1615,7 +1631,9 @@ export default function ReviewRoom(props: Props) {
                       disabled={busy}
                       className="rounded-md border border-ink-700 px-3 py-2 text-center text-sm text-ink-200 hover:border-ink-600 disabled:opacity-50"
                     >
-                      Open revision attempt
+                      {/* "Attempt" is the right word while the outcome is unknown and
+                          the wrong one once the work has landed. */}
+                      {revisionCompleted ? 'Open the revised result' : 'Open revision attempt'}
                     </button>
                   </div>
                 </>

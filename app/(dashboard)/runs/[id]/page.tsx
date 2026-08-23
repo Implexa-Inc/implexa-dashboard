@@ -257,6 +257,39 @@ export default async function RunDetailPage({
     }
   } catch { /* Layer 2 is additive; an unavailable table must never break the run page. */ }
 
+  // ── THE REVISED RESULT (2026-08-23) ──────────────────────────────────────
+  //
+  // A Review Room revision produces a CHILD run. Its deliverable — nine artifacts
+  // and a final MP4, in the incident — is registered against that child, so this
+  // page, keyed by the run in the URL, correctly found nothing and said "No
+  // deliverable recorded for this run". True about this row, and the opposite of
+  // what the user needed to know: the work they asked for exists, one link away.
+  //
+  // Deliberately NOT merged into verifiedArtifacts. Those files belong to the
+  // child and listing them here would attribute another run's output to this one —
+  // the same parent/child confusion, wearing the opposite face. This names the
+  // child and lets the user go there.
+  let revisedResult: { runId: string; artifactCount: number; completedAt: string | null } | null = null;
+  try {
+    const { data, error } = await supabase.from('skill_runs')
+      .select('id, run_state, completed_at, ran_at')
+      .eq('continued_from_run_id', r.id)
+      .eq('run_state', 'completed')
+      .order('ran_at', { ascending: false })
+      .limit(1);
+    const child = !error && Array.isArray(data) ? data[0] : null;
+    if (child?.id) {
+      const { count } = await supabase.from('run_artifacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('run_id', child.id).eq('status', 'validated');
+      revisedResult = {
+        runId: child.id,
+        artifactCount: typeof count === 'number' ? count : 0,
+        completedAt: child.completed_at || child.ran_at || null,
+      };
+    }
+  } catch { /* additive; a run page must never fail because a child could not be read */ }
+
   // Engine-pin override disclosure (2026-07-18 review, Stage C #3 — deterministic,
   // not a model instruction). original_preference (migration 0119) and
   // selected_executor live on the run_requests row this run was claimed from, not
@@ -1036,6 +1069,27 @@ export default async function RunDetailPage({
           <div className="rounded-lg border border-ink-800 bg-ink-950/60 p-5">
             <div className="text-sm font-semibold text-ink-50 mb-1">{info.label === 'Not started' ? 'This run has not actually started' : 'No progress reported recently'}</div>
             <p className="text-sm text-ink-300 leading-relaxed">{info.reason}</p>
+          </div>
+        ) : revisedResult ? (
+          // NEVER "no deliverable" when a revision of this run delivered one. The
+          // deliverable is real, validated and one link away; it just lives on the
+          // child this run was revised into.
+          <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-5">
+            <div className="text-sm font-semibold text-ink-50 mb-1">This run was revised, and the revision delivered</div>
+            <p className="text-sm text-ink-300 leading-relaxed">
+              The result you asked for is on the revision run, not this one
+              {revisedResult.artifactCount > 0
+                ? `, along with ${revisedResult.artifactCount} validated file${revisedResult.artifactCount === 1 ? '' : 's'}`
+                : ''}.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Link href={`/review/${encodeURIComponent(revisedResult.runId)}`} className="btn-success text-sm px-4 py-2">
+                Open the revised result
+              </Link>
+              <Link href={`/runs/${encodeURIComponent(revisedResult.runId)}`} className="btn-outline text-sm px-4 py-2">
+                Files &amp; Artifacts
+              </Link>
+            </div>
           </div>
         ) : (
           <p className="text-sm text-ink-400 italic">
