@@ -7,7 +7,7 @@
  * a relative path from prose just to reach a delivered file.
  */
 
-import { useCallback, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 export type VerifiedArtifact = {
@@ -20,6 +20,19 @@ export type VerifiedArtifact = {
 type DesktopBridge = {
   openPath?: (path: string) => Promise<{ ok: boolean; error?: string }> | void;
   revealPath?: (path: string) => Promise<{ ok: boolean; error?: string }> | void;
+  localInputReauthorizationState?: (runId: string) => Promise<{
+    ok?: boolean;
+    applicable?: boolean;
+    required?: boolean;
+    label?: string;
+    error?: string;
+  }>;
+  reauthorizeRunInputs?: (runId: string) => Promise<{
+    ok?: boolean;
+    recovered?: number;
+    canceled?: boolean;
+    error?: string;
+  }>;
 };
 
 function size(bytes: number | null): string | null {
@@ -36,16 +49,54 @@ function roleLabel(role: string | null): string {
   return 'Verified file';
 }
 
-export default function VerifiedArtifacts({ artifacts }: { artifacts: VerifiedArtifact[] }) {
+export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: VerifiedArtifact[]; runId?: string }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [refreshing, refresh] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [sourceReconnect, setSourceReconnect] = useState<{ required: boolean; label?: string } | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
   const flash = (text: string) => {
     setMessage(text);
     window.setTimeout(() => setMessage(null), 2200);
   };
   const bridge = () => (window as Window & { implexaDesktop?: DesktopBridge }).implexaDesktop;
+
+  useEffect(() => {
+    const state = bridge()?.localInputReauthorizationState;
+    if (!runId || typeof state !== 'function') return;
+    let active = true;
+    void state(runId).then((result) => {
+      if (!active || !result?.ok || result.applicable === false) return;
+      setSourceReconnect({ required: result.required === true, label: result.label });
+    }).catch(() => { /* The files card remains useful when the native check is unavailable. */ });
+    return () => { active = false; };
+  }, [runId]);
+
+  const reconnectSource = useCallback(async () => {
+    const reconnect = bridge()?.reauthorizeRunInputs;
+    if (!runId || typeof reconnect !== 'function') return;
+    setReconnecting(true);
+    setMessage('Select the original file. Implexa will verify every byte before restoring access.');
+    try {
+      const result = await reconnect(runId);
+      if (result?.ok) {
+        setSourceReconnect({ required: false });
+        flash('Original source verified — queued work can continue');
+        refresh(() => router.refresh());
+      } else if (!result?.canceled) {
+        flash(result?.error === 'input_digest_mismatch'
+          ? 'That file does not match the original source'
+          : 'Could not verify the original source');
+      } else {
+        setMessage(null);
+      }
+    } catch {
+      flash('Could not verify the original source');
+    } finally {
+      setReconnecting(false);
+    }
+  }, [runId, router]);
   const copyPath = async (artifact: VerifiedArtifact) => {
     try {
       await navigator.clipboard.writeText(artifact.validatedPath);
@@ -111,6 +162,21 @@ export default function VerifiedArtifacts({ artifacts }: { artifacts: VerifiedAr
           )}
         </div>
       </div>
+      {sourceReconnect?.required && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5">
+          <p className="min-w-0 flex-1 text-xs leading-relaxed text-ink-300">
+            Implexa forgot the private source path after restarting. Reconnect {sourceReconnect.label || 'the original source'} to verify its exact bytes; the file stays on this Mac.
+          </p>
+          <button
+            type="button"
+            onClick={() => void reconnectSource()}
+            disabled={reconnecting}
+            className="rounded border border-amber-500/45 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-500/10 disabled:opacity-60 dark:text-amber-300"
+          >
+            {reconnecting ? 'Verifying source…' : 'Reconnect original source'}
+          </button>
+        </div>
+      )}
       {expanded && artifacts.length > 0 && (
         <ul id="run-artifact-list" className="mt-3 max-h-[28rem] overflow-y-auto divide-y divide-emerald-500/15 rounded-md border border-emerald-500/20 bg-ink-950/30">
           {artifacts.map((artifact) => (

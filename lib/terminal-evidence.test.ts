@@ -191,7 +191,7 @@ test('the run page resolves the revision child rather than saying "no deliverabl
   // Beside the files, NOT inside the deliverable else-chain: a reviewed parent
   // usually has its own output and never reaches that chain, so a pointer hidden
   // there would be invisible on exactly the page that needs it.
-  const artifactsAt = src.indexOf('<VerifiedArtifacts artifacts={verifiedArtifacts} />');
+  const artifactsAt = src.indexOf('<VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} />');
   const pointerAt = src.indexOf('{revisedResult && (');
   assert.ok(pointerAt > artifactsAt && pointerAt - artifactsAt < 900,
     'the revision pointer must render beside Files & Artifacts, for every revised run');
