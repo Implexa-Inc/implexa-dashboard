@@ -11,19 +11,31 @@ test('run detail surfaces only desktop-validated artifacts, separately from work
   assert.match(page, /from\('run_artifacts'\)/);
   assert.match(page, /\.eq\('status', 'validated'\)/,
     'declared/rejected worker claims must never become Open actions');
-  assert.match(page, /<VerifiedArtifacts artifacts=\{verifiedArtifacts\}/,
+  assert.match(page, /<VerifiedArtifacts artifacts=\{verifiedArtifacts\} runId=\{r\.id\}/,
     'the trusted read must reach the rendered run page');
   assert.match(page, /<RunMarkdown markdown=\{r\.output_markdown\}/,
     'markdown remains a separate, untrusted presentation surface');
 });
 
 test('files are a first-class run section, not gated on a final markdown deliverable', () => {
-  const files = page.indexOf('<VerifiedArtifacts artifacts={verifiedArtifacts} />');
+  const files = page.indexOf('<VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} />');
   const outputBranch = page.indexOf("{r.output_markdown ? (");
   assert.ok(files >= 0 && outputBranch >= 0 && files < outputBranch,
     'the files section must render before and independently of the output-markdown branch');
-  assert.equal(page.match(/<VerifiedArtifacts artifacts=\{verifiedArtifacts\} \/>/g)?.length, 1,
+  assert.equal(page.match(/<VerifiedArtifacts artifacts=\{verifiedArtifacts\} runId=\{r\.id\} \/>/g)?.length, 1,
     'the run page should expose one stable artifacts surface, not a second buried copy');
+});
+
+test('a restarted Desktop exposes the explicit private-source reauthorization gate', () => {
+  assert.match(component, /localInputReauthorizationState\?\:/,
+    'the run page must ask Desktop whether its process-local source authority was lost');
+  assert.match(component, /reauthorizeRunInputs\?\:/,
+    'the recovery action must stay in the native bridge instead of accepting a browser path');
+  assert.match(component, /Reconnect original source/);
+  assert.match(component, /the file stays on this Mac/,
+    'the user should understand that reconnecting does not upload their source');
+  assert.match(component, /input_digest_mismatch/,
+    'a wrong selection must be explained as an identity mismatch, not silently accepted');
 });
 
 test('verified file actions use the validator-produced absolute path, while hiding it from the visible label', () => {

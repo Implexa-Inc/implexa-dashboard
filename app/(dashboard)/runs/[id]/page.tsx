@@ -828,7 +828,7 @@ export default async function RunDetailPage({
             partial and completed runs alike. The component stays present at zero
             so a tab opened before Desktop validation lands has an honest Refresh
             path instead of permanently looking as though the run made no files. */}
-        <VerifiedArtifacts artifacts={verifiedArtifacts} />
+        <VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} />
 
         {/* THE REVISION POINTER (2026-08-23). Beside the files, not buried in the
             deliverable's else-chain, because a reviewed PARENT usually has its own
