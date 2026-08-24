@@ -18,9 +18,80 @@ export type Upstream = { path: string; method: 'GET' | 'POST' | 'PATCH' | 'DELET
  * server would; if the two ever disagree the server wins and the user sees its refusal.
  */
 export const REVISION_NOTE_MAX = 2000;
+export const PATTERN_RULE_MAX = 2000;
+export const PATTERN_SOURCE_MIN = 2;
+export const PATTERN_SOURCE_MAX = 100;
+export const PATTERN_ARTIFACT_MAX = 50;
+
+export type ReviewPatternApplication = {
+  rule: string;
+  sourceIssueIds: string[];
+  targetArtifactIds: string[];
+  scope: 'full_artifact' | 'after_last_explicit_issue';
+  confirmedByUser: boolean;
+};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const id = (v: unknown): string | null => (typeof v === 'string' && UUID.test(v.trim()) ? v.trim() : null);
+
+function uuidList(value: unknown, min: number, max: number): string[] | null {
+  if (!Array.isArray(value) || value.length < min || value.length > max) return null;
+  const values = value.map(id);
+  if (values.some((value) => !value)) return null;
+  const out = values as string[];
+  return new Set(out.map((value) => value.toLowerCase())).size === out.length ? out : null;
+}
+
+/**
+ * Parse the untrusted synthesis response before it reaches component state. The
+ * server remains authoritative, but the browser must not render or later submit an
+ * object whose scope or evidence identities differ from the exact selection the
+ * reviewer made.
+ */
+export function parsePatternCandidate(
+  raw: unknown,
+  expected: { sourceIssueIds: string[]; targetArtifactIds: string[] },
+): ReviewPatternApplication | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const value = raw as Record<string, unknown>;
+  const exactKeys = ['confirmedByUser', 'rule', 'scope', 'sourceIssueIds', 'targetArtifactIds'];
+  if (Object.keys(value).sort().join('|') !== exactKeys.join('|')) return null;
+  if (value.confirmedByUser !== false) return null;
+  const rule = typeof value.rule === 'string' ? value.rule.trim() : '';
+  const sources = uuidList(value.sourceIssueIds, PATTERN_SOURCE_MIN, PATTERN_SOURCE_MAX);
+  const targets = uuidList(value.targetArtifactIds, 1, PATTERN_ARTIFACT_MAX);
+  if (!rule || rule.length > PATTERN_RULE_MAX || !sources || !targets
+      || (value.scope !== 'full_artifact' && value.scope !== 'after_last_explicit_issue')) return null;
+  const canonical = (values: string[]) => values.map((entry) => entry.toLowerCase()).sort().join('|');
+  if (canonical(sources) !== canonical(expected.sourceIssueIds)
+      || canonical(targets) !== canonical(expected.targetArtifactIds)) return null;
+  return {
+    rule,
+    sourceIssueIds: sources,
+    targetArtifactIds: targets,
+    scope: value.scope,
+    confirmedByUser: false,
+  };
+}
+
+function confirmedPattern(raw: unknown): ReviewPatternApplication | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const value = raw as Record<string, unknown>;
+  const exactKeys = ['confirmedByUser', 'rule', 'scope', 'sourceIssueIds', 'targetArtifactIds'];
+  if (Object.keys(value).sort().join('|') !== exactKeys.join('|') || value.confirmedByUser !== true) return null;
+  const rule = typeof value.rule === 'string' ? value.rule.trim() : '';
+  const sources = uuidList(value.sourceIssueIds, PATTERN_SOURCE_MIN, PATTERN_SOURCE_MAX);
+  const targets = uuidList(value.targetArtifactIds, 1, PATTERN_ARTIFACT_MAX);
+  if (!rule || rule.length > PATTERN_RULE_MAX || !sources || !targets
+      || (value.scope !== 'full_artifact' && value.scope !== 'after_last_explicit_issue')) return null;
+  return {
+    rule,
+    sourceIssueIds: sources,
+    targetArtifactIds: targets,
+    scope: value.scope,
+    confirmedByUser: true,
+  };
+}
 
 /**
  * Map an action to its single upstream call. Returns a string on refusal so the
@@ -105,6 +176,21 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
         body: { issueIds },
       };
     }
+    case 'pattern_candidate': {
+      const sessionId = id(b.sessionId);
+      if (!sessionId) return 'A valid sessionId is required.';
+      if (!Array.isArray(b.sourceIssueIds) || b.sourceIssueIds.length < 2 || b.sourceIssueIds.length > 100) {
+        return 'Choose between 2 and 100 repeated issues.';
+      }
+      const sourceIssueIds = b.sourceIssueIds.map(id);
+      if (sourceIssueIds.some((issueId) => !issueId) || new Set(sourceIssueIds).size !== sourceIssueIds.length) {
+        return 'Every pattern source issue must be a unique valid UUID.';
+      }
+      return {
+        path: `/api/v2/review/sessions/${sessionId}/pattern-candidate`, method: 'POST',
+        body: { sourceIssueIds },
+      };
+    }
     case 'submit': {
       const sessionId = id(b.sessionId);
       if (!sessionId) return 'A valid sessionId is required.';
@@ -129,6 +215,12 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
       if (b.revisionMode !== undefined && b.revisionMode !== 'inherit' && b.revisionMode !== 'selected_files') {
         return 'Choose a valid revision source mode.';
       }
+      const patternApplication = b.patternApplication === undefined || b.patternApplication === null
+        ? null
+        : confirmedPattern(b.patternApplication);
+      if (b.patternApplication !== undefined && b.patternApplication !== null && !patternApplication) {
+        return 'Review and explicitly confirm a valid run-local pattern before submitting.';
+      }
       // Idempotent upstream: a double click, a retry, or a crashed attempt all
       // converge on the SAME continuation. The client must not try to dedupe.
       return {
@@ -136,7 +228,11 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
         // Explicit null rather than an absent key: the backend reads
         // `typeof req.body.revisionNote === 'string' ? … : null`, so both are accepted,
         // and stating it makes "no note" a decision rather than an omission.
-        body: { revisionNote: note.length ? note : null, revisionMode },
+        body: {
+          revisionNote: note.length ? note : null,
+          revisionMode,
+          ...(patternApplication ? { patternApplication } : {}),
+        },
       };
     }
     case 'accept': {

@@ -32,6 +32,8 @@
  *   issue-count-invented a count the server did not give, filled in locally
  *   credential-leak      a token, key or backend origin reaching the browser
  *   component-click      the real button disconnected from the real orchestration
+ *   manager-pattern      synthesis widened beyond the reviewer's exact selection,
+ *                        stale evidence reused, or model authority self-confirmed
  *
  * The wire contract is PINNED to
  * implexa-backend@8c0f71d6eb611faf9635f14c7bafc767d01bc706. `review-submit-contract
@@ -270,14 +272,31 @@ const mutations = [
     "    ...state,\n    phase: 'error',\n    continuationId: null,",
     "    ...state,\n    phase: 'error',\n    snapshot: null,\n    continuationId: null,"],
 
+  // ── Manager's bounded, run-local pattern application ─────────────────────
+  ['manager-pattern', 'synthesis widens disclosure from selected comments to every eligible issue', COMPONENT,
+    '      const sourceIssueIds = patternSourceIssues.map((issue) => issue.id);',
+    '      const sourceIssueIds = patternEligibleIssues.map((issue) => issue.id);'],
+  ['manager-pattern', 'a confirmed candidate survives a change to its exact evidence', COMPONENT,
+    '        && patternCandidateEvidenceKey === patternEvidenceKey',
+    '        && true'],
+  ['manager-pattern', 'the model can mark its own candidate as user-confirmed', ACTIONS,
+    '  if (value.confirmedByUser !== false) return null;',
+    '  if (false) return null;'],
+  ['manager-pattern', 'the candidate may widen its source issue authority', ACTIONS,
+    '  if (canonical(sources) !== canonical(expected.sourceIssueIds)\n      || canonical(targets) !== canonical(expected.targetArtifactIds)) return null;',
+    '  if (canonical(targets) !== canonical(expected.targetArtifactIds)) return null;'],
+  ['manager-pattern', 'the candidate may widen its target artifact authority', ACTIONS,
+    '  if (canonical(sources) !== canonical(expected.sourceIssueIds)\n      || canonical(targets) !== canonical(expected.targetArtifactIds)) return null;',
+    '  if (canonical(sources) !== canonical(expected.sourceIssueIds)) return null;'],
+
   // ── the pinned wire contract ──────────────────────────────────────────────
   // Field name, bound and trimming all read from implexa-backend@8c0f71d.
   ['note-dropped', 'the note is dropped from the request body entirely', ACTIONS,
-    '        body: { revisionNote: note.length ? note : null, revisionMode },',
-    '        body: { revisionMode },'],
+    '          revisionNote: note.length ? note : null,\n          revisionMode,',
+    '          revisionMode,'],
   ['note-dropped', 'the note travels under a field the backend does not read', ACTIONS,
-    '        body: { revisionNote: note.length ? note : null, revisionMode },',
-    '        body: { note: note.length ? note : null, revisionMode },'],
+    '          revisionNote: note.length ? note : null,\n          revisionMode,',
+    '          note: note.length ? note : null,\n          revisionMode,'],
   ['note-dropped', 'the note is sent untrimmed, so stored and shown text differ', ACTIONS,
     "      const note = typeof raw === 'string' ? raw.trim() : '';",
     "      const note = typeof raw === 'string' ? raw : '';"],
@@ -291,8 +310,8 @@ const mutations = [
     '        revisionNote,',
     "        revisionNote: '',"],
   ['note-dropped', 'onSubmit closes over the note as it was at mount', COMPONENT,
-    '  }, [session, router, revisionNote, effectiveRevisionMode]);',
-    '  }, [session, router, effectiveRevisionMode]);'],
+    '  }, [session, router, revisionNote, effectiveRevisionMode, patternCandidate, patternCandidateEvidenceKey, patternEvidenceKey]);',
+    '  }, [session, router, effectiveRevisionMode, patternCandidate, patternCandidateEvidenceKey, patternEvidenceKey]);'],
 
   // ── the server's answer is the answer ─────────────────────────────────────
   ['request-id-dropped', 'a success with no continuation id is accepted', FLOW,

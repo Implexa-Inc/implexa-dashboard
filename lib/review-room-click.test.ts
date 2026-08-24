@@ -143,6 +143,11 @@ async function mount(over: Record<string, unknown> = {}) {
 const buttons = () => [...container.querySelectorAll('button')] as HTMLButtonElement[];
 const primary = () => buttons().find((b) => /Send \d+ unresolved \+ \d+ new changes?|Sending|Revision queued/.test(b.textContent || ''))!;
 const text = () => container.textContent || '';
+const revisionSourceToggle = () => {
+  const label = [...container.querySelectorAll('label')].find((candidate) =>
+    /Start with reviewed and attached files only/.test(candidate.textContent || ''));
+  return label?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+};
 /** Type into the composer the way React's controlled input expects. */
 const typeNote = async (value: string) => {
   const note = container.querySelector('textarea') as HTMLTextAreaElement;
@@ -292,6 +297,62 @@ test('SUCCESS leaves Sending and renders the SERVER count and identities', async
     buttons().some((b) => /start revision/.test(b.textContent || '')), false,
     'a queued revision still offered to send',
   );
+  root.unmount();
+});
+
+test('Manager sends only selected examples, invalidates stale synthesis, and submits explicit confirmation', async () => {
+  const syntheses: Array<Record<string, unknown>> = [];
+  const submissions: Array<Record<string, unknown>> = [];
+  const issueById = new Map(fixtureIssues.map((issue) => [issue.id, issue]));
+  (globalThis as Record<string, unknown>).fetch = async (_url: string, init: { body?: string }) => {
+    const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+    if (body.action === 'pattern_candidate') {
+      syntheses.push(body);
+      const sourceIssueIds = body.sourceIssueIds as string[];
+      const targetArtifactIds = [...new Set(sourceIssueIds.map((id) => issueById.get(id)!.artifactId!))];
+      return {
+        status: 200,
+        json: async () => ({
+          ok: true,
+          candidate: {
+            rule: 'Remove repeated abandoned starts.', sourceIssueIds, targetArtifactIds,
+            scope: 'full_artifact', confirmedByUser: false,
+          },
+        }),
+      } as unknown as Response;
+    }
+    submissions.push(body);
+    return { status: 200, json: async () => submitFixture.fresh } as unknown as Response;
+  };
+  await mount();
+  const examples = [...container.querySelectorAll('label')]
+    .filter((label) => /Use this exact comment as a repeated-pattern example/.test(label.textContent || ''))
+    .map((label) => label.querySelector('input') as HTMLInputElement);
+  assert.equal(examples.length, 12);
+  await click(examples[0]);
+  await click(examples[1]);
+  const synthesize = () => buttons().find((button) => /^Synthesize(?: again)?$/.test(button.textContent || ''))!;
+  await click(synthesize());
+  assert.equal((syntheses[0].sourceIssueIds as string[]).length, 2,
+    'synthesis disclosed more than the two reviewer-selected comments');
+  assert.match(text(), /Remove repeated abandoned starts/);
+
+  // Changing the evidence set invalidates the candidate before another submission
+  // can adopt its old authority.
+  await click(examples[2]);
+  assert.doesNotMatch(text(), /Remove repeated abandoned starts/);
+  await click(synthesize());
+  assert.equal((syntheses[1].sourceIssueIds as string[]).length, 3);
+  const confirmLabel = [...container.querySelectorAll('label')]
+    .find((label) => /Confirm this run-local rule/.test(label.textContent || ''))!;
+  await click(confirmLabel.querySelector('input') as HTMLInputElement);
+  await click(primary());
+  assert.equal(submissions.length, 1);
+  const pattern = submissions[0].patternApplication as Record<string, unknown>;
+  assert.equal(pattern.confirmedByUser, true);
+  assert.equal((pattern.sourceIssueIds as string[]).length, 3);
+  assert.equal(Object.hasOwn(pattern, 'futureTraining'), false,
+    'a run-local pattern acquired future-learning authority');
   root.unmount();
 });
 
@@ -450,7 +511,7 @@ test('an empty composer resolves to an explicit null, not an empty string', asyn
 
 test('reviewed and attached files are the safe default, with original-run inheritance an explicit opt-out', async () => {
   await mount();
-  const toggle = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+  const toggle = revisionSourceToggle();
   assert.ok(toggle, 'selected-files source-policy control is missing');
   assert.equal(toggle.checked, true, 'ordinary review silently inherited an old run input contract');
   await act(async () => { toggle.click(); });
@@ -469,7 +530,8 @@ test('an externally opened review target automatically uses selected files witho
       createdAt: '2026-08-12T00:00:00.000Z',
     }],
   });
-  const toggle = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+  const toggle = revisionSourceToggle();
+  assert.ok(toggle, 'selected-files source-policy control is missing');
   assert.equal(toggle.checked, true, 'the safe mode was not selected from the durable external target');
   assert.equal(toggle.disabled, true, 'the required safe mode can be silently downgraded');
   assert.match(text(), /Required automatically because this review includes a file opened outside the original run/);
