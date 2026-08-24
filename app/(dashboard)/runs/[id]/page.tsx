@@ -212,6 +212,26 @@ export default async function RunDetailPage({
     );
   }
 
+  // Judge and recovery providers receive a durable, fenced execution identity
+  // before spawn. Older records used a skill_runs shell for that identity even
+  // though the manager reviews/recovers another run and owns no result itself.
+  // Resolve old notifications and bookmarks to that canonical target instead
+  // of rendering a permanently blank "queued" shell.
+  const { data: managerRequest } = await supabase
+    .from('run_requests')
+    .select('kind, judge_target_run_id, recovery_target_run_id')
+    .eq('run_id', r.id)
+    .in('kind', ['judge', 'recover'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const managerTarget = managerRequest?.kind === 'judge'
+    ? managerRequest.judge_target_run_id
+    : managerRequest?.kind === 'recover'
+      ? managerRequest.recovery_target_run_id
+      : null;
+  if (managerTarget && managerTarget !== r.id) redirect(`/runs/${encodeURIComponent(managerTarget)}`);
+
   // 0139 is additive. Read the explicit hold contract separately so a dashboard
   // deploy before its migration still renders the legacy-safe action rather than
   // making the whole run page disappear on an unknown-column error.

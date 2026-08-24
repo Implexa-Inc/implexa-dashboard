@@ -464,13 +464,28 @@ export async function selectRuns(
     return q;
   };
 
+  const withoutManagerScaffolds = async (rows: RunRow[]): Promise<RunRow[]> => {
+    if (!rows.length) return rows;
+    const { data, error } = await supabase
+      .from('run_requests')
+      .select('run_id')
+      .in('kind', ['judge', 'recover'])
+      .in('run_id', rows.map((row) => row.id));
+    // Preserve primary history if this ancillary classification read is
+    // temporarily unavailable. Direct permalinks have a second target guard.
+    if (error) return rows;
+    const hidden = new Set(((data as Array<{ run_id: string | null }> | null) ?? [])
+      .map((row) => row.run_id).filter((id): id is string => !!id));
+    return rows.filter((row) => !hidden.has(row.id));
+  };
+
   const richRes = await build(rich);
-  if (!richRes.error) return (richRes.data as unknown as RunRow[]) || [];
+  if (!richRes.error) return withoutManagerScaffolds((richRes.data as unknown as RunRow[]) || []);
   if (!isMissingColumn(richRes.error)) {
     // A real error (auth, RLS, network): surface nothing rather than throwing,
     // matching the rest of the dashboard's degrade-to-empty server reads.
     return [];
   }
   const baseRes = await build(base);
-  return baseRes.error ? [] : ((baseRes.data as unknown as RunRow[]) || []);
+  return baseRes.error ? [] : withoutManagerScaffolds((baseRes.data as unknown as RunRow[]) || []);
 }
