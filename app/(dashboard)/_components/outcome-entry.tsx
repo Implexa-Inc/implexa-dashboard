@@ -27,15 +27,12 @@ const UNAVAILABLE_COPY = 'We can’t plan this outcome right now. Nothing was se
 const UNCONFIRMED_START_COPY = 'We couldn’t confirm the start. Press Start production again to retry the same Backend production and plan digest.';
 const MAX_ARTIFACTS = 10;
 const MAX_OUTCOME_GOAL = 2000;
-const RUN_INSTRUCTION_PREFIX = ' Run instructions for this production: ';
+const MAX_RUN_INSTRUCTIONS = 2000;
 
-export function compileOutcomeGoal(goal: string, runInstructions: string) {
-  // OutcomeIntent.v1 canonicalizes whitespace before digesting. Compile the
-  // same canonical text client-side so the response identity can be compared
-  // exactly instead of rejecting harmless textarea line breaks.
-  const base = goal.replace(/\s+/g, ' ').trim();
-  const instructions = runInstructions.replace(/\s+/g, ' ').trim();
-  return instructions ? `${base}${RUN_INSTRUCTION_PREFIX}${instructions}` : base;
+export function canonicalOutcomeText(value: string) {
+  // OutcomeIntent.v1 canonicalizes whitespace before digesting. Mirror that
+  // normalization for exact response-identity checks.
+  return value.replace(/\s+/g, ' ').trim();
 }
 function pickerField(inputType: OutcomeInputType): WorkflowInputField {
   return {
@@ -110,10 +107,9 @@ export default function OutcomeEntry() {
 
   const parsedCredits = Number(budgetCredits);
   const requestReady = goal.trim().length >= 8 && Number.isInteger(parsedCredits) && parsedCredits >= 1 && parsedCredits <= 100000;
-  const instructionsDirty = runInstructions.trim() !== plannedRunInstructions;
-  const compiledGoalLength = compileOutcomeGoal(goal, runInstructions).length;
-  const runInstructionsError = compiledGoalLength > MAX_OUTCOME_GOAL
-    ? `Outcome and run instructions together must be at most ${MAX_OUTCOME_GOAL.toLocaleString()} characters.`
+  const instructionsDirty = canonicalOutcomeText(runInstructions) !== plannedRunInstructions;
+  const runInstructionsError = canonicalOutcomeText(runInstructions).length > MAX_RUN_INSTRUCTIONS
+    ? `Run instructions must be at most ${MAX_RUN_INSTRUCTIONS.toLocaleString()} characters.`
     : null;
 
   async function addArtifact(expectedType?: OutcomeInputType, replan = false) {
@@ -190,10 +186,14 @@ export default function OutcomeEntry() {
 
   async function requestPlan(clarificationTaskKey?: string, artifactOverride = artifacts) {
     if (prepareInFlight.current !== null) return;
-    const instructionsForRequest = runInstructions.trim();
-    const goalForRequest = compileOutcomeGoal(goal, instructionsForRequest);
+    const instructionsForRequest = canonicalOutcomeText(runInstructions);
+    const goalForRequest = canonicalOutcomeText(goal);
     if (goalForRequest.length > MAX_OUTCOME_GOAL) {
-      setStartError(`Outcome and run instructions together must be at most ${MAX_OUTCOME_GOAL.toLocaleString()} characters.`);
+      setStartError(`Outcome must be at most ${MAX_OUTCOME_GOAL.toLocaleString()} characters.`);
+      return;
+    }
+    if (instructionsForRequest.length > MAX_RUN_INSTRUCTIONS) {
+      setStartError(`Run instructions must be at most ${MAX_RUN_INSTRUCTIONS.toLocaleString()} characters.`);
       return;
     }
     const mine = (reqId.current += 1);
@@ -206,7 +206,9 @@ export default function OutcomeEntry() {
       const res = await fetch('/api/outcome-productions', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          action: 'prepare', goal: goalForRequest, quality,
+          action: 'prepare', goal: goalForRequest,
+          ...(instructionsForRequest ? { run_instructions: instructionsForRequest } : {}),
+          quality,
           idempotency_key: prepareIdempotencyKey.current,
           deadline_at: deadline || null,
           max_budget_credits: parsedCredits,
@@ -226,7 +228,10 @@ export default function OutcomeEntry() {
         return;
       }
       const outcome = res.ok ? parsePlanResponse(body) : null;
-      if (outcome?.kind === 'plan' && outcome.intent.goal !== goalForRequest) {
+      if (outcome?.kind === 'plan' && (
+        outcome.intent.goal !== goalForRequest
+        || (outcome.intent.run_instructions || '') !== instructionsForRequest
+      )) {
         setPlan({ phase: 'invalid', message: 'The prepared plan did not retain the exact run instructions. Plan again before starting.' });
         return;
       }
