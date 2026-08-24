@@ -257,6 +257,39 @@ export default async function RunDetailPage({
     }
   } catch { /* Layer 2 is additive; an unavailable table must never break the run page. */ }
 
+  // ── THE REVISED RESULT (2026-08-23) ──────────────────────────────────────
+  //
+  // A Review Room revision produces a CHILD run. Its deliverable — nine artifacts
+  // and a final MP4, in the incident — is registered against that child, so this
+  // page, keyed by the run in the URL, correctly found nothing and said "No
+  // deliverable recorded for this run". True about this row, and the opposite of
+  // what the user needed to know: the work they asked for exists, one link away.
+  //
+  // Deliberately NOT merged into verifiedArtifacts. Those files belong to the
+  // child and listing them here would attribute another run's output to this one —
+  // the same parent/child confusion, wearing the opposite face. This names the
+  // child and lets the user go there.
+  let revisedResult: { runId: string; artifactCount: number; completedAt: string | null } | null = null;
+  try {
+    const { data, error } = await supabase.from('skill_runs')
+      .select('id, run_state, completed_at, ran_at')
+      .eq('continued_from_run_id', r.id)
+      .eq('run_state', 'completed')
+      .order('ran_at', { ascending: false })
+      .limit(1);
+    const child = !error && Array.isArray(data) ? data[0] : null;
+    if (child?.id) {
+      const { count } = await supabase.from('run_artifacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('run_id', child.id).eq('status', 'validated');
+      revisedResult = {
+        runId: child.id,
+        artifactCount: typeof count === 'number' ? count : 0,
+        completedAt: child.completed_at || child.ran_at || null,
+      };
+    }
+  } catch { /* additive; a run page must never fail because a child could not be read */ }
+
   // Engine-pin override disclosure (2026-07-18 review, Stage C #3 — deterministic,
   // not a model instruction). original_preference (migration 0119) and
   // selected_executor live on the run_requests row this run was claimed from, not
@@ -797,6 +830,33 @@ export default async function RunDetailPage({
             path instead of permanently looking as though the run made no files. */}
         <VerifiedArtifacts artifacts={verifiedArtifacts} />
 
+        {/* THE REVISION POINTER (2026-08-23). Beside the files, not buried in the
+            deliverable's else-chain, because a reviewed PARENT usually has its own
+            output and its own older artifacts — so it never reaches that chain and
+            the page reads as the finished answer while the answer the user asked
+            for sits on the child. The child's files stay attributed to the child:
+            merging them here would be the same parent/child confusion wearing the
+            opposite face. */}
+        {revisedResult && (
+          <div className="mb-6 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-4">
+            <p className="text-sm font-semibold text-ink-50">This run was revised, and the revision delivered</p>
+            <p className="mt-1 text-sm text-ink-300 leading-relaxed">
+              The revised result is on its own run
+              {revisedResult.artifactCount > 0
+                ? `, with ${revisedResult.artifactCount} validated file${revisedResult.artifactCount === 1 ? '' : 's'}`
+                : ''}. The files listed above belong to this run.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Link href={`/review/${encodeURIComponent(revisedResult.runId)}`} className="btn-success text-sm px-4 py-2">
+                Open the revised result
+              </Link>
+              <Link href={`/runs/${encodeURIComponent(revisedResult.runId)}`} className="btn-outline text-sm px-4 py-2">
+                Its files &amp; artifacts
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* First quality-mode entry point: only offer B-roll generation beside a
             desktop-validated video deliverable. A markdown path is a worker claim,
             not evidence that there is a video to build from. The proposal itself
@@ -1041,7 +1101,12 @@ export default async function RunDetailPage({
           <p className="text-sm text-ink-400 italic">
             {approvalContinuationRecovery
               ? 'The review plan is ready; the final deliverable will be created after approval.'
-              : 'No deliverable recorded for this run.'}
+              // "No deliverable recorded" is true of THIS row and, on a run that
+              // was revised, the most misleading true sentence on the page. The
+              // pointer above says where the result is; this stops contradicting it.
+              : revisedResult
+                ? 'No written summary on this run — it was revised, and the delivered result is linked above.'
+                : 'No deliverable recorded for this run.'}
           </p>
         )}
 

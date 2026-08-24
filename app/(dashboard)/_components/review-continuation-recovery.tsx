@@ -24,6 +24,17 @@
  *   Unable to verify → "Restart Codex, then retry". The restart is the user's;
  *                      the proof is the Desktop's; the retry is one click.
  *   Ready to retry   → retry now.
+ *   Complete         → open the result. No retry, because there is nothing to
+ *                      retry — see below.
+ *
+ * THE FOURTH STATE, AND WHY IT WAS MISSING (2026-08-23). This panel had no way to
+ * say a revision FINISHED. The backend read fell through to "an attempt that
+ * ended" and answered `retryable`, so a continuation that had delivered nine
+ * artifacts and a final MP4 rendered as "Ready to retry — the previous attempt is
+ * confirmed finished". Every word of that was technically true about the PROCESS
+ * and completely wrong about the WORK, and the button under it would have paid to
+ * do the whole revision again. An attempt ending is evidence about a process; a
+ * request closing successfully is evidence about the result, and the result wins.
  *
  * TWO THINGS IT MUST NEVER DO, both of which the old surface got wrong by
  * omission:
@@ -36,23 +47,28 @@
  *     note field is never cleared except on a real success.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import { classifyRunRequestRefusal, type RunRequestRefusal } from '@/lib/run-request-refusal';
 
-export type RecoveryState = 'running' | 'unverifiable' | 'retryable' | 'queued' | 'cancelled' | 'not_review_retry';
+export type RecoveryState = 'running' | 'unverifiable' | 'retryable' | 'queued' | 'cancelled' | 'completed' | 'not_review_retry';
 
 interface RecoveryPayload {
   ok: boolean;
   state: RecoveryState;
   legacy?: boolean;
+  /** Set on `completed`: the CHILD run that carries the revised deliverable. */
+  runId?: string | null;
+  completedAt?: string | null;
+  failureReason?: string | null;
   attempt?: {
     launchAttemptId?: string;
     executor?: string | null;
     endedAt?: string;
     exitClassification?: string | null;
     consequentialWorkStarted?: boolean;
+    terminalOutcome?: string | null;
   } | null;
 }
 
@@ -65,6 +81,7 @@ const HEADLINE: Record<RecoveryState, string> = {
   retryable: 'Ready to retry',
   queued: 'Queued',
   cancelled: 'This revision was cancelled',
+  completed: 'This revision is complete',
   not_review_retry: '',
 };
 
@@ -73,6 +90,7 @@ export default function ReviewContinuationRecovery({
   refusal = null,
   note = '',
   onQueued,
+  onCompleted,
 }: {
   requestId: string;
   /** The typed refusal that brought the user here, if any. */
@@ -80,6 +98,12 @@ export default function ReviewContinuationRecovery({
   /** The user's feedback, carried through so a retry never asks for it again. */
   note?: string;
   onQueued?: (result: { alreadyQueued: boolean; submissionId?: string }) => void;
+  /**
+   * The revision FINISHED. Told to the parent so the surrounding screen can stop
+   * claiming a revision is queued — a panel that quietly knows better while the
+   * block around it says "Revision queued" is two answers on one screen.
+   */
+  onCompleted?: (result: { runId: string | null; completedAt: string | null }) => void;
 }) {
   const [state, setState] = useState<RecoveryState | null>(null);
   const [detail, setDetail] = useState<RecoveryPayload | null>(null);
@@ -91,6 +115,11 @@ export default function ReviewContinuationRecovery({
   // A primitive, so the effect's dependency is a value rather than an object
   // identity that changes on every parent render.
   const refusalKind = refusal?.kind ?? null;
+  // Held in a ref so a parent that re-creates the callback on every render cannot
+  // re-fire the mount effect. This panel, of all panels, must not render-loop: it
+  // is what a user reaches when something has already gone wrong.
+  const onCompletedRef = useRef(onCompleted);
+  useEffect(() => { onCompletedRef.current = onCompleted; }, [onCompleted]);
 
   // The Supabase client is created INSIDE each call, and `load` depends only on
   // the request id. Holding `createClient()` in the component body and listing
@@ -106,7 +135,13 @@ export default function ReviewContinuationRecovery({
         `/api/v2/me/run-requests/${encodeURIComponent(requestId)}/recovery-state`,
         { jwt: session?.access_token },
       );
-      if (result && result.ok) { setState(result.state); setDetail(result); }
+      if (result && result.ok) {
+        setState(result.state);
+        setDetail(result);
+        if (result.state === 'completed') {
+          onCompletedRef.current?.({ runId: result.runId || null, completedAt: result.completedAt || null });
+        }
+      }
     } catch {
       // A failed read must not invent a state. Fall back to whatever the refusal
       // already told us, which is a fact we actually have.
@@ -149,7 +184,7 @@ export default function ReviewContinuationRecovery({
   if (!resolved || resolved === 'not_review_retry') return null;
 
   const executorLabel = EXECUTOR_LABEL[detail?.attempt?.executor || ''] || 'ChatGPT / Codex';
-  const tone = resolved === 'queued'
+  const tone = resolved === 'queued' || resolved === 'completed'
     ? 'border-success-600/40 bg-success-600/5'
     : resolved === 'running'
       ? 'border-ink-700 bg-ink-900/40'
@@ -222,6 +257,29 @@ export default function ReviewContinuationRecovery({
         </>
       )}
 
+      {resolved === 'completed' && (
+        <>
+          <p className="mt-1 text-xs leading-relaxed text-ink-400">
+            Your feedback was applied and the revised result was delivered. Nothing is waiting
+            to run, and there is nothing to retry.
+          </p>
+          {detail?.runId ? (
+            <a
+              href={`/review/${encodeURIComponent(detail.runId)}`}
+              className="btn-success mt-3 inline-block text-xs px-3 py-1.5"
+            >
+              Open the revised result
+            </a>
+          ) : (
+            /* A completed revision whose result run we cannot name is still complete.
+               Say the true half rather than offering a link that goes nowhere. */
+            <p className="mt-2 text-xs text-ink-500">
+              The delivered result could not be linked from here. It is listed under Delivered.
+            </p>
+          )}
+        </>
+      )}
+
       {resolved === 'cancelled' && (
         <p className="mt-1 text-xs leading-relaxed text-ink-400">
           Cancelling is final. Submit a new revision from Review Room when you’re ready.
@@ -237,7 +295,7 @@ export default function ReviewContinuationRecovery({
       {/* The refusal that brought the user here stays visible while it is still
           the newest thing we know, so the panel never silently replaces a
           specific answer with a general one. */}
-      {(error || (refusal && resolved !== 'queued' && !error)) && (
+      {(error || (refusal && resolved !== 'queued' && resolved !== 'completed' && !error)) && (
         <p className="mt-3 text-xs text-rose-600 dark:text-rose-400">{error || refusal?.message}</p>
       )}
     </div>
