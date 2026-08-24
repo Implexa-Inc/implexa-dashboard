@@ -54,6 +54,7 @@ import {
   reviewSubmissionView, parseSubmitResponse, submitRefusalCopy, REVISION_NOTE_MAX,
   type SubmissionState, type SubmitOutcome,
 } from '@/lib/review-submission-flow';
+import { parsePatternCandidate, type ReviewPatternApplication } from '@/lib/review-actions';
 
 import {
   beginRange, canOfferRange, canReplaceDraft, completeRange, composerHeaderLabel, draftFromIssue,
@@ -278,6 +279,10 @@ export default function ReviewRoom(props: Props) {
   // capture. `inherit` remains an explicit advanced choice for a reviewer who knows
   // the original run has a complete durable input contract.
   const [revisionMode, setRevisionMode] = useState<'inherit' | 'selected_files'>('selected_files');
+  const [patternSourceIssueIds, setPatternSourceIssueIds] = useState<string[]>([]);
+  const [patternCandidate, setPatternCandidate] = useState<ReviewPatternApplication | null>(null);
+  const [patternCandidateEvidenceKey, setPatternCandidateEvidenceKey] = useState<string | null>(null);
+  const [patternBusy, setPatternBusy] = useState(false);
   const submission = phaseForSession({
     sessionState: session?.state ?? null,
     submittedRequestId: session?.submittedRequestId ?? null,
@@ -316,6 +321,38 @@ export default function ReviewRoom(props: Props) {
     .some((entry) => entry.purpose === 'review_target');
   const effectiveRevisionMode = hasExternalReviewTarget ? 'selected_files' : revisionMode;
   const supportingReviewFiles = (props.reviewArtifacts ?? []).filter((entry) => entry.purpose === 'supporting');
+
+  // The reviewer, not the model, chooses which exact comments demonstrate a shared
+  // defect. Only active artifact-bound comments are eligible. The ordered issue rail
+  // fixes disclosure order, so checking the same set twice sends byte-identical
+  // evidence regardless of click order.
+  const activeIssueIds = useMemo(() => new Set(activeIssues.map((issue) => issue.id)), [activeIssues]);
+  const patternEligibleIssues = useMemo(
+    () => ordered.filter((issue) => activeIssueIds.has(issue.id) && !!issue.artifactId),
+    [ordered, activeIssueIds],
+  );
+  const patternEligibleIssueIds = useMemo(
+    () => new Set(patternEligibleIssues.map((issue) => issue.id)),
+    [patternEligibleIssues],
+  );
+  const patternSourceIssues = useMemo(() => {
+    const selected = new Set(patternSourceIssueIds);
+    return patternEligibleIssues.filter((issue) => selected.has(issue.id));
+  }, [patternEligibleIssues, patternSourceIssueIds]);
+  const patternEvidenceKey = useMemo(() => JSON.stringify(patternSourceIssues.map((issue) => ({
+    id: issue.id,
+    artifactId: issue.artifactId,
+    kind: issue.kind,
+    anchor: issue.anchor,
+    body: issue.body,
+  }))), [patternSourceIssues]);
+
+  useEffect(() => {
+    if (patternCandidate && patternCandidateEvidenceKey !== patternEvidenceKey) {
+      setPatternCandidate(null);
+      setPatternCandidateEvidenceKey(null);
+    }
+  }, [patternCandidate, patternCandidateEvidenceKey, patternEvidenceKey]);
 
   // ── preview lifecycle ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -963,12 +1000,17 @@ export default function ReviewRoom(props: Props) {
         setError('Nothing to submit yet.');
         return { ok: false, reason: 'refused', message: 'Nothing to submit yet.' };
       }
+      const confirmedPattern = patternCandidate?.confirmedByUser
+        && patternCandidateEvidenceKey === patternEvidenceKey
+        ? patternCandidate
+        : null;
       const { status, body } = await reviewAction({
         action: 'submit', sessionId: sid,
         // The composer's live text. `resolveReviewAction` trims it and refuses an
         // over-long note before anything leaves the browser.
         revisionNote,
         revisionMode: effectiveRevisionMode,
+        ...(confirmedPattern ? { patternApplication: confirmedPattern } : {}),
       });
       // 5xx is a read the service could not make, not a verdict on the review.
       const outcome = parseSubmitResponse(body, { unavailable: status >= 500 });
@@ -994,7 +1036,47 @@ export default function ReviewRoom(props: Props) {
       setError(submitRefusalCopy(outcome));
       return outcome;
     } finally { setBusy(false); }
-  }, [session, router, revisionNote, effectiveRevisionMode]);
+  }, [session, router, revisionNote, effectiveRevisionMode, patternCandidate, patternCandidateEvidenceKey, patternEvidenceKey]);
+
+  const togglePatternSource = useCallback((issueId: string, selected: boolean) => {
+    setPatternSourceIssueIds((current) => selected
+      ? (current.includes(issueId) ? current : [...current, issueId])
+      : current.filter((id) => id !== issueId));
+    // A candidate is authority over its exact evidence set. Changing that set makes
+    // it stale immediately; it may not survive until React's fingerprint effect.
+    setPatternCandidate(null);
+    setPatternCandidateEvidenceKey(null);
+  }, []);
+
+  const onSynthesizePattern = useCallback(async () => {
+    if (!session?.id || patternSourceIssues.length < 2) return;
+    setPatternBusy(true); setError(null);
+    try {
+      const sourceIssueIds = patternSourceIssues.map((issue) => issue.id);
+      const targetArtifactIds = [...new Set(patternSourceIssues.map((issue) => issue.artifactId as string))];
+      const { status, body } = await reviewAction({
+        action: 'pattern_candidate',
+        sessionId: session.id,
+        sourceIssueIds,
+      });
+      if (status >= 400 || !body?.ok || !body?.candidate) {
+        setError(body?.error || 'Could not synthesize a safe shared pattern.');
+        return;
+      }
+      const candidate = parsePatternCandidate(body.candidate, { sourceIssueIds, targetArtifactIds });
+      if (!candidate) {
+        setError('Pattern synthesis returned a candidate outside your selected comments. Nothing was changed.');
+        return;
+      }
+      setPatternCandidate(candidate);
+      setPatternCandidateEvidenceKey(patternEvidenceKey);
+      setNotice('Pattern candidate ready. Review and confirm it before sending.');
+    } catch {
+      setError('Pattern synthesis is unavailable. Your exact comments are unchanged.');
+    } finally {
+      setPatternBusy(false);
+    }
+  }, [session?.id, patternSourceIssues, patternEvidenceKey]);
 
   const onAccept = useCallback(async (discard: boolean) => {
     setBusy(true); setError(null); setNotice(null);
@@ -1480,6 +1562,18 @@ export default function ReviewRoom(props: Props) {
                     <p className="mt-0.5 text-[11px] text-sky-400">Opens another file</p>
                   )}
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink-200">{i.body}</p>
+                  {submitView.mode === 'send_changes' && patternEligibleIssueIds.has(i.id) && (
+                    <label className="mt-2 flex items-start gap-2 rounded border border-violet-500/20 bg-violet-500/5 px-2 py-1.5 text-[11px] text-ink-300">
+                      <input
+                        type="checkbox"
+                        checked={patternSourceIssueIds.includes(i.id)}
+                        disabled={frozen || patternBusy || submissionInFlight}
+                        onChange={(event) => togglePatternSource(i.id, event.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span>Use this exact comment as a repeated-pattern example</span>
+                    </label>
+                  )}
                   {i.status !== 'draft' && (
                     <button
                       type="button"
@@ -1677,6 +1771,91 @@ export default function ReviewRoom(props: Props) {
                     </span>
                   </summary>
                   <div className="space-y-2 border-t border-ink-800 p-2">
+                    {submitView.mode === 'send_changes' && (
+                      <div className="space-y-2 rounded border border-violet-500/30 bg-violet-500/5 p-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <span className="block text-xs font-medium text-violet-100">Apply a repeated pattern</span>
+                            <span className="mt-0.5 block text-[11px] leading-snug text-ink-500">
+                              Select two or more exact comments in the issue list. Implexa discloses only those comments to compile one bounded rule for this revision. Nothing becomes future training.
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={patternBusy || patternSourceIssues.length < 2 || submissionInFlight}
+                            onClick={() => void onSynthesizePattern()}
+                            aria-describedby="pattern-selection-status"
+                            className="shrink-0 rounded border border-violet-400/50 px-2 py-1 text-[11px] text-violet-100 disabled:opacity-40"
+                          >
+                            {patternBusy ? 'Synthesizing…' : patternCandidate ? 'Synthesize again' : 'Synthesize'}
+                          </button>
+                        </div>
+                        <p id="pattern-selection-status" className="text-[11px] text-ink-500">
+                          {patternSourceIssues.length === 0
+                            ? 'No pattern examples selected.'
+                            : `${patternSourceIssues.length} exact ${patternSourceIssues.length === 1 ? 'comment' : 'comments'} selected.`}
+                          {patternSourceIssues.length < 2 ? ' Select at least two demonstrating the same correction.' : ''}
+                        </p>
+                        {patternCandidate && (
+                          <div className="space-y-2 border-t border-violet-500/20 pt-2">
+                            <label className="block">
+                              <span className="text-[11px] text-ink-400">Candidate rule — edit before confirming</span>
+                              <textarea
+                                value={patternCandidate.rule}
+                                maxLength={2000}
+                                rows={3}
+                                disabled={submissionInFlight}
+                                onChange={(event) => setPatternCandidate((current) => current ? {
+                                  ...current, rule: event.target.value, confirmedByUser: false,
+                                } : current)}
+                                className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-xs text-ink-100"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="text-[11px] text-ink-400">Search scope</span>
+                              <select
+                                value={patternCandidate.scope}
+                                disabled={submissionInFlight}
+                                onChange={(event) => setPatternCandidate((current) => current ? {
+                                  ...current,
+                                  scope: event.target.value as ReviewPatternApplication['scope'],
+                                  confirmedByUser: false,
+                                } : current)}
+                                className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-xs text-ink-100"
+                              >
+                                <option value="full_artifact">Complete target artifact</option>
+                                <option value="after_last_explicit_issue">After the latest explicit comment</option>
+                              </select>
+                            </label>
+                            <label className="flex items-start gap-2 text-[11px] text-ink-300">
+                              <input
+                                type="checkbox"
+                                checked={patternCandidate.confirmedByUser}
+                                disabled={!patternCandidate.rule.trim() || submissionInFlight}
+                                onChange={(event) => setPatternCandidate((current) => current ? {
+                                  ...current, confirmedByUser: event.target.checked,
+                                } : current)}
+                                className="mt-0.5"
+                              />
+                              <span>
+                                Confirm this run-local rule. The worker must propose and verify every generalized change separately from the exact comments.
+                              </span>
+                            </label>
+                            <button
+                              type="button"
+                              disabled={submissionInFlight}
+                              onClick={() => {
+                                setPatternCandidate(null);
+                                setPatternCandidateEvidenceKey(null);
+                              }}
+                              className="text-[11px] text-ink-500 hover:text-red-300 disabled:opacity-40"
+                            >
+                              Discard candidate
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {/* THE REVISION NOTE supplements the structured issues and never
                         replaces them. The backend trims it before storing, so the
                         counter measures the trimmed length too. */}

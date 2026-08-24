@@ -7,7 +7,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveReviewAction, REVISION_NOTE_MAX } from './review-actions.ts';
+import { parsePatternCandidate, resolveReviewAction, REVISION_NOTE_MAX } from './review-actions.ts';
 
 const SESSION = 'aaaaaaaa-1111-1111-1111-111111111111';
 const RUN = '11111111-1111-1111-1111-111111111111';
@@ -26,6 +26,63 @@ test('REPRO: submit targets the SESSION — N issues resolve to exactly one cont
   // issues here could submit a set the user never approved.
   assert.deepEqual(u.body, { revisionNote: null, revisionMode: 'inherit' });
   assert.doesNotMatch(JSON.stringify(u), /issueId|issueIds/);
+});
+
+test('pattern synthesis is an allowlisted session action and confirmed pattern rides only on submit', () => {
+  const candidate = resolveReviewAction('pattern_candidate', {
+    sessionId: SESSION, sourceIssueIds: [ISSUE, 'eeee2222-2222-4222-8222-222222222222'],
+  }) as { path: string; body: Record<string, unknown> };
+  assert.equal(candidate.path, `/api/v2/review/sessions/${SESSION}/pattern-candidate`);
+  const patternApplication = {
+    rule: 'Remove abandoned starts.', sourceIssueIds: [ISSUE, 'eeee2222-2222-4222-8222-222222222222'],
+    targetArtifactIds: [ART], scope: 'full_artifact', confirmedByUser: true,
+  };
+  const submit = resolveReviewAction('submit', { sessionId: SESSION, patternApplication }) as { body: Record<string, unknown> };
+  assert.deepEqual(submit.body.patternApplication, patternApplication);
+  assert.equal(typeof resolveReviewAction('pattern_candidate', { sessionId: SESSION, sourceIssueIds: [ISSUE] }), 'string');
+});
+
+test('synthesis candidates are bound to the reviewer-selected comments and their exact artifacts', () => {
+  const sourceIssueIds = [ISSUE, 'eeee2222-2222-4222-8222-222222222222'];
+  const candidate = {
+    rule: '  Remove abandoned starts.  ', sourceIssueIds,
+    targetArtifactIds: [ART], scope: 'full_artifact', confirmedByUser: false,
+  };
+  assert.deepEqual(parsePatternCandidate(candidate, { sourceIssueIds, targetArtifactIds: [ART] }), {
+    ...candidate, rule: 'Remove abandoned starts.',
+  });
+  assert.equal(parsePatternCandidate({ ...candidate, sourceIssueIds: [ISSUE, 'eeee3333-3333-4333-8333-333333333333'] }, {
+    sourceIssueIds, targetArtifactIds: [ART],
+  }), null, 'a server response may not widen or replace the selected evidence');
+  assert.equal(parsePatternCandidate({ ...candidate, targetArtifactIds: ['bbbb2222-2222-4222-8222-222222222222'] }, {
+    sourceIssueIds, targetArtifactIds: [ART],
+  }), null, 'a server response may not widen the selected artifact scope');
+  assert.equal(parsePatternCandidate({ ...candidate, confirmedByUser: true }, {
+    sourceIssueIds, targetArtifactIds: [ART],
+  }), null, 'the synthesis worker may not confirm its own candidate');
+  assert.equal(parsePatternCandidate({ ...candidate, futureTraining: true }, {
+    sourceIssueIds, targetArtifactIds: [ART],
+  }), null, 'unknown authority-bearing fields must fail closed');
+});
+
+test('submit refuses an unconfirmed, malformed, or authority-widened pattern before the network', () => {
+  const base = {
+    rule: 'Remove abandoned starts.',
+    sourceIssueIds: [ISSUE, 'eeee2222-2222-4222-8222-222222222222'],
+    targetArtifactIds: [ART], scope: 'full_artifact', confirmedByUser: true,
+  };
+  assert.equal(typeof resolveReviewAction('submit', {
+    sessionId: SESSION, patternApplication: { ...base, confirmedByUser: false },
+  }), 'string');
+  assert.equal(typeof resolveReviewAction('submit', {
+    sessionId: SESSION, patternApplication: { ...base, futureTraining: true },
+  }), 'string');
+  assert.equal(typeof resolveReviewAction('submit', {
+    sessionId: SESSION, patternApplication: { ...base, sourceIssueIds: [ISSUE, ISSUE] },
+  }), 'string');
+  assert.equal(typeof resolveReviewAction('submit', {
+    sessionId: SESSION, patternApplication: { ...base, scope: 'future_runs' },
+  }), 'string');
 });
 
 // ── the revision note, under the backend's own contract ─────────────────────

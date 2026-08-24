@@ -236,8 +236,29 @@ test('the revision note is sent, and its live value is what gets sent', () => {
   assert.match(submit, /revisionNote,/, 'the composer’s text never reaches the request');
   // Stale-closure guard: the callback must re-create when the note changes, or it
   // sends whatever was typed at mount.
-  assert.match(submit, /\}, \[session, router, revisionNote, effectiveRevisionMode\]\);/,
+  assert.match(submit, /\}, \[session, router, revisionNote, effectiveRevisionMode, patternCandidate, patternCandidateEvidenceKey, patternEvidenceKey\]\);/,
     'onSubmit closes over stale revision inputs');
+});
+
+test('Manager synthesis discloses only explicitly selected exact comments', () => {
+  assert.match(source, /Use this exact comment as a repeated-pattern example/);
+  assert.match(source, /patternSourceIssueIds\.includes\(i\.id\)/,
+    'each exact comment must expose an explicit selection authority');
+  assert.match(source, /sourceIssueIds = patternSourceIssues\.map\(\(issue\) => issue\.id\)/,
+    'synthesis must use the selected examples rather than every draft');
+  assert.doesNotMatch(source, /sourceIssueIds: drafts\.map/,
+    'all drafts must never be disclosed implicitly');
+  assert.match(source, /Nothing becomes future training/,
+    'the run-local boundary must be explicit at confirmation');
+});
+
+test('a changed evidence set invalidates its synthesized candidate before submit', () => {
+  assert.match(source, /patternCandidateEvidenceKey !== patternEvidenceKey/);
+  assert.match(source, /setPatternCandidate\(null\)/);
+  assert.match(source, /patternCandidateEvidenceKey === patternEvidenceKey/,
+    'submit must re-prove the candidate against the current exact comments');
+  assert.match(source, /parsePatternCandidate\(body\.candidate, \{ sourceIssueIds, targetArtifactIds \}\)/,
+    'an untrusted synthesis response must be rebound to the selected evidence and artifact set');
 });
 
 test('REPRO: a refreshed durable session replaces the one read at mount', () => {
