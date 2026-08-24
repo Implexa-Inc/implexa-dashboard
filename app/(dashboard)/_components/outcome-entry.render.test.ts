@@ -10,7 +10,7 @@ const ARTIFACT_ID = '77777777-7777-4777-8777-777777777777';
 const INPUT_SESSION_ID = '88888888-8888-4888-8888-888888888888';
 const DIGEST = 'a'.repeat(64);
 const intent = {
-  goal: 'Produce a final master from the attached editable project.', quality: 'balanced', deadline_at: null,
+  goal: 'Produce a final master from my approved sections.', quality: 'balanced', deadline_at: null,
   max_budget_credits: 100,
   consequential_action_ceiling: { max_provider_calls: 0, max_spend_minor: 0, currency: 'USD' },
   input_references: [],
@@ -122,6 +122,8 @@ test('planning shows the full agent chain before root inputs are supplied', asyn
 });
 
 test('the plan collects its missing root input, replans, and exposes Start production', async () => {
+  const runInstructions = 'Keep the final video 16:9.\nUse cinematic pacing.';
+  const compiledGoal = `${intent.goal} Run instructions for this production: Keep the final video 16:9. Use cinematic pacing.`;
   const missingPlan = {
     ...plan,
     nodes: [{
@@ -145,18 +147,46 @@ test('the plan collects its missing root input, replans, and exposes Start produ
   try {
     const calls = stubFetch(rendered, [
       { status: 200, body: { ...planResponse, plan: missingPlan } },
-      { status: 200, body: { ...planResponse, intent: { ...intent, input_references: [verifiedReference] } } },
+      { status: 200, body: { ...planResponse, intent: { ...intent, goal: compiledGoal, input_references: [verifiedReference] } } },
     ]);
     await fillGoal(rendered);
     await rendered.click(planButton(rendered));
     assert.equal(rendered.queryByText('Start production'), null);
+    const instructions = rendered.document.getElementById('outcome-run-instructions')!;
+    await type(rendered, instructions, runInstructions);
+    assert.match(rendered.text(), /instructions will be bound when you add the required input/i);
     await rendered.click(rendered.getByText('Add Presenter Video'));
     assert.equal(pickerCalls[0].inputKey, 'presenter_video',
       'the Desktop registry key must equal the child request binding key');
     assert.deepEqual((calls[1].body.input_references as Record<string, unknown>[])[0], verifiedReference);
+    assert.equal(calls[1].body.goal, compiledGoal);
     assert.notEqual(calls[1].body.idempotency_key, calls[0].body.idempotency_key,
       'a verified input changes the intent and therefore requires a fresh idempotency key');
     assert.ok(rendered.queryByText('Start production'));
+    assert.match(rendered.text(), /Included in this plan/);
+  } finally { rendered.cleanup(); }
+});
+
+test('a startable plan must bind edited run instructions before production can start', async () => {
+  const runInstructions = 'Use a restrained visual style and preserve all factual citations.';
+  const compiledGoal = `${intent.goal} Run instructions for this production: ${runInstructions}`;
+  const rendered = await render('outcome-entry.tsx', {});
+  try {
+    const calls = stubFetch(rendered, [
+      { status: 200, body: planResponse },
+      { status: 200, body: { ...planResponse, intent: { ...intent, goal: compiledGoal } } },
+    ]);
+    await fillGoal(rendered);
+    await rendered.click(planButton(rendered));
+    assert.ok(rendered.queryByText('Start production'));
+    await type(rendered, rendered.document.getElementById('outcome-run-instructions')!, runInstructions);
+    assert.equal(rendered.queryByText('Start production'), null, 'an edited instruction cannot ride an old plan digest');
+    assert.ok(rendered.queryByText('Apply instructions to plan'));
+    await rendered.click(rendered.getByText('Apply instructions to plan'));
+    assert.equal(calls[1].body.goal, compiledGoal);
+    assert.notEqual(calls[1].body.idempotency_key, calls[0].body.idempotency_key);
+    assert.ok(rendered.queryByText('Start production'));
+    assert.match(rendered.text(), /Included in this plan/);
   } finally { rendered.cleanup(); }
 });
 
@@ -422,10 +452,13 @@ test('a goal edited mid-flight discards the stale plan — it is neither shown n
     const calls: FetchCall[] = [];
     let release: () => void = () => {};
     (rendered.window as unknown as Record<string, unknown>).fetch = async (url: string, init: { body: string }) => {
-      calls.push({ url, body: JSON.parse(init.body) });
+      const requestBody = JSON.parse(init.body) as Record<string, unknown>;
+      calls.push({ url, body: requestBody });
       // Only the first prepare is held open; the replan at the end resolves at once.
       if (calls.length === 1) await new Promise<void>((resolve) => { release = resolve; });
-      return { ok: true, status: 200, json: async () => planResponse };
+      return { ok: true, status: 200, json: async () => ({
+        ...planResponse, intent: { ...intent, goal: requestBody.goal },
+      }) };
     };
     const goalField = rendered.document.getElementById('outcome-goal') as HTMLTextAreaElement;
 
