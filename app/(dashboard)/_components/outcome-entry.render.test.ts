@@ -123,7 +123,7 @@ test('planning shows the full agent chain before root inputs are supplied', asyn
 
 test('the plan collects its missing root input, replans, and exposes Start production', async () => {
   const runInstructions = 'Keep the final video 16:9.\nUse cinematic pacing.';
-  const compiledGoal = `${intent.goal} Run instructions for this production: Keep the final video 16:9. Use cinematic pacing.`;
+  const canonicalInstructions = 'Keep the final video 16:9. Use cinematic pacing.';
   const missingPlan = {
     ...plan,
     nodes: [{
@@ -147,7 +147,7 @@ test('the plan collects its missing root input, replans, and exposes Start produ
   try {
     const calls = stubFetch(rendered, [
       { status: 200, body: { ...planResponse, plan: missingPlan } },
-      { status: 200, body: { ...planResponse, intent: { ...intent, goal: compiledGoal, input_references: [verifiedReference] } } },
+      { status: 200, body: { ...planResponse, intent: { ...intent, run_instructions: canonicalInstructions, input_references: [verifiedReference] } } },
     ]);
     await fillGoal(rendered);
     await rendered.click(planButton(rendered));
@@ -159,7 +159,8 @@ test('the plan collects its missing root input, replans, and exposes Start produ
     assert.equal(pickerCalls[0].inputKey, 'presenter_video',
       'the Desktop registry key must equal the child request binding key');
     assert.deepEqual((calls[1].body.input_references as Record<string, unknown>[])[0], verifiedReference);
-    assert.equal(calls[1].body.goal, compiledGoal);
+    assert.equal(calls[1].body.goal, intent.goal);
+    assert.equal(calls[1].body.run_instructions, canonicalInstructions);
     assert.notEqual(calls[1].body.idempotency_key, calls[0].body.idempotency_key,
       'a verified input changes the intent and therefore requires a fresh idempotency key');
     assert.ok(rendered.queryByText('Start production'));
@@ -169,12 +170,11 @@ test('the plan collects its missing root input, replans, and exposes Start produ
 
 test('a startable plan must bind edited run instructions before production can start', async () => {
   const runInstructions = 'Use a restrained visual style and preserve all factual citations.';
-  const compiledGoal = `${intent.goal} Run instructions for this production: ${runInstructions}`;
   const rendered = await render('outcome-entry.tsx', {});
   try {
     const calls = stubFetch(rendered, [
       { status: 200, body: planResponse },
-      { status: 200, body: { ...planResponse, intent: { ...intent, goal: compiledGoal } } },
+      { status: 200, body: { ...planResponse, intent: { ...intent, run_instructions: runInstructions } } },
     ]);
     await fillGoal(rendered);
     await rendered.click(planButton(rendered));
@@ -183,7 +183,8 @@ test('a startable plan must bind edited run instructions before production can s
     assert.equal(rendered.queryByText('Start production'), null, 'an edited instruction cannot ride an old plan digest');
     assert.ok(rendered.queryByText('Apply instructions to plan'));
     await rendered.click(rendered.getByText('Apply instructions to plan'));
-    assert.equal(calls[1].body.goal, compiledGoal);
+    assert.equal(calls[1].body.goal, intent.goal);
+    assert.equal(calls[1].body.run_instructions, runInstructions);
     assert.notEqual(calls[1].body.idempotency_key, calls[0].body.idempotency_key);
     assert.ok(rendered.queryByText('Start production'));
     assert.match(rendered.text(), /Included in this plan/);

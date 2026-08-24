@@ -51,6 +51,13 @@ export function resolveOutcomeProductionAction(action: string, b: Record<string,
       if (!idempotencyKey) return 'A valid idempotency key is required.';
       const goal = typeof b.goal === 'string' ? b.goal.trim() : '';
       if (goal.length < 8 || goal.length > 2000) return 'Describe the outcome in a sentence or two.';
+      const hasRunInstructions = b.run_instructions !== undefined;
+      const runInstructions = !hasRunInstructions
+        ? ''
+        : typeof b.run_instructions === 'string' ? b.run_instructions.trim() : null;
+      if (hasRunInstructions && (runInstructions === null || runInstructions.length < 1 || runInstructions.length > 2000)) {
+        return 'Run instructions must be 1–2,000 characters when provided.';
+      }
       if (!isOutcomeQuality(b.quality)) return 'A valid quality is required.';
       if (!Number.isInteger(b.max_budget_credits) || (b.max_budget_credits as number) < 1 || (b.max_budget_credits as number) > 100000) {
         return 'The credit limit must be a whole number from 1 to 100,000.';
@@ -77,7 +84,9 @@ export function resolveOutcomeProductionAction(action: string, b: Record<string,
         path: '/api/v2/outcome-productions/prepare', method: 'POST',
         idempotencyKey,
         body: {
-          goal, quality: b.quality, deadline_at: deadlineAt,
+          goal,
+          ...(runInstructions ? { run_instructions: runInstructions } : {}),
+          quality: b.quality, deadline_at: deadlineAt,
           max_budget_credits: b.max_budget_credits,
           consequential_action_ceiling: {
             max_provider_calls: c.max_provider_calls,
