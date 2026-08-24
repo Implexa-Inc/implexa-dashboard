@@ -31,6 +31,17 @@ test('prepare forwards one clarification task key and does not invent a recommen
   assert.equal('recommended' in target.body!, false);
 });
 
+test('prepare forwards bounded run instructions separately from the routing goal', () => {
+  const target = resolveOutcomeProductionAction('prepare', {
+    ...validPrepare, run_instructions: '  Keep the final video 16:9.  ',
+  });
+  assert.ok(typeof target !== 'string', String(target));
+  assert.equal(target.body!.goal, validPrepare.goal);
+  assert.equal(target.body!.run_instructions, 'Keep the final video 16:9.');
+  assert.equal(typeof resolveOutcomeProductionAction('prepare', { ...validPrepare, run_instructions: '' }), 'string');
+  assert.equal(typeof resolveOutcomeProductionAction('prepare', { ...validPrepare, run_instructions: 'x'.repeat(2001) }), 'string');
+});
+
 test('prepare requires a positive credit ceiling while allowing zero consequential spend', () => {
   const target = resolveOutcomeProductionAction('prepare', {
     ...validPrepare, max_budget_credits: 1,

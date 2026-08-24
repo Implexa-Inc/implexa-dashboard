@@ -49,6 +49,7 @@ export function suggestOutcomeInputType(displayName: string, mediaType?: string)
 
 export type OutcomeIntent = {
   goal: string;
+  run_instructions?: string;
   input_references: OutcomeInputReference[];
   quality: OutcomeQuality;
   deadline_at: string | null;
@@ -227,6 +228,7 @@ function readOutcomeInputRefs(v: unknown): OutcomeInputReference[] | null {
 
 export function parseIntent(v: unknown): OutcomeIntent | null {
   if (!isObj(v) || !str(v.goal) || !isOutcomeQuality(v.quality)) return null;
+  if (v.run_instructions !== undefined && !str(v.run_instructions)) return null;
   if (!integer(v.max_budget_credits) || v.max_budget_credits < 0 || !strOrNull(v.deadline_at ?? null)) return null;
   const inputReferences = readOutcomeInputRefs(v.input_references);
   const ceiling = v.consequential_action_ceiling;
@@ -234,7 +236,9 @@ export function parseIntent(v: unknown): OutcomeIntent | null {
   if (!integer(ceiling.max_provider_calls) || ceiling.max_provider_calls < 0) return null;
   if (!integer(ceiling.max_spend_minor) || ceiling.max_spend_minor < 0 || ceiling.currency !== 'USD') return null;
   return {
-    goal: v.goal, input_references: inputReferences, quality: v.quality,
+    goal: v.goal,
+    ...(typeof v.run_instructions === 'string' ? { run_instructions: v.run_instructions } : {}),
+    input_references: inputReferences, quality: v.quality,
     deadline_at: (v.deadline_at as string | null) ?? null,
     max_budget_credits: v.max_budget_credits,
     consequential_action_ceiling: {
