@@ -52,7 +52,7 @@ function inputSummary(node: OutcomePlan['nodes'][number], plan: OutcomePlan) {
   }).join(', ');
 }
 
-function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingInput, startError, verificationProgress, cancelingVerification, onCancelVerification }: {
+function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingInput, startError, verificationProgress, cancelingVerification, onCancelVerification, runInstructions, onRunInstructionsChange, instructionsDirty, instructionsError, onApplyRunInstructions }: {
   intent: OutcomeIntent;
   plan: OutcomePlan;
   onStart: () => void;
@@ -63,8 +63,13 @@ function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingIn
   verificationProgress?: RunInputProgress | null;
   cancelingVerification?: boolean;
   onCancelVerification?: () => void;
+  runInstructions: string;
+  onRunInstructionsChange: (value: string) => void;
+  instructionsDirty: boolean;
+  instructionsError: string | null;
+  onApplyRunInstructions: () => void;
 }) {
-  const startable = canStartPlan(plan);
+  const startable = canStartPlan(plan) && !instructionsDirty && !instructionsError;
   const ceiling = intent.consequential_action_ceiling;
   return (
     <section aria-label="Recommended plan" className="card p-5">
@@ -115,6 +120,33 @@ function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingIn
         </ul>
       </div>
 
+      <div className="mt-4 rounded-lg border border-ink-800 p-4">
+        <label htmlFor="outcome-run-instructions" className="text-sm font-medium text-ink-200">
+          Run instructions <span className="font-normal text-ink-500">(optional)</span>
+        </label>
+        <p className="text-xs text-ink-500 mt-1">Add direction for this production only. It will be bound into the plan and sent to every agent in the chain.</p>
+        <textarea
+          id="outcome-run-instructions"
+          value={runInstructions}
+          onChange={(event) => onRunInstructionsChange(event.target.value)}
+          disabled={providingInput || starting}
+          rows={3}
+          maxLength={2000}
+          placeholder="e.g. Keep the final video 16:9, use cinematic pacing, and cite sourced visuals."
+          className="mt-2 w-full rounded-lg bg-ink-900 border border-ink-700 px-3 py-2.5 text-sm text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-ink-500 disabled:opacity-50"
+        />
+        {instructionsError && <p role="status" className="mt-2 text-xs text-red-400">{instructionsError}</p>}
+        {!instructionsError && instructionsDirty && plan.unresolved_missing_assets.length > 0 && (
+          <p className="mt-2 text-xs text-amber-300">These instructions will be bound when you add the required input.</p>
+        )}
+        {!instructionsError && instructionsDirty && plan.unresolved_missing_assets.length === 0 && (
+          <button type="button" onClick={onApplyRunInstructions} className="mt-2 rounded-lg border border-ink-600 px-3 py-2 text-xs font-medium text-ink-200 hover:border-ink-400">
+            Apply instructions to plan
+          </button>
+        )}
+        {!instructionsDirty && runInstructions.trim() && <p className="mt-2 text-xs text-emerald-300">Included in this plan.</p>}
+      </div>
+
       {plan.unresolved_missing_assets.length > 0 && (
         <div role="status" aria-label="Missing inputs" className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
           <p className="text-sm font-medium text-amber-300">What you’ll provide before starting</p>
@@ -125,7 +157,7 @@ function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingIn
               <button
                 type="button"
                 onClick={() => onProvideInput(item.kind)}
-                disabled={providingInput}
+                disabled={providingInput || !!instructionsError}
                 className="rounded-lg border border-amber-500/50 px-3 py-2 text-xs font-medium text-amber-200 hover:border-amber-400 disabled:opacity-50"
               >
                 {providingInput ? 'Verifying…' : `Add ${humanize(item.kind)}`}
@@ -151,7 +183,7 @@ function PlanBody({ intent, plan, onStart, onProvideInput, starting, providingIn
   );
 }
 
-export default function OutcomePlanCard({ outcome, onStart, onProvideInput, starting, providingInput, startError, verificationProgress, cancelingVerification, onCancelVerification }: {
+export default function OutcomePlanCard({ outcome, onStart, onProvideInput, starting, providingInput, startError, verificationProgress, cancelingVerification, onCancelVerification, runInstructions, onRunInstructionsChange, instructionsDirty, instructionsError, onApplyRunInstructions }: {
   outcome: PlanOutcome;
   onStart: () => void;
   onProvideInput: (kind: string) => void;
@@ -161,6 +193,11 @@ export default function OutcomePlanCard({ outcome, onStart, onProvideInput, star
   verificationProgress?: RunInputProgress | null;
   cancelingVerification?: boolean;
   onCancelVerification?: () => void;
+  runInstructions: string;
+  onRunInstructionsChange: (value: string) => void;
+  instructionsDirty: boolean;
+  instructionsError: string | null;
+  onApplyRunInstructions: () => void;
 }) {
   if (outcome.kind === 'no_eligible') return <NoEligiblePanel noEligible={outcome.noEligible} />;
   if (outcome.kind === 'no_match') {
@@ -170,5 +207,5 @@ export default function OutcomePlanCard({ outcome, onStart, onProvideInput, star
     return <section role="status" aria-label="Input required" className="card p-5 border-amber-500/40"><h3 className="text-sm font-semibold text-amber-300">One input is still needed</h3><p className="text-sm text-ink-300 mt-1">{outcome.question}</p><p className="text-xs text-ink-500 mt-3">Add a verified artifact above and label it as {outcome.missingInputTypes.join(' or ')}. Nothing was started.</p></section>;
   }
   if (outcome.kind !== 'plan') return null;
-  return <PlanBody intent={outcome.intent} plan={outcome.plan} onStart={onStart} onProvideInput={onProvideInput} starting={starting} providingInput={providingInput} startError={startError} verificationProgress={verificationProgress} cancelingVerification={cancelingVerification} onCancelVerification={onCancelVerification} />;
+  return <PlanBody intent={outcome.intent} plan={outcome.plan} onStart={onStart} onProvideInput={onProvideInput} starting={starting} providingInput={providingInput} startError={startError} verificationProgress={verificationProgress} cancelingVerification={cancelingVerification} onCancelVerification={onCancelVerification} runInstructions={runInstructions} onRunInstructionsChange={onRunInstructionsChange} instructionsDirty={instructionsDirty} instructionsError={instructionsError} onApplyRunInstructions={onApplyRunInstructions} />;
 }

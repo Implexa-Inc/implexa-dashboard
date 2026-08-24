@@ -26,6 +26,17 @@ type PlanPhase =
 const UNAVAILABLE_COPY = 'We can’t plan this outcome right now. Nothing was selected and nothing will run — this is not the same as having no eligible agent.';
 const UNCONFIRMED_START_COPY = 'We couldn’t confirm the start. Press Start production again to retry the same Backend production and plan digest.';
 const MAX_ARTIFACTS = 10;
+const MAX_OUTCOME_GOAL = 2000;
+const RUN_INSTRUCTION_PREFIX = ' Run instructions for this production: ';
+
+export function compileOutcomeGoal(goal: string, runInstructions: string) {
+  // OutcomeIntent.v1 canonicalizes whitespace before digesting. Compile the
+  // same canonical text client-side so the response identity can be compared
+  // exactly instead of rejecting harmless textarea line breaks.
+  const base = goal.replace(/\s+/g, ' ').trim();
+  const instructions = runInstructions.replace(/\s+/g, ' ').trim();
+  return instructions ? `${base}${RUN_INSTRUCTION_PREFIX}${instructions}` : base;
+}
 function pickerField(inputType: OutcomeInputType): WorkflowInputField {
   return {
     key: inputType, label: inputType.replaceAll('_', ' '),
@@ -37,6 +48,8 @@ function pickerField(inputType: OutcomeInputType): WorkflowInputField {
 export default function OutcomeEntry() {
   const router = useRouter();
   const [goal, setGoal] = useState('');
+  const [runInstructions, setRunInstructions] = useState('');
+  const [plannedRunInstructions, setPlannedRunInstructions] = useState('');
   const [quality, setQuality] = useState<OutcomeQuality>('balanced');
   const [deadline, setDeadline] = useState('');
   const [budgetCredits, setBudgetCredits] = useState('100');
@@ -97,6 +110,11 @@ export default function OutcomeEntry() {
 
   const parsedCredits = Number(budgetCredits);
   const requestReady = goal.trim().length >= 8 && Number.isInteger(parsedCredits) && parsedCredits >= 1 && parsedCredits <= 100000;
+  const instructionsDirty = runInstructions.trim() !== plannedRunInstructions;
+  const compiledGoalLength = compileOutcomeGoal(goal, runInstructions).length;
+  const runInstructionsError = compiledGoalLength > MAX_OUTCOME_GOAL
+    ? `Outcome and run instructions together must be at most ${MAX_OUTCOME_GOAL.toLocaleString()} characters.`
+    : null;
 
   async function addArtifact(expectedType?: OutcomeInputType, replan = false) {
     if (pickerInFlight.current) return;
@@ -172,6 +190,12 @@ export default function OutcomeEntry() {
 
   async function requestPlan(clarificationTaskKey?: string, artifactOverride = artifacts) {
     if (prepareInFlight.current !== null) return;
+    const instructionsForRequest = runInstructions.trim();
+    const goalForRequest = compileOutcomeGoal(goal, instructionsForRequest);
+    if (goalForRequest.length > MAX_OUTCOME_GOAL) {
+      setStartError(`Outcome and run instructions together must be at most ${MAX_OUTCOME_GOAL.toLocaleString()} characters.`);
+      return;
+    }
     const mine = (reqId.current += 1);
     prepareInFlight.current = mine;
     const current = () => mine === reqId.current;
@@ -182,7 +206,7 @@ export default function OutcomeEntry() {
       const res = await fetch('/api/outcome-productions', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          action: 'prepare', goal: goal.trim(), quality,
+          action: 'prepare', goal: goalForRequest, quality,
           idempotency_key: prepareIdempotencyKey.current,
           deadline_at: deadline || null,
           max_budget_credits: parsedCredits,
@@ -202,6 +226,11 @@ export default function OutcomeEntry() {
         return;
       }
       const outcome = res.ok ? parsePlanResponse(body) : null;
+      if (outcome?.kind === 'plan' && outcome.intent.goal !== goalForRequest) {
+        setPlan({ phase: 'invalid', message: 'The prepared plan did not retain the exact run instructions. Plan again before starting.' });
+        return;
+      }
+      if (outcome?.kind === 'plan') setPlannedRunInstructions(instructionsForRequest);
       setPlan(outcome ? { phase: 'plan', outcome } : { phase: 'unavailable', message: UNAVAILABLE_COPY });
     } catch {
       if (current()) setPlan({ phase: 'unavailable', message: UNAVAILABLE_COPY });
@@ -211,6 +240,10 @@ export default function OutcomeEntry() {
   }
 
   async function provideMissingInput(kind: string) {
+    if (runInstructionsError) {
+      setStartError(runInstructionsError);
+      return;
+    }
     if (!OUTCOME_INPUT_TYPES.includes(kind as OutcomeInputType)) {
       setPickerError(`This plan requires an unsupported input type: ${kind}.`);
       return;
@@ -218,8 +251,23 @@ export default function OutcomeEntry() {
     await addArtifact(kind as OutcomeInputType, true);
   }
 
+  async function applyRunInstructions() {
+    if (runInstructionsError) {
+      setStartError(runInstructionsError);
+      return;
+    }
+    prepareIdempotencyKey.current = undefined;
+    await requestPlan(undefined, artifacts);
+  }
+
+  function updateRunInstructions(value: string) {
+    setRunInstructions(value);
+    setStartError(null);
+  }
+
   async function startProduction() {
-    if (startInFlight.current || plan.phase !== 'plan' || plan.outcome.kind !== 'plan') return;
+    if (startInFlight.current || instructionsDirty || runInstructionsError
+      || plan.phase !== 'plan' || plan.outcome.kind !== 'plan') return;
     startInFlight.current = true;
     const selected = plan.outcome;
     const mine = reqId.current;
@@ -321,7 +369,7 @@ export default function OutcomeEntry() {
           <div className="mt-3 flex flex-wrap gap-2">{plan.outcome.clarification.choices.map((choice) => <button key={choice.taskKey} type="button" onClick={() => requestPlan(choice.taskKey)} className="rounded-lg border border-ink-700 px-3 py-2 text-sm text-ink-200 hover:border-ink-500">{choice.label}</button>)}</div>
         </section>
       )}
-      {plan.phase === 'plan' && plan.outcome.kind !== 'clarification_required' && <div className="mt-5"><OutcomePlanCard outcome={plan.outcome} onStart={startProduction} onProvideInput={provideMissingInput} starting={starting} providingInput={picking} startError={startError} verificationProgress={verificationSurface === 'plan' ? verificationProgress : null} cancelingVerification={cancelingVerification} onCancelVerification={cancelVerification} /></div>}
+      {plan.phase === 'plan' && plan.outcome.kind !== 'clarification_required' && <div className="mt-5"><OutcomePlanCard outcome={plan.outcome} onStart={startProduction} onProvideInput={provideMissingInput} starting={starting} providingInput={picking} startError={startError} verificationProgress={verificationSurface === 'plan' ? verificationProgress : null} cancelingVerification={cancelingVerification} onCancelVerification={cancelVerification} runInstructions={runInstructions} onRunInstructionsChange={updateRunInstructions} instructionsDirty={instructionsDirty} instructionsError={runInstructionsError} onApplyRunInstructions={applyRunInstructions} /></div>}
     </div>
   );
 }
