@@ -56,6 +56,49 @@ function Row({ production }: { production: Production }) {
   );
 }
 
+const LEGACY_RUN_INSTRUCTIONS = ' run instructions for this production:';
+
+function draftOutcomeKey(goal: string) {
+  // Before run instructions became a typed intent field, the Create surface
+  // appended this marker to the goal. Treat those old rows as drafts of the
+  // same outcome so the already-created duplicates disappear from Work too.
+  const normalized = goal.replace(/\s+/g, ' ').trim().toLowerCase();
+  const marker = normalized.indexOf(LEGACY_RUN_INSTRUCTIONS);
+  return marker >= 0 ? normalized.slice(0, marker).trim() : normalized;
+}
+
+function isUnstartedDraft(production: Production) {
+  return !production.settled
+    && (production.state === 'planning' || production.state === 'ready')
+    && production.progress.completedNodes === 0
+    && production.budget.reservedCredits === 0
+    && production.budget.spentCredits === 0
+    && production.children.every((child) => child.startedAt === null && child.spentCredits === 0);
+}
+
+/**
+ * The Backend list is newest-first. Replanning an outcome can mint a new
+ * immutable production identity (new input or instructions means a new
+ * digest), but those identities are revisions of one unstarted draft—not 14
+ * pieces of work the owner needs to manage. Keep the newest draft per outcome;
+ * preserve every production that started, settled, reserved, or spent.
+ */
+export function coalesceUnstartedDrafts(productions: Production[]) {
+  const visible: Production[] = [];
+  const seenDrafts = new Set<string>();
+  for (const production of productions) {
+    if (!isUnstartedDraft(production)) {
+      visible.push(production);
+      continue;
+    }
+    const key = draftOutcomeKey(production.goal);
+    if (seenDrafts.has(key)) continue;
+    seenDrafts.add(key);
+    visible.push(production);
+  }
+  return visible;
+}
+
 export default function OutcomeProductionsList({ load }: { load: OutcomeProductionListLoad }) {
   // This deployment has no outcome-production route at all. /work is a shared
   // surface, and warning every user about a capability the backend has never
@@ -74,12 +117,13 @@ export default function OutcomeProductionsList({ load }: { load: OutcomeProducti
   }
 
   // Nothing to say beats an empty box on a page that already has three lists.
-  if (load.productions.length === 0) return null;
+  const productions = coalesceUnstartedDrafts(load.productions);
+  if (productions.length === 0) return null;
 
   // "Running" is a claim about work that is actually progressing. A blocked
   // production is unsettled but stalled on the user, so folding it into a
   // running count would contradict the Blocked badge on its own row.
-  const unsettled = load.productions.filter((p) => !p.settled);
+  const unsettled = productions.filter((p) => !p.settled);
   const running = unsettled.filter((p) => p.state === 'running').length;
   const waiting = unsettled.length - running;
   const counts = [
@@ -94,7 +138,7 @@ export default function OutcomeProductionsList({ load }: { load: OutcomeProducti
         {counts.length > 0 && <span className="text-ink-400 font-normal"> · {counts.join(' · ')}</span>}
       </h2>
       <ul className="mt-2 space-y-2">
-        {load.productions.map((production) => <Row key={production.id} production={production} />)}
+        {productions.map((production) => <Row key={production.id} production={production} />)}
       </ul>
     </section>
   );
