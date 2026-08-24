@@ -7,9 +7,14 @@ const running = fs.readFileSync(path.join(process.cwd(), 'app/(dashboard)/_compo
 const building = fs.readFileSync(path.join(process.cwd(), 'app/(dashboard)/_components/building-agents.tsx'), 'utf8');
 
 test('claim-only requests expose Cancel, never Stop', () => {
-  assert.match(running, /\['queued', 'installing_media_support', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\][\s\S]*c\.requestId && !c\.runId/);
-  assert.match(running, /c\.status === 'running' && \(c\.runId \|\| c\.requestId\)/);
-  assert.match(running, /const isRunningCancel = \(c:[^\n]+c\.status === 'running' && !!\(c\.runId \|\| c\.requestId\)/);
+  assert.match(running, /CANCELLABLE_STATUSES: ReadonlySet<string> = new Set\(\[\s*'queued', 'installing_media_support', 'preparing_inputs', 'selecting',\s*'picked_up', 'starting', 'switching', 'resuming',\s*\]\)/);
+  assert.match(running, /CANCELLABLE_STATUSES\.has\(c\.status\) && !c\.runId/);
+  // Stop additionally requires a state we are CURRENTLY confirming: a card held
+  // through a gap must not fire a kill at work whose state we do not know.
+  assert.match(running, /c\.status === 'running' && c\.freshness === 'fresh' && \(c\.runId \|\| c\.requestId\)/);
+  // The run-plane kill obeys the same freshness rule the request cancellation
+  // does: a card we are only HOLDING through a gap may not be acted on.
+  assert.match(running, /const isRunningCancel = \(c: RenderedCard \| null\) =>\s*\n\s*!!c && c\.status === 'running' && c\.freshness === 'fresh' && !!\(c\.runId \|\| c\.requestId\);/);
   assert.match(running, />\s*Cancel request\s*<\/button>/);
   assert.match(running, />\s*Stop run\s*<\/button>/);
 });

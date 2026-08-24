@@ -51,8 +51,10 @@ test('a MALFORMED 2xx is unavailable too — a success is not proof we understoo
   // this pins that the component actually ROUTES through that guard.
   assert.match(running, /const items = parseLiveItems<LiveCard>\(res\);/,
     'shape validation must be the single home in lib/live-feed, not re-inlined here');
-  assert.match(running, /if \(items === null\) \{ if \(alive\) setFailed\(true\); return; \}/,
-    'an unreadable body must mark the read unavailable, not fall through to setCards');
+  assert.match(running, /if \(items === null\) \{\s*\n\s*const held = fold\(\{ kind: 'unreadable' \}\);[\s\S]{0,200}setFailed\(true\);/,
+    'an unreadable body must mark the read unavailable — it may republish the last known cards, marked stale, but it may never be folded in as an answer');
+  assert.doesNotMatch(running, /if \(items === null\)[\s\S]{0,200}setCards\(normalized\)/,
+    'an unreadable body must never reach the fold as if it were data');
   assert.doesNotMatch(running, /Array\.isArray\(res\?\.items\)/,
     'the inline coercion that laundered malformed into empty must not come back');
 });
@@ -63,9 +65,14 @@ test('RunningAgents reports STATE, and a failed fetch is unavailable — never a
     'status travels WITH the count, or the count is unreadable');
   // The original bug: `catch { setCards([]) }` made failure indistinguishable
   // from emptiness. Failure must set the flag, not fabricate an empty result.
-  assert.match(running, /catch \{[\s\S]{0,700}if \(alive\) setFailed\(true\);/);
+  assert.match(running, /catch \{[\s\S]{0,900}setFailed\(true\);/);
   assert.doesNotMatch(running, /catch \{ if \(alive\) setCards\(\[\]\); \}/,
     'a failed live read must never be laundered into an empty one');
+  // Stronger than the original: the last known cards are republished, marked
+  // stale, rather than merely left in place — so the surface can say WHAT it is
+  // showing instead of presenting an old state as a current one.
+  assert.match(running, /catch \{[\s\S]{0,900}const held = fold\(\{ kind: 'unreadable' \}\);/,
+    'a failed read must go through the continuity fold, which marks what it returns stale');
 });
 
 test('the state effect sits BEFORE the early returns (React rule + no stale parent state)', () => {

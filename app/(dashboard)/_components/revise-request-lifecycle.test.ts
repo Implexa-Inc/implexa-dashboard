@@ -13,7 +13,9 @@ test('revise request cards render every request-level lifecycle phase', () => {
 
 test('the queued wait notice is gated on the canonical queued status', () => {
   assert.match(source, /queuedWaitNotice\(\{[\s\S]*?status:\s*c\.status/);
-  assert.match(source, /\['queued', 'installing_media_support', 'preparing_inputs', 'selecting', 'picked_up', 'starting', 'switching', 'resuming'\][\s\S]*\.includes\(c\.status\)[\s\S]*c\.requestId && !c\.runId/);
+  assert.match(source, /CANCELLABLE_STATUSES: ReadonlySet<string> = new Set\(\[\s*'queued', 'installing_media_support', 'preparing_inputs', 'selecting',\s*'picked_up', 'starting', 'switching', 'resuming',\s*\]\)/);
+  assert.match(source, /CANCELLABLE_STATUSES\.has\(c\.status\) && !c\.runId[\s\S]{0,120}cancellationTarget\(c\)/,
+    'the pre-live fence is the named set AND the shared cancellation authority');
   assert.doesNotMatch(source, /picked_up[^\n]*Waiting to be picked up/i);
 });
 
