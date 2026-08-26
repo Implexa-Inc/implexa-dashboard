@@ -153,10 +153,12 @@ export function isApprovalContinuationRecovery({
   if (!hasReviewEvidence || hasFinalOutput || !Array.isArray(steps) || steps.length < 2) return false;
 
   // Runs affected by the pre-fix Desktop clean-exit bug were flattened to
-  // failed before the approval hold could be persisted. Recover only the exact
-  // adapter/presenter/render trace; generic approval prose is not authority.
+  // failed before the approval hold could be persisted. Some executors return
+  // code 1 for the same truthful stop. Recover only those two terminal shapes
+  // plus the exact adapter/presenter/render trace; generic approval prose is
+  // not authority.
   if (runState === 'failed') {
-    if (closeReason !== 'exit_clean_no_completion_signal') return false;
+    if (closeReason !== 'exit_clean_no_completion_signal' && closeReason !== 'exit_code_nonzero') return false;
     const entries = [
       ...(Array.isArray(progress?.history) ? progress.history : []),
       ...(progress?.current ? [progress.current] : []),
