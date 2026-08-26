@@ -59,7 +59,10 @@ test('recovers only a structurally incomplete approval-gated historical completi
 test('run details renders the approval recovery action from structured authority', () => {
   const page = fs.readFileSync(path.join(import.meta.dirname, '..', 'app', '(dashboard)', 'runs', '[id]', 'page.tsx'), 'utf8');
   assert.match(page, /isApprovalContinuationRecovery\(\{/);
-  assert.match(page, /closeReason: r\.run_close_reason/);
+  assert.match(page, /closeReason,/);
+  assert.ok(page.indexOf("select('verification_status, run_close_reason')")
+      < page.indexOf('const approvalContinuationRecovery = isApprovalContinuationRecovery'),
+    'terminal close provenance must be loaded before the recovery verdict is derived');
   assert.match(page, /progress,/);
   assert.match(page, /artifact\.role === 'manifest'/);
   assert.match(page, /scene-execution-contract\.json/,

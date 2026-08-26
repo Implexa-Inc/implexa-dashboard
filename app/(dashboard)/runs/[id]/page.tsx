@@ -407,13 +407,28 @@ export default async function RunDetailPage({
     if (Array.isArray(raw)) stepsState = raw as RunStep[];
   } catch { /* column not present yet — checklist simply doesn't render */ }
 
+  // Completion Controller verdict and terminal-close provenance are fetched
+  // before approval recovery is derived. Keep this in its own defensive query:
+  // older schemas may not have the additive columns, but a current failed run
+  // must not be classified with an undefined close reason and lose its exact
+  // Desktop approval continuation control.
+  let verificationStatus: VerificationStatus = null;
+  let closeReason: string | null = null;
+  try {
+    const { data: vr } = await supabase
+      .from('skill_runs').select('verification_status, run_close_reason').eq('id', params.id).maybeSingle();
+    const row = vr as { verification_status?: VerificationStatus; run_close_reason?: string | null } | null;
+    verificationStatus = row?.verification_status ?? null;
+    closeReason = row?.run_close_reason ?? null;
+  } catch { /* columns not present yet — badge/reason simply don't render */ }
+
   const approvalContinuationRecovery = isApprovalContinuationRecovery({
     runState: r.run_state,
     reviewStatus: r.review_status,
     outputMarkdown: r.output_markdown,
     steps: stepsState,
     progress,
-    closeReason: r.run_close_reason,
+    closeReason,
     // Manager L1 compositor runs can stop before the portable delivery manifest
     // exists.  Their validated scene execution contract is the earlier,
     // run-specific authority for the exact render being approved; do not require
@@ -549,16 +564,6 @@ export default async function RunDetailPage({
   // with nothing to show can say WHY instead of a dead-end "No deliverable
   // recorded" (founder testing hit this on a watchdog force-close). Defensive
   // own-query: a pre-0101/0102 schema must never 42703 the whole page.
-  let verificationStatus: VerificationStatus = null;
-  let closeReason: string | null = null;
-  try {
-    const { data: vr } = await supabase
-      .from('skill_runs').select('verification_status, run_close_reason').eq('id', params.id).maybeSingle();
-    const row = vr as { verification_status?: VerificationStatus; run_close_reason?: string | null } | null;
-    verificationStatus = row?.verification_status ?? null;
-    closeReason = row?.run_close_reason ?? null;
-  } catch { /* columns not present yet — badge/reason simply don't render */ }
-
   // Optional model review (0121), intentionally separate from the deterministic
   // Completion Controller above. A missing migration/policy simply renders no card.
   let judgment: RunJudgment | null = null;
