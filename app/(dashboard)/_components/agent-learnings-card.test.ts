@@ -60,6 +60,17 @@ test('an unverifiable backfill result fails closed and never reports analysis su
   } finally { rendered.cleanup(); }
 });
 
+test('a legacy payload without selected-version eligibility authority fails closed', async () => {
+  const rendered = await render('agent-learnings-card.tsx', {
+    slug: 'video-agent', initialPayload: null, initialSource: 'loading',
+  }, { backend() { return { ok: true, source: 'ready', suggested: [], active: [] }; } });
+  try {
+    await rendered.act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    assert.match(rendered.text(), /could not be verified/i);
+    assert.doesNotMatch(rendered.text(), /No active approved rules/);
+  } finally { rendered.cleanup(); }
+});
+
 test('an edited one-run suggestion atomically approves the replacement text', async () => {
   const calls: Array<{ path: string; body?: unknown }> = [];
   const payload = { ...ready, suggested: [oneRunSuggestion] };

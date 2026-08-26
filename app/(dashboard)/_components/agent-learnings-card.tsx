@@ -108,7 +108,9 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
     try {
       const body = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/learning-influence`, { jwt: await token() });
       if (body?.source === 'disabled') { setPayload(null); setSource('disabled'); return; }
-      if (!body?.ok || body?.source !== 'ready' || !Array.isArray(body.suggested) || !Array.isArray(body.active)) {
+      if (!body?.ok || body?.source !== 'ready' || !Array.isArray(body.suggested) || !Array.isArray(body.active)
+          || typeof body.selectedVersion?.id !== 'string' || !Number.isSafeInteger(body.selectedVersion?.version)
+          || typeof body.selectedVersion?.taskSignatureDigest !== 'string') {
         setPayload(null); setSource('unavailable'); return;
       }
       setPayload(body as Payload); setSource('ready');
