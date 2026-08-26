@@ -69,6 +69,9 @@ export type RunRow = {
   progress?: RunProgress | null;
   // ── 0102 Completion Controller verdict (did it produce its deliverable?) ──
   verification_status?: string | null;
+  // Why a terminal run closed (migration 0101). Used to distinguish the exact
+  // historical clean-exit approval bug from ordinary failed executions.
+  run_close_reason?: string | null;
   // ── 0089 live per-step checklist ──
   current_step_index?: number | null;
   total_steps?: number | null;
@@ -130,6 +133,8 @@ export function isApprovalContinuationRecovery({
   reviewStatus,
   outputMarkdown,
   steps,
+  progress,
+  closeReason,
   hasReviewEvidence,
   hasFinalOutput,
 }: {
@@ -137,12 +142,36 @@ export function isApprovalContinuationRecovery({
   reviewStatus: unknown;
   outputMarkdown: unknown;
   steps: RunStep[];
+  progress?: RunProgress | null;
+  closeReason?: unknown;
   hasReviewEvidence: boolean;
   hasFinalOutput: boolean;
 }): boolean {
-  if (runState !== 'completed' || reviewStatus === 'pending' || reviewStatus === 'needs_input') return false;
+  if (runState !== 'completed' && runState !== 'failed') return false;
+  if (reviewStatus === 'pending' || reviewStatus === 'needs_input') return false;
   if (typeof outputMarkdown === 'string' && outputMarkdown.trim()) return false;
   if (!hasReviewEvidence || hasFinalOutput || !Array.isArray(steps) || steps.length < 2) return false;
+
+  // Runs affected by the pre-fix Desktop clean-exit bug were flattened to
+  // failed before the approval hold could be persisted. Recover only the exact
+  // adapter/presenter/render trace; generic approval prose is not authority.
+  if (runState === 'failed') {
+    if (closeReason !== 'exit_clean_no_completion_signal') return false;
+    const entries = [
+      ...(Array.isArray(progress?.history) ? progress.history : []),
+      ...(progress?.current ? [progress.current] : []),
+    ];
+    const exactGate = entries.some((entry) => {
+      const text = String(entry?.note || entry?.step || '').trim();
+      return /\bdesktop\s+(?:media\s+)?adapter\b/i.test(text)
+        && /\brequires?\s+approval\b/i.test(text)
+        && /\brender(?:ing)?\b/i.test(text)
+        && /\bpresenter\s+derivative\b/i.test(text);
+    });
+    return exactGate
+      && steps.some((step) => step.status === 'done')
+      && steps.some((step) => step.status === 'pending' || step.status === 'running');
+  }
 
   const gate = steps.find((step) => step.status === 'running');
   if (!gate || typeof gate.label !== 'string'

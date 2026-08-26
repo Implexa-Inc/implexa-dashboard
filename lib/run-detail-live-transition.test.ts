@@ -34,11 +34,30 @@ test('recovers only a structurally incomplete approval-gated historical completi
     ...base,
     steps: [approvalSteps[0], { ...approvalSteps[1], label: 'Write summary' }, approvalSteps[2]],
   }), false);
+
+  const historicalDesktopFailure = {
+    ...base,
+    runState: 'failed',
+    closeReason: 'exit_clean_no_completion_signal',
+    progress: { history: [{
+      note: 'step 6/17: Desktop adapter requires approval before rendering the presenter derivative; no rendering or provider action started',
+    }] },
+  };
+  assert.equal(isApprovalContinuationRecovery(historicalDesktopFailure), true);
+  assert.equal(isApprovalContinuationRecovery({
+    ...historicalDesktopFailure,
+    progress: { history: [{ note: 'Approval required before continuing.' }] },
+  }), false);
+  assert.equal(isApprovalContinuationRecovery({
+    ...historicalDesktopFailure, closeReason: 'exit_code_nonzero',
+  }), false);
 });
 
 test('run details renders the approval recovery action from structured authority', () => {
   const page = fs.readFileSync(path.join(import.meta.dirname, '..', 'app', '(dashboard)', 'runs', '[id]', 'page.tsx'), 'utf8');
   assert.match(page, /isApprovalContinuationRecovery\(\{/);
+  assert.match(page, /closeReason: r\.run_close_reason/);
+  assert.match(page, /progress,/);
   assert.match(page, /artifact\.role === 'manifest'/);
   assert.match(page, /artifact\.role === 'final_output'/);
   assert.match(page, /\.eq\('id', approvalRecoveryRequestId\(r\.id\)\)/);
