@@ -158,7 +158,9 @@ export function isApprovalContinuationRecovery({
   // plus the exact adapter/presenter/render trace; generic approval prose is
   // not authority.
   if (runState === 'failed') {
-    if (closeReason !== 'exit_clean_no_completion_signal' && closeReason !== 'exit_code_nonzero') return false;
+    if (closeReason !== 'exit_clean_no_completion_signal'
+        && closeReason !== 'exit_code_nonzero'
+        && closeReason !== 'brokered_input_settlement_verified') return false;
     const entries = [
       ...(Array.isArray(progress?.history) ? progress.history : []),
       ...(progress?.current ? [progress.current] : []),
