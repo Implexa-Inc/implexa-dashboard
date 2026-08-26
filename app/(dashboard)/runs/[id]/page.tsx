@@ -414,7 +414,14 @@ export default async function RunDetailPage({
     steps: stepsState,
     progress,
     closeReason: r.run_close_reason,
-    hasReviewEvidence: verifiedArtifacts.some((artifact) => artifact.role === 'manifest'),
+    // Manager L1 compositor runs can stop before the portable delivery manifest
+    // exists.  Their validated scene execution contract is the earlier,
+    // run-specific authority for the exact render being approved; do not require
+    // the later step-17 manifest to recover a step-6 Desktop approval hold.
+    hasReviewEvidence: verifiedArtifacts.some((artifact) =>
+      artifact.role === 'manifest'
+      || artifact.relativePath === 'scene-execution-contract.json'
+      || artifact.relativePath.endsWith('/scene-execution-contract.json')),
     hasFinalOutput: verifiedArtifacts.some((artifact) => artifact.role === 'final_output'),
   });
   let approvalContinuationAlreadyQueued = false;
