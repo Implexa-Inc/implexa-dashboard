@@ -22,6 +22,8 @@ type ActiveRule = {
   lastHandling?: 'applied' | 'unsupported_scope' | 'skipped_inapplicable' | 'refused' | null;
   contradictionCount: number;
   influenceState: 'active' | 'suspended_contradiction' | 'suspended_scope';
+  eligibleForVersion: boolean; eligibilityReason: string;
+  compatibilityReceiptId: string | null; targetWorkflowVersionId: string;
 };
 type ProofRun = {
   requestId: string; executionAttemptId: string; runId: string; fencingEpoch: number;
@@ -32,7 +34,9 @@ type ProofRun = {
 };
 type RuleHistory = { ruleVersionId: string; ruleId: string; version: number;
   state: 'active' | 'disabled' | 'revoked'; suggestedAt: string | null; approvedAt: string | null; runs: ProofRun[] };
-type Payload = { ok: true; source: 'ready'; suggested: Candidate[]; active: ActiveRule[]; history?: RuleHistory[] };
+type Payload = { ok: true; source: 'ready';
+  selectedVersion: { id: string; version: number; taskSignatureDigest: string };
+  suggested: Candidate[]; active: ActiveRule[]; history?: RuleHistory[] };
 type BackfillResult = {
   ok: true; source: 'ready'; scannedEvidence: number; agentEvidence: number;
   matchedEvidence: number; proposals: number; createdCandidates: number;
@@ -311,15 +315,29 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
       </div>
 
       <div className="mt-6 border-t border-ink-800 pt-5">
-        <h3 className="text-sm font-semibold text-ink-100">Active</h3>
-        {payload.active.length === 0 ? <p className="mt-2 text-xs text-ink-500">No approved rules influence future runs.</p> : (
+        <h3 className="text-sm font-semibold text-ink-100">Approved competence</h3>
+        <p className="mt-1 text-xs text-ink-500">
+          Active means owner-approved. Only rules marked Eligible for v{payload.selectedVersion.version} can be frozen into a new run.
+        </p>
+        {payload.active.length === 0 ? <p className="mt-2 text-xs text-ink-500">No active approved rules.</p> : (
           <ul className="mt-2 space-y-3">
             {payload.active.map((rule) => (
-              <li key={rule.id} className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
-                <div className="text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-                  {rule.ruleClass} · v{rule.version} · private agent · {rule.influenceState === 'active' ? 'active' : 'suspended'}
+              <li key={rule.id} className={`rounded-lg border p-3 ${rule.eligibleForVersion
+                ? 'border-emerald-500/20 bg-emerald-500/5'
+                : 'border-amber-500/25 bg-amber-500/5'}`}>
+                <div className={`text-[10px] uppercase tracking-wide ${rule.eligibleForVersion
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : 'text-amber-700 dark:text-amber-300'}`}>
+                  {rule.ruleClass} · rule v{rule.version} · Active · {rule.eligibleForVersion
+                    ? `Eligible for agent v${payload.selectedVersion.version}`
+                    : `Not eligible for agent v${payload.selectedVersion.version}`}
                 </div>
                 <p className="mt-2 text-sm text-ink-100">{rule.instruction}</p>
+                {!rule.eligibleForVersion && rule.influenceState === 'active' && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                    This approved rule remains private and active, but the selected agent version changed its task identity or consequential task contract. It will not be frozen or supplied to runs of v{payload.selectedVersion.version}.
+                  </p>
+                )}
                 {rule.influenceState === 'suspended_contradiction' && (
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
                     Suspended from future runs after {rule.contradictionCount} contradictory evidence record{rule.contradictionCount === 1 ? '' : 's'}. Already-frozen runs are unchanged; review by disabling or undoing this rule.
@@ -333,6 +351,9 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
                 <p className="mt-2 text-[11px] text-ink-500">
                   {rule.evidenceIds.length} supporting evidence records · {rule.contradictionCount} contradictions · task {short(rule.scope.taskSignatureDigest)} · step {rule.scope.stepIndex == null ? 'agent task-wide' : rule.scope.stepIndex} · capability {rule.scope.capabilityIdentity || 'all'} · tool {rule.scope.toolIdentity || 'all'} · last supplied {rule.lastSuppliedRun ? short(rule.lastSuppliedRun) : 'never'} · last applied {rule.lastAppliedRun ? short(rule.lastAppliedRun) : 'never'}
                 </p>
+                {rule.compatibilityReceiptId && (
+                  <p className="mt-1 font-mono text-[10px] text-ink-600">compatibility {short(rule.compatibilityReceiptId)}</p>
+                )}
                 {activeEditingId === rule.id && (
                   <div className="mt-3 rounded-md border border-sky-500/30 bg-sky-500/5 p-3">
                     <label htmlFor={`active-learning-rule-${rule.id}`} className="text-xs font-medium text-ink-200">Edit active rule</label>

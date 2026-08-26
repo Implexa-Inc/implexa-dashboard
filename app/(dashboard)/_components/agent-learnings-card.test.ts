@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { render } from '../../../lib/test/render.ts';
 
-const ready = { ok: true, source: 'ready', suggested: [], active: [] };
+const ready = { ok: true, source: 'ready',
+  selectedVersion: { id: 'agent-version-13', version: 13, taskSignatureDigest: 'b'.repeat(64) },
+  suggested: [], active: [] };
 const oneRunSuggestion = {
   id: 'candidate-1', candidateKey: 'a'.repeat(64), ruleClass: 'preference', polarity: 'positive',
   summary: 'Time text and animations to the spoken narration.',
@@ -102,6 +104,8 @@ test('editing an active rule appends a new immutable version', async () => {
     ruleClass: 'preference', instruction: oneRunSuggestion.instruction,
     scope: oneRunSuggestion.scope, evidenceIds: ['evidence-1'], lastAppliedRun: null,
     contradictionCount: 0, influenceState: 'active',
+    eligibleForVersion: true, eligibilityReason: 'same_task_key_and_task_contract',
+    compatibilityReceiptId: 'compatibility-1', targetWorkflowVersionId: 'agent-version-13',
   };
   const payload = { ...ready, active: [activeRule] };
   const rendered = await render('agent-learnings-card.tsx', {
@@ -132,6 +136,26 @@ test('editing an active rule appends a new immutable version', async () => {
   } finally { rendered.cleanup(); }
 });
 
+test('an active rule that is ineligible for the selected version is never presented as influencing its runs', async () => {
+  const activeRule = {
+    id: 'version-legacy', ruleId: 'rule-legacy', version: 1, versionDigest: 'd'.repeat(64),
+    ruleClass: 'preference', instruction: oneRunSuggestion.instruction,
+    scope: oneRunSuggestion.scope, evidenceIds: ['evidence-1'], lastAppliedRun: null,
+    contradictionCount: 0, influenceState: 'active', eligibleForVersion: false,
+    eligibilityReason: 'task_identity_or_contract_changed', compatibilityReceiptId: null,
+    targetWorkflowVersionId: 'agent-version-13',
+  };
+  const payload = { ...ready, active: [activeRule] };
+  const rendered = await render('agent-learnings-card.tsx', {
+    slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
+  }, { backend() { return payload; } });
+  try {
+    assert.match(rendered.text(), /Active · Not eligible for agent v13/i);
+    assert.match(rendered.text(), /will not be frozen or supplied to runs of v13/i);
+    assert.doesNotMatch(rendered.text(), /Active · Eligible for agent v13/i);
+  } finally { rendered.cleanup(); }
+});
+
 test('low-evidence override never unlocks contradicted or scoped suggestions', async () => {
   const blocked = [
     { ...oneRunSuggestion, id: 'contradicted', contradictionCount: 1 },
@@ -145,7 +169,9 @@ test('low-evidence override never unlocks contradicted or scoped suggestions', a
       backend() { return payload; },
     });
     try {
-      const approve = rendered.getByText('Approve') as HTMLButtonElement;
+      const approve = Array.from(rendered.document.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'Approve') as HTMLButtonElement;
+      assert.ok(approve);
       assert.equal(approve.disabled, true);
       assert.doesNotMatch(rendered.text(), /Approve anyway/);
     } finally { rendered.cleanup(); }

@@ -14,16 +14,20 @@ const fixture = JSON.parse(readFileSync(new URL('../test-fixtures/learning-influ
 const task = fixture.scope.taskSignatureDigest;
 const baseScope = { kind: 'private_agent', agentSlug: fixture.scope.agentSlug, agentFamilyId: fixture.scope.agentFamilyId,
   originatingAgentVersionId: fixture.scope.workflowVersionId, taskSignatureDigest: task };
-const payload = { ok: true, source: 'ready', suggested: fixture.suggested.map((item) => ({...item,
+const payload = { ok: true, source: 'ready', selectedVersion: {
+  id: fixture.scope.workflowVersionId, version: 13, taskSignatureDigest: task,
+}, suggested: fixture.suggested.map((item) => ({...item,
   scope: {...baseScope,stepIndex:item.stepIndex,capabilityIdentity:item.capabilityIdentity,toolIdentity:item.toolIdentity}})),
   active: fixture.active.map((item) => ({...item,
+    eligibleForVersion:true,eligibilityReason:'same_task_key_and_task_contract',
+    compatibilityReceiptId:'00000044-0000-4000-8000-000000000044',targetWorkflowVersionId:fixture.scope.workflowVersionId,
     scope: {...baseScope,stepIndex:item.stepIndex,capabilityIdentity:item.capabilityIdentity,toolIdentity:item.toolIdentity}})),
   history: fixture.history };
 
 test('rendered ready surface explains evidence, scope, lifecycle, and active receipt', () => {
   const html = renderToStaticMarkup(React.createElement(AgentLearningsCard,
     { slug: fixture.scope.agentSlug, initialPayload: payload, initialSource: 'ready' }));
-  for (const phrase of ['Train → Learnings','Suggested','Active','Evidence </dt><dd',
+  for (const phrase of ['Train → Learnings','Suggested','Approved competence','Active','Eligible for agent v13','Evidence </dt><dd',
     'Contradictions </dt><dd','Private agent','Approve','Dismiss','Edit rule','Edit active rule','Disable','Undo','last applied',
     'Use feedback you already gave','Analyze past feedback','up to 180 days',
     'remain inert until they meet the evidence threshold and you approve them','last supplied','last applied']) {
