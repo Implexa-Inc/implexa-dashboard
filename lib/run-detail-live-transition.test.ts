@@ -52,6 +52,9 @@ test('recovers only a structurally incomplete approval-gated historical completi
     ...historicalDesktopFailure, closeReason: 'exit_code_nonzero',
   }), true, 'a worker may truthfully return code 1 after recording the exact approval boundary');
   assert.equal(isApprovalContinuationRecovery({
+    ...historicalDesktopFailure, closeReason: 'brokered_input_settlement_verified',
+  }), true, 'verified large-input settlement may be the preserved terminal provenance');
+  assert.equal(isApprovalContinuationRecovery({
     ...historicalDesktopFailure, closeReason: 'exit_timeout',
   }), false);
 });
