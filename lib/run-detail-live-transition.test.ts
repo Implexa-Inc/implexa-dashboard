@@ -59,6 +59,8 @@ test('run details renders the approval recovery action from structured authority
   assert.match(page, /closeReason: r\.run_close_reason/);
   assert.match(page, /progress,/);
   assert.match(page, /artifact\.role === 'manifest'/);
+  assert.match(page, /scene-execution-contract\.json/,
+    'a validated Manager L1 scene contract must recover an approval held before the final manifest step');
   assert.match(page, /artifact\.role === 'final_output'/);
   assert.match(page, /\.eq\('id', approvalRecoveryRequestId\(r\.id\)\)/);
   assert.match(page, /\.eq\('run_id', r\.id\)\.eq\('kind', 'continue'\)/);
