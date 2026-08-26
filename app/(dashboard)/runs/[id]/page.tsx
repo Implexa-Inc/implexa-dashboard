@@ -412,6 +412,8 @@ export default async function RunDetailPage({
     reviewStatus: r.review_status,
     outputMarkdown: r.output_markdown,
     steps: stepsState,
+    progress,
+    closeReason: r.run_close_reason,
     hasReviewEvidence: verifiedArtifacts.some((artifact) => artifact.role === 'manifest'),
     hasFinalOutput: verifiedArtifacts.some((artifact) => artifact.role === 'final_output'),
   });
