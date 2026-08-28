@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getMyAgents } from '@/lib/agents-home';
 import { getReviewPacket, unavailableSources } from '@/lib/review';
 import ReviewRoom from '../../_components/review-room';
+import StageCompetenceProof from '../../_components/stage-competence-proof';
 
 export const dynamic = 'force-dynamic';
 
@@ -108,8 +109,11 @@ export default async function ReviewRoomPage({ params, searchParams }: {
         </div>
       )}
 
-      <section className="mb-5 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learning proof">
-        <h2 className="text-sm font-semibold text-ink-100">Learning proof</h2>
+      <StageCompetenceProof proof={packet.competenceProof} />
+
+      <section className="mb-5 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learnings used">
+        <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
+        <p className="mt-1 text-xs text-ink-500">Owner-approved rules frozen for this attempt. This is separate from stage skills above.</p>
         {!reviewLearningAvailable ? (
           <p className="mt-2 text-xs text-amber-300">Attempt-bound learning proof is unavailable. No handling state is inferred.</p>
         ) : !reviewLearningProof ? (
@@ -146,6 +150,8 @@ export default async function ReviewRoomPage({ params, searchParams }: {
         // A generated-clip deep link (?artifact=) opens on that clip. The id is
         // honored only if the packet actually contains it.
         initialArtifactId={typeof searchParams?.artifact === 'string' ? searchParams.artifact : null}
+        versions={versions}
+        currentVersionLabel={currentLabel}
       />
 
       {/* Distinct authorities, kept visually and semantically separate. */}

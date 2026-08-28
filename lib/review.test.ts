@@ -241,6 +241,24 @@ test('a well-formed packet response parses', () => {
   assert.equal(p!.run!.id, 'run-1');
 });
 
+test('competence proof requires its two owner-scoped source states and preserves supply vs handling', () => {
+  const competenceProof = {
+    contextStatus: 'ready', attemptContextId: 'attempt-1', contextDigest: 'c'.repeat(64), workflowVersionId: null,
+    bindings: [{ skillId: 'remotion', source: 'org', slug: 'remotion', contentDigest: 'a'.repeat(64), stages: [4, 12] }],
+    supplyStatus: 'supplied', handlingStatus: 'not_recorded', receipts: [],
+  };
+  const packet = { ...goodPacket(), competenceProof, sources: {
+    ...okPacketSources, competence_context: 'ready', competence_handling: 'ready',
+  } };
+  const parsed = parseReviewPacketResponse(packet, 'run-1');
+  assert.ok(parsed);
+  assert.equal(parsed.competenceProof.supplyStatus, 'supplied');
+  assert.equal(parsed.competenceProof.handlingStatus, 'not_recorded');
+  assert.equal(parsed.competenceProof.receipts.length, 0, 'supply must never be promoted to execution');
+  assert.equal(parseReviewPacketResponse({ ...packet, sources: { ...okPacketSources } }, 'run-1'), null);
+  assert.equal(parseReviewPacketResponse({ ...packet, sources: { ...packet.sources, competence_handling: 'unavailable' } }, 'run-1'), null);
+});
+
 test('review-supplied artifacts are role-bound to durable packet artifacts', () => {
   const targetId = 'artifact-target';
   const supportId = 'artifact-support';

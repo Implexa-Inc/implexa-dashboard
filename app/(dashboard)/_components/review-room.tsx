@@ -55,6 +55,13 @@ import {
   type SubmissionState, type SubmitOutcome,
 } from '@/lib/review-submission-flow';
 import { parsePatternCandidate, type ReviewPatternApplication } from '@/lib/review-actions';
+import {
+  artifactOptionLabel,
+  latestValidatedFinalOutput,
+  reviewTimestamp,
+  versionForRun,
+  type ReviewVersion,
+} from '@/lib/review-version-identity';
 
 import {
   beginRange, canOfferRange, canReplaceDraft, completeRange, composerHeaderLabel, draftFromIssue,
@@ -83,6 +90,9 @@ type Props = {
    * used as before.
    */
   initialArtifactId?: string | null;
+  /** Backend-computed lineage. Used only to identify this exact revision, never to infer one. */
+  versions?: ReviewVersion[];
+  currentVersionLabel?: string | null;
 };
 
 const ISSUE_KINDS = ['timing', 'content', 'visual', 'audio', 'missing', 'replacement', 'other'] as const;
@@ -131,6 +141,8 @@ export default function ReviewRoom(props: Props) {
     () => preferredReviewArtifact(artifacts, production)?.id ?? null,
     [artifacts, production],
   );
+  const currentVersion = useMemo(() => versionForRun(runId, props.versions ?? []), [runId, props.versions]);
+  const latestFinalOutput = useMemo(() => latestValidatedFinalOutput(artifacts), [artifacts]);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     return resolveInitialArtifact(
       props.initialArtifactId ?? null,
@@ -1191,6 +1203,35 @@ export default function ReviewRoom(props: Props) {
           </div>
         )}
 
+        <div className="mb-3 rounded-md border border-ink-800 bg-ink-950/50 px-3 py-2.5" aria-label="Review version identity">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-ink-200">
+                Reviewing {currentVersion?.label || props.currentVersionLabel || 'version unavailable'}
+              </p>
+              <p className="mt-1 text-[11px] text-ink-500">
+                Started {reviewTimestamp(currentVersion?.startedAt)} · run {runId.slice(0, 12)}…
+              </p>
+              {latestFinalOutput ? (
+                <p className="mt-1 truncate text-[11px] text-emerald-300" title={latestFinalOutput.relativePath}>
+                  Latest validated final output: {latestFinalOutput.relativePath.split('/').at(-1)} · verified {reviewTimestamp(latestFinalOutput.validatedAt)} · sha256 {latestFinalOutput.sha256?.slice(0, 12)}…
+                </p>
+              ) : (
+                <p className="mt-1 text-[11px] text-amber-300">A latest validated final output could not be identified for this revision.</p>
+              )}
+            </div>
+            {latestFinalOutput && latestFinalOutput.id !== selectedId && (
+              <button
+                type="button"
+                onClick={() => setSelectedId(latestFinalOutput.id)}
+                className="shrink-0 rounded border border-emerald-500/40 px-2.5 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10"
+              >
+                Review latest final
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="mb-3 flex items-end gap-2">
           {validated.length > 0 && (
             <label className="min-w-0 flex-1 text-xs text-ink-400">
@@ -1201,7 +1242,9 @@ export default function ReviewRoom(props: Props) {
                 className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-sm text-ink-100"
               >
                 {validated.map((a) => (
-                  <option key={a.id} value={a.id}>{a.relativePath}{a.role ? ` — ${a.role}` : ''}</option>
+                  <option key={a.id} value={a.id}>
+                    {artifactOptionLabel(a, a.role === 'review_input' ? 'Attached review file' : (currentVersion?.label || props.currentVersionLabel || null))}
+                  </option>
                 ))}
               </select>
             </label>
