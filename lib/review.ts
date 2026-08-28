@@ -1,3 +1,8 @@
+import {
+  COMPETENCE_PROOF_UNAVAILABLE,
+  type StageCompetenceProof,
+} from './run-competence-proof.ts';
+
 /**
  * lib/review.ts — the client for the Review Room API (backend §5.9).
  *
@@ -159,6 +164,7 @@ export type ReviewPacket = {
   artifacts: ReviewArtifact[];
   judgment: { id: string; verdict: string; summary: string; nextAction: string | null; createdAt: string | null } | null;
   verification: { receipts: Array<{ id: string; adapterKind: string; status: string; createdAt: string }> };
+  competenceProof: StageCompetenceProof;
   production: ReviewProduction;
   session: ReviewSession;
   reviewArtifacts: ReviewSessionArtifact[];
@@ -169,7 +175,8 @@ export type ReviewPacket = {
 
 const PACKET_UNAVAILABLE: ReviewPacket = {
   ok: false, run: null, lineage: { rootRunId: null, versions: [] }, artifacts: [],
-  judgment: null, verification: { receipts: [] }, production: null, session: null, issues: [],
+  judgment: null, verification: { receipts: [] }, competenceProof: COMPETENCE_PROOF_UNAVAILABLE,
+  production: null, session: null, issues: [],
   reviewArtifacts: [],
   sources: { review_packet: 'unavailable' }, live: false,
 };
@@ -389,6 +396,62 @@ function isValidReceipt(v: unknown): boolean {
   return true;
 }
 
+const CONTEXT_STATUSES = new Set(['ready', 'none', 'unavailable']);
+const SUPPLY_STATUSES = new Set(['supplied', 'not_recorded', 'unavailable', 'not_required']);
+const HANDLING_STATUSES = new Set(['ready', 'not_recorded', 'incomplete', 'unavailable', 'not_required']);
+const SKILL_HANDLING = new Set(['applied', 'skipped_inapplicable', 'unavailable', 'refused']);
+
+function isStageList(v: unknown): v is number[] {
+  return Array.isArray(v) && v.every((stage) => Number.isInteger(stage));
+}
+
+/** Parse the owner-scoped proof without ever promoting a frozen binding to execution. */
+export function parseStageCompetenceProof(raw: unknown): StageCompetenceProof | null {
+  if (!isObject(raw)) return null;
+  if (!CONTEXT_STATUSES.has(String(raw.contextStatus))) return null;
+  if (!SUPPLY_STATUSES.has(String(raw.supplyStatus))) return null;
+  if (!HANDLING_STATUSES.has(String(raw.handlingStatus))) return null;
+  if (!Array.isArray(raw.bindings) || !Array.isArray(raw.receipts)) return null;
+  if (!(raw.attemptContextId === null || isId(raw.attemptContextId))) return null;
+  if (!(raw.contextDigest === null || isDigest(raw.contextDigest))) return null;
+  if (!(raw.workflowVersionId === null || isId(raw.workflowVersionId))) return null;
+  if (!(raw.supplyUnavailableReason === undefined || isId(raw.supplyUnavailableReason))) return null;
+  if (!(raw.handlingUnavailableReason === undefined || isId(raw.handlingUnavailableReason))) return null;
+
+  for (const binding of raw.bindings) {
+    if (!isObject(binding) || !isId(binding.skillId) || !isId(binding.source) || !isId(binding.slug)) return null;
+    if (!isDigest(binding.contentDigest) || !isStageList(binding.stages)) return null;
+  }
+  for (const receipt of raw.receipts) {
+    if (!isObject(receipt) || !isId(receipt.receiptId) || !isId(receipt.skillId)) return null;
+    if (!isId(receipt.source) || !isId(receipt.slug) || !isDigest(receipt.contentDigest)) return null;
+    if (!SKILL_HANDLING.has(String(receipt.handling)) || !isStageList(receipt.stages)) return null;
+    if (!isId(receipt.reason) || !isObject(receipt.evidenceBinding)) return null;
+    if (!isDigest(receipt.reportDigest) || receipt.causationClaim !== 'not_claimed' || !isId(receipt.createdAt)) return null;
+  }
+
+  const contextStatus = raw.contextStatus as StageCompetenceProof['contextStatus'];
+  const bindings = raw.bindings as Array<Record<string, unknown>>;
+  const receipts = raw.receipts as Array<Record<string, unknown>>;
+  if (new Set(bindings.map((binding) => String(binding.skillId))).size !== bindings.length) return null;
+  if (new Set(receipts.map((receipt) => String(receipt.skillId))).size !== receipts.length) return null;
+  if (contextStatus !== 'ready' && raw.bindings.length > 0) return null;
+  if (contextStatus === 'ready' && raw.bindings.length === 0) return null;
+  if (raw.handlingStatus === 'unavailable' && raw.receipts.length > 0) return null;
+  if (contextStatus === 'unavailable' && !['identity_missing', 'context_read_failed', 'context_malformed'].includes(String(raw.unavailableReason))) return null;
+  if (contextStatus === 'ready' && (!isId(raw.attemptContextId) || !isDigest(raw.contextDigest))) return null;
+  if (raw.supplyStatus === 'unavailable' && !isId(raw.supplyUnavailableReason)) return null;
+  if (raw.handlingStatus === 'unavailable' && !isId(raw.handlingUnavailableReason)) return null;
+  for (const receipt of receipts) {
+    const binding = bindings.find((candidate) => candidate.skillId === receipt.skillId);
+    if (!binding || binding.source !== receipt.source || binding.slug !== receipt.slug
+        || binding.contentDigest !== receipt.contentDigest
+        || JSON.stringify(binding.stages) !== JSON.stringify(receipt.stages)) return null;
+  }
+
+  return raw as unknown as StageCompetenceProof;
+}
+
 /**
  * Parse a queue response. Returns null when the payload is not the shape we contracted
  * for, so the caller can return QUEUE_UNAVAILABLE rather than a live-looking empty.
@@ -495,6 +558,19 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
   const receipts = (body.verification as Record<string, unknown>).receipts;
   if (!Array.isArray(receipts) || !receipts.every(isValidReceipt)) return null;
 
+  // Additive during rollout: an older packet has no proof and must render loudly as
+  // unavailable. If the backend sends the field, however, reject malformed proof
+  // rather than turning it into a false claim about skill execution.
+  const competenceProof = body.competenceProof === undefined
+    ? COMPETENCE_PROOF_UNAVAILABLE
+    : parseStageCompetenceProof(body.competenceProof);
+  if (!competenceProof) return null;
+  if (body.competenceProof !== undefined) {
+    if (!('competence_context' in sources) || !('competence_handling' in sources)) return null;
+    if ((sources.competence_context === 'unavailable') !== (competenceProof.contextStatus === 'unavailable')) return null;
+    if ((sources.competence_handling === 'unavailable') !== (competenceProof.handlingStatus === 'unavailable')) return null;
+  }
+
   // judgment is legitimately null; when present every field the UI renders must be there.
   if (!(body.judgment === null || isValidJudgment(body.judgment))) return null;
   if (!(body.production === null || isValidProduction(body.production))) return null;
@@ -506,6 +582,7 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
     artifacts: body.artifacts as ReviewArtifact[],
     judgment: body.judgment as ReviewPacket['judgment'],
     verification: body.verification as ReviewPacket['verification'],
+    competenceProof,
     production: body.production as ReviewProduction,
     session: body.session as ReviewSession,
     reviewArtifacts: body.reviewArtifacts as ReviewSessionArtifact[],

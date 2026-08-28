@@ -52,6 +52,9 @@ import { RunJudgmentCard, type JudgeRepairRequest, type RunJudgment } from '../.
 import { RunJudgmentPending } from '../../_components/run-judgment-pending';
 import VerifiedArtifacts, { type VerifiedArtifact } from '../../_components/verified-artifacts';
 import { isValidatedVideoOutput } from '@/lib/generation-entry-eligibility';
+import StageCompetenceProof from '../../_components/stage-competence-proof';
+import { runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
+import { getReviewPacket } from '@/lib/review';
 
 export const dynamic = 'force-dynamic';
 
@@ -231,6 +234,11 @@ export default async function RunDetailPage({
       ? managerRequest.recovery_target_run_id
       : null;
   if (managerTarget && managerTarget !== r.id) redirect(`/runs/${encodeURIComponent(managerTarget)}`);
+
+  // Competence handling receipts are service-owned proof, not authenticated-table
+  // data. Read the same owner-scoped contract as Review Room; an unavailable packet
+  // stays visibly unavailable and is never reinterpreted as "no skills".
+  const competencePacket = await getReviewPacket(r.id);
 
   // 0139 is additive. Read the explicit hold contract separately so a dashboard
   // deploy before its migration still renders the legacy-safe action rather than
@@ -459,12 +467,16 @@ export default async function RunDetailPage({
   // refused once superseded — so without this check it would look perpetually
   // "recoverable" here even though the continuation already did the real work.
   // Same defensive own-query pattern as progress/stepsState above.
+  type RecoveryAttempt = { id: string; status: string; summary: string | null; next_action: string | null; recover_request_id: string | null };
   let alreadyRecoveredElsewhere = false;
+  let recoveryAttempt: RecoveryAttempt | null = null;
   try {
     const { data: rec } = await supabase
       .from('run_recovery_attempts')
-      .select('id').eq('target_run_id', params.id).eq('status', 'recovered').limit(1).maybeSingle();
+      .select('id,status,summary,next_action,recover_request_id').eq('target_run_id', params.id).eq('status', 'recovered')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
     alreadyRecoveredElsewhere = !!rec;
+    recoveryAttempt = rec as RecoveryAttempt | null;
   } catch { /* table not present yet — nothing to gate on, the server re-checks anyway */ }
 
   // Salvage affordance: this run may have DONE the work and died before reporting
@@ -474,6 +486,12 @@ export default async function RunDetailPage({
   const recovered = alreadyRecoveredElsewhere
     ? { recoverable: false, looksComplete: false, lastNote: null, stepCount: 0 }
     : deriveRecoveredWork({ runState: r.run_state, outputMarkdown: r.output_markdown, progress, stepsState });
+  const recoveredFinalArtifact = verifiedArtifacts.find((artifact) => artifact.role === 'final_output') ?? null;
+  const recoveryPresentation = {
+    hasValidatedFinalOutput: !!recoveredFinalArtifact,
+    runState: r.run_state,
+    hasDeterministicContinuation: approvalContinuationRecovery || recovered.recoverable || alreadyRecoveredElsewhere,
+  };
 
   // Next-agent recommendations (recommendation engine v1, RECOMMENDATION_ENGINE_PLAN
   // §1.5). Fetched defensively in its OWN query — the skill_runs.recommendations
@@ -804,8 +822,11 @@ export default async function RunDetailPage({
           selectionReason={engineRouting?.selection_reason}
         />
 
+        <StageCompetenceProof proof={competencePacket.competenceProof} />
+
         <section className="mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learnings used">
           <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
+          <p className="mt-1 text-xs text-ink-500">Owner-approved rules frozen for this attempt. This is separate from stage skills above.</p>
           {learningProofUnavailable && !learningProof ? (
             <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">The attempt-bound learning proof is unavailable. No handling state is inferred.</p>
           ) : learningProof ? (
@@ -888,6 +909,35 @@ export default async function RunDetailPage({
                 Its files &amp; artifacts
               </Link>
             </div>
+          </div>
+        )}
+
+        {recoveredFinalArtifact && (r.run_state === 'failed' || r.run_state === 'stalled') && (
+          <div className="mb-6 rounded-lg border border-emerald-500/45 bg-emerald-500/[0.08] p-4" role="status">
+            <p className="text-sm font-semibold text-ink-50">A validated final output was recovered from this run</p>
+            <p className="mt-1 text-sm leading-relaxed text-ink-300">
+              The execution record is still {r.run_state}, but Implexa verified the final file on this Mac.
+              Open it from Files &amp; artifacts above; no duplicate rerun is needed.
+            </p>
+            <p className="mt-2 truncate font-mono text-[11px] text-ink-500">{recoveredFinalArtifact.relativePath}</p>
+          </div>
+        )}
+
+        {!recoveredFinalArtifact && recoveryPresentation.hasDeterministicContinuation && (
+          <div className="mb-6 rounded-lg border border-sky-500/35 bg-sky-500/[0.07] p-4" role="status">
+            <p className="text-sm font-semibold text-ink-50">
+              {alreadyRecoveredElsewhere ? 'Automatic recovery already handled this run' : 'A deterministic recovery path is available'}
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-ink-300">
+              {recoveryAttempt?.summary
+                || recoveryAttempt?.next_action
+                || (approvalContinuationRecovery
+                  ? 'Continue from the preserved approval gate below. Implexa reuses the same run identity and will not start a duplicate.'
+                  : 'Review the recorded trace below, then use the recovery action shown with it. No completion is inferred from progress notes alone.')}
+            </p>
+            {recoveryAttempt?.recover_request_id && (
+              <p className="mt-2 font-mono text-[11px] text-ink-500">Recovery request {recoveryAttempt.recover_request_id.slice(0, 12)}…</p>
+            )}
           </div>
         )}
 
@@ -1041,7 +1091,7 @@ export default async function RunDetailPage({
             <div className={`text-sm mb-1 ${supersededByRelated ? 'text-ink-300' : 'font-semibold text-ink-50'}`}>
               {supersededByRelated
                 ? 'What this superseded attempt recorded before it was replaced'
-                : info.label === 'Failed' ? 'This run did not finish' : 'This run stalled'}
+                : runProblemHeadline(recoveryPresentation, info.label === 'Failed')}
             </div>
             <p className="text-sm text-ink-300 leading-relaxed">{closeReasonExplanation ?? info.reason}</p>
             {info.permissionBlocked && (
@@ -1096,7 +1146,7 @@ export default async function RunDetailPage({
             <div className="mt-4 flex flex-wrap gap-3">
               {/* Restarting a superseded attempt would race the run that is
                   actually carrying this production node. */}
-              {!supersededByRelated && (
+              {!supersededByRelated && !suppressDuplicateRetry(recoveryPresentation) && (
                 <StuckRunButton
                   engine={executionContext?.executor || 'claude'}
                   threadId={executionContext?.thread_id}
@@ -1110,7 +1160,7 @@ export default async function RunDetailPage({
                   as a success: it would duplicate work the production already
                   finished and already paid for. More work is ordered from the
                   production, not from a diagnostic page for one of its steps. */}
-              {!productionLineage?.suppressRunAgain && (
+              {!productionLineage?.suppressRunAgain && !suppressDuplicateRetry(recoveryPresentation) && (
                 <Link href={agentHref} className="btn-outline text-sm px-4 py-2">Run again</Link>
               )}
               {productionLineage && (

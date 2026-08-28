@@ -50,11 +50,11 @@ test('a superseded shell demotes the page\'s own "this run stalled" conclusion',
 
 test('"Run again" is withheld once the parent settled the node as a success', () => {
   assert.equal(superseded.suppressRunAgain, true);
-  assert.match(PAGE, /\{!productionLineage\?\.suppressRunAgain && \(\s*\n\s*<Link href=\{agentHref\}/,
-    'the only "Run again" control is gated on the backend\'s verdict');
+  assert.match(PAGE, /\{!productionLineage\?\.suppressRunAgain && !suppressDuplicateRetry\(recoveryPresentation\) && \(\s*\n\s*<Link href=\{agentHref\}/,
+    'the only "Run again" control is gated on lineage and on authoritative recovery evidence');
   // And restarting a superseded attempt would race the run actually carrying
   // the node, so the stuck-run control is withheld too.
-  assert.match(PAGE, /\{!supersededByRelated && \(\s*\n\s*<StuckRunButton/);
+  assert.match(PAGE, /\{!supersededByRelated && !suppressDuplicateRetry\(recoveryPresentation\) && \(\s*\n\s*<StuckRunButton/);
 });
 
 test('redirecting to the authoritative run is preferred, but only when nothing is lost', () => {
