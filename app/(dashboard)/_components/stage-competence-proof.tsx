@@ -8,8 +8,8 @@ import {
 export default function StageCompetenceProof({ proof }: { proof: StageCompetenceProof }) {
   const empty = competenceEmptyCopy(proof);
   return (
-    <section className="mb-6 rounded-lg border border-sky-500/25 bg-sky-500/[0.04] p-4" aria-label="Skills executed and stage competence">
-      <h2 className="text-sm font-semibold text-ink-100">Skills executed / stage competence</h2>
+    <section className="mb-6 rounded-lg border border-sky-500/25 bg-sky-500/[0.04] p-4" aria-label="Stage skills and execution proof">
+      <h2 className="text-sm font-semibold text-ink-100">Stage skills / execution proof</h2>
       <p className="mt-1 text-xs text-ink-500">
         Frozen bindings and executor handling receipts are separate facts. This proof is independent of learned rules.
       </p>
