@@ -110,6 +110,7 @@ type ReviewArtifactBridge = {
     purpose: 'review_target' | 'supporting';
     selection: 'file' | 'directory';
   }) => Promise<ReviewArtifactPickerResult>;
+  openPostAcceptanceCleanup?: () => Promise<{ ok: boolean; error?: string }>;
 };
 
 function reviewArtifactBridge(): ReviewArtifactBridge | null {
@@ -183,6 +184,37 @@ export default function ReviewRoom(props: Props) {
   const [issues, setIssues] = useState<ReviewIssue[]>(props.issues);
   const [session, setSession] = useState<ReviewSession>(props.session);
   const [busy, setBusy] = useState(false);
+  const [cleanupPrompt, setCleanupPrompt] = useState(false);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
+  const cleanupDialogRef = useRef<HTMLDivElement | null>(null);
+  const cleanupDismissRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!cleanupPrompt) return;
+    const dialog = cleanupDialogRef.current;
+    cleanupDismissRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !cleanupBusy) {
+        event.preventDefault();
+        setCleanupPrompt(false);
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled])'));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [cleanupBusy, cleanupPrompt]);
 
   /**
    * ADOPT THE DURABLE SESSION WHEN THE SERVER SENDS A NEWER ONE.
@@ -1103,9 +1135,32 @@ export default function ReviewRoom(props: Props) {
       if (!body?.ok) { setError(body?.error || 'Could not accept this result.'); return; }
       setConfirmDiscard(false);
       setNotice('Result accepted.');
+      setCleanupPrompt(true);
       router.refresh();
     } finally { setBusy(false); }
   }, [ensureSession, router, selectedId]);
+
+  const openPostAcceptanceCleanup = useCallback(async () => {
+    const bridge = reviewArtifactBridge();
+    if (!bridge?.openPostAcceptanceCleanup) {
+      setCleanupPrompt(false);
+      setNotice('Open Implexa Desktop → Storage to review local cleanup.');
+      return;
+    }
+    setCleanupBusy(true);
+    try {
+      const result = await bridge.openPostAcceptanceCleanup();
+      if (!result?.ok) {
+        setError(result?.error || 'Could not open local storage cleanup.');
+        return;
+      }
+      setCleanupPrompt(false);
+    } catch {
+      setError('Could not open local storage cleanup.');
+    } finally {
+      setCleanupBusy(false);
+    }
+  }, []);
 
   /**
    * THE ONE ACTION. draft -> preparing -> submitting -> revision_queued, all of it in
@@ -2085,6 +2140,46 @@ export default function ReviewRoom(props: Props) {
           </button>
         </div>
       </aside>
+
+      {cleanupPrompt && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="post-acceptance-cleanup-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        >
+          <div ref={cleanupDialogRef} className="w-full max-w-md rounded-xl border border-ink-700 bg-ink-950 p-5 shadow-2xl">
+            <h2 id="post-acceptance-cleanup-title" className="text-lg font-semibold text-ink-100">
+              Free up local storage?
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink-300">
+              Implexa can remove redundant review copies and rejected render intermediates that are no longer referenced.
+            </p>
+            <p className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-emerald-200">
+              Your accepted final, editable project, learned decision traces, and original source stay protected.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                ref={cleanupDismissRef}
+                type="button"
+                disabled={cleanupBusy}
+                onClick={() => setCleanupPrompt(false)}
+                className="rounded-md border border-ink-700 px-3 py-2 text-sm text-ink-300 disabled:opacity-40"
+              >
+                Keep for now
+              </button>
+              <button
+                type="button"
+                disabled={cleanupBusy}
+                onClick={() => void openPostAcceptanceCleanup()}
+                className="rounded-md bg-emerald-400 px-3 py-2 text-sm font-medium text-ink-950 disabled:opacity-40"
+              >
+                {cleanupBusy ? 'Opening cleanup…' : 'Review cleanup'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

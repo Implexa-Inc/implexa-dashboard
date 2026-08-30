@@ -81,6 +81,7 @@ after(() => { dom?.window?.close(); });
 
 beforeEach(() => {
   navigation?.resetRouterCalls();
+  Object.defineProperty(dom.window, 'implexaDesktop', { configurable: true, value: undefined });
   calls = [];
   backendCalls = [];
   (globalThis as Record<string, unknown>).__IMPLEXA_TEST_BACKEND__ = async (path: string, options: unknown) => {
@@ -173,6 +174,59 @@ test('the room renders the one decisive action for the 12 production drafts', as
   // And nothing else competing for the decision.
   assert.doesNotMatch(text(), /Approve next action/i);
   assert.doesNotMatch(text(), /Generate B-roll/i);
+  root.unmount();
+});
+
+test('acceptance offers native cleanup while naming every protected artifact class', async () => {
+  let cleanupOpens = 0;
+  Object.defineProperty(dom.window, 'implexaDesktop', {
+    configurable: true,
+    value: {
+      openPostAcceptanceCleanup: async () => { cleanupOpens += 1; return { ok: true }; },
+    },
+  });
+  (globalThis as Record<string, unknown>).fetch = async (url: string, init: { body?: string }) => {
+    const body = JSON.parse(String(init?.body ?? '{}'));
+    calls.push({ url: String(url), body });
+    return {
+      status: 200,
+      json: async () => ({ ok: true, session: { id: FIXTURE_SESSION_ID, state: 'accepted' } }),
+    } as unknown as Response;
+  };
+
+  await mount({ issues: [] });
+  await click(buttons().find((button) => button.textContent?.includes('Accept result & continue'))!);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.action, 'accept');
+  assert.match(text(), /Free up local storage/);
+  assert.match(text(), /accepted final, editable project, learned decision traces, and original source stay protected/i);
+
+  await click(buttons().find((button) => button.textContent === 'Review cleanup')!);
+  assert.equal(cleanupOpens, 1, 'the native cleanup review window was not opened exactly once');
+  assert.doesNotMatch(text(), /Free up local storage/);
+  root.unmount();
+});
+
+test('post-acceptance cleanup can be deferred without touching the Desktop bridge', async () => {
+  let cleanupOpens = 0;
+  Object.defineProperty(dom.window, 'implexaDesktop', {
+    configurable: true,
+    value: {
+      openPostAcceptanceCleanup: async () => { cleanupOpens += 1; return { ok: true }; },
+    },
+  });
+  (globalThis as Record<string, unknown>).fetch = async () => ({
+    status: 200,
+    json: async () => ({ ok: true, session: { id: FIXTURE_SESSION_ID, state: 'accepted' } }),
+  }) as unknown as Response;
+
+  await mount({ issues: [] });
+  await click(buttons().find((button) => button.textContent?.includes('Accept result & continue'))!);
+  await click(buttons().find((button) => button.textContent === 'Keep for now')!);
+
+  assert.equal(cleanupOpens, 0);
+  assert.doesNotMatch(text(), /Free up local storage/);
   root.unmount();
 });
 
