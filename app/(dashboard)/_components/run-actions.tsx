@@ -53,6 +53,7 @@ export default function RunActions({
   stepsState,
   claudeTaskId,
   skillSlug,
+  approvalRecovery = false,
 }: {
   runId: string;
   agentName: string;
@@ -68,6 +69,8 @@ export default function RunActions({
   /** The agent's slug — enables the "also edit the agent for future runs" opt-in
    *  on the changes box (a permanent revise alongside the one-off continue). */
   skillSlug?: string | null;
+  /** Historical brokered approval hold; requests the server-owned no-redo continuation. */
+  approvalRecovery?: boolean;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -129,7 +132,10 @@ export default function RunActions({
     try {
       await callBackend('/api/v2/me/run-requests', {
         jwt: await jwt(), method: 'POST',
-        body: { kind: 'continue', runId, source: 'dashboard' },
+        body: {
+          kind: 'continue', runId, source: 'dashboard',
+          ...(approvalRecovery ? { approvalRecovery: true } : {}),
+        },
       });
       // Land the user on Active Agents so they SEE the new task spin up (parity
       // with Run-now) instead of a static "done" line they have to interpret.

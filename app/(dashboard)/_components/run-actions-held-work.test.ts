@@ -18,7 +18,9 @@ test('held primary action derives from structured remaining work, not only markd
 
 test('both held-run surfaces carry the canonical hold contract into RunActions', () => {
   assert.match(detail, /<RunActions[\s\S]*?stepsState=\{stepsState\}/);
-  assert.match(detail, /<RunActions[\s\S]*?holdKind=\{holdKind\}/);
+  assert.match(detail, /const effectiveHoldKind = approvalContinuationRecovery \? 'approval_before_action' : holdKind/,
+    'a recovered historical approval gate must use the actionable hold contract');
+  assert.match(detail, /<RunActions[\s\S]*?holdKind=\{effectiveHoldKind\}/);
   assert.match(loader, /extraColumns: 'feedback_questions, feedback_answers, feedback_at, steps_state, hold_kind'/);
   assert.match(inbox, /stepsState=\{openItem\.stepsState\}/);
   assert.match(inbox, /holdKind=\{openItem\.holdKind\}/);
