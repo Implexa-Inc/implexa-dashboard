@@ -3,16 +3,17 @@
 /**
  * <UpdateBanner /> — a top-of-dashboard notice when one of the user's surfaces
  * (Claude / Codex / Cursor) is running an out-of-date Implexa plugin. Driven by
- * per-surface versions the recommend hook reports (users.plugin_versions)
- * compared to the latest from the backend versions feed.
+ * machine-local versions reported by the embedded Desktop bridge compared to
+ * the latest from the backend versions feed. Account-wide MCP telemetry is
+ * deliberately not used: the same account may be active on several Macs.
  *
  * SELF-REFRESHING: the server renders the layout once, but the embedded desktop
  * window stays open for hours — so a banner computed at first paint went stale
  * the moment a new plugin shipped (the founder hit this: on Claude 0.34.0 with
  * 0.35.0 live, no banner, because the long-lived page still thought latest was
  * 0.34.0). We now re-fetch the PUBLIC /versions feed on mount, on window focus,
- * and on an interval, recomputing "behind" from the (rarely-changing) installed
- * map against the fresh latest. The server-computed list seeds the first paint.
+ * and on an interval, recomputing "behind" from this machine's installed map
+ * against the fresh latest. No update claim renders until that local probe ends.
  *
  * "Update" expands the exact command for that surface (copyable). Dismissible
  * per version-set (localStorage) so it stops nagging once seen, but returns when
@@ -54,7 +55,10 @@ function cmpVersion(a: string, b: string): number {
 // Injected by the desktop app's dashboard-preload.js. Present only when the
 // banner renders inside the Implexa desktop window — lets us run the update
 // directly instead of handing over a copy-paste command.
-type DesktopBridge = { runUpdate: (surface: string) => Promise<{ ok: boolean; error?: string }> };
+type DesktopBridge = {
+  runUpdate: (surface: string) => Promise<{ ok: boolean; error?: string }>;
+  pluginVersions?: () => Promise<Record<string, string | null>>;
+};
 function desktopBridge(): DesktopBridge | null {
   if (typeof window === 'undefined') return null;
   const b = (window as unknown as { implexaDesktop?: DesktopBridge }).implexaDesktop;
@@ -94,19 +98,16 @@ function deriveBehind(
   return out;
 }
 
-export default function UpdateBanner({ surfaces: initialSurfaces, installed }: {
-  /** Server-computed behind-list, seeds the first paint. */
-  surfaces: BehindSurface[];
-  /** Raw per-surface installed versions, so the client can recompute vs fresh latest. */
-  installed?: Record<string, string> | null;
-}) {
-  const [surfaces, setSurfaces] = useState<BehindSurface[]>(initialSurfaces);
+export default function UpdateBanner() {
+  // Never paint an update state until the local Desktop probe completes.
+  const [surfaces, setSurfaces] = useState<BehindSurface[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [inDesktop, setInDesktop] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
   const [result, setResult] = useState<Record<string, 'ok' | 'err'>>({});
   const [dismissed, setDismissed] = useState<boolean>(false);
+  const [machineChecked, setMachineChecked] = useState(false);
 
   // Detect the desktop bridge after mount (it is injected by the desktop app's
   // preload; absent in a plain browser).
@@ -115,15 +116,32 @@ export default function UpdateBanner({ surfaces: initialSurfaces, installed }: {
   // Re-fetch the public versions feed and recompute. Keeps a long-lived window
   // (the desktop shell) honest without a full reload.
   const refresh = useCallback(async () => {
-    if (!installed) return;
+    const native = desktopBridge();
+    // The banner renders only in Desktop, so account-wide MCP telemetry is never
+    // an acceptable substitute for this machine's installed files. Older
+    // Desktop builds without the local probe hide the banner instead of showing
+    // another Mac's version as though it belonged here.
+    if (!native?.pluginVersions) {
+      setSurfaces([]);
+      setMachineChecked(true);
+      return;
+    }
+    setSurfaces([]);
     try {
-      const res = await fetch(`${BACKEND}/api/v2/versions`, { signal: AbortSignal.timeout(8000) });
+      const [local, res] = await Promise.all([
+        native.pluginVersions(),
+        fetch(`${BACKEND}/api/v2/versions`, { signal: AbortSignal.timeout(8000) }),
+      ]);
       if (!res.ok) return;
       const body = await res.json();
-      const next = deriveBehind(installed, body?.plugin?.latest ?? null, body?.plugin?.surfaces);
+      const installedHere = Object.fromEntries(
+        Object.entries(local || {}).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+      );
+      const next = deriveBehind(installedHere, body?.plugin?.latest ?? null, body?.plugin?.surfaces);
       setSurfaces(next);
-    } catch { /* offline / transient: keep what we have */ }
-  }, [installed]);
+    } catch { /* offline / transient: no local proof means no update claim */ }
+    finally { setMachineChecked(true); }
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -147,7 +165,7 @@ export default function UpdateBanner({ surfaces: initialSurfaces, installed }: {
 
   // Plugin updates are only actionable where Claude Code is reachable (the
   // desktop app's bridge). On the web there is nothing to do, so don't show it.
-  if (!inDesktop) return null;
+  if (!inDesktop || !machineChecked) return null;
   if (!surfaces.length || dismissed) return null;
 
   async function runUpdate(surface: string) {
@@ -157,6 +175,7 @@ export default function UpdateBanner({ surfaces: initialSurfaces, installed }: {
     try {
       const res = await bridge.runUpdate(surface);
       setResult((r) => ({ ...r, [surface]: res?.ok ? 'ok' : 'err' }));
+      await refresh();
     } catch {
       setResult((r) => ({ ...r, [surface]: 'err' }));
     } finally {
