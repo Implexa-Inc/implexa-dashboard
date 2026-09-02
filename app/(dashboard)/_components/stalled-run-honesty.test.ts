@@ -73,13 +73,16 @@ test('the permission shortcut survives ONLY for the soft heartbeat-stale signal'
     'and keeps its appropriately hedged wording');
 });
 
-test('the run page never links a prior SUCCESSFUL run as "the reason"', () => {
-  const i = runPage.indexOf('let siblingRun');
+test('the run page links only exact continuation lineage as "the reason"', () => {
+  const i = runPage.indexOf('let relatedRun');
   assert.notEqual(i, -1);
-  const block = runPage.slice(i, i + 1400);
-  assert.match(block, /\.neq\('run_state', 'completed'\)/,
-    'a completed run\'s output is a deliverable, not an explanation of why THIS run stopped — '
-    + 'linking it is what made a never-run Continue look like it had succeeded');
+  const block = runPage.slice(i, i + 1900);
+  assert.match(block, /\.eq\('id', r\.continued_from_run_id\)/,
+    'a continuation resolves its exact persisted parent');
+  assert.match(block, /\.eq\('continued_from_run_id', r\.id\)/,
+    'a parent resolves only children that point back to it');
+  assert.doesNotMatch(block, /\.eq\('skill_slug'|\.eq\('scheduled_skill_id'/,
+    'same-agent and same-schedule guesses can select unrelated historical runs');
 });
 
 // ── The follow-up: SHOW the diagnosis, don't just stop guessing ───────────────

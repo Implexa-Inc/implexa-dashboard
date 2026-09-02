@@ -56,6 +56,9 @@ export type RunRow = {
   // optional base columns some surfaces request via extraColumns (e.g. /runs):
   scheduled_skill_id?: string | null;
   orchestration_id?: string | null;
+  // Durable continuation lineage (0087). A continuation points to the exact
+  // run it continues; this relationship must never be inferred from a slug.
+  continued_from_run_id?: string | null;
   duration_ms?: number | null;
   delivery?: Record<string, unknown> | null;
   // ── 0065 live-state columns (the integration slot) ──
