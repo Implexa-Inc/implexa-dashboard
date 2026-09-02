@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export type EngineReport = {
   engine: 'claude' | 'codex'; machine_id: string; app_installed: boolean; cli_installed: boolean;
@@ -17,6 +17,7 @@ type DesktopBridge = {
   openEnginePermissions?: (engine: string, capability?: string) => unknown;
   openEngineAutomations?: (engine: string) => unknown;
   handoffAgent?: (prompt: string, engine: string, target: string) => unknown;
+  engineStatus?: () => Promise<Array<Record<string, unknown>>>;
 };
 function bridge(): DesktopBridge | null {
   if (typeof window === 'undefined') return null;
@@ -36,12 +37,43 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 }
 
 export default function EnginesClient({ reports }: { reports: EngineReport[] }) {
-  const rows = useMemo(() => newestByEngine(reports), [reports]);
+  const [localReports, setLocalReports] = useState<EngineReport[] | null>(null);
+  useEffect(() => {
+    const native = bridge();
+    if (!native?.engineStatus) return;
+    let live = true;
+    void native.engineStatus().then((items) => {
+      if (!live || !Array.isArray(items)) return;
+      setLocalReports(items.map((item) => ({
+        engine: item.engine as 'claude' | 'codex',
+        machine_id: String(item.machineId || ''),
+        app_installed: item.appInstalled === true,
+        cli_installed: item.cliInstalled === true,
+        authenticated: item.authenticated === true,
+        plugin_connected: item.pluginConnected === true,
+        healthy: item.healthy === true,
+        plugin_version: typeof item.pluginVersion === 'string' ? item.pluginVersion : null,
+        latest_plugin_version: typeof item.latestPluginVersion === 'string' ? item.latestPluginVersion : null,
+        plan_type: typeof item.planType === 'string' ? item.planType : null,
+        capabilities: (item.capabilities && typeof item.capabilities === 'object')
+          ? item.capabilities as Record<string, boolean> : {},
+        usage_snapshot: (item.usageSnapshot && typeof item.usageSnapshot === 'object')
+          ? item.usageSnapshot as EngineReport['usage_snapshot'] : undefined,
+        usage_confidence: item.usageConfidence as EngineReport['usage_confidence'],
+        last_connection_at: typeof item.lastConnectionAt === 'string' ? item.lastConnectionAt : null,
+        last_successful_run_at: typeof item.lastSuccessfulRunAt === 'string' ? item.lastSuccessfulRunAt : null,
+      })));
+    }).catch(() => { /* keep the server snapshot while this Mac is offline */ });
+    return () => { live = false; };
+  }, []);
+  const effectiveReports = localReports || reports;
+  const rows = useMemo(() => newestByEngine(effectiveReports), [effectiveReports]);
   return <div className="grid lg:grid-cols-2 gap-5">{(['claude', 'codex'] as const).map((engine) => <EngineCard key={engine} engine={engine} report={rows.get(engine) || null} />)}</div>;
 }
 
 function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: EngineReport | null }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const name = engine === 'claude' ? 'Claude' : 'Codex';
   const caps = report?.capabilities || {};
   const usage = report?.usage_snapshot?.primary;
@@ -51,11 +83,20 @@ function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: En
     const fallback: DesktopBridge = {
       runUpdate: () => { window.location.href = `/install?surface=${engine}`; },
       openEngine: () => { window.location.href = engine === 'codex' ? 'codex://threads/new' : 'claude://code/new'; },
-      openEnginePermissions: () => { window.location.href = engine === 'codex' ? 'codex://settings/browser-use' : 'claude://settings/permissions'; },
+      openEnginePermissions: () => {
+        if (engine === 'codex') window.location.href = 'codex://settings/browser-use';
+        else window.alert('Open Claude Settings, then Permissions or Capabilities, and enable Computer Use or browser control.');
+      },
       openEngineAutomations: () => { window.location.href = engine === 'codex' ? 'codex://automations' : 'claude://claude.ai/claude-code-desktop/scheduled'; },
       handoffAgent: (prompt) => { window.location.href = engine === 'codex' ? `codex://threads/new?prompt=${encodeURIComponent(prompt)}` : `claude://code/new?q=${encodeURIComponent(prompt)}`; },
     };
-    setBusy(key); try { await fn(native || fallback); } finally { setBusy(null); }
+    setBusy(key);
+    try {
+      const result = await fn(native || fallback) as { mode?: string } | undefined;
+      if (key === 'permissions' && result?.mode === 'manual') {
+        setNotice('Claude is open. In Claude, choose Settings → Permissions or Capabilities.');
+      }
+    } finally { setBusy(null); }
   };
   const testPrompt = `Test my Implexa connection in ${name}. Call get_pending_run_requests only to verify MCP access—do not execute pending work—then call report_execution_engine for ${engine} with the capabilities you actually have. Reply with one short status line.`;
   return (
@@ -90,6 +131,7 @@ function EngineCard({ engine, report }: { engine: 'claude' | 'codex'; report: En
         <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('permissions', (b) => b.openEnginePermissions?.(engine, caps.computerUse ? 'browser' : 'computerUse'))}>Permissions</button>
         {caps.automation && <button className="btn-outline text-xs px-3 py-1.5" onClick={() => act('automations', (b) => b.openEngineAutomations?.(engine))}>Automations</button>}
       </div>
+      {notice && <p className="mt-3 text-xs text-amber-300">{notice}</p>}
 
       <div className="mt-4 pt-4 border-t border-ink-800 flex flex-wrap gap-2 text-[11px] text-ink-400">
         <span>Capabilities:</span>{['browser', 'computerUse', 'automation', 'headless'].map((cap) => <span key={cap} className={caps[cap] ? 'text-emerald-400' : 'text-ink-600'}>{cap === 'computerUse' ? 'computer use' : cap}</span>)}

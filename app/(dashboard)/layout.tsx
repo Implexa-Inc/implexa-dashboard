@@ -22,52 +22,12 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { computeSetupStatus } from '@/lib/setup-status';
 import Sidebar, { MobileTopBar } from './_components/sidebar';
-import UpdateBanner, { type BehindSurface } from './_components/update-banner';
+import UpdateBanner from './_components/update-banner';
 import AutoUpdateToast from './_components/auto-update-toast';
 import PersistIntent from './_components/persist-intent';
 import CreateFab from './_components/create-fab';
 import SkipLink from './_components/skip-link';
-import { getLatestVersions } from '@/lib/versions';
 import { MAIN_CONTENT_ID } from '@/lib/navigation';
-
-// Per-surface update command. Claude/Cursor update in-session via /plugin; Codex
-// is most reliably refreshed by re-running its installer (git reset --hard).
-const SURFACE_META: Record<string, { label: string; command: string }> = {
-  claude: { label: 'Claude', command: '/plugin marketplace update implexa && /plugin update implexa@implexa' },
-  cursor: { label: 'Cursor', command: '/plugin marketplace update implexa && /plugin update implexa@implexa' },
-  codex:  { label: 'Codex',  command: 'curl -fsSL https://core.implexa.ai/install-for-codex.sh | bash' },
-};
-
-function cmpVersion(a: string, b: string): number {
-  const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
-  const pb = b.split('.').map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const d = (pa[i] || 0) - (pb[i] || 0);
-    if (d !== 0) return d < 0 ? -1 : 1;
-  }
-  return 0;
-}
-
-// Compare each reported surface version to ITS latest; return the behind ones.
-// Each surface has its own latest (claude/cursor track the claude repo, codex
-// the codex repo), falling back to the global latest when not specified.
-function computeBehind(
-  pluginVersions: Record<string, string> | null | undefined,
-  latest: string | null,
-  perSurfaceLatest: Record<string, string> | undefined,
-): BehindSurface[] {
-  if (!pluginVersions || !latest) return [];
-  const out: BehindSurface[] = [];
-  for (const [surface, installed] of Object.entries(pluginVersions)) {
-    const meta = SURFACE_META[surface];
-    if (!meta || typeof installed !== 'string') continue;
-    const surfaceLatest = perSurfaceLatest?.[surface] ?? latest;
-    if (cmpVersion(installed, surfaceLatest) < 0) {
-      out.push({ surface, label: meta.label, installed, latest: surfaceLatest, command: meta.command });
-    }
-  }
-  return out;
-}
 
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +41,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // in the sidebar (Level 2 of the post-share-install gate work).
   const { data: profile } = await supabase
     .from('users')
-    .select('id, organization_id, display_name, email, founding_creator_unlocked_at, last_mcp_call_at, last_hook_event_at, plugin_versions')
+    .select('id, organization_id, display_name, email, founding_creator_unlocked_at, last_mcp_call_at, last_hook_event_at')
     .eq('id', session.user.id)
     .maybeSingle();
   if (!profile?.organization_id) redirect('/onboarding');
@@ -149,15 +109,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
-  // Out-of-date surfaces drive the top update banner. Best-effort: if the
-  // versions feed is unreachable, behind=[] and the banner simply doesn't show.
-  const latestVersions = await getLatestVersions();
-  const behind = computeBehind(
-    profile.plugin_versions as Record<string, string> | null,
-    latestVersions?.plugin?.latest ?? null,
-    latestVersions?.plugin?.surfaces,
-  );
-
   // Admin check — drives the conditional Admin nav link in the sidebar.
   // NEXT_PUBLIC_ ENV exposes the allowlist to the client (the value is non-
   // sensitive — it's just emails). The actual admin endpoints are gated on
@@ -189,7 +140,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <Sidebar user={userCtx} resultRunsAt={resultRunsAt} needsItemsAt={needsItemsAt} />
       <div className="flex-1 flex flex-col min-w-0">
         <MobileTopBar user={userCtx} resultRunsAt={resultRunsAt} needsItemsAt={needsItemsAt} />
-        <UpdateBanner surfaces={behind} installed={profile.plugin_versions as Record<string, string> | null} />
+        <UpdateBanner />
         {/* tabIndex={-1} so the skip link can actually move focus here; without
             it the browser scrolls but focus stays on the link. */}
         <main id={MAIN_CONTENT_ID} tabIndex={-1} className="flex-1 focus:outline-none">
