@@ -76,10 +76,10 @@ test('redirecting to the authoritative run is preferred, but only when nothing i
 });
 
 test('the production lineage supersedes the generic same-agent sibling hint', () => {
-  // The old sibling box guesses at a related run from the agent slug. Inside a
-  // production the parent NAMES the authoritative run, so showing both would
-  // offer two different "related run" answers on one page.
-  assert.match(PAGE, /\{siblingRun && !productionLineage && \(/);
+  // Continuation lineage and production lineage are both exact, but the
+  // production parent names the authoritative run for the whole node. Do not
+  // offer a second answer when that stronger relationship exists.
+  assert.match(PAGE, /\{relatedRun && !productionLineage && \(/);
 });
 
 test('the fixture\'s superseded shell is exactly the reference incident', () => {

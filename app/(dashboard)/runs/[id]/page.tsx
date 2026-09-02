@@ -168,7 +168,7 @@ export default async function RunDetailPage({
 
   const { data: run } = await supabase
     .from('skill_runs')
-    .select('id, scheduled_skill_id, orchestration_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at, run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at')
+    .select('id, scheduled_skill_id, orchestration_id, continued_from_run_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at, run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at')
     .eq('id', params.id)
     .maybeSingle();
 
@@ -696,41 +696,38 @@ export default async function RunDetailPage({
   const closeReasonExplanation = closeReasonMessage(closeReason);
   const showRunProblem = shouldShowRunProblem(info, closeReasonExplanation);
 
-  // This run has NOTHING to show. The real explanation often already exists on a
-  // SIBLING run for the same agent — a retry that completed, OR (the case the
-  // founder hit) an earlier/later run that self-explained why it stopped (e.g.
-  // "Held for you to run attended — not safe to do hands-off") while THIS row
-  // just silently timed out with zero output. Surface it inline so the user isn't
-  // left confused across two runs of the same agent that tell two different
-  // stories. Triggers whenever this run has no output AND either looks broken
-  // (info.attention) or has a KNOWN close reason (closeReason) — matching the
-  // amber box's own condition below, so the two always show together. The query
-  // deliberately does NOT require run_state='completed': a sibling that's ALSO
-  // technically 'failed' but wrote a real explanation is exactly what's useful
-  // here — output_markdown being non-null is the only signal that matters.
+  // This run has NOTHING to show. A continuation may still have an exact,
+  // durable related run with the explanation: its `continued_from_run_id`
+  // parent, or (when viewing the parent) a child that points back to it.
+  //
+  // Never guess this relationship from scheduled_skill_id or skill_slug. Two
+  // unrelated attempts of the same Agent can be months apart and concern
+  // different source files; presenting one as the reason for the other is both
+  // misleading and a cross-run custody error. If exact lineage has no useful
+  // output, render no link and keep the honest local failure narrative.
   // Defensive own-query; never regress the page to "not found" on error.
-  let siblingRun: { id: string; review_status: string | null; run_state: string | null } | null = null;
+  type RelatedRun = { id: string; review_status: string | null; run_state: string | null };
+  let relatedRun: RelatedRun | null = null;
   if (showRunProblem && !r.output_markdown) {
     try {
-      let q = supabase
-        .from('skill_runs')
-        .select('id, review_status, run_state')
-        .neq('id', r.id)
-        .not('output_markdown', 'is', null)
-        // MUST be a run that EXPLAINS A STOP, never a prior SUCCESS (2026-07-23
-        // incident). Without this, a broken Continue with no output linked to the
-        // agent's last GOOD run — so "view the reason" opened a completed
-        // deliverable and implied the work had happened. It hadn't. A completed
-        // run's output is a deliverable, not an explanation of why THIS run
-        // stopped; only a non-completed sibling can be that.
-        .neq('run_state', 'completed')
-        .order('ran_at', { ascending: false })
-        .limit(1);
-      q = r.scheduled_skill_id
-        ? q.eq('scheduled_skill_id', r.scheduled_skill_id)
-        : q.eq('skill_slug', r.skill_slug);
-      const { data: sib } = await q;
-      siblingRun = (sib?.[0] as { id: string; review_status: string | null; run_state: string | null } | undefined) ?? null;
+      if (r.continued_from_run_id) {
+        const { data: parent } = await supabase
+          .from('skill_runs')
+          .select('id, review_status, run_state')
+          .eq('id', r.continued_from_run_id)
+          .not('output_markdown', 'is', null)
+          .maybeSingle();
+        relatedRun = parent as RelatedRun | null;
+      } else {
+        const { data: children } = await supabase
+          .from('skill_runs')
+          .select('id, review_status, run_state')
+          .eq('continued_from_run_id', r.id)
+          .not('output_markdown', 'is', null)
+          .order('ran_at', { ascending: false })
+          .limit(1);
+        relatedRun = (children?.[0] as RelatedRun | undefined) ?? null;
+      }
     } catch { /* defensive — link simply doesn't render */ }
   }
 
@@ -1104,7 +1101,7 @@ export default async function RunDetailPage({
                 pre-approved set). Open the agent, grant it on the setup card, then run it again.
               </p>
             )}
-            {siblingRun && !productionLineage && (
+            {relatedRun && !productionLineage && (
               <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-2.5 text-sm">
                 {/* Honest lead-in: only call it "good news" when the sibling is an
                     actual clean success. A held run (needs_input/pending) or a
@@ -1113,17 +1110,17 @@ export default async function RunDetailPage({
                     run of the same agent that self-explained why it stopped) gets
                     neutral framing instead of a false "finished" claim. */}
                 <span className="text-ink-200">
-                  {siblingRun.review_status === 'needs_input' || siblingRun.review_status === 'pending'
+                  {relatedRun.review_status === 'needs_input' || relatedRun.review_status === 'pending'
                     ? 'This agent has a related run waiting on you — it explains what happened. '
-                    : siblingRun.run_state === 'failed'
+                    : relatedRun.run_state === 'failed'
                       ? 'This agent has a related run with more detail on what happened. '
                       : 'Good news — this agent already has a finished run. '}
                 </span>
                 <Link
-                  href={`/runs/${siblingRun.id}`}
+                  href={`/runs/${relatedRun.id}`}
                   className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
                 >
-                  View the run to see the reason{siblingRun.review_status === 'needs_input' || siblingRun.review_status === 'pending' ? ' (needs you)' : ''} →
+                  View the run to see the reason{relatedRun.review_status === 'needs_input' || relatedRun.review_status === 'pending' ? ' (needs you)' : ''} →
                 </Link>
               </div>
             )}
