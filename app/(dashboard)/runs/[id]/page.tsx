@@ -15,13 +15,12 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { callBackend } from '@/lib/api';
+import { BackendError, callBackend } from '@/lib/api';
 import { getWorkspaceRoot } from '@/lib/run-env';
 import RunMarkdown from '../../_components/run-markdown';
 import { desktopAppLive, appRunUrl } from '@/lib/app-links';
 import { getWorkflow, getMyWorkflow } from '@/lib/workflow-catalog';
 import { deriveRunState, isApprovalContinuationRecovery, runLiveness, shouldShowRunProblem, type RunRow, type RunProgress, type RunStep } from '@/lib/run-state';
-import { approvalRecoveryRequestId } from '@/lib/approval-recovery-request';
 import RunStepChecklist from '../../_components/run-step-checklist';
 import StepTraceRefresh from '../../_components/step-trace-refresh';
 import RunStepTrace from '../../_components/run-step-trace';
@@ -386,10 +385,6 @@ export default async function RunDetailPage({
     wf = (await getWorkflow(r.skill_slug)) || (await getMyWorkflow(r.skill_slug));
   } catch { /* best-effort — title/agent-link simply falls back to plain text */ }
   const name = wf?.name || humanize(r.skill_slug);
-  const pending = r.review_status === 'pending';        // shippable deliverable → Approve & finish
-  const needsInput = r.review_status === 'needs_input'; // blocked on a question → Continue only
-  const held = pending || needsInput;
-
   // Live step trace (migration 0080): each entry is a note the run reported at a
   // step boundary. For a stalled run, the last entry is WHERE it got stuck.
   // Fetched defensively in its OWN query so a pre-migration schema (no progress
@@ -430,7 +425,7 @@ export default async function RunDetailPage({
     closeReason = row?.run_close_reason ?? null;
   } catch { /* columns not present yet — badge/reason simply don't render */ }
 
-  const approvalContinuationRecovery = isApprovalContinuationRecovery({
+  const localApprovalContinuationRecovery = isApprovalContinuationRecovery({
     runState: r.run_state,
     reviewStatus: r.review_status,
     outputMarkdown: r.output_markdown,
@@ -444,23 +439,37 @@ export default async function RunDetailPage({
     hasReviewEvidence: verifiedArtifacts.some((artifact) =>
       artifact.role === 'manifest'
       || artifact.relativePath === 'scene-execution-contract.json'
-      || artifact.relativePath.endsWith('/scene-execution-contract.json')),
+      || artifact.relativePath.endsWith('/scene-execution-contract.json')
+      || artifact.relativePath === 'clean-cut-review-plan.json'
+      || artifact.relativePath.endsWith('/clean-cut-review-plan.json')),
     hasFinalOutput: verifiedArtifacts.some((artifact) => artifact.role === 'final_output'),
   });
-  let approvalContinuationAlreadyQueued = false;
-  if (approvalContinuationRecovery) {
-    try {
-      const { data, error } = await supabase.from('run_requests').select('id')
-        .eq('id', approvalRecoveryRequestId(r.id))
-        .eq('run_id', r.id).eq('kind', 'continue').maybeSingle();
-      approvalContinuationAlreadyQueued = !!error || !!data;
-    } catch {
-      // Availability is unknown, so suppress the costly recovery action. The
-      // backend also enforces one deterministic request identity under races.
-      approvalContinuationAlreadyQueued = true;
+  // The backend owns the exact eligibility decision, including immutable
+  // workflow-version and Desktop input authority checks unavailable to this
+  // direct Supabase page. Keep the local classifier only as a deploy-order and
+  // connectivity fallback; the click is independently rechecked server-side.
+  let approvalContinuationRecovery = localApprovalContinuationRecovery;
+  try {
+    const disposition = await callBackend(
+      `/api/v2/me/run-requests/approval-recovery/${encodeURIComponent(r.id)}`,
+      { jwt: session.access_token },
+    );
+    if (disposition?.ok === true && typeof disposition.available === 'boolean') {
+      approvalContinuationRecovery = disposition.available;
+    }
+  } catch (error) {
+    // A brief dashboard-before-backend deploy may still use the exact local
+    // compatibility classifier. Any other failure is an authority outage, not
+    // permission to advertise a continuation the server could not verify.
+    if (!(error instanceof BackendError && error.status === 404)) {
+      approvalContinuationRecovery = false;
     }
   }
 
+  const pending = r.review_status === 'pending' || approvalContinuationRecovery;
+  const needsInput = r.review_status === 'needs_input';
+  const held = pending || needsInput;
+  const effectiveHoldKind = approvalContinuationRecovery ? 'approval_before_action' : holdKind;
   // Has a DIFFERENT automatic recovery already delivered the real answer for
   // this run? (2026-07-24 fix.) A successfully-recovered run's PARENT row stays
   // stalled/failed with an empty output_markdown forever — its heartbeat is
@@ -674,7 +683,11 @@ export default async function RunDetailPage({
     isOnDemand = (cronRows?.length ?? 0) === 0;
   } catch { /* can't tell → don't nudge */ }
 
-  const info = deriveRunState({ ...r, routine_paused: routinePaused });
+  const info = deriveRunState({
+    ...r,
+    review_status: approvalContinuationRecovery ? 'pending' : r.review_status,
+    routine_paused: routinePaused,
+  });
   // `run_close_reason` also records successful settlement provenance (for
   // example brokered_input_settlement_verified). Only a reason that actually
   // maps to failure copy may create the terminal problem panel; treating every
@@ -967,11 +980,12 @@ export default async function RunDetailPage({
               runId={r.id}
               agentName={name}
               reviewStatus={pending ? 'pending' : 'needs_input'}
-              holdKind={holdKind}
+              holdKind={effectiveHoldKind}
               hasShipStep={hasShipStep}
               stepsState={stepsState}
               claudeTaskId={claudeTaskId}
               skillSlug={r.skill_slug}
+              approvalRecovery={approvalContinuationRecovery}
             />
           </div>
         )}
@@ -1029,16 +1043,6 @@ export default async function RunDetailPage({
           PARTIAL_RUN_RE.test(r.output_markdown.replace(/[*_`]/g, '')) && (
           <div className="mb-6">
             <FinishRunButton runId={r.id} />
-          </div>
-        )}
-
-        {/* Compatibility repair for broker-settled runs created before durable
-            approval receipts were enforced. The structured checklist and
-            validated review artifacts prove there is work to resume; heartbeat
-            prose alone never creates approval authority. */}
-        {!held && approvalContinuationRecovery && !approvalContinuationAlreadyQueued && (
-          <div className="mb-6">
-            <FinishRunButton runId={r.id} mode="approval-recovery" />
           </div>
         )}
 

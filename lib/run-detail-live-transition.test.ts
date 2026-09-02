@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { approvalRecoveryRequestId } from './approval-recovery-request.ts';
 import test from 'node:test';
 
 import { isApprovalContinuationRecovery, isWatchableRunState, shouldShowRunProblem } from './run-state.ts';
@@ -64,39 +63,41 @@ test('run details renders the approval recovery action from structured authority
   assert.match(page, /isApprovalContinuationRecovery\(\{/);
   assert.match(page, /closeReason,/);
   assert.ok(page.indexOf("select('verification_status, run_close_reason')")
-      < page.indexOf('const approvalContinuationRecovery = isApprovalContinuationRecovery'),
+      < page.indexOf('const localApprovalContinuationRecovery = isApprovalContinuationRecovery'),
     'terminal close provenance must be loaded before the recovery verdict is derived');
   assert.match(page, /progress,/);
   assert.match(page, /artifact\.role === 'manifest'/);
   assert.match(page, /scene-execution-contract\.json/,
     'a validated Manager L1 scene contract must recover an approval held before the final manifest step');
+  assert.match(page, /clean-cut-review-plan\.json/,
+    'a validated clean-cut plan must surface its historical approval continuation');
+  assert.match(page, /run-requests\/approval-recovery\/\$\{encodeURIComponent\(r\.id\)\}/,
+    'the detail badge and action must use the server-authoritative recovery disposition');
+  assert.match(page, /error instanceof BackendError && error\.status === 404/,
+    'only a not-yet-deployed backend route may use the exact local compatibility classifier');
+  assert.match(page, /approvalContinuationRecovery = false/,
+    'an unavailable authority read must fail closed instead of advertising an unusable approval');
+  assert.match(page, /review_status: approvalContinuationRecovery \? 'pending'/,
+    'an eligible historical hold must present as waiting for approval, not failed');
+  assert.match(page, /const effectiveHoldKind = approvalContinuationRecovery \? 'approval_before_action' : holdKind/,
+    'historical approval must resume remaining work instead of marking the failed shell done');
+  assert.match(page, /approvalRecovery=\{approvalContinuationRecovery\}/,
+    'the unified held-run action must request the server-owned no-redo continuation');
   assert.match(page, /artifact\.role === 'final_output'/);
-  assert.match(page, /\.eq\('id', approvalRecoveryRequestId\(r\.id\)\)/);
-  assert.match(page, /\.eq\('run_id', r\.id\)\.eq\('kind', 'continue'\)/);
   assert.match(page, /\.select\('id, status, lifecycle_state, failure_reason'\)/,
     'terminal broker settlement reason must reach the exact retry classifier');
   assert.match(page, /linked_request_failure_reason: linked\.failure_reason/);
-  assert.match(page, /!approvalContinuationAlreadyQueued/);
-  assert.match(page, /<FinishRunButton runId=\{r\.id\} mode="approval-recovery" \/>/);
   assert.match(page, /!held && !approvalContinuationRecovery && runActions\.length > 0/,
     'a legacy proposed action must not replace the authority-preserving recovery action');
-  assert.match(page, /!held && approvalContinuationRecovery && !approvalContinuationAlreadyQueued && \(/,
-    'recovery must remain visible even when the historical run also persisted a generic run_action');
-  assert.doesNotMatch(page,
-    /approvalContinuationRecovery && !approvalContinuationAlreadyQueued && runActions\.length === 0/,
-    'generic run_actions must never suppress the only Desktop-authorized continuation');
-});
-
-test('recovery suppression uses the exact backend deterministic identity', () => {
-  assert.equal(approvalRecoveryRequestId('00000000-0000-4000-8000-000000000002'),
-    'fb41c1fc-7777-5566-877a-1af133ac3c97');
+  assert.doesNotMatch(page, /approvalContinuationAlreadyQueued/,
+    'the deterministic backend request makes a browser-side suppression query unnecessary');
 });
 
 test('approval recovery asks the backend for one server-authoritative continuation', () => {
-  const button = fs.readFileSync(path.join(import.meta.dirname, '..', 'app', '(dashboard)', '_components', 'finish-run-button.tsx'), 'utf8');
+  const button = fs.readFileSync(path.join(import.meta.dirname, '..', 'app', '(dashboard)', '_components', 'run-actions.tsx'), 'utf8');
   assert.match(button, /kind: 'continue', runId/);
   assert.match(button, /approvalRecovery: true/);
-  assert.match(button, /Approve & continue/);
+  assert.match(button, /Approve & finish/);
   assert.doesNotMatch(button, /const APPROVAL_RECOVERY_PROMPT/,
     'the browser must not be able to author the approval recovery instruction');
 });
