@@ -1809,6 +1809,7 @@ export default function ReviewRoom(props: Props) {
                       of the immutable submission without asking for the review again. */}
                   <ReviewContinuationRecovery
                     requestId={submitView.continuationId}
+                    onAnswer={() => void addMoreFeedback()}
                     onQueued={() => {
                       setError(null);
                       setRevisionCompleted(null);
