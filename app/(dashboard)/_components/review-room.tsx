@@ -22,6 +22,7 @@
  *    approval-before-action hold never renders Accept result.
  */
 
+import { ReviewAudioEvidence } from './review-audio-evidence';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReviewArtifact, ReviewIssue, ReviewProduction, ReviewSession, ReviewSessionArtifact, SourceState } from '@/lib/review';
@@ -1523,6 +1524,15 @@ export default function ReviewRoom(props: Props) {
               <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-snug text-amber-200">
                 {targetGuidance(draft.target)}
               </p>
+            )}
+
+            {draft.kind === 'audio' && draft.anchorMs !== null && draft.target.relativePath && (
+              <ReviewAudioEvidence
+                key={`${draft.target.artifactId}:${draft.anchorMs}:${draft.editingIssueId || 'new'}`}
+                reviewedFile={draft.target.relativePath}
+                anchorMs={draft.anchorMs}
+                onInsert={(text) => setDraft({ ...draft, body: draft.body.includes(text) ? draft.body : [draft.body.trim(), text].filter(Boolean).join('\n\n') })}
+              />
             )}
 
             <textarea

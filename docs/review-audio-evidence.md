@@ -1,0 +1,13 @@
+# Audio evidence clarification in Review
+
+An audio comment with a timestamp now offers an optional evidence composer. The customer identifies whether a reference uses reviewed-output, original-source, or extracted-clip coordinates, names the file, and records a positive time interval. Clip offsets are converted to reviewed-output seconds only when the customer explicitly supplies a clip origin. Those mappings remain labeled reviewer-supplied and independently unverified. Source alignment is never guessed.
+
+Overlapping intervals deduplicate only when timeline, exact file name and explicit mapping are identical. Different reference files or coordinate systems remain distinct. The original frozen artifact and anchor do not move. A preview shows the exact text; **Add context to comment** inserts it into the editable issue body. **Save issue** uses the existing draft action, and the existing Review submission freezes it normally. This does not introduce a new authoritative evidence status, listening verdict, submission, or executor action.
+
+Listening defaults to unconfirmed. Transcript-only review explicitly says audio was not checked by listening. A reviewer who selects that they listened creates a self-report, not independent proof. Persistent guidance explains that ASR may miss restarts, clicks and fumbles or repeat inaudible words, and technical QA cannot verify an editorial correction. In particular, unique transcript wording does not disprove an audible restart; a zero-duration repeated token is not accepted as a positive audition interval.
+
+## Regression evidence
+
+Pure tests cover overlapping references, separate files and coordinate systems, explicit/unknown clip origins, absent source mapping, invalid/zero-duration ranges and bounded inputs. A real React composer test enters overlapping clip references and inserts the displayed preview. A real ReviewRoom test saves the inserted text through the actual issue action while playback moves, checking that artifact identity and original anchor remain unchanged and no revision is submitted. Existing ReviewRoom click/spatial tests and TypeScript checking are reused.
+
+No clips are extracted or played by this helper. No historical human listening, reviewed/source alignment, Manager proof, or audio quality is backfilled. It records customer-supplied clarification in the existing immutable feedback flow; it cannot replace source alignment or an independent listening review.
