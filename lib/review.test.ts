@@ -290,6 +290,39 @@ test('an unavailable review-artifact source may not claim stale attachment rows'
   assert.equal(parseReviewPacketResponse(packet, 'run-1'), null);
 });
 
+// The authenticated backend's active session links include the recovered plan
+// and transcript as validated `source` artifacts, not reviewer-uploaded files.
+function adoptedSupportingPacket() {
+  return {
+    ...goodPacket(),
+    artifacts: ['plan', 'transcript'].map((id) => ({ id, runId: 'run-1',
+      relativePath: `${id}.json`, role: 'source', status: 'validated', sha256: 'a'.repeat(64) })),
+    reviewArtifacts: ['plan', 'transcript'].map((artifactId) => ({ artifactId,
+      purpose: 'supporting', displayName: `${artifactId}.json`, createdAt: '2026-09-04T00:00:00Z' })),
+  };
+}
+
+test('recovered Review packet accepts both server-linked validated source files', () => {
+  const packet = adoptedSupportingPacket();
+  const parsed = parseReviewPacketResponse(packet, 'run-1');
+  assert.notEqual(parsed, null, 'legitimate recovered supporting roles must not masquerade as a service outage');
+  assert.equal(parsed!.reviewArtifacts.length, 2);
+});
+
+for (const [name, change] of Object.entries({
+  declared: (p: ReturnType<typeof adoptedSupportingPacket>) => { p.artifacts[0].status = 'declared'; },
+  hashless: (p: ReturnType<typeof adoptedSupportingPacket>) => { p.artifacts[0].sha256 = ''; },
+  malformedHash: (p: ReturnType<typeof adoptedSupportingPacket>) => { p.artifacts[0].sha256 = 'x'.repeat(64); },
+  wrongRun: (p: ReturnType<typeof adoptedSupportingPacket>) => { p.artifacts[0].runId = 'other-run'; },
+  wrongRole: (p: ReturnType<typeof adoptedSupportingPacket>) => { p.artifacts[0].role = 'final_output'; },
+  targetRelabel: (p: ReturnType<typeof adoptedSupportingPacket>) => { p.reviewArtifacts[0].purpose = 'review_target'; },
+  missingArtifact: (p: ReturnType<typeof adoptedSupportingPacket>) => { p.artifacts.shift(); },
+  unreadableLinks: (p: ReturnType<typeof adoptedSupportingPacket>) => { p.sources.review_artifacts = 'unavailable'; },
+})) test(`recovered supporting source still refuses ${name}`, () => {
+  const packet = adoptedSupportingPacket(); change(packet);
+  assert.equal(parseReviewPacketResponse(packet, 'run-1'), null);
+});
+
 const goodProduction = () => ({
   id: 'production-1', qualityMode: 'professional', planDigest: 'b'.repeat(64), fps: 30, totalFrames: 25566,
   finalRender: { ready: false, reasons: ['segment-02 is unresolved'] },

@@ -510,9 +510,14 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
     if (!['review_target', 'supporting'].includes(String(entry.purpose))) return false;
     if (!artifactIds.has(String(entry.artifactId))) return false;
     const artifact = (body.artifacts as Array<Record<string, unknown>>).find((a) => a.id === entry.artifactId);
+    // These are authenticated, persisted session links, not inferred inventory.
+    // Recovered Review binds its adopted plan/transcript as validated sources;
+    // database 0288 governs that exception. Displaying a link grants no new
+    // submission or execution authority, and does not turn it into a target.
     return entry.purpose === 'review_target'
       ? artifact?.role === 'review_input'
-      : artifact?.role === 'review_attachment';
+      : artifact?.role === 'review_attachment'
+        || (artifact?.role === 'source' && artifact.status === 'validated');
   })) return null;
   const reviewArtifactIds = (body.reviewArtifacts as Array<Record<string, unknown>>).map((entry) => String(entry.artifactId));
   if (new Set(reviewArtifactIds).size !== reviewArtifactIds.length) return null;
