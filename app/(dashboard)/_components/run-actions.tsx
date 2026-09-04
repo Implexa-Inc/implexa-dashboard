@@ -31,6 +31,7 @@ import ReviewContinuationRecovery from './review-continuation-recovery';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import { deriveHeldRunPrimaryAction } from '@/lib/held-run-action';
 import type { RunStep } from '@/lib/run-state';
+import type { ReviewAmendmentTarget } from '@/lib/review-amendment-target';
 
 const CLAUDE_CODE_MAX = 13000;
 type LocalInputRecoveryBridge = {
@@ -54,6 +55,7 @@ export default function RunActions({
   claudeTaskId,
   skillSlug,
   approvalRecovery = false,
+  reviewAmendment = null,
 }: {
   runId: string;
   agentName: string;
@@ -71,6 +73,8 @@ export default function RunActions({
   skillSlug?: string | null;
   /** Historical brokered approval hold; requests the server-owned no-redo continuation. */
   approvalRecovery?: boolean;
+  /** Exact owner-scoped original Review, resolved on the server from this child. */
+  reviewAmendment?: ReviewAmendmentTarget;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -106,7 +110,7 @@ export default function RunActions({
   const { files, canAttach, canAttachFolder, attachFile, attachFolder, removeFile, error: attachError } = useRunAttachments();
 
   useEffect(() => {
-    if (!needsInput) return;
+    if (!needsInput || reviewAmendment) return;
     let live = true;
     const bridge = localInputBridge();
     if (!bridge?.localInputReauthorizationState) { setLocalRecovery('unavailable'); return; }
@@ -118,7 +122,7 @@ export default function RunActions({
       else setLocalRecovery('unavailable');
     }).catch(() => { if (live) setLocalRecovery('unavailable'); });
     return () => { live = false; };
-  }, [needsInput, runId]);
+  }, [needsInput, runId, reviewAmendment]);
 
   async function jwt() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -260,6 +264,35 @@ export default function RunActions({
       : primaryAction === 'approve_finish'
         ? 'Approve & finish'
         : 'Mark as done';
+
+  if (reviewAmendment) {
+    return (
+      <section className="rounded-lg border border-amber-500/30 bg-ink-950/40 p-4">
+        <p className="text-sm text-ink-200">{reviewAmendment.state === 'ready'
+          ? 'This revision uses frozen Review Room feedback.'
+          : 'The continuation route could not be verified.'}</p>
+        {reviewAmendment.state === 'ready' ? (
+          <>
+            <p className="mt-1 text-xs text-ink-400">
+              To answer its question or change a correction, open the original Review Room and choose
+              “Add more feedback”. Earlier feedback stays in the history; review the remaining changes before sending a new revision.
+              Opening Review Room does not start a run.
+            </p>
+            <a href={reviewAmendment.href} className="btn-success mt-3 inline-flex px-4 py-2 text-sm">
+              Update feedback in Review Room
+            </a>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 text-xs text-ink-400">The original Review Room could not be verified. No continuation will be sent from here.</p>
+            <button type="button" onClick={() => router.refresh()} className="btn-outline mt-3 px-4 py-2 text-sm">
+              Reload run details
+            </button>
+          </>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
