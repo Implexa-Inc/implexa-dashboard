@@ -37,7 +37,7 @@ export default async function ReviewRoomPage({ params, searchParams }: {
       <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
         <h1 className="text-lg font-medium text-ink-100">We couldn&apos;t load this review.</h1>
         <p className="mt-2 text-sm text-ink-400">
-          That doesn&apos;t mean the result is gone — the review service didn&apos;t answer just now.
+          That doesn&apos;t mean the result is gone — its Review data could not be loaded or verified just now.
         </p>
         <Link href="/review" className="mt-6 inline-block text-sm text-sky-400 hover:underline">
           Back to Review
