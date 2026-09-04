@@ -167,7 +167,7 @@ test('no pointer at all is null, never a guess', () => {
 test('the recovery panel has a terminal `completed` state and never offers retry in it', () => {
   const src = readFileSync(new URL('../app/(dashboard)/_components/review-continuation-recovery.tsx', import.meta.url), 'utf8');
   assert.match(src, /completed: 'This revision is complete'/);
-  assert.match(src, /'running' \| 'unverifiable' \| 'retryable' \| 'queued' \| 'cancelled' \| 'completed'/);
+  assert.match(src, /'running' \| 'unverifiable' \| 'retryable' \| 'queued' \| 'cancelled' \| 'settling' \| 'completed'/);
   // The retry control appears under `unverifiable` and `retryable` and must not
   // appear under `completed`.
   const block = src.slice(src.indexOf("{resolved === 'completed' && ("), src.indexOf("{resolved === 'cancelled' && ("));
