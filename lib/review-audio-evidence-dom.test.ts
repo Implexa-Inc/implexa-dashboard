@@ -19,8 +19,9 @@ before(async () => {
 after(() => dom.window.close());
 test('actual composer adds named clip evidence, deduplicates overlap, previews limitations and requires explicit insertion', async () => {
   const host = dom.window.document.createElement('div'); document.body.append(host); const root = createRoot(host);
-  const inserted: string[] = [];
-  await React.act(async () => root.render(React.createElement(Component, { reviewedFile: 'final.mp4', anchorMs: 33000, onInsert: t => inserted.push(t) })));
+  const inserted: Array<{ text: string; prior: string | null }> = [];
+  await React.act(async () => root.render(React.createElement(Component, { reviewedFile: 'final.mp4', anchorMs: 33000,
+    onInsert: (text, prior) => inserted.push({ text, prior }) })));
   const input = async (label: string, value: string) => {
     const element = host.querySelector(`[aria-label="${label}"]`) as HTMLInputElement;
     await React.act(async () => {
@@ -36,10 +37,29 @@ test('actual composer adds named clip evidence, deduplicates overlap, previews l
   assert.equal(inserted.length, 0, 'reference changes neither submit nor insert automatically');
   assert.match(host.querySelector('[aria-label="Audio evidence preview"]')!.textContent!, /31.000s–33.000s/);
   await input('Audio listening status', 'transcript_only'); await click('Add context to comment');
-  assert.equal(inserted.length, 1); assert.equal((inserted[0].match(/Clip-relative time/g) || []).length, 1);
-  assert.match(inserted[0], /audio has not been checked by listening/);
-  assert.match(inserted[0], /does not verify an editorial correction/);
+  assert.equal(inserted.length, 1); assert.equal((inserted[0].text.match(/Clip-relative time/g) || []).length, 1);
+  assert.match(inserted[0].text, /audio has not been checked by listening/);
+  assert.equal(inserted[0].prior, null);
+  await input('Audio listening status', 'listened'); await click('Update context in comment');
+  assert.equal(inserted.length, 2); assert.equal(inserted[1].prior, inserted[0].text);
+  assert.match(inserted[1].text, /Reviewer reports listening/);
+  assert.match(inserted[0].text, /does not verify an editorial correction/);
   await input('Audio reference start', '3'); await input('Audio reference end', '3'); await click('Add reference');
   assert.match(host.querySelector('[role="alert"]')!.textContent!, /positive time range/);
+  await React.act(async () => root.unmount()); host.remove();
+});
+test('changing timelines clears reviewed coordinates instead of implying source or clip alignment', async () => {
+  const host = dom.window.document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  await React.act(async () => root.render(React.createElement(Component, { reviewedFile: 'final.mp4', anchorMs: 33000, onInsert: () => {} })));
+  const select = host.querySelector('[aria-label="Audio reference timeline"]') as HTMLSelectElement;
+  await React.act(async () => {
+    Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype, 'value')!.set!.call(select, 'source');
+    select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  });
+  assert.equal((host.querySelector('[aria-label="Audio reference start"]') as HTMLInputElement).value, '');
+  assert.equal((host.querySelector('[aria-label="Audio reference end"]') as HTMLInputElement).value, '');
+  assert.equal((host.querySelector('[aria-label="Audio reference file"]') as HTMLInputElement).value, '');
+  await React.act(async () => [...host.querySelectorAll('button')].find(b => b.textContent === 'Add reference')!.click());
+  assert.match(host.querySelector('[role="alert"]')!.textContent!, /Name the reference/);
   await React.act(async () => root.unmount()); host.remove();
 });

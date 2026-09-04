@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { AUDIO_LIMITATION, audioEvidenceText, normalizeAudioReferences, type AudioReference, type Listening } from '@/lib/review-audio-evidence';
 export function ReviewAudioEvidence({ reviewedFile, anchorMs, onInsert }: {
-  reviewedFile: string; anchorMs: number; onInsert: (text: string) => void;
+  reviewedFile: string; anchorMs: number; onInsert: (text: string, priorText: string | null) => void;
 }) {
   const [space, setSpace] = useState<AudioReference['space']>('reviewed');
   const [file, setFile] = useState(reviewedFile);
@@ -12,6 +12,7 @@ export function ReviewAudioEvidence({ reviewedFile, anchorMs, onInsert }: {
   const [refs, setRefs] = useState<AudioReference[]>([]);
   const [listening, setListening] = useState<Listening>('not_checked');
   const [error, setError] = useState('');
+  const [inserted, setInserted] = useState<string | null>(null);
   const inputClass = 'mt-1 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1';
   const preview = audioEvidenceText({ reviewedFile, anchorMs, refs, listening });
   return <details className="my-2 rounded border border-ink-700 p-2 text-xs text-ink-300">
@@ -25,7 +26,11 @@ export function ReviewAudioEvidence({ reviewedFile, anchorMs, onInsert }: {
       </select>
     </label>
     <label className="mt-2 block">Reference timeline
-      <select aria-label="Audio reference timeline" className={inputClass} value={space} onChange={e => { setSpace(e.target.value as AudioReference['space']); setFile(e.target.value === 'reviewed' ? reviewedFile : ''); setOrigin(''); }}>
+      <select aria-label="Audio reference timeline" className={inputClass} value={space} onChange={e => {
+        const next = e.target.value as AudioReference['space'];
+        setSpace(next); setFile(next === 'reviewed' ? reviewedFile : '');
+        setStart(next === 'reviewed' ? (anchorMs / 1000).toFixed(3) : ''); setEnd(''); setOrigin(''); setError('');
+      }}>
         <option value="reviewed">Reviewed output</option><option value="source">Original source</option><option value="clip">Extracted clip</option>
       </select>
     </label>
@@ -47,7 +52,9 @@ export function ReviewAudioEvidence({ reviewedFile, anchorMs, onInsert }: {
     {refs.length > 0 && <button type="button" className="ml-2 underline" onClick={() => { setRefs([]); setError(''); }}>Clear references</button>}
     {error && <p role="alert" className="text-amber-200">{error}</p>}
     <pre aria-label="Audio evidence preview" className="my-2 whitespace-pre-wrap rounded bg-ink-900 p-2 font-sans">{preview}</pre>
-    <button type="button" className="rounded border border-ink-700 px-2 py-1" onClick={() => onInsert(preview)}>Add context to comment</button>
+    <button type="button" className="rounded border border-ink-700 px-2 py-1" onClick={() => {
+      onInsert(preview, inserted); setInserted(preview);
+    }}>{inserted ? 'Update context in comment' : 'Add context to comment'}</button>
     <p className="mt-2">Review the inserted text, describe the correction, then save the issue. Adding context does not submit or start a revision.</p>
   </details>;
 }

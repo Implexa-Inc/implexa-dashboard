@@ -40,7 +40,9 @@ export function audioEvidenceText({ reviewedFile, anchorMs, refs, listening }: {
   if (!validTime(anchorMs) || !reviewedFile || /[\r\n\x00-\x1f\x7f]/.test(reviewedFile)
       || reviewedFile.length > 1000) throw new Error('The reviewed file and position are required.');
   const claims: Record<Listening, string> = {
-    listened: 'Reviewer reports listening to these references; independent editorial verification is not recorded here.',
+    listened: refs.length
+      ? 'Reviewer reports listening to these references; independent editorial verification is not recorded here.'
+      : 'Reviewer reports listening at the reviewed anchor; independent editorial verification is not recorded here.',
     transcript_only: 'Reviewer used transcript text only; audio has not been checked by listening.',
     not_checked: 'Listening has not been confirmed; these are locations to investigate.',
   };

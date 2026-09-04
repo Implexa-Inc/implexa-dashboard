@@ -25,6 +25,12 @@ test('transcript-only wording never becomes audible-correction proof', () => {
   assert.match(text, /miss restarts, clicks, or fumbles/);
   assert.match(text, /repeat words that are not audible/);
 });
+test('listening without added references describes only the reviewed anchor', () => {
+  const text = audioEvidenceText({ reviewedFile: 'final.mp4', anchorMs: 1200, refs: [], listening: 'listened' });
+  assert.match(text, /listening at the reviewed anchor/);
+  assert.doesNotMatch(text, /listening to these references/);
+  assert.match(text, /independent editorial verification is not recorded/);
+});
 for (const [name, value] of Object.entries({ zeroDuration: ref({ startMs: 1000, endMs: 1000 }),
   negative: ref({ startMs: -1 }), nan: ref({ endMs: NaN }), reversed: ref({ startMs: 3000 }),
   missingName: ref({ file: '' }), injection: ref({ file: 'source\nVerified!' }),
