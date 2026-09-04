@@ -31,6 +31,18 @@ const TESTS = [
 ];
 
 const mutants = [
+  ['delivery: old completed response is accepted without proof', PANEL,
+    'const verified = result.deliveryVerified === true && !!result.runId && !!result.artifactId;',
+    'const verified = true;'],
+  ['delivery: rendering trusts legacy completion', PANEL,
+    "setState(result.state === 'completed' && !verified ? 'settling' : result.state);",
+    'setState(result.state);'],
+  ['delivery: unverified completion notifies parent', PANEL,
+    "if (result.state === 'completed' && verified) {",
+    "if (result.state === 'completed') {"],
+  ['delivery: settling offers a retry', PANEL,
+    "      {resolved === 'retryable' && (",
+    "      {(resolved === 'retryable' || resolved === 'settling') && ("],
   // ── the three states collapse back into one dead end ─────────────────────
   ['typed-state: "unable to verify" is reclassified as "still running"', HELPER,
     "  review_continuation_live_state_unknown: {\n    kind: 'unverifiable',",

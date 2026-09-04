@@ -26,6 +26,49 @@ const stateReply = (state: string, extra: Record<string, unknown> = {}) =>
     return { ok: true };
   };
 
+for (const extra of [{}, { runId: 'child' }, { runId: 'child', artifactId: 'output' }, { deliveryVerified: true, runId: 'child' }]) {
+  test(`legacy or incomplete completed response cannot announce delivery: ${JSON.stringify(extra)}`, async () => {
+    let completed = 0;
+    const rendered = await render('review-continuation-recovery.tsx', { requestId: REQUEST, onCompleted: () => { completed++; } }, { backend: stateReply('completed', extra) });
+    try {
+      assert.match(rendered.text(), /not yet verified/i);
+      assert.equal(completed, 0);
+      assert.equal(rendered.queryByText(/^Retry revision$/), null);
+      assert.equal(rendered.queryByText(/^Open the revised result$/), null);
+      assert.ok(rendered.queryByText(/^Check again$/));
+    } finally { rendered.cleanup(); }
+  });
+}
+
+test('verified delivery opens the exact child and does not claim Manager proof', async () => {
+  const completed: unknown[] = [];
+  const rendered = await render('review-continuation-recovery.tsx', { requestId: REQUEST, onCompleted: (r: unknown) => completed.push(r) }, {
+    backend: stateReply('completed', { deliveryVerified: true, runId: 'child', artifactId: 'output', completedAt: '2026-09-04T00:00:00Z' }),
+  });
+  try {
+    assert.equal(completed.length, 1);
+    assert.equal(rendered.getByText(/^Open the revised result$/).getAttribute('href'), '/review/child');
+    assert.match(rendered.text(), /Manager proof are reported separately/);
+    assert.doesNotMatch(rendered.text(), /Your feedback was applied/);
+    assert.equal(rendered.queryByText(/^Retry revision$/), null);
+  } finally { rendered.cleanup(); }
+});
+
+test('settling response allows a read refresh without offering another execution', async () => {
+  const methods: string[] = [];
+  const rendered = await render('review-continuation-recovery.tsx', { requestId: REQUEST }, {
+    backend: (path: string, options: { method?: string }) => {
+      methods.push(options?.method || 'GET');
+      return { ok: true, state: 'settling' };
+    },
+  });
+  try {
+    await rendered.click(rendered.getByText(/^Check again$/));
+    assert.ok(methods.length >= 2); assert.ok(methods.every(m => m === 'GET'));
+    assert.equal(rendered.queryByText(/^Retry revision$/), null);
+  } finally { rendered.cleanup(); }
+});
+
 test('a still-running revision says WAIT and offers no retry at all', async () => {
   const rendered = await render('review-continuation-recovery.tsx', { requestId: REQUEST }, {
     backend: stateReply('running'),

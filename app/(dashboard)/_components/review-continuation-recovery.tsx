@@ -34,7 +34,8 @@
  * confirmed finished". Every word of that was technically true about the PROCESS
  * and completely wrong about the WORK, and the button under it would have paid to
  * do the whole revision again. An attempt ending is evidence about a process; a
- * request closing successfully is evidence about the result, and the result wins.
+ * request closing is not proof of delivery. Only independently recorded delivery
+ * evidence can make this surface report a revised result.
  *
  * TWO THINGS IT MUST NEVER DO, both of which the old surface got wrong by
  * omission:
@@ -52,7 +53,7 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import { classifyRunRequestRefusal, type RunRequestRefusal } from '@/lib/run-request-refusal';
 
-export type RecoveryState = 'running' | 'unverifiable' | 'retryable' | 'queued' | 'cancelled' | 'completed' | 'not_review_retry';
+export type RecoveryState = 'running' | 'unverifiable' | 'retryable' | 'queued' | 'cancelled' | 'settling' | 'completed' | 'not_review_retry';
 
 interface RecoveryPayload {
   ok: boolean;
@@ -61,6 +62,8 @@ interface RecoveryPayload {
   /** Set on `completed`: the CHILD run that carries the revised deliverable. */
   runId?: string | null;
   completedAt?: string | null;
+  deliveryVerified?: boolean;
+  artifactId?: string | null;
   failureReason?: string | null;
   attempt?: {
     launchAttemptId?: string;
@@ -82,6 +85,7 @@ const HEADLINE: Record<RecoveryState, string> = {
   queued: 'Queued',
   cancelled: 'This revision was cancelled',
   completed: 'This revision is complete',
+  settling: 'Revised delivery is not yet verified',
   not_review_retry: '',
 };
 
@@ -136,9 +140,12 @@ export default function ReviewContinuationRecovery({
         { jwt: session?.access_token },
       );
       if (result && result.ok) {
-        setState(result.state);
+        // Old servers reported completion from request closure alone. Do not let
+        // that response hide recovery or notify the parent of invented delivery.
+        const verified = result.deliveryVerified === true && !!result.runId && !!result.artifactId;
+        setState(result.state === 'completed' && !verified ? 'settling' : result.state);
         setDetail(result);
-        if (result.state === 'completed') {
+        if (result.state === 'completed' && verified) {
           onCompletedRef.current?.({ runId: result.runId || null, completedAt: result.completedAt || null });
         }
       }
@@ -257,11 +264,23 @@ export default function ReviewContinuationRecovery({
         </>
       )}
 
+      {resolved === 'settling' && (
+        <>
+          <p className="mt-1 text-xs leading-relaxed text-ink-400">
+            Implexa has not confirmed a validated revised result.
+            This does not mean your feedback was applied. No new attempt has been queued.
+          </p>
+          <button type="button" onClick={load} disabled={busy} className="btn-outline mt-3 text-xs px-3 py-1.5">
+            Check again
+          </button>
+        </>
+      )}
+
       {resolved === 'completed' && (
         <>
           <p className="mt-1 text-xs leading-relaxed text-ink-400">
-            Your feedback was applied and the revised result was delivered. Nothing is waiting
-            to run, and there is nothing to retry.
+            A validated revised result is available. Open it to inspect the corrections;
+            Judge and Manager proof are reported separately.
           </p>
           {detail?.runId ? (
             <a
@@ -270,13 +289,7 @@ export default function ReviewContinuationRecovery({
             >
               Open the revised result
             </a>
-          ) : (
-            /* A completed revision whose result run we cannot name is still complete.
-               Say the true half rather than offering a link that goes nowhere. */
-            <p className="mt-2 text-xs text-ink-500">
-              The delivered result could not be linked from here. It is listed under Delivered.
-            </p>
-          )}
+          ) : null}
         </>
       )}
 
