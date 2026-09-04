@@ -95,6 +95,7 @@ export default function ReviewContinuationRecovery({
   note = '',
   onQueued,
   onCompleted,
+  onAmendCancelled,
 }: {
   requestId: string;
   /** The typed refusal that brought the user here, if any. */
@@ -102,6 +103,7 @@ export default function ReviewContinuationRecovery({
   /** The user's feedback, carried through so a retry never asks for it again. */
   note?: string;
   onQueued?: (result: { alreadyQueued: boolean; submissionId?: string }) => void;
+  onAmendCancelled?: () => void | Promise<void>;
   /**
    * The revision FINISHED. Told to the parent so the surrounding screen can stop
    * claiming a revision is queued — a panel that quietly knows better while the
@@ -113,6 +115,7 @@ export default function ReviewContinuationRecovery({
   const [detail, setDetail] = useState<RecoveryPayload | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const amendmentFlight = useRef(false);
   // ONLY ever set from a successful response. This is the whole no-false-Queued
   // rule, and it is one variable so it cannot drift.
   const [queued, setQueued] = useState(false);
@@ -294,9 +297,23 @@ export default function ReviewContinuationRecovery({
       )}
 
       {resolved === 'cancelled' && (
-        <p className="mt-1 text-xs leading-relaxed text-ink-400">
-          Cancelling is final. Submit a new revision from Review Room when you’re ready.
-        </p>
+        <>
+          <p className="mt-1 text-xs leading-relaxed text-ink-400">
+            This attempt is closed. You can carry its submitted feedback into a new draft.
+            Sending that draft starts a new revision.
+          </p>
+          {onAmendCancelled && <button type="button" disabled={busy}
+            onClick={async () => {
+              if (amendmentFlight.current) return;
+              amendmentFlight.current = true;
+              setBusy(true); setError(null);
+              try { await onAmendCancelled(); }
+              catch { setError('Could not open the draft. Your submitted feedback is unchanged.'); }
+              finally { amendmentFlight.current = false; setBusy(false); }
+            }} className="btn-outline mt-3 text-xs px-3 py-1.5">
+            {busy ? 'Opening draft…' : 'Open a new draft with this feedback'}
+          </button>}
+        </>
       )}
 
       {resolved === 'queued' && (
