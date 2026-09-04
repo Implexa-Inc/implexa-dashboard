@@ -1810,6 +1810,7 @@ export default function ReviewRoom(props: Props) {
                   <ReviewContinuationRecovery
                     requestId={submitView.continuationId}
                     onAmendCancelled={amendFailedRevision}
+                    onAnswer={() => void addMoreFeedback()}
                     onQueued={() => {
                       setError(null);
                       setRevisionCompleted(null);
