@@ -492,3 +492,22 @@ test('REFERENCE MODE: observe the image, change the video — typed intent, exac
   });
   root.unmount();
 });
+
+test('audio clarification in the real ReviewRoom saves explicit evidence on the frozen reviewed anchor', async () => {
+  await mount(); const state = rigVideo(video(), { currentTime: 33 }); await media(video(), 'timeupdate');
+  await fire(buttons().find(b => /Point comment at/.test(b.textContent || ''))!, 'click');
+  const select = container.querySelector('[aria-label="Issue type"]') as HTMLSelectElement;
+  await act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype, 'value')!.set!.call(select, 'audio'); select.dispatchEvent(new dom.window.Event('change', { bubbles: true })); });
+  assert.match(text(), /Clarify audio evidence and timestamps/);
+  await fire(buttons().find(b => b.textContent === 'Add context to comment')!, 'click');
+  await fire(buttons().find(b => b.textContent === 'Add context to comment')!, 'click');
+  state.currentTime = 55; await media(video(), 'timeupdate');
+  await fire(buttons().find(b => b.textContent === 'Save issue')!, 'click');
+  const saved = calls.find(c => c.body.action === 'create_issue')!.body;
+  assert.equal(saved.kind, 'audio'); assert.equal(saved.artifactId, VID);
+  assert.equal((saved.anchor as Record<string, unknown>).timeStartMs, 33000);
+  assert.match(String(saved.body), /out\/final.mp4.*33.000s/);
+  assert.match(String(saved.body), /Listening has not been confirmed/);
+  assert.equal((String(saved.body).match(/Audio clarification for/g) || []).length, 1);
+  assert.equal(calls.some(c => c.body.action === 'submit'), false, 'saving context cannot start a revision');
+});
