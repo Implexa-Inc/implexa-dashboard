@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { judgeRepairState } from '@/lib/judge-repair-state';
 import JudgeFeedbackControls from './judge-feedback-controls';
+import { ManagerRepairCheckpointRetry } from './manager-repair-checkpoint-retry';
 
 export type RunJudgment = {
   id?: string;
@@ -23,7 +24,9 @@ export type RunJudgment = {
 };
 
 export type JudgeRepairRequest = {
+  id?: string | null;
   status?: string | null;
+  lifecycle_state?: string | null;
   run_id?: string | null;
   created_at?: string | null;
 };
@@ -94,6 +97,11 @@ export function RunJudgmentCard({
             <p className="text-amber-300">Automatic repair could not be queued. The instructions remain available below so you can continue manually.</p>
           )}
         </div>
+      )}
+
+      {judgment.verdict === 'repair' && repairRequest?.id
+        && repairRequest.status === 'done' && repairRequest.lifecycle_state === 'failed' && (
+        <ManagerRepairCheckpointRetry requestId={repairRequest.id} />
       )}
 
       {(judgment.verdict === 'blocked' || judgment.verdict === 'uncertain') && (
