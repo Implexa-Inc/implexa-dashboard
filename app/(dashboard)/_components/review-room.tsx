@@ -1531,7 +1531,13 @@ export default function ReviewRoom(props: Props) {
                 key={`${draft.target.artifactId}:${draft.anchorMs}:${draft.editingIssueId || 'new'}`}
                 reviewedFile={draft.target.relativePath}
                 anchorMs={draft.anchorMs}
-                onInsert={(text) => setDraft({ ...draft, body: draft.body.includes(text) ? draft.body : [draft.body.trim(), text].filter(Boolean).join('\n\n') })}
+                onInsert={(text, priorText) => setDraft((current) => {
+                  if (!current || current.target.artifactId !== draft.target.artifactId) return current;
+                  const body = priorText && current.body.includes(priorText)
+                    ? current.body.replace(priorText, text)
+                    : current.body.includes(text) ? current.body : [current.body.trim(), text].filter(Boolean).join('\n\n');
+                  return { ...current, body };
+                })}
               />
             )}
 
