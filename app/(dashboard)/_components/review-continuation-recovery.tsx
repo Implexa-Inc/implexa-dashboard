@@ -65,6 +65,7 @@ interface RecoveryPayload {
   deliveryVerified?: boolean;
   artifactId?: string | null;
   failureReason?: string | null;
+  executorDiagnostic?: { source: 'executor_message'; finalMessage: string; truncated: boolean } | null;
   attempt?: {
     launchAttemptId?: string;
     executor?: string | null;
@@ -95,6 +96,7 @@ export default function ReviewContinuationRecovery({
   note = '',
   onQueued,
   onCompleted,
+  onAnswer,
 }: {
   requestId: string;
   /** The typed refusal that brought the user here, if any. */
@@ -102,6 +104,7 @@ export default function ReviewContinuationRecovery({
   /** The user's feedback, carried through so a retry never asks for it again. */
   note?: string;
   onQueued?: (result: { alreadyQueued: boolean; submissionId?: string }) => void;
+  onAnswer?: () => void | Promise<void>;
   /**
    * The revision FINISHED. Told to the parent so the surrounding screen can stop
    * claiming a revision is queued — a panel that quietly knows better while the
@@ -112,6 +115,8 @@ export default function ReviewContinuationRecovery({
   const [state, setState] = useState<RecoveryState | null>(null);
   const [detail, setDetail] = useState<RecoveryPayload | null>(null);
   const [busy, setBusy] = useState(false);
+  const [answerBusy, setAnswerBusy] = useState(false);
+  const answerFlightRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   // ONLY ever set from a successful response. This is the whole no-false-Queued
   // rule, and it is one variable so it cannot drift.
@@ -200,11 +205,37 @@ export default function ReviewContinuationRecovery({
   return (
     <div className={`mt-3 rounded-lg border p-4 ${tone}`} data-recovery-state={resolved}>
       <div className="text-sm font-semibold text-ink-100">{HEADLINE[resolved]}</div>
+      {['running', 'queued', 'retryable', 'settling'].includes(resolved) && (
+        <button type="button" onClick={() => void load()} disabled={busy}
+          className="btn-outline mt-2 text-xs px-3 py-1.5">Refresh attempt details</button>
+      )}
+      {detail?.executorDiagnostic?.source === 'executor_message'
+        && typeof detail.executorDiagnostic.finalMessage === 'string'
+        && ['retryable', 'settling', 'cancelled', 'unverifiable'].includes(resolved) && (
+        <div className="mt-3 rounded border border-ink-700 p-3" aria-label="Executor message">
+          <p className="text-xs font-semibold text-ink-200">Message from the previous executor</p>
+          <blockquote className="mt-2 whitespace-pre-wrap break-words text-sm text-ink-200">
+            {Array.from(detail.executorDiagnostic.finalMessage).slice(0, 4000).join('')}
+          </blockquote>
+          {detail.executorDiagnostic.truncated && <p className="mt-1 text-xs text-ink-400">Message shortened.</p>}
+          <p className="mt-2 text-xs text-ink-400">
+            This message does not verify that the requested edits were completed.
+            If it asks a question, answer in a new feedback draft. Your previous submission stays unchanged.
+          </p>
+          {onAnswer && <button type="button" onClick={async () => {
+            if (answerFlightRef.current) return;
+            answerFlightRef.current = true;
+            setAnswerBusy(true);
+            try { await onAnswer(); } finally { answerFlightRef.current = false; setAnswerBusy(false); }
+          }} disabled={busy || answerBusy}
+            className="btn-outline mt-2 text-xs px-3 py-1.5">{answerBusy ? 'Opening Review…' : 'Answer in Review'}</button>}
+        </div>
+      )}
 
       {resolved === 'running' && (
         <p className="mt-1 text-xs leading-relaxed text-ink-400">
           A revision process is working on this feedback right now. Nothing new was queued.
-          This page updates when it finishes.
+          Refresh attempt details to check for its result or latest message.
         </p>
       )}
 

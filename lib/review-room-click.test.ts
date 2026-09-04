@@ -116,6 +116,93 @@ const submittedSession = {
   submittedIssueIds: fixtureIssues.map((issue) => issue.id), compiledBrief: 'frozen', acceptedAt: null,
 };
 
+test('executor question opens a new immutable Review draft and sends the customer answer', async () => {
+  const question = 'Keep the audible “designed to get” restart? <img src=x onerror=alert(1)>';
+  (globalThis as Record<string, unknown>).__IMPLEXA_TEST_BACKEND__ = async () => ({
+    ok: true, state: 'retryable', executorDiagnostic: {
+      source: 'executor_message', finalMessage: question, truncated: false,
+    }, attempt: { executor: 'codex', endedAt: '2026-09-01' },
+  });
+  const original = JSON.stringify(submittedSession);
+  (globalThis as Record<string, unknown>).fetch = async (url: string, init: { body?: string }) => {
+    const body = JSON.parse(String(init?.body ?? '{}'));
+    calls.push({ url: String(url), body });
+    return { status: 200, json: async () => body.action === 'add_feedback'
+      ? { ok: true, session: { ...submittedSession, id: '55555555-5555-4555-8555-555555555555',
+        state: 'draft', submittedRequestId: null, submittedIssueIds: [] } }
+      : submitFixture.fresh } as unknown as Response;
+  };
+  await mount({ session: submittedSession });
+  assert.ok(container.textContent?.includes(question));
+  assert.equal(container.querySelector('[aria-label="Executor message"] img'), null);
+  await click(buttons().find((b) => b.textContent === 'Answer in Review')!);
+  assert.equal(calls[0].body.action, 'add_feedback');
+  assert.equal(calls[0].body.sessionId, submittedSession.id);
+  await typeNote('Remove that restart, preserving the following complete phrase.');
+  await click(primary());
+  const sent = calls.find((c) => c.body.action === 'submit')!;
+  assert.ok(sent, 'the actual submit handler must be reached');
+  assert.equal(sent.body.revisionNote, 'Remove that restart, preserving the following complete phrase.');
+  assert.equal(sent.body.sessionId, '55555555-5555-4555-8555-555555555555');
+  assert.equal(JSON.stringify(submittedSession), original);
+  root.unmount();
+});
+
+test('a failed draft creation preserves the quoted question and offers another answer attempt', async () => {
+  (globalThis as Record<string, unknown>).__IMPLEXA_TEST_BACKEND__ = async () => ({
+    ok: true, state: 'retryable', executorDiagnostic: {
+      source: 'executor_message', finalMessage: 'Which cut should I keep?', truncated: true,
+    },
+  });
+  (globalThis as Record<string, unknown>).fetch = async () => ({
+    status: 409, json: async () => ({ ok: false, error: 'Draft unavailable' }),
+  }) as unknown as Response;
+  await mount({ session: submittedSession });
+  await click(buttons().find((b) => b.textContent === 'Answer in Review')!);
+  assert.match(text(), /Which cut should I keep/);
+  assert.match(text(), /Draft unavailable/);
+  assert.match(text(), /Message shortened/);
+  assert.ok(buttons().find((b) => b.textContent === 'Answer in Review'));
+  root.unmount();
+});
+test('executor answer is single-flight while the immutable draft is being created', async () => {
+  (globalThis as Record<string, unknown>).__IMPLEXA_TEST_BACKEND__ = async () => ({
+    ok: true, state: 'retryable', executorDiagnostic: {
+      source: 'executor_message', finalMessage: 'Which cut should I keep?', truncated: false,
+    },
+  });
+  const reply = deferredReply();
+  pending = reply.promise;
+  await mount({ session: submittedSession });
+  const answer = buttons().find((b) => b.textContent === 'Answer in Review')!;
+  await act(async () => {
+    answer.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    answer.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.action, 'add_feedback');
+  reply.release({ status: 409, body: { ok: false, error: 'Draft unavailable' } });
+  await act(async () => { await reply.promise; await Promise.resolve(); });
+  pending = null;
+  assert.ok(buttons().find((b) => b.textContent === 'Answer in Review'));
+  root.unmount();
+});
+test('a diagnostic arriving after terminal state can be loaded without reloading Review', async () => {
+  let reads = 0;
+  (globalThis as Record<string, unknown>).__IMPLEXA_TEST_BACKEND__ = async () => ({
+    ok: true, state: 'retryable', executorDiagnostic: ++reads === 1 ? null : {
+      source: 'executor_message', finalMessage: 'Keep this pause?', truncated: false,
+    },
+  });
+  await mount({ session: submittedSession });
+  assert.doesNotMatch(text(), /Keep this pause/);
+  await click(buttons().find((b) => b.textContent === 'Refresh attempt details')!);
+  assert.match(text(), /Keep this pause/);
+  assert.ok(buttons().find((b) => b.textContent === 'Answer in Review'));
+  root.unmount();
+});
+
 /** Mount the room with the 12-issue production draft. */
 async function mount(over: Record<string, unknown> = {}) {
   root = createRoot(container) as unknown as typeof root;
