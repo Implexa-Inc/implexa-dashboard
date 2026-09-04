@@ -54,6 +54,7 @@ import { isValidatedVideoOutput } from '@/lib/generation-entry-eligibility';
 import StageCompetenceProof from '../../_components/stage-competence-proof';
 import { runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
 import { getReviewPacket } from '@/lib/review';
+import { loadReviewAmendmentTarget } from '@/lib/review-amendment-target';
 
 export const dynamic = 'force-dynamic';
 
@@ -468,6 +469,9 @@ export default async function RunDetailPage({
 
   const pending = r.review_status === 'pending' || approvalContinuationRecovery;
   const needsInput = r.review_status === 'needs_input';
+  const reviewAmendment = (pending || needsInput)
+    ? await loadReviewAmendmentTarget(supabase, session.user.id, r.id, r.continued_from_run_id ?? null)
+    : null;
   const held = pending || needsInput;
   const effectiveHoldKind = approvalContinuationRecovery ? 'approval_before_action' : holdKind;
   // Has a DIFFERENT automatic recovery already delivered the real answer for
@@ -983,6 +987,7 @@ export default async function RunDetailPage({
               claudeTaskId={claudeTaskId}
               skillSlug={r.skill_slug}
               approvalRecovery={approvalContinuationRecovery}
+              reviewAmendment={reviewAmendment}
             />
           </div>
         )}
