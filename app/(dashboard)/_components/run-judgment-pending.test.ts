@@ -85,7 +85,7 @@ test('the run page fetches judge-request status AND created_at, and threads both
   assert.match(runPage, /judgeRequestCreatedAt\s*=\s*\(jq && jq\.created_at\)/);
   assert.match(runPage, /<RunJudgmentPending requestStatus=\{judgeRequestStatus\} createdAt=\{judgeRequestCreatedAt\} \/>/,
     'the primary review banner must receive BOTH the real status and its age, not render blind');
-  assert.match(runPage, /\.select\('status, run_id, created_at'\)\.eq\('judge_origin_judgment_id', judgment\.id\)/,
+  assert.match(runPage, /\.select\('id, status, lifecycle_state, run_id, created_at'\)\.eq\('judge_origin_judgment_id', judgment\.id\)/,
     'the repair request query must also carry created_at, or the repair banner is exempt from the same stall protection');
   assert.match(runPage, /<RunJudgmentPending phase="repair" requestStatus=\{[^}]+\} createdAt=\{repairRequest\?\.created_at \|\| null\} \/>/,
     'the repair-phase banner must also receive status + age, or it inherits the same unbounded-poll risk');
