@@ -609,7 +609,7 @@ export default async function RunDetailPage({
   if (judgment?.id && judgment.verdict === 'repair') {
     try {
       const { data: rr } = await supabase.from('run_requests')
-        .select('status, run_id, created_at').eq('judge_origin_judgment_id', judgment.id).limit(1).maybeSingle();
+        .select('id, status, lifecycle_state, run_id, created_at').eq('judge_origin_judgment_id', judgment.id).limit(1).maybeSingle();
       repairRequest = (rr as JudgeRepairRequest | null) || null;
     } catch { /* 0122 not applied, or queue failed — the manual Continue fallback stays visible */ }
   }

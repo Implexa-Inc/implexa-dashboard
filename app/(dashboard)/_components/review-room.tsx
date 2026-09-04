@@ -22,6 +22,7 @@
  *    approval-before-action hold never renders Accept result.
  */
 
+import { ReviewAudioEvidence } from './review-audio-evidence';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReviewArtifact, ReviewIssue, ReviewProduction, ReviewSession, ReviewSessionArtifact, SourceState } from '@/lib/review';
@@ -1525,6 +1526,21 @@ export default function ReviewRoom(props: Props) {
               </p>
             )}
 
+            {draft.kind === 'audio' && draft.anchorMs !== null && draft.target.relativePath && (
+              <ReviewAudioEvidence
+                key={`${draft.target.artifactId}:${draft.anchorMs}:${draft.editingIssueId || 'new'}`}
+                reviewedFile={draft.target.relativePath}
+                anchorMs={draft.anchorMs}
+                onInsert={(text, priorText) => setDraft((current) => {
+                  if (!current || current.target.artifactId !== draft.target.artifactId) return current;
+                  const body = priorText && current.body.includes(priorText)
+                    ? current.body.replace(priorText, text)
+                    : current.body.includes(text) ? current.body : [current.body.trim(), text].filter(Boolean).join('\n\n');
+                  return { ...current, body };
+                })}
+              />
+            )}
+
             <textarea
               autoFocus
               value={draft.body}
@@ -1810,6 +1826,7 @@ export default function ReviewRoom(props: Props) {
                   <ReviewContinuationRecovery
                     requestId={submitView.continuationId}
                     onAmendCancelled={amendFailedRevision}
+                    onAnswer={() => void addMoreFeedback()}
                     onQueued={() => {
                       setError(null);
                       setRevisionCompleted(null);
