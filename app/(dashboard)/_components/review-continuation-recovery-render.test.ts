@@ -124,6 +124,39 @@ test('a cancelled revision offers new work, never a retry', async () => {
   } finally { rendered.cleanup(); }
 });
 
+test('only a cancelled server state offers the feedback draft action', async () => {
+  for (const state of ['running', 'settling', 'unverifiable', 'retryable', 'queued', 'completed', 'cancelled']) {
+    let amendments = 0;
+    const rendered = await render('review-continuation-recovery.tsx', {
+      requestId: REQUEST, onAmendCancelled: async () => { amendments++; },
+    }, { backend: stateReply(state) });
+    try {
+      const action = rendered.queryByText(/^Open a new draft with this feedback$/);
+      assert.equal(Boolean(action), state === 'cancelled');
+      if (action) {
+        await rendered.click(action);
+        assert.equal(amendments, 1);
+        assert.equal(rendered.calls.backend.some(c => c.path.includes('/recover-review-continuation')), false);
+        assert.equal(rendered.document.querySelector('[data-recovery-state="queued"]'), null);
+      }
+    } finally { rendered.cleanup(); }
+  }
+});
+
+test('a refused draft action retains cancellation and permits another deliberate attempt', async () => {
+  let attempts = 0;
+  const rendered = await render('review-continuation-recovery.tsx', {
+    requestId: REQUEST, onAmendCancelled: async () => { attempts++; throw new Error('refused'); },
+  }, { backend: stateReply('cancelled') });
+  try {
+    await rendered.click(rendered.getByText(/^Open a new draft with this feedback$/));
+    assert.match(rendered.text(), /Your submitted feedback is unchanged/);
+    assert.ok(rendered.document.querySelector('[data-recovery-state="cancelled"]'));
+    await rendered.click(rendered.getByText(/^Open a new draft with this feedback$/));
+    assert.equal(attempts, 2);
+  } finally { rendered.cleanup(); }
+});
+
 test('NO FALSE QUEUED: a refused retry leaves the panel on its refusal, not on Queued', async () => {
   // The exact regression this whole lane exists to prevent, at the UI layer: a
   // click that the backend refused must not paint success.

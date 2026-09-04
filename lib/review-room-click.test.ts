@@ -116,6 +116,42 @@ const submittedSession = {
   submittedIssueIds: fixtureIssues.map((issue) => issue.id), compiledBrief: 'frozen', acceptedAt: null,
 };
 
+for (const accepted of [true, false]) {
+  test(`cancelled revision opens the exact seven-feedback draft only on server acceptance: ${accepted}`, async () => {
+    (globalThis as Record<string, unknown>).__IMPLEXA_TEST_BACKEND__ = async () => ({ ok: true, state: 'cancelled' });
+    const original = fixtureIssues.slice(0, 7).map(issue => ({ ...issue, status: 'submitted' }));
+    const snapshot = JSON.stringify(original);
+    const successorId = '55555555-5555-4555-8555-555555555555';
+    const carried = original.map((issue, i) => ({ ...issue,
+      id: `66666666-6666-4666-8666-${String(i + 1).padStart(12, '0')}`,
+      sessionId: successorId, status: 'draft',
+    }));
+    pending = Promise.resolve({ status: accepted ? 200 : 409, body: accepted
+      ? { ok: true, session: { ...submittedSession, id: successorId, state: 'draft',
+        submittedRequestId: null, submittedIssueIds: null }, issues: carried, carriedIssueCount: 7 }
+      : { ok: false, error: 'The cancellation could not be verified.' } });
+    await mount({ session: { ...submittedSession, submittedIssueIds: original.map(i => i.id) }, issues: original });
+    try {
+      const button = buttons().find(b => b.textContent === 'Open a new draft with this feedback');
+      assert.ok(button);
+      await click(button);
+      assert.equal(calls.length, 1, 'opening a draft cannot submit or queue it');
+      assert.deepEqual(resolveReviewAction('amend_failed_revision', calls[0].body), {
+        path: `/api/v2/review/sessions/${FIXTURE_SESSION_ID}/amend-failed`, method: 'POST', body: {},
+      });
+      assert.equal(JSON.stringify(original), snapshot);
+      if (accepted) {
+        assert.match(text(), /7 submitted changes carried into a new draft/);
+        for (const issue of carried) assert.ok(text().includes(issue.body));
+        assert.equal(buttons().some(b => b.textContent === 'Open a new draft with this feedback'), false);
+      } else {
+        assert.match(text(), /The cancellation could not be verified/);
+        assert.ok(buttons().some(b => b.textContent === 'Open a new draft with this feedback'));
+      }
+    } finally { root.unmount(); }
+  });
+}
+
 /** Mount the room with the 12-issue production draft. */
 async function mount(over: Record<string, unknown> = {}) {
   root = createRoot(container) as unknown as typeof root;
