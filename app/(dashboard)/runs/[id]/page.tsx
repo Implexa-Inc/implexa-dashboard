@@ -38,6 +38,7 @@ import RunActionItems, { isRetryableApprovalAction, type RunActionItem } from '.
 import FinishRunButton from '../../_components/finish-run-button';
 import GrantPermissionsButton from '../../_components/grant-permissions-button';
 import StuckRunButton from '../../_components/stuck-run-button';
+import RunStopControl from '../../_components/run-stop-control';
 import RunShareButton from '../../_components/run-share-button';
 import ClearAlertButton from '../../_components/clear-alert-button';
 import NextAgentCards, { type Recommendation } from '../../_components/next-agent-cards';
@@ -169,7 +170,7 @@ export default async function RunDetailPage({
 
   const { data: run } = await supabase
     .from('skill_runs')
-    .select('id, scheduled_skill_id, orchestration_id, continued_from_run_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at, run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at')
+    .select('id, scheduled_skill_id, orchestration_id, continued_from_run_id, skill_slug, source, output_markdown, status, duration_ms, delivery, review_status, ran_at, run_state, started_at, last_progress_at, completed_at, expected_duration_ms, stalled_at, cancel_requested_at')
     .eq('id', params.id)
     .maybeSingle();
 
@@ -897,6 +898,7 @@ export default async function RunDetailPage({
             partial and completed runs alike. The component stays present at zero
             so a tab opened before Desktop validation lands has an honest Refresh
             path instead of permanently looking as though the run made no files. */}
+        <RunStopControl key={r.id} runId={r.id} runState={r.run_state ?? null} cancelRequestedAt={run?.cancel_requested_at} />
         <VerifiedArtifacts artifacts={verifiedArtifacts} runId={r.id} />
 
         {/* THE REVISION POINTER (2026-08-23). Beside the files, not buried in the
