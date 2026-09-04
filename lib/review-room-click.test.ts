@@ -200,6 +200,29 @@ test('a failed draft creation preserves the quoted question and offers another a
   assert.ok(buttons().find((b) => b.textContent === 'Answer in Review'));
   root.unmount();
 });
+test('executor answer is single-flight while the immutable draft is being created', async () => {
+  (globalThis as Record<string, unknown>).__IMPLEXA_TEST_BACKEND__ = async () => ({
+    ok: true, state: 'retryable', executorDiagnostic: {
+      source: 'executor_message', finalMessage: 'Which cut should I keep?', truncated: false,
+    },
+  });
+  const reply = deferredReply();
+  pending = reply.promise;
+  await mount({ session: submittedSession });
+  const answer = buttons().find((b) => b.textContent === 'Answer in Review')!;
+  await act(async () => {
+    answer.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    answer.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.action, 'add_feedback');
+  reply.release({ status: 409, body: { ok: false, error: 'Draft unavailable' } });
+  await act(async () => { await reply.promise; await Promise.resolve(); });
+  pending = null;
+  assert.ok(buttons().find((b) => b.textContent === 'Answer in Review'));
+  root.unmount();
+});
 test('a diagnostic arriving after terminal state can be loaded without reloading Review', async () => {
   let reads = 0;
   (globalThis as Record<string, unknown>).__IMPLEXA_TEST_BACKEND__ = async () => ({
