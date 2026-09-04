@@ -104,7 +104,7 @@ export default function ReviewContinuationRecovery({
   /** The user's feedback, carried through so a retry never asks for it again. */
   note?: string;
   onQueued?: (result: { alreadyQueued: boolean; submissionId?: string }) => void;
-  onAnswer?: () => void;
+  onAnswer?: () => void | Promise<void>;
   /**
    * The revision FINISHED. Told to the parent so the surrounding screen can stop
    * claiming a revision is queued — a panel that quietly knows better while the
@@ -115,6 +115,8 @@ export default function ReviewContinuationRecovery({
   const [state, setState] = useState<RecoveryState | null>(null);
   const [detail, setDetail] = useState<RecoveryPayload | null>(null);
   const [busy, setBusy] = useState(false);
+  const [answerBusy, setAnswerBusy] = useState(false);
+  const answerFlightRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   // ONLY ever set from a successful response. This is the whole no-false-Queued
   // rule, and it is one variable so it cannot drift.
@@ -220,8 +222,13 @@ export default function ReviewContinuationRecovery({
             This message does not verify that the requested edits were completed.
             If it asks a question, answer in a new feedback draft. Your previous submission stays unchanged.
           </p>
-          {onAnswer && <button type="button" onClick={onAnswer} disabled={busy}
-            className="btn-outline mt-2 text-xs px-3 py-1.5">Answer in Review</button>}
+          {onAnswer && <button type="button" onClick={async () => {
+            if (answerFlightRef.current) return;
+            answerFlightRef.current = true;
+            setAnswerBusy(true);
+            try { await onAnswer(); } finally { answerFlightRef.current = false; setAnswerBusy(false); }
+          }} disabled={busy || answerBusy}
+            className="btn-outline mt-2 text-xs px-3 py-1.5">{answerBusy ? 'Opening Review…' : 'Answer in Review'}</button>}
         </div>
       )}
 
