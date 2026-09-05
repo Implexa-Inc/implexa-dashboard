@@ -590,6 +590,22 @@ test('a carried issue from another session of this run is accepted with its orig
     'the next round carries the original issue ID/session instead of cloning it');
 });
 
+test('server-authorized successor carry is exact and fails closed when packet membership disagrees', () => {
+  const carried = { ...boundPacket().issues[0], sessionId: 's-predecessor', status: 'submitted' };
+  const body = { ...boundPacket(),
+    sources: { ...boundPacket().sources, carry_membership: 'ready' },
+    session: { ...boundPacket().session, previousSessionId: 's-predecessor', carriedIssueIds: [carried.id] },
+    issues: [carried],
+  };
+  assert.ok(parseReviewPacketResponse(body, 'run-1'));
+  assert.equal(parseReviewPacketResponse({ ...body,
+    session: { ...body.session, carriedIssueIds: ['missing-issue'] },
+  }, 'run-1'), null, 'a server scope that names an absent issue is unavailable, never an empty draft');
+  assert.equal(parseReviewPacketResponse({ ...body,
+    session: { ...body.session, carriedIssueIds: [carried.id, carried.id] },
+  }, 'run-1'), null, 'duplicate membership cannot inflate the submitted change count');
+});
+
 test('REPRO: issues cannot exist when there is no session', () => {
   const body = { ...boundPacket(), session: null };
   assert.equal(parseReviewPacketResponse(body, 'run-1'), null,

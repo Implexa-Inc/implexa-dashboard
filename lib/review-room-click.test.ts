@@ -122,15 +122,25 @@ for (const accepted of [true, false]) {
     const original = fixtureIssues.slice(0, 7).map(issue => ({ ...issue, status: 'submitted' }));
     const snapshot = JSON.stringify(original);
     const successorId = '55555555-5555-4555-8555-555555555555';
-    const carried = original.map((issue, i) => ({ ...issue,
-      id: `66666666-6666-4666-8666-${String(i + 1).padStart(12, '0')}`,
-      sessionId: successorId, status: 'draft',
-    }));
+    const carried = original;
+    const carriedIssueIds = carried.map((issue) => issue.id);
     pending = Promise.resolve({ status: accepted ? 200 : 409, body: accepted
       ? { ok: true, session: { ...submittedSession, id: successorId, state: 'draft',
-        submittedRequestId: null, submittedIssueIds: null }, issues: carried, carriedIssueCount: 7 }
+        submittedRequestId: null, submittedIssueIds: null, previousSessionId: FIXTURE_SESSION_ID,
+        carriedIssueIds }, issues: carried, carriedIssueCount: 7 }
       : { ok: false, error: 'The cancellation could not be verified.' } });
-    await mount({ session: { ...submittedSession, submittedIssueIds: original.map(i => i.id) }, issues: original });
+    const artifact = { ...fixtureArtifacts[0], role: 'other' };
+    const candidate = { scope: 'historical_partial_candidate', recoveryId: '11111111-1111-4111-8111-111111111111', artifactId: artifact.id,
+      implementedCount: 1, deferredCount: 6, technicalQaStatus: 'pass', managerProof: false, issueAnchorTransfer: 'not_transferred' };
+    const boundOriginal = original.map((issue) => ({ ...issue, artifactId: artifact.id }));
+    if (accepted) {
+      pending = Promise.resolve({ status: 200, body: { ok: true, session: { ...submittedSession, id: successorId,
+        state: 'draft', selectedArtifactId: artifact.id, submittedRequestId: null, submittedIssueIds: null,
+        previousSessionId: FIXTURE_SESSION_ID, carriedIssueIds }, issues: boundOriginal, carriedIssueCount: 7 } });
+    }
+    await mount({ artifacts: [artifact, fixtureArtifacts[1]], initialArtifactId: artifact.id,
+      historicalCandidates: [candidate], session: { ...submittedSession, selectedArtifactId: artifact.id,
+        submittedIssueIds: original.map(i => i.id), previousSessionId: null, carriedIssueIds: [] }, issues: boundOriginal });
     try {
       const button = buttons().find(b => b.textContent === 'Open a new draft with this feedback');
       assert.ok(button);
@@ -142,7 +152,8 @@ for (const accepted of [true, false]) {
       assert.equal(JSON.stringify(original), snapshot);
       if (accepted) {
         assert.match(text(), /7 submitted changes carried into a new draft/);
-        for (const issue of carried) assert.ok(text().includes(issue.body));
+        for (const issue of boundOriginal) assert.ok(text().includes(issue.body));
+        assert.match(text(), /7 exact same-video changes from the failed revision are carried/);
         assert.equal(buttons().some(b => b.textContent === 'Open a new draft with this feedback'), false);
       } else {
         assert.match(text(), /The cancellation could not be verified/);
@@ -151,6 +162,32 @@ for (const accepted of [true, false]) {
     } finally { root.unmount(); }
   });
 }
+
+test('historical successor carry survives Add more feedback and a full remount without cloning identities', async () => {
+  const artifact = { ...fixtureArtifacts[0], role: 'other' };
+  const candidate = { scope: 'historical_partial_candidate', recoveryId: '11111111-1111-4111-8111-111111111111', artifactId: artifact.id,
+    implementedCount: 1, deferredCount: 6, technicalQaStatus: 'pass', managerProof: false, issueAnchorTransfer: 'not_transferred' };
+  const predecessor = fixtureIssues.slice(0, 5).map((issue) => ({ ...issue, artifactId: artifact.id, status: 'submitted' }));
+  const successorId = '55555555-5555-4555-8555-555555555555';
+  const carriedIssueIds = predecessor.map((issue) => issue.id);
+  const successor = { ...submittedSession, id: successorId, state: 'draft', selectedArtifactId: artifact.id,
+    submittedRequestId: null, submittedIssueIds: null, previousSessionId: FIXTURE_SESSION_ID, carriedIssueIds };
+  pending = Promise.resolve({ status: 200, body: { ok: true, session: successor } });
+  await mount({ artifacts: [artifact, fixtureArtifacts[1]], initialArtifactId: artifact.id,
+    historicalCandidates: [candidate], session: successor, issues: predecessor });
+  await click(buttons().find(b => b.textContent === 'Add more feedback')!);
+  assert.deepEqual(calls[0].body, { action: 'ensure_session', runId: FIXTURE_RUN_ID, artifactId: artifact.id });
+  for (const issue of predecessor) assert.ok(text().includes(issue.body));
+  assert.match(text(), /5 carried changes remain in this draft/);
+  root.unmount();
+  container = dom.window.document.createElement('div');
+  dom.window.document.body.appendChild(container);
+  await mount({ artifacts: [artifact, fixtureArtifacts[1]], initialArtifactId: artifact.id,
+    historicalCandidates: [candidate], session: successor, issues: predecessor });
+  for (const issue of predecessor) assert.ok(text().includes(issue.body));
+  assert.equal(new Set(carriedIssueIds).size, 5, 'reload keeps original immutable identities exactly once');
+  root.unmount();
+});
 test('executor question opens a new immutable Review draft and sends the customer answer', async () => {
   const question = 'Keep the audible “designed to get” restart? <img src=x onerror=alert(1)>';
   (globalThis as Record<string, unknown>).__IMPLEXA_TEST_BACKEND__ = async () => ({

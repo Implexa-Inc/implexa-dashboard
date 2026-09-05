@@ -131,6 +131,8 @@ export type ReviewSession = {
   submittedRequestId: string | null;
   submittedIssueIds: string[] | null;
   compiledBrief: string | null;
+  previousSessionId?: string | null;
+  carriedIssueIds?: string[];
   acceptedAt: string | null;
 } | null;
 
@@ -374,6 +376,9 @@ function isValidSession(v: unknown, runId: string): boolean {
   // Every lifecycle action derives from this session; one belonging to another run
   // would submit or accept the wrong work.
   if (!isId(v.runId) || v.runId !== runId) return false;
+  if (!(v.previousSessionId === undefined || v.previousSessionId === null || isId(v.previousSessionId))) return false;
+  if (!(v.carriedIssueIds === undefined || (Array.isArray(v.carriedIssueIds) && v.carriedIssueIds.every(isId)
+    && new Set(v.carriedIssueIds).size === v.carriedIssueIds.length))) return false;
   return true;
 }
 
@@ -540,6 +545,12 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
   // Sources first: the lineage rule below depends on whether lineage was READABLE.
   const sources = parseSources(body.sources, PACKET_SOURCE_KEYS);
   if (!sources) return null;
+  if (body.session !== null) {
+    const carried = (body.session as Record<string, unknown>).carriedIssueIds as string[] | undefined;
+    const packetIssueIds = new Set((body.issues as Array<Record<string, unknown>>).map((issue) => String(issue.id)));
+    if (sources.carry_membership === 'ready'
+      && (!Array.isArray(carried) || carried.some((id) => !packetIssueIds.has(id)))) return null;
+  }
   const historicalCandidates = parseHistoricalCandidates(body.historicalCandidates, sources.historical_candidates, body.artifacts as ReviewArtifact[]);
   if (!historicalCandidates) return null;
   // A non-ready source cannot truthfully supply rows. Accepting stale-looking rows
