@@ -1,3 +1,4 @@
+import { parseHistoricalCandidates } from './historical-review-candidate.ts';
 import {
   COMPETENCE_PROOF_UNAVAILABLE,
   type StageCompetenceProof,
@@ -162,6 +163,7 @@ export type ReviewPacket = {
   } | null;
   lineage: { rootRunId: string | null; versions: Array<{ runId: string; label: string; runState: string | null; startedAt: string | null }> };
   artifacts: ReviewArtifact[];
+  historicalCandidates: import('./historical-review-candidate').HistoricalReviewCandidate[];
   judgment: { id: string; verdict: string; summary: string; nextAction: string | null; createdAt: string | null } | null;
   verification: { receipts: Array<{ id: string; adapterKind: string; status: string; createdAt: string }> };
   competenceProof: StageCompetenceProof;
@@ -178,6 +180,7 @@ const PACKET_UNAVAILABLE: ReviewPacket = {
   judgment: null, verification: { receipts: [] }, competenceProof: COMPETENCE_PROOF_UNAVAILABLE,
   production: null, session: null, issues: [],
   reviewArtifacts: [],
+  historicalCandidates: [],
   sources: { review_packet: 'unavailable' }, live: false,
 };
 
@@ -537,6 +540,8 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
   // Sources first: the lineage rule below depends on whether lineage was READABLE.
   const sources = parseSources(body.sources, PACKET_SOURCE_KEYS);
   if (!sources) return null;
+  const historicalCandidates = parseHistoricalCandidates(body.historicalCandidates, sources.historical_candidates, body.artifacts as ReviewArtifact[]);
+  if (!historicalCandidates) return null;
   // A non-ready source cannot truthfully supply rows. Accepting stale-looking rows
   // would make attachment controls appear authoritative over a read that failed.
   if (sources.review_artifacts !== 'ready' && reviewArtifactIds.length > 0) return null;
@@ -585,6 +590,7 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
     run: body.run as ReviewPacket['run'],
     lineage: body.lineage as ReviewPacket['lineage'],
     artifacts: body.artifacts as ReviewArtifact[],
+    historicalCandidates,
     judgment: body.judgment as ReviewPacket['judgment'],
     verification: body.verification as ReviewPacket['verification'],
     competenceProof,

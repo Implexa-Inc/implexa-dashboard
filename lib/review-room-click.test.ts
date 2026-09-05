@@ -287,6 +287,74 @@ const click = async (el: HTMLElement) => {
   });
 };
 
+test('historical candidate renders truthful partial notice and excludes old anchored feedback', async () => {
+  const artifact = { ...fixtureArtifacts[0], role: 'other' };
+  const candidate = { scope: 'historical_partial_candidate', recoveryId: '11111111-1111-4111-8111-111111111111', artifactId: artifact.id,
+    implementedCount: 1, deferredCount: 6, technicalQaStatus: 'pass', managerProof: false, issueAnchorTransfer: 'not_transferred' };
+  const oldIssue = { ...fixtureIssues[0], artifactId: fixtureArtifacts[1].id, body: 'OLD ANCHOR MUST NOT CARRY', status: 'submitted' };
+  await mount({ artifacts: [artifact, fixtureArtifacts[1]], initialArtifactId: artifact.id, historicalCandidates: [candidate], issues: [oldIssue] });
+  try {
+    assert.match(text(), /Historical partial candidate/);
+    assert.match(text(), /1 correction reported implemented; 6 deferred/);
+    assert.match(text(), /does not establish.*Judge verdict.*Manager proof/);
+    assert.match(text(), /Previous feedback anchors were not transferred/);
+    assert.doesNotMatch(text(), /OLD ANCHOR MUST NOT CARRY/);
+    assert.equal(calls.length, 0, 'opening a candidate cannot submit feedback');
+    assert.equal(backendCalls.length, 0, 'opening a candidate cannot invoke recovery');
+  } finally { root.unmount(); }
+});
+
+test('historical notice is bound to selected artifact and not another file', async () => {
+  await mount({ initialArtifactId: fixtureArtifacts[0].id, historicalCandidates: [{ scope: 'historical_partial_candidate',
+    recoveryId: '11111111-1111-4111-8111-111111111111', artifactId: fixtureArtifacts[1].id,
+    implementedCount: 1, deferredCount: 6, technicalQaStatus: 'pass', managerProof: false, issueAnchorTransfer: 'not_transferred' }] });
+  try { assert.doesNotMatch(text(), /Historical partial candidate/); } finally { root.unmount(); }
+});
+
+test('historical candidate cannot use the old-session fast path to save feedback', async () => {
+  const artifact = { ...fixtureArtifacts[0], role: 'other' };
+  pending = Promise.resolve({ status: 200, body: { ok: true, issue: { ...fixtureIssues[0], artifactId: artifact.id } } });
+  await mount({ artifacts: [artifact, fixtureArtifacts[1]], initialArtifactId: artifact.id, issues: [],
+    session: { ...submittedSession, state: 'draft', selectedArtifactId: fixtureArtifacts[1].id, submittedRequestId: null, submittedIssueIds: null },
+    historicalCandidates: [{ scope: 'historical_partial_candidate', recoveryId: '11111111-1111-4111-8111-111111111111', artifactId: artifact.id,
+      implementedCount: 1, deferredCount: 6, technicalQaStatus: 'pass', managerProof: false, issueAnchorTransfer: 'not_transferred' }] });
+  try {
+    await click(buttons().find(b => b.textContent === '+ Add feedback')!);
+    await typeNote('Remove the audible restart in this candidate.');
+    await click(buttons().find(b => b.textContent === 'Save issue')!);
+    assert.match(text(), /feedback round belongs to a different video/);
+    assert.equal(calls.length, 0, 'an incompatible session must not receive a new issue');
+  } finally { root.unmount(); }
+});
+
+test('Add more feedback on a historical candidate opens a selected fresh draft without old-round carry', async () => {
+  const artifact = { ...fixtureArtifacts[0], role: 'other' };
+  pending = Promise.resolve({ status: 200, body: { ok: true, session: { ...submittedSession,
+    id: '11111111-1111-4111-8111-111111111111', state: 'draft', selectedArtifactId: artifact.id, submittedRequestId: null, submittedIssueIds: [] } } });
+  await mount({ artifacts: [artifact, fixtureArtifacts[1]], initialArtifactId: artifact.id, issues: [],
+    session: { ...submittedSession, selectedArtifactId: fixtureArtifacts[1].id },
+    historicalCandidates: [{ scope: 'historical_partial_candidate', recoveryId: '22222222-2222-4222-8222-222222222222', artifactId: artifact.id,
+      implementedCount: 1, deferredCount: 6, technicalQaStatus: 'pass', managerProof: false, issueAnchorTransfer: 'not_transferred' }] });
+  try {
+    await click(buttons().find(b => b.textContent === 'Add more feedback')!);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].body, { action: 'ensure_session', runId: FIXTURE_RUN_ID, artifactId: artifact.id });
+    assert.match(text(), /Add new feedback against this candidate/);
+    assert.doesNotMatch(text(), /Unresolved earlier issues will stay in the next revision/);
+  } finally { root.unmount(); }
+});
+
+test('unavailable historical provenance is visible and prevents feedback submission', async () => {
+  await mount({ sources: { issues: 'ready', artifacts: 'ready', session: 'ready', review_artifacts: 'ready', historical_candidates: 'unavailable' } });
+  try {
+    assert.match(text(), /Historical candidate provenance is unavailable/);
+    assert.ok(!primary() || primary().disabled, 'submission is absent or disabled');
+    assert.equal(buttons().find(b => b.textContent === 'Add more feedback')!.disabled, true);
+    assert.equal(buttons().some(b => b.textContent === '+ Add feedback'), false);
+    assert.equal(calls.length, 0);
+  } finally { root.unmount(); }
+});
+
 // ── the button is real ──────────────────────────────────────────────────────
 
 test('the room renders the one decisive action for the 12 production drafts', async () => {

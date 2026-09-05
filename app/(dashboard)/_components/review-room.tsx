@@ -23,6 +23,8 @@
  */
 
 import { ReviewAudioEvidence } from './review-audio-evidence';
+import HistoricalReviewCandidateNotice from './historical-review-candidate-notice';
+import type { HistoricalReviewCandidate } from '@/lib/historical-review-candidate';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReviewArtifact, ReviewIssue, ReviewProduction, ReviewSession, ReviewSessionArtifact, SourceState } from '@/lib/review';
@@ -79,6 +81,7 @@ type Props = {
   agentSlug?: string | null;
   agentName: string;
   artifacts: ReviewArtifact[];
+  historicalCandidates?: HistoricalReviewCandidate[];
   production: ReviewProduction;
   issues: ReviewIssue[];
   session: ReviewSession;
@@ -136,6 +139,7 @@ function formatSignedMs(ms: number): string {
 export default function ReviewRoom(props: Props) {
   const router = useRouter();
   const { runId, artifacts, production, sources, isApprovalHold } = props;
+  const historicalProvenanceUnavailable = sources.historical_candidates === 'unavailable';
 
   const allArtifacts = useMemo(() => reviewableArtifacts(artifacts, production), [artifacts, production]);
   const validated = useMemo(() => allArtifacts.filter((a) => a.status === 'validated'), [allArtifacts]);
@@ -156,6 +160,7 @@ export default function ReviewRoom(props: Props) {
     setSelectedId((current) => reconcileArtifactSelection(current, allArtifacts, preferredArtifactId));
   }, [allArtifacts, preferredArtifactId]);
   const artifact = useMemo(() => allArtifacts.find((a) => a.id === selectedId) ?? null, [allArtifacts, selectedId]);
+  const historicalCandidate = props.historicalCandidates?.find((candidate) => candidate.artifactId === selectedId) ?? null;
   const selectedSegment = useMemo(() => segmentForArtifact(production, selectedId), [production, selectedId]);
   const proxyPreview = selectedSegment !== null;
   const renderControl = useMemo(() => finalRenderControl(production), [production]);
@@ -182,8 +187,12 @@ export default function ReviewRoom(props: Props) {
   const submitFlightRef = useRef(false);
   const resolutionFlightRef = useRef(false);
 
-  const [issues, setIssues] = useState<ReviewIssue[]>(props.issues);
+  const [allIssues, setIssues] = useState<ReviewIssue[]>(props.issues);
   const [session, setSession] = useState<ReviewSession>(props.session);
+  // Match the historical-candidate SQL snapshot: no run-wide old-anchor carry.
+  const issues = historicalCandidate
+    ? allIssues.filter((issue) => issue.sessionId === session?.id && issue.artifactId === selectedId)
+    : allIssues;
   const [busy, setBusy] = useState(false);
   const [cleanupPrompt, setCleanupPrompt] = useState(false);
   const [cleanupBusy, setCleanupBusy] = useState(false);
@@ -353,7 +362,7 @@ export default function ReviewRoom(props: Props) {
   // tab's request is open — leaving the rail editable over a set that is already being
   // snapshotted server-side.
   const submissionInFlight = submission.phase === 'preparing' || submission.phase === 'submitting';
-  const frozen = proxyPreview || submissionInFlight
+  const frozen = proxyPreview || submissionInFlight || historicalProvenanceUnavailable
     || (!acts.canEditIssues && session?.state !== 'accepted' && !isApprovalHold);
   const accepted = session?.state === 'accepted';
   const canAttachReviewFiles = sources.review_artifacts === 'ready'
@@ -489,12 +498,18 @@ export default function ReviewRoom(props: Props) {
    * draft target for an issue, the live selection for a session-level act like accept.
    */
   const ensureSession = useCallback(async (artifactId: string | null): Promise<string | null> => {
+    if (historicalProvenanceUnavailable) { setError('Historical candidate provenance is unavailable. No feedback was changed.'); return null; }
+    if (session?.id && session.selectedArtifactId !== artifactId
+        && props.historicalCandidates?.some(candidate => candidate.artifactId === artifactId || candidate.artifactId === session.selectedArtifactId)) {
+      setError('This feedback round belongs to a different video. Finish or discard that draft before starting feedback on the historical partial candidate.');
+      return null;
+    }
     if (session?.id) return session.id;
     const { body } = await reviewAction({ action: 'ensure_session', runId, artifactId });
     if (body?.ok && body.session) { setSession(body.session); return body.session.id as string; }
     setError(body?.error || 'Could not open a review session.');
     return null;
-  }, [session, runId]);
+  }, [session, runId, props.historicalCandidates, historicalProvenanceUnavailable]);
 
   const pickReviewArtifact = useCallback(async (
     purpose: 'review_target' | 'supporting', selection: 'file' | 'directory',
@@ -596,9 +611,12 @@ export default function ReviewRoom(props: Props) {
   }, [session, router]);
 
   const addMoreFeedback = useCallback(async () => {
+    if (historicalProvenanceUnavailable) { setError('Historical candidate provenance is unavailable. No feedback was changed.'); return; }
     setError(null); setNotice(null); setBusy(true);
     try {
-      const action = session?.id
+      const action = historicalCandidate
+        ? { action: 'ensure_session', runId, artifactId: selectedId }
+        : session?.id
         ? { action: 'add_feedback', sessionId: session.id }
         : { action: 'ensure_session', runId, artifactId: selectedId };
       const { body } = await reviewAction(action);
@@ -606,16 +624,22 @@ export default function ReviewRoom(props: Props) {
         setError(body?.error || 'Could not open a feedback round.');
         return;
       }
+      if (historicalCandidate && (body.session.selectedArtifactId !== selectedId || body.session.state !== 'draft')) {
+        setError('Could not open a separate draft for this historical candidate. Previous feedback is unchanged.');
+        return;
+      }
       setSession(body.session as ReviewSession);
       setLocalSubmission(INITIAL_SUBMISSION_STATE);
       setRevisionNote('');
       setEvidenceStatus(null);
-      setNotice('Add feedback when you’re ready. Unresolved earlier issues will stay in the next revision.');
+      setNotice(historicalCandidate
+        ? 'Add new feedback against this candidate. Previous feedback anchors were not transferred.'
+        : 'Add feedback when you’re ready. Unresolved earlier issues will stay in the next revision.');
       router.refresh();
     } catch {
       setError('Could not open a feedback round. Existing feedback is unchanged.');
     } finally { setBusy(false); }
-  }, [session, runId, selectedId, router]);
+  }, [session, runId, selectedId, router, historicalCandidate, historicalProvenanceUnavailable]);
 
   const resolveIssues = useCallback(async (issueIds: string[]) => {
     if (!session?.id || !issueIds.length || resolutionFlightRef.current) return;
@@ -1179,6 +1203,7 @@ export default function ReviewRoom(props: Props) {
    * that window.
    */
   const onPrimary = useCallback(async () => {
+    if (historicalProvenanceUnavailable) { setError('Historical candidate provenance is unavailable. Nothing was submitted.'); return; }
     if (submitView.mode === 'accept_result') { await onAccept(false); return; }
     // The orchestration lives in the flow module, where every branch — refusal,
     // missing continuation, rejected request, concurrent second click — is executable
@@ -1190,7 +1215,7 @@ export default function ReviewRoom(props: Props) {
       onState: setLocalSubmission,
       flight: submitFlightRef,
     });
-  }, [submitView.mode, submission, revisionIssueIds, onAccept, onSubmit]);
+  }, [submitView.mode, submission, revisionIssueIds, onAccept, onSubmit, historicalProvenanceUnavailable]);
 
   const issuesUnavailable = sources.issues === 'unavailable';
   const resolutionsUnavailable = sources.reviewer_resolutions !== 'ready';
@@ -1211,6 +1236,7 @@ export default function ReviewRoom(props: Props) {
     <div className="grid gap-4 lg:h-[calc(100vh-13rem)] lg:min-h-[34rem] lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)]">
       {/* ── artifact surface ─────────────────────────────────────────────── */}
       <section className="min-h-0 overflow-y-auto rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <HistoricalReviewCandidateNotice candidate={historicalCandidate} unavailable={sources.historical_candidates === 'unavailable'} />
         {production && (
           <div className="mb-4 border-b border-ink-800 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2080,7 +2106,7 @@ export default function ReviewRoom(props: Props) {
               <button
                 type="button"
                 disabled={
-                  !submitView.primaryEnabled
+                  historicalProvenanceUnavailable || !submitView.primaryEnabled
                   || (submitView.mode === 'accept_result' ? !acts.canAccept : !acts.canSubmit)
                   || (submitView.mode !== 'accept_result' && gate.blocked)
                   // The exact revision manifest includes every session-bound
@@ -2150,7 +2176,7 @@ export default function ReviewRoom(props: Props) {
 
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || historicalProvenanceUnavailable}
             onClick={() => void addMoreFeedback()}
             className="w-full rounded-md border border-sky-500/40 px-3 py-2 text-center text-sm text-sky-300 hover:border-sky-400 disabled:opacity-50"
           >
