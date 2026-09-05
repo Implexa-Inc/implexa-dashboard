@@ -139,7 +139,8 @@ function formatSignedMs(ms: number): string {
 export default function ReviewRoom(props: Props) {
   const router = useRouter();
   const { runId, artifacts, production, sources, isApprovalHold } = props;
-  const historicalProvenanceUnavailable = sources.historical_candidates === 'unavailable';
+  const historicalProvenanceUnavailable = sources.historical_candidates === 'unavailable'
+    || sources.carry_membership === 'unavailable';
 
   const allArtifacts = useMemo(() => reviewableArtifacts(artifacts, production), [artifacts, production]);
   const validated = useMemo(() => allArtifacts.filter((a) => a.status === 'validated'), [allArtifacts]);
@@ -189,9 +190,13 @@ export default function ReviewRoom(props: Props) {
 
   const [allIssues, setIssues] = useState<ReviewIssue[]>(props.issues);
   const [session, setSession] = useState<ReviewSession>(props.session);
-  // Match the historical-candidate SQL snapshot: no run-wide old-anchor carry.
+  // Match the server's exact immutable carry authority. Original issue/evidence rows
+  // intentionally retain their predecessor session id; current-session filtering
+  // alone would make a successfully carried draft appear empty after reload.
+  const carriedIssueIds = new Set(session?.carriedIssueIds ?? []);
   const issues = historicalCandidate
-    ? allIssues.filter((issue) => issue.sessionId === session?.id && issue.artifactId === selectedId)
+    ? allIssues.filter((issue) => issue.artifactId === selectedId
+      && (issue.sessionId === session?.id || carriedIssueIds.has(issue.id)))
     : allIssues;
   const [busy, setBusy] = useState(false);
   const [cleanupPrompt, setCleanupPrompt] = useState(false);
@@ -632,8 +637,11 @@ export default function ReviewRoom(props: Props) {
       setLocalSubmission(INITIAL_SUBMISSION_STATE);
       setRevisionNote('');
       setEvidenceStatus(null);
+      const carriedCount = Array.isArray(body.session.carriedIssueIds) ? body.session.carriedIssueIds.length : 0;
       setNotice(historicalCandidate
-        ? 'Add new feedback against this candidate. Previous feedback anchors were not transferred.'
+        ? carriedCount > 0
+          ? `${carriedCount} carried change${carriedCount === 1 ? '' : 's'} remain in this draft. Add any new feedback, then send one replacement revision.`
+          : 'Add new feedback against this candidate. Previous feedback anchors were not transferred.'
         : 'Add feedback when you’re ready. Unresolved earlier issues will stay in the next revision.');
       router.refresh();
     } catch {
@@ -1236,7 +1244,8 @@ export default function ReviewRoom(props: Props) {
     <div className="grid gap-4 lg:h-[calc(100vh-13rem)] lg:min-h-[34rem] lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)]">
       {/* ── artifact surface ─────────────────────────────────────────────── */}
       <section className="min-h-0 overflow-y-auto rounded-lg border border-ink-800 bg-ink-900/40 p-4">
-        <HistoricalReviewCandidateNotice candidate={historicalCandidate} unavailable={sources.historical_candidates === 'unavailable'} />
+        <HistoricalReviewCandidateNotice candidate={historicalCandidate} unavailable={historicalProvenanceUnavailable}
+          carriedIssueCount={session?.carriedIssueIds?.length ?? 0} />
         {production && (
           <div className="mb-4 border-b border-ink-800 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
