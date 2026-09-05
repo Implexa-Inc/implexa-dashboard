@@ -12,6 +12,7 @@ const mutants=[
   ['unvalidated-candidate',parser,"a.status === 'validated'","true"],
   ['old-feedback-carry',room,"? allIssues.filter((issue) => issue.sessionId === session?.id && issue.artifactId === selectedId)","? allIssues"],
   ['wrong-selected-notice',room,"props.historicalCandidates?.find((candidate) => candidate.artifactId === selectedId)","props.historicalCandidates?.[0]"],
+  ['old-session-fast-path',room,"if (session?.id && session.selectedArtifactId !== artifactId", "if (false && session?.id && session.selectedArtifactId !== artifactId"],
 ];
 const run=cwd=>spawnSync(process.execPath,['--test','lib/historical-review-candidate.test.ts','lib/review-room-click.test.ts'],{cwd,encoding:'utf8',timeout:60000});
 let killed=0;
