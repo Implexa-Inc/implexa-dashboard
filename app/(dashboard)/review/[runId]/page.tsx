@@ -141,6 +141,7 @@ export default async function ReviewRoomPage({ params, searchParams }: {
         agentSlug={packet.run.slug}
         agentName={agentName}
         artifacts={packet.artifacts}
+        historicalCandidates={packet.historicalCandidates}
         production={packet.production}
         issues={packet.issues}
         session={packet.session}

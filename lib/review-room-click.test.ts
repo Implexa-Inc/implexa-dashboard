@@ -287,6 +287,30 @@ const click = async (el: HTMLElement) => {
   });
 };
 
+test('historical candidate renders truthful partial notice and excludes old anchored feedback', async () => {
+  const artifact = { ...fixtureArtifacts[0], role: 'other' };
+  const candidate = { scope: 'historical_partial_candidate', recoveryId: '11111111-1111-4111-8111-111111111111', artifactId: artifact.id,
+    implementedCount: 1, deferredCount: 6, technicalQaStatus: 'pass', managerProof: false, issueAnchorTransfer: 'not_transferred' };
+  const oldIssue = { ...fixtureIssues[0], artifactId: fixtureArtifacts[1].id, body: 'OLD ANCHOR MUST NOT CARRY', status: 'submitted' };
+  await mount({ artifacts: [artifact, fixtureArtifacts[1]], initialArtifactId: artifact.id, historicalCandidates: [candidate], issues: [oldIssue] });
+  try {
+    assert.match(text(), /Historical partial candidate/);
+    assert.match(text(), /1 correction reported implemented; 6 deferred/);
+    assert.match(text(), /does not establish.*Judge verdict.*Manager proof/);
+    assert.match(text(), /Previous feedback anchors were not transferred/);
+    assert.doesNotMatch(text(), /OLD ANCHOR MUST NOT CARRY/);
+    assert.equal(calls.length, 0, 'opening a candidate cannot submit feedback');
+    assert.equal(backendCalls.length, 0, 'opening a candidate cannot invoke recovery');
+  } finally { root.unmount(); }
+});
+
+test('historical notice is bound to selected artifact and not another file', async () => {
+  await mount({ initialArtifactId: fixtureArtifacts[0].id, historicalCandidates: [{ scope: 'historical_partial_candidate',
+    recoveryId: '11111111-1111-4111-8111-111111111111', artifactId: fixtureArtifacts[1].id,
+    implementedCount: 1, deferredCount: 6, technicalQaStatus: 'pass', managerProof: false, issueAnchorTransfer: 'not_transferred' }] });
+  try { assert.doesNotMatch(text(), /Historical partial candidate/); } finally { root.unmount(); }
+});
+
 // ── the button is real ──────────────────────────────────────────────────────
 
 test('the room renders the one decisive action for the 12 production drafts', async () => {

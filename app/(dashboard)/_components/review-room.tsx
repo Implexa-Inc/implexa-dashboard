@@ -23,6 +23,8 @@
  */
 
 import { ReviewAudioEvidence } from './review-audio-evidence';
+import HistoricalReviewCandidateNotice from './historical-review-candidate-notice';
+import type { HistoricalReviewCandidate } from '@/lib/historical-review-candidate';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReviewArtifact, ReviewIssue, ReviewProduction, ReviewSession, ReviewSessionArtifact, SourceState } from '@/lib/review';
@@ -79,6 +81,7 @@ type Props = {
   agentSlug?: string | null;
   agentName: string;
   artifacts: ReviewArtifact[];
+  historicalCandidates?: HistoricalReviewCandidate[];
   production: ReviewProduction;
   issues: ReviewIssue[];
   session: ReviewSession;
@@ -156,6 +159,7 @@ export default function ReviewRoom(props: Props) {
     setSelectedId((current) => reconcileArtifactSelection(current, allArtifacts, preferredArtifactId));
   }, [allArtifacts, preferredArtifactId]);
   const artifact = useMemo(() => allArtifacts.find((a) => a.id === selectedId) ?? null, [allArtifacts, selectedId]);
+  const historicalCandidate = props.historicalCandidates?.find((candidate) => candidate.artifactId === selectedId) ?? null;
   const selectedSegment = useMemo(() => segmentForArtifact(production, selectedId), [production, selectedId]);
   const proxyPreview = selectedSegment !== null;
   const renderControl = useMemo(() => finalRenderControl(production), [production]);
@@ -182,8 +186,12 @@ export default function ReviewRoom(props: Props) {
   const submitFlightRef = useRef(false);
   const resolutionFlightRef = useRef(false);
 
-  const [issues, setIssues] = useState<ReviewIssue[]>(props.issues);
+  const [allIssues, setIssues] = useState<ReviewIssue[]>(props.issues);
   const [session, setSession] = useState<ReviewSession>(props.session);
+  // Match the historical-candidate SQL snapshot: no run-wide old-anchor carry.
+  const issues = historicalCandidate
+    ? allIssues.filter((issue) => issue.sessionId === session?.id && issue.artifactId === selectedId)
+    : allIssues;
   const [busy, setBusy] = useState(false);
   const [cleanupPrompt, setCleanupPrompt] = useState(false);
   const [cleanupBusy, setCleanupBusy] = useState(false);
@@ -1211,6 +1219,7 @@ export default function ReviewRoom(props: Props) {
     <div className="grid gap-4 lg:h-[calc(100vh-13rem)] lg:min-h-[34rem] lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)]">
       {/* ── artifact surface ─────────────────────────────────────────────── */}
       <section className="min-h-0 overflow-y-auto rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <HistoricalReviewCandidateNotice candidate={historicalCandidate} unavailable={sources.historical_candidates === 'unavailable'} />
         {production && (
           <div className="mb-4 border-b border-ink-800 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
