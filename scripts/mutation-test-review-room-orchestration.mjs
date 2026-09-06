@@ -88,8 +88,23 @@ const tests = [
 
 const mutations = [
   ['supporting-context', 'a supporting attachment becomes selectable as a review or reference target', SEGMENTED,
-    ".filter((artifact) => artifact.role !== 'review_attachment')",
-    ''],
+    "artifact.role === 'review_attachment' || supportingArtifactIds.has(artifact.id)",
+    'supportingArtifactIds.has(artifact.id)'],
+  ['supporting-context', 'a recovered source support file becomes selectable as a review or reference target', SEGMENTED,
+    "    return historicalCandidateArtifactIds.has(artifact.id)\n      || ['review_proxy', 'final_output', 'review_input', 'output'].includes(String(artifact.role));",
+    "    return historicalCandidateArtifactIds.has(artifact.id)\n      || artifact.role === 'source'\n      || ['review_proxy', 'final_output', 'review_input', 'output'].includes(String(artifact.role));"],
+  ['supporting-context', 'an unlisted role=other QA artifact can displace the historical video target', SEGMENTED,
+    "    return historicalCandidateArtifactIds.has(artifact.id)\n      || ['review_proxy', 'final_output', 'review_input', 'output'].includes(String(artifact.role));",
+    '    return true;'],
+  ['supporting-context', 'unavailable historical provenance silently falls back to legacy source and other artifacts', SEGMENTED,
+    '    if (!historicalSelectionRestricted) return true;',
+    '    if (historicalCandidateArtifactIds.size === 0) return true;'],
+  ['supporting-context', 'an unrelated final output outranks the exact historical candidate', SEGMENTED,
+    "  return (historicalCandidateArtifactIds.size > 0\n    ? all.find((artifact) => historicalCandidateArtifactIds.has(artifact.id))\n    : null)\n    ?? all.find((artifact) => artifact.role === 'review_proxy')",
+    "  return all.find((artifact) => artifact.role === 'review_proxy')"],
+  ['supporting-context', 'the Review Room drops the exact historical-candidate allowlist', COMPONENT,
+    '      artifacts, production, supportingArtifactIds, historicalCandidateArtifactIds, historicalSelectionRestricted,',
+    '      artifacts, production, supportingArtifactIds, historicalCandidateArtifactIds, false,'],
   // ── the observed chronology bug ───────────────────────────────────────────
   ['global-sort', 'every issue falls into one bucket, sorted by a shared clock', CHRONO,
     "    const key = issue?.artifactId ? String(issue.artifactId) : WHOLE_RUN;",
@@ -220,8 +235,8 @@ const mutations = [
     '  const submittedCount = typeof n === \'number\' && Number.isInteger(n) && n >= 0 ? n : null;',
     '  const submittedCount = typeof n === \'number\' ? n : null;'],
   ['snapshot-honesty', 'issues stay editable while the server is snapshotting them', COMPONENT,
-    '  const frozen = proxyPreview || submissionInFlight\n    || (!acts.canEditIssues',
-    '  const frozen = proxyPreview\n    || (!acts.canEditIssues'],
+    '  const frozen = proxyPreview || submissionInFlight || historicalProvenanceUnavailable\n    || (!acts.canEditIssues',
+    '  const frozen = proxyPreview || historicalProvenanceUnavailable\n    || (!acts.canEditIssues'],
 
   // ── one decisive click ────────────────────────────────────────────────────
   ['one-click', 'the first click transmits nothing and re-offers the same promise', FLOW,

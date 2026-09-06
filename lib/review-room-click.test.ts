@@ -341,6 +341,64 @@ test('historical candidate renders truthful partial notice and excludes old anch
   } finally { root.unmount(); }
 });
 
+test('technical-only historical deep link reports unknown outcomes without inventing implementation', async () => {
+  const artifact = { ...fixtureArtifacts[0], role: 'other' };
+  const candidate = { scope: 'historical_unverified_candidate', recoveryId: '11111111-1111-4111-8111-111111111111', artifactId: artifact.id,
+    implementedCount: 0, deferredCount: 0, unresolvedCount: 5, technicalQaStatus: 'pass', managerProof: false, issueAnchorTransfer: 'not_transferred' };
+  await mount({ artifacts: [artifact, fixtureArtifacts[1]], initialArtifactId: artifact.id,
+    historicalCandidates: [candidate], issues: [] });
+  try {
+    assert.match(text(), /Historical technical-only candidate/);
+    assert.match(text(), /outcomes of 5 corrections are unknown/);
+    assert.match(text(), /No correction is reported implemented or deferred/);
+    assert.match(text(), /does not establish editorial completion, a Judge verdict, or Manager proof/);
+    assert.doesNotMatch(text(), /corrections? reported implemented/);
+    assert.doesNotMatch(text(), /0 deferred/);
+    assert.match(text(), new RegExp(artifact.relativePath));
+    assert.equal(calls.length, 0, 'opening the exact deep link cannot submit feedback');
+    assert.equal(backendCalls.length, 0, 'opening the exact deep link cannot invoke recovery');
+  } finally { root.unmount(); }
+});
+
+test('a pre-draft historical packet selects only its candidate video, never plan, transcript, or QA companions', async () => {
+  const plan = {
+    ...fixtureArtifacts[0], id: 'recovered-plan', role: 'source', relativePath: 'plan.json',
+  };
+  const transcript = {
+    ...fixtureArtifacts[0], id: 'recovered-transcript', role: 'source', relativePath: 'transcript.json',
+  };
+  const qa = {
+    ...fixtureArtifacts[0], id: 'recovered-qa', role: 'other', relativePath: 'video-qa.json',
+  };
+  const historicalVideo = {
+    ...fixtureArtifacts[1], id: 'historical-video', role: 'other', relativePath: 'historical-candidate.mp4',
+  };
+  await mount({
+    artifacts: [plan, transcript, qa, historicalVideo],
+    initialArtifactId: 'foreign-or-missing-deep-link',
+    session: null,
+    reviewArtifacts: [],
+    historicalCandidates: [{
+      scope: 'historical_partial_candidate',
+      recoveryId: '11111111-1111-4111-8111-111111111111',
+      artifactId: historicalVideo.id,
+      implementedCount: 1,
+      deferredCount: 6,
+      technicalQaStatus: 'pass',
+      managerProof: false,
+      issueAnchorTransfer: 'not_transferred',
+    }],
+    issues: [],
+  });
+  const fileSelect = [...container.querySelectorAll('select')].find((select) =>
+    [...select.options].some((option) => option.value === historicalVideo.id))!;
+  assert.ok(fileSelect, 'the historical video selector is missing');
+  assert.deepEqual([...fileSelect.options].map((option) => option.value), [historicalVideo.id]);
+  assert.equal(fileSelect.value, historicalVideo.id,
+    'a missing or foreign deep link must fall back to the exact historical candidate');
+  root.unmount();
+});
+
 test('historical notice is bound to selected artifact and not another file', async () => {
   await mount({ initialArtifactId: fixtureArtifacts[0].id, historicalCandidates: [{ scope: 'historical_partial_candidate',
     recoveryId: '11111111-1111-4111-8111-111111111111', artifactId: fixtureArtifacts[1].id,
@@ -382,13 +440,21 @@ test('Add more feedback on a historical candidate opens a selected fresh draft w
 });
 
 test('unavailable historical provenance is visible and prevents feedback submission', async () => {
-  await mount({ sources: { issues: 'ready', artifacts: 'ready', session: 'ready', review_artifacts: 'ready', historical_candidates: 'unavailable' } });
+  const source = { ...fixtureArtifacts[0], id: 'unavailable-source', role: 'source' };
+  const qa = { ...fixtureArtifacts[0], id: 'unavailable-qa', role: 'other' };
+  const final = { ...fixtureArtifacts[0], id: 'available-final', role: 'final_output' };
+  await mount({ artifacts: [source, qa, final], initialArtifactId: source.id, session: null, issues: [],
+    sources: { issues: 'ready', artifacts: 'ready', session: 'ready', review_artifacts: 'ready', historical_candidates: 'unavailable' } });
   try {
     assert.match(text(), /Historical candidate provenance is unavailable/);
     assert.ok(!primary() || primary().disabled, 'submission is absent or disabled');
     assert.equal(buttons().find(b => b.textContent === 'Add more feedback')!.disabled, true);
     assert.equal(buttons().some(b => b.textContent === '+ Add feedback'), false);
     assert.equal(calls.length, 0);
+    const fileSelect = [...container.querySelectorAll('select')].find((select) =>
+      [...select.options].some((option) => option.value === final.id))!;
+    assert.deepEqual([...fileSelect.options].map((option) => option.value), [final.id]);
+    assert.equal(fileSelect.value, final.id, 'unavailable provenance cannot fall back to a source or unlisted other row');
   } finally { root.unmount(); }
 });
 

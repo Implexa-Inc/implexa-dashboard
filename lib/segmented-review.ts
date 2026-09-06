@@ -3,6 +3,9 @@ import type { ReviewArtifact, ReviewProduction, ReviewProductionSegment } from '
 export function reviewableArtifacts(
   parentArtifacts: ReviewArtifact[],
   production: ReviewProduction,
+  supportingArtifactIds: ReadonlySet<string> = new Set(),
+  historicalCandidateArtifactIds: ReadonlySet<string> = new Set(),
+  historicalSelectionRestricted = historicalCandidateArtifactIds.size > 0,
 ): ReviewArtifact[] {
   const proxies = production?.segments
     .map((segment) => segment.artifact)
@@ -10,15 +13,29 @@ export function reviewableArtifacts(
   // Supporting attachments travel with the immutable submission as executor context,
   // but they are not review targets.  Keeping them out of this shared selector also
   // keeps them out of the reference-target picker used by Review Room.
-  return [...proxies, ...parentArtifacts].filter((artifact) => artifact.role !== 'review_attachment');
+  return [...proxies, ...parentArtifacts].filter((artifact) => {
+    if (artifact.role === 'review_attachment' || supportingArtifactIds.has(artifact.id)) return false;
+    if (!historicalSelectionRestricted) return true;
+    return historicalCandidateArtifactIds.has(artifact.id)
+      || ['review_proxy', 'final_output', 'review_input', 'output'].includes(String(artifact.role));
+  });
 }
 
 export function preferredReviewArtifact(
   parentArtifacts: ReviewArtifact[],
   production: ReviewProduction,
+  supportingArtifactIds: ReadonlySet<string> = new Set(),
+  historicalCandidateArtifactIds: ReadonlySet<string> = new Set(),
+  historicalSelectionRestricted = historicalCandidateArtifactIds.size > 0,
 ): ReviewArtifact | null {
-  const all = reviewableArtifacts(parentArtifacts, production).filter((artifact) => artifact.status === 'validated');
-  return all.find((artifact) => artifact.role === 'review_proxy')
+  const all = reviewableArtifacts(
+    parentArtifacts, production, supportingArtifactIds, historicalCandidateArtifactIds, historicalSelectionRestricted,
+  )
+    .filter((artifact) => artifact.status === 'validated');
+  return (historicalCandidateArtifactIds.size > 0
+    ? all.find((artifact) => historicalCandidateArtifactIds.has(artifact.id))
+    : null)
+    ?? all.find((artifact) => artifact.role === 'review_proxy')
     ?? all.find((artifact) => artifact.role === 'final_output')
     ?? all[0]
     ?? null;
