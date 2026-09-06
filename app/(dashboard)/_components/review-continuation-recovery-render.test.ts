@@ -15,6 +15,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { render } from '../../../lib/test/render.ts';
 
 const REQUEST = '76669b5c-bb85-4785-820a-6103cbc90316';
@@ -79,6 +80,56 @@ test('a still-running revision says WAIT and offers no retry at all', async () =
       'offering a retry while something is genuinely working is the one thing the guard exists to prevent');
     assert.match(rendered.text(), /Nothing new was queued/i);
   } finally { rendered.cleanup(); }
+});
+
+test('a no-ledger process-start lease says it is confirming and unlocks only after the deadline', async () => {
+  let reads = 0;
+  const rendered = await render('review-continuation-recovery.tsx', { requestId: REQUEST }, {
+    backend: (path: string) => {
+      assert.match(path, /recovery-state/, 'the waiting surface must never POST');
+      reads += 1;
+      return reads === 1
+        ? { ok: true, state: 'running', reason: 'review_continuation_launch_window_open',
+          attempt: { launchAttemptId: 'attempt', ackDeadline: new Date(Date.now() + 20).toISOString() } }
+        : { ok: true, state: 'retryable', attempt: null };
+    },
+  });
+  try {
+    assert.match(rendered.text(), /confirming whether the previous revision started/i);
+    assert.match(rendered.text(), /Confirming the previous revision/);
+    assert.doesNotMatch(rendered.text(), /This revision is still running/);
+    assert.equal(rendered.queryByText(/^Retry revision$/), null);
+    await rendered.act(() => new Promise((resolve) => setTimeout(resolve, 400)));
+    assert.ok(rendered.queryByText(/^Retry revision$/), 'the server is reread after the proof deadline');
+    assert.equal(reads, 2);
+  } finally { rendered.cleanup(); }
+});
+
+test('a failed deadline refresh retries without exposing Retry', async () => {
+  let reads = 0;
+  const rendered = await render('review-continuation-recovery.tsx', { requestId: REQUEST }, {
+    backend: () => {
+      reads += 1;
+      if (reads === 1) return { ok: true, state: 'running', reason: 'review_continuation_launch_window_open',
+        attempt: { launchAttemptId: 'attempt', ackDeadline: new Date(Date.now() + 20).toISOString() } };
+      if (reads === 2) throw new Error('temporary read failure');
+      return { ok: true, state: 'retryable', attempt: null };
+    },
+  });
+  try {
+    await rendered.act(() => new Promise((resolve) => setTimeout(resolve, 400)));
+    assert.equal(rendered.queryByText(/^Retry revision$/), null);
+    await rendered.act(() => new Promise((resolve) => setTimeout(resolve, 1_100)));
+    assert.ok(rendered.queryByText(/^Retry revision$/));
+    assert.equal(reads, 3);
+  } finally { rendered.cleanup(); }
+});
+
+test('launch-window automatic reads are finitely budgeted and never start before the deadline', () => {
+  const source = readFileSync(new URL('./review-continuation-recovery.tsx', import.meta.url), 'utf8');
+  assert.match(source, /LAUNCH_WINDOW_REFRESH_RETRIES_MS\s*=\s*\[1_000, 3_000, 10_000\]/);
+  assert.match(source, /deadlineMs\s*-\s*Date\.now\(\)\s*\+\s*250/);
+  assert.doesNotMatch(source, /Math\.min\(5\s*\*\s*60_000,\s*deadlineMs/);
 });
 
 test('an unverifiable attempt names the restart AND the retry — the state_unknown case', async () => {

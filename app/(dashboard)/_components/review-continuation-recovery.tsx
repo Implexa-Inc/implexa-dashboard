@@ -58,6 +58,7 @@ export type RecoveryState = 'running' | 'unverifiable' | 'retryable' | 'queued' 
 interface RecoveryPayload {
   ok: boolean;
   state: RecoveryState;
+  reason?: string | null;
   legacy?: boolean;
   /** Set on `completed`: the CHILD run that carries the revised deliverable. */
   runId?: string | null;
@@ -73,6 +74,7 @@ interface RecoveryPayload {
     exitClassification?: string | null;
     consequentialWorkStarted?: boolean;
     terminalOutcome?: string | null;
+    ackDeadline?: string | null;
   } | null;
 }
 
@@ -89,6 +91,11 @@ const HEADLINE: Record<RecoveryState, string> = {
   settling: 'Revised delivery is not yet verified',
   not_review_retry: '',
 };
+
+// One read at the proof boundary, then three bounded retries for a delayed
+// expiry sweep or transient transport failure. Manual refresh remains available
+// after this budget; an open Review tab must never poll forever.
+const LAUNCH_WINDOW_REFRESH_RETRIES_MS = [1_000, 3_000, 10_000] as const;
 
 export default function ReviewContinuationRecovery({
   requestId,
@@ -166,6 +173,39 @@ export default function ReviewContinuationRecovery({
 
   useEffect(() => { load(); }, [load]);
 
+  // A claimed request can fail locally before an executor exists while its
+  // bounded process-start lease is still open. The server correctly withholds
+  // retry until that deadline; refresh automatically when the proof boundary
+  // arrives so the user never has to guess when the same button will work.
+  const ackDeadline = detail?.attempt?.ackDeadline || null;
+  useEffect(() => {
+    if (state !== 'running' || !ackDeadline) return undefined;
+    const deadlineMs = Date.parse(ackDeadline);
+    if (!Number.isFinite(deadlineMs)) return undefined;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let retry = 0;
+    const schedule = (delay: number) => {
+      timer = setTimeout(async () => {
+        await load();
+        // A transient read failure or a delayed server sweep must not strand
+        // the card. Retry with a finite backoff; React's effect cleanup flips
+        // this before rescheduling once the response leaves the window state.
+        const nextDelay = LAUNCH_WINDOW_REFRESH_RETRIES_MS[retry];
+        retry += 1;
+        if (!stopped && nextDelay != null) schedule(nextDelay);
+      }, delay);
+    };
+    // Do not cap this to an earlier time: a future deadline is proof that retry
+    // is unsafe until that exact boundary. Node/browser timers support roughly
+    // 24 days, far beyond the server's bounded process-start lease.
+    schedule(Math.max(250, Math.min(2_147_000_000, deadlineMs - Date.now() + 250)));
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [state, ackDeadline, load]);
+
   async function retry() {
     if (busy) return;
     setBusy(true);
@@ -197,6 +237,9 @@ export default function ReviewContinuationRecovery({
 
   const resolved: RecoveryState | null = queued ? 'queued' : state;
   if (!resolved || resolved === 'not_review_retry') return null;
+  const launchWindowOpen = resolved === 'running'
+    && detail?.reason === 'review_continuation_launch_window_open';
+  const headline = launchWindowOpen ? 'Confirming the previous revision' : HEADLINE[resolved];
 
   const executorLabel = EXECUTOR_LABEL[detail?.attempt?.executor || ''] || 'ChatGPT / Codex';
   const tone = resolved === 'queued' || resolved === 'completed'
@@ -207,7 +250,7 @@ export default function ReviewContinuationRecovery({
 
   return (
     <div className={`mt-3 rounded-lg border p-4 ${tone}`} data-recovery-state={resolved}>
-      <div className="text-sm font-semibold text-ink-100">{HEADLINE[resolved]}</div>
+      <div className="text-sm font-semibold text-ink-100">{headline}</div>
       {['running', 'queued', 'retryable', 'settling'].includes(resolved) && (
         <button type="button" onClick={() => void load()} disabled={busy}
           className="btn-outline mt-2 text-xs px-3 py-1.5">Refresh attempt details</button>
@@ -237,8 +280,9 @@ export default function ReviewContinuationRecovery({
 
       {resolved === 'running' && (
         <p className="mt-1 text-xs leading-relaxed text-ink-400">
-          A revision process is working on this feedback right now. Nothing new was queued.
-          Refresh attempt details to check for its result or latest message.
+          {launchWindowOpen
+            ? 'Implexa is confirming whether the previous revision started. Nothing new was queued. Retry will become available automatically when this safety window closes.'
+            : 'A revision process is working on this feedback right now. Nothing new was queued. Refresh attempt details to check for its result or latest message.'}
         </p>
       )}
 

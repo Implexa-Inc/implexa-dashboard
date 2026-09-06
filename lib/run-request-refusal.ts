@@ -50,6 +50,11 @@ export interface RunRequestRefusal {
 }
 
 const COPY: Record<string, { kind: RefusalKind; message: string; action: RefusalAction }> = {
+  review_continuation_launch_window_open: {
+    kind: 'still_running',
+    message: 'Implexa is still confirming whether the previous revision started. Nothing was queued; retry will unlock automatically when the safety window closes.',
+    action: { type: 'wait' },
+  },
   review_continuation_still_running: {
     kind: 'still_running',
     message: 'The previous revision is still running. Nothing was queued — wait for it to finish.',

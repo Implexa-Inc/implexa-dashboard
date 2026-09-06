@@ -11,6 +11,7 @@ const refusal = (reason: string, extra: Record<string, unknown> = {}) =>
 
 test('Review Room retry refusals retain their distinct recovery meaning', () => {
   const cases = [
+    ['review_continuation_launch_window_open', 'still confirming'],
     ['review_continuation_still_running', 'still running'],
     ['review_continuation_live_state_unknown', 'can’t yet verify|cannot yet verify'],
     ['review_continuation_not_terminal', 'has not finished yet'],
@@ -36,6 +37,14 @@ test('"still running" and "unable to verify" are DIFFERENT states, not two spell
   assert.deepEqual(unknown.action, { type: 'restart_executor_then_retry', executorLabel: 'ChatGPT / Codex' });
   assert.equal(running.recoverable, false, 'a live attempt must offer no retry button at all');
   assert.equal(unknown.recoverable, true, 'and an unverifiable one must offer the action that produces the proof');
+});
+
+test('an open process-start lease is wait-only and cannot expose another POST', () => {
+  const waiting = classifyRunRequestRefusal(refusal('review_continuation_launch_window_open', { requestId: REQUEST }))!;
+  assert.equal(waiting.kind, 'still_running');
+  assert.deepEqual(waiting.action, { type: 'wait' });
+  assert.equal(waiting.recoverable, false);
+  assert.match(waiting.message, /automatically/);
 });
 
 test('the state_unknown copy names the action, not just the fact', () => {
