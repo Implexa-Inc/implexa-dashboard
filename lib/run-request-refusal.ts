@@ -98,6 +98,16 @@ const COPY: Record<string, { kind: RefusalKind; message: string; action: Refusal
     message: 'Review Room retry is temporarily unavailable while the service updates. Try again shortly.',
     action: { type: 'none' },
   },
+  review_retry_service_unavailable: {
+    kind: 'transient',
+    message: 'Review Room could not queue this revision because the recovery service is temporarily unavailable. Nothing was started — try again shortly.',
+    action: { type: 'none' },
+  },
+  review_continuation_parent_run_mismatch: {
+    kind: 'terminal',
+    message: 'This revision no longer matches its frozen parent run, so nothing was started. Open a new draft from Review Room.',
+    action: { type: 'start_new_work' },
+  },
   review_continuation_context_changed: {
     kind: 'transient',
     message: 'Something else changed this revision while Implexa was queueing it. Nothing was queued — try again.',

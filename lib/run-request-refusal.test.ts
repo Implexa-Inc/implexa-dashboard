@@ -18,6 +18,8 @@ test('Review Room retry refusals retain their distinct recovery meaning', () => 
     ['review_continuation_cancelled', 'cancelled'],
     ['review_submission_already_reported', 'already finished'],
     ['review_retry_schema_unavailable', 'temporarily unavailable'],
+    ['review_retry_service_unavailable', 'recovery service is temporarily unavailable'],
+    ['review_continuation_parent_run_mismatch', 'frozen parent run'],
   ];
   for (const [reason, phrase] of cases) {
     assert.match(runRequestRefusalCopy(refusal(reason), 'fallback'), new RegExp(phrase, 'i'));
@@ -55,12 +57,22 @@ test('the state_unknown copy names the action, not just the fact', () => {
 });
 
 test('a terminal revision offers new work, never a retry', () => {
-  for (const reason of ['review_continuation_cancelled', 'review_submission_already_reported', 'review_submission_not_retryable']) {
+  for (const reason of ['review_continuation_cancelled', 'review_submission_already_reported',
+    'review_submission_not_retryable', 'review_continuation_parent_run_mismatch']) {
     const classified = classifyRunRequestRefusal(refusal(reason, { requestId: REQUEST }))!;
     assert.equal(classified.kind, 'terminal');
     assert.deepEqual(classified.action, { type: 'start_new_work' });
     assert.equal(classified.recoverable, false);
   }
+});
+
+test('a recovery service failure is transient and never masquerades as a custody conflict', () => {
+  const classified = classifyRunRequestRefusal(refusal('review_retry_service_unavailable', { requestId: REQUEST }))!;
+  assert.equal(classified.kind, 'transient');
+  assert.deepEqual(classified.action, { type: 'none' });
+  assert.equal(classified.recoverable, false);
+  assert.match(classified.message, /nothing was started/i);
+  assert.match(classified.message, /try again shortly/i);
 });
 
 test('recovery is offered ONLY when the backend named the request', () => {
