@@ -22,7 +22,7 @@
  * /runs/:id/review{approved|dismissed}; changes = run-requests{kind:continue,note}.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
@@ -107,6 +107,7 @@ export default function RunActions({
   );
   const [localRecoveryLabel, setLocalRecoveryLabel] = useState('original local file');
   const [verificationPercent, setVerificationPercent] = useState<number | null>(null);
+  const localRecoveryGeneration = useRef(0);
   const { files, canAttach, canAttachFolder, attachFile, attachFolder, removeFile, error: attachError } = useRunAttachments();
 
   useEffect(() => {
@@ -114,14 +115,30 @@ export default function RunActions({
     let live = true;
     const bridge = localInputBridge();
     if (!bridge?.localInputReauthorizationState) { setLocalRecovery('unavailable'); return; }
-    bridge.localInputReauthorizationState(runId).then((result) => {
-      if (!live) return;
-      if (result.ok && result.applicable && result.required) {
-        setLocalRecoveryLabel(result.label || 'original local file'); setLocalRecovery('required');
-      } else if (result.ok && result.applicable) setLocalRecovery('ready');
-      else setLocalRecovery('unavailable');
-    }).catch(() => { if (live) setLocalRecovery('unavailable'); });
-    return () => { live = false; };
+    const refreshLocalRecovery = () => {
+      if (!live || document.visibilityState === 'hidden') return;
+      const observedGeneration = ++localRecoveryGeneration.current;
+      bridge.localInputReauthorizationState!(runId).then((result) => {
+        if (!live || observedGeneration !== localRecoveryGeneration.current) return;
+        if (result.ok && result.applicable && result.required) {
+          setLocalRecoveryLabel(result.label || 'original local file'); setLocalRecovery('required');
+        } else if (result.ok && result.applicable) {
+          setLocalRecovery((current) => current === 'verified' ? 'verified' : 'ready');
+        }
+        else setLocalRecovery('unavailable');
+      }).catch(() => {
+        if (live && observedGeneration === localRecoveryGeneration.current) setLocalRecovery('unavailable');
+      });
+    };
+    refreshLocalRecovery();
+    window.addEventListener('focus', refreshLocalRecovery);
+    document.addEventListener('visibilitychange', refreshLocalRecovery);
+    return () => {
+      live = false;
+      localRecoveryGeneration.current += 1;
+      window.removeEventListener('focus', refreshLocalRecovery);
+      document.removeEventListener('visibilitychange', refreshLocalRecovery);
+    };
   }, [needsInput, runId, reviewAmendment]);
 
   async function jwt() {
@@ -202,6 +219,7 @@ export default function RunActions({
     const bridge = localInputBridge();
     if (!bridge?.reauthorizeRunInputs) return;
     setBusy('reconnect'); setErr(null); setRefusal(null); setVerificationPercent(null);
+    localRecoveryGeneration.current += 1;
     const unsubscribe = bridge.onRunInputProgress?.((progress) => {
       const read = Number(progress.bytesRead || 0); const total = Number(progress.totalBytes || 0);
       if (total > 0) setVerificationPercent(Math.min(100, Math.floor((read / total) * 100)));
@@ -219,6 +237,7 @@ export default function RunActions({
         }
         // A transient queue refusal must not make an 8GB source hash again.
         // The exact authority now lives in Desktop memory until app exit.
+        localRecoveryGeneration.current += 1;
         setLocalRecovery('verified');
       }
       await callBackend('/api/v2/me/run-requests', {
