@@ -141,19 +141,36 @@ export default function ReviewRoom(props: Props) {
   const { runId, artifacts, production, sources, isApprovalHold } = props;
   const historicalProvenanceUnavailable = sources.historical_candidates === 'unavailable'
     || sources.carry_membership === 'unavailable';
+  const supportingArtifactIds = useMemo(() => new Set(
+    props.reviewArtifacts.filter((entry) => entry.purpose === 'supporting')
+      .map((entry) => entry.artifactId),
+  ), [props.reviewArtifacts]);
+  const historicalCandidateArtifactIds = useMemo(() => new Set(
+    (props.historicalCandidates ?? []).map((candidate) => candidate.artifactId),
+  ), [props.historicalCandidates]);
+  const historicalSelectionRestricted = historicalProvenanceUnavailable || historicalCandidateArtifactIds.size > 0;
 
-  const allArtifacts = useMemo(() => reviewableArtifacts(artifacts, production), [artifacts, production]);
+  const allArtifacts = useMemo(
+    () => reviewableArtifacts(
+      artifacts, production, supportingArtifactIds, historicalCandidateArtifactIds, historicalSelectionRestricted,
+    ),
+    [artifacts, production, supportingArtifactIds, historicalCandidateArtifactIds, historicalSelectionRestricted],
+  );
   const validated = useMemo(() => allArtifacts.filter((a) => a.status === 'validated'), [allArtifacts]);
   const preferredArtifactId = useMemo(
-    () => preferredReviewArtifact(artifacts, production)?.id ?? null,
-    [artifacts, production],
+    () => preferredReviewArtifact(
+      artifacts, production, supportingArtifactIds, historicalCandidateArtifactIds, historicalSelectionRestricted,
+    )?.id ?? null,
+    [artifacts, production, supportingArtifactIds, historicalCandidateArtifactIds, historicalSelectionRestricted],
   );
   const currentVersion = useMemo(() => versionForRun(runId, props.versions ?? []), [runId, props.versions]);
   const latestFinalOutput = useMemo(() => latestValidatedFinalOutput(artifacts), [artifacts]);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     return resolveInitialArtifact(
       props.initialArtifactId ?? null,
-      reviewableArtifacts(artifacts, production),
+      reviewableArtifacts(
+        artifacts, production, supportingArtifactIds, historicalCandidateArtifactIds, historicalSelectionRestricted,
+      ),
       preferredArtifactId,
     );
   });
