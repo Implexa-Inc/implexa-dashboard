@@ -4,13 +4,21 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 const root=path.resolve(import.meta.dirname,'..');
 const parser='lib/historical-review-candidate.ts', room='app/(dashboard)/_components/review-room.tsx';
+const notice='app/(dashboard)/_components/historical-review-candidate-notice.tsx';
 const mutants=[
   ['proof-promoted',parser,"c.managerProof !== false","false"],
-  ['zero-deferred',parser,"c.deferredCount < 1","c.deferredCount < 0"],
+  ['partial-zero-deferred',parser,"Number(record.deferredCount) < 1","Number(record.deferredCount) < 0"],
   ['anchors-transferred',parser,"c.issueAnchorTransfer !== 'not_transferred'","false"],
   ['wrong-artifact',parser,"a.id === c.artifactId && ",""],
   ['unvalidated-candidate',parser,"a.status === 'validated'","true"],
-  ['old-feedback-carry',room,"? allIssues.filter((issue) => issue.sessionId === session?.id && issue.artifactId === selectedId)","? allIssues"],
+  ['unverified-extra-fields',parser,"!exactKeys(record, UNVERIFIED_KEYS)","false"],
+  ['unverified-nonzero-resolution',parser,"record.implementedCount !== 0 || record.deferredCount !== 0","false"],
+  ['unverified-zero-unresolved',parser,"Number(record.unresolvedCount) < 1","Number(record.unresolvedCount) < 0"],
+  ['unverified-too-many-unresolved',parser,"Number(record.unresolvedCount) > 100","Number(record.unresolvedCount) > 101"],
+  ['unverified-scope-dispatch',parser,"} else if (record.scope === 'historical_unverified_candidate') {","} else if (record.scope === 'historical_partial_candidate') {"],
+  ['technical-only-resolution-copy',notice,'No correction is reported implemented or deferred.','All corrections are reported implemented.'],
+  ['technical-only-proof-copy',notice,'Technical QA does not establish editorial completion, a Judge verdict, or Manager proof.','Technical QA establishes editorial completion, a Judge verdict, and Manager proof.'],
+  ['old-feedback-carry',room,"allIssues.filter((issue) => issue.artifactId === selectedId","allIssues.filter((issue) => issue.artifactId === issue.artifactId"],
   ['wrong-selected-notice',room,"props.historicalCandidates?.find((candidate) => candidate.artifactId === selectedId)","props.historicalCandidates?.[0]"],
   ['old-session-fast-path',room,"if (session?.id && session.selectedArtifactId !== artifactId", "if (false && session?.id && session.selectedArtifactId !== artifactId"],
 ];

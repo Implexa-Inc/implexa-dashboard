@@ -341,6 +341,25 @@ test('historical candidate renders truthful partial notice and excludes old anch
   } finally { root.unmount(); }
 });
 
+test('technical-only historical deep link reports unknown outcomes without inventing implementation', async () => {
+  const artifact = { ...fixtureArtifacts[0], role: 'other' };
+  const candidate = { scope: 'historical_unverified_candidate', recoveryId: '11111111-1111-4111-8111-111111111111', artifactId: artifact.id,
+    implementedCount: 0, deferredCount: 0, unresolvedCount: 5, technicalQaStatus: 'pass', managerProof: false, issueAnchorTransfer: 'not_transferred' };
+  await mount({ artifacts: [artifact, fixtureArtifacts[1]], initialArtifactId: artifact.id,
+    historicalCandidates: [candidate], issues: [] });
+  try {
+    assert.match(text(), /Historical technical-only candidate/);
+    assert.match(text(), /outcomes of 5 corrections are unknown/);
+    assert.match(text(), /No correction is reported implemented or deferred/);
+    assert.match(text(), /does not establish editorial completion, a Judge verdict, or Manager proof/);
+    assert.doesNotMatch(text(), /corrections? reported implemented/);
+    assert.doesNotMatch(text(), /0 deferred/);
+    assert.match(text(), new RegExp(artifact.relativePath));
+    assert.equal(calls.length, 0, 'opening the exact deep link cannot submit feedback');
+    assert.equal(backendCalls.length, 0, 'opening the exact deep link cannot invoke recovery');
+  } finally { root.unmount(); }
+});
+
 test('historical notice is bound to selected artifact and not another file', async () => {
   await mount({ initialArtifactId: fixtureArtifacts[0].id, historicalCandidates: [{ scope: 'historical_partial_candidate',
     recoveryId: '11111111-1111-4111-8111-111111111111', artifactId: fixtureArtifacts[1].id,
