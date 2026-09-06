@@ -235,8 +235,8 @@ const mutations = [
     '  const submittedCount = typeof n === \'number\' && Number.isInteger(n) && n >= 0 ? n : null;',
     '  const submittedCount = typeof n === \'number\' ? n : null;'],
   ['snapshot-honesty', 'issues stay editable while the server is snapshotting them', COMPONENT,
-    '  const frozen = proxyPreview || submissionInFlight\n    || (!acts.canEditIssues',
-    '  const frozen = proxyPreview\n    || (!acts.canEditIssues'],
+    '  const frozen = proxyPreview || submissionInFlight || historicalProvenanceUnavailable\n    || (!acts.canEditIssues',
+    '  const frozen = proxyPreview || historicalProvenanceUnavailable\n    || (!acts.canEditIssues'],
 
   // ── one decisive click ────────────────────────────────────────────────────
   ['one-click', 'the first click transmits nothing and re-offers the same promise', FLOW,

@@ -142,7 +142,7 @@ export default function ReviewRoom(props: Props) {
   const historicalProvenanceUnavailable = sources.historical_candidates === 'unavailable'
     || sources.carry_membership === 'unavailable';
   const supportingArtifactIds = useMemo(() => new Set(
-    props.reviewArtifacts.filter((entry) => entry.purpose === 'supporting')
+    (props.reviewArtifacts ?? []).filter((entry) => entry.purpose === 'supporting')
       .map((entry) => entry.artifactId),
   ), [props.reviewArtifacts]);
   const historicalCandidateArtifactIds = useMemo(() => new Set(

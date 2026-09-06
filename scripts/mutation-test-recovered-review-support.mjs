@@ -5,7 +5,12 @@ import { join } from 'node:path';
 import { materializeTree, runSuites } from './mutation-harness-support.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
-const files = ['lib/review.ts', 'lib/review.test.ts', 'lib/run-competence-proof.ts'];
+const files = [
+  'lib/review.ts',
+  'lib/review.test.ts',
+  'lib/run-competence-proof.ts',
+  'lib/historical-review-candidate.ts',
+];
 const source = readFileSync(join(root, 'lib/review.ts'), 'utf8');
 const variants = [
   ['source role rejected', "artifact?.role === 'source'", "artifact?.role === 'obsolete_source'"],
