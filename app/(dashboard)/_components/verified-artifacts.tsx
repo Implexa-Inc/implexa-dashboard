@@ -7,7 +7,7 @@
  * a relative path from prose just to reach a delivered file.
  */
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 export type VerifiedArtifact = {
@@ -56,6 +56,7 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
   const [message, setMessage] = useState<string | null>(null);
   const [sourceReconnect, setSourceReconnect] = useState<{ required: boolean; label?: string } | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
+  const sourceAuthorityGeneration = useRef(0);
   const flash = (text: string) => {
     setMessage(text);
     window.setTimeout(() => setMessage(null), 2200);
@@ -66,23 +67,38 @@ export default function VerifiedArtifacts({ artifacts, runId }: { artifacts: Ver
     const state = bridge()?.localInputReauthorizationState;
     if (!runId || typeof state !== 'function') return;
     let active = true;
-    void state(runId).then((result) => {
-      if (!active || !result?.ok || result.applicable === false) return;
-      setSourceReconnect({ required: result.required === true, label: result.label });
-    }).catch(() => { /* The files card remains useful when the native check is unavailable. */ });
-    return () => { active = false; };
+    const refreshSourceAuthority = () => {
+      if (!active || document.visibilityState === 'hidden') return;
+      const observedGeneration = ++sourceAuthorityGeneration.current;
+      void state(runId).then((result) => {
+        if (!active || observedGeneration !== sourceAuthorityGeneration.current
+            || !result?.ok || result.applicable === false) return;
+        setSourceReconnect({ required: result.required === true, label: result.label });
+      }).catch(() => { /* The files card remains useful when the native check is unavailable. */ });
+    };
+    refreshSourceAuthority();
+    window.addEventListener('focus', refreshSourceAuthority);
+    document.addEventListener('visibilitychange', refreshSourceAuthority);
+    return () => {
+      active = false;
+      sourceAuthorityGeneration.current += 1;
+      window.removeEventListener('focus', refreshSourceAuthority);
+      document.removeEventListener('visibilitychange', refreshSourceAuthority);
+    };
   }, [runId]);
 
   const reconnectSource = useCallback(async () => {
     const reconnect = bridge()?.reauthorizeRunInputs;
     if (!runId || typeof reconnect !== 'function') return;
     setReconnecting(true);
+    sourceAuthorityGeneration.current += 1;
     setMessage('Select the original file. Implexa will verify every byte before restoring access.');
     try {
       const result = await reconnect(runId);
       if (result?.ok) {
+        sourceAuthorityGeneration.current += 1;
         setSourceReconnect({ required: false });
-        flash('Original source verified — queued work can continue');
+        flash('Original source connected for this Desktop session — queued work can continue');
         refresh(() => router.refresh());
       } else if (!result?.canceled) {
         flash(result?.error === 'input_digest_mismatch'

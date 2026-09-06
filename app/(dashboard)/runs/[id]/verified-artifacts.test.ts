@@ -36,6 +36,12 @@ test('a restarted Desktop exposes the explicit private-source reauthorization ga
     'the user should understand that reconnecting does not upload their source');
   assert.match(component, /input_digest_mismatch/,
     'a wrong selection must be explained as an identity mismatch, not silently accepted');
+  assert.match(component, /window\.addEventListener\('focus', refreshSourceAuthority\)/,
+    'returning to a persisted page must recheck process-local authority after Desktop restarts');
+  assert.match(component, /document\.addEventListener\('visibilitychange', refreshSourceAuthority\)/,
+    'a restored tab must not keep displaying a stale connected state');
+  assert.match(component, /connected for this Desktop session/,
+    'the success copy must not imply that source authority survives a Desktop restart');
 });
 
 test('verified file actions use the validator-produced absolute path, while hiding it from the visible label', () => {
