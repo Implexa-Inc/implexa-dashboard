@@ -1013,9 +1013,9 @@ export default async function RunDetailPage({
             <div className="mt-3">
               <GrantPermissionsButton />
             </div>
-            <p className="mt-2 text-xs text-amber-700/80 dark:text-amber-300/70">
-              Click → Implexa opens Claude with a pre-filled prompt → press Enter → Claude asks for permissions →
-              choose &quot;Always Allow&quot; (preferred). Or just re-run it attended from the agent page.
+            <p className="mt-2 text-xs text-ink-500">
+              (Implexa opens Claude with a pre-filled prompt → press Enter → Claude asks for permissions → choose
+              &quot;Always Allow&quot; (preferred). Or just re-run it attended from the agent page.)
             </p>
           </div>
         )}
