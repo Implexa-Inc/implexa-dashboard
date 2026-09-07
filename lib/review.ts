@@ -3,6 +3,10 @@ import {
   COMPETENCE_PROOF_UNAVAILABLE,
   type StageCompetenceProof,
 } from './run-competence-proof.ts';
+import {
+  MANAGER_PROOF_UNAVAILABLE,
+  type StageManagerProof,
+} from './run-manager-proof.ts';
 
 /**
  * lib/review.ts — the client for the Review Room API (backend §5.9).
@@ -169,6 +173,7 @@ export type ReviewPacket = {
   judgment: { id: string; verdict: string; summary: string; nextAction: string | null; createdAt: string | null } | null;
   verification: { receipts: Array<{ id: string; adapterKind: string; status: string; createdAt: string }> };
   competenceProof: StageCompetenceProof;
+  managerProof: StageManagerProof;
   production: ReviewProduction;
   session: ReviewSession;
   reviewArtifacts: ReviewSessionArtifact[];
@@ -180,6 +185,7 @@ export type ReviewPacket = {
 const PACKET_UNAVAILABLE: ReviewPacket = {
   ok: false, run: null, lineage: { rootRunId: null, versions: [] }, artifacts: [],
   judgment: null, verification: { receipts: [] }, competenceProof: COMPETENCE_PROOF_UNAVAILABLE,
+  managerProof: MANAGER_PROOF_UNAVAILABLE,
   production: null, session: null, issues: [],
   reviewArtifacts: [],
   historicalCandidates: [],
@@ -460,6 +466,78 @@ export function parseStageCompetenceProof(raw: unknown): StageCompetenceProof | 
   return raw as unknown as StageCompetenceProof;
 }
 
+const MANAGER_STAGES = new Set([
+  'admission', 'planning', 'scene_contract', 'asset_selection', 'build',
+  'preview', 'render', 'qa', 'revision',
+]);
+const MANAGER_PROOF_STATUSES = new Set(['ready', 'none', 'unavailable']);
+const MANAGER_VERIFICATION_STATUSES = new Set(['passed', 'failed', 'incomplete', 'not_required', 'unavailable']);
+const MANAGER_STAGE_VERIFICATION_STATUSES = new Set(['passed', 'failed', 'not_recorded', 'not_required', 'unavailable']);
+
+function isCount(value: unknown, maximum = Number.MAX_SAFE_INTEGER): value is number {
+  return Number.isInteger(value) && Number(value) >= 0 && Number(value) <= maximum;
+}
+
+/** Parse the aggregate-only Manager contract without exposing private decision material. */
+export function parseStageManagerProof(raw: unknown): StageManagerProof | null {
+  if (!isObject(raw) || !MANAGER_PROOF_STATUSES.has(String(raw.status))) return null;
+  const rootKeys = new Set(['status', 'unavailableReason', 'stageCount', 'stages',
+    'handlingStatus', 'verificationStatus', 'disclosure']);
+  if (Object.keys(raw).some((key) => !rootKeys.has(key))) return null;
+  if (!isCount(raw.stageCount, MANAGER_STAGES.size) || !Array.isArray(raw.stages)) return null;
+  if (!MANAGER_VERIFICATION_STATUSES.has(String(raw.verificationStatus))) return null;
+
+  if (raw.status === 'unavailable') {
+    if (raw.stageCount !== 0 || raw.stages.length !== 0 || raw.verificationStatus !== 'unavailable') return null;
+    if (typeof raw.unavailableReason !== 'string' || !raw.unavailableReason.trim()) return null;
+    return raw as unknown as StageManagerProof;
+  }
+  if (raw.status === 'none') {
+    if (raw.stageCount !== 0 || raw.stages.length !== 0 || raw.verificationStatus !== 'not_required') return null;
+    return raw as unknown as StageManagerProof;
+  }
+
+  if (raw.disclosure !== 'aggregate_stage_proof_only') return null;
+  if (!['ready', 'incomplete'].includes(String(raw.handlingStatus))) return null;
+  if (raw.stageCount !== raw.stages.length || raw.stages.length === 0) return null;
+
+  const stageNames = new Set<string>();
+  for (const stage of raw.stages) {
+    if (!isObject(stage) || !MANAGER_STAGES.has(String(stage.stage)) || stageNames.has(String(stage.stage))) return null;
+    const stageKeys = new Set(['stage', 'decisionCount', 'handlingStatus', 'appliedCount',
+      'exceptionCount', 'unavailableCount', 'refusedCount', 'causationClaim',
+      'verificationStatus', 'requiredCriterionCount', 'verifiedCriterionCount']);
+    if (Object.keys(stage).some((key) => !stageKeys.has(key))) return null;
+    stageNames.add(String(stage.stage));
+    if (!isCount(stage.decisionCount, 8) || !isCount(stage.appliedCount, 8)
+        || !isCount(stage.exceptionCount, 8) || !isCount(stage.unavailableCount, 8)
+        || !isCount(stage.refusedCount, 8)) return null;
+    if (!['reported', 'not_recorded'].includes(String(stage.handlingStatus))) return null;
+    const handled = Number(stage.appliedCount) + Number(stage.exceptionCount)
+      + Number(stage.unavailableCount) + Number(stage.refusedCount);
+    if (stage.handlingStatus === 'reported') {
+      if (stage.causationClaim !== 'not_claimed' || handled !== stage.decisionCount) return null;
+    } else if (handled !== 0 || stage.causationClaim !== undefined) return null;
+    if (!MANAGER_STAGE_VERIFICATION_STATUSES.has(String(stage.verificationStatus))) return null;
+    if (!isCount(stage.requiredCriterionCount) || !isCount(stage.verifiedCriterionCount)
+        || Number(stage.verifiedCriterionCount) > Number(stage.requiredCriterionCount)) return null;
+    if (stage.verificationStatus === 'passed'
+        && (stage.requiredCriterionCount < 1 || stage.verifiedCriterionCount !== stage.requiredCriterionCount)) return null;
+    if (['not_required', 'not_recorded', 'unavailable'].includes(String(stage.verificationStatus))
+        && (stage.requiredCriterionCount !== 0 || stage.verifiedCriterionCount !== 0)) return null;
+  }
+
+  const expectedHandling = raw.stages.every((stage) => stage.handlingStatus === 'reported') ? 'ready' : 'incomplete';
+  if (raw.handlingStatus !== expectedHandling) return null;
+  const required = raw.stages.filter((stage) => stage.verificationStatus !== 'not_required');
+  const expectedVerification = required.length === 0 ? 'not_required'
+    : required.some((stage) => stage.verificationStatus === 'unavailable') ? 'unavailable'
+      : required.some((stage) => stage.verificationStatus === 'failed') ? 'failed'
+        : required.every((stage) => stage.verificationStatus === 'passed') ? 'passed' : 'incomplete';
+  if (raw.verificationStatus !== expectedVerification) return null;
+  return raw as unknown as StageManagerProof;
+}
+
 /**
  * Parse a queue response. Returns null when the payload is not the shape we contracted
  * for, so the caller can return QUEUE_UNAVAILABLE rather than a live-looking empty.
@@ -592,6 +670,19 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
     if ((sources.competence_handling === 'unavailable') !== (competenceProof.handlingStatus === 'unavailable')) return null;
   }
 
+  // Manager proof is additive during rollout, but once present it is strict and
+  // source-correlated. A malformed or unreadable proof must never become a calm
+  // "not required" state or silently disappear behind the older Judge card.
+  const managerProof = body.managerProof === undefined
+    ? MANAGER_PROOF_UNAVAILABLE
+    : parseStageManagerProof(body.managerProof);
+  if (!managerProof) return null;
+  if (body.managerProof !== undefined) {
+    if (!('manager_context' in sources) || !('manager_handling' in sources)) return null;
+    if ((sources.manager_context === 'unavailable') !== (managerProof.status === 'unavailable')) return null;
+    if (sources.manager_handling === 'unavailable') return null;
+  }
+
   // judgment is legitimately null; when present every field the UI renders must be there.
   if (!(body.judgment === null || isValidJudgment(body.judgment))) return null;
   if (!(body.production === null || isValidProduction(body.production))) return null;
@@ -605,6 +696,7 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
     judgment: body.judgment as ReviewPacket['judgment'],
     verification: body.verification as ReviewPacket['verification'],
     competenceProof,
+    managerProof,
     production: body.production as ReviewProduction,
     session: body.session as ReviewSession,
     reviewArtifacts: body.reviewArtifacts as ReviewSessionArtifact[],
