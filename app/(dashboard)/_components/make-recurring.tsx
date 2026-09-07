@@ -21,6 +21,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { ensureScheduleReadinessAfterSave } from '@/lib/schedule-readiness';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -68,6 +69,7 @@ export default function MakeRecurring({ slug, agentName }: { slug: string; agent
         method: 'POST',
         body: { trigger: 'cron', scheduleNl: nl, timezone },
       });
+      void ensureScheduleReadinessAfterSave();
       setSavedNl(nl);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not set the schedule. Try again.');
