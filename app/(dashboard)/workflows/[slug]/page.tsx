@@ -607,6 +607,7 @@ export default async function WorkflowDetailPage({
             revisePending={revisePending}
             statusUnavailable={actionsBlocked}
             workflowVersionId={workflow.workflow_version_id}
+            activeVersionNumber={workflow.version}
             inputContract={workflow.input_contract}
             inputContractDigest={workflow.input_contract_digest}
             pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
@@ -730,6 +731,20 @@ export default async function WorkflowDetailPage({
                   update={{ ...workflow.update_available, input_contract_digest: workflow.update_available.input_contract_digest }}
                 />
               )}
+              {/*
+                §3.1 — the active version, stated, beside the run action.
+                A compatible edit now lands on its own, so the ONLY signal the
+                owner got that their edit took effect was an update card
+                disappearing. Absence of a card is not a receipt: it looks
+                identical to an edit that never registered. Say which version is
+                live, permanently, so "did my change land?" has an answer that
+                does not depend on having watched the previous screen.
+              */}
+              {typeof workflow.version === 'number' && (
+                <p className="text-[11px] text-ink-500" data-testid="active-version">
+                  Active version: v{workflow.version}
+                </p>
+              )}
               <AgentActions
                 slug={workflow.slug}
                 name={workflow.name}
@@ -744,6 +759,7 @@ export default async function WorkflowDetailPage({
                 revisePending={revisePending}
                 statusUnavailable={actionsBlocked}
                 workflowVersionId={workflow.workflow_version_id}
+                activeVersionNumber={workflow.version}
                 inputContract={workflow.input_contract}
                 inputContractDigest={workflow.input_contract_digest}
                 pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}

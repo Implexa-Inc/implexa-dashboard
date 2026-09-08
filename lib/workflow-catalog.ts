@@ -22,6 +22,41 @@
 // report), this file is the single place to change the data source.
 
 import type { WorkflowInputContract } from './workflow-input-contract';
+import type { AgentAuthorityDelta } from './agent-authority-delta';
+
+/**
+ * The authority delta arrives from the backend as opaque per-axis arrays plus a
+ * numeric spend map. Normalizing it keeps a malformed payload from reaching the
+ * approval screen, where a half-rendered diff would be worse than none: the owner
+ * would approve against a list that silently omitted whatever failed to parse.
+ * Anything not shaped as expected drops the whole delta, and the gate then says
+ * only that permissions changed — true, and not misleading.
+ */
+function normalizeAuthorityDelta(value: unknown): AgentAuthorityDelta {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  const axis = (raw: unknown): Record<string, string[] | Record<string, { from: number; to: number }>> | null => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const out: Record<string, string[] | Record<string, { from: number; to: number }>> = {};
+    for (const [key, members] of Object.entries(raw as Record<string, unknown>)) {
+      if (Array.isArray(members)) {
+        out[key] = members.filter((m): m is string => typeof m === 'string');
+      } else if (key === 'spend' && members && typeof members === 'object') {
+        const spend: Record<string, { from: number; to: number }> = {};
+        for (const [provider, change] of Object.entries(members as Record<string, unknown>)) {
+          const c = change as { from?: unknown; to?: unknown };
+          if (typeof c?.from === 'number' && typeof c?.to === 'number') spend[provider] = { from: c.from, to: c.to };
+        }
+        out[key] = spend;
+      }
+    }
+    return Object.keys(out).length ? out : null;
+  };
+  const added = axis(source.added);
+  const removed = axis(source.removed);
+  if (!added && !removed) return null;
+  return { added, removed };
+}
 
 const BACKEND = (
   process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai'
@@ -159,6 +194,10 @@ export type WorkflowDetail = {
     input_contract: WorkflowInputContract | null;
     input_contract_digest: string | null;
     state: string;
+    // The exact authority delta behind a `reactivation_required` update, so the
+    // approval screen can show what the agent GAINS rather than only that
+    // something changed. Absent for updates that change no authority.
+    authority_delta?: AgentAuthorityDelta;
   } | null;
 };
 
@@ -610,6 +649,7 @@ export function mapWorkflowDetail(w: any, slug: string, source: string): Workflo
             ? w.update_available.input_contract : null,
           input_contract_digest: w.update_available.input_contract_digest,
           state: String(w.update_available.state || 'available'),
+          authority_delta: normalizeAuthorityDelta(w.update_available.authority_delta),
         }
       : null,
   };

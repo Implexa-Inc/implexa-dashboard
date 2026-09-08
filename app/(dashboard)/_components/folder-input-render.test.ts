@@ -24,60 +24,44 @@ function update(directorySnapshot = true) {
   };
 }
 
-test('activation renders folder selection only for a declared directory snapshot capability', async () => {
-  const rendered = await render('agent-update-gate.tsx', { workflowId: 'workflow-1', update: update(true) }, {
+// Folder selection lives in the RUN experience now. Activation stopped rendering
+// any picker at all (spec §3.3), so the capability is exercised where a user can
+// actually reach it — see agent-update-gate.test.ts for the assertion that
+// activation offers none.
+function runProps(directorySnapshot = true) {
+  return {
+    slug: 'folder-agent', name: 'Folder agent', isActive: true,
+    workflowVersionId: '33333333-3333-4333-8333-333333333333',
+    inputContractDigest: 'c'.repeat(64), inputContract: update(directorySnapshot).input_contract,
+  };
+}
+
+test('Run now renders folder selection only for a declared directory snapshot capability', async () => {
+  const rendered = await render('agent-actions.tsx', runProps(true), {
+    backend: () => ({ schema: [], answers: {}, note: '', runInputDefaults: {} }),
     bridge: { pickRunInput: async () => ({ ok: false, canceled: true }) },
   });
   try {
-    await rendered.click(rendered.getByText('Review & activate update'));
+    await rendered.click(rendered.getByText('▶ Run now'));
     assert.ok(rendered.queryByText('Choose file'));
     assert.ok(rendered.queryByText('Choose folder'));
   } finally { rendered.cleanup(); }
 
-  const zipOnly = await render('agent-update-gate.tsx', { workflowId: 'workflow-1', update: update(false) }, {
+  const zipOnly = await render('agent-actions.tsx', runProps(false), {
+    backend: () => ({ schema: [], answers: {}, note: '', runInputDefaults: {} }),
     bridge: { pickRunInput: async () => ({ ok: false, canceled: true }) },
   });
   try {
-    await zipOnly.click(zipOnly.getByText('Review & activate update'));
+    await zipOnly.click(zipOnly.getByText('▶ Run now'));
     assert.ok(zipOnly.queryByText('Choose file'));
     assert.equal(zipOnly.queryByText('Choose folder'), null,
       'accepting ZIP files does not imply permission to snapshot a directory');
   } finally { zipOnly.cleanup(); }
 });
 
-test('activation freezes a folder and releases only its explicit predecessor on replacement', async () => {
-  const calls: Array<Record<string, unknown>> = [];
-  const replies = [
-    { ok: true, artifactId: firstArtifact, sha256: digestA, displayName: 'Project.zip', origin: 'directory-snapshot' },
-    { ok: true, artifactId: secondArtifact, sha256: digestB, displayName: 'Project-v2.zip', origin: 'directory-snapshot' },
-  ];
-  const rendered = await render('agent-update-gate.tsx', { workflowId: 'workflow-1', update: update(true) }, {
-    bridge: {
-      pickRunInput: async (options: Record<string, unknown>) => {
-        calls.push(options);
-        return { ...replies[calls.length - 1], inputSessionId: options.inputSessionId };
-      },
-    },
-  });
-  try {
-    await rendered.click(rendered.getByText('Review & activate update'));
-    await rendered.click(rendered.getByText('Choose folder'));
-    assert.match(rendered.text(), /Project\.zip — frozen from a folder, verified, bound to project_bundle/);
-    assert.deepEqual(calls[0].selection, 'directory');
-    assert.deepEqual(calls[0].accept, { extensions: ['.zip'], mediaTypes: ['application/zip'], directorySnapshot: true });
-    assert.equal('replacesArtifactId' in calls[0], false);
-
-    await rendered.click(rendered.getByText('Replace with folder'));
-    assert.match(rendered.text(), /Project-v2\.zip — frozen from a folder, verified, bound to project_bundle/);
-    assert.doesNotMatch(rendered.text(), /Project\.zip —/);
-    assert.equal(calls[1].inputSessionId, calls[0].inputSessionId, 'replacement stays in the same frozen session');
-    assert.equal(calls[1].replacesArtifactId, firstArtifact,
-      'only the binding this control replaces is eligible for store cleanup');
-  } finally { rendered.cleanup(); }
-});
-
 test('a directory response that is not a frozen directory snapshot refuses visibly', async () => {
-  const rendered = await render('agent-update-gate.tsx', { workflowId: 'workflow-1', update: update(true) }, {
+  const rendered = await render('agent-actions.tsx', runProps(true), {
+    backend: () => ({ schema: [], answers: {}, note: '', runInputDefaults: {} }),
     bridge: {
       pickRunInput: async (options: Record<string, unknown>) => ({
         ok: true, artifactId: firstArtifact, sha256: digestA, displayName: 'Project.zip',
@@ -86,7 +70,7 @@ test('a directory response that is not a frozen directory snapshot refuses visib
     },
   });
   try {
-    await rendered.click(rendered.getByText('Review & activate update'));
+    await rendered.click(rendered.getByText('▶ Run now'));
     await rendered.click(rendered.getByText('Choose folder'));
     assert.match(rendered.text(), /cannot attach a folder/i);
     assert.equal(rendered.queryByText('Replace with folder'), null);
