@@ -28,6 +28,7 @@ import ProductionLineageBanner from '../../_components/production-lineage-banner
 import { supersedesFailureNarrative } from '../../_components/production-lineage-narrative';
 import { loadProductionLineage } from '@/lib/outcome-production-load';
 import { RunStateBadge } from '../../_components/run-state-badge';
+import ControlPlaneRetry from '../../_components/control-plane-retry';
 import { RunVerificationBadge, type VerificationStatus } from '../../_components/run-verification-badge';
 import BackLink from '../../_components/back-link';
 import OpenInAppPrompt from '../../_components/open-in-app-prompt';
@@ -749,6 +750,24 @@ export default async function RunDetailPage({
   // null for every failure mode (no such route, network, drift), so a run
   // outside a production, or a deployment without the route, renders exactly
   // as it did before.
+  // "Retry safely — no work started previously" (backend 0335). A request whose
+  // Codex child never attached Implexa's control tools is surfaced as a
+  // Needs-You placeholder run that points back at the request. Defensive own
+  // query: absent column/row ⇒ no control. The backend decides eligibility; the
+  // page only finds the request this run was surfaced for.
+  let controlPlaneRetryRequestId: string | null = null;
+  try {
+    const { data: surfaced } = await supabase
+      .from('run_requests')
+      .select('id, status, lifecycle_state')
+      .eq('run_id', r.id)
+      .eq('status', 'done')
+      .eq('lifecycle_state', 'failed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (surfaced?.id) controlPlaneRetryRequestId = surfaced.id as string;
+  } catch { /* pre-migration schema or unreadable → no control */ }
   const productionLineage = await loadProductionLineage(r.id, session.access_token);
   // A completed related run must never leave the user with a primary "this run
   // stalled" conclusion. When another run is the authority for this production
@@ -1153,6 +1172,12 @@ export default async function RunDetailPage({
                   <FinalizeRecoveredButton runId={r.id} looksComplete={recovered.looksComplete} />
                 </div>
               </div>
+            )}
+            {/* Distinct from "Run again" below: same request, frozen inputs,
+                new fenced generation — and only when the backend proves no work
+                started. The component hides itself for every other failure. */}
+            {controlPlaneRetryRequestId && !supersededByRelated && (
+              <ControlPlaneRetry requestId={controlPlaneRetryRequestId} />
             )}
             <div className="mt-4 flex flex-wrap gap-3">
               {/* Restarting a superseded attempt would race the run that is
