@@ -31,6 +31,10 @@ const TESTS = [
   'app/(dashboard)/_components/run-input-session-race.test.ts',
   'app/(dashboard)/_components/run-folder-attachments.test.ts',
   'app/(dashboard)/_components/folder-input-render.test.ts',
+  // Activation is now part of THIS harness's subject: the picker's absence there
+  // is as load-bearing as its presence in the Run form, and a mutant that puts one
+  // back has to be caught by a suite that actually runs.
+  'app/(dashboard)/_components/agent-update-gate.test.ts',
 ];
 const TEST_MARKERS = [
   'folder snapshots are offered only by an explicit directory snapshot capability',
@@ -38,6 +42,8 @@ const TEST_MARKERS = [
   'every generic run, continue, and build attachment surface wires the folder handler',
   'Run Now uses the same declared folder capability and replacement identity',
   'Run Now shows folder preparation, blocks duplicate picks and ignores an older saved-source refusal',
+  'ACTIVATION RENDERS NO FILE PICKER AND HASHES NOTHING',
+  'ACTIVATION SENDS NO RUN INPUTS — not bindings, not an input session',
 ];
 
 const mutants = [
@@ -82,12 +88,18 @@ const mutants = [
   ['run-now-replacement-identity-dropped', COMPONENT,
     '      ...(replaced ? { replacesArtifactId: replaced.artifactId } : {}),',
     '      ...{},'],
-  ['activation-replacement-identity-dropped', UPDATE_COMPONENT,
-    '      ...(replaced ? { replacesArtifactId: replaced.artifactId } : {}),',
-    '      ...{},'],
-  ['activation-folder-affordance-removed', UPDATE_COMPONENT,
-    "                  {acceptsDirectorySnapshot(field) && <button type=\"button\" onClick={() => void chooseTypedInput(field, 'directory')}",
-    "                  {false && <button type=\"button\" onClick={() => void chooseTypedInput(field, 'directory')}"],
+  // The activation gate used to carry its own copy of the picker — replacement
+  // identity, folder affordance, the lot — because activation demanded the same
+  // typed inputs a run does. It no longer collects anything (spec §3.3), so the
+  // two mutants that lived here have nothing left to mutate. What replaces them
+  // is the mutant that matters now: activation quietly REGAINING a picker, which
+  // is how §2.1 would come back.
+  ['activation-regains-a-file-picker', UPDATE_COMPONENT,
+    "        {fields.length > 0 && <div className=\"rounded-md border border-ink-700 p-3\">",
+    "        {fields.length > 0 && <div className=\"rounded-md border border-ink-700 p-3\">\n          <button type=\"button\">Choose file</button>"],
+  ['activation-regains-input-bindings', UPDATE_COMPONENT,
+    '          workflowVersionId: update.workflow_version_id,',
+    '          workflowVersionId: update.workflow_version_id,\n          inputBindings: {},'],
   ['generic-folder-attachment-button-removed', 'app/(dashboard)/_components/run-attachments.tsx',
     '          Attach folder',
     '          Attach directory'],
@@ -134,11 +146,11 @@ const mutants = [
     '      || (Array.isArray(value) && value.length === 0);',
     '      || false;'],
   ['run-button-ignores-required-inputs', COMPONENT,
-    'disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredInputs(inputContract, inputBindings).length > 0}',
-    'disabled={setupSaving || blankRequired.length > 0 || missingRequiredInputs(inputContract, inputBindings).length > 0}'],
+    'disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || (!!pendingUpdate && !runInstalledVersionConfirmed)}',
+    'disabled={setupSaving || blankRequired.length > 0 || (!!pendingUpdate && !runInstalledVersionConfirmed)}'],
   ['submit-guard-ignores-required-inputs', COMPONENT,
-    "if (blankRequired.length || missingRequiredInputs(inputContract, inputBindings).length\n        || Object.keys(preparingInputRef.current).length) return;",
-    'if (blankRequired.length || missingRequiredInputs(inputContract, inputBindings).length) return;'],
+    "if ((pendingUpdate && !runInstalledVersionConfirmed)\n        || blankRequired.length || missingRequiredForRun().length\n        || Object.keys(preparingInputRef.current).length) return;",
+    'if ((pendingUpdate && !runInstalledVersionConfirmed) || blankRequired.length) return;'],
 ];
 
 function copyForTest(prefix) {

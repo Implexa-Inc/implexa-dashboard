@@ -94,7 +94,7 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, inputContract = null, inputContractDigest = null, pendingUpdate = null }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, activeVersionNumber = null, inputContract = null, inputContractDigest = null, pendingUpdate = null }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -128,6 +128,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
    *  primary action is withheld rather than offered on an unverified basis. */
   statusUnavailable?: boolean;
   workflowVersionId?: string | null;
+  /** The installed version number, stated on the Run form so the owner sees what will execute (§3.1). */
+  activeVersionNumber?: number | null;
   inputContract?: WorkflowInputContract | null;
   inputContractDigest?: string | null;
   pendingUpdate?: { version: number; state: string } | null;
@@ -1357,6 +1359,19 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         {!typedFields.length && <AttachFiles files={runFiles} canAttach={canAttach} canAttachFolder={canAttachFolder}
           onAttach={attachFile} onAttachFolder={attachFolder} onRemove={removeFile} error={attachError} />}
       </div>
+
+      {/*
+        §3.1 — the Run form states the exact version it will execute.
+        With compatible edits landing automatically, "which version am I about to
+        run?" stopped being answerable from the screen: the owner sees a Run
+        button and has to remember whether an activation happened. State it,
+        every time, right where they are about to commit.
+      */}
+      {typeof activeVersionNumber === 'number' && (
+        <p className="mt-4 text-[11px] text-ink-500" data-testid="run-version">
+          This run will use v{activeVersionNumber}.
+        </p>
+      )}
 
       {pendingUpdate && (
         <div className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2">

@@ -1,16 +1,12 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import Modal from './modal';
-import { desktopBridge } from './run-attachments';
-import {
-  acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, resolvePickerResult,
-  serializeArtifactBindings, type ArtifactBinding, type RunInputBindings,
-  type WorkflowInputContract, type WorkflowInputField,
-} from '@/lib/workflow-input-contract';
+import { orderedInputFields, type WorkflowInputContract } from '@/lib/workflow-input-contract';
+import { describeAuthorityDelta, type AgentAuthorityDelta } from '@/lib/agent-authority-delta';
 
 export type AvailableAgentUpdate = {
   workflow_version_id: string;
@@ -18,8 +14,34 @@ export type AvailableAgentUpdate = {
   input_contract: WorkflowInputContract | null;
   input_contract_digest: string;
   state: string;
+  /** The exact authority delta, when the backend classified this as expanding. */
+  authority_delta?: AgentAuthorityDelta | null;
 };
 
+/**
+ * The activation gate — for the updates that still need one.
+ *
+ * WHAT THIS NO LONGER DOES, AND WHY. It used to render the version's whole input
+ * contract with file pickers, and disable "Activate update" until every required
+ * input was bound. So accepting a planning-prose edit on the Visual Treatment
+ * Planner meant choosing a presenter video and waiting on a multi-gigabyte hash —
+ * for a file that belonged to some future run, not to this decision (spec §2.1).
+ *
+ * Worse, that one file was then copied into every schedule on the agent.
+ *
+ * Activation selects a version. A run supplies its files. So this surface now
+ * shows only what the owner is actually deciding:
+ *
+ *   - the version, and what changed about its AUTHORITY (§3.2);
+ *   - a DECLARATIVE summary of the input contract — "requires one presenter video
+ *     for each run" — which explains the new contract without pretending to
+ *     satisfy it (§3.3);
+ *   - the permission confirmation, for a reactivation.
+ *
+ * A compatible edit should not reach this component at all: the backend
+ * auto-activates it and the page renders a receipt instead. This is the gate for
+ * updates that genuinely need a human, which is what makes the gate worth reading.
+ */
 export default function AgentUpdateGate({ workflowId, update }: {
   workflowId: string;
   update: AvailableAgentUpdate;
@@ -28,72 +50,28 @@ export default function AgentUpdateGate({ workflowId, update }: {
   const supabase = createClient();
   const fields = useMemo(() => orderedInputFields(update.input_contract), [update.input_contract]);
   const [open, setOpen] = useState(false);
-  const [bindings, setBindings] = useState<RunInputBindings>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [permissionsConfirmed, setPermissionsConfirmed] = useState(false);
-  const sessionRef = useRef<string | null>(null);
 
-  function setError(key: string, value: string | null) {
-    setErrors((previous) => {
-      const next = { ...previous };
-      if (value) next[key] = value; else delete next[key];
-      return next;
-    });
-  }
-
-  /**
-   * Activation and reactivation ask for the SAME typed inputs a run does, so a
-   * folder-capable field has to offer the same two choices here. It did not:
-   * this surface rendered "Choose file" alone, which meant an agent whose
-   * contract declares folder support could be run from a folder but never
-   * ACTIVATED from one — the user hit a file-only dialog on the one screen they
-   * cannot skip.
-   */
-  async function chooseTypedInput(field: WorkflowInputField, selection: 'file' | 'directory' = 'file') {
-    const bridge = desktopBridge();
-    if (!bridge?.pickRunInput) return;
-    const inputSessionId = sessionRef.current || crypto.randomUUID();
-    sessionRef.current = inputSessionId;
-    setError(field.key, null);
-    const current = bindings[field.key];
-    const replaced = field.cardinality === 'one' && current && typeof current === 'object' && !Array.isArray(current)
-      ? current as ArtifactBinding : null;
-    const raw = await bridge.pickRunInput({
-      inputKey: field.key, inputSessionId, selection,
-      ...(replaced ? { replacesArtifactId: replaced.artifactId } : {}),
-      ...(field.accept ? { accept: field.accept } : {}),
-    }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
-    const result = resolvePickerResult(raw, field, selection);
-    if (result.kind === 'canceled') return;
-    if (result.kind === 'failed') { setError(field.key, result.message); return; }
-    if (result.inputSessionId !== inputSessionId) {
-      setError(field.key, 'The Desktop returned this file for a different activation session. Choose it again.');
-      return;
-    }
-    setBindings((previous) => bindInputValue(previous, field, result.binding));
-  }
-
-  function setScalar(field: WorkflowInputField, value: string | string[]) {
-    setBindings((previous) => ({ ...previous, [field.key]: value }));
-  }
+  const incompatible = update.state === 'incompatible';
+  const needsPermissions = update.state === 'reactivation_required';
+  const authority = describeAuthorityDelta(update.authority_delta);
 
   async function activate() {
-    if (missingRequiredInputs(update.input_contract, bindings).length) return;
-    if (update.state === 'reactivation_required' && !permissionsConfirmed) return;
+    if (needsPermissions && !permissionsConfirmed) return;
     setSaving(true);
     setMessage('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      // No inputBindings. No inputSessionId. Activation authorizes a version and
+      // nothing else — see the backend's installed-agent-version service.
       const result = await callBackend(`/api/v2/me/installed-agents/${encodeURIComponent(workflowId)}/activate-version`, {
         jwt: session?.access_token,
         method: 'POST',
         body: {
           workflowVersionId: update.workflow_version_id,
           inputContractDigest: update.input_contract_digest,
-          inputBindings: serializeArtifactBindings(bindings),
-          inputSessionId: sessionRef.current,
           permissionsConfirmed,
         },
       });
@@ -109,13 +87,18 @@ export default function AgentUpdateGate({ workflowId, update }: {
     }
   }
 
-  const incompatible = update.state === 'incompatible';
   return (
     <>
       <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-left max-w-[320px]">
-        <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Agent update v{update.version} available</p>
+        <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+          Agent update v{update.version} needs review
+        </p>
         <p className="text-[11px] text-ink-400 mt-1">
-          Run now stays on your installed version until this update and its inputs are verified.
+          {incompatible
+            ? 'This update cannot be applied to your installed version. It needs a migration, not an activation.'
+            : needsPermissions
+              ? 'This update changes what the agent is allowed to do. Run now stays on your installed version until you approve it.'
+              : 'Run now stays on your installed version until you activate this update.'}
         </p>
         <button type="button" disabled={incompatible} onClick={() => setOpen(true)}
           className="mt-2 btn-outline text-xs px-3 py-1.5 disabled:opacity-40">
@@ -124,81 +107,64 @@ export default function AgentUpdateGate({ workflowId, update }: {
       </div>
       <Modal open={open} onClose={() => !saving && setOpen(false)} title={`Activate agent update v${update.version}`}>
         <p className="text-sm text-ink-300 mb-4">
-          Confirm the inputs for this immutable version. Activation advances your installed agent and matching schedules together.
+          This advances the version your future runs use. It does not ask for files —
+          each run collects its own inputs when you start it.
         </p>
-        <div className="space-y-3">
-          {fields.map((field) => {
-            const value = bindings[field.key];
-            const artifacts = Array.isArray(value)
-              ? value.filter((entry): entry is ArtifactBinding => typeof entry === 'object')
-              : value && typeof value === 'object' ? [value as ArtifactBinding] : [];
-            const scalar = typeof value === 'string' ? value : '';
-            const scalarMany = Array.isArray(value)
-              ? value.filter((entry): entry is string => typeof entry === 'string') : [];
-            return <div key={field.key} className="rounded-md border border-ink-700 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <label className="text-sm font-medium text-ink-100">{field.label}</label>
-                  <span className={field.required ? 'ml-2 text-[11px] text-amber-300' : 'ml-2 text-[11px] text-ink-500'}>
-                    {field.required ? 'required' : 'optional'}
-                  </span>
-                  <p className="text-xs text-ink-400 mt-1">{field.description}</p>
-                </div>
-                {field.kind === 'file' && <div className="flex items-center gap-2 shrink-0">
-                  <button type="button" onClick={() => void chooseTypedInput(field)}
-                    disabled={!desktopBridge()?.pickRunInput} className="btn-outline text-xs px-3 py-1.5 disabled:opacity-40">
-                    {field.cardinality === 'many' ? 'Add file' : artifacts.length ? 'Replace file' : 'Choose file'}
-                  </button>
-                  {acceptsDirectorySnapshot(field) && <button type="button" onClick={() => void chooseTypedInput(field, 'directory')}
-                    disabled={!desktopBridge()?.pickRunInput} className="btn-outline text-xs px-3 py-1.5 disabled:opacity-40">
-                    {field.cardinality === 'many' ? 'Add folder' : artifacts.length ? 'Replace with folder' : 'Choose folder'}
-                  </button>}
-                </div>}
-              </div>
-              {field.kind === 'text' && <input
-                value={field.cardinality === 'many' ? scalarMany.join(', ') : scalar}
-                onChange={(event) => setScalar(field, field.cardinality === 'many'
-                  ? event.target.value.split(',').map((entry) => entry.trim()).filter(Boolean)
-                  : event.target.value)}
-                className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100" />}
-              {field.kind === 'choice' && <select
-                value={field.cardinality === 'many' ? scalarMany : scalar}
-                multiple={field.cardinality === 'many'}
-                onChange={(event) => setScalar(field, field.cardinality === 'many'
-                  ? Array.from(event.target.selectedOptions, (option) => option.value).filter(Boolean)
-                  : event.target.value)}
-                className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100">
-                {field.cardinality !== 'many' && <option value="">Select…</option>}
-                {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>}
-              {artifacts.map((artifact) => <div key={artifact.artifactId} className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-300">
-                <span>
-                  <span className="text-emerald-400">✓</span> {artifact.displayName}
-                  {' '}— {artifact.origin === 'directory-snapshot' ? 'frozen from a folder' : 'file'}, verified, bound to {field.key}
+
+        {/* §3.2 — the exact authority delta, when there is one. */}
+        {authority.hasChanges && <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 mb-3">
+          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+            This version changes what the agent is allowed to do
+          </p>
+          {authority.added.length > 0 && <div className="mt-2">
+            <p className="text-[11px] uppercase tracking-wide text-ink-500">Gains</p>
+            <ul className="mt-1 space-y-0.5">
+              {authority.added.map((entry) => (
+                <li key={`add-${entry}`} className="text-xs text-ink-200">+ {entry}</li>
+              ))}
+            </ul>
+          </div>}
+          {authority.removed.length > 0 && <div className="mt-2">
+            <p className="text-[11px] uppercase tracking-wide text-ink-500">Gives up</p>
+            <ul className="mt-1 space-y-0.5">
+              {authority.removed.map((entry) => (
+                <li key={`remove-${entry}`} className="text-xs text-ink-400">− {entry}</li>
+              ))}
+            </ul>
+          </div>}
+        </div>}
+
+        {/* §3.3 — a declarative summary of the contract. Never a picker. */}
+        {fields.length > 0 && <div className="rounded-md border border-ink-700 p-3">
+          <p className="text-xs font-medium text-ink-100">What each run will ask you for</p>
+          <ul className="mt-2 space-y-1.5">
+            {fields.map((field) => (
+              <li key={field.key} className="text-xs text-ink-300">
+                <span className="text-ink-100">{field.label}</span>
+                <span className={field.required ? 'ml-2 text-[11px] text-amber-300' : 'ml-2 text-[11px] text-ink-500'}>
+                  {field.required ? 'required each run' : 'optional'}
                 </span>
-                <button type="button" className="text-ink-500 hover:text-rose-400" onClick={() => setBindings((previous) => {
-                  const existing = previous[field.key];
-                  if (field.cardinality === 'many' && Array.isArray(existing)) {
-                    return { ...previous, [field.key]: existing.filter((entry): entry is ArtifactBinding =>
-                      typeof entry === 'object' && entry !== null && entry.artifactId !== artifact.artifactId) };
-                  }
-                  const next = { ...previous };
-                  delete next[field.key];
-                  return next;
-                })}>Remove</button>
-              </div>)}
-              {errors[field.key] && <p className="mt-2 text-xs text-rose-400">{errors[field.key]}</p>}
-            </div>;
-          })}
-        </div>
-        {update.state === 'reactivation_required' && <label className="mt-4 flex items-start gap-2 text-xs text-ink-300">
-          <input type="checkbox" checked={permissionsConfirmed} onChange={(event) => setPermissionsConfirmed(event.target.checked)} />
+                {field.description && <span className="block text-ink-400 mt-0.5">{field.description}</span>}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[11px] text-ink-500">
+            Nothing to choose now. Run now collects and verifies these for that run only.
+          </p>
+        </div>}
+
+        {needsPermissions && <label className="mt-4 flex items-start gap-2 text-xs text-ink-300">
+          <input type="checkbox" checked={permissionsConfirmed}
+            onChange={(event) => setPermissionsConfirmed(event.target.checked)} />
           I reviewed and approve this version’s changed permissions.
         </label>}
         {message && <p className="mt-3 text-xs text-rose-400">{message}</p>}
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" className="btn-outline text-sm px-4 py-2" disabled={saving} onClick={() => setOpen(false)}>Cancel</button>
-          <button type="button" className="btn-success text-sm px-4 py-2" disabled={saving || missingRequiredInputs(update.input_contract, bindings).length > 0 || (update.state === 'reactivation_required' && !permissionsConfirmed)} onClick={() => void activate()}>
+          <button type="button" className="btn-outline text-sm px-4 py-2" disabled={saving}
+            onClick={() => setOpen(false)}>Cancel</button>
+          <button type="button" className="btn-success text-sm px-4 py-2"
+            disabled={saving || (needsPermissions && !permissionsConfirmed)}
+            onClick={() => void activate()}>
             {saving ? 'Activating…' : 'Activate update'}
           </button>
         </div>
