@@ -609,6 +609,7 @@ export default async function WorkflowDetailPage({
             workflowVersionId={workflow.workflow_version_id}
             inputContract={workflow.input_contract}
             inputContractDigest={workflow.input_contract_digest}
+            pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
             align="start"
           />
         </div>
@@ -704,7 +705,8 @@ export default async function WorkflowDetailPage({
                   <span className="mt-0.5 inline-block h-2 w-2 flex-none rounded-full bg-violet-500 animate-pulse" aria-hidden />
                   <p className="text-xs text-violet-700 dark:text-violet-300 leading-snug">
                     <span className="font-medium">Rewrite in progress.</span> Your Claude is updating this agent’s
-                    steps with your edit. Running is paused until it lands — every future run then uses the new version.
+                    steps with your edit. Running is paused until it lands. If its permissions or inputs changed,
+                    you’ll review and activate the update before using it.
                     {/* A revise lands ASYNCHRONOUSLY (the drainer calls revise_workflow
                         minutes later). Without this the page kept showing the OLD steps
                         until a manual reload — the banner was the only thing that ever
@@ -744,6 +746,7 @@ export default async function WorkflowDetailPage({
                 workflowVersionId={workflow.workflow_version_id}
                 inputContract={workflow.input_contract}
                 inputContractDigest={workflow.input_contract_digest}
+                pendingUpdate={workflow.update_available ? { version: workflow.update_available.version, state: workflow.update_available.state } : null}
               />
               {pausableRoutine && (
                 <AgentPauseToggle routineId={pausableRoutine.id} initialStatus={pausableRoutine.status} />

@@ -73,8 +73,8 @@ test('removing a file clears its error and takes the value out of THIS run', () 
 });
 
 test('required typed inputs still gate the Run button', () => {
-  assert.match(src, /disabled=\{setupSaving \|\| Object\.keys\(preparingInputs\)\.length > 0 \|\| blankRequired\.length > 0 \|\| missingRequiredForRun\(\)\.length > 0\}/);
-  assert.match(src, /if \(blankRequired\.length \|\| missingRequiredForRun\(\)\.length[\s\S]*?\|\| Object\.keys\(preparingInputRef\.current\)\.length\) return;/,
+  assert.match(src, /disabled=\{setupSaving \|\| Object\.keys\(preparingInputs\)\.length > 0 \|\| blankRequired\.length > 0 \|\| missingRequiredForRun\(\)\.length > 0[\s\S]*?\}/);
+  assert.match(src, /if \([\s\S]*?blankRequired\.length \|\| missingRequiredForRun\(\)\.length[\s\S]*?\|\| Object\.keys\(preparingInputRef\.current\)\.length\) return;/,
     'the synchronous submit boundary must refuse while a folder snapshot is still being prepared');
 });
 

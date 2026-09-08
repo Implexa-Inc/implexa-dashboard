@@ -202,9 +202,9 @@ test('the PRE-RUN dialog blocks on required fields only', () => {
   );
   assert.match(src, /const blankRequired = setupFields\.filter\(\(f\) => !isOptionalField\(f\) &&/,
     'one derived list of blocking blanks, optional excluded by construction');
-  assert.match(src, /disabled=\{setupSaving \|\| Object\.keys\(preparingInputs\)\.length > 0 \|\| blankRequired\.length > 0 \|\| missingRequiredForRun\(\)\.length > 0\}/,
+  assert.match(src, /disabled=\{setupSaving \|\| Object\.keys\(preparingInputs\)\.length > 0 \|\| blankRequired\.length > 0 \|\| missingRequiredForRun\(\)\.length > 0 \|\| \(!!pendingUpdate && !runInstalledVersionConfirmed\)\}/,
     'the Run button uses it, enforces required inputs, and stays closed while an input is being prepared');
-  assert.match(src, /if \(blankRequired\.length \|\| missingRequiredForRun\(\)\.length[\s\S]*?\|\| Object\.keys\(preparingInputRef\.current\)\.length\) return;/,
+  assert.match(src, /if \(\(pendingUpdate && !runInstalledVersionConfirmed\)[\s\S]*?blankRequired\.length \|\| missingRequiredForRun\(\)\.length[\s\S]*?\|\| Object\.keys\(preparingInputRef\.current\)\.length\) return;/,
     'and so does the synchronous submit guard');
 });
 

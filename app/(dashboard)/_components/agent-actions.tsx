@@ -94,7 +94,7 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, inputContract = null, inputContractDigest = null }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, inputContract = null, inputContractDigest = null, pendingUpdate = null }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -130,6 +130,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   workflowVersionId?: string | null;
   inputContract?: WorkflowInputContract | null;
   inputContractDigest?: string | null;
+  pendingUpdate?: { version: number; state: string } | null;
 }) {
   // ONE gate expression. Optional preferences never stop a run.
   const blocking = blockingQuestions ?? pendingQuestions;
@@ -139,6 +140,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       : inFlight === 'queued' ? 'Queued. Waiting for your Claude to pick it up — the result lands in your inbox.'
       : '');
   const [showRunModal, setShowRunModal] = useState(false);
+  const [runInstalledVersionConfirmed, setRunInstalledVersionConfirmed] = useState(false);
   // One-time permissions heads-up inside the run-triggered modal, shown on the
   // user's first queued run (shared SEEN flag with the Home note so it never
   // double-shows across surfaces).
@@ -524,6 +526,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   async function openPreRun(mode: 'queue' | 'watch') {
     if (state === 'queuing' || state === 'running') return;
     setPreRunMode(mode);
+    setRunInstalledVersionConfirmed(false);
     setDontShowAgain(false);
     // A fresh attempt: drop the previous fingerprint so a stale one can never be
     // stamped onto a run whose note or files have since changed.
@@ -601,7 +604,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // REQUIRED-ONLY. Blocking on every displayed field made an optional preference
     // — correctly skippable during activation — required again at the first Run
     // click, which silently undid the whole tier split one surface later.
-    if (blankRequired.length || missingRequiredForRun().length
+    if ((pendingUpdate && !runInstalledVersionConfirmed)
+        || blankRequired.length || missingRequiredForRun().length
         || Object.keys(preparingInputRef.current).length) return;
     setSetupSaving(true);
     setMsg('');
@@ -632,8 +636,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // Carry the per-run note into the run: the queue path sends it as the run-request
       // `note`; the watch path puts it (paths included) in the prefilled prompt of the
       // session you're about to supervise.
-      if (preRunMode === 'watch' && !typedFields.length) await doWatch(perRunNote || undefined);
-      else await doQueue(perRunNote || undefined);
+      if (preRunMode === 'watch' && !typedFields.length) {
+        await doWatch(perRunNote || undefined);
+        setRunInstalledVersionConfirmed(false);
+      } else await doQueue(perRunNote || undefined);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Could not save your input. Try again.');
     } finally {
@@ -711,6 +717,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
               requiredMachineId: Object.values(deferredSelections)[0]?.requiredMachineId,
             } : {}),
           } : {}),
+          ...(pendingUpdate && runInstalledVersionConfirmed ? { allowSupersededInstalledVersion: true } : {}),
         },
       });
       if (res?.ok === true && res?.preparing === true && typeof res?.preparation?.id === 'string') {
@@ -743,6 +750,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         setMsg('Preparing your file in the background. You can leave this page; the agent will start automatically when verification finishes.');
         setShowRunModal(false);
         setShowSetupModal(false);
+        setRunInstalledVersionConfirmed(false);
         router.push('/workflows');
         return;
       }
@@ -763,6 +771,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       setInputOverrides({});
       inputSessionRef.current = null;
       setInputSessionId(null);
+      setRunInstalledVersionConfirmed(false);
       setState('queued');
       // Other mounted surfaces (the second <AgentActions/>, Home) should see
       // this run promptly — snap the shared live-feed cadence back to base.
@@ -905,7 +914,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       {/* Secondary: supervise the run live instead of hands-off. Goes through the
           same pop-up (so the note rides into the watched session). Shown only
           before queuing so the paths stay mutually exclusive (no double-run). */}
-      {isActive && !statusUnavailable && !revisePending && blocking === 0 && (state === 'idle' || state === 'error') && (
+      {isActive && !statusUnavailable && !revisePending && !pendingUpdate && blocking === 0 && (state === 'idle' || state === 'error') && (
         <button
           type="button"
           onClick={openWatch}
@@ -1041,7 +1050,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         you can confirm/change answers before a hands-off run. Dismissable. */}
     <Modal
       open={showSetupModal}
-      onClose={() => { if (!setupSaving) setShowSetupModal(false); }}
+      onClose={() => { if (!setupSaving) { setShowSetupModal(false); setRunInstalledVersionConfirmed(false); } }}
       title={preRunMode === 'watch' ? 'Before it opens in Claude' : setupFields.length ? 'Before it runs' : 'Add a note for this run'}
       maxWidth="max-w-2xl"
     >
@@ -1349,6 +1358,22 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           onAttach={attachFile} onAttachFolder={attachFolder} onRemove={removeFile} error={attachError} />}
       </div>
 
+      {pendingUpdate && (
+        <div className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2">
+          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+            Agent update v{pendingUpdate.version} is waiting for activation
+          </p>
+          <p className="mt-1 text-[11px] text-ink-400">
+            Activate the update on the agent page to use the edited steps. Continuing here runs the currently installed version for this run only.
+          </p>
+          <label className="mt-2 flex items-start gap-2 text-xs text-ink-300">
+            <input type="checkbox" checked={runInstalledVersionConfirmed}
+              onChange={(event) => setRunInstalledVersionConfirmed(event.target.checked)} />
+            Run the installed version instead of update v{pendingUpdate.version}.
+          </label>
+        </div>
+      )}
+
       {setupFields.length > 0 && (
         <label className="mt-3 flex items-center gap-2 text-xs text-ink-400 cursor-pointer select-none">
           <input
@@ -1363,7 +1388,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       <div className="mt-4 flex items-center justify-end gap-3">
         <button
           type="button"
-          onClick={() => setShowSetupModal(false)}
+          onClick={() => { setShowSetupModal(false); setRunInstalledVersionConfirmed(false); }}
           disabled={setupSaving}
           className="btn-outline text-sm px-4 py-2 disabled:opacity-50"
         >
@@ -1372,10 +1397,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <button
           type="button"
           onClick={submitPreRun}
-          disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0}
+          disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || (!!pendingUpdate && !runInstalledVersionConfirmed)}
           className="btn-success text-sm px-5 py-2 disabled:opacity-50"
         >
-          {setupSaving ? 'Saving…' : preRunMode === 'watch' ? 'Open in Claude →' : setupFields.length ? 'Save & run' : '▶ Run now'}
+          {setupSaving ? 'Saving…' : preRunMode === 'watch' ? 'Open in Claude →' : pendingUpdate ? 'Run installed version' : setupFields.length ? 'Save & run' : '▶ Run now'}
         </button>
       </div>
     </Modal>
