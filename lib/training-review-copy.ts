@@ -83,6 +83,29 @@ export const ACTIVE_LEARNING_HEADING = 'Active for future runs';
 export const ACTIVE_LEARNING_BODY =
   'A later run may select this decision. Manager receipts record when it does.';
 
+/**
+ * MINT DEFERRED, IN THE COACH'S WORDS.
+ *
+ * When the Coach confirms a card, the backend records `canonicalLinkState:
+ * 'mint_deferred'` rather than minting a canonical learning candidate. That is
+ * deliberate and it is not a bug to route around: a canonical candidate requires
+ * confidence inputs sourced from review learning evidence plus supporting evidence
+ * rows from real runs, and a demonstration has neither. A confirmed teaching is
+ * therefore NOT YET A LEARNING, because no verified accepted revision exists yet.
+ *
+ * These sentences must never imply activation, a pending activation, or a queue the
+ * teaching is waiting in. It is saved, it is inert, and the thing that would change
+ * that has not happened.
+ */
+export const CONFIRMED_NOT_A_LEARNING_HEADING = 'Confirmed — not yet a learning';
+export const CONFIRMED_NOT_A_LEARNING_BODY =
+  'Implexa saved your words exactly as you confirmed them. They are not a learning yet: a '
+  + 'learning needs a revision that carries this out and a verified result you accept. '
+  + 'Nothing about your Agent has changed.';
+
+/** The heading over the whole decision list once the submission is frozen. */
+export const DECISIONS_HEADING = 'Decisions from this recording';
+
 /** §2.3: the Coach's five steps, in the Coach's words. No internal machinery. */
 export const COACH_STEPS: readonly string[] = [
   'Teach this Agent',

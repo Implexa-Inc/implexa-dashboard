@@ -12,7 +12,7 @@
  * write it makes goes through `lib/training-review-client.ts`, which seals each request
  * against that path — so each one carries a training identity and a training action
  * name, is posted to `/api/training-review`, and is resolved by an allowlist that can
- * emit no path outside `/api/v2/agents/training/`.
+ * emit no path outside `/api/v2/agent-coach/`.
  *
  * There is no `runId` in this file. Not undefined — absent. A demonstration precedes a
  * revision and may exist before any run, so there is nothing to name, and §8 forbids
@@ -30,10 +30,10 @@ import CoachDecisionCards from './coach-decision-cards';
 import TrainingAuthorityProjection from './training-authority-projection';
 import { reviewSubjectLabel, writePathFor, type TrainingSourceSubject } from '@/lib/review-subject';
 import {
-  confirmTrainingDecision, fetchTransport, type TrainingTransport,
+  decideTrainingProposal, fetchTransport, type TrainingTransport,
 } from '@/lib/training-review-client';
-import type { CoachDecisionCard, DecisionAction } from '@/lib/coach-decision-cards';
-import type { TrainingProjectionStatus } from '@/lib/training-review-projection';
+import { wireDecision, type CoachDecisionCard, type DecisionAction } from '@/lib/coach-decision-cards';
+import type { TrainingReviewStatus } from '@/lib/training-review-projection';
 import {
   COACH_STEPS,
   EVIDENCE_PREVIEW_NOTICE, NO_RECORDING_UPLOAD_NOTICE,
@@ -44,9 +44,7 @@ export type TrainingReviewRoomProps = {
   subject: TrainingSourceSubject;
   agentName: string;
   /** The read-only record (F0 item 8), read server-side or by the caller. */
-  projection: TrainingProjectionStatus;
-  /** The frozen submission these decisions were compiled from, when there is one. */
-  submissionId?: string | null;
+  projection: TrainingReviewStatus;
   /** Test seam. Production uses the default fetch transport; nothing else may fetch. */
   transport?: TrainingTransport;
 };
@@ -77,7 +75,7 @@ function PrivacyPanel({ custodyLine }: { custodyLine: string }) {
 }
 
 export default function TrainingReviewRoom(props: TrainingReviewRoomProps) {
-  const { subject, agentName, projection, submissionId = null, transport = fetchTransport } = props;
+  const { subject, agentName, projection, transport = fetchTransport } = props;
 
   // The discriminant selects the write path once, here. Everything below writes
   // through it, and it can only ever be the training one.
@@ -85,31 +83,27 @@ export default function TrainingReviewRoom(props: TrainingReviewRoomProps) {
 
   const [persistError, setPersistError] = useState<string | null>(null);
 
-  const decisions: readonly CoachDecisionCard[] = projection.live ? projection.projection.decisions : [];
+  const decisions: readonly CoachDecisionCard[] = projection.live ? projection.review.decisions : [];
 
-  const custodyLine = projection.live && projection.projection.source?.custody === 'evidence_selected'
-    ? 'Selected moments have been saved to your private Agent history.'
-    : NO_RECORDING_UPLOAD_NOTICE;
+  // The server's own custody sentence, when it sent one. F0 uploads no recording, and
+  // the fallback says exactly that rather than something stronger.
+  const custodyLine = (projection.live && projection.review.source?.custodyNote)
+    || NO_RECORDING_UPLOAD_NOTICE;
 
-  const onConfirm = useCallback(async (card: CoachDecisionCard, action: DecisionAction): Promise<string | null> => {
-    if (!submissionId) {
-      return 'These decisions are not attached to a frozen submission yet, so nothing was saved.';
-    }
-    const disposition = action.type === 'accept' ? 'accepted'
-      : action.type === 'edit' ? 'edited'
-      : action.type === 'merge' ? 'merged'
-      : 'discarded';
-    const result = await confirmTrainingDecision(path, {
-      submissionId,
-      decisionId: card.id,
-      disposition,
-      ...(action.type === 'merge' ? { mergedIntoDecisionId: action.intoId } : {}),
-      ...(action.type === 'edit' ? { edits: card.content } : {}),
+  const onDecide = useCallback(async (card: CoachDecisionCard, action: DecisionAction): Promise<string | null> => {
+    // The digest of the card the Coach was SHOWN travels back with the decision. A
+    // confirmation without it lands on whatever the card has since become, which the
+    // server refuses as `stale_proposal_confirmation` — and refusing is the right
+    // outcome, so the client never omits it.
+    const result = await decideTrainingProposal(path, {
+      proposalId: card.proposalId,
+      decision: wireDecision(action),
+      expectedProposalDigest: card.proposalDigest,
     }, transport);
     if (result.ok) { setPersistError(null); return null; }
     setPersistError(result.error);
     return result.error;
-  }, [path, submissionId, transport]);
+  }, [path, transport]);
 
   return (
     <div className="space-y-4" data-review-authority={path.authority} data-review-subject-kind={subject.kind}>
@@ -133,7 +127,7 @@ export default function TrainingReviewRoom(props: TrainingReviewRoomProps) {
         </p>
       )}
 
-      <CoachDecisionCards cards={decisions} onConfirm={onConfirm} />
+      <CoachDecisionCards cards={decisions} onDecide={onDecide} />
 
       <TrainingAuthorityProjection status={projection} />
     </div>

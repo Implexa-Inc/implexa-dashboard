@@ -106,11 +106,21 @@ export function factLabel(key: LifecycleFactKey): string {
   return COPY[key].label;
 }
 
+/**
+ * `detail` is honoured for `yes` and for `unknown`, and NEVER for `no`.
+ *
+ * An unknown fact has two genuinely different causes — a read that failed, and a fact
+ * this stage does not record at all — and the second deserves its own sentence rather
+ * than being described as a failed read. A `no`, by contrast, takes only the pinned
+ * words: a server-supplied sentence softening "Not activated" is precisely the collapse
+ * this module exists to prevent, arriving through a data field after the types stopped
+ * it at the door.
+ */
 export function factSentence(fact: LifecycleFact): string {
   switch (fact.status) {
     case 'yes': return fact.detail ?? COPY[fact.key].yes;
     case 'no': return COPY[fact.key].no;
-    case 'unknown': return FACT_UNKNOWN_SENTENCE;
+    case 'unknown': return fact.detail ?? FACT_UNKNOWN_SENTENCE;
     default: {
       const never: never = fact.status;
       throw new Error(`factSentence: unhandled status ${String(never)}`);
@@ -203,4 +213,77 @@ export function parseAuthorityState(raw: unknown): AuthorityState {
 /** An all-unknown state: what an unreadable projection produces. */
 export function unknownAuthorityState(): AuthorityState {
   return parseAuthorityState({});
+}
+
+// ── Deriving the six from what the backend actually says ──────────────────────────
+
+/**
+ * Sentences for the facts THIS STAGE DOES NOT RECORD.
+ *
+ * These are `unknown`, not `no`. "No revision has carried this out yet" would be a
+ * claim about revisions, and F0 has no revision authority at all — `revisions` is in
+ * the backend contract's own `outOfScope` list. Answering a question we were never
+ * given the data to answer, in the confident words of a `no`, is the §1.3 collapse.
+ *
+ * They are also not the failed-read sentence, because the read did not fail. Saying
+ * "Implexa could not read this" about something Implexa never stores would train a
+ * Coach to distrust a message that means something specific elsewhere.
+ */
+export const NOT_CARRIED_HERE: Partial<Record<LifecycleFactKey, string>> = {
+  requested: 'This stage records what you taught, not what you asked for. Implexa cannot say.',
+  implemented: 'No revision has been made from this teaching yet, so there is nothing to report.',
+  verified: 'Nothing can be verified until a revision runs. That has not happened yet.',
+  accepted: 'There is no revised result to accept yet.',
+};
+
+const fact = (
+  key: LifecycleFactKey, status: FactStatus, detail: string | null = null, at: string | null = null,
+): LifecycleFact => ({ key, status, at, detail });
+
+/**
+ * Derive the six facts from one parsed training review.
+ *
+ * ONLY `demonstrated` AND `activated` ARE ANSWERABLE FROM F0's DATA, and both are read
+ * from something the server STATED rather than inferred here:
+ *
+ *   · `demonstrated` — a demonstration source is present on the review;
+ *   · `activated`    — the server's own `learning` block, which reports
+ *                      `activatedCount` and `versionsCreated` explicitly and says in
+ *                      words that nothing has changed the Agent.
+ *
+ * A missing `learning` block gives UNKNOWN, not `no`. Defaulting to `no` would render a
+ * confident "Not activated" for a record whose learning we never read — and the same
+ * defaulting, on the day activation exists, would render a confident "not activated"
+ * for something that IS active.
+ *
+ * `decisions` is accepted and deliberately UNUSED for `accepted`: confirming a decision
+ * card is not accepting a revised result (§1.3), and wiring the two together here is
+ * the single most likely way this collapse comes back.
+ */
+export function deriveAuthorityState(input: {
+  source: unknown;
+  learning: { activatedCount: number; versionsCreated: number; note: string | null } | null;
+  decisions?: readonly unknown[];
+}): AuthorityState {
+  const demonstrated: LifecycleFact = input.source
+    ? fact('demonstrated', 'yes')
+    : fact('demonstrated', 'unknown');
+
+  let activated: LifecycleFact;
+  if (!input.learning) {
+    activated = fact('activated', 'unknown');
+  } else if (input.learning.activatedCount === 0 && input.learning.versionsCreated === 0) {
+    activated = fact('activated', 'no');
+  } else {
+    activated = fact('activated', 'yes');
+  }
+
+  return {
+    requested: fact('requested', 'unknown', NOT_CARRIED_HERE.requested ?? null),
+    demonstrated,
+    implemented: fact('implemented', 'unknown', NOT_CARRIED_HERE.implemented ?? null),
+    verified: fact('verified', 'unknown', NOT_CARRIED_HERE.verified ?? null),
+    accepted: fact('accepted', 'unknown', NOT_CARRIED_HERE.accepted ?? null),
+    activated,
+  };
 }

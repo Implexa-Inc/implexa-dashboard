@@ -1,85 +1,85 @@
 'use client';
 
 /**
- * <CoachDecisionCards /> — confirm the proposed decisions (spec §1.2, §3.4, F0 item 6).
+ * <CoachDecisionCards /> — decide the proposed decisions (spec §1.2, §3.4, F0 items 6, 7).
  *
- * Implexa proposes; the Coach decides. Every card carries the full §1.2 field set, its
- * source annotations and evidence digests, its scope and its proposed destination —
- * and four actions: accept, edit, merge, discard.
+ * Implexa proposes; the Coach decides. Every card carries the §1.2 field set as the
+ * backend returns it, its source annotations and evidence digests, where it would apply
+ * and the compiler's confidence — and exactly TWO actions, because the wire has exactly
+ * two: Confirm and Discard.
  *
  * ── WHAT THIS SURFACE REFUSES TO DO ──────────────────────────────────────────────
  *
  *  * IT DOES NOT HIDE A WEAK PROPOSAL. §3.4 requires an explicit `insufficient_evidence`
  *    when the recording cannot justify a claim, and a hidden one would let the Coach
  *    believe the recording said something it did not. So it renders with its own
- *    heading, and Accept is refused WITH THE REASON SHOWN rather than rendered as a
- *    dead button — the rule `lib/review-room-state.ts` already enforces next door.
+ *    heading, and Confirm is refused WITH THE REASON SHOWN rather than rendered as a
+ *    dead button — the rule `lib/review-room-state.ts` already enforces next door. The
+ *    server refuses the same thing as `insufficient_evidence_not_confirmable`, in the
+ *    same words.
  *
- *  * IT DOES NOT ACTIVATE ANYTHING. There is no Activate control here, disabled or
- *    otherwise. Confirming links an inert candidate; §1.3 keeps acceptance and
- *    activation separate, and F0 must not activate at all.
+ *  * IT DOES NOT OFFER AN EDIT OR A MERGE. Neither exists on the wire. A control that
+ *    rearranged cards on screen and stored nothing would be a control that lies by
+ *    appearing to work.
  *
- * All state transitions come from `lib/coach-decision-cards.ts`, which is pure, so the
- * rules are executable in tests rather than asserted by reading this JSX.
+ *  * IT DOES NOT ACTIVATE ANYTHING, AND DOES NOT IMPLY IT WILL. There is no Activate
+ *    control here, disabled or otherwise. A confirmed card renders as "confirmed, not
+ *    yet a learning" with the server's own inert note, because the backend records
+ *    `mint_deferred` rather than minting a canonical learning candidate: that needs
+ *    supporting evidence from real runs, which a demonstration does not have.
+ *
+ * All rules come from `lib/coach-decision-cards.ts`, which is pure, so they are
+ * executable in tests rather than asserted by reading this JSX.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
-  DESTINATION_LABELS, FIELD_LABELS, FIELD_ORDER, SCOPE_LABELS,
-  acceptBlockedReason, applyDecisionAction, confirmationSummary,
-  type CoachDecisionCard, type DecisionAction, type DecisionContent,
+  CONFIDENCE_LABELS, FIELD_LABELS, FIELD_ORDER, SCOPE_LABELS,
+  confirmBlockedReason, confirmationSummary, discardBlockedReason,
+  isInsufficientEvidence, learningStanding, standingSentence,
+  type CoachDecisionCard, type DecisionAction,
 } from '@/lib/coach-decision-cards';
 import {
+  DECISIONS_HEADING,
   INSUFFICIENT_EVIDENCE_BODY, INSUFFICIENT_EVIDENCE_HEADING,
 } from '@/lib/training-review-copy';
 
 export type CoachDecisionCardsProps = {
   cards: readonly CoachDecisionCard[];
   /**
-   * Persist one confirmed disposition. Returns a refusal sentence, or null on success.
-   * Supplied by the training room so this component performs no I/O of its own.
+   * Persist one decision. Returns a refusal sentence, or null on success. Supplied by
+   * the training room so this component performs no I/O of its own.
+   *
+   * THE SERVER IS THE ONLY AUTHORITY ON THE RESULT. There is no optimistic local status
+   * change here: a card moves to "confirmed" because a read said so, never because a
+   * click did. Optimism would let a refused confirmation still read as confirmed.
    */
-  onConfirm?: (card: CoachDecisionCard, action: DecisionAction) => Promise<string | null>;
+  onDecide?: (card: CoachDecisionCard, action: DecisionAction) => Promise<string | null>;
 };
 
-const DISPOSITION_LABEL = {
+const STATUS_LABEL = {
   proposed: 'Proposed',
-  accepted: 'Confirmed',
-  edited: 'Edited by you',
-  merged: 'Merged',
+  confirmed: 'Confirmed',
   discarded: 'Discarded',
 } as const;
 
-export default function CoachDecisionCards({ cards: initial, onConfirm }: CoachDecisionCardsProps) {
-  const [cards, setCards] = useState<readonly CoachDecisionCard[]>(initial);
+export default function CoachDecisionCards({ cards, onDecide }: CoachDecisionCardsProps) {
   const [refusal, setRefusal] = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const open = useMemo(
-    () => cards.filter((card) => card.disposition === 'proposed' || card.disposition === 'edited'),
-    [cards],
-  );
-
-  const run = useCallback(async (action: DecisionAction) => {
-    const card = cards.find((entry) => entry.id === action.id);
-    if (!card) { setRefusal('That decision is no longer on this submission.'); return; }
-    const result = applyDecisionAction(cards, action);
-    if (!result.ok) { setRefusal(result.refusal); return; }
+  const run = useCallback(async (card: CoachDecisionCard, action: DecisionAction) => {
+    const blocked = action.type === 'confirm' ? confirmBlockedReason(card) : discardBlockedReason(card);
+    if (blocked) { setRefusal(blocked); return; }
     setRefusal(null);
-    // Local state moves FIRST so an edit is never lost to a failed round-trip; a
-    // persistence refusal is then shown next to the card rather than silently
-    // reverting the Coach's words.
-    setCards(result.cards);
-    if (!onConfirm) return;
-    setBusy(action.id);
+    if (!onDecide) return;
+    setBusy(card.proposalId);
     try {
-      const error = await onConfirm(result.cards.find((entry) => entry.id === action.id)!, action);
+      const error = await onDecide(card, action);
       if (error) setRefusal(error);
     } finally {
       setBusy(null);
     }
-  }, [cards, onConfirm]);
+  }, [onDecide]);
 
   if (!cards.length) {
     return (
@@ -94,7 +94,7 @@ export default function CoachDecisionCards({ cards: initial, onConfirm }: CoachD
   return (
     <section className="space-y-3" aria-label="Proposed decisions">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-[13px] font-medium text-ink-200">Confirm what you taught</h2>
+        <h2 className="text-[13px] font-medium text-ink-200">{DECISIONS_HEADING}</h2>
         <p className="text-[12px] text-ink-500">{confirmationSummary(cards)}</p>
       </div>
 
@@ -105,124 +105,94 @@ export default function CoachDecisionCards({ cards: initial, onConfirm }: CoachD
       )}
 
       {cards.map((card) => {
-        const blocked = acceptBlockedReason(card);
-        const isEditing = editing === card.id;
-        const terminal = card.disposition === 'discarded' || card.disposition === 'merged';
+        const blocked = confirmBlockedReason(card);
+        const weak = isInsufficientEvidence(card);
+        const standing = learningStanding(card);
+        const decided = card.status !== 'proposed';
         return (
           <article
-            key={card.id}
-            data-decision-id={card.id}
-            data-disposition={card.disposition}
-            data-insufficient-evidence={card.insufficientEvidence ? 'true' : 'false'}
+            key={card.proposalId}
+            data-decision-id={card.proposalId}
+            data-decision-status={card.status}
+            data-canonical-link-state={card.canonicalLinkState}
+            data-influence-state={card.influenceState}
+            data-learning-standing={standing}
+            data-insufficient-evidence={weak ? 'true' : 'false'}
             className={`rounded-md border px-3 py-2.5 ${
-              card.insufficientEvidence
-                ? 'border-amber-900/60 bg-amber-950/10'
-                : 'border-ink-800 bg-ink-950/50'
-            } ${terminal ? 'opacity-60' : ''}`}
+              weak ? 'border-amber-900/60 bg-amber-950/10' : 'border-ink-800 bg-ink-950/50'
+            } ${card.status === 'discarded' ? 'opacity-60' : ''}`}
           >
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-[12px] uppercase tracking-wide text-ink-500">
-                {DISPOSITION_LABEL[card.disposition]}
+                {STATUS_LABEL[card.status]}
               </span>
               <span className="text-[12px] text-ink-500">
-                {DESTINATION_LABELS[card.destination]}
+                {card.proposedScope ? SCOPE_LABELS[card.proposedScope] : 'Nowhere yet'}
               </span>
             </div>
 
-            {card.insufficientEvidence && (
+            {weak && (
               <div className="mt-2 rounded border border-amber-900/50 bg-amber-950/20 px-2 py-1.5">
                 <p className="text-[13px] font-medium text-amber-200">{INSUFFICIENT_EVIDENCE_HEADING}</p>
-                <p className="mt-0.5 text-[13px] text-ink-400">{INSUFFICIENT_EVIDENCE_BODY}</p>
+                <p className="mt-0.5 text-[13px] text-ink-400">
+                  {card.insufficientEvidenceReason ?? INSUFFICIENT_EVIDENCE_BODY}
+                </p>
+                {card.kindNote && <p className="mt-0.5 text-[12px] text-ink-500">{card.kindNote}</p>}
               </div>
             )}
 
-            {isEditing ? (
-              <EditForm
-                card={card}
-                onCancel={() => setEditing(null)}
-                onSave={async (content) => { setEditing(null); await run({ type: 'edit', id: card.id, content }); }}
-              />
-            ) : (
-              <dl className="mt-2 space-y-1.5">
-                {FIELD_ORDER.map((field) => {
-                  const raw = card.content[field];
-                  const value = field === 'scope' ? SCOPE_LABELS[card.content.scope] : (raw as string | null);
-                  return (
-                    <div key={field} data-field={field}>
-                      <dt className="text-[12px] text-ink-500">{FIELD_LABELS[field]}</dt>
-                      <dd className="text-[13px] text-ink-300">
-                        {value && String(value).trim()
-                          ? value
-                          : <span className="text-ink-600">Not stated.</span>}
-                      </dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            )}
+            <dl className="mt-2 space-y-1.5">
+              {FIELD_ORDER.map((field) => (
+                <div key={field} data-field={field}>
+                  <dt className="text-[12px] text-ink-500">{FIELD_LABELS[field]}</dt>
+                  <dd className="text-[13px] text-ink-300">
+                    {card.content[field] ?? <span className="text-ink-600">Not stated.</span>}
+                  </dd>
+                </div>
+              ))}
+            </dl>
 
             <p className="mt-2 text-[12px] text-ink-500">
-              {card.evidence.annotationIds.length
-                ? `${card.evidence.annotationIds.length} moment${card.evidence.annotationIds.length === 1 ? '' : 's'} from your recording`
+              {card.sourceAnnotationIds.length
+                ? `${card.sourceAnnotationIds.length} moment${card.sourceAnnotationIds.length === 1 ? '' : 's'} from your recording`
                 : 'No moment from the recording'}
-              {card.evidence.evidenceDigests.length
-                ? ` · ${card.evidence.evidenceDigests.length} evidence digest${card.evidence.evidenceDigests.length === 1 ? '' : 's'}`
+              {card.evidenceDigests.length
+                ? ` · ${card.evidenceDigests.length} evidence digest${card.evidenceDigests.length === 1 ? '' : 's'}`
                 : ''}
-              {card.confidence === null ? '' : ` · Implexa's confidence ${Math.round(card.confidence * 100)}%`}
-              {card.affectedStep ? ` · step ${card.affectedStep}` : ''}
+              {card.confidence ? ` · ${CONFIDENCE_LABELS[card.confidence]}` : ''}
+              {card.affectedStepIndex === null ? '' : ` · step ${card.affectedStepIndex}`}
+              {card.affectedCapabilityIdentity ? ` · ${card.affectedCapabilityIdentity}` : ''}
             </p>
-            {card.mergedIntoId && (
-              <p className="mt-1 text-[12px] text-ink-500">Merged into {card.mergedIntoId.slice(0, 8)}…</p>
-            )}
 
-            {!terminal && !isEditing && (
+            {/* WHAT THIS HAS AND HAS NOT CHANGED. Rendered on EVERY card, decided or
+                not, because the one question a Coach will ask of this screen is whether
+                any of it taught the Agent anything — and the honest answer here is
+                always no. */}
+            <p className="mt-1.5 text-[12px] text-ink-400" data-standing-sentence={standing}>
+              {standingSentence(card)}
+            </p>
+
+            {!decided && (
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  disabled={!!blocked || busy === card.id}
-                  onClick={() => { void run({ type: 'accept', id: card.id }); }}
+                  disabled={!!blocked || busy === card.proposalId}
+                  onClick={() => { void run(card, { type: 'confirm', proposalId: card.proposalId }); }}
                   className="rounded border border-ink-700 px-2 py-1 text-[13px] text-ink-200 disabled:opacity-40"
                 >
-                  Accept
+                  Confirm
                 </button>
                 <button
                   type="button"
-                  onClick={() => setEditing(card.id)}
-                  className="rounded border border-ink-700 px-2 py-1 text-[13px] text-ink-200"
-                >
-                  Edit
-                </button>
-                {open.length > 1 && (
-                  <label className="text-[13px] text-ink-400">
-                    <span className="sr-only">Merge this decision into another</span>
-                    <select
-                      aria-label={`Merge ${card.id} into`}
-                      value=""
-                      onChange={(e) => {
-                        const intoId = e.currentTarget.value;
-                        if (intoId) void run({ type: 'merge', id: card.id, intoId });
-                      }}
-                      className="rounded border border-ink-700 bg-ink-950 px-2 py-1 text-[13px] text-ink-200"
-                    >
-                      <option value="">Merge into…</option>
-                      {open.filter((other) => other.id !== card.id).map((other) => (
-                        <option key={other.id} value={other.id}>
-                          {other.content.trigger.trim() || `Decision ${other.id.slice(0, 8)}`}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                <button
-                  type="button"
-                  onClick={() => { void run({ type: 'discard', id: card.id }); }}
-                  className="rounded border border-ink-800 px-2 py-1 text-[13px] text-ink-400"
+                  disabled={busy === card.proposalId}
+                  onClick={() => { void run(card, { type: 'discard', proposalId: card.proposalId }); }}
+                  className="rounded border border-ink-800 px-2 py-1 text-[13px] text-ink-400 disabled:opacity-40"
                 >
                   Discard
                 </button>
                 {/* The reason is SHOWN. A disabled button with no explanation is how a
-                    user concludes the product is broken rather than that they have
-                    something left to write. */}
+                    user concludes the product is broken rather than that the recording
+                    did not justify the claim. */}
                 {blocked && <span className="text-[12px] text-amber-300">{blocked}</span>}
               </div>
             )}
@@ -230,54 +200,5 @@ export default function CoachDecisionCards({ cards: initial, onConfirm }: CoachD
         );
       })}
     </section>
-  );
-}
-
-function EditForm({ card, onSave, onCancel }: {
-  card: CoachDecisionCard;
-  onSave: (content: Partial<DecisionContent>) => Promise<void>;
-  onCancel: () => void;
-}) {
-  const [draft, setDraft] = useState<DecisionContent>(card.content);
-  return (
-    <div className="mt-2 space-y-2">
-      {FIELD_ORDER.filter((field) => field !== 'scope').map((field) => (
-        <label key={field} className="block">
-          <span className="block text-[12px] text-ink-500">{FIELD_LABELS[field]}</span>
-          <textarea
-            aria-label={FIELD_LABELS[field]}
-            rows={2}
-            value={(draft[field] as string | null) ?? ''}
-            onChange={(e) => setDraft((current) => ({ ...current, [field]: e.currentTarget.value }))}
-            className="w-full rounded border border-ink-700 bg-ink-950 px-2 py-1 text-[13px] text-ink-200"
-          />
-        </label>
-      ))}
-      <label className="block">
-        <span className="block text-[12px] text-ink-500">{FIELD_LABELS.scope}</span>
-        <select
-          aria-label={FIELD_LABELS.scope}
-          value={draft.scope}
-          onChange={(e) => setDraft((current) => ({ ...current, scope: e.currentTarget.value as DecisionContent['scope'] }))}
-          className="rounded border border-ink-700 bg-ink-950 px-2 py-1 text-[13px] text-ink-200"
-        >
-          {(Object.keys(SCOPE_LABELS) as (keyof typeof SCOPE_LABELS)[]).map((scope) => (
-            <option key={scope} value={scope}>{SCOPE_LABELS[scope]}</option>
-          ))}
-        </select>
-      </label>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => { void onSave(draft); }}
-          className="rounded border border-ink-700 px-2 py-1 text-[13px] text-ink-200"
-        >
-          Save your wording
-        </button>
-        <button type="button" onClick={onCancel} className="rounded border border-ink-800 px-2 py-1 text-[13px] text-ink-400">
-          Cancel
-        </button>
-      </div>
-    </div>
   );
 }

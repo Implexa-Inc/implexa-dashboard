@@ -24,7 +24,7 @@ import {
   type RunArtifactSubject, type TrainingSourceSubject,
 } from './review-subject.ts';
 import { resolveReviewAction } from './review-actions.ts';
-import { resolveTrainingReviewAction, TRAINING_BASE } from './training-review-actions.ts';
+import { resolveTrainingReviewAction, COACH_BASE } from './training-review-actions.ts';
 
 const RUN_SUBJECT: RunArtifactSubject = {
   kind: 'run_artifact',
@@ -120,36 +120,43 @@ test('the TRAINING allowlist refuses every run action, and says why', () => {
 });
 
 test('no training upstream path can address a run-review row', () => {
+  const identity = {
+    trainingSessionId: TRAINING_SUBJECT.trainingSessionId, sourceId: TRAINING_SUBJECT.sourceId,
+  };
+  const REVIEW = '55555555-5555-4555-8555-555555555555';
+  const ANNOTATION = '66666666-6666-4666-8666-666666666666';
   const bodies: Record<string, Record<string, unknown>> = {
-    ensure_training_session: { trainingSessionId: TRAINING_SUBJECT.trainingSessionId, sourceId: TRAINING_SUBJECT.sourceId },
-    create_training_annotation: {
-      reviewSessionId: '55555555-5555-4555-8555-555555555555', sourceId: TRAINING_SUBJECT.sourceId,
+    training_attach_demonstration: {
+      ...identity,
+      localCapabilityId: '99999999-9999-4999-8999-999999999999',
+      machineId: '88888888-8888-4888-8888-888888888888',
+      mediaSha256: 'a'.repeat(64), sizeBytes: 1024, durationMs: 5000,
+    },
+    training_create_review: { ...identity, idempotencyKey: 'coach-abc-123' },
+    training_read_review: { ...identity, reviewSessionId: REVIEW },
+    training_add_annotation: {
+      ...identity, reviewSessionId: REVIEW,
       temporalRange: { startMs: 10, endMs: 20 }, coachText: 'why',
-      anchorDigest: 'a'.repeat(64),
     },
-    amend_training_annotation: { annotationId: '66666666-6666-4666-8666-666666666666', coachText: 'why' },
-    discard_training_annotation: { annotationId: '66666666-6666-4666-8666-666666666666' },
-    attach_training_evidence: {
-      annotationId: '66666666-6666-4666-8666-666666666666', kind: 'clip',
-      mediaSha256: 'b'.repeat(64), temporalRange: { startMs: 0, endMs: 5 },
+    training_attach_evidence: {
+      ...identity, annotationId: ANNOTATION, evidenceKind: 'clip',
+      temporalRange: { startMs: 0, endMs: 5 }, consentReceiptDigest: 'b'.repeat(64),
     },
-    submit_training_annotations: {
-      reviewSessionId: '55555555-5555-4555-8555-555555555555',
-      annotationIds: ['66666666-6666-4666-8666-666666666666'], recordingDigest: 'c'.repeat(64),
+    training_freeze_submission: { ...identity, reviewSessionId: REVIEW },
+    training_record_proposal: {
+      ...identity, submissionId: '77777777-7777-4777-8777-777777777777',
+      ordinal: 0, kind: 'decision', sourceAnnotationIds: [ANNOTATION],
     },
-    confirm_training_decision: {
-      submissionId: '77777777-7777-4777-8777-777777777777',
-      decisionId: '88888888-8888-4888-8888-888888888888', disposition: 'accepted',
-    },
-    read_training_projection: {
-      trainingSessionId: TRAINING_SUBJECT.trainingSessionId, sourceId: TRAINING_SUBJECT.sourceId,
+    training_decide_proposal: {
+      ...identity, proposalId: '88888888-8888-4888-8888-888888888888',
+      decision: 'confirmed', expectedProposalDigest: 'c'.repeat(64),
     },
   };
   for (const action of TRAINING_REVIEW_ACTIONS) {
     const resolved = resolveTrainingReviewAction(action, bodies[action]);
     assert.notEqual(typeof resolved, 'string', `${action} should resolve: ${resolved}`);
     const { path } = resolved as { path: string };
-    assert.ok(path.startsWith(TRAINING_BASE), `${action} escaped the training base: ${path}`);
+    assert.ok(path.startsWith(COACH_BASE), `${action} escaped the coach base: ${path}`);
     assert.ok(!path.includes('/review/runs/'), `${action} addressed a run: ${path}`);
     assert.ok(!path.includes('/review/sessions/'), `${action} addressed a run-review session: ${path}`);
     assert.ok(!path.includes('/api/v2/review'), `${action} reached run review: ${path}`);
@@ -158,7 +165,7 @@ test('no training upstream path can address a run-review row', () => {
 
 test('a sealed training write carries the training identity and no run id', () => {
   const training = writePathFor(TRAINING_SUBJECT);
-  const envelope = sealWrite(training, 'create_training_annotation', { coachText: 'because' });
+  const envelope = sealWrite(training, 'training_add_annotation', { coachText: 'because' });
   assert.equal(envelope.authority, 'training_review');
   assert.equal(envelope.route, '/api/training-review');
   assert.equal(envelope.payload.trainingSessionId, TRAINING_SUBJECT.trainingSessionId);
@@ -168,7 +175,7 @@ test('a sealed training write carries the training identity and no run id', () =
 });
 
 test('a sealed write is frozen, so a later mutation cannot re-address it', () => {
-  const envelope = sealWrite(writePathFor(TRAINING_SUBJECT), 'discard_training_annotation', {});
+  const envelope = sealWrite(writePathFor(TRAINING_SUBJECT), 'training_freeze_submission', {});
   assert.throws(() => {
     (envelope.payload as Record<string, unknown>).runId = RUN_SUBJECT.runId;
   });

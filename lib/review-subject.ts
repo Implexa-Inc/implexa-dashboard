@@ -20,7 +20,7 @@
  *   { kind: 'run_artifact' }     -> POST /api/review          -> resolveReviewAction
  *                                   -> /api/v2/review/runs|sessions/...
  *   { kind: 'training_source' }  -> POST /api/training-review -> resolveTrainingReviewAction
- *                                   -> /api/v2/agents/training/...
+ *                                   -> /api/v2/agent-coach/...
  *
  * There is no function anywhere that turns a `training_source` subject into a run id
  * or an artifact id, because the training arm never carries those fields. There is no
@@ -125,20 +125,31 @@ export const RUN_REVIEW_ACTIONS = [
 export type RunReviewAction = (typeof RUN_REVIEW_ACTIONS)[number];
 
 /**
- * Training-review actions. DELIBERATELY DISJOINT from the run-review names above —
- * not `ensure_session` but `ensure_training_session` — so that a copy-pasted action
- * string cannot silently land in the other authority, and so that a grep for a run
- * action never matches a training call site.
+ * Training-review actions — ONE PER BACKEND ROUTE, and no others.
+ *
+ * These eight names are the eight operations the Agent Coach API exposes, in the
+ * backend contract fixture's own order (`routes` in `agent-coach-f0.json`). The 1:1
+ * correspondence is asserted against that fixture in
+ * `lib/training-review-contract.test.ts`: an action here with no route there, or a
+ * route there with no action here, fails the build rather than 404-ing in production.
+ *
+ * DELIBERATELY DISJOINT from the run-review names above — every one is prefixed
+ * `training_`, so a copy-pasted action string cannot silently land in the other
+ * authority, and a grep for a run action never matches a training call site.
+ *
+ * There is no `discard_annotation`. The backend's moment model is APPEND-ONLY: a
+ * correction is a new moment naming what it supersedes, and there is no route that
+ * removes one. An action for it here would be a control that could only ever fail.
  */
 export const TRAINING_REVIEW_ACTIONS = [
-  'ensure_training_session',
-  'create_training_annotation',
-  'amend_training_annotation',
-  'discard_training_annotation',
-  'attach_training_evidence',
-  'submit_training_annotations',
-  'confirm_training_decision',
-  'read_training_projection',
+  'training_attach_demonstration',
+  'training_create_review',
+  'training_read_review',
+  'training_add_annotation',
+  'training_attach_evidence',
+  'training_freeze_submission',
+  'training_record_proposal',
+  'training_decide_proposal',
 ] as const;
 export type TrainingReviewAction = (typeof TRAINING_REVIEW_ACTIONS)[number];
 

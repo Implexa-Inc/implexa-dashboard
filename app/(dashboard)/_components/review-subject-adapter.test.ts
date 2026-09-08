@@ -21,31 +21,46 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { render } from '../../../lib/test/render.ts';
-import { parseTrainingProjection } from '../../../lib/training-review-projection.ts';
-import { TRAINING_CONTRACT_VERSION } from '../../../lib/training-review-actions.ts';
+import { parseTrainingReview } from '../../../lib/training-review-projection.ts';
+import {
+  TRAINING_PROJECTION_VERSION, TRAINING_REVIEW_CONTRACT_VERSION,
+} from '../../../lib/training-review-actions.ts';
 
 const ROOT = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 const TSC = createRequire(import.meta.url).resolve('typescript/bin/tsc');
 const fixture = JSON.parse(readFileSync(join(ROOT, 'test-fixtures/training-review-f0.v1.json'), 'utf8'));
+const SUBJECT = fixture.backend.subjects.trainingSource;
 const ADAPTER = join(ROOT, 'app/(dashboard)/_components/review-subject-room.tsx');
 const source = readFileSync(ADAPTER, 'utf8');
 
+/** The review as the Coach meets it: cards proposed, nothing decided. */
+const OPEN_REVIEW = {
+  ...fixture.backend.reviews.decided,
+  proposals: fixture.backend.reviews.decided.proposals.map((p: Record<string, unknown>) => ({
+    ...p, status: 'proposed', decided: false, decidedAt: null,
+  })),
+};
+
+const projection = () => parseTrainingReview({ ok: true, review: OPEN_REVIEW }, {
+  projectionVersion: TRAINING_PROJECTION_VERSION,
+  contractVersion: TRAINING_REVIEW_CONTRACT_VERSION,
+});
+
+const trainingArm = (transport: unknown) => ({
+  kind: 'training_source',
+  trainingSessionId: SUBJECT.trainingSessionId,
+  sourceId: SUBJECT.sourceId,
+  training: { agentName: 'Fixture CAM Agent', projection: projection(), transport },
+});
+
 test('a training_source subject renders the training authority through the adapter', async () => {
   const calls: string[] = [];
-  const rendered = await render('review-subject-room.tsx', {
-    kind: 'training_source',
-    trainingSessionId: fixture.subject.trainingSessionId,
-    sourceId: fixture.subject.sourceId,
-    training: {
-      agentName: 'Fixture CAM Agent',
-      projection: parseTrainingProjection(fixture.projection, TRAINING_CONTRACT_VERSION),
-      submissionId: fixture.responses.submitAnnotations.submissionId,
-      transport: async (route: string, body: Record<string, unknown>) => {
-        calls.push(`${route}:${String(body.action)}`);
-        return { status: 200, body: { ok: true, candidateId: '77777777-7777-4777-8777-777777777777' } };
-      },
+  const rendered = await render('review-subject-room.tsx', trainingArm(
+    async (route: string, body: Record<string, unknown>) => {
+      calls.push(`${route}:${String(body.action)}`);
+      return { status: 200, body: { ok: true, status: 'confirmed', canonicalLinkState: 'mint_deferred', influenceState: 'inert' } };
     },
-  });
+  ));
   try {
     const root = rendered.document.querySelector('[data-review-authority]')!;
     assert.equal(root.getAttribute('data-review-authority'), 'training_review');
@@ -59,29 +74,24 @@ test('a training_source subject renders the training authority through the adapt
 
 test('a confirmed decision writes to the training route and nowhere else', async () => {
   const calls: Array<{ route: string; body: Record<string, unknown> }> = [];
-  const rendered = await render('review-subject-room.tsx', {
-    kind: 'training_source',
-    trainingSessionId: fixture.subject.trainingSessionId,
-    sourceId: fixture.subject.sourceId,
-    training: {
-      agentName: 'Fixture CAM Agent',
-      projection: parseTrainingProjection(fixture.projection, TRAINING_CONTRACT_VERSION),
-      submissionId: fixture.responses.submitAnnotations.submissionId,
-      transport: async (route: string, body: Record<string, unknown>) => {
-        calls.push({ route, body });
-        return { status: 200, body: { ok: true, candidateId: '77777777-7777-4777-8777-777777777777' } };
-      },
+  const rendered = await render('review-subject-room.tsx', trainingArm(
+    async (route: string, body: Record<string, unknown>) => {
+      calls.push({ route, body });
+      return { status: 200, body: { ok: true, status: 'confirmed', canonicalLinkState: 'mint_deferred', influenceState: 'inert' } };
     },
-  });
+  ));
   try {
     const good = rendered.document.querySelector('[data-insufficient-evidence="false"]')!;
-    await rendered.click([...good.querySelectorAll('button')].find((b) => b.textContent === 'Accept')!);
+    await rendered.click([...good.querySelectorAll('button')].find((b) => b.textContent === 'Confirm')!);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].route, '/api/training-review');
-    assert.equal(calls[0].body.action, 'confirm_training_decision');
-    assert.equal(calls[0].body.trainingSessionId, fixture.subject.trainingSessionId);
+    assert.equal(calls[0].body.action, 'training_decide_proposal');
+    assert.equal(calls[0].body.decision, 'confirmed');
+    assert.equal(calls[0].body.trainingSessionId, SUBJECT.trainingSessionId);
     assert.ok(!('runId' in calls[0].body), 'a run id must never appear on a training write');
-    assert.ok(!/"activate"\s*:\s*true/.test(JSON.stringify(calls[0].body)));
+    // The digest of the card SHOWN travels, so the confirmation cannot land elsewhere.
+    assert.equal(calls[0].body.expectedProposalDigest, OPEN_REVIEW.proposals[0].proposalDigest);
+    assert.ok(!/activate/.test(JSON.stringify(calls[0].body)));
   } finally { rendered.cleanup(); }
 });
 

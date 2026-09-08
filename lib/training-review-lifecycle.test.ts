@@ -11,8 +11,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  FACT_UNKNOWN_SENTENCE, LIFECYCLE_FACT_KEYS,
-  activationStance, changesFutureRuns, factLabel, factSentence, factTone,
+  FACT_UNKNOWN_SENTENCE, LIFECYCLE_FACT_KEYS, NOT_CARRIED_HERE,
+  activationStance, changesFutureRuns, deriveAuthorityState, factLabel, factSentence, factTone,
   parseAuthorityState, unknownAuthorityState,
 } from './training-review-lifecycle.ts';
 
@@ -104,4 +104,61 @@ test('nothing but activated can flip the future-runs claim', () => {
     assert.equal(changesFutureRuns(state), false, `${key} must not imply activation`);
     assert.equal(activationStance(state), 'inert_candidate');
   }
+});
+
+// ── Deriving the six from what F0 actually states ─────────────────────────────────
+
+const SOURCE = { sourceId: '00000003-0000-4000-8000-000000000003' };
+const ZERO = { activatedCount: 0, versionsCreated: 0, note: 'Nothing here has changed the Agent.' };
+
+test('ACTIVATED comes from the server\'s stated learning count, not from a default', () => {
+  assert.equal(deriveAuthorityState({ source: SOURCE, learning: ZERO }).activated.status, 'no');
+  // A learning block we could not read is UNKNOWN. Defaulting to `no` would render a
+  // confident "Not activated" for a record whose activation was never read — and the
+  // same default, once activation exists, would deny a real one.
+  assert.equal(deriveAuthorityState({ source: SOURCE, learning: null }).activated.status, 'unknown');
+  assert.equal(
+    deriveAuthorityState({ source: SOURCE, learning: { ...ZERO, activatedCount: 1 } }).activated.status,
+    'yes',
+  );
+  assert.equal(
+    deriveAuthorityState({ source: SOURCE, learning: { ...ZERO, versionsCreated: 1 } }).activated.status,
+    'yes',
+  );
+});
+
+test('DEMONSTRATED is yes only when a demonstration is actually there', () => {
+  assert.equal(deriveAuthorityState({ source: SOURCE, learning: ZERO }).demonstrated.status, 'yes');
+  assert.equal(deriveAuthorityState({ source: null, learning: ZERO }).demonstrated.status, 'unknown');
+});
+
+test('the four facts F0 does not carry are UNKNOWN with their own sentence, never NO', () => {
+  const state = deriveAuthorityState({ source: SOURCE, learning: ZERO });
+  for (const key of ['requested', 'implemented', 'verified', 'accepted'] as const) {
+    assert.equal(state[key].status, 'unknown', key);
+    assert.equal(factSentence(state[key]), NOT_CARRIED_HERE[key], key);
+    // Not the failed-read sentence — the read did not fail — and certainly not the
+    // confident "no", which would be a claim about revisions F0 knows nothing about.
+    assert.notEqual(factSentence(state[key]), FACT_UNKNOWN_SENTENCE, key);
+    assert.notEqual(factSentence(state[key]), factSentence({ ...state[key], status: 'no' }), key);
+    assert.equal(factTone(state[key]), 'unread', key);
+  }
+  // The four sentences are distinct from each other too.
+  const sentences = (['requested', 'implemented', 'verified', 'accepted'] as const)
+    .map((key) => factSentence(state[key]));
+  assert.equal(new Set(sentences).size, 4);
+});
+
+test('an unknown fact with NO detail still falls back to the failed-read sentence', () => {
+  assert.equal(factSentence({ key: 'verified', status: 'unknown', at: null, detail: null }), FACT_UNKNOWN_SENTENCE);
+});
+
+test('confirming decisions cannot move ACCEPTED — that is a revised result, not a teaching', () => {
+  const confirmed = [{ status: 'confirmed' }, { status: 'confirmed' }];
+  const state = deriveAuthorityState({ source: SOURCE, learning: ZERO, decisions: confirmed });
+  assert.equal(state.accepted.status, 'unknown');
+  assert.equal(state.verified.status, 'unknown');
+  assert.equal(state.activated.status, 'no');
+  assert.equal(changesFutureRuns(state), false);
+  assert.equal(activationStance(state), 'inert_candidate');
 });

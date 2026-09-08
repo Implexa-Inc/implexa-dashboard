@@ -17,7 +17,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
-  ACTIVE_LEARNING_HEADING, COACH_STEPS, INERT_CANDIDATE_BODY, INERT_CANDIDATE_HEADING,
+  ACTIVE_LEARNING_HEADING, COACH_STEPS,
+  CONFIRMED_NOT_A_LEARNING_BODY, CONFIRMED_NOT_A_LEARNING_HEADING,
+  INERT_CANDIDATE_BODY, INERT_CANDIDATE_HEADING,
   INSUFFICIENT_EVIDENCE_BODY, INSUFFICIENT_EVIDENCE_HEADING,
   NO_RECORDING_UPLOAD_NOTICE, PRIVACY_PROMISE, PRIVACY_QUALIFIER, PRIVACY_SCOPE_NOTICE,
   PROJECTION_UNAVAILABLE,
@@ -69,6 +71,24 @@ test('inert and active are described as different things, not degrees', () => {
   // F0 activates nothing, and the copy says the step is not available rather than
   // implying it is one click away.
   assert.match(INERT_CANDIDATE_BODY, /not available yet/);
+});
+
+test('a confirmed teaching is described as NOT YET a learning, with no hint of activation', () => {
+  // MINT DEFERRED, IN WORDS. The backend records `mint_deferred` rather than minting a
+  // canonical candidate, because a canonical candidate needs supporting evidence from
+  // real runs and a demonstration has none. The copy must say that plainly and must not
+  // suggest the teaching is queued, pending, or about to apply.
+  assert.match(CONFIRMED_NOT_A_LEARNING_HEADING, /not yet a learning/i);
+  assert.match(CONFIRMED_NOT_A_LEARNING_BODY, /verified result you accept/);
+  assert.match(CONFIRMED_NOT_A_LEARNING_BODY, /Nothing about your Agent has changed/);
+  for (const forbidden of [
+    /\bactivated\b/i, /will (be )?(applied|used|active)/i,
+    /pending activation/i, /waiting to be activated/i, /\bqueued\b/i, /next run will/i,
+  ]) {
+    assert.doesNotMatch(`${CONFIRMED_NOT_A_LEARNING_HEADING} ${CONFIRMED_NOT_A_LEARNING_BODY}`, forbidden);
+  }
+  assert.notEqual(CONFIRMED_NOT_A_LEARNING_HEADING, INERT_CANDIDATE_HEADING);
+  assert.notEqual(CONFIRMED_NOT_A_LEARNING_HEADING, ACTIVE_LEARNING_HEADING);
 });
 
 test('insufficient evidence is explained and handed back to the Coach', () => {

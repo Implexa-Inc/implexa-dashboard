@@ -1,292 +1,1163 @@
 {
   "$schema": "implexa.agent-training-review.fixture.v1",
-  "contractVersion": "agent-training-review.v1",
   "provenance": {
-    "producedBy": null,
-    "note": "ASSUMED, NOT PRODUCED. The backend F0 (spec §5) is being built in parallel and owns the real routes, payloads and fixtures. Every shape below is this repository's assumption, written before the producer existed, so the two can be diffed. `npm run fixtures:training-review:check` FAILS while `producedBy` is null — an unverified provenance claim is worse than no claim. When the backend lands, regenerate from it and set `producedBy` to the exact commit."
+    "producedBy": "implexa-backend@9568637ab1063144426ade4cce1c0f96cd483a59",
+    "producer": "scripts/generate-agent-coach-fixture.js",
+    "producedFile": "test-fixtures/generated/agent-coach-f0.json",
+    "backendPullRequest": 408,
+    "verifyWith": "IMPLEXA_BACKEND_DIR=/path/to/implexa-backend npm run fixtures:training-review:check"
   },
   "upstream": {
-    "base": "/api/v2/agents/training",
+    "base": "/api/v2/agent-coach",
+    "note": "The Dashboard's side of the seam: which action this repo emits for each backend route. The route strings are asserted byte-for-byte against backend.routes in lib/training-review-contract.test.ts.",
     "actions": {
-      "ensure_training_session": {
-        "method": "POST",
-        "path": "/api/v2/agents/training/sessions/{trainingSessionId}/review-sessions",
-        "body": { "sourceId": "uuid", "contractVersion": "agent-training-review.v1" }
+      "training_attach_demonstration": {
+        "routeKey": "attachDemonstration",
+        "route": "POST /api/v2/agent-coach/sessions/:trainingSessionId/demonstrations"
       },
-      "create_training_annotation": {
-        "method": "POST",
-        "path": "/api/v2/agents/training/review-sessions/{reviewSessionId}/annotations",
-        "body": {
-          "sourceId": "uuid",
-          "temporalRange": { "startMs": "int", "endMs": "int|null" },
-          "coachText": "string(1..4000)",
-          "anchorDigest": "sha256",
-          "spatialRegion": "object|null",
-          "transcriptSpan": "object|null",
-          "contractVersion": "agent-training-review.v1"
-        }
+      "training_create_review": {
+        "routeKey": "createReview",
+        "route": "POST /api/v2/agent-coach/reviews",
+        "headers": [
+          "Idempotency-Key"
+        ]
       },
-      "amend_training_annotation": {
-        "method": "POST",
-        "path": "/api/v2/agents/training/review-annotations/{annotationId}/amend",
-        "body": {
-          "coachText": "string(1..4000)",
-          "temporalRange": "range|null",
-          "spatialRegion": "object|null",
-          "transcriptSpan": "object|null",
-          "contractVersion": "agent-training-review.v1"
-        },
-        "note": "Append-only. The server mints a successor annotation naming what it supersedes; it never rewrites the row."
+      "training_read_review": {
+        "routeKey": "readReview",
+        "route": "GET /api/v2/agent-coach/reviews/:reviewSessionId"
       },
-      "discard_training_annotation": {
-        "method": "POST",
-        "path": "/api/v2/agents/training/review-annotations/{annotationId}/discard",
-        "body": { "contractVersion": "agent-training-review.v1" }
+      "training_add_annotation": {
+        "routeKey": "addAnnotation",
+        "route": "POST /api/v2/agent-coach/reviews/:reviewSessionId/annotations"
       },
-      "attach_training_evidence": {
-        "method": "POST",
-        "path": "/api/v2/agents/training/review-annotations/{annotationId}/evidence",
-        "body": {
-          "kind": "clip|frame|transcript",
-          "mediaSha256": "sha256",
-          "temporalRange": { "startMs": "int", "endMs": "int|null" },
-          "custody": "local_only",
-          "contractVersion": "agent-training-review.v1"
-        }
+      "training_attach_evidence": {
+        "routeKey": "attachEvidence",
+        "route": "POST /api/v2/agent-coach/annotations/:annotationId/evidence"
       },
-      "submit_training_annotations": {
-        "method": "POST",
-        "path": "/api/v2/agents/training/review-sessions/{reviewSessionId}/submissions",
-        "body": {
-          "annotationIds": ["uuid"],
-          "recordingDigest": "sha256",
-          "contractVersion": "agent-training-review.v1"
-        }
+      "training_freeze_submission": {
+        "routeKey": "freezeSubmission",
+        "route": "POST /api/v2/agent-coach/reviews/:reviewSessionId/submission"
       },
-      "confirm_training_decision": {
-        "method": "POST",
-        "path": "/api/v2/agents/training/submissions/{submissionId}/decisions/{decisionId}/confirm",
-        "body": {
-          "disposition": "accepted|edited|merged|discarded",
-          "mergedIntoDecisionId": "uuid|null",
-          "edits": "object|null",
-          "activate": false,
-          "contractVersion": "agent-training-review.v1"
-        },
-        "note": "`activate` is pinned false by the resolver. F0 has no expression that can request activation."
+      "training_record_proposal": {
+        "routeKey": "recordProposal",
+        "route": "POST /api/v2/agent-coach/submissions/:submissionId/proposals"
       },
-      "read_training_projection": {
-        "method": "GET",
-        "path": "/api/v2/agents/training/sessions/{trainingSessionId}/projection?sourceId={sourceId}"
+      "training_decide_proposal": {
+        "routeKey": "decideProposal",
+        "route": "POST /api/v2/agent-coach/proposals/:proposalId/decision"
       }
     }
   },
-  "subject": {
-    "kind": "training_source",
-    "trainingSessionId": "11111111-1111-4111-8111-111111111111",
-    "sourceId": "22222222-2222-4222-8222-222222222222"
-  },
-  "responses": {
-    "ensureTrainingSession": {
-      "ok": true,
-      "reviewSessionId": "33333333-3333-4333-8333-333333333333",
-      "recordingDigest": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+  "backend": {
+    "schema": "implexa.agent-coach-f0.fixture.v1",
+    "projectionVersion": "agent-training-review.v1",
+    "reviewContractVersion": "agent-training-review-session.v1",
+    "routes": {
+      "attachDemonstration": "POST /api/v2/agent-coach/sessions/:trainingSessionId/demonstrations",
+      "createReview": "POST /api/v2/agent-coach/reviews",
+      "readReview": "GET /api/v2/agent-coach/reviews/:reviewSessionId",
+      "addAnnotation": "POST /api/v2/agent-coach/reviews/:reviewSessionId/annotations",
+      "attachEvidence": "POST /api/v2/agent-coach/annotations/:annotationId/evidence",
+      "freezeSubmission": "POST /api/v2/agent-coach/reviews/:reviewSessionId/submission",
+      "recordProposal": "POST /api/v2/agent-coach/submissions/:submissionId/proposals",
+      "decideProposal": "POST /api/v2/agent-coach/proposals/:proposalId/decision"
     },
-    "createAnnotation": {
-      "ok": true,
-      "annotationId": "44444444-4444-4444-8444-444444444444"
-    },
-    "amendAnnotation": {
-      "ok": true,
-      "annotationId": "55555555-5555-4555-8555-555555555555",
-      "supersedesAnnotationId": "44444444-4444-4444-8444-444444444444"
-    },
-    "submitAnnotations": {
-      "ok": true,
-      "submissionId": "66666666-6666-4666-8666-666666666666",
-      "submissionDigest": "0011223344556677889900112233445566778899001122334455667788990011"
-    },
-    "submitAnnotationsIdempotent": {
-      "ok": true,
-      "idempotent": true,
-      "submissionId": "66666666-6666-4666-8666-666666666666"
-    },
-    "confirmDecision": {
-      "ok": true,
-      "candidateId": "77777777-7777-4777-8777-777777777777",
-      "activated": false
-    },
-    "refusedAppendOnly": {
-      "ok": false,
-      "error": "That submission is frozen. Add a new moment instead of changing a submitted one."
-    },
-    "unavailable": {
-      "ok": false,
-      "error": "Could not reach the training review service. Nothing was changed.",
-      "unavailable": true
-    }
-  },
-  "projection": {
-    "ok": true,
-    "contractVersion": "agent-training-review.v1",
-    "projection": {
-      "source": {
-        "id": "22222222-2222-4222-8222-222222222222",
-        "sourceKind": "owner_demonstration",
-        "mediaSha256": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233",
-        "sizeBytes": 48234112,
-        "mediaType": "video/quicktime",
-        "durationMs": 254000,
-        "suppliedAt": "2026-09-07T18:22:11.000Z",
-        "captureMode": "supplied",
-        "machineLabel": "Coach MacBook Pro",
-        "baseVersionId": "88888888-8888-4888-8888-888888888888",
-        "custody": "local_only"
+    "refusalReasons": [
+      "coaching_disabled",
+      "coaching_not_migrated",
+      "coaching_unavailable",
+      "invalid_request",
+      "invalid_idempotency_key",
+      "idempotency_key_conflict",
+      "invalid_source_mode",
+      "source_mode_not_enabled",
+      "invalid_privacy_scope",
+      "organization_membership_required",
+      "agent_not_owned",
+      "version_not_of_agent",
+      "custody_binding_required",
+      "invalid_media_digest",
+      "invalid_media_size",
+      "invalid_media_type",
+      "invalid_media_duration",
+      "invalid_capture_mode",
+      "capture_mode_not_enabled",
+      "captured_at_not_observed",
+      "session_not_found",
+      "session_terminal",
+      "session_mode_mismatch",
+      "divergence_run_not_owned",
+      "divergence_run_scope_mismatch",
+      "source_not_of_session",
+      "source_not_a_demonstration",
+      "review_already_open",
+      "review_not_found",
+      "review_closed",
+      "submission_frozen",
+      "coach_text_required",
+      "invalid_annotation_range",
+      "annotation_outside_recording",
+      "invalid_transcript_span",
+      "transcript_outside_annotation",
+      "superseded_annotation_not_found",
+      "annotation_already_superseded",
+      "annotation_budget_exhausted",
+      "invalid_evidence_kind",
+      "consent_receipt_required",
+      "invalid_evidence_range",
+      "evidence_not_contained",
+      "invalid_frame_instant",
+      "frame_instant_not_applicable",
+      "transcript_text_required",
+      "transcript_text_not_applicable",
+      "annotation_not_found",
+      "annotation_superseded",
+      "no_annotations",
+      "recording_changed",
+      "submission_not_found",
+      "invalid_proposal_kind",
+      "invalid_proposal_ordinal",
+      "annotations_required",
+      "invalid_candidate_classification",
+      "invalid_proposed_scope",
+      "invalid_confidence",
+      "incomplete_decision_card",
+      "unsafe_or_invalid_rule",
+      "insufficient_evidence_reason_required",
+      "proposal_not_found",
+      "invalid_decision",
+      "stale_proposal_confirmation",
+      "insufficient_evidence_not_confirmable",
+      "derived_field_supplied"
+    ],
+    "subjects": {
+      "runArtifact": {
+        "kind": "run_artifact",
+        "runId": "00000021-0000-4000-8000-000000000021",
+        "artifactId": "00000022-0000-4000-8000-000000000022"
       },
-      "evidence": [
-        {
-          "id": "99999999-9999-4999-8999-999999999999",
-          "annotationId": "44444444-4444-4444-8444-444444444444",
-          "kind": "clip",
-          "temporalRange": { "startMs": 61200, "endMs": 74800 },
-          "mediaSha256": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233",
-          "custody": "local_only",
-          "revoked": false
+      "trainingSource": {
+        "kind": "training_source",
+        "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+        "sourceId": "00000003-0000-4000-8000-000000000003"
+      }
+    },
+    "outOfScope": [
+      "native_screen_capture",
+      "microphone_capture",
+      "recording_upload",
+      "run_scheduling",
+      "revision_requests",
+      "learning_activation",
+      "agent_version_creation",
+      "marketplace_publication"
+    ],
+    "reviews": {
+      "openEmpty": {
+        "projectionVersion": "agent-training-review.v1",
+        "contractVersion": "agent-training-review-session.v1",
+        "reviewSessionId": "00000002-0000-4000-8000-000000000002",
+        "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+        "agent": {
+          "agentFamilyId": "00000004-0000-4000-8000-000000000004",
+          "baseVersionId": "00000005-0000-4000-8000-000000000005",
+          "taskSignatureDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         },
-        {
-          "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          "annotationId": "44444444-4444-4444-8444-444444444444",
-          "kind": "transcript",
-          "temporalRange": { "startMs": 61200, "endMs": 74800 },
-          "mediaSha256": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233",
-          "custody": "local_only",
-          "revoked": false
-        }
-      ],
-      "decisions": [
-        {
-          "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-          "trigger": "A pocket meets a fillet smaller than the tool radius.",
-          "rejectedTreatment": "The agent cut the pocket first and left an unreachable corner.",
-          "selectedTreatment": "Rough the pocket, then finish the corner with the smaller end mill.",
-          "rationale": "The corner is unreachable at the roughing radius, so a second pass is the only way to hold the drawing tolerance.",
-          "invariant": "The finished corner radius must match the drawing.",
-          "exception": "Skip the second pass when the drawing calls out a broken corner.",
-          "scope": "this_task",
-          "destination": "both",
-          "confidence": 0.82,
-          "annotationIds": ["44444444-4444-4444-8444-444444444444"],
-          "evidenceDigests": ["aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"],
-          "affectedStep": "toolpath_generation",
-          "affectedCapability": "cad:toolpath",
-          "insufficientEvidence": false
+        "subject": {
+          "kind": "training_source",
+          "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+          "sourceId": "00000003-0000-4000-8000-000000000003"
         },
-        {
-          "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-          "trigger": "",
-          "rejectedTreatment": "",
-          "selectedTreatment": "",
-          "rationale": "",
-          "invariant": null,
-          "exception": null,
-          "scope": "this_revision",
-          "destination": "run_local_revision",
-          "confidence": 0.11,
-          "annotationIds": ["55555555-5555-4555-8555-555555555555"],
-          "evidenceDigests": [],
-          "affectedStep": null,
-          "affectedCapability": null,
-          "insufficientEvidence": true
-        }
-      ],
-      "authorityState": {
-        "requested": { "status": "yes", "at": "2026-09-07T18:04:00.000Z", "detail": null },
-        "demonstrated": { "status": "yes", "at": "2026-09-07T18:22:11.000Z", "detail": null },
-        "implemented": { "status": "no", "at": null, "detail": null },
-        "verified": { "status": "no", "at": null, "detail": null },
-        "accepted": { "status": "no", "at": null, "detail": null },
-        "activated": { "status": "no", "at": null, "detail": null }
+        "status": "open",
+        "statusReason": null,
+        "terminal": false,
+        "source": {
+          "sourceId": "00000003-0000-4000-8000-000000000003",
+          "kind": "owner_demonstration",
+          "role": "owner_demonstration",
+          "evidenceAuthority": "canonical_private_demonstration",
+          "captureMode": "supplied",
+          "mediaType": "video/mp4",
+          "sizeBytes": 41943040,
+          "recordingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "recordingDurationMs": 600000,
+          "divergenceRunId": "00000008-0000-4000-8000-000000000008",
+          "machineId": "00000006-0000-4000-8000-000000000006",
+          "localCapabilityId": "00000007-0000-4000-8000-000000000007",
+          "integrity": "verified",
+          "integrityNote": null,
+          "custodyNote": "The full recording stays on this Mac.",
+          "suppliedAt": "2026-09-07T09:00:00.000Z"
+        },
+        "annotations": [],
+        "liveAnnotationCount": 0,
+        "submission": null,
+        "proposals": [],
+        "learning": {
+          "activatedCount": 0,
+          "versionsCreated": 0,
+          "note": "Nothing here has changed the Agent. Confirmed teachings stay inert until a verified, accepted result earns them."
+        },
+        "createdAt": "2026-09-07T09:00:00.000Z",
+        "updatedAt": "2026-09-07T09:24:00.000Z",
+        "terminalAt": null,
+        "permittedActions": [
+          "add_moment",
+          "abandon_review"
+        ]
       },
-      "submission": {
-        "id": "66666666-6666-4666-8666-666666666666",
-        "digest": "0011223344556677889900112233445566778899001122334455667788990011",
-        "createdAt": "2026-09-07T18:31:02.000Z",
-        "annotationCount": 2
-      }
-    }
-  },
-  "projectionAllUnknown": {
-    "ok": true,
-    "contractVersion": "agent-training-review.v1",
-    "projection": {
-      "source": null,
-      "evidence": [],
-      "decisions": [],
-      "submission": null
-    }
-  },
-  "projectionActivated": {
-    "ok": true,
-    "contractVersion": "agent-training-review.v1",
-    "projection": {
-      "source": null,
-      "evidence": [],
-      "decisions": [],
-      "submission": null,
-      "authorityState": {
-        "requested": { "status": "yes", "at": "2026-09-07T18:04:00.000Z", "detail": null },
-        "demonstrated": { "status": "yes", "at": "2026-09-07T18:22:11.000Z", "detail": null },
-        "implemented": { "status": "yes", "at": "2026-09-07T19:02:00.000Z", "detail": null },
-        "verified": { "status": "yes", "at": "2026-09-07T19:14:00.000Z", "detail": null },
-        "accepted": { "status": "yes", "at": "2026-09-07T19:20:00.000Z", "detail": null },
-        "activated": { "status": "yes", "at": "2026-09-08T09:00:00.000Z", "detail": null }
-      }
-    },
-    "note": "Not reachable in F0 — no F0 code path activates anything. Present so the projection surface can be proven to render an ACTIVE learning differently from an inert candidate."
-  },
-  "projectionUnreadableState": {
-    "ok": true,
-    "contractVersion": "agent-training-review.v1",
-    "projection": {
-      "source": null,
-      "evidence": [],
-      "decisions": [],
-      "submission": null,
-      "authorityState": {
-        "requested": { "status": "yes", "at": "2026-09-07T18:04:00.000Z", "detail": null },
-        "demonstrated": { "status": "yes", "at": "2026-09-07T18:22:11.000Z", "detail": null },
-        "implemented": { "status": "unknown", "at": null, "detail": null },
-        "verified": { "status": "unknown", "at": null, "detail": null },
-        "accepted": { "status": "no", "at": null, "detail": null },
-        "activated": { "status": "unknown", "at": null, "detail": null }
-      }
-    }
-  },
-  "projectionRefused": {
-    "ok": false,
-    "error": "That training session is not yours."
-  },
-  "projectionPathLeak": {
-    "ok": true,
-    "contractVersion": "agent-training-review.v1",
-    "projection": {
-      "source": {
-        "id": "22222222-2222-4222-8222-222222222222",
-        "sourceKind": "owner_demonstration",
-        "mediaSha256": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233",
-        "sizeBytes": 100,
-        "mediaType": "video/quicktime",
-        "durationMs": 1000,
-        "suppliedAt": "2026-09-07T18:22:11.000Z",
-        "captureMode": "supplied",
-        "machineLabel": "/Users/coach/Movies/screen-2026-09-07.mov",
-        "baseVersionId": "88888888-8888-4888-8888-888888888888",
-        "custody": "local_only"
+      "marked": {
+        "projectionVersion": "agent-training-review.v1",
+        "contractVersion": "agent-training-review-session.v1",
+        "reviewSessionId": "00000002-0000-4000-8000-000000000002",
+        "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+        "agent": {
+          "agentFamilyId": "00000004-0000-4000-8000-000000000004",
+          "baseVersionId": "00000005-0000-4000-8000-000000000005",
+          "taskSignatureDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        "subject": {
+          "kind": "training_source",
+          "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+          "sourceId": "00000003-0000-4000-8000-000000000003"
+        },
+        "status": "open",
+        "statusReason": null,
+        "terminal": false,
+        "source": {
+          "sourceId": "00000003-0000-4000-8000-000000000003",
+          "kind": "owner_demonstration",
+          "role": "owner_demonstration",
+          "evidenceAuthority": "canonical_private_demonstration",
+          "captureMode": "supplied",
+          "mediaType": "video/mp4",
+          "sizeBytes": 41943040,
+          "recordingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "recordingDurationMs": 600000,
+          "divergenceRunId": "00000008-0000-4000-8000-000000000008",
+          "machineId": "00000006-0000-4000-8000-000000000006",
+          "localCapabilityId": "00000007-0000-4000-8000-000000000007",
+          "integrity": "verified",
+          "integrityNote": null,
+          "custodyNote": "The full recording stays on this Mac.",
+          "suppliedAt": "2026-09-07T09:00:00.000Z"
+        },
+        "annotations": [
+          {
+            "annotationId": "00000009-0000-4000-8000-000000000009",
+            "ordinal": 0,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 10000,
+            "endsAtMs": 25000,
+            "region": null,
+            "transcriptStartMs": null,
+            "transcriptEndMs": null,
+            "transcriptText": null,
+            "coachText": "Chamfer the edge before the pocket cut.",
+            "rationale": "A pocket cut on a sharp edge chips the fixture.",
+            "anchorDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+            "supersedesAnnotationId": null,
+            "evidence": [],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          },
+          {
+            "annotationId": "00000011-0000-4000-8000-000000000011",
+            "ordinal": 1,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 30000,
+            "endsAtMs": 48000,
+            "region": {
+              "x": 0.12,
+              "y": 0.34,
+              "w": 0.4,
+              "h": 0.22
+            },
+            "transcriptStartMs": 32000,
+            "transcriptEndMs": 36000,
+            "transcriptText": "take the feed rate off the material table, not the default",
+            "coachText": "Set the feed rate from the material table, not the default.",
+            "rationale": "The default is tuned for aluminium; this fixture is steel.",
+            "anchorDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "supersedesAnnotationId": null,
+            "evidence": [
+              {
+                "evidenceId": "00000012-0000-4000-8000-000000000012",
+                "kind": "clip",
+                "startsAtMs": 31000,
+                "endsAtMs": 40000,
+                "frameAtMs": null,
+                "mediaType": "video/mp4",
+                "sizeBytes": 524288,
+                "transcriptText": null,
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "3333333333333333333333333333333333333333333333333333333333333333"
+              },
+              {
+                "evidenceId": "00000013-0000-4000-8000-000000000013",
+                "kind": "transcript_span",
+                "startsAtMs": 32000,
+                "endsAtMs": 36000,
+                "frameAtMs": null,
+                "mediaType": null,
+                "sizeBytes": null,
+                "transcriptText": "take the feed rate off the material table, not the default",
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "5555555555555555555555555555555555555555555555555555555555555555"
+              }
+            ],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          }
+        ],
+        "liveAnnotationCount": 2,
+        "submission": null,
+        "proposals": [],
+        "learning": {
+          "activatedCount": 0,
+          "versionsCreated": 0,
+          "note": "Nothing here has changed the Agent. Confirmed teachings stay inert until a verified, accepted result earns them."
+        },
+        "createdAt": "2026-09-07T09:00:00.000Z",
+        "updatedAt": "2026-09-07T09:24:00.000Z",
+        "terminalAt": null,
+        "permittedActions": [
+          "add_moment",
+          "supersede_moment",
+          "attach_evidence",
+          "freeze_submission",
+          "abandon_review"
+        ]
       },
-      "evidence": [],
-      "decisions": [],
-      "submission": null
-    },
-    "note": "Adversarial: a backend that leaks a local path where a machine label belongs. §6.1 requires no path reaches the browser, so the parser must drop it."
+      "superseded": {
+        "projectionVersion": "agent-training-review.v1",
+        "contractVersion": "agent-training-review-session.v1",
+        "reviewSessionId": "00000002-0000-4000-8000-000000000002",
+        "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+        "agent": {
+          "agentFamilyId": "00000004-0000-4000-8000-000000000004",
+          "baseVersionId": "00000005-0000-4000-8000-000000000005",
+          "taskSignatureDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        "subject": {
+          "kind": "training_source",
+          "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+          "sourceId": "00000003-0000-4000-8000-000000000003"
+        },
+        "status": "open",
+        "statusReason": null,
+        "terminal": false,
+        "source": {
+          "sourceId": "00000003-0000-4000-8000-000000000003",
+          "kind": "owner_demonstration",
+          "role": "owner_demonstration",
+          "evidenceAuthority": "canonical_private_demonstration",
+          "captureMode": "supplied",
+          "mediaType": "video/mp4",
+          "sizeBytes": 41943040,
+          "recordingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "recordingDurationMs": 600000,
+          "divergenceRunId": "00000008-0000-4000-8000-000000000008",
+          "machineId": "00000006-0000-4000-8000-000000000006",
+          "localCapabilityId": "00000007-0000-4000-8000-000000000007",
+          "integrity": "verified",
+          "integrityNote": null,
+          "custodyNote": "The full recording stays on this Mac.",
+          "suppliedAt": "2026-09-07T09:00:00.000Z"
+        },
+        "annotations": [
+          {
+            "annotationId": "00000009-0000-4000-8000-000000000009",
+            "ordinal": 0,
+            "status": "superseded",
+            "live": false,
+            "startsAtMs": 10000,
+            "endsAtMs": 25000,
+            "region": null,
+            "transcriptStartMs": null,
+            "transcriptEndMs": null,
+            "transcriptText": null,
+            "coachText": "Chamfer the edge before the pocket cut.",
+            "rationale": "A pocket cut on a sharp edge chips the fixture.",
+            "anchorDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+            "supersedesAnnotationId": null,
+            "evidence": [],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          },
+          {
+            "annotationId": "00000011-0000-4000-8000-000000000011",
+            "ordinal": 1,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 30000,
+            "endsAtMs": 48000,
+            "region": {
+              "x": 0.12,
+              "y": 0.34,
+              "w": 0.4,
+              "h": 0.22
+            },
+            "transcriptStartMs": 32000,
+            "transcriptEndMs": 36000,
+            "transcriptText": "take the feed rate off the material table, not the default",
+            "coachText": "Set the feed rate from the material table, not the default.",
+            "rationale": "The default is tuned for aluminium; this fixture is steel.",
+            "anchorDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "supersedesAnnotationId": null,
+            "evidence": [
+              {
+                "evidenceId": "00000012-0000-4000-8000-000000000012",
+                "kind": "clip",
+                "startsAtMs": 31000,
+                "endsAtMs": 40000,
+                "frameAtMs": null,
+                "mediaType": "video/mp4",
+                "sizeBytes": 524288,
+                "transcriptText": null,
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "3333333333333333333333333333333333333333333333333333333333333333"
+              },
+              {
+                "evidenceId": "00000013-0000-4000-8000-000000000013",
+                "kind": "transcript_span",
+                "startsAtMs": 32000,
+                "endsAtMs": 36000,
+                "frameAtMs": null,
+                "mediaType": null,
+                "sizeBytes": null,
+                "transcriptText": "take the feed rate off the material table, not the default",
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "5555555555555555555555555555555555555555555555555555555555555555"
+              }
+            ],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          },
+          {
+            "annotationId": "00000010-0000-4000-8000-000000000010",
+            "ordinal": 2,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 10000,
+            "endsAtMs": 25000,
+            "region": null,
+            "transcriptStartMs": null,
+            "transcriptEndMs": null,
+            "transcriptText": null,
+            "coachText": "Chamfer the edge to 0.5mm before the pocket cut.",
+            "rationale": "A pocket cut on a sharp edge chips the fixture.",
+            "anchorDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+            "supersedesAnnotationId": "00000009-0000-4000-8000-000000000009",
+            "evidence": [],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          }
+        ],
+        "liveAnnotationCount": 2,
+        "submission": null,
+        "proposals": [],
+        "learning": {
+          "activatedCount": 0,
+          "versionsCreated": 0,
+          "note": "Nothing here has changed the Agent. Confirmed teachings stay inert until a verified, accepted result earns them."
+        },
+        "createdAt": "2026-09-07T09:00:00.000Z",
+        "updatedAt": "2026-09-07T09:24:00.000Z",
+        "terminalAt": null,
+        "permittedActions": [
+          "add_moment",
+          "supersede_moment",
+          "attach_evidence",
+          "freeze_submission",
+          "abandon_review"
+        ]
+      },
+      "frozen": {
+        "projectionVersion": "agent-training-review.v1",
+        "contractVersion": "agent-training-review-session.v1",
+        "reviewSessionId": "00000002-0000-4000-8000-000000000002",
+        "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+        "agent": {
+          "agentFamilyId": "00000004-0000-4000-8000-000000000004",
+          "baseVersionId": "00000005-0000-4000-8000-000000000005",
+          "taskSignatureDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        "subject": {
+          "kind": "training_source",
+          "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+          "sourceId": "00000003-0000-4000-8000-000000000003"
+        },
+        "status": "submitted",
+        "statusReason": null,
+        "terminal": true,
+        "source": {
+          "sourceId": "00000003-0000-4000-8000-000000000003",
+          "kind": "owner_demonstration",
+          "role": "owner_demonstration",
+          "evidenceAuthority": "canonical_private_demonstration",
+          "captureMode": "supplied",
+          "mediaType": "video/mp4",
+          "sizeBytes": 41943040,
+          "recordingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "recordingDurationMs": 600000,
+          "divergenceRunId": "00000008-0000-4000-8000-000000000008",
+          "machineId": "00000006-0000-4000-8000-000000000006",
+          "localCapabilityId": "00000007-0000-4000-8000-000000000007",
+          "integrity": "verified",
+          "integrityNote": null,
+          "custodyNote": "The full recording stays on this Mac.",
+          "suppliedAt": "2026-09-07T09:00:00.000Z"
+        },
+        "annotations": [
+          {
+            "annotationId": "00000009-0000-4000-8000-000000000009",
+            "ordinal": 0,
+            "status": "superseded",
+            "live": false,
+            "startsAtMs": 10000,
+            "endsAtMs": 25000,
+            "region": null,
+            "transcriptStartMs": null,
+            "transcriptEndMs": null,
+            "transcriptText": null,
+            "coachText": "Chamfer the edge before the pocket cut.",
+            "rationale": "A pocket cut on a sharp edge chips the fixture.",
+            "anchorDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+            "supersedesAnnotationId": null,
+            "evidence": [],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          },
+          {
+            "annotationId": "00000011-0000-4000-8000-000000000011",
+            "ordinal": 1,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 30000,
+            "endsAtMs": 48000,
+            "region": {
+              "x": 0.12,
+              "y": 0.34,
+              "w": 0.4,
+              "h": 0.22
+            },
+            "transcriptStartMs": 32000,
+            "transcriptEndMs": 36000,
+            "transcriptText": "take the feed rate off the material table, not the default",
+            "coachText": "Set the feed rate from the material table, not the default.",
+            "rationale": "The default is tuned for aluminium; this fixture is steel.",
+            "anchorDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "supersedesAnnotationId": null,
+            "evidence": [
+              {
+                "evidenceId": "00000012-0000-4000-8000-000000000012",
+                "kind": "clip",
+                "startsAtMs": 31000,
+                "endsAtMs": 40000,
+                "frameAtMs": null,
+                "mediaType": "video/mp4",
+                "sizeBytes": 524288,
+                "transcriptText": null,
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "3333333333333333333333333333333333333333333333333333333333333333"
+              },
+              {
+                "evidenceId": "00000013-0000-4000-8000-000000000013",
+                "kind": "transcript_span",
+                "startsAtMs": 32000,
+                "endsAtMs": 36000,
+                "frameAtMs": null,
+                "mediaType": null,
+                "sizeBytes": null,
+                "transcriptText": "take the feed rate off the material table, not the default",
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "5555555555555555555555555555555555555555555555555555555555555555"
+              }
+            ],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          },
+          {
+            "annotationId": "00000010-0000-4000-8000-000000000010",
+            "ordinal": 2,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 10000,
+            "endsAtMs": 25000,
+            "region": null,
+            "transcriptStartMs": null,
+            "transcriptEndMs": null,
+            "transcriptText": null,
+            "coachText": "Chamfer the edge to 0.5mm before the pocket cut.",
+            "rationale": "A pocket cut on a sharp edge chips the fixture.",
+            "anchorDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+            "supersedesAnnotationId": "00000009-0000-4000-8000-000000000009",
+            "evidence": [],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          }
+        ],
+        "liveAnnotationCount": 2,
+        "submission": {
+          "submissionId": "00000014-0000-4000-8000-000000000014",
+          "submissionDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "annotationCount": 2,
+          "recordingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "frozen": true,
+          "createdAt": "2026-09-07T09:20:00.000Z"
+        },
+        "proposals": [],
+        "learning": {
+          "activatedCount": 0,
+          "versionsCreated": 0,
+          "note": "Nothing here has changed the Agent. Confirmed teachings stay inert until a verified, accepted result earns them."
+        },
+        "createdAt": "2026-09-07T09:00:00.000Z",
+        "updatedAt": "2026-09-07T09:24:00.000Z",
+        "terminalAt": "2026-09-07T09:20:00.000Z",
+        "permittedActions": []
+      },
+      "decided": {
+        "projectionVersion": "agent-training-review.v1",
+        "contractVersion": "agent-training-review-session.v1",
+        "reviewSessionId": "00000002-0000-4000-8000-000000000002",
+        "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+        "agent": {
+          "agentFamilyId": "00000004-0000-4000-8000-000000000004",
+          "baseVersionId": "00000005-0000-4000-8000-000000000005",
+          "taskSignatureDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        "subject": {
+          "kind": "training_source",
+          "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+          "sourceId": "00000003-0000-4000-8000-000000000003"
+        },
+        "status": "submitted",
+        "statusReason": null,
+        "terminal": true,
+        "source": {
+          "sourceId": "00000003-0000-4000-8000-000000000003",
+          "kind": "owner_demonstration",
+          "role": "owner_demonstration",
+          "evidenceAuthority": "canonical_private_demonstration",
+          "captureMode": "supplied",
+          "mediaType": "video/mp4",
+          "sizeBytes": 41943040,
+          "recordingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "recordingDurationMs": 600000,
+          "divergenceRunId": "00000008-0000-4000-8000-000000000008",
+          "machineId": "00000006-0000-4000-8000-000000000006",
+          "localCapabilityId": "00000007-0000-4000-8000-000000000007",
+          "integrity": "verified",
+          "integrityNote": null,
+          "custodyNote": "The full recording stays on this Mac.",
+          "suppliedAt": "2026-09-07T09:00:00.000Z"
+        },
+        "annotations": [
+          {
+            "annotationId": "00000009-0000-4000-8000-000000000009",
+            "ordinal": 0,
+            "status": "superseded",
+            "live": false,
+            "startsAtMs": 10000,
+            "endsAtMs": 25000,
+            "region": null,
+            "transcriptStartMs": null,
+            "transcriptEndMs": null,
+            "transcriptText": null,
+            "coachText": "Chamfer the edge before the pocket cut.",
+            "rationale": "A pocket cut on a sharp edge chips the fixture.",
+            "anchorDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+            "supersedesAnnotationId": null,
+            "evidence": [],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          },
+          {
+            "annotationId": "00000011-0000-4000-8000-000000000011",
+            "ordinal": 1,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 30000,
+            "endsAtMs": 48000,
+            "region": {
+              "x": 0.12,
+              "y": 0.34,
+              "w": 0.4,
+              "h": 0.22
+            },
+            "transcriptStartMs": 32000,
+            "transcriptEndMs": 36000,
+            "transcriptText": "take the feed rate off the material table, not the default",
+            "coachText": "Set the feed rate from the material table, not the default.",
+            "rationale": "The default is tuned for aluminium; this fixture is steel.",
+            "anchorDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "supersedesAnnotationId": null,
+            "evidence": [
+              {
+                "evidenceId": "00000012-0000-4000-8000-000000000012",
+                "kind": "clip",
+                "startsAtMs": 31000,
+                "endsAtMs": 40000,
+                "frameAtMs": null,
+                "mediaType": "video/mp4",
+                "sizeBytes": 524288,
+                "transcriptText": null,
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "3333333333333333333333333333333333333333333333333333333333333333"
+              },
+              {
+                "evidenceId": "00000013-0000-4000-8000-000000000013",
+                "kind": "transcript_span",
+                "startsAtMs": 32000,
+                "endsAtMs": 36000,
+                "frameAtMs": null,
+                "mediaType": null,
+                "sizeBytes": null,
+                "transcriptText": "take the feed rate off the material table, not the default",
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "5555555555555555555555555555555555555555555555555555555555555555"
+              }
+            ],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          },
+          {
+            "annotationId": "00000010-0000-4000-8000-000000000010",
+            "ordinal": 2,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 10000,
+            "endsAtMs": 25000,
+            "region": null,
+            "transcriptStartMs": null,
+            "transcriptEndMs": null,
+            "transcriptText": null,
+            "coachText": "Chamfer the edge to 0.5mm before the pocket cut.",
+            "rationale": "A pocket cut on a sharp edge chips the fixture.",
+            "anchorDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+            "supersedesAnnotationId": "00000009-0000-4000-8000-000000000009",
+            "evidence": [],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          }
+        ],
+        "liveAnnotationCount": 2,
+        "submission": {
+          "submissionId": "00000014-0000-4000-8000-000000000014",
+          "submissionDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "annotationCount": 2,
+          "recordingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "frozen": true,
+          "createdAt": "2026-09-07T09:20:00.000Z"
+        },
+        "proposals": [
+          {
+            "proposalId": "00000015-0000-4000-8000-000000000015",
+            "ordinal": 0,
+            "kind": "decision",
+            "status": "confirmed",
+            "decided": true,
+            "triggerText": "a pocket cut is planned on an unchamfered edge",
+            "rejectedTreatment": "cut the pocket first, then deburr",
+            "selectedTreatment": "chamfer the edge to 0.5mm, then cut the pocket",
+            "rationale": "a sharp edge chips under the pocket cut and the part is scrapped",
+            "invariantText": "the fixture datum must not move",
+            "exceptionText": "not on stock that arrives pre-chamfered",
+            "proposedScope": "both",
+            "confidence": "high",
+            "affectedStepIndex": 2,
+            "affectedCapabilityIdentity": "cad.toolpath",
+            "sourceAnnotationIds": [
+              "00000010-0000-4000-8000-000000000010"
+            ],
+            "evidenceDigests": [],
+            "insufficientEvidenceReason": null,
+            "kindNote": null,
+            "canonicalCandidateKey": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "canonicalCandidateId": null,
+            "canonicalLinkState": "mint_deferred",
+            "influenceState": "inert",
+            "inertNote": "Saved as a confirmed teaching. It is not a learning yet: a learning needs a verified, accepted result, which comes after the revision.",
+            "proposalDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "createdAt": "2026-09-07T09:20:00.000Z",
+            "decidedAt": "2026-09-07T09:23:00.000Z"
+          },
+          {
+            "proposalId": "00000016-0000-4000-8000-000000000016",
+            "ordinal": 1,
+            "kind": "insufficient_evidence",
+            "status": "proposed",
+            "decided": false,
+            "triggerText": null,
+            "rejectedTreatment": null,
+            "selectedTreatment": null,
+            "rationale": null,
+            "invariantText": null,
+            "exceptionText": null,
+            "proposedScope": null,
+            "confidence": null,
+            "affectedStepIndex": null,
+            "affectedCapabilityIdentity": null,
+            "sourceAnnotationIds": [],
+            "evidenceDigests": [],
+            "insufficientEvidenceReason": "the recording never shows the feed rate being chosen, only its result",
+            "kindNote": "The recording did not show enough to justify this. Nothing was inferred from it.",
+            "canonicalCandidateKey": null,
+            "canonicalCandidateId": null,
+            "canonicalLinkState": "unlinked",
+            "influenceState": "inert",
+            "inertNote": "Recorded from this recording. It does not affect any run.",
+            "proposalDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "createdAt": "2026-09-07T09:20:00.000Z",
+            "decidedAt": null
+          }
+        ],
+        "learning": {
+          "activatedCount": 0,
+          "versionsCreated": 0,
+          "note": "Nothing here has changed the Agent. Confirmed teachings stay inert until a verified, accepted result earns them."
+        },
+        "createdAt": "2026-09-07T09:00:00.000Z",
+        "updatedAt": "2026-09-07T09:24:00.000Z",
+        "terminalAt": "2026-09-07T09:20:00.000Z",
+        "permittedActions": [
+          "confirm_decisions"
+        ]
+      },
+      "linkedCandidate": {
+        "projectionVersion": "agent-training-review.v1",
+        "contractVersion": "agent-training-review-session.v1",
+        "reviewSessionId": "00000018-0000-4000-8000-000000000018",
+        "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+        "agent": {
+          "agentFamilyId": "00000004-0000-4000-8000-000000000004",
+          "baseVersionId": "00000005-0000-4000-8000-000000000005",
+          "taskSignatureDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        "subject": {
+          "kind": "training_source",
+          "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+          "sourceId": "00000003-0000-4000-8000-000000000003"
+        },
+        "status": "submitted",
+        "statusReason": null,
+        "terminal": true,
+        "source": {
+          "sourceId": "00000003-0000-4000-8000-000000000003",
+          "kind": "owner_demonstration",
+          "role": "owner_demonstration",
+          "evidenceAuthority": "canonical_private_demonstration",
+          "captureMode": "supplied",
+          "mediaType": "video/mp4",
+          "sizeBytes": 41943040,
+          "recordingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "recordingDurationMs": 600000,
+          "divergenceRunId": "00000008-0000-4000-8000-000000000008",
+          "machineId": "00000006-0000-4000-8000-000000000006",
+          "localCapabilityId": "00000007-0000-4000-8000-000000000007",
+          "integrity": "verified",
+          "integrityNote": null,
+          "custodyNote": "The full recording stays on this Mac.",
+          "suppliedAt": "2026-09-07T09:00:00.000Z"
+        },
+        "annotations": [
+          {
+            "annotationId": "00000009-0000-4000-8000-000000000009",
+            "ordinal": 0,
+            "status": "superseded",
+            "live": false,
+            "startsAtMs": 10000,
+            "endsAtMs": 25000,
+            "region": null,
+            "transcriptStartMs": null,
+            "transcriptEndMs": null,
+            "transcriptText": null,
+            "coachText": "Chamfer the edge before the pocket cut.",
+            "rationale": "A pocket cut on a sharp edge chips the fixture.",
+            "anchorDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+            "supersedesAnnotationId": null,
+            "evidence": [],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          },
+          {
+            "annotationId": "00000011-0000-4000-8000-000000000011",
+            "ordinal": 1,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 30000,
+            "endsAtMs": 48000,
+            "region": {
+              "x": 0.12,
+              "y": 0.34,
+              "w": 0.4,
+              "h": 0.22
+            },
+            "transcriptStartMs": 32000,
+            "transcriptEndMs": 36000,
+            "transcriptText": "take the feed rate off the material table, not the default",
+            "coachText": "Set the feed rate from the material table, not the default.",
+            "rationale": "The default is tuned for aluminium; this fixture is steel.",
+            "anchorDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "supersedesAnnotationId": null,
+            "evidence": [
+              {
+                "evidenceId": "00000012-0000-4000-8000-000000000012",
+                "kind": "clip",
+                "startsAtMs": 31000,
+                "endsAtMs": 40000,
+                "frameAtMs": null,
+                "mediaType": "video/mp4",
+                "sizeBytes": 524288,
+                "transcriptText": null,
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "3333333333333333333333333333333333333333333333333333333333333333"
+              },
+              {
+                "evidenceId": "00000013-0000-4000-8000-000000000013",
+                "kind": "transcript_span",
+                "startsAtMs": 32000,
+                "endsAtMs": 36000,
+                "frameAtMs": null,
+                "mediaType": null,
+                "sizeBytes": null,
+                "transcriptText": "take the feed rate off the material table, not the default",
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "5555555555555555555555555555555555555555555555555555555555555555"
+              }
+            ],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          },
+          {
+            "annotationId": "00000010-0000-4000-8000-000000000010",
+            "ordinal": 2,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 10000,
+            "endsAtMs": 25000,
+            "region": null,
+            "transcriptStartMs": null,
+            "transcriptEndMs": null,
+            "transcriptText": null,
+            "coachText": "Chamfer the edge to 0.5mm before the pocket cut.",
+            "rationale": "A pocket cut on a sharp edge chips the fixture.",
+            "anchorDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+            "supersedesAnnotationId": "00000009-0000-4000-8000-000000000009",
+            "evidence": [],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          }
+        ],
+        "liveAnnotationCount": 2,
+        "submission": {
+          "submissionId": "00000019-0000-4000-8000-000000000019",
+          "submissionDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "annotationCount": 2,
+          "recordingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "frozen": true,
+          "createdAt": "2026-09-07T09:20:00.000Z"
+        },
+        "proposals": [
+          {
+            "proposalId": "00000020-0000-4000-8000-000000000020",
+            "ordinal": 0,
+            "kind": "decision",
+            "status": "confirmed",
+            "decided": true,
+            "triggerText": "a pocket cut is planned on an unchamfered edge",
+            "rejectedTreatment": "cut the pocket first, then deburr",
+            "selectedTreatment": "chamfer the edge to 0.5mm, then cut the pocket",
+            "rationale": "a sharp edge chips under the pocket cut and the part is scrapped",
+            "invariantText": "the fixture datum must not move",
+            "exceptionText": "not on stock that arrives pre-chamfered",
+            "proposedScope": "both",
+            "confidence": "high",
+            "affectedStepIndex": 2,
+            "affectedCapabilityIdentity": "cad.toolpath",
+            "sourceAnnotationIds": [
+              "00000010-0000-4000-8000-000000000010"
+            ],
+            "evidenceDigests": [],
+            "insufficientEvidenceReason": null,
+            "kindNote": null,
+            "canonicalCandidateKey": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "canonicalCandidateId": "00000017-0000-4000-8000-000000000017",
+            "canonicalLinkState": "linked_existing",
+            "influenceState": "inert",
+            "inertNote": "Linked to a learning this Agent already had evidence for. Still inert — it changes nothing until you activate it.",
+            "proposalDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "createdAt": "2026-09-07T09:20:00.000Z",
+            "decidedAt": "2026-09-07T09:23:00.000Z"
+          }
+        ],
+        "learning": {
+          "activatedCount": 0,
+          "versionsCreated": 0,
+          "note": "Nothing here has changed the Agent. Confirmed teachings stay inert until a verified, accepted result earns them."
+        },
+        "createdAt": "2026-09-07T09:00:00.000Z",
+        "updatedAt": "2026-09-07T09:24:00.000Z",
+        "terminalAt": "2026-09-07T09:20:00.000Z",
+        "permittedActions": []
+      },
+      "staleRecording": {
+        "projectionVersion": "agent-training-review.v1",
+        "contractVersion": "agent-training-review-session.v1",
+        "reviewSessionId": "00000002-0000-4000-8000-000000000002",
+        "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+        "agent": {
+          "agentFamilyId": "00000004-0000-4000-8000-000000000004",
+          "baseVersionId": "00000005-0000-4000-8000-000000000005",
+          "taskSignatureDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        "subject": {
+          "kind": "training_source",
+          "trainingSessionId": "00000001-0000-4000-8000-000000000001",
+          "sourceId": "00000003-0000-4000-8000-000000000003"
+        },
+        "status": "open",
+        "statusReason": null,
+        "terminal": false,
+        "source": {
+          "sourceId": "00000003-0000-4000-8000-000000000003",
+          "kind": "owner_demonstration",
+          "role": "owner_demonstration",
+          "evidenceAuthority": "canonical_private_demonstration",
+          "captureMode": "supplied",
+          "mediaType": "video/mp4",
+          "sizeBytes": 41943040,
+          "recordingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "recordingDurationMs": 600000,
+          "divergenceRunId": "00000008-0000-4000-8000-000000000008",
+          "machineId": "00000006-0000-4000-8000-000000000006",
+          "localCapabilityId": "00000007-0000-4000-8000-000000000007",
+          "integrity": "stale",
+          "integrityNote": "This recording changed after the review began. Re-register it before relying on anything marked in it.",
+          "custodyNote": "The full recording stays on this Mac.",
+          "suppliedAt": "2026-09-07T09:00:00.000Z"
+        },
+        "annotations": [
+          {
+            "annotationId": "00000009-0000-4000-8000-000000000009",
+            "ordinal": 0,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 10000,
+            "endsAtMs": 25000,
+            "region": null,
+            "transcriptStartMs": null,
+            "transcriptEndMs": null,
+            "transcriptText": null,
+            "coachText": "Chamfer the edge before the pocket cut.",
+            "rationale": "A pocket cut on a sharp edge chips the fixture.",
+            "anchorDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+            "supersedesAnnotationId": null,
+            "evidence": [],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          },
+          {
+            "annotationId": "00000011-0000-4000-8000-000000000011",
+            "ordinal": 1,
+            "status": "active",
+            "live": true,
+            "startsAtMs": 30000,
+            "endsAtMs": 48000,
+            "region": {
+              "x": 0.12,
+              "y": 0.34,
+              "w": 0.4,
+              "h": 0.22
+            },
+            "transcriptStartMs": 32000,
+            "transcriptEndMs": 36000,
+            "transcriptText": "take the feed rate off the material table, not the default",
+            "coachText": "Set the feed rate from the material table, not the default.",
+            "rationale": "The default is tuned for aluminium; this fixture is steel.",
+            "anchorDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "supersedesAnnotationId": null,
+            "evidence": [
+              {
+                "evidenceId": "00000012-0000-4000-8000-000000000012",
+                "kind": "clip",
+                "startsAtMs": 31000,
+                "endsAtMs": 40000,
+                "frameAtMs": null,
+                "mediaType": "video/mp4",
+                "sizeBytes": 524288,
+                "transcriptText": null,
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "3333333333333333333333333333333333333333333333333333333333333333"
+              },
+              {
+                "evidenceId": "00000013-0000-4000-8000-000000000013",
+                "kind": "transcript_span",
+                "startsAtMs": 32000,
+                "endsAtMs": 36000,
+                "frameAtMs": null,
+                "mediaType": null,
+                "sizeBytes": null,
+                "transcriptText": "take the feed rate off the material table, not the default",
+                "custodyState": "local_only",
+                "custodyNote": "This excerpt stays on your Mac.",
+                "consentReceiptDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+                "revocationState": "active",
+                "revokedAt": null,
+                "evidenceDigest": "5555555555555555555555555555555555555555555555555555555555555555"
+              }
+            ],
+            "createdAt": "2026-09-07T09:06:00.000Z"
+          }
+        ],
+        "liveAnnotationCount": 2,
+        "submission": null,
+        "proposals": [],
+        "learning": {
+          "activatedCount": 0,
+          "versionsCreated": 0,
+          "note": "Nothing here has changed the Agent. Confirmed teachings stay inert until a verified, accepted result earns them."
+        },
+        "createdAt": "2026-09-07T09:00:00.000Z",
+        "updatedAt": "2026-09-07T09:24:00.000Z",
+        "terminalAt": null,
+        "permittedActions": [
+          "abandon_review"
+        ]
+      }
+    }
   }
 }
