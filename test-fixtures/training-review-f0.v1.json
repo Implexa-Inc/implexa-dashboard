@@ -1,0 +1,292 @@
+{
+  "$schema": "implexa.agent-training-review.fixture.v1",
+  "contractVersion": "agent-training-review.v1",
+  "provenance": {
+    "producedBy": null,
+    "note": "ASSUMED, NOT PRODUCED. The backend F0 (spec §5) is being built in parallel and owns the real routes, payloads and fixtures. Every shape below is this repository's assumption, written before the producer existed, so the two can be diffed. `npm run fixtures:training-review:check` FAILS while `producedBy` is null — an unverified provenance claim is worse than no claim. When the backend lands, regenerate from it and set `producedBy` to the exact commit."
+  },
+  "upstream": {
+    "base": "/api/v2/agents/training",
+    "actions": {
+      "ensure_training_session": {
+        "method": "POST",
+        "path": "/api/v2/agents/training/sessions/{trainingSessionId}/review-sessions",
+        "body": { "sourceId": "uuid", "contractVersion": "agent-training-review.v1" }
+      },
+      "create_training_annotation": {
+        "method": "POST",
+        "path": "/api/v2/agents/training/review-sessions/{reviewSessionId}/annotations",
+        "body": {
+          "sourceId": "uuid",
+          "temporalRange": { "startMs": "int", "endMs": "int|null" },
+          "coachText": "string(1..4000)",
+          "anchorDigest": "sha256",
+          "spatialRegion": "object|null",
+          "transcriptSpan": "object|null",
+          "contractVersion": "agent-training-review.v1"
+        }
+      },
+      "amend_training_annotation": {
+        "method": "POST",
+        "path": "/api/v2/agents/training/review-annotations/{annotationId}/amend",
+        "body": {
+          "coachText": "string(1..4000)",
+          "temporalRange": "range|null",
+          "spatialRegion": "object|null",
+          "transcriptSpan": "object|null",
+          "contractVersion": "agent-training-review.v1"
+        },
+        "note": "Append-only. The server mints a successor annotation naming what it supersedes; it never rewrites the row."
+      },
+      "discard_training_annotation": {
+        "method": "POST",
+        "path": "/api/v2/agents/training/review-annotations/{annotationId}/discard",
+        "body": { "contractVersion": "agent-training-review.v1" }
+      },
+      "attach_training_evidence": {
+        "method": "POST",
+        "path": "/api/v2/agents/training/review-annotations/{annotationId}/evidence",
+        "body": {
+          "kind": "clip|frame|transcript",
+          "mediaSha256": "sha256",
+          "temporalRange": { "startMs": "int", "endMs": "int|null" },
+          "custody": "local_only",
+          "contractVersion": "agent-training-review.v1"
+        }
+      },
+      "submit_training_annotations": {
+        "method": "POST",
+        "path": "/api/v2/agents/training/review-sessions/{reviewSessionId}/submissions",
+        "body": {
+          "annotationIds": ["uuid"],
+          "recordingDigest": "sha256",
+          "contractVersion": "agent-training-review.v1"
+        }
+      },
+      "confirm_training_decision": {
+        "method": "POST",
+        "path": "/api/v2/agents/training/submissions/{submissionId}/decisions/{decisionId}/confirm",
+        "body": {
+          "disposition": "accepted|edited|merged|discarded",
+          "mergedIntoDecisionId": "uuid|null",
+          "edits": "object|null",
+          "activate": false,
+          "contractVersion": "agent-training-review.v1"
+        },
+        "note": "`activate` is pinned false by the resolver. F0 has no expression that can request activation."
+      },
+      "read_training_projection": {
+        "method": "GET",
+        "path": "/api/v2/agents/training/sessions/{trainingSessionId}/projection?sourceId={sourceId}"
+      }
+    }
+  },
+  "subject": {
+    "kind": "training_source",
+    "trainingSessionId": "11111111-1111-4111-8111-111111111111",
+    "sourceId": "22222222-2222-4222-8222-222222222222"
+  },
+  "responses": {
+    "ensureTrainingSession": {
+      "ok": true,
+      "reviewSessionId": "33333333-3333-4333-8333-333333333333",
+      "recordingDigest": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+    },
+    "createAnnotation": {
+      "ok": true,
+      "annotationId": "44444444-4444-4444-8444-444444444444"
+    },
+    "amendAnnotation": {
+      "ok": true,
+      "annotationId": "55555555-5555-4555-8555-555555555555",
+      "supersedesAnnotationId": "44444444-4444-4444-8444-444444444444"
+    },
+    "submitAnnotations": {
+      "ok": true,
+      "submissionId": "66666666-6666-4666-8666-666666666666",
+      "submissionDigest": "0011223344556677889900112233445566778899001122334455667788990011"
+    },
+    "submitAnnotationsIdempotent": {
+      "ok": true,
+      "idempotent": true,
+      "submissionId": "66666666-6666-4666-8666-666666666666"
+    },
+    "confirmDecision": {
+      "ok": true,
+      "candidateId": "77777777-7777-4777-8777-777777777777",
+      "activated": false
+    },
+    "refusedAppendOnly": {
+      "ok": false,
+      "error": "That submission is frozen. Add a new moment instead of changing a submitted one."
+    },
+    "unavailable": {
+      "ok": false,
+      "error": "Could not reach the training review service. Nothing was changed.",
+      "unavailable": true
+    }
+  },
+  "projection": {
+    "ok": true,
+    "contractVersion": "agent-training-review.v1",
+    "projection": {
+      "source": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "sourceKind": "owner_demonstration",
+        "mediaSha256": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233",
+        "sizeBytes": 48234112,
+        "mediaType": "video/quicktime",
+        "durationMs": 254000,
+        "suppliedAt": "2026-09-07T18:22:11.000Z",
+        "captureMode": "supplied",
+        "machineLabel": "Coach MacBook Pro",
+        "baseVersionId": "88888888-8888-4888-8888-888888888888",
+        "custody": "local_only"
+      },
+      "evidence": [
+        {
+          "id": "99999999-9999-4999-8999-999999999999",
+          "annotationId": "44444444-4444-4444-8444-444444444444",
+          "kind": "clip",
+          "temporalRange": { "startMs": 61200, "endMs": 74800 },
+          "mediaSha256": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233",
+          "custody": "local_only",
+          "revoked": false
+        },
+        {
+          "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "annotationId": "44444444-4444-4444-8444-444444444444",
+          "kind": "transcript",
+          "temporalRange": { "startMs": 61200, "endMs": 74800 },
+          "mediaSha256": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233",
+          "custody": "local_only",
+          "revoked": false
+        }
+      ],
+      "decisions": [
+        {
+          "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "trigger": "A pocket meets a fillet smaller than the tool radius.",
+          "rejectedTreatment": "The agent cut the pocket first and left an unreachable corner.",
+          "selectedTreatment": "Rough the pocket, then finish the corner with the smaller end mill.",
+          "rationale": "The corner is unreachable at the roughing radius, so a second pass is the only way to hold the drawing tolerance.",
+          "invariant": "The finished corner radius must match the drawing.",
+          "exception": "Skip the second pass when the drawing calls out a broken corner.",
+          "scope": "this_task",
+          "destination": "both",
+          "confidence": 0.82,
+          "annotationIds": ["44444444-4444-4444-8444-444444444444"],
+          "evidenceDigests": ["aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"],
+          "affectedStep": "toolpath_generation",
+          "affectedCapability": "cad:toolpath",
+          "insufficientEvidence": false
+        },
+        {
+          "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "trigger": "",
+          "rejectedTreatment": "",
+          "selectedTreatment": "",
+          "rationale": "",
+          "invariant": null,
+          "exception": null,
+          "scope": "this_revision",
+          "destination": "run_local_revision",
+          "confidence": 0.11,
+          "annotationIds": ["55555555-5555-4555-8555-555555555555"],
+          "evidenceDigests": [],
+          "affectedStep": null,
+          "affectedCapability": null,
+          "insufficientEvidence": true
+        }
+      ],
+      "authorityState": {
+        "requested": { "status": "yes", "at": "2026-09-07T18:04:00.000Z", "detail": null },
+        "demonstrated": { "status": "yes", "at": "2026-09-07T18:22:11.000Z", "detail": null },
+        "implemented": { "status": "no", "at": null, "detail": null },
+        "verified": { "status": "no", "at": null, "detail": null },
+        "accepted": { "status": "no", "at": null, "detail": null },
+        "activated": { "status": "no", "at": null, "detail": null }
+      },
+      "submission": {
+        "id": "66666666-6666-4666-8666-666666666666",
+        "digest": "0011223344556677889900112233445566778899001122334455667788990011",
+        "createdAt": "2026-09-07T18:31:02.000Z",
+        "annotationCount": 2
+      }
+    }
+  },
+  "projectionAllUnknown": {
+    "ok": true,
+    "contractVersion": "agent-training-review.v1",
+    "projection": {
+      "source": null,
+      "evidence": [],
+      "decisions": [],
+      "submission": null
+    }
+  },
+  "projectionActivated": {
+    "ok": true,
+    "contractVersion": "agent-training-review.v1",
+    "projection": {
+      "source": null,
+      "evidence": [],
+      "decisions": [],
+      "submission": null,
+      "authorityState": {
+        "requested": { "status": "yes", "at": "2026-09-07T18:04:00.000Z", "detail": null },
+        "demonstrated": { "status": "yes", "at": "2026-09-07T18:22:11.000Z", "detail": null },
+        "implemented": { "status": "yes", "at": "2026-09-07T19:02:00.000Z", "detail": null },
+        "verified": { "status": "yes", "at": "2026-09-07T19:14:00.000Z", "detail": null },
+        "accepted": { "status": "yes", "at": "2026-09-07T19:20:00.000Z", "detail": null },
+        "activated": { "status": "yes", "at": "2026-09-08T09:00:00.000Z", "detail": null }
+      }
+    },
+    "note": "Not reachable in F0 — no F0 code path activates anything. Present so the projection surface can be proven to render an ACTIVE learning differently from an inert candidate."
+  },
+  "projectionUnreadableState": {
+    "ok": true,
+    "contractVersion": "agent-training-review.v1",
+    "projection": {
+      "source": null,
+      "evidence": [],
+      "decisions": [],
+      "submission": null,
+      "authorityState": {
+        "requested": { "status": "yes", "at": "2026-09-07T18:04:00.000Z", "detail": null },
+        "demonstrated": { "status": "yes", "at": "2026-09-07T18:22:11.000Z", "detail": null },
+        "implemented": { "status": "unknown", "at": null, "detail": null },
+        "verified": { "status": "unknown", "at": null, "detail": null },
+        "accepted": { "status": "no", "at": null, "detail": null },
+        "activated": { "status": "unknown", "at": null, "detail": null }
+      }
+    }
+  },
+  "projectionRefused": {
+    "ok": false,
+    "error": "That training session is not yours."
+  },
+  "projectionPathLeak": {
+    "ok": true,
+    "contractVersion": "agent-training-review.v1",
+    "projection": {
+      "source": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "sourceKind": "owner_demonstration",
+        "mediaSha256": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233",
+        "sizeBytes": 100,
+        "mediaType": "video/quicktime",
+        "durationMs": 1000,
+        "suppliedAt": "2026-09-07T18:22:11.000Z",
+        "captureMode": "supplied",
+        "machineLabel": "/Users/coach/Movies/screen-2026-09-07.mov",
+        "baseVersionId": "88888888-8888-4888-8888-888888888888",
+        "custody": "local_only"
+      },
+      "evidence": [],
+      "decisions": [],
+      "submission": null
+    },
+    "note": "Adversarial: a backend that leaks a local path where a machine label belongs. §6.1 requires no path reaches the browser, so the parser must drop it."
+  }
+}

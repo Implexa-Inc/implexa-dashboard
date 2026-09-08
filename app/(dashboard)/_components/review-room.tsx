@@ -99,6 +99,14 @@ type Props = {
   currentVersionLabel?: string | null;
 };
 
+/**
+ * The run-review packet, named so `review-subject-room.tsx` can require it for a
+ * `run_artifact` subject AND ONLY FOR ONE. Additive: this component is unchanged and
+ * still takes exactly the props above. See `lib/review-subject.ts` for why the
+ * subject discriminant selects a WRITE PATH rather than loosening these props.
+ */
+export type ReviewRoomProps = Props;
+
 const ISSUE_KINDS = ['timing', 'content', 'visual', 'audio', 'missing', 'replacement', 'other'] as const;
 
 type ReviewArtifactPickerResult = {
