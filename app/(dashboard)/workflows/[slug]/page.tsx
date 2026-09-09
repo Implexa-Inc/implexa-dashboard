@@ -30,6 +30,7 @@ import { remoteSafety } from '@/lib/remote-safety';
 import { loadInboxItems } from '@/lib/inbox';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
 import AgentReadiness from '../../_components/agent-readiness';
+import { missingRequiredApiKeys } from '@/lib/agent-readiness-requirements';
 import AgentNameEditor from '../../_components/agent-name-editor';
 import { RemoteSafetyBadge } from '../../_components/remote-safety-badge';
 import { ConnectionAttentionBanner } from '../../_components/connection-attention-banner';
@@ -263,7 +264,7 @@ export default async function WorkflowDetailPage({
   // the weaker, honest claim; the per-agent truth is resolved client-side inside
   // the requirements panel, which keeps its row actionable until the grant lands.
   const reqServices = checklist?.requirements?.services ?? [];
-  const missingServices = reqServices.filter((x) => !x.keyOnMachine).map((x) => x.name);
+  const missingServices = missingRequiredApiKeys(reqServices);
   // Setup-tab dot = the unanswered config questions you can clear in that tab.
   // (A signed-out account gets its own loud banner above the tabs.)
   const setupAttention = pendingQuestions > 0;

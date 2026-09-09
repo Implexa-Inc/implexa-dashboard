@@ -161,7 +161,8 @@ test('connection workaround checkbox persists while the user moves around the ag
 
 test('Overview reports readiness from the honest server claim', () => {
   const page = read('../workflows/[slug]/page.tsx');
-  assert.match(page, /filter\(\(x\) => !x\.keyOnMachine\)/, 'the page reads keyOnMachine, not a satisfied flag');
+  assert.match(page, /missingRequiredApiKeys\(reqServices\)/,
+    'the page blocks only on positively required missing API keys');
   assert.match(page, /blockingQuestions=\{checklist\?\.blockingQuestions\}/, 'the gate is threaded to the actions');
   assert.doesNotMatch(page, /allSatisfied/, 'the server no longer claims satisfaction — nothing may read it');
 });
