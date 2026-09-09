@@ -35,6 +35,8 @@ export type RemoteSafety = {
 // chrome-mcp capability's own rationale names these ("an MLS, Zillow, your CRM
 // web UI"); a step whose work is gathering from one of them cannot run remote.
 const BROWSER_BOUND = /\b(mls|zillow|redfin|realtor\.com|instagram|\big\b|tiktok|facebook|linkedin|crm web|web ui|web portal|portal|scroll|scrape|click through|browse the|log ins?|sign ins?|the browser)\b/i;
+const LOCAL_BROWSER_BINARY = /\b(remotion browser executable|browser executable.{0,80}remotion|--browser-executable)\b/i;
+const LOCAL_COMMAND_WORK = /\b(local media|ffmpeg|ffprobe|npm ci|package-lock|typescript|remotion (?:browser executable|cli|composition|project|render)|command-line|shell)\b/i;
 
 // Sources whose skills are CLI/API tools (run headless, remote-safe).
 const API_SOURCES = new Set(['skills.sh', 'clawhub', 'anthropic', 'github']);
@@ -46,6 +48,10 @@ const API_SOURCES = new Set(['skills.sh', 'clawhub', 'anthropic', 'github']);
  */
 function isBrowserStep(step: WorkflowDetail['steps'][number]): boolean {
   if (step.kind !== 'tool') return false;
+  // A Chromium executable used by Remotion is a local rendering dependency, not
+  // an authenticated browser session. Treating the words "the browser" as a
+  // login requirement made a successfully headless Planner advertise Chrome.
+  if (LOCAL_BROWSER_BINARY.test(step.label)) return false;
   // Bound to a known API/CLI skill → headless, remote-safe.
   if (step.ref && API_SOURCES.has(step.ref.source)) return false;
   // A manual fallback exists → the run degrades to a paste instead of breaking,
@@ -81,6 +87,15 @@ export function remoteSafety(
       verdict: 'local',
       estimated: true,
       reason: `Step ${browserStep.order} gathers from a site with no API, which needs the browser, so this stays local.`,
+    };
+  }
+
+  const localStep = workflow.steps.find((step) => LOCAL_COMMAND_WORK.test(step.label));
+  if (localStep) {
+    return {
+      verdict: 'local',
+      estimated: true,
+      reason: `Step ${localStep.order} uses local media or command-line tooling, so this runs on your computer without requiring a signed-in browser.`,
     };
   }
 
