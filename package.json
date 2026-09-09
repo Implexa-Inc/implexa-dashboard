@@ -11,6 +11,7 @@
     "test": "node scripts/run-tests.mjs",
     "test:mutation:learning-influence": "node scripts/mutation-test-learning-influence.mjs",
     "test:mutation:trainer-proof": "node scripts/mutation-test-trainer-compounding-proof.mjs",
+    "test:control-plane-retry-mutations": "node scripts/mutation-test-control-plane-retry.mjs",
     "test:marketplace-mutations": "node scripts/mutation-test-agent-marketplace.mjs",
     "test:marketplace-evidence-channel-mutations": "node scripts/mutation-test-agent-resume-evidence-channels.mjs",
     "test:chain-offering-mutations": "node scripts/mutation-test-chain-offering.mjs",
