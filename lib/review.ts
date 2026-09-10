@@ -471,8 +471,8 @@ const MANAGER_STAGES = new Set([
   'preview', 'render', 'qa', 'revision',
 ]);
 const MANAGER_PROOF_STATUSES = new Set(['ready', 'none', 'unavailable']);
-const MANAGER_VERIFICATION_STATUSES = new Set(['passed', 'failed', 'incomplete', 'not_required', 'unavailable']);
-const MANAGER_STAGE_VERIFICATION_STATUSES = new Set(['passed', 'failed', 'not_recorded', 'not_required', 'unavailable']);
+const MANAGER_VERIFICATION_STATUSES = new Set(['passed', 'failed', 'needs_you', 'incomplete', 'not_required', 'unavailable']);
+const MANAGER_STAGE_VERIFICATION_STATUSES = new Set(['passed', 'failed', 'needs_you', 'not_recorded', 'not_required', 'unavailable']);
 
 function isCount(value: unknown, maximum = Number.MAX_SAFE_INTEGER): value is number {
   return Number.isInteger(value) && Number(value) >= 0 && Number(value) <= maximum;
@@ -519,11 +519,14 @@ export function parseStageManagerProof(raw: unknown): StageManagerProof | null {
       if (stage.causationClaim !== 'not_claimed' || handled !== stage.decisionCount) return null;
     } else if (handled !== 0 || stage.causationClaim !== undefined) return null;
     if (!MANAGER_STAGE_VERIFICATION_STATUSES.has(String(stage.verificationStatus))) return null;
+    if (stage.verificationStatus === 'needs_you'
+        && (stage.handlingStatus !== 'reported'
+          || Number(stage.exceptionCount) + Number(stage.unavailableCount) + Number(stage.refusedCount) === 0)) return null;
     if (!isCount(stage.requiredCriterionCount) || !isCount(stage.verifiedCriterionCount)
         || Number(stage.verifiedCriterionCount) > Number(stage.requiredCriterionCount)) return null;
     if (stage.verificationStatus === 'passed'
         && (stage.requiredCriterionCount < 1 || stage.verifiedCriterionCount !== stage.requiredCriterionCount)) return null;
-    if (['not_required', 'not_recorded', 'unavailable'].includes(String(stage.verificationStatus))
+    if (['needs_you', 'not_required', 'not_recorded', 'unavailable'].includes(String(stage.verificationStatus))
         && (stage.requiredCriterionCount !== 0 || stage.verifiedCriterionCount !== 0)) return null;
   }
 
@@ -531,7 +534,8 @@ export function parseStageManagerProof(raw: unknown): StageManagerProof | null {
   if (raw.handlingStatus !== expectedHandling) return null;
   const required = raw.stages.filter((stage) => stage.verificationStatus !== 'not_required');
   const expectedVerification = required.length === 0 ? 'not_required'
-    : required.some((stage) => stage.verificationStatus === 'unavailable') ? 'unavailable'
+    : required.some((stage) => stage.verificationStatus === 'needs_you') ? 'needs_you'
+      : required.some((stage) => stage.verificationStatus === 'unavailable') ? 'unavailable'
       : required.some((stage) => stage.verificationStatus === 'failed') ? 'failed'
         : required.every((stage) => stage.verificationStatus === 'passed') ? 'passed' : 'incomplete';
   if (raw.verificationStatus !== expectedVerification) return null;

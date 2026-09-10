@@ -25,6 +25,28 @@ test('accepts the exact aggregate composed 5/5 Manager proof', () => {
   assert.equal(proof.stages[0].verifiedCriterionCount, 5);
 });
 
+test('accepts typed Needs You only for an aggregate hard-stage non-application', () => {
+  const needsYou = {
+    ...passing,
+    stages: [{ ...passing.stages[0], appliedCount: 4, refusedCount: 1,
+      verificationStatus: 'needs_you', requiredCriterionCount: 0, verifiedCriterionCount: 0 }],
+    verificationStatus: 'needs_you',
+  };
+  const parsed = parseStageManagerProof(needsYou);
+  assert.ok(parsed);
+  assert.equal(parsed.verificationStatus, 'needs_you');
+  assert.equal(parsed.stages[0].refusedCount, 1);
+
+  assert.equal(parseStageManagerProof({ ...needsYou, verificationStatus: 'incomplete' }), null,
+    'a typed non-application must not be downgraded back to generic incomplete');
+  assert.equal(parseStageManagerProof({ ...needsYou, stages: [{ ...needsYou.stages[0],
+    verificationStatus: 'passed', requiredCriterionCount: 5, verifiedCriterionCount: 5 }] }), null,
+  'the root cannot claim Needs You while its stage claims verified');
+  assert.equal(parseStageManagerProof({ ...needsYou, stages: [{ ...needsYou.stages[0],
+    appliedCount: 5, refusedCount: 0 }] }), null,
+  'Needs You requires an actual non-applied handling, not merely the label');
+});
+
 test('never promotes partial, contradictory, duplicated, or private Manager data', () => {
   const mutations = [
     { ...passing, verificationStatus: 'failed' },
@@ -69,9 +91,13 @@ test('Run Detail and Review both surface Manager proof separately from Judge his
   const runPage = readFileSync(join(process.cwd(), 'app', '(dashboard)', 'runs', '[id]', 'page.tsx'), 'utf8');
   const reviewPage = readFileSync(join(process.cwd(), 'app', '(dashboard)', 'review', '[runId]', 'page.tsx'), 'utf8');
   const card = readFileSync(join(process.cwd(), 'app', '(dashboard)', '_components', 'stage-manager-proof.tsx'), 'utf8');
+  const labels = readFileSync(join(process.cwd(), 'lib', 'run-manager-proof.ts'), 'utf8');
   assert.match(runPage, /<StageManagerProof proof=\{competencePacket\.managerProof\}/);
   assert.match(reviewPage, /<StageManagerProof proof=\{packet\.managerProof\}/);
   assert.match(card, /separately from the original run status and Judge verdict/);
   assert.match(card, /Earlier failed attempts and model judgments remain preserved as history/);
+  assert.match(labels, /Manager needs your input/);
+  assert.match(card, /Independent verification did not/);
+  assert.match(card, /no Judge result or successful Manager proof is inferred/);
   assert.doesNotMatch(card, /decisionTrace|criterion_id|instruction|evidenceRepairReceipt/);
 });

@@ -1,5 +1,5 @@
 export type ManagerProofStatus = 'ready' | 'none' | 'unavailable';
-export type ManagerVerificationStatus = 'passed' | 'failed' | 'incomplete' | 'not_required' | 'unavailable';
+export type ManagerVerificationStatus = 'passed' | 'failed' | 'needs_you' | 'incomplete' | 'not_required' | 'unavailable';
 
 export type ManagerStageProof = {
   stage: string;
@@ -10,7 +10,7 @@ export type ManagerStageProof = {
   unavailableCount: number;
   refusedCount: number;
   causationClaim?: 'not_claimed';
-  verificationStatus: 'passed' | 'failed' | 'not_recorded' | 'not_required' | 'unavailable';
+  verificationStatus: 'passed' | 'failed' | 'needs_you' | 'not_recorded' | 'not_required' | 'unavailable';
   requiredCriterionCount: number;
   verifiedCriterionCount: number;
 };
@@ -41,9 +41,9 @@ export function managerVerificationLabel(proof: StageManagerProof): string {
   switch (proof.verificationStatus) {
     case 'passed': return 'Manager proof passed';
     case 'failed': return 'Manager proof failed';
+    case 'needs_you': return 'Manager needs your input';
     case 'incomplete': return 'Manager proof incomplete';
     case 'not_required': return 'Independent proof not required';
     case 'unavailable': return 'Manager proof unavailable';
   }
 }
-
