@@ -63,7 +63,8 @@ export default function StageManagerProof({ proof }: { proof: StageManagerProof 
       {proof.status === 'ready' && proof.verificationStatus === 'needs_you' && (
         <p role="alert" className="mt-3 text-xs text-amber-300">
           A selected Manager decision with required evidence was not applied. Independent verification did not
-          start, and no Judge result or successful Manager proof is inferred. Review the stage handling above.
+          start for that stage, and no Judge result or successful Manager proof is inferred for that decision.
+          Review the stage handling above.
         </p>
       )}
     </section>
