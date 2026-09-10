@@ -3,6 +3,7 @@ import { managerVerificationLabel, type StageManagerProof } from '@/lib/run-mana
 function tone(status: StageManagerProof['verificationStatus']): string {
   if (status === 'passed') return 'border-emerald-500/30 bg-emerald-500/[0.07] text-emerald-300';
   if (status === 'failed') return 'border-rose-500/30 bg-rose-500/[0.07] text-rose-300';
+  if (status === 'needs_you') return 'border-amber-500/40 bg-amber-500/[0.09] text-amber-300';
   if (status === 'incomplete' || status === 'unavailable') return 'border-amber-500/30 bg-amber-500/[0.07] text-amber-300';
   return 'border-ink-700 bg-ink-900/50 text-ink-400';
 }
@@ -57,6 +58,12 @@ export default function StageManagerProof({ proof }: { proof: StageManagerProof 
       {proof.status === 'ready' && proof.verificationStatus === 'passed' && (
         <p className="mt-3 text-xs text-emerald-300">
           The complete frozen Manager criteria are verified. Earlier failed attempts and model judgments remain preserved as history.
+        </p>
+      )}
+      {proof.status === 'ready' && proof.verificationStatus === 'needs_you' && (
+        <p role="alert" className="mt-3 text-xs text-amber-300">
+          A selected Manager decision with required evidence was not applied. Independent verification did not
+          start, and no Judge result or successful Manager proof is inferred. Review the stage handling above.
         </p>
       )}
     </section>
