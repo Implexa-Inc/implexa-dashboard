@@ -506,7 +506,14 @@ export default async function RunDetailPage({
   const recoveryPresentation = {
     hasValidatedFinalOutput: !!recoveredFinalArtifact,
     runState: r.run_state,
-    hasDeterministicContinuation: approvalContinuationRecovery || recovered.recoverable || alreadyRecoveredElsewhere,
+    // An incomplete heartbeat trace is preserved evidence, not a deterministic
+    // continuation. Calling it one produced the contradictory UI where a run
+    // stopped before Remotion/QA offered only "Mark as done". The manual salvage
+    // lane is deterministic only when the trace itself looks complete; otherwise
+    // a product-specific continuation must be supplied by the backend.
+    hasDeterministicContinuation: approvalContinuationRecovery
+      || (recovered.recoverable && recovered.looksComplete)
+      || alreadyRecoveredElsewhere,
   };
 
   // Next-agent recommendations (recommendation engine v1, RECOMMENDATION_ENGINE_PLAN
@@ -1161,18 +1168,26 @@ export default async function RunDetailPage({
                 refuse it anyway, but showing the button over a stale trace when
                 the real result already exists elsewhere is worse than showing
                 nothing. */}
-            {recovered.recoverable && (
+            {recovered.recoverable && (recovered.looksComplete ? (
               <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-3">
                 <div className="text-sm font-semibold text-ink-100 mb-0.5">Work recovered — review and finalize</div>
                 <p className="text-sm text-ink-300 leading-relaxed">
                   This run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and then stopped
-                  without recording a result. If the trace above shows the work finished, you can mark it done.
+                  without recording a result. The trace indicates the work finished; review it before marking the run recovered.
                 </p>
                 <div className="mt-3">
-                  <FinalizeRecoveredButton runId={r.id} looksComplete={recovered.looksComplete} />
+                  <FinalizeRecoveredButton runId={r.id} looksComplete />
                 </div>
               </div>
-            )}
+            ) : (
+              <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/[0.07] px-3 py-3">
+                <div className="text-sm font-semibold text-ink-100 mb-0.5">Partial work is preserved — continuation required</div>
+                <p className="text-sm text-ink-300 leading-relaxed">
+                  This run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and stopped before the trace showed completion.
+                  Implexa will not offer “Mark as done.” Continue only through a typed recovery action that verifies and reuses the preserved work.
+                </p>
+              </div>
+            ))}
             {/* Distinct from "Run again" below: same request, frozen inputs,
                 new fenced generation — and only when the backend proves no work
                 started. The component hides itself for every other failure. */}

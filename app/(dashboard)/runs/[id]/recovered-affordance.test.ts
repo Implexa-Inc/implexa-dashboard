@@ -20,12 +20,21 @@ test('THE CROSS-FEATURE FIX: when already recovered elsewhere, deriveRecoveredWo
     'a run already recovered by a continuation must short-circuit to non-recoverable, not fall through to the trace-based derivation');
 });
 
-test('the finalize card renders ONLY when recoverable, and never claims delivery', () => {
+test('the finalize action renders only when the recovered trace looks complete', () => {
   const i = page.indexOf('recovered.recoverable && (');
   assert.notEqual(i, -1);
-  const block = page.slice(i, i + 900);
+  const block = page.slice(i, i + 1800);
+  assert.match(block, /recovered\.looksComplete \? \(/);
   assert.match(block, /Work recovered — review and finalize/);
-  assert.match(block, /<FinalizeRecoveredButton runId=\{r\.id\} looksComplete=\{recovered\.looksComplete\} \/>/);
+  assert.match(block, /<FinalizeRecoveredButton runId=\{r\.id\} looksComplete \/>/);
+  assert.match(block, /Partial work is preserved — continuation required/);
+  const incomplete = block.slice(block.indexOf('Partial work is preserved — continuation required'));
+  assert.doesNotMatch(incomplete, /FinalizeRecoveredButton/,
+    'an incomplete trace must never offer manual finalization');
+});
+
+test('an incomplete trace is not advertised as a deterministic continuation', () => {
+  assert.match(page, /hasDeterministicContinuation: approvalContinuationRecovery\s*\n\s*\|\| \(recovered\.recoverable && recovered\.looksComplete\)/);
 });
 
 test('the button is imported from the shared component, not re-implemented inline on the page', () => {
