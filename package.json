@@ -38,7 +38,11 @@
     "test:review-spatial-annotation-mutations": "node scripts/mutation-test-review-spatial-annotation.mjs",
     "test:reviewer-resolution-mutations": "node scripts/mutation-test-reviewer-resolution.mjs",
     "test:outcome-orchestration-mutations": "node scripts/mutation-test-outcome-orchestration.mjs",
-    "test:lifecycle-continuity-mutations": "node scripts/mutation-test-lifecycle-continuity.mjs"
+    "test:lifecycle-continuity-mutations": "node scripts/mutation-test-lifecycle-continuity.mjs",
+    "test:training-review-mutations": "node scripts/mutation-test-training-review.mjs",
+    "fixtures:training-review:shape": "node scripts/check-training-review-fixture.mjs --shape",
+    "fixtures:training-review:check": "node scripts/check-training-review-fixture.mjs --provenance",
+    "fixtures:training-review:vendor": "node scripts/check-training-review-fixture.mjs --vendor"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
