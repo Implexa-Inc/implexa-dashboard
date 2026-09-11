@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { acceptsDirectorySnapshot, bindInputValue, describeInputPickerError, missingRequiredInputs, orderedInputFields, resolvePickerResult, serializeArtifactBindings, type WorkflowInputContract, type WorkflowInputField } from './workflow-input-contract.ts';
+import { acceptsDirectorySnapshot, bindInputValue, describeInputPickerError, missingRequiredInputs, orderedInputFields, resolvePickerResult, revisionAuthorityIssue, serializeArtifactBindings, type WorkflowInputContract, type WorkflowInputField } from './workflow-input-contract.ts';
 
 const contract: WorkflowInputContract = { version: 1, fields: [
   { key: 'inspiration_video', label: 'Inspiration video', description: 'Optional reference.', kind: 'file', required: false, cardinality: 'one', order: 2 },
@@ -14,6 +14,27 @@ test('run form order comes from persisted contract order, not object/upload orde
 test('only required inputs block submission', () => {
   assert.deepEqual(missingRequiredInputs(contract, {}).map((f) => f.key), ['target_video']);
   assert.deepEqual(missingRequiredInputs(contract, { target_video: { artifactId: 'a', sha256: 'b', displayName: 'target.mp4' } }), []);
+});
+
+test('revision inputs are paired before Run instead of treating a Master as an editable project', () => {
+  const master = { key: 'revision_source_video', label: 'Existing Master', description: 'Rendered baseline.', kind: 'file' as const, required: false, cardinality: 'one' as const, order: 2 };
+  const capsule = { key: 'revision_capsule', label: 'Editable revision capsule', description: 'Project snapshot.', kind: 'file' as const, required: false, cardinality: 'one' as const, order: 3 };
+  const sourceOnlyContract: WorkflowInputContract = { version: 1, fields: [contract.fields[1], master] };
+  const masterBinding = { artifactId: 'master', sha256: 'a'.repeat(64), displayName: 'master.mp4' };
+  const capsuleBinding = { artifactId: 'capsule', sha256: 'b'.repeat(64), displayName: 'revision.zip' };
+  assert.equal(revisionAuthorityIssue(sourceOnlyContract, { revision_source_video: masterBinding })?.code,
+    'revision_capsule_contract_missing');
+
+  const revisionContract: WorkflowInputContract = { version: 1, fields: [contract.fields[1], master, capsule] };
+  assert.equal(revisionAuthorityIssue(revisionContract, { revision_source_video: masterBinding })?.code,
+    'revision_capsule_required');
+  assert.equal(revisionAuthorityIssue(revisionContract, { revision_capsule: capsuleBinding })?.code,
+    'revision_source_video_required');
+  assert.equal(revisionAuthorityIssue(revisionContract, {
+    revision_source_video: masterBinding, revision_capsule: capsuleBinding,
+  }), null);
+  assert.equal(revisionAuthorityIssue(revisionContract, {}, new Set(['revision_source_video']))?.code,
+    'revision_capsule_required', 'large deferred selections are included in the same pre-run guard');
 });
 
 test('submission strips display names and preserves semantic keys', () => {
