@@ -35,7 +35,7 @@ test('the poller re-runs the SERVER render — that is what re-derives revisePen
 
 test('the poll is BOUNDED and self-terminating — a never-landing revise must not spin forever', () => {
   assert.match(poller, /const DELAYS_MS = \[/, 'a finite backoff schedule, not a fixed interval');
-  assert.match(poller, /attempt\.current > DELAYS_MS\.length.*setGaveUp\(true\)/s,
+  assert.match(poller, /if \(attempt >= DELAYS_MS\.length\) return/,
     'it gives up at the end of the budget');
   // Giving up SILENTLY would leave a page that looks like it is still watching.
   assert.match(poller, /Still waiting on your Claude/,
@@ -43,8 +43,15 @@ test('the poll is BOUNDED and self-terminating — a never-landing revise must n
 });
 
 test('a SECOND edit gets a fresh budget (the give-up state must reset)', () => {
-  assert.match(poller, /if \(!revisePending\) \{ attempt\.current = 0; setGaveUp\(false\); return; \}/,
+  assert.match(poller, /if \(!revisePending\) \{ if \(attempt !== 0\) setAttempt\(0\); return; \}/,
     'otherwise one exhausted rewrite would permanently disable watching for every later edit');
+});
+
+test('a still-pending refresh schedules the NEXT poll instead of stopping after one', () => {
+  assert.match(poller, /setAttempt\(\(current\) => current \+ 1\)/,
+    'the timer must advance render state; mutating only a ref leaves the effect dormant');
+  assert.match(poller, /\[revisePending, attempt, router\]/,
+    'the next attempt must be an effect dependency so every bounded delay runs');
 });
 
 // ── 2. the contradictory CTA ─────────────────────────────────────────────────

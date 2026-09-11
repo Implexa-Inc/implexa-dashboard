@@ -25,7 +25,7 @@
  * truth rather than pretending it is still watching.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 // Backoff schedule (ms). A revise usually lands in a minute or two; the tail is
@@ -34,29 +34,30 @@ const DELAYS_MS = [5000, 5000, 8000, 8000, 15000, 15000, 30000, 30000, 60000, 60
 
 export default function ReviseLandedPoller({ revisePending }: { revisePending: boolean }) {
   const router = useRouter();
-  const [gaveUp, setGaveUp] = useState(false);
-  const attempt = useRef(0);
+  // State, not a ref: a router.refresh() whose server result is still pending
+  // preserves this client component. A ref increment alone does not re-run the
+  // effect, so the old implementation scheduled exactly one poll and then
+  // silently stopped. Advancing state schedules the next bounded check.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     // Not pending → nothing to watch. Also resets the budget so a SECOND edit
     // later in the same session gets a fresh set of attempts.
-    if (!revisePending) { attempt.current = 0; setGaveUp(false); return; }
-    if (gaveUp) return;
+    if (!revisePending) { if (attempt !== 0) setAttempt(0); return; }
+    if (attempt >= DELAYS_MS.length) return;
 
-    const delay = DELAYS_MS[Math.min(attempt.current, DELAYS_MS.length - 1)];
+    const delay = DELAYS_MS[attempt];
     const t = window.setTimeout(() => {
-      attempt.current += 1;
-      if (attempt.current > DELAYS_MS.length) { setGaveUp(true); return; }
       // Re-runs the server component. If the rewrite landed, revisePending comes
-      // back false and this effect tears itself down.
+      // back false and this effect tears itself down. If it is still pending,
+      // the state advance schedules the next delay in the bounded sequence.
       router.refresh();
+      setAttempt((current) => current + 1);
     }, delay);
     return () => window.clearTimeout(t);
-    // `attempt.current` is a ref on purpose — bumping it inside the timeout must
-    // not itself retrigger the effect; `gaveUp` is what ends the loop.
-  }, [revisePending, gaveUp, router]);
+  }, [revisePending, attempt, router]);
 
-  if (!revisePending || !gaveUp) return null;
+  if (!revisePending || attempt < DELAYS_MS.length) return null;
 
   // Still pending after the whole budget: say so plainly instead of silently
   // continuing to look busy.
