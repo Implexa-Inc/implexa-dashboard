@@ -38,7 +38,8 @@ test('THE FALSE-POSITIVE FIX (2026-09-10): the derivation receives the VALIDATED
 test('the finalize action renders only when the recovered trace looks complete', () => {
   const i = page.indexOf('recovered.recoverable && (');
   assert.notEqual(i, -1);
-  const block = page.slice(i, i + 1800);
+  // Through the end of the incomplete branch (the continuation carries the run's slug + frozen version).
+  const block = page.slice(i, page.indexOf('{/* Transcript-only evidence is explained', i));
   assert.match(block, /recovered\.looksComplete \? \(/);
   assert.match(block, /Work recovered — review and finalize/);
   assert.match(block, /<FinalizeRecoveredButton runId=\{r\.id\} looksComplete \/>/);
@@ -46,7 +47,7 @@ test('the finalize action renders only when the recovered trace looks complete',
   const incomplete = block.slice(block.indexOf('Partial work is preserved — continuation required'));
   assert.doesNotMatch(incomplete, /FinalizeRecoveredButton/,
     'an incomplete trace must never offer manual finalization');
-  assert.match(incomplete, /<PreservedWorkContinuation runId=\{r\.id\} \/>/,
+  assert.match(incomplete, /<PreservedWorkContinuation runId=\{r\.id\} slug=\{r\.skill_slug\} workflowVersionId=\{runWorkflowVersionId\} \/>/,
     'an incomplete trace must offer the managed typed continuation');
 });
 

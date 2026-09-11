@@ -80,6 +80,8 @@ const mutations = [
     "await guard(action, onSuccess, admittedMachine ?? card.machine.id);", "await guard(action, onSuccess, null);", [...SURFACES, ...WIRING]],
   ['claude-fallback-on-setup-refusal', 'app/(dashboard)/_components/run-claude-actions.tsx',
     "      if (!gated.ok) return;\n    } catch (error) {", "      if (!gated.ok) { await openInClaude(); return; }\n    } catch (error) {", [...SURFACES, ...WIRING]],
+  ['preserved-work-continuation-shows-setup-as-an-error', 'app/(dashboard)/_components/preserved-work-continuation.tsx',
+    "      if (!gated.ok) { setBusy(false); return; }", "      if (!gated.ok) { setBusy(false); setError('Setup required before this agent can run.'); router.push('/workflows'); return; }", [...SURFACES, ...WIRING]],
   ['claude-fallback-on-transient-backend-error', 'app/(dashboard)/_components/run-claude-actions.tsx',
     "      setErr(runRequestRefusalCopy(error, 'Could not approve and finish. Nothing was changed. Try again.'));", "      void error; await openInClaude();", [...SURFACES, ...WIRING]],
   ['fix-now-proceeds-behind-refused-enqueue', 'app/(dashboard)/_components/fix-now-button.tsx',

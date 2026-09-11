@@ -213,3 +213,24 @@ test('GAP 5 — Approve & finish on a TRANSIENT backend failure (5xx, network) f
     } finally { r.cleanup(); }
   }
 });
+
+test('Continue preserved work (managed continuation, main #229): refusal → modal, no navigation, no error line; Recheck retries the same continuation once', async () => {
+  const { state, backend } = refuseOnce();
+  const r = await render('preserved-work-continuation.tsx', { runId: 'run-1', slug: 'visual-evidence-remotion-compositor', workflowVersionId: VERSION },
+    { backend, bridge: { executionMachineId: async () => 'mac-mini-a', recheckMachineCapabilities: async () => ({ ok: true }) } });
+  try {
+    await r.click(r.getByText('Continue preserved work'));
+    await settle(r);
+    assert.ok(r.queryByText(TITLE), 'the modal');
+    assert.equal(r.document.querySelector('p[role="alert"]'), null, 'not an error sentence');
+    assert.equal(r.calls.push.length, 0, 'no navigation on a refusal');
+    assert.ok(r.queryByText('Continue preserved work'), 'the button is idle again');
+    await r.click(r.getByText('Recheck'));
+    await settle(r);
+    assert.equal(state.runRequests.length, 2);
+    assert.equal(state.runRequests[1].kind, 'continue');
+    assert.match(String(state.runRequests[1].note), /Desktop-validated preserved work/, 'the same continuation, same intent');
+    assert.equal(state.runRequests[1].executionMachineId, 'mac-mini-a');
+    assert.deepEqual(r.calls.push, ['/workflows']);
+  } finally { r.cleanup(); }
+});

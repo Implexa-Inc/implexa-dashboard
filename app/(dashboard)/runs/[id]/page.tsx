@@ -1196,7 +1196,7 @@ export default async function RunDetailPage({
                   A validated deliverable ({recovered.deliverable?.relativePath}) exists, but this run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and stopped before the trace showed completion.
                   Implexa will not offer “Mark as done.” Continue only through a typed recovery action that verifies and reuses the preserved work.
                 </p>
-                <PreservedWorkContinuation runId={r.id} />
+                <PreservedWorkContinuation runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
               </div>
             ))}
             {/* Transcript-only evidence is explained, never offered as "done": a

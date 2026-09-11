@@ -89,6 +89,8 @@ test('BLOCKER 14: every surface that creates a run request routes the typed refu
     'fix-now-button.tsx': ['fix'],
     'run-claude-actions.tsx': ['approveAndFinish'],
     'agent-feedback.tsx': ['send'],
+    // Main #229: the managed "Continue preserved work" continuation.
+    'preserved-work-continuation.tsx': ['queue'],
   };
   for (const [file, fns] of Object.entries(surfaces)) {
     const src = read(file);
@@ -132,6 +134,7 @@ test('BLOCKER 15/16/17: the setup page routes every backend action, renders the 
   assert.match(setupPage, /\$\{workflowVersionId \? `&workflowVersionId=\$\{encodeURIComponent\(workflowVersionId\)\}` : ''\}/, 'the setup page reads the frozen version');
   const runPage = read('../runs/[id]/page.tsx');
   assert.match(runPage, /<FinishRunButton runId=\{r\.id\} slug=\{r\.skill_slug\} workflowVersionId=\{runWorkflowVersionId\} \/>/);
+  assert.match(runPage, /<PreservedWorkContinuation runId=\{r\.id\} slug=\{r\.skill_slug\} workflowVersionId=\{runWorkflowVersionId\} \/>/);
   assert.match(runPage, /<RunContinueBox runId=\{r\.id\}\n\s+agentName=\{name\}\n\s+slug=\{r\.skill_slug\}\n\s+workflowVersionId=\{runWorkflowVersionId\}/);
   assert.match(runPage, /skillSlug=\{r\.skill_slug\}\n\s+workflowVersionId=\{runWorkflowVersionId\}/);
 });
