@@ -33,7 +33,7 @@ import { AttachFiles, composeNoteWithFiles, desktopBridge, fileName, useRunAttac
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import {
   acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
-  resolvePickerResult, serializeArtifactBindings,
+  resolvePickerResult, revisionAuthorityIssue, serializeArtifactBindings,
   type ArtifactBinding, type RunInputBindings, type WorkflowInputContract, type WorkflowInputField,
 } from '@/lib/workflow-input-contract';
 import { advanceInputRevision, inputRevisionIsCurrent, readInputRevision } from '@/lib/run-input-verification-order';
@@ -209,6 +209,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // promise continuation can tell whether it is stale before touching UI state.
   const inputRevisionRef = useRef<Record<string, number>>({});
   const inputBindings = resolveEffectiveInputs(inputContract, inputDefaults, inputOverrides);
+  const revisionIssue = revisionAuthorityIssue(
+    inputContract,
+    inputBindings,
+    new Set(Object.keys(deferredSelections)),
+  );
   const missingRequiredForRun = () => missingRequiredInputs(inputContract, inputBindings)
     .filter((field) => !deferredSelections[field.key]);
   // Per-field picker/registration failures. Keyed by contract field key so the
@@ -608,6 +613,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // click, which silently undid the whole tier split one surface later.
     if ((pendingUpdate && !runInstalledVersionConfirmed)
         || blankRequired.length || missingRequiredForRun().length
+        || revisionIssue
         || Object.keys(preparingInputRef.current).length) return;
     setSetupSaving(true);
     setMsg('');
@@ -1320,6 +1326,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
               </div>
             );
           })}
+          {revisionIssue && (
+            <p role="alert" className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+              {revisionIssue.message}
+            </p>
+          )}
         </div>
       )}
 
@@ -1412,7 +1423,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <button
           type="button"
           onClick={submitPreRun}
-          disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || (!!pendingUpdate && !runInstalledVersionConfirmed)}
+          disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || !!revisionIssue || (!!pendingUpdate && !runInstalledVersionConfirmed)}
           className="btn-success text-sm px-5 py-2 disabled:opacity-50"
         >
           {setupSaving ? 'Saving…' : preRunMode === 'watch' ? 'Open in Claude →' : pendingUpdate ? 'Run installed version' : setupFields.length ? 'Save & run' : '▶ Run now'}

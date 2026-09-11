@@ -125,6 +125,40 @@ export function missingRequiredInputs(
   });
 }
 
+export type RevisionAuthorityIssue = {
+  code: 'revision_capsule_contract_missing' | 'revision_capsule_required' | 'revision_source_video_required';
+  message: string;
+};
+
+/**
+ * Cross-field revision safety shown before Run.  The backend enforces the same
+ * pair at request birth; this copy exists so the person sees the missing action
+ * before large files are hashed or a doomed request is submitted.
+ */
+export function revisionAuthorityIssue(
+  contract: WorkflowInputContract | null,
+  bindings: RunInputBindings,
+  deferredKeys: ReadonlySet<string> = new Set(),
+): RevisionAuthorityIssue | null {
+  const selected = (key: string) => Object.prototype.hasOwnProperty.call(bindings, key) || deferredKeys.has(key);
+  const sourceSelected = selected('revision_source_video');
+  const capsuleSelected = selected('revision_capsule');
+  if (!sourceSelected && !capsuleSelected) return null;
+  if (capsuleSelected && !sourceSelected) return {
+    code: 'revision_source_video_required',
+    message: 'Choose the existing Master that this editable revision capsule produced.',
+  };
+  if (!orderedInputFields(contract).some((field) => field.key === 'revision_capsule')) return {
+    code: 'revision_capsule_contract_missing',
+    message: 'This Agent version cannot safely revise an existing Master. Activate an update that supports an editable revision capsule.',
+  };
+  if (!capsuleSelected) return {
+    code: 'revision_capsule_required',
+    message: 'Choose the editable project capsule that produced this Master. A rendered video alone cannot preserve its composition.',
+  };
+  return null;
+}
+
 /**
  * Name what a file field will actually take.
  *

@@ -10,7 +10,9 @@
  *   • POSITIONAL instead of KEYED binding — a file stored by order rather than
  *     under its contract field key;
  *   • FAIL-OPEN required validation — a required field reported as satisfied
- *     when nothing valid is bound to it.
+ *     when nothing valid is bound to it;
+ *   • REVISION AUTHORITY dropped — a rendered Master accepted without the
+ *     editable capsule that actually preserves its composition.
  *
  * A surviving mutant fails the build.
  */
@@ -31,6 +33,7 @@ const TESTS = [
   'app/(dashboard)/_components/run-input-session-race.test.ts',
   'app/(dashboard)/_components/run-folder-attachments.test.ts',
   'app/(dashboard)/_components/folder-input-render.test.ts',
+  'app/(dashboard)/_components/setup-tiers.test.ts',
   // Activation is now part of THIS harness's subject: the picker's absence there
   // is as load-bearing as its presence in the Run form, and a mutant that puts one
   // back has to be caught by a suite that actually runs.
@@ -42,6 +45,7 @@ const TEST_MARKERS = [
   'every generic run, continue, and build attachment surface wires the folder handler',
   'Run Now uses the same declared folder capability and replacement identity',
   'Run Now shows folder preparation, blocks duplicate picks and ignores an older saved-source refusal',
+  'the PRE-RUN dialog blocks on required fields only',
   'ACTIVATION RENDERS NO FILE PICKER AND HASHES NOTHING',
   'ACTIVATION SENDS NO RUN INPUTS — not bindings, not an input session',
 ];
@@ -146,11 +150,22 @@ const mutants = [
     '      || (Array.isArray(value) && value.length === 0);',
     '      || false;'],
   ['run-button-ignores-required-inputs', COMPONENT,
-    'disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || (!!pendingUpdate && !runInstalledVersionConfirmed)}',
+    'disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || !!revisionIssue || (!!pendingUpdate && !runInstalledVersionConfirmed)}',
     'disabled={setupSaving || blankRequired.length > 0 || (!!pendingUpdate && !runInstalledVersionConfirmed)}'],
   ['submit-guard-ignores-required-inputs', COMPONENT,
-    "if ((pendingUpdate && !runInstalledVersionConfirmed)\n        || blankRequired.length || missingRequiredForRun().length\n        || Object.keys(preparingInputRef.current).length) return;",
+    "if ((pendingUpdate && !runInstalledVersionConfirmed)\n        || blankRequired.length || missingRequiredForRun().length\n        || revisionIssue\n        || Object.keys(preparingInputRef.current).length) return;",
     'if ((pendingUpdate && !runInstalledVersionConfirmed) || blankRequired.length) return;'],
+
+  // ── FAIL-OPEN REVISION AUTHORITY ─────────────────────────────────────────
+  ['rendered-master-treated-as-editable-project', LIB,
+    '  if (!sourceSelected && !capsuleSelected) return null;',
+    '  if (sourceSelected || capsuleSelected) return null;'],
+  ['run-button-ignores-revision-authority', COMPONENT,
+    'disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || !!revisionIssue || (!!pendingUpdate && !runInstalledVersionConfirmed)}',
+    'disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || (!!pendingUpdate && !runInstalledVersionConfirmed)}'],
+  ['submit-guard-ignores-revision-authority', COMPONENT,
+    "if ((pendingUpdate && !runInstalledVersionConfirmed)\n        || blankRequired.length || missingRequiredForRun().length\n        || revisionIssue\n        || Object.keys(preparingInputRef.current).length) return;",
+    "if ((pendingUpdate && !runInstalledVersionConfirmed)\n        || blankRequired.length || missingRequiredForRun().length\n        || Object.keys(preparingInputRef.current).length) return;"],
 ];
 
 function copyForTest(prefix) {
