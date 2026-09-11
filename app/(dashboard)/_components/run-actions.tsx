@@ -30,6 +30,7 @@ import { runRequestRefusalCopy, classifyRunRequestRefusal, type RunRequestRefusa
 import ReviewContinuationRecovery from './review-continuation-recovery';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import { deriveHeldRunPrimaryAction } from '@/lib/held-run-action';
+import { useSetupRequiredGate } from './setup-required-gate';
 import type { RunStep } from '@/lib/run-state';
 import type { ReviewAmendmentTarget } from '@/lib/review-amendment-target';
 
@@ -78,6 +79,11 @@ export default function RunActions({
 }) {
   const router = useRouter();
   const supabase = createClient();
+  // MACHINE-CAPABILITY ADMISSION (backend 0346): every continuation here creates
+  // a run request, so every one can be refused with the typed setup_required
+  // card. The gate turns that into the modal (Recheck retries the same action
+  // once); it is never an error sentence and never followed by navigation.
+  const setupGate = useSetupRequiredGate({ slug: skillSlug || null });
   const needsInput = reviewStatus === 'needs_input';
   const primaryAction = deriveHeldRunPrimaryAction({
     reviewStatus,
@@ -151,16 +157,19 @@ export default function RunActions({
     if (busy) return;
     setBusy('approve'); setErr(null);
     try {
-      await callBackend('/api/v2/me/run-requests', {
+      const gated = await setupGate.guard(async ({ machineId }) => callBackend('/api/v2/me/run-requests', {
         jwt: await jwt(), method: 'POST',
         body: {
           kind: 'continue', runId, source: 'dashboard',
           ...(approvalRecovery ? { approvalRecovery: true } : {}),
+          ...(machineId ? { executionMachineId: machineId } : {}),
         },
+      }), () => {
+        // Land the user on Active Agents so they SEE the new task spin up (parity
+        // with Run-now) instead of a static "done" line they have to interpret.
+        router.push('/workflows'); router.refresh();
       });
-      // Land the user on Active Agents so they SEE the new task spin up (parity
-      // with Run-now) instead of a static "done" line they have to interpret.
-      router.push('/workflows'); router.refresh();
+      if (!gated.ok) { setBusy(null); return; }
     } catch {
       setErr('Could not approve. Try again.');
       setBusy(null);
@@ -187,23 +196,26 @@ export default function RunActions({
     if (busy || (!note.trim() && files.length === 0)) return;
     setBusy('changes'); setErr(null); setRefusal(null);
     try {
-      await callBackend('/api/v2/me/run-requests', {
+      const gated = await setupGate.guard(async ({ machineId }) => callBackend('/api/v2/me/run-requests', {
         jwt: await jwt(), method: 'POST',
-        body: { kind: 'continue', runId, note: composed, source: 'dashboard' },
+        body: { kind: 'continue', runId, note: composed, source: 'dashboard', ...(machineId ? { executionMachineId: machineId } : {}) },
+      }), async () => {
+        // Opt-in: also bake the change into the agent (kind='revise') so future runs
+        // do it too, not just this re-run. Best-effort — the continue is already
+        // queued, so a revise hiccup never loses the re-run.
+        if (editAgent && skillSlug && note.trim()) {
+          try {
+            await fetch('/api/agents/revise', {
+              method: 'POST', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ slug: skillSlug, note: note.trim() }),
+            });
+          } catch { /* continue queued; the edit can be retried from "Edit this agent" */ }
+        }
+        // Land on Active Agents so the new run's loader is visible (parity with Run).
+        router.push('/workflows'); router.refresh();
       });
-      // Opt-in: also bake the change into the agent (kind='revise') so future runs
-      // do it too, not just this re-run. Best-effort — the continue is already
-      // queued, so a revise hiccup never loses the re-run.
-      if (editAgent && skillSlug && note.trim()) {
-        try {
-          await fetch('/api/agents/revise', {
-            method: 'POST', headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ slug: skillSlug, note: note.trim() }),
-          });
-        } catch { /* continue queued; the edit can be retried from "Edit this agent" */ }
-      }
-      // Land on Active Agents so the new run's loader is visible (parity with Run).
-      router.push('/workflows'); router.refresh();
+      // The note stays exactly as typed behind the setup modal.
+      if (!gated.ok) { setBusy(null); return; }
     } catch (error) {
       const classified = classifyRunRequestRefusal(error);
       // Hand a recoverable refusal to the panel, which owns both the copy and
@@ -240,14 +252,16 @@ export default function RunActions({
         localRecoveryGeneration.current += 1;
         setLocalRecovery('verified');
       }
-      await callBackend('/api/v2/me/run-requests', {
+      const gated = await setupGate.guard(async ({ machineId }) => callBackend('/api/v2/me/run-requests', {
         jwt: await jwt(), method: 'POST',
         body: {
           kind: 'continue', runId, source: 'dashboard',
           note: 'The original typed local input has been reauthorized on Desktop. Preserve every completed step and the approved plan; continue from the first pending step.',
+          ...(machineId ? { executionMachineId: machineId } : {}),
         },
-      });
-      router.push('/workflows'); router.refresh();
+      }), () => { router.push('/workflows'); router.refresh(); });
+      // The verified local input stays verified; the setup modal owns the retry.
+      if (!gated.ok) { setBusy(null); return; }
     } catch (error) {
       const classified = classifyRunRequestRefusal(error);
       if (classified?.recoverable) setRefusal(classified);
@@ -315,6 +329,7 @@ export default function RunActions({
 
   return (
     <section className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
+      {setupGate.modal}
       {/* One-line context, not a paragraph. */}
       <p className="text-sm text-ink-200">
         {needsInput

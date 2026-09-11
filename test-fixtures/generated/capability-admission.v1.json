@@ -255,6 +255,26 @@
         "status": 409
       }
     },
+    "desktopAdmitAtLaunch": {
+      "body": [
+        "launchAttemptId",
+        "fencingEpoch",
+        "machineId"
+      ],
+      "freezes": [
+        "required_machine_id",
+        "machine_capability_digest",
+        "capability_admission",
+        "capability_attestation_digest",
+        "capability_admitted_attempt_id"
+      ],
+      "method": "POST",
+      "path": "/api/v2/desktop/run-requests/:id/launch-attempt/admit",
+      "refusal": {
+        "body": "setupRequired",
+        "status": 409
+      }
+    },
     "desktopAttest": {
       "body": [
         "attestation"
@@ -274,6 +294,8 @@
       "path": "/api/v2/desktop/run-requests/:id/launch-attempt/setup-required"
     },
     "mcpTool": "record_capability_usage",
+    "mcpUsageRpc": "record_run_capability_usage",
+    "proofGateRpc": "run_required_capability_gap",
     "retrySafely": {
       "failureFamily": "capability_setup_required:",
       "get": "/api/v2/me/run-requests/:id/control-plane-retry",
@@ -512,7 +534,7 @@
         "admission_version": "capability-admission.v1",
         "admitted_at": "2026-09-10T12:00:00.000Z",
         "attestation_checked_at": "2026-09-10T11:59:30.000Z",
-        "attestation_digest": "64f2e5ea8eb62d9451fcc2629eb7d554743d0b66a3cf6a961b6afc65b15df79a",
+        "attestation_digest": "8c8c5de92732eab156571d08cdfe2abc6b2c56e8cad6d7324f54f278a7d64ee4",
         "attestation_expires_at": "2026-09-10T12:09:30.000Z",
         "ca_trust_mode": "bundled",
         "contract_digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -659,6 +681,9 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T11:59:30.000Z",
             "kind": "npm_registry_tls",
+            "npm_config_policy": "default",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -948,6 +973,9 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T11:59:30.000Z",
             "kind": "npm_registry_tls",
+            "npm_config_policy": "default",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -1236,6 +1264,9 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T11:59:30.000Z",
             "kind": "npm_registry_tls",
+            "npm_config_policy": "default",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -1525,6 +1556,9 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T11:59:30.000Z",
             "kind": "npm_registry_tls",
+            "npm_config_policy": "default",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -1814,6 +1848,9 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T11:59:30.000Z",
             "kind": "npm_registry_tls",
+            "npm_config_policy": "default",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -2102,6 +2139,9 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T11:59:30.000Z",
             "kind": "npm_registry_tls",
+            "npm_config_policy": "default",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -2390,6 +2430,9 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T11:59:30.000Z",
             "kind": "npm_registry_tls",
+            "npm_config_policy": "default",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -2680,6 +2723,9 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T11:59:30.000Z",
             "kind": "npm_registry_tls",
+            "npm_config_policy": "default",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -2715,7 +2761,7 @@
           "admission_version": "capability-admission.v1",
           "admitted_at": "2026-09-10T12:00:00.000Z",
           "attestation_checked_at": "2026-09-10T11:59:30.000Z",
-          "attestation_digest": "1b77e3f4b5d63141e9978dd6c1ad28629c81d0636ef3846b8ff861baf9bc3c94",
+          "attestation_digest": "3311a842a3253eff3885557058a0007da990676df62caac30162ef41e1b1ba68",
           "attestation_expires_at": "2026-09-10T12:09:30.000Z",
           "ca_trust_mode": "bundled",
           "contract_digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -2874,6 +2920,9 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T11:59:30.000Z",
             "kind": "npm_registry_tls",
+            "npm_config_policy": "default",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -2909,7 +2958,7 @@
           "admission_version": "capability-admission.v1",
           "admitted_at": "2026-09-10T12:00:00.000Z",
           "attestation_checked_at": "2026-09-10T11:59:30.000Z",
-          "attestation_digest": "64f2e5ea8eb62d9451fcc2629eb7d554743d0b66a3cf6a961b6afc65b15df79a",
+          "attestation_digest": "8c8c5de92732eab156571d08cdfe2abc6b2c56e8cad6d7324f54f278a7d64ee4",
           "attestation_expires_at": "2026-09-10T12:09:30.000Z",
           "ca_trust_mode": "bundled",
           "contract_digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -3057,6 +3106,8 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T12:00:00.000Z",
             "kind": "npm_registry_tls",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -3093,7 +3144,7 @@
           "admission_version": "capability-admission.v1",
           "admitted_at": "2026-09-10T12:00:00.000Z",
           "attestation_checked_at": "2026-09-10T11:59:30.000Z",
-          "attestation_digest": "19c80c081fee80757ef36701f984e3bd3251a285aa9094e2f560e98d45820f14",
+          "attestation_digest": "94699665b6491c8ec03a2cdd9447f9d0943343a6c4b7a38e2d31cbc15385940f",
           "attestation_expires_at": "2026-09-10T12:09:30.000Z",
           "ca_trust_mode": "bundled",
           "contract_digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -3530,6 +3581,8 @@
             "ca_trust_mode": "system",
             "checked_at": "2026-09-10T12:00:00.000Z",
             "kind": "npm_registry_tls",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -3565,7 +3618,7 @@
           "admission_version": "capability-admission.v1",
           "admitted_at": "2026-09-10T12:00:00.000Z",
           "attestation_checked_at": "2026-09-10T11:59:30.000Z",
-          "attestation_digest": "491ead100271f042725d4b9d15ccbecd061773d6b508dbafcaa3bef05b96b79d",
+          "attestation_digest": "c913888c1193702aaee8438920ec88af24290b43ef5087083f4c627f8a4f5e55",
           "attestation_expires_at": "2026-09-10T12:09:30.000Z",
           "ca_trust_mode": "system",
           "contract_digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -3711,6 +3764,9 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T11:59:30.000Z",
             "kind": "npm_registry_tls",
+            "npm_config_policy": "default",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {
@@ -4001,6 +4057,9 @@
             "ca_trust_mode": "bundled",
             "checked_at": "2026-09-10T11:59:30.000Z",
             "kind": "npm_registry_tls",
+            "npm_config_policy": "default",
+            "npm_registry_verified": true,
+            "npm_strict_ssl": true,
             "status": "ready"
           },
           "npm_runtime": {

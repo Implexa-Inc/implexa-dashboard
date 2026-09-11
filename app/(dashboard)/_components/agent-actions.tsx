@@ -31,7 +31,7 @@ import { getAgentNoteDraft, clearAgentNoteDraft } from '@/lib/agent-note-draft';
 import { AttachFiles, composeNoteWithFiles, desktopBridge, fileName, useRunAttachments,
   type DeferredRunInputSelection } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
-import SetupRequiredCard from './setup-required-card';
+import { SetupRequiredModal } from './setup-required-gate';
 import { parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
 import {
   acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
@@ -683,7 +683,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     } catch { return { fingerprint: null, duplicate: null }; }
   }
 
-  async function doQueue(note?: string, opts?: { force?: boolean; fingerprint?: string | null; admitted?: boolean }) {
+  async function doQueue(note?: string, opts?: { force?: boolean; fingerprint?: string | null; admitted?: boolean; executionMachineId?: string | null }) {
     if (state === 'queuing' || state === 'running') return;
     // Remember the note BEFORE the duplicate check can early-return, or "Run again
     // anyway" replays the run with the note dropped — silently different work.
@@ -711,7 +711,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       const { data: { session } } = await supabase.auth.getSession();
       // The machine the Desktop bridge says it is — a NAME the backend resolves
       // against its own reports, never a readiness claim. Absent on plain web.
-      const executionMachineId = await desktopBridge()?.executionMachineId?.().catch(() => null) ?? null;
+      // After a Recheck admission, THE machine the admission was proven on wins.
+      const executionMachineId = opts?.executionMachineId ?? (await desktopBridge()?.executionMachineId?.().catch(() => null) ?? null);
       // ADMISSION BEFORE CREATION (0346). Ask the backend whether the selected
       // machine can run this version before a request, run or launch exists.
       // The request itself re-runs the same decision, so this cannot be skipped
@@ -996,21 +997,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           on admission, continues the SAME Run — same note, same inputs, exactly
           once (admitted:true skips the redundant pre-check; the request re-runs
           the decision server-side regardless). */}
-      <Modal
-        open={!!setupCard}
-        onClose={() => setSetupCard(null)}
-        title="Setup required before this agent can run."
-      >
-        {setupCard && (
-          <SetupRequiredCard
-            card={setupCard}
-            slug={slug}
-            workflowVersionId={workflowVersionId}
-            onAdmitted={async () => { setSetupCard(null); await doQueue(lastNote.current, { fingerprint: lastFingerprint.current, admitted: true }); }}
-            onCancel={() => setSetupCard(null)}
-          />
-        )}
-      </Modal>
+      <SetupRequiredModal
+        card={setupCard}
+        slug={slug}
+        workflowVersionId={workflowVersionId}
+        onAdmitted={async (machineId) => { setSetupCard(null); await doQueue(lastNote.current, { fingerprint: lastFingerprint.current, admitted: true, executionMachineId: machineId }); }}
+        onCancel={() => setSetupCard(null)}
+      />
       {/* While the run is in flight, point the user at where it shows LIVE — the
           "Active Agents" section on the Agents page (polls the live feed). We
           deliberately do NOT deep-link the recurring routine's Claude page here:

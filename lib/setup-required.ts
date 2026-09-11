@@ -93,10 +93,25 @@ export function blockingItems(card: SetupRequiredCard): SetupRequiredItem[] {
   return card.items.filter((item) => item.required && item.state !== 'ready');
 }
 
-/** The in-app setup page for this agent on this machine (implexa:// path segments only — queries are dropped by the app's deep-link router). */
-export function machineSetupPath(slug: string): string {
-  return `/settings/machine-setup/${encodeURIComponent(slug)}`;
+/** The in-app setup page for this agent on THE SELECTED machine (implexa://
+ * path segments only — queries are dropped by the app's deep-link router). The
+ * machine the card was raised for rides along as a segment, so "Open setup in
+ * Implexa" lands on exactly that computer's requirement list, never on whichever
+ * computer happens to be answering the bridge. */
+export function machineSetupPath(slug: string, machineId?: string | null): string {
+  return `/settings/machine-setup/${encodeURIComponent(slug)}${machineId ? `/${encodeURIComponent(machineId)}` : ''}`;
 }
-export function appMachineSetupUrl(slug: string): string {
-  return `implexa://settings/machine-setup/${encodeURIComponent(slug)}`;
+export function appMachineSetupUrl(slug: string, machineId?: string | null): string {
+  return `implexa://settings/machine-setup/${encodeURIComponent(slug)}${machineId ? `/${encodeURIComponent(machineId)}` : ''}`;
 }
+
+/** Customer-facing copy for each backend setup action (the closed set). The
+ * page renders the backend's `instructions` verbatim next to these. */
+export const SETUP_ACTION_COPY: Record<string, { label: string; explicit: string }> = {
+  install_runtime: { label: 'Install the runtime', explicit: 'Installs the Implexa-managed Node runtime on this computer when you choose to.' },
+  install_cli: { label: 'Install', explicit: 'Opens the vendor’s install instructions; you run the install yourself.' },
+  install_media_tools: { label: 'Install media tools', explicit: 'Installs ffmpeg/ffprobe through Implexa’s tool registry when you choose to.' },
+  sign_in_cli: { label: 'Sign in', explicit: 'Sign in with the vendor’s own CLI in a terminal; Implexa only re-checks the account status afterwards and never sees the credential.' },
+  free_disk: { label: 'Free up space', explicit: 'Free space on this computer, then Recheck.' },
+  recheck: { label: 'Recheck', explicit: 'Re-checks this computer and asks Implexa to decide again.' },
+};

@@ -21,8 +21,13 @@ test('THE CROSS-FEATURE FIX: when already recovered elsewhere, deriveRecoveredWo
 });
 
 test('THE FALSE-POSITIVE FIX (2026-09-10): the derivation receives the VALIDATED artifacts, and transcript-only evidence gets an explanation, never a finalize button', () => {
-  assert.match(page, /deriveRecoveredWork\(\{ runState: r\.run_state, outputMarkdown: r\.output_markdown, progress, stepsState, validatedArtifacts: verifiedArtifacts \}\)/,
+  assert.match(page, /deriveRecoveredWork\(\{ runState: r\.run_state, outputMarkdown: r\.output_markdown, progress, stepsState, validatedArtifacts: recoveryArtifacts \}\)/,
     'the affordance must be gated on Desktop-validated artifacts, not on heartbeat/step counts');
+  // BLOCKER 12 (2026-09-11): the derivation needs id + sha256 + status, which
+  // the display projection never carried — ONE projection now serves both.
+  assert.match(page, /\.select\(RUN_ARTIFACT_COLUMNS\)/, 'the page selects the projection’s column list (id, sha256, status included)');
+  assert.match(page, /const projected = projectRunArtifacts\(data, artifactRolePriority\);\n\s+verifiedArtifacts = projected\.verified;\n\s+recoveryArtifacts = projected\.recovery;/);
+  assert.doesNotMatch(page, /\.select\('relative_path, validated_path, role, size_bytes'\)/, 'the sha-less projection is gone');
   const notice = page.slice(page.indexOf('!recovered.recoverable && recovered.transcriptOnly && ('), page.indexOf('!recovered.recoverable && recovered.transcriptOnly && (') + 900);
   assert.match(notice, /No deliverable was recovered/);
   assert.doesNotMatch(notice, /FinalizeRecoveredButton/, 'transcript-only work must never be markable as done');

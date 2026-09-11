@@ -60,4 +60,8 @@ test('blocking items are REQUIRED and not ready; optional fallbacks never block;
 test('"Open setup in Implexa" routes by path segments only — the app’s deep-link router drops query strings', () => {
   assert.equal(machineSetupPath('visual-evidence-remotion-compositor'), '/settings/machine-setup/visual-evidence-remotion-compositor');
   assert.equal(appMachineSetupUrl('a b'), 'implexa://settings/machine-setup/a%20b');
+  // The SELECTED machine rides along as a segment (never a query string).
+  assert.equal(machineSetupPath('slug', 'mac-mini-a'), '/settings/machine-setup/slug/mac-mini-a');
+  assert.equal(appMachineSetupUrl('slug', 'mac mini/a'), 'implexa://settings/machine-setup/slug/mac%20mini%2Fa');
+  assert.equal(machineSetupPath('slug', null), '/settings/machine-setup/slug');
 });

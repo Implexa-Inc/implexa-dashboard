@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { useSetupRequiredGate } from './setup-required-gate';
 
 const FINISH_PROMPT =
   "Continue from this run's deliverable and complete ALL the remaining / blocked steps to finish it end-to-end " +
@@ -33,20 +34,28 @@ export default function FinishRunButton({
   const supabase = createClient();
   const router = useRouter();
   const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
+  // The typed setup_required refusal (backend 0346) is the modal, never the
+  // generic "Could not queue it" line and never a navigation.
+  const setupGate = useSetupRequiredGate();
 
   async function finish() {
     if (state === 'busy') return;
     setState('busy');
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      await callBackend('/api/v2/me/run-requests', {
+      const gated = await setupGate.guard(({ machineId }) => callBackend('/api/v2/me/run-requests', {
         jwt: session?.access_token, method: 'POST',
-        body: mode === 'approval-recovery'
-          ? { kind: 'continue', runId, approvalRecovery: true, source: 'dashboard' }
-          : { kind: 'continue', runId, note: FINISH_PROMPT, source: 'dashboard' },
+        body: {
+          ...(mode === 'approval-recovery'
+            ? { kind: 'continue', runId, approvalRecovery: true, source: 'dashboard' }
+            : { kind: 'continue', runId, note: FINISH_PROMPT, source: 'dashboard' }),
+          ...(machineId ? { executionMachineId: machineId } : {}),
+        },
+      }), () => {
+        // Land on Active Agents so the user SEES it spin up (parity with Run-now).
+        router.push('/workflows'); router.refresh();
       });
-      // Land on Active Agents so the user SEES it spin up (parity with Run-now).
-      router.push('/workflows'); router.refresh();
+      if (!gated.ok) { setState('idle'); return; }
     } catch {
       setState('error');
     }
@@ -71,6 +80,7 @@ export default function FinishRunButton({
         </button>
       </div>
       {state === 'error' && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">Could not queue it. Try again.</p>}
+      {setupGate.modal}
     </div>
   );
 }

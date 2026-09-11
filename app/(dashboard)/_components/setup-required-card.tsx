@@ -6,11 +6,13 @@
  * Shown IMMEDIATELY at the Run click when the backend's admission call refuses.
  * Lists each requirement with its state ("Higgsfield CLI — Not installed"),
  * names WHICH computer was checked, and offers exactly three actions:
- *   • Open setup in Implexa — the in-app setup page (install/sign-in are the
- *     user's explicit clicks there; nothing is installed or captured silently);
- *   • Recheck — asks the Desktop (when this page runs inside it) to re-probe and
- *     re-attest, then asks the BACKEND for the decision again. On admission the
- *     SAME Run continues, once, with the same inputs (onAdmitted).
+ *   • Open setup in Implexa — the in-app setup page FOR THAT COMPUTER (install/
+ *     sign-in are the user's explicit clicks there; nothing is installed or
+ *     captured silently);
+ *   • Recheck — asks the Desktop (when this page runs inside it, on that same
+ *     computer) to re-probe and re-attest, then asks the BACKEND for the
+ *     decision again, for the SAME machine the card was raised for. On admission
+ *     the SAME action continues, once (onAdmitted).
  *   • Cancel — nothing was queued; nothing to undo.
  *
  * The Dashboard never decides readiness: `recheck` is the backend's answer.
@@ -35,37 +37,51 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
   /** The agent to re-admit. Absent for a Continue (the request re-runs admission server-side). */
   slug?: string | null;
   workflowVersionId?: string | null;
-  /** Continue the ORIGINAL Run — same note, same inputs — exactly once. */
-  onAdmitted: () => void | Promise<void>;
+  /** Continue the ORIGINAL action — same note, same inputs, on the SAME machine — exactly once. */
+  onAdmitted: (machineId: string | null) => void | Promise<void>;
   onCancel: () => void;
 }) {
   const [current, setCurrent] = useState<Card>(card);
   const [checking, setChecking] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  // Guards a double Recheck (a click during an in-flight check) from continuing
-  // the same Run twice — the one thing this modal must never do.
+  // Two refs, both SYNCHRONOUS (set before the first await): a second click
+  // that lands while a check is in flight — React state has not re-rendered
+  // the disabled button yet — must not start a second admission, and must
+  // never continue the same action twice. `checking` (state) only drives the
+  // label; `inFlightRef` is the guard.
+  const inFlightRef = useRef(false);
   const admittedRef = useRef(false);
   const supabase = createClient();
   const inApp = !!bridge();
 
   async function recheck() {
-    if (checking || admittedRef.current) return;
+    if (inFlightRef.current || admittedRef.current) return;
+    inFlightRef.current = true;
     setChecking(true);
     setNote(null);
+    // THE machine this card was raised for. Recheck asks about it — not about
+    // whichever computer is answering the bridge right now.
+    const machineId: string | null = current.machine.id;
     try {
       const native = bridge();
-      let machineId: string | null = current.machine.id;
       if (native?.recheckMachineCapabilities) {
-        const r = await native.recheckMachineCapabilities().catch(() => ({ ok: false, reason: 'recheck_failed' }));
-        if (!r.ok) setNote('The Implexa app could not re-check this computer. Make sure it is signed in, then try again.');
+        // Only this computer can re-probe itself: ask the bridge to re-probe
+        // when it IS the selected machine (or the card named none).
+        const bridgeMachine = native.executionMachineId ? await native.executionMachineId().catch(() => null) : null;
+        if (!machineId || !bridgeMachine || bridgeMachine === machineId) {
+          const r = await native.recheckMachineCapabilities().catch(() => ({ ok: false, reason: 'recheck_failed' }));
+          if (!r.ok) setNote('The Implexa app could not re-check this computer. Make sure it is signed in, then try again.');
+        } else {
+          setNote(`This check is for ${machineCopy(current)}. Open Implexa on that computer to re-probe it; its last report is used here.`);
+        }
       }
-      if (native?.executionMachineId) machineId = await native.executionMachineId().catch(() => machineId);
+      if (admittedRef.current) return;
       if (!slug) {
         // No agent to pre-admit (a Continue): retry the original action once;
         // the backend re-runs admission at request birth and answers 409 again
         // if setup is still incomplete, which lands back in this modal.
         admittedRef.current = true;
-        await onAdmitted();
+        await onAdmitted(machineId);
         return;
       }
       const { data: { session } } = await supabase.auth.getSession();
@@ -73,9 +89,10 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
         jwt: session?.access_token, method: 'POST',
         body: { workflowSlug: slug, ...(workflowVersionId ? { workflowVersionId } : {}), ...(machineId ? { executionMachineId: machineId } : {}) },
       });
+      if (admittedRef.current) return;
       if (res?.ok === true && res?.admitted === true) {
         admittedRef.current = true;
-        await onAdmitted();
+        await onAdmitted(machineId);
         return;
       }
       setNote('Implexa could not confirm readiness. Try again in a moment.');
@@ -84,15 +101,18 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
       if (next) { setCurrent(next); return; }
       setNote(e instanceof Error ? e.message : 'Recheck failed.');
     } finally {
+      inFlightRef.current = false;
       setChecking(false);
     }
   }
 
   function openSetup() {
     const target = slug || 'this-agent';
-    if (inApp) { window.location.href = machineSetupPath(target); return; }
+    // The selected machine rides along as a path segment: the setup page shows
+    // exactly the computer this card is about.
+    if (inApp) { window.location.href = machineSetupPath(target, current.machine.id); return; }
     // Plain web: hand off to the app, which routes the same path in-app.
-    window.location.href = appMachineSetupUrl(target);
+    window.location.href = appMachineSetupUrl(target, current.machine.id);
   }
 
   const blocking = blockingItems(current);

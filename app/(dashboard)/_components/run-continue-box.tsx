@@ -29,7 +29,7 @@ import { runRequestRefusalCopy, classifyRunRequestRefusal, type RunRequestRefusa
 import ReviewContinuationRecovery from './review-continuation-recovery';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
-import SetupRequiredCard from './setup-required-card';
+import { SetupRequiredModal } from './setup-required-gate';
 import { parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
 import Modal from './modal';
 
@@ -62,7 +62,7 @@ export default function RunContinueBox({
 
   const canSubmit = !!note.trim() || files.length > 0;
 
-  async function submit(opts?: { force?: boolean }) {
+  async function submit(opts?: { force?: boolean; executionMachineId?: string | null }) {
     if (busy || !canSubmit) return;
     setBusy(true);
     setMsg('');
@@ -80,6 +80,8 @@ export default function RunContinueBox({
         body: {
           kind: 'continue', runId, note: composed, source: 'dashboard',
           ...(opts?.force ? { force: true } : {}),
+          // On a Recheck-admitted retry: the machine the admission was proven on.
+          ...(opts?.executionMachineId ? { executionMachineId: opts.executionMachineId } : {}),
         },
       });
       // `done` is set ONLY here, from a successful response. A refusal below
@@ -173,15 +175,11 @@ export default function RunContinueBox({
           />
         )}
       </Modal>
-      <Modal open={!!setupCard} onClose={() => setSetupCard(null)} title="Setup required before this agent can run.">
-        {setupCard && (
-          <SetupRequiredCard
-            card={setupCard}
-            onAdmitted={async () => { setSetupCard(null); await submit(); }}
-            onCancel={() => setSetupCard(null)}
-          />
-        )}
-      </Modal>
+      <SetupRequiredModal
+        card={setupCard}
+        onAdmitted={async (machineId) => { setSetupCard(null); await submit({ executionMachineId: machineId }); }}
+        onCancel={() => setSetupCard(null)}
+      />
     </div>
   );
 }

@@ -39,6 +39,9 @@ const FLOW = ['app/(dashboard)/_components/setup-required-flow.test.ts'];
 const WIRING = ['app/(dashboard)/_components/setup-required-wiring.test.ts'];
 const LIB = ['lib/setup-required.test.ts'];
 const RECOVERY = ['lib/run-recovery-parity.test.ts', 'app/(dashboard)/runs/[id]/recovered-affordance.test.ts'];
+const SURFACES = ['app/(dashboard)/_components/setup-required-surfaces.test.ts'];
+const SETUP = ['app/(dashboard)/settings/machine-setup/[slug]/machine-setup-client.test.ts'];
+const PROJECTION = ['lib/run-artifact-projection.test.ts'];
 const mutations = [
   ['request-created-without-admission', 'app/(dashboard)/_components/agent-actions.tsx',
     "      if (!opts?.admitted) {\n        const admission = await callBackend('/api/v2/me/run-admission', {",
@@ -46,7 +49,38 @@ const mutations = [
   ['typed-409-rendered-as-error', 'app/(dashboard)/_components/agent-actions.tsx',
     "      const setup = parseSetupRequired(e);\n      if (setup) {\n        setState('idle');", "      const setup = null as ReturnType<typeof parseSetupRequired>;\n      if (setup) {\n        setState('idle');", [...FLOW, ...WIRING]],
   ['recheck-continues-twice', 'app/(dashboard)/_components/setup-required-card.tsx',
-    "    if (checking || admittedRef.current) return;", "    if (checking) return;", WIRING],
+    "      if (admittedRef.current) return;\n      if (res?.ok === true && res?.admitted === true) {\n        admittedRef.current = true;", "      if (res?.ok === true && res?.admitted === true) {", [...FLOW, ...WIRING]],
+  ['duplicate-recheck-guard-not-synchronous', 'app/(dashboard)/_components/setup-required-card.tsx',
+    "    if (inFlightRef.current || admittedRef.current) return;\n    inFlightRef.current = true;", "    if (admittedRef.current) return;", [...FLOW, ...WIRING]],
+  ['recheck-asks-about-bridge-machine-not-card', 'app/(dashboard)/_components/setup-required-card.tsx',
+    "    const machineId: string | null = current.machine.id;", "    const machineId: string | null = null;", [...FLOW, ...WIRING]],
+  ['open-setup-drops-selected-machine', 'app/(dashboard)/_components/setup-required-card.tsx',
+    "machineSetupPath(target, current.machine.id)", "machineSetupPath(target)", [...LIB, ...WIRING]],
+  ['approve-finish-navigates-on-refusal', 'app/(dashboard)/_components/run-actions.tsx',
+    "      if (!gated.ok) { setBusy(null); return; }\n    } catch {\n      setErr('Could not approve. Try again.');",
+    "      if (!gated.ok) { setBusy(null); router.push('/workflows'); return; }\n    } catch {\n      setErr('Could not approve. Try again.');", [...SURFACES, ...WIRING]],
+  ['gate-swallows-other-errors', 'app/(dashboard)/_components/setup-required-gate.tsx',
+    "      if (!card) throw e;", "      if (!card) return { ok: false, setupRequired: true, card: card as unknown as Card };", WIRING],
+  ['gate-retries-on-bridge-machine-not-admitted-one', 'app/(dashboard)/_components/setup-required-gate.tsx',
+    "await guard(action, onSuccess, admittedMachine ?? card.machine.id);", "await guard(action, onSuccess, null);", [...SURFACES, ...WIRING]],
+  ['claude-fallback-on-setup-refusal', 'app/(dashboard)/_components/run-claude-actions.tsx',
+    "      if (!gated.ok) return;\n    } catch {", "      if (!gated.ok) { await openInClaude(); return; }\n    } catch {", [...SURFACES, ...WIRING]],
+  ['fix-now-proceeds-behind-refused-enqueue', 'app/(dashboard)/_components/fix-now-button.tsx',
+    "    if (!queued) { setFiring(false); return; }", "    if (!queued) { setFiring(false); }", [...SURFACES, ...WIRING]],
+  ['stale-ready-shown-after-failed-refresh', 'app/(dashboard)/settings/machine-setup/[slug]/machine-setup-client.tsx',
+    "      setStale(true);\n", "", [...SETUP, ...WIRING]],
+  ['setup-page-reads-bridge-machine-not-segment', 'app/(dashboard)/settings/machine-setup/[slug]/machine-setup-client.tsx',
+    "      if (!selectedMachine.current && native?.executionMachineId) {", "      if (native?.executionMachineId) {", [...SETUP, ...WIRING]],
+  ['setup-page-drops-backend-instructions', 'app/(dashboard)/settings/machine-setup/[slug]/machine-setup-client.tsx',
+    "                {!ready && Array.isArray(req.setup.instructions) && req.setup.instructions.length ? (", "                {false ? (", [...SETUP, ...WIRING]],
+  ['modal-tab-not-contained', 'app/(dashboard)/_components/modal.tsx',
+    "      if (e.key !== 'Tab' || !dialog) return;", "      return;", [...FLOW, ...WIRING]],
+  ['modal-focus-not-restored', 'app/(dashboard)/_components/modal.tsx',
+    "      if (back && typeof back.focus === 'function' && back.isConnected) back.focus();", "", [...FLOW, ...WIRING]],
+  ['projection-drops-sha256', 'lib/run-artifact-projection.ts',
+    "    sha256: typeof row.sha256 === 'string' && /^[a-f0-9]{64}$/.test(row.sha256) ? row.sha256 : null,", "    sha256: null,", PROJECTION],
+  ['page-hands-display-projection-to-recovery', 'app/(dashboard)/runs/[id]/page.tsx',
+    "validatedArtifacts: recoveryArtifacts })", "validatedArtifacts: verifiedArtifacts })", RECOVERY],
   ['recheck-decides-in-browser', 'app/(dashboard)/_components/setup-required-card.tsx',
     "      if (res?.ok === true && res?.admitted === true) {", "      if (res?.ok === true || true) {", [...FLOW, ...WIRING]],
   ['machine-name-dropped-from-request', 'app/(dashboard)/_components/agent-actions.tsx',
@@ -57,8 +91,8 @@ const mutations = [
   ['recovery-heartbeats-recoverable-again', 'lib/run-recovery.ts', "  if (!deliverable) {\n    if (!list.length) return none('no_evidence');", "  if (!deliverable && !list.length) {\n    if (!list.length) return none('no_evidence');", RECOVERY],
   ['recovery-declared-artifact-counts', 'lib/run-recovery.ts', "    && (a.status === undefined || a.status === 'validated')", "    && (a.status === undefined || a.status === 'validated' || a.status === 'declared')", RECOVERY],
   ['recovery-page-ignores-artifacts', 'app/(dashboard)/runs/[id]/page.tsx',
-    "deriveRecoveredWork({ runState: r.run_state, outputMarkdown: r.output_markdown, progress, stepsState, validatedArtifacts: verifiedArtifacts })",
-    "deriveRecoveredWork({ runState: r.run_state, outputMarkdown: r.output_markdown, progress, stepsState, validatedArtifacts: verifiedArtifacts.length ? verifiedArtifacts : [{ role: 'final_output', status: 'validated', relative_path: 'trace', sha256: 'a'.repeat(64) }] })", RECOVERY],
+    "deriveRecoveredWork({ runState: r.run_state, outputMarkdown: r.output_markdown, progress, stepsState, validatedArtifacts: recoveryArtifacts })",
+    "deriveRecoveredWork({ runState: r.run_state, outputMarkdown: r.output_markdown, progress, stepsState, validatedArtifacts: recoveryArtifacts.length ? recoveryArtifacts : [{ role: 'final_output', status: 'validated', relative_path: 'trace', sha256: 'a'.repeat(64) }] })", RECOVERY],
 ];
 
 const baselineDir = mkdtempSync(join(tmpdir(), 'implexa-setup-required-baseline-'));

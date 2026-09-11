@@ -50,6 +50,7 @@ import { EngineOverrideBanner } from '../../_components/engine-override-banner';
 import { FinalizeRecoveredButton } from '../../_components/finalize-recovered-button';
 import PreservedWorkContinuation from '../../_components/preserved-work-continuation';
 import { deriveRecoveredWork } from '@/lib/run-recovery';
+import { RUN_ARTIFACT_COLUMNS, projectRunArtifacts, type RecoveryArtifactView } from '@/lib/run-artifact-projection';
 import { RunJudgmentCard, type JudgeRepairRequest, type RunJudgment } from '../../_components/run-judgment-card';
 import { RunJudgmentPending } from '../../_components/run-judgment-pending';
 import VerifiedArtifacts, { type VerifiedArtifact } from '../../_components/verified-artifacts';
@@ -268,24 +269,19 @@ export default async function RunDetailPage({
   // validated path is passed to the desktop bridge for Open/Finder; the UI shows
   // the relative name so a local home path is not treated as deliverable prose.
   let verifiedArtifacts: VerifiedArtifact[] = [];
+  // The recovery derivation needs identity + integrity (id, sha256, status),
+  // which the display list does not carry — ONE projection serves both.
+  let recoveryArtifacts: RecoveryArtifactView[] = [];
   try {
     const { data, error } = await supabase.from('run_artifacts')
-      .select('relative_path, validated_path, role, size_bytes')
+      .select(RUN_ARTIFACT_COLUMNS)
       .eq('run_id', r.id)
       .eq('status', 'validated')
       .order('validated_at', { ascending: true });
     if (!error && Array.isArray(data)) {
-      verifiedArtifacts = data
-        .filter((artifact) => typeof artifact.relative_path === 'string' && typeof artifact.validated_path === 'string')
-        .map((artifact) => ({
-          relativePath: artifact.relative_path,
-          validatedPath: artifact.validated_path,
-          role: typeof artifact.role === 'string' ? artifact.role : null,
-          sizeBytes: typeof artifact.size_bytes === 'number' ? artifact.size_bytes : null,
-        }))
-        // The delivered file is the user action; receipts and source remain
-        // available as evidence but must not bury the actual MP4/document.
-        .sort((a, b) => artifactRolePriority(a.role) - artifactRolePriority(b.role) || a.relativePath.localeCompare(b.relativePath));
+      const projected = projectRunArtifacts(data, artifactRolePriority);
+      verifiedArtifacts = projected.verified;
+      recoveryArtifacts = projected.recovery;
     }
   } catch { /* Layer 2 is additive; an unavailable table must never break the run page. */ }
 
@@ -504,7 +500,7 @@ export default async function RunDetailPage({
   // Desktop-VALIDATED final artifact. Heartbeat/step counts never qualify.
   const recovered = alreadyRecoveredElsewhere
     ? { recoverable: false, looksComplete: false, lastNote: null, stepCount: 0, transcriptOnly: false, deliverable: null, reason: 'not_recoverable_state' as const }
-    : deriveRecoveredWork({ runState: r.run_state, outputMarkdown: r.output_markdown, progress, stepsState, validatedArtifacts: verifiedArtifacts });
+    : deriveRecoveredWork({ runState: r.run_state, outputMarkdown: r.output_markdown, progress, stepsState, validatedArtifacts: recoveryArtifacts });
   const recoveredFinalArtifact = verifiedArtifacts.find((artifact) => artifact.role === 'final_output') ?? null;
   const recoveryPresentation = {
     hasValidatedFinalOutput: !!recoveredFinalArtifact,

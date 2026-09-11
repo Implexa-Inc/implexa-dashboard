@@ -26,6 +26,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { useSetupRequiredGate } from './setup-required-gate';
 
 const CLAUDE_CODE_MAX = 13000;
 
@@ -42,6 +43,10 @@ export default function RunClaudeActions({
   const [done, setDone] = useState(false);
   const [msg, setMsg] = useState('');
   const supabase = createClient();
+  // MACHINE-CAPABILITY ADMISSION (backend 0346): a typed setup_required refusal
+  // is the modal. It must NOT take the open-Claude fallback below — that path
+  // exists for an old backend, and would run the very step the machine cannot.
+  const setupGate = useSetupRequiredGate();
 
   const verb = pending ? 'APPROVED' : 'reviewed';
   const continuePrompt =
@@ -61,13 +66,15 @@ export default function RunClaudeActions({
     setMsg('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      await callBackend('/api/v2/me/run-requests', {
+      const gated = await setupGate.guard(({ machineId }) => callBackend('/api/v2/me/run-requests', {
         jwt: session?.access_token,
         method: 'POST',
-        body: { kind: 'continue', runId, source: 'dashboard' },
+        body: { kind: 'continue', runId, source: 'dashboard', ...(machineId ? { executionMachineId: machineId } : {}) },
+      }), () => {
+        setDone(true);
+        setMsg('Approved. Finishing hands-off; the result lands in your inbox.');
       });
-      setDone(true);
-      setMsg('Approved. Finishing hands-off; the result lands in your inbox.');
+      if (!gated.ok) return;
     } catch {
       // The kind='continue' endpoint isn't live yet (sibling chip not deployed:
       // unknown-kind / non-2xx) OR a transient backend error. Either way, fall
@@ -98,6 +105,7 @@ export default function RunClaudeActions({
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
+      {setupGate.modal}
       {/* Held runs keep "Approve & finish" as the prominent primary CTA (continue
           with the implicit "ship the approved deliverable" intent). The general
           "Continue with a prompt" box (<RunContinueBox />) sits right under this so

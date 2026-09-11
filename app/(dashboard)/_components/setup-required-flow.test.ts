@@ -92,3 +92,88 @@ test('a setup refusal raised by the request itself (backend re-check at birth) o
     assert.match(r.text(), /Higgsfield CLI — Not installed/);
   } finally { r.cleanup(); }
 });
+
+test('BLOCKER 13: two Recheck clicks in the same tick start exactly ONE admission and continue the Run exactly ONCE', async () => {
+  const state = { admitAfter: 0, admissionCalls: 0, runRequests: [] as Array<Record<string, unknown>>, rechecks: 0 };
+  let release: () => void = () => {};
+  const gateOpen = new Promise<void>((resolve) => { release = resolve; });
+  const base = backendFor(state);
+  const r = await render('agent-actions.tsx', props, {
+    backend: async (path: string, init: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/v2/me/run-admission') {
+        state.admissionCalls += 1;
+        if (state.admissionCalls === 1) throw refusal({ ok: false, setupRequired: CARD });
+        await gateOpen; // the Recheck admission stays in flight while the second click lands
+        return { ok: true, admitted: true, machine: { id: 'mac-mini-a' }, caTrustMode: 'bundled' };
+      }
+      return base(path, init);
+    },
+    bridge: { executionMachineId: async () => 'mac-mini-a', recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true }; } },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    await r.click(r.getByText('▶ Run now'));
+    assert.ok(r.queryByText('Setup required before this agent can run.'));
+    const recheck = r.getByText('Recheck');
+    // Two clicks dispatched synchronously — before React re-renders the
+    // disabled button and before any await inside the first handler resolves.
+    await r.act(() => {
+      recheck.dispatchEvent(new r.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+      recheck.dispatchEvent(new r.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    release();
+    await r.act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    assert.equal(state.rechecks, 1, 'one Desktop re-probe');
+    assert.equal(state.admissionCalls, 2, 'the click admission + ONE recheck admission');
+    assert.equal(state.runRequests.length, 1, 'the Run continues exactly once');
+    assert.equal(state.runRequests[0].executionMachineId, 'mac-mini-a');
+  } finally { r.cleanup(); }
+});
+
+test('BLOCKER 16: Recheck asks about THE machine the card names — a bridge on another computer is not re-probed, and the request pins that machine', async () => {
+  const state = { admitAfter: 1, admissionCalls: 0, runRequests: [] as Array<Record<string, unknown>>, rechecks: 0 };
+  const admissions: Array<Record<string, unknown>> = [];
+  const base = backendFor(state);
+  const r = await render('agent-actions.tsx', props, {
+    backend: (path: string, init: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/v2/me/run-admission') admissions.push(init.body || {});
+      return base(path, init);
+    },
+    // The page runs inside Implexa on a DIFFERENT Mac than the one selected.
+    bridge: { executionMachineId: async () => 'mac-studio-b', recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true }; } },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    await r.click(r.getByText('▶ Run now'));
+    assert.match(r.text(), /Checking: Mac mini \(studio\)/);
+    await r.click(r.getByText('Recheck'));
+    await r.act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    assert.equal(state.rechecks, 0, 'a bridge on another computer cannot re-probe the selected one');
+    assert.equal(admissions[1].executionMachineId, 'mac-mini-a', 'the recheck admission names the card’s machine, not the bridge’s');
+    assert.equal(state.runRequests[0].executionMachineId, 'mac-mini-a', 'the admitted Run pins the SAME machine');
+  } finally { r.cleanup(); }
+});
+
+test('BLOCKER 17: focus enters the Setup-required dialog, Tab stays inside it, and Cancel returns focus to the Run control', async () => {
+  const state = { admitAfter: 99, admissionCalls: 0, runRequests: [] as Array<Record<string, unknown>>, rechecks: 0 };
+  const r = await render('agent-actions.tsx', props, { backend: backendFor(state), bridge: { executionMachineId: async () => 'mac-mini-a' } });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    const submit = r.getByText('▶ Run now') as HTMLElement;
+    submit.focus();
+    await r.click(submit);
+    const dialog = r.document.querySelector('[role="dialog"]') as HTMLElement;
+    assert.ok(dialog, 'the dialog is open');
+    assert.ok(dialog.contains(r.document.activeElement), `focus moved into the dialog (active: ${r.document.activeElement?.textContent})`);
+    const focusables = Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'));
+    const last = focusables[focusables.length - 1];
+    last.focus();
+    await r.act(() => { r.window.dispatchEvent(new r.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })); });
+    assert.equal(r.document.activeElement, focusables[0], 'Tab from the last control wraps to the first');
+    await r.act(() => { r.window.dispatchEvent(new r.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })); });
+    assert.equal(r.document.activeElement, last, 'Shift+Tab from the first control wraps to the last');
+    await r.click(r.getByText('Cancel'));
+    assert.equal(r.document.querySelector('[role="dialog"]'), null);
+    assert.ok(r.document.activeElement === submit || r.document.activeElement?.textContent?.includes('Run now'), 'focus returns to the control that opened the dialog');
+  } finally { r.cleanup(); }
+});
