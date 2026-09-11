@@ -551,7 +551,9 @@ export default function InboxList({
                   stepsState={openItem.stepsState}
                 />
               ) : (
-                <RunContinueBox runId={openItem.id} agentName={openItem.name} pending={false} />
+                // The frozen version is not in the inbox projection; the backend's
+                // setup card names it, and the slug is the run's own agent.
+                <RunContinueBox runId={openItem.id} agentName={openItem.name} pending={false} slug={openItem.slug} />
               )}
             </div>
 

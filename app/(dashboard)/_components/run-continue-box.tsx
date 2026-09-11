@@ -29,13 +29,18 @@ import { runRequestRefusalCopy, classifyRunRequestRefusal, type RunRequestRefusa
 import ReviewContinuationRecovery from './review-continuation-recovery';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
+import { SetupRequiredModal } from './setup-required-gate';
+import { parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
 import Modal from './modal';
 
 export default function RunContinueBox({
-  runId, agentName, pending = false, initialNote = '',
+  runId, agentName, pending = false, initialNote = '', slug = null, workflowVersionId = null,
 }: {
   runId: string;
   agentName: string;
+  /** The run's agent and FROZEN version, for "Open setup" on a setup refusal. */
+  slug?: string | null;
+  workflowVersionId?: string | null;
   /** Run is held at an approval gate — tunes only the copy (it's still a continue). */
   pending?: boolean;
   /** Optional evidence-grounded repair prompt from Implexa Judge. User reviews it before queueing. */
@@ -48,6 +53,9 @@ export default function RunContinueBox({
   // The pre-run capability ask — a continue runs the agent just like a Run does, so
   // it hits the same gate and deserves the same actionable card rather than an error.
   const [capCard, setCapCard] = useState<CapabilityCardData | null>(null);
+  // Machine-capability admission (backend 0346) applies to a Continue too: the
+  // parent run's frozen version carries the same requirements.
+  const [setupCard, setSetupCard] = useState<SetupRequiredCardData | null>(null);
   // A Review Room revision that could not be queued is not an error message —
   // it is a state with an action. Holding the typed refusal (rather than only
   // its sentence) is what lets the recovery panel below offer that action.
@@ -57,11 +65,12 @@ export default function RunContinueBox({
 
   const canSubmit = !!note.trim() || files.length > 0;
 
-  async function submit(opts?: { force?: boolean }) {
+  async function submit(opts?: { force?: boolean; executionMachineId?: string | null }) {
     if (busy || !canSubmit) return;
     setBusy(true);
     setMsg('');
     setCapCard(null);
+    setSetupCard(null);
     setRefusal(null);
     try {
       // The prompt + any attached file PATHS, combined into the one-off note the
@@ -74,6 +83,8 @@ export default function RunContinueBox({
         body: {
           kind: 'continue', runId, note: composed, source: 'dashboard',
           ...(opts?.force ? { force: true } : {}),
+          // On a Recheck-admitted retry: the machine the admission was proven on.
+          ...(opts?.executionMachineId ? { executionMachineId: opts.executionMachineId } : {}),
         },
       });
       // `done` is set ONLY here, from a successful response. A refusal below
@@ -84,6 +95,8 @@ export default function RunContinueBox({
     } catch (e) {
       const cap = e instanceof BackendError && e.status === 409 ? e.body?.needsCapability : null;
       if (cap) { setCapCard(cap as CapabilityCardData); return; }
+      const setup = parseSetupRequired(e);
+      if (setup) { setSetupCard(setup); return; }
       const classified = classifyRunRequestRefusal(e);
       // A recoverable refusal hands off to the panel, which owns the copy AND
       // the action. Showing the sentence here as well would say the same thing
@@ -165,6 +178,13 @@ export default function RunContinueBox({
           />
         )}
       </Modal>
+      <SetupRequiredModal
+        card={setupCard}
+        slug={slug}
+        workflowVersionId={workflowVersionId}
+        onAdmitted={async (machineId) => { setSetupCard(null); await submit({ executionMachineId: machineId }); }}
+        onCancel={() => setSetupCard(null)}
+      />
     </div>
   );
 }

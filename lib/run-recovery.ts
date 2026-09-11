@@ -39,7 +39,28 @@ export type RecoveredWork = {
   looksComplete: boolean;
   lastNote: string | null;
   stepCount: number;
+  /** Heartbeats/step notes exist but no validated deliverable does: explain, never offer "done". */
+  transcriptOnly: boolean;
+  deliverable: { id: string | null; role: string; relativePath: string; sha256: string } | null;
+  reason: 'already_reported' | 'not_recoverable_state' | 'no_evidence' | 'transcript_only' | 'recoverable';
 };
+
+// A DELIVERABLE is a Desktop-validated artifact in a terminal role. Heartbeats
+// and step notes are the agent's own narration and never qualify (2026-09-10:
+// "Work recovered — review and finalize" appeared over a run that died in
+// dependency installation, and "Mark as done" would have recorded transcript-
+// only work as delivered). Mirrors the backend's RECOVERY_ARTIFACT_ROLES.
+export const RECOVERY_ARTIFACT_ROLES = ['final_output', 'recovery_result'];
+export type ValidatedArtifact = { id?: string | null; role?: string | null; status?: string | null; relative_path?: string | null; relativePath?: string | null; sha256?: string | null };
+
+function validatedDeliverable(artifacts: ValidatedArtifact[] | null | undefined) {
+  const list = Array.isArray(artifacts) ? artifacts : [];
+  return list.find((a) => a && typeof a === 'object'
+    && (a.status === undefined || a.status === 'validated')
+    && RECOVERY_ARTIFACT_ROLES.includes(String(a.role))
+    && typeof (a.relative_path ?? a.relativePath) === 'string' && String(a.relative_path ?? a.relativePath).trim()
+    && /^[a-f0-9]{64}$/.test(String(a.sha256 || ''))) || null;
+}
 
 function entries(progress: Progress): ProgressEntry[] {
   if (!progress || typeof progress !== 'object') return [];
@@ -52,25 +73,40 @@ function entries(progress: Progress): ProgressEntry[] {
 const text = (e?: ProgressEntry) => [e?.step, e?.note].filter(Boolean).join(' ').trim();
 
 export function deriveRecoveredWork({
-  runState, outputMarkdown, progress, stepsState,
+  runState, outputMarkdown, progress, stepsState, validatedArtifacts = [],
 }: {
   runState?: string | null;
   outputMarkdown?: string | null;
   progress?: Progress;
   stepsState?: StepState[] | null;
+  /** run_artifacts rows (status='validated') or the trusted projection. */
+  validatedArtifacts?: ValidatedArtifact[] | null;
 }): RecoveredWork {
-  const none = { recoverable: false, looksComplete: false, lastNote: null, stepCount: 0 };
+  const none = (reason: RecoveredWork['reason'], extra: Partial<RecoveredWork> = {}): RecoveredWork => ({
+    recoverable: false, looksComplete: false, lastNote: null, stepCount: 0, transcriptOnly: false, deliverable: null, reason, ...extra,
+  });
 
-  if (outputMarkdown && String(outputMarkdown).trim()) return none;
-  if (!RECOVERABLE_STATES.includes(String(runState))) return none;
+  if (outputMarkdown && String(outputMarkdown).trim()) return none('already_reported');
+  if (!RECOVERABLE_STATES.includes(String(runState))) return none('not_recoverable_state');
 
   const list = entries(progress);
-  if (!list.length) return none;
+  const last = list.length ? list[list.length - 1] : null;
+  const lastText = last ? text(last) : '';
+  const deliverable = validatedDeliverable(validatedArtifacts);
 
-  const lastText = text(list[list.length - 1]);
+  if (!deliverable) {
+    if (!list.length) return none('no_evidence');
+    // A COUNT of heartbeats is not evidence, however large.
+    return none('transcript_only', { transcriptOnly: true, lastNote: lastText || null, stepCount: list.length });
+  }
+
   const steps = Array.isArray(stepsState) ? stepsState : [];
   const allStepsDone = steps.length > 0 && steps.every((s) => s && s.status === 'done');
   const looksComplete = (!PROGRESS_MARKERS.test(lastText) && TERMINAL_MARKERS.test(lastText)) || allStepsDone;
 
-  return { recoverable: true, looksComplete, lastNote: lastText || null, stepCount: list.length };
+  return {
+    recoverable: true, looksComplete, lastNote: lastText || null, stepCount: list.length, transcriptOnly: false,
+    deliverable: { id: deliverable.id ?? null, role: String(deliverable.role), relativePath: String(deliverable.relative_path ?? deliverable.relativePath), sha256: String(deliverable.sha256) },
+    reason: 'recoverable',
+  };
 }

@@ -50,6 +50,7 @@ import { EngineOverrideBanner } from '../../_components/engine-override-banner';
 import { FinalizeRecoveredButton } from '../../_components/finalize-recovered-button';
 import PreservedWorkContinuation from '../../_components/preserved-work-continuation';
 import { deriveRecoveredWork } from '@/lib/run-recovery';
+import { RUN_ARTIFACT_COLUMNS, projectRunArtifacts, type RecoveryArtifactView } from '@/lib/run-artifact-projection';
 import { RunJudgmentCard, type JudgeRepairRequest, type RunJudgment } from '../../_components/run-judgment-card';
 import { RunJudgmentPending } from '../../_components/run-judgment-pending';
 import VerifiedArtifacts, { type VerifiedArtifact } from '../../_components/verified-artifacts';
@@ -267,25 +268,29 @@ export default async function RunDetailPage({
   // workspace, rejected escapes/symlinks, and hashed the result. The absolute
   // validated path is passed to the desktop bridge for Open/Finder; the UI shows
   // the relative name so a local home path is not treated as deliverable prose.
+  // The run's FROZEN workflow version: every continuation's setup refusal must
+  // point at it (its requirements can differ from the agent's current version).
+  // Best-effort and separate, so a schema without the column never breaks the page.
+  let runWorkflowVersionId: string | null = null;
+  try {
+    const { data: frozen, error: frozenError } = await supabase.from('skill_runs')
+      .select('workflow_version_id').eq('id', r.id).maybeSingle();
+    if (!frozenError && frozen && typeof frozen.workflow_version_id === 'string') runWorkflowVersionId = frozen.workflow_version_id;
+  } catch { /* the backend card still names the version */ }
   let verifiedArtifacts: VerifiedArtifact[] = [];
+  // The recovery derivation needs identity + integrity (id, sha256, status),
+  // which the display list does not carry — ONE projection serves both.
+  let recoveryArtifacts: RecoveryArtifactView[] = [];
   try {
     const { data, error } = await supabase.from('run_artifacts')
-      .select('relative_path, validated_path, role, size_bytes')
+      .select(RUN_ARTIFACT_COLUMNS)
       .eq('run_id', r.id)
       .eq('status', 'validated')
       .order('validated_at', { ascending: true });
     if (!error && Array.isArray(data)) {
-      verifiedArtifacts = data
-        .filter((artifact) => typeof artifact.relative_path === 'string' && typeof artifact.validated_path === 'string')
-        .map((artifact) => ({
-          relativePath: artifact.relative_path,
-          validatedPath: artifact.validated_path,
-          role: typeof artifact.role === 'string' ? artifact.role : null,
-          sizeBytes: typeof artifact.size_bytes === 'number' ? artifact.size_bytes : null,
-        }))
-        // The delivered file is the user action; receipts and source remain
-        // available as evidence but must not bury the actual MP4/document.
-        .sort((a, b) => artifactRolePriority(a.role) - artifactRolePriority(b.role) || a.relativePath.localeCompare(b.relativePath));
+      const projected = projectRunArtifacts(data, artifactRolePriority);
+      verifiedArtifacts = projected.verified;
+      recoveryArtifacts = projected.recovery;
     }
   } catch { /* Layer 2 is additive; an unavailable table must never break the run page. */ }
 
@@ -500,9 +505,11 @@ export default async function RunDetailPage({
   // it (the founder's Remotion render, twice). The server re-checks this AND the
   // already-recovered-elsewhere fact under lock; see lib/run-recovery.ts on why
   // the mirror stays optimistic.
+  // A deliverable, not a transcript (2026-09-10): the affordance requires a
+  // Desktop-VALIDATED final artifact. Heartbeat/step counts never qualify.
   const recovered = alreadyRecoveredElsewhere
-    ? { recoverable: false, looksComplete: false, lastNote: null, stepCount: 0 }
-    : deriveRecoveredWork({ runState: r.run_state, outputMarkdown: r.output_markdown, progress, stepsState });
+    ? { recoverable: false, looksComplete: false, lastNote: null, stepCount: 0, transcriptOnly: false, deliverable: null, reason: 'not_recoverable_state' as const }
+    : deriveRecoveredWork({ runState: r.run_state, outputMarkdown: r.output_markdown, progress, stepsState, validatedArtifacts: recoveryArtifacts });
   const recoveredFinalArtifact = verifiedArtifacts.find((artifact) => artifact.role === 'final_output') ?? null;
   const recoveryPresentation = {
     hasValidatedFinalOutput: !!recoveredFinalArtifact,
@@ -1018,6 +1025,7 @@ export default async function RunDetailPage({
               stepsState={stepsState}
               claudeTaskId={claudeTaskId}
               skillSlug={r.skill_slug}
+              workflowVersionId={runWorkflowVersionId}
               approvalRecovery={approvalContinuationRecovery}
               reviewAmendment={reviewAmendment}
             />
@@ -1076,7 +1084,7 @@ export default async function RunDetailPage({
           runActions.length === 0 &&
           PARTIAL_RUN_RE.test(r.output_markdown.replace(/[*_`]/g, '')) && (
           <div className="mb-6">
-            <FinishRunButton runId={r.id} />
+            <FinishRunButton runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
           </div>
         )}
 
@@ -1173,8 +1181,9 @@ export default async function RunDetailPage({
               <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/[0.07] px-3 py-3">
                 <div className="text-sm font-semibold text-ink-100 mb-0.5">Work recovered — review and finalize</div>
                 <p className="text-sm text-ink-300 leading-relaxed">
-                  This run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and then stopped
-                  without recording a result. The trace indicates the work finished; review it before marking the run recovered.
+                  A validated deliverable ({recovered.deliverable?.relativePath}) exists for this run, which stopped
+                  without recording a result{recovered.stepCount ? ` after ${recovered.stepCount} step${recovered.stepCount === 1 ? '' : 's'}` : ''}.
+                  The trace indicates the work finished; review it before marking the run recovered — marking it done records the validated artifact as the result, never the trace.
                 </p>
                 <div className="mt-3">
                   <FinalizeRecoveredButton runId={r.id} looksComplete />
@@ -1184,12 +1193,23 @@ export default async function RunDetailPage({
               <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/[0.07] px-3 py-3">
                 <div className="text-sm font-semibold text-ink-100 mb-0.5">Partial work is preserved — continuation required</div>
                 <p className="text-sm text-ink-300 leading-relaxed">
-                  This run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and stopped before the trace showed completion.
+                  A validated deliverable ({recovered.deliverable?.relativePath}) exists, but this run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and stopped before the trace showed completion.
                   Implexa will not offer “Mark as done.” Continue only through a typed recovery action that verifies and reuses the preserved work.
                 </p>
-                <PreservedWorkContinuation runId={r.id} />
+                <PreservedWorkContinuation runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
               </div>
             ))}
+            {/* Transcript-only evidence is explained, never offered as "done": a
+                step trace is not a deliverable, and nothing validated was recovered. */}
+            {!recovered.recoverable && recovered.transcriptOnly && (
+              <div className="mt-3 rounded-md border border-ink-800 px-3 py-3" data-testid="transcript-only-notice">
+                <div className="text-sm font-semibold text-ink-100 mb-0.5">No deliverable was recovered</div>
+                <p className="text-sm text-ink-300 leading-relaxed">
+                  This run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and then stopped without a validated result.
+                  The step trace above is the agent&apos;s own narration, not a deliverable, so this run cannot be marked done.
+                </p>
+              </div>
+            )}
             {/* Distinct from "Run again" below: same request, frozen inputs,
                 new fenced generation — and only when the backend proves no work
                 started. The component hides itself for every other failure. */}
@@ -1266,6 +1286,8 @@ export default async function RunDetailPage({
           <div className="mt-5">
             <RunContinueBox runId={r.id}
               agentName={name}
+              slug={r.skill_slug}
+              workflowVersionId={runWorkflowVersionId}
               pending={false}
               initialNote={judgment?.verdict === 'repair' ? (judgment.repair_prompt || judgment.next_action || '') : ''}
             />

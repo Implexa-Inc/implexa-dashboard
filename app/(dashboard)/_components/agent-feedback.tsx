@@ -21,6 +21,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { useSetupRequiredGate } from './setup-required-gate';
 
 export default function AgentFeedback({ slug }: { slug: string; name?: string }) {
   const [open, setOpen] = useState(false);
@@ -29,6 +30,9 @@ export default function AgentFeedback({ slug }: { slug: string; name?: string })
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const supabase = createClient();
+  // A revise runs on a computer too (backend 0346): its typed setup_required
+  // refusal is the same modal, not a sentence in the message slot.
+  const setupGate = useSetupRequiredGate({ slug });
 
   async function send() {
     const t = text.trim();
@@ -40,14 +44,16 @@ export default function AgentFeedback({ slug }: { slug: string; name?: string })
       // kind='revise' = a PERMANENT change to the agent. The drainer reads the
       // feedback (note) and applies it via revise_workflow, so every future run
       // uses the new steps. Distinct from the per-run note (kind='run' note).
-      await callBackend('/api/v2/me/run-requests', {
+      const gated = await setupGate.guard(({ machineId }) => callBackend('/api/v2/me/run-requests', {
         jwt: session?.access_token,
         method: 'POST',
-        body: { workflowSlug: slug, source: 'dashboard', kind: 'revise', note: t },
+        body: { workflowSlug: slug, source: 'dashboard', kind: 'revise', note: t, ...(machineId ? { executionMachineId: machineId } : {}) },
+      }), () => {
+        setDone(true);
+        setText('');
+        setMsg('Claude will update this agent hands-off — it applies to every future run. Watch Alerts if it needs a permission.');
       });
-      setDone(true);
-      setText('');
-      setMsg('Claude will update this agent hands-off — it applies to every future run. Watch Alerts if it needs a permission.');
+      if (!gated.ok) return;
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Could not send the change. Try again.');
     } finally {
@@ -72,13 +78,16 @@ export default function AgentFeedback({ slug }: { slug: string; name?: string })
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="self-start text-xs text-ink-400 hover:text-ink-200 underline underline-offset-2"
-      >
-        Change how this agent works →
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="self-start text-xs text-ink-400 hover:text-ink-200 underline underline-offset-2"
+        >
+          Change how this agent works →
+        </button>
+        {setupGate.modal}
+      </>
     );
   }
 
@@ -117,6 +126,7 @@ export default function AgentFeedback({ slug }: { slug: string; name?: string })
         This agent also learns automatically from each run — use this only to change it on purpose.
         To steer just one run, use the note in “Run now” instead.
       </p>
+      {setupGate.modal}
     </div>
   );
 }

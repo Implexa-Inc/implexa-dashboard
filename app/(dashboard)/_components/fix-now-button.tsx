@@ -21,6 +21,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { useSetupRequiredGate } from './setup-required-gate';
 
 type Bridge = {
   openAgent?: () => Promise<{ ok: boolean }>;
@@ -37,32 +38,55 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
   neverArmed?: boolean;
 }) {
   const [firing, setFiring] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const supabase = createClient();
   const router = useRouter();
+  // MACHINE-CAPABILITY ADMISSION (backend 0346): a typed setup_required refusal
+  // is the modal — never swallowed, never followed by the claude:// hop or the
+  // /workflows redirect (there is no run to watch).
+  const setupGate = useSetupRequiredGate({ slug });
 
-  async function enqueueRun() {
+  /** Queue the run. Resolves true when a request exists; false when the setup
+   *  modal is open or the request failed (the user stays here either way). */
+  async function enqueueRun(): Promise<boolean> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      await callBackend('/api/v2/me/run-requests', {
+      const gated = await setupGate.guard(({ machineId }) => callBackend('/api/v2/me/run-requests', {
         jwt: session?.access_token,
         method: 'POST',
-        body: { workflowSlug: slug, source: 'dashboard', kind: 'run' },
-      });
-    } catch { /* the navigation below still surfaces the routine; the hook can re-arm on arrival */ }
+        body: { workflowSlug: slug, source: 'dashboard', kind: 'run', ...(machineId ? { executionMachineId: machineId } : {}) },
+      }), () => { afterQueued(); });
+      return gated.ok;
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not queue the run. Try again.');
+      return false;
+    }
   }
 
-  // Case 1: we know the routine's Claude task id → an anchor takes the user
-  // straight to that routine in Claude, and we re-arm the run on the way out
-  // (onClick fires the enqueue without preventing the claude:// navigation).
+  // Where a QUEUED run takes the user: the routine in Claude when we know its
+  // id (undocumented deep link, verified 2026-06-12), else Active Agents.
+  function afterQueued() {
+    if (claudeTaskId) { window.location.href = `claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(claudeTaskId)}`; return; }
+    router.push('/workflows'); router.refresh();
+  }
+
+  // Case 1: we know the routine's Claude task id → queue first, THEN take the
+  // user to that routine in Claude. (This used to be an anchor that navigated
+  // while the enqueue ran in the background — a refused enqueue was invisible.)
   if (claudeTaskId) {
     return (
-      <a
-        href={`claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(claudeTaskId)}`}
-        onClick={() => { void enqueueRun(); }}
-        className="btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap"
-      >
-        Fix now in Claude ↗
-      </a>
+      <>
+        <button
+          type="button"
+          onClick={async () => { if (firing) return; setFiring(true); setErr(null); const queued = await enqueueRun(); if (!queued) setFiring(false); }}
+          disabled={firing}
+          className="btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
+        >
+          {firing ? 'Starting…' : 'Fix now in Claude ↗'}
+        </button>
+        {err ? <span className="text-xs text-rose-600 dark:text-rose-400">{err}</span> : null}
+        {setupGate.modal}
+      </>
     );
   }
 
@@ -75,23 +99,27 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
   // watch it spin up.
   async function fix() {
     if (firing) return;
-    setFiring(true);
-    await enqueueRun();
+    setFiring(true); setErr(null);
     const bridge = typeof window !== 'undefined'
       ? (window as Window & { implexaDesktop?: Bridge }).implexaDesktop
       : undefined;
+    const queued = await enqueueRun();
+    if (!queued) { setFiring(false); return; }
     try { await bridge?.openAgent?.().catch(() => null); } catch { /* web: no local app to focus */ }
-    router.push('/workflows'); router.refresh();
   }
 
   return (
-    <button
-      type="button"
-      onClick={fix}
-      disabled={firing}
-      className="btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
-    >
-      {firing ? 'Starting…' : neverArmed ? 'Start it' : 'Fix now'}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={fix}
+        disabled={firing}
+        className="btn-success text-xs px-3 py-1.5 flex-none whitespace-nowrap disabled:opacity-60"
+      >
+        {firing ? 'Starting…' : neverArmed ? 'Start it' : 'Fix now'}
+      </button>
+      {err ? <span className="text-xs text-rose-600 dark:text-rose-400">{err}</span> : null}
+      {setupGate.modal}
+    </>
   );
 }

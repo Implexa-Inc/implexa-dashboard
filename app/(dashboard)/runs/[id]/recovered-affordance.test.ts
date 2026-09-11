@@ -20,10 +20,26 @@ test('THE CROSS-FEATURE FIX: when already recovered elsewhere, deriveRecoveredWo
     'a run already recovered by a continuation must short-circuit to non-recoverable, not fall through to the trace-based derivation');
 });
 
+test('THE FALSE-POSITIVE FIX (2026-09-10): the derivation receives the VALIDATED artifacts, and transcript-only evidence gets an explanation, never a finalize button', () => {
+  assert.match(page, /deriveRecoveredWork\(\{ runState: r\.run_state, outputMarkdown: r\.output_markdown, progress, stepsState, validatedArtifacts: recoveryArtifacts \}\)/,
+    'the affordance must be gated on Desktop-validated artifacts, not on heartbeat/step counts');
+  // BLOCKER 12 (2026-09-11): the derivation needs id + sha256 + status, which
+  // the display projection never carried — ONE projection now serves both.
+  assert.match(page, /\.select\(RUN_ARTIFACT_COLUMNS\)/, 'the page selects the projection’s column list (id, sha256, status included)');
+  assert.match(page, /const projected = projectRunArtifacts\(data, artifactRolePriority\);\n\s+verifiedArtifacts = projected\.verified;\n\s+recoveryArtifacts = projected\.recovery;/);
+  assert.doesNotMatch(page, /\.select\('relative_path, validated_path, role, size_bytes'\)/, 'the sha-less projection is gone');
+  const notice = page.slice(page.indexOf('!recovered.recoverable && recovered.transcriptOnly && ('), page.indexOf('!recovered.recoverable && recovered.transcriptOnly && (') + 900);
+  assert.match(notice, /No deliverable was recovered/);
+  assert.doesNotMatch(notice, /FinalizeRecoveredButton/, 'transcript-only work must never be markable as done');
+  const banner = page.slice(page.indexOf('recovered.recoverable && ('), page.indexOf('recovered.recoverable && (') + 1800);
+  assert.match(banner, /A validated deliverable \(\{recovered\.deliverable\?\.relativePath\}\) exists/);
+});
+
 test('the finalize action renders only when the recovered trace looks complete', () => {
   const i = page.indexOf('recovered.recoverable && (');
   assert.notEqual(i, -1);
-  const block = page.slice(i, i + 1800);
+  // Through the end of the incomplete branch (the continuation carries the run's slug + frozen version).
+  const block = page.slice(i, page.indexOf('{/* Transcript-only evidence is explained', i));
   assert.match(block, /recovered\.looksComplete \? \(/);
   assert.match(block, /Work recovered — review and finalize/);
   assert.match(block, /<FinalizeRecoveredButton runId=\{r\.id\} looksComplete \/>/);
@@ -31,7 +47,7 @@ test('the finalize action renders only when the recovered trace looks complete',
   const incomplete = block.slice(block.indexOf('Partial work is preserved — continuation required'));
   assert.doesNotMatch(incomplete, /FinalizeRecoveredButton/,
     'an incomplete trace must never offer manual finalization');
-  assert.match(incomplete, /<PreservedWorkContinuation runId=\{r\.id\} \/>/,
+  assert.match(incomplete, /<PreservedWorkContinuation runId=\{r\.id\} slug=\{r\.skill_slug\} workflowVersionId=\{runWorkflowVersionId\} \/>/,
     'an incomplete trace must offer the managed typed continuation');
 });
 

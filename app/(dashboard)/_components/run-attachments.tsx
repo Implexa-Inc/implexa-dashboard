@@ -64,6 +64,11 @@ export function composeNoteWithFiles(note: string, files: string[], marker: stri
 // affordance is gated on it (a plain browser can't hand Claude a local path).
 export type DesktopBridge = {
   openAgent?: () => Promise<{ ok: boolean }>;
+  /** Machine-capability readiness (backend 0346): a re-probe + re-attest of
+   * THIS Mac, and the id the backend resolves it by. Typed statuses only; the
+   * page never decides readiness from them. */
+  recheckMachineCapabilities?: () => Promise<{ ok: boolean; reason?: string | null }>;
+  executionMachineId?: () => Promise<string>;
   handoffAgent?: (prompt: string, surface?: string, target?: string) => Promise<{ ok: boolean; mode?: string }>;
   pickFile?: (opts?: unknown) => Promise<{ ok: boolean; path?: string }>;
   /** Generic run/build/continue attachment. The explicitly selected absolute
