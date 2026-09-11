@@ -46,7 +46,10 @@ test('the typed 409 becomes the modal, not an error sentence; Recheck continues 
     'admission is re-checked after the awaits and continues the same action exactly once, naming the machine');
   assert.match(card, /const machineId: string \| null = current\.machine\.id;/, 'BLOCKER 16: Recheck asks about THE machine the card was raised for');
   assert.match(card, /if \(!machineId \|\| !bridgeMachine \|\| bridgeMachine === machineId\) \{\n\s+const r = await native\.recheckMachineCapabilities\(\)/, 'the bridge re-probes only when it IS that machine');
-  assert.match(card, /machineSetupPath\(target, current\.machine\.id\)/, 'Open setup carries the selected machine as a path segment');
+  assert.match(card, /const target = setupTargetFor\(current, \{ slug, workflowVersionId \}\);/, 'Open setup carries the real agent, frozen version and selected machine');
+  assert.doesNotMatch(card, /this-agent/, 'never a guessed slug');
+  assert.match(card, /if \(!target\) \{\n\s+setNote\(/, 'no agent named → a note, not a navigation');
+  assert.match(card, /if \(!preAdmit \|\| !target\) \{/, 'a continuation retries its own request (frozen version), only Run pre-admits');
 });
 
 test('the modal offers exactly Open setup in Implexa / Recheck / Cancel, shows the computer, and promises no silent install or credential capture', () => {
@@ -76,7 +79,7 @@ test('the setup page’s install/sign-in are explicit clicks through the Desktop
 
 test('a Continue gets the same typed refusal and modal', () => {
   assert.match(continueBox, /const setup = parseSetupRequired\(e\);\n\s+if \(setup\) \{ setSetupCard\(setup\); return; \}/);
-  assert.match(continueBox, /<SetupRequiredModal\n\s+card=\{setupCard\}\n\s+onAdmitted=\{async \(machineId\) => \{ setSetupCard\(null\); await submit\(\{ executionMachineId: machineId \}\); \}\}/);
+  assert.match(continueBox, /<SetupRequiredModal\n\s+card=\{setupCard\}\n\s+slug=\{slug\}\n\s+workflowVersionId=\{workflowVersionId\}\n\s+onAdmitted=\{async \(machineId\) => \{ setSetupCard\(null\); await submit\(\{ executionMachineId: machineId \}\); \}\}/);
 });
 
 test('BLOCKER 14: every surface that creates a run request routes the typed refusal through the ONE gate — none swallows it or navigates on it', () => {
@@ -104,7 +107,10 @@ test('BLOCKER 14: every surface that creates a run request routes the typed refu
   assert.match(gateSrc, /const card = parseSetupRequired\(e\);\n\s+if \(!card\) throw e;/, 'every other error is rethrown to the surface, unchanged');
   assert.match(gateSrc, /setPending\(\{ card, retry: async \(admittedMachine\) => \{ await guard\(action, onSuccess, admittedMachine \?\? card\.machine\.id\); \} \}\);/, 'Recheck retries the SAME action once, on the admitted machine');
   assert.match(read('fix-now-button.tsx'), /const queued = await enqueueRun\(\);\n\s+if \(!queued\) \{ setFiring\(false\); return; \}/, 'Fix now no longer navigates while an enqueue fails in the background');
-  assert.match(read('run-claude-actions.tsx'), /if \(!gated\.ok\) return;\n\s+\} catch \{/, 'Approve & finish never falls back to open-Claude on a setup refusal');
+  const claudeActions = read('run-claude-actions.tsx');
+  const approve = claudeActions.slice(claudeActions.indexOf('async function approveAndFinish()'), claudeActions.indexOf('async function openInClaude()'));
+  assert.doesNotMatch(approve, /openInClaude|location\.href|\/review`/, 'Approve & finish never opens Claude or marks the run approved on ANY failure');
+  assert.match(approve, /\} catch \(error\) \{\n(?:\s*\/\/[^\n]*\n)*\s+setErr\(runRequestRefusalCopy\(error,/);
 });
 
 test('BLOCKER 15/16/17: the setup page routes every backend action, renders the backend instructions, is pinned to the selected machine, and hides stale readiness', () => {
@@ -120,7 +126,14 @@ test('BLOCKER 15/16/17: the setup page routes every backend action, renders the 
   assert.match(read('modal.tsx'), /first\?\.focus\(\);/, 'focus enters the dialog');
   assert.match(read('modal.tsx'), /if \(e\.key !== 'Tab' \|\| !dialog\) return;/, 'Tab is contained');
   assert.match(read('modal.tsx'), /if \(back && typeof back\.focus === 'function' && back\.isConnected\) back\.focus\(\);/, 'focus is restored on close');
-  assert.match(read('../settings/machine-setup/[slug]/[machineId]/page.tsx'), /machineId=\{params\.machineId\}/);
+  const route = read('../settings/machine-setup/[slug]/[[...scope]]/page.tsx');
+  assert.match(route, /const scope = parseSetupScope\(params\.scope\);\n\s+if \(!scope\) notFound\(\);/);
+  assert.match(route, /machineId=\{scope\.machineId\} workflowVersionId=\{scope\.workflowVersionId\}/);
+  assert.match(setupPage, /\$\{workflowVersionId \? `&workflowVersionId=\$\{encodeURIComponent\(workflowVersionId\)\}` : ''\}/, 'the setup page reads the frozen version');
+  const runPage = read('../runs/[id]/page.tsx');
+  assert.match(runPage, /<FinishRunButton runId=\{r\.id\} slug=\{r\.skill_slug\} workflowVersionId=\{runWorkflowVersionId\} \/>/);
+  assert.match(runPage, /<RunContinueBox runId=\{r\.id\}\n\s+agentName=\{name\}\n\s+slug=\{r\.skill_slug\}\n\s+workflowVersionId=\{runWorkflowVersionId\}/);
+  assert.match(runPage, /skillSlug=\{r\.skill_slug\}\n\s+workflowVersionId=\{runWorkflowVersionId\}/);
 });
 
 test('parseSetupRequired admits only a 409 with the exact discriminator', () => {

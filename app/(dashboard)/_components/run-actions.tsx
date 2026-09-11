@@ -57,6 +57,7 @@ export default function RunActions({
   skillSlug,
   approvalRecovery = false,
   reviewAmendment = null,
+  workflowVersionId = null,
 }: {
   runId: string;
   agentName: string;
@@ -74,6 +75,8 @@ export default function RunActions({
   skillSlug?: string | null;
   /** Historical brokered approval hold; requests the server-owned no-redo continuation. */
   approvalRecovery?: boolean;
+  /** The run's FROZEN workflow version — where setup for a continuation must point. */
+  workflowVersionId?: string | null;
   /** Exact owner-scoped original Review, resolved on the server from this child. */
   reviewAmendment?: ReviewAmendmentTarget;
 }) {
@@ -83,7 +86,7 @@ export default function RunActions({
   // a run request, so every one can be refused with the typed setup_required
   // card. The gate turns that into the modal (Recheck retries the same action
   // once); it is never an error sentence and never followed by navigation.
-  const setupGate = useSetupRequiredGate({ slug: skillSlug || null });
+  const setupGate = useSetupRequiredGate({ slug: skillSlug || null, workflowVersionId });
   const needsInput = reviewStatus === 'needs_input';
   const primaryAction = deriveHeldRunPrimaryAction({
     reviewStatus,

@@ -19,9 +19,10 @@
  */
 
 import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
-import { appMachineSetupUrl, blockingItems, machineCopy, machineSetupPath, parseSetupRequired, setupReasonCopy, type SetupRequiredCard as Card } from '@/lib/setup-required';
+import { blockingItems, machineCopy, parseSetupRequired, setupReasonCopy, setupTargetFor, type SetupRequiredCard as Card } from '@/lib/setup-required';
 
 type Bridge = {
   recheckMachineCapabilities?: () => Promise<{ ok: boolean; reason?: string | null }>;
@@ -32,11 +33,15 @@ function bridge(): Bridge | null {
   return (window as unknown as { implexaDesktop?: Bridge }).implexaDesktop || null;
 }
 
-export default function SetupRequiredCard({ card, slug = null, workflowVersionId, onAdmitted, onCancel }: {
+export default function SetupRequiredCard({ card, slug = null, workflowVersionId = null, preAdmit = false, onAdmitted, onCancel }: {
   card: Card;
-  /** The agent to re-admit. Absent for a Continue (the request re-runs admission server-side). */
+  /** The agent this surface acts on. Falls back to the agent the backend named on the card. */
   slug?: string | null;
+  /** The FROZEN version (a continuation's run version). Falls back to the card's. */
   workflowVersionId?: string | null;
+  /** Run only: ask /me/run-admission before retrying. A continuation retries its
+   *  own request instead — the request re-runs admission for the run's frozen version. */
+  preAdmit?: boolean;
   /** Continue the ORIGINAL action — same note, same inputs, on the SAME machine — exactly once. */
   onAdmitted: (machineId: string | null) => void | Promise<void>;
   onCancel: () => void;
@@ -52,7 +57,9 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
   const inFlightRef = useRef(false);
   const admittedRef = useRef(false);
   const supabase = createClient();
+  const router = useRouter();
   const inApp = !!bridge();
+  const target = setupTargetFor(current, { slug, workflowVersionId });
 
   async function recheck() {
     if (inFlightRef.current || admittedRef.current) return;
@@ -76,10 +83,11 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
         }
       }
       if (admittedRef.current) return;
-      if (!slug) {
-        // No agent to pre-admit (a Continue): retry the original action once;
-        // the backend re-runs admission at request birth and answers 409 again
-        // if setup is still incomplete, which lands back in this modal.
+      if (!preAdmit || !target) {
+        // A continuation (or an agent this surface cannot name): retry the
+        // original action once; the backend re-runs admission for the frozen
+        // version at request birth and answers 409 again if setup is still
+        // incomplete, which lands back in this modal.
         admittedRef.current = true;
         await onAdmitted(machineId);
         return;
@@ -87,7 +95,7 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
       const { data: { session } } = await supabase.auth.getSession();
       const res = await callBackend('/api/v2/me/run-admission', {
         jwt: session?.access_token, method: 'POST',
-        body: { workflowSlug: slug, ...(workflowVersionId ? { workflowVersionId } : {}), ...(machineId ? { executionMachineId: machineId } : {}) },
+        body: { workflowSlug: target.slug, ...(target.workflowVersionId ? { workflowVersionId: target.workflowVersionId } : {}), ...(machineId ? { executionMachineId: machineId } : {}) },
       });
       if (admittedRef.current) return;
       if (res?.ok === true && res?.admitted === true) {
@@ -107,12 +115,15 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
   }
 
   function openSetup() {
-    const target = slug || 'this-agent';
-    // The selected machine rides along as a path segment: the setup page shows
-    // exactly the computer this card is about.
-    if (inApp) { window.location.href = machineSetupPath(target, current.machine.id); return; }
+    // The real agent, frozen version and selected machine — never a guessed
+    // path. If nothing names the agent, say so instead of navigating.
+    if (!target) {
+      setNote('Implexa could not tell which agent this setup is for. Open the agent’s page and run it from there to see its setup.');
+      return;
+    }
+    if (inApp) { router.push(target.path); return; }
     // Plain web: hand off to the app, which routes the same path in-app.
-    window.location.href = appMachineSetupUrl(target, current.machine.id);
+    window.location.href = target.appUrl;
   }
 
   const blocking = blockingItems(current);

@@ -1001,6 +1001,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         card={setupCard}
         slug={slug}
         workflowVersionId={workflowVersionId}
+        preAdmit
         onAdmitted={async (machineId) => { setSetupCard(null); await doQueue(lastNote.current, { fingerprint: lastFingerprint.current, admitted: true, executionMachineId: machineId }); }}
         onCancel={() => setSetupCard(null)}
       />

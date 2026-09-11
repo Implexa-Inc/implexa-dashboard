@@ -27,16 +27,21 @@ const FINISH_PROMPT =
 export default function FinishRunButton({
   runId,
   mode = 'finish',
+  slug = null,
+  workflowVersionId = null,
 }: {
   runId: string;
   mode?: 'finish' | 'approval-recovery';
+  /** The run's agent and FROZEN version, for "Open setup" on a setup refusal. */
+  slug?: string | null;
+  workflowVersionId?: string | null;
 }) {
   const supabase = createClient();
   const router = useRouter();
   const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
   // The typed setup_required refusal (backend 0346) is the modal, never the
   // generic "Could not queue it" line and never a navigation.
-  const setupGate = useSetupRequiredGate();
+  const setupGate = useSetupRequiredGate({ slug, workflowVersionId });
 
   async function finish() {
     if (state === 'busy') return;

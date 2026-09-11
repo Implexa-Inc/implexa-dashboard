@@ -67,7 +67,7 @@ const STATE_LABELS: Record<string, string> = {
 };
 const ACTION_ORDER = ['install_runtime', 'install_cli', 'install_media_tools', 'sign_in_cli', 'free_disk'];
 
-export default function MachineSetupClient({ slug, machineId = null }: { slug: string; machineId?: string | null }) {
+export default function MachineSetupClient({ slug, machineId = null, workflowVersionId = null }: { slug: string; machineId?: string | null; workflowVersionId?: string | null }) {
   const [read, setRead] = useState<Read | null>(null);
   // The last refresh failed: whatever `read` holds is NOT current. Readiness is
   // hidden until a refresh succeeds — a stale "Ready to run" is worse than none.
@@ -88,14 +88,16 @@ export default function MachineSetupClient({ slug, machineId = null }: { slug: s
       }
       const target = selectedMachine.current;
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await callBackend(`/api/v2/me/machine-capabilities?slug=${encodeURIComponent(slug)}${target ? `&machineId=${encodeURIComponent(target)}` : ''}`, { jwt: session?.access_token });
+      // The FROZEN version when a continuation opened this page; the agent's
+      // current version otherwise. (The backend refuses a version of another agent.)
+      const res = await callBackend(`/api/v2/me/machine-capabilities?slug=${encodeURIComponent(slug)}${target ? `&machineId=${encodeURIComponent(target)}` : ''}${workflowVersionId ? `&workflowVersionId=${encodeURIComponent(workflowVersionId)}` : ''}`, { jwt: session?.access_token });
       setRead(res as Read);
       setStale(false);
     } catch (e) {
       setStale(true);
       setNote(e instanceof Error ? e.message : 'Could not read this agent’s requirements.');
     }
-  }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [slug, workflowVersionId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { void load(); }, [load]);
 
   async function recheck() {

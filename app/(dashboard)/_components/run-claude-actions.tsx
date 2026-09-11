@@ -7,9 +7,11 @@
  *    kind='continue' run-request (POST /api/v2/me/run-requests). The backend
  *    marks the run approved and the always-on drainer executes the held
  *    post-approval step on the user's own Claude/Codex — no session to open.
- *    The result lands in the inbox. FALLBACK: if the kind='continue' endpoint
- *    isn't live yet (sibling chip not deployed → non-2xx / unknown-kind), we
- *    fall back to the prior open-Claude behavior so Approve never breaks.
+ *    The result lands in the inbox. FAIL CLOSED: a refusal or a backend/transport
+ *    failure leaves the run exactly as it was, says so, and keeps the button
+ *    available. It never silently opens Claude and never marks the run approved
+ *    — that fallback (for a backend that predated kind='continue') would run
+ *    the held step outside every hands-off guarantee, including machine setup.
  *  - "continue in Claude ↗" — small secondary opt-in (watch-it mode): marks the
  *    run approved (if held), then opens a fresh Claude session prefilled to execute
  *    the gated step so the user can supervise it live. It's a SMALL link for held
@@ -26,27 +28,31 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { runRequestRefusalCopy } from '@/lib/run-request-refusal';
 import { useSetupRequiredGate } from './setup-required-gate';
 
 const CLAUDE_CODE_MAX = 13000;
 
 export default function RunClaudeActions({
-  runId, agentName, claudeTaskId, pending = false,
+  runId, agentName, claudeTaskId, pending = false, slug = null, workflowVersionId = null,
 }: {
   runId: string;
   agentName: string;
   claudeTaskId?: string | null;
   /** Run is held at an approval gate (review_status='pending'). */
   pending?: boolean;
+  /** The run's agent and FROZEN version, for "Open setup" on a setup refusal. */
+  slug?: string | null;
+  workflowVersionId?: string | null;
 }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [msg, setMsg] = useState('');
+  const [err, setErr] = useState<string | null>(null);
   const supabase = createClient();
   // MACHINE-CAPABILITY ADMISSION (backend 0346): a typed setup_required refusal
-  // is the modal. It must NOT take the open-Claude fallback below — that path
-  // exists for an old backend, and would run the very step the machine cannot.
-  const setupGate = useSetupRequiredGate();
+  // is the modal, for the run's own agent and frozen version.
+  const setupGate = useSetupRequiredGate({ slug, workflowVersionId });
 
   const verb = pending ? 'APPROVED' : 'reviewed';
   const continuePrompt =
@@ -64,6 +70,7 @@ export default function RunClaudeActions({
     if (busy) return;
     setBusy(true);
     setMsg('');
+    setErr(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const gated = await setupGate.guard(({ machineId }) => callBackend('/api/v2/me/run-requests', {
@@ -75,11 +82,10 @@ export default function RunClaudeActions({
         setMsg('Approved. Finishing hands-off; the result lands in your inbox.');
       });
       if (!gated.ok) return;
-    } catch {
-      // The kind='continue' endpoint isn't live yet (sibling chip not deployed:
-      // unknown-kind / non-2xx) OR a transient backend error. Either way, fall
-      // back to the prior open-Claude continue path so Approve never breaks.
-      await openInClaude();
+    } catch (error) {
+      // Any other failure (5xx, network, a typed refusal): nothing was queued
+      // and nothing was approved. Say so; do NOT open Claude or mark approved.
+      setErr(runRequestRefusalCopy(error, 'Could not approve and finish. Nothing was changed. Try again.'));
     } finally {
       setBusy(false);
     }
@@ -140,6 +146,7 @@ export default function RunClaudeActions({
           Open Claude Routines ↗
         </a>
       )}
+      {err ? <span className="text-xs text-rose-600 dark:text-rose-400" role="alert">{err}</span> : null}
     </div>
   );
 }

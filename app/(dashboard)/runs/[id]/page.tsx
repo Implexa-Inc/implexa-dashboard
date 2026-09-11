@@ -268,6 +268,15 @@ export default async function RunDetailPage({
   // workspace, rejected escapes/symlinks, and hashed the result. The absolute
   // validated path is passed to the desktop bridge for Open/Finder; the UI shows
   // the relative name so a local home path is not treated as deliverable prose.
+  // The run's FROZEN workflow version: every continuation's setup refusal must
+  // point at it (its requirements can differ from the agent's current version).
+  // Best-effort and separate, so a schema without the column never breaks the page.
+  let runWorkflowVersionId: string | null = null;
+  try {
+    const { data: frozen, error: frozenError } = await supabase.from('skill_runs')
+      .select('workflow_version_id').eq('id', r.id).maybeSingle();
+    if (!frozenError && frozen && typeof frozen.workflow_version_id === 'string') runWorkflowVersionId = frozen.workflow_version_id;
+  } catch { /* the backend card still names the version */ }
   let verifiedArtifacts: VerifiedArtifact[] = [];
   // The recovery derivation needs identity + integrity (id, sha256, status),
   // which the display list does not carry — ONE projection serves both.
@@ -1016,6 +1025,7 @@ export default async function RunDetailPage({
               stepsState={stepsState}
               claudeTaskId={claudeTaskId}
               skillSlug={r.skill_slug}
+              workflowVersionId={runWorkflowVersionId}
               approvalRecovery={approvalContinuationRecovery}
               reviewAmendment={reviewAmendment}
             />
@@ -1074,7 +1084,7 @@ export default async function RunDetailPage({
           runActions.length === 0 &&
           PARTIAL_RUN_RE.test(r.output_markdown.replace(/[*_`]/g, '')) && (
           <div className="mb-6">
-            <FinishRunButton runId={r.id} />
+            <FinishRunButton runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
           </div>
         )}
 
@@ -1276,6 +1286,8 @@ export default async function RunDetailPage({
           <div className="mt-5">
             <RunContinueBox runId={r.id}
               agentName={name}
+              slug={r.skill_slug}
+              workflowVersionId={runWorkflowVersionId}
               pending={false}
               initialNote={judgment?.verdict === 'repair' ? (judgment.repair_prompt || judgment.next_action || '') : ''}
             />

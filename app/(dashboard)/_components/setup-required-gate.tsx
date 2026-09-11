@@ -28,17 +28,18 @@ export const SETUP_REQUIRED_TITLE = 'Setup required before this agent can run.';
 export type GuardResult<T> = { ok: true; value: T } | { ok: false; setupRequired: true; card: Card };
 
 /** The modal shell + card, used directly by surfaces that keep their own retry state (Run, Continue). */
-export function SetupRequiredModal({ card, slug = null, workflowVersionId = null, onAdmitted, onCancel }: {
+export function SetupRequiredModal({ card, slug = null, workflowVersionId = null, preAdmit = false, onAdmitted, onCancel }: {
   card: Card | null;
   slug?: string | null;
   workflowVersionId?: string | null;
+  preAdmit?: boolean;
   onAdmitted: (machineId: string | null) => void | Promise<void>;
   onCancel: () => void;
 }) {
   return (
     <Modal open={!!card} onClose={onCancel} title={SETUP_REQUIRED_TITLE}>
       {card && (
-        <SetupRequiredCard card={card} slug={slug} workflowVersionId={workflowVersionId} onAdmitted={onAdmitted} onCancel={onCancel} />
+        <SetupRequiredCard card={card} slug={slug} workflowVersionId={workflowVersionId} preAdmit={preAdmit} onAdmitted={onAdmitted} onCancel={onCancel} />
       )}
     </Modal>
   );

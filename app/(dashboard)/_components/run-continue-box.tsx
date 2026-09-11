@@ -34,10 +34,13 @@ import { parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } f
 import Modal from './modal';
 
 export default function RunContinueBox({
-  runId, agentName, pending = false, initialNote = '',
+  runId, agentName, pending = false, initialNote = '', slug = null, workflowVersionId = null,
 }: {
   runId: string;
   agentName: string;
+  /** The run's agent and FROZEN version, for "Open setup" on a setup refusal. */
+  slug?: string | null;
+  workflowVersionId?: string | null;
   /** Run is held at an approval gate — tunes only the copy (it's still a continue). */
   pending?: boolean;
   /** Optional evidence-grounded repair prompt from Implexa Judge. User reviews it before queueing. */
@@ -177,6 +180,8 @@ export default function RunContinueBox({
       </Modal>
       <SetupRequiredModal
         card={setupCard}
+        slug={slug}
+        workflowVersionId={workflowVersionId}
         onAdmitted={async (machineId) => { setSetupCard(null); await submit({ executionMachineId: machineId }); }}
         onCancel={() => setSetupCard(null)}
       />

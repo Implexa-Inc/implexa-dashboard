@@ -1,4 +1,8 @@
 {
+  "agent": {
+    "slug": "visual-evidence-remotion-compositor",
+    "workflow_version_id": "33333333-3333-4333-8333-333333333333"
+  },
   "agentSlug": "visual-evidence-remotion-compositor",
   "claimFields": {
     "admission": "capability_admission",
@@ -242,7 +246,11 @@
     },
     "dashboardMachineCapabilities": {
       "method": "GET",
-      "path": "/api/v2/me/machine-capabilities?slug=&machineId="
+      "path": "/api/v2/me/machine-capabilities?slug=&machineId=&workflowVersionId=",
+      "refusal": {
+        "reason": "version_not_for_agent",
+        "status": 400
+      }
     },
     "dashboardRunRequest": {
       "addedBody": [
@@ -255,7 +263,29 @@
         "status": 409
       }
     },
+    "dashboardSetupPage": {
+      "appScheme": "implexa://settings/machine-setup/:slug",
+      "optionalSegments": [
+        "machine/:machineId",
+        "version/:workflowVersionId"
+      ],
+      "path": "/settings/machine-setup/:slug"
+    },
     "desktopAdmitAtLaunch": {
+      "attestationBinding": {
+        "locked": "FOR SHARE",
+        "readmitOnce": [
+          "attestation_replaced",
+          "attestation_expired",
+          "attestation_missing"
+        ],
+        "refusals": [
+          "admission_attestation_mismatch",
+          "attestation_missing",
+          "attestation_replaced",
+          "attestation_expired"
+        ]
+      },
       "body": [
         "launchAttemptId",
         "fencingEpoch",
@@ -296,10 +326,21 @@
     "mcpTool": "record_capability_usage",
     "mcpUsageRpc": "record_run_capability_usage",
     "proofGateRpc": "run_required_capability_gap",
+    "proofSealRpc": "seal_run_capability_proof",
     "retrySafely": {
       "failureFamily": "capability_setup_required:",
       "get": "/api/v2/me/run-requests/:id/control-plane-retry",
       "post": "/api/v2/me/run-requests/:id/control-plane-retry"
+    },
+    "usagePhaseRefusals": [
+      "request_terminal",
+      "attempt_not_found",
+      "attempt_ended",
+      "capability_ledger_sealed"
+    ],
+    "usageRetention": {
+      "newest": 64,
+      "order": "ascending"
     }
   },
   "generatedFor": "backend PR feat/capability-admission (migration 0346)",
@@ -723,6 +764,10 @@
             "recheck",
             "cancel"
           ],
+          "agent": {
+            "slug": "visual-evidence-remotion-compositor",
+            "workflow_version_id": "33333333-3333-4333-8333-333333333333"
+          },
           "code": "setup_required",
           "contract": {
             "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -1014,6 +1059,10 @@
             "recheck",
             "cancel"
           ],
+          "agent": {
+            "slug": "visual-evidence-remotion-compositor",
+            "workflow_version_id": "33333333-3333-4333-8333-333333333333"
+          },
           "code": "setup_required",
           "contract": {
             "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -1306,6 +1355,10 @@
             "recheck",
             "cancel"
           ],
+          "agent": {
+            "slug": "visual-evidence-remotion-compositor",
+            "workflow_version_id": "33333333-3333-4333-8333-333333333333"
+          },
           "code": "setup_required",
           "contract": {
             "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -1598,6 +1651,10 @@
             "recheck",
             "cancel"
           ],
+          "agent": {
+            "slug": "visual-evidence-remotion-compositor",
+            "workflow_version_id": "33333333-3333-4333-8333-333333333333"
+          },
           "code": "setup_required",
           "contract": {
             "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -1889,6 +1946,10 @@
             "recheck",
             "cancel"
           ],
+          "agent": {
+            "slug": "visual-evidence-remotion-compositor",
+            "workflow_version_id": "33333333-3333-4333-8333-333333333333"
+          },
           "code": "setup_required",
           "contract": {
             "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -2180,6 +2241,10 @@
             "recheck",
             "cancel"
           ],
+          "agent": {
+            "slug": "visual-evidence-remotion-compositor",
+            "workflow_version_id": "33333333-3333-4333-8333-333333333333"
+          },
           "code": "setup_required",
           "contract": {
             "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -2472,6 +2537,10 @@
             "recheck",
             "cancel"
           ],
+          "agent": {
+            "slug": "visual-evidence-remotion-compositor",
+            "workflow_version_id": "33333333-3333-4333-8333-333333333333"
+          },
           "code": "setup_required",
           "contract": {
             "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -3331,6 +3400,10 @@
             "recheck",
             "cancel"
           ],
+          "agent": {
+            "slug": "visual-evidence-remotion-compositor",
+            "workflow_version_id": "33333333-3333-4333-8333-333333333333"
+          },
           "code": "setup_required",
           "contract": {
             "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -3807,6 +3880,10 @@
             "recheck",
             "cancel"
           ],
+          "agent": {
+            "slug": "visual-evidence-remotion-compositor",
+            "workflow_version_id": "33333333-3333-4333-8333-333333333333"
+          },
           "code": "setup_required",
           "contract": {
             "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
@@ -4098,6 +4175,10 @@
             "recheck",
             "cancel"
           ],
+          "agent": {
+            "slug": "visual-evidence-remotion-compositor",
+            "workflow_version_id": "33333333-3333-4333-8333-333333333333"
+          },
           "code": "setup_required",
           "contract": {
             "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",

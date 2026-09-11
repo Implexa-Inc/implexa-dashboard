@@ -38,9 +38,19 @@ export type SetupRequiredCard = {
   reason: string;
   machine: { id: string | null; label?: string | null; online: boolean };
   contract?: { profile_id?: string | null; digest?: string | null };
+  /** The agent + FROZEN version the refusal is about (backend 0346). A
+   *  continuation surface that has no slug of its own routes setup from this. */
+  agent?: { slug: string | null; workflow_version_id: string | null } | null;
   items: SetupRequiredItem[];
   actions: SetupAction[] | string[];
 };
+
+const AGENT_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,159}$/;
+const VERSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MACHINE_ID_RE = /^[a-zA-Z0-9._:-]{1,200}$/;
+export const isAgentSlug = (value: unknown): value is string => typeof value === 'string' && AGENT_SLUG_RE.test(value);
+export const isWorkflowVersionId = (value: unknown): value is string => typeof value === 'string' && VERSION_ID_RE.test(value);
+export const isMachineId = (value: unknown): value is string => typeof value === 'string' && MACHINE_ID_RE.test(value);
 
 /** The typed card from a 409 body, or null for any other error.
  * Duck-typed on `{ status: 409, body }` (the shape BackendError carries) rather
@@ -64,6 +74,9 @@ export function setupRequiredFromBody(body: unknown): SetupRequiredCard | null {
     reason: typeof c.reason === 'string' ? c.reason : 'required_capability_not_ready',
     machine: { id: c.machine && typeof c.machine.id === 'string' ? c.machine.id : null, label: c.machine?.label ?? null, online: c.machine?.online === true },
     contract: c.contract,
+    agent: c.agent && typeof c.agent === 'object' && (isAgentSlug(c.agent.slug) || isWorkflowVersionId(c.agent.workflow_version_id))
+      ? { slug: isAgentSlug(c.agent.slug) ? c.agent.slug : null, workflow_version_id: isWorkflowVersionId(c.agent.workflow_version_id) ? c.agent.workflow_version_id : null }
+      : null,
     items: c.items.filter((i): i is SetupRequiredItem => !!i && typeof i === 'object' && typeof (i as SetupRequiredItem).label === 'string')
       .map((i) => ({ ...i, stateLabel: typeof i.stateLabel === 'string' ? i.stateLabel : 'Not verified', required: i.required === true })),
     actions: Array.isArray(c.actions) ? c.actions : ['open_setup', 'recheck', 'cancel'],
@@ -93,16 +106,49 @@ export function blockingItems(card: SetupRequiredCard): SetupRequiredItem[] {
   return card.items.filter((item) => item.required && item.state !== 'ready');
 }
 
-/** The in-app setup page for this agent on THE SELECTED machine (implexa://
- * path segments only — queries are dropped by the app's deep-link router). The
- * machine the card was raised for rides along as a segment, so "Open setup in
- * Implexa" lands on exactly that computer's requirement list, never on whichever
- * computer happens to be answering the bridge. */
-export function machineSetupPath(slug: string, machineId?: string | null): string {
-  return `/settings/machine-setup/${encodeURIComponent(slug)}${machineId ? `/${encodeURIComponent(machineId)}` : ''}`;
+export type SetupScope = { machineId?: string | null; workflowVersionId?: string | null };
+
+/** `machine/<id>` and `version/<id>` named segments — path segments only,
+ * because the app's implexa:// deep-link router drops query strings. */
+function scopeSegments({ machineId = null, workflowVersionId = null }: SetupScope = {}): string {
+  return `${isMachineId(machineId) ? `/machine/${encodeURIComponent(machineId)}` : ''}${isWorkflowVersionId(workflowVersionId) ? `/version/${encodeURIComponent(workflowVersionId)}` : ''}`;
 }
-export function appMachineSetupUrl(slug: string, machineId?: string | null): string {
-  return `implexa://settings/machine-setup/${encodeURIComponent(slug)}${machineId ? `/${encodeURIComponent(machineId)}` : ''}`;
+
+/** The in-app setup page for THIS agent and FROZEN version on THE SELECTED
+ * machine: "Open setup in Implexa" lands on exactly that computer's requirement
+ * list for exactly the version that was refused. */
+export function machineSetupPath(slug: string, scope: SetupScope = {}): string {
+  return `/settings/machine-setup/${encodeURIComponent(slug)}${scopeSegments(scope)}`;
+}
+export function appMachineSetupUrl(slug: string, scope: SetupScope = {}): string {
+  return `implexa://settings/machine-setup/${encodeURIComponent(slug)}${scopeSegments(scope)}`;
+}
+
+/** Parse the optional `[[...scope]]` segments of the setup route. Unknown or
+ * malformed segments → null (the page 404s rather than guessing). */
+export function parseSetupScope(segments: string[] | undefined): { machineId: string | null; workflowVersionId: string | null } | null {
+  const parts = (segments || []).map((part) => { try { return decodeURIComponent(part); } catch { return part; } });
+  if (parts.length % 2 !== 0 || parts.length > 4) return null;
+  const out = { machineId: null as string | null, workflowVersionId: null as string | null };
+  for (let i = 0; i < parts.length; i += 2) {
+    const [key, value] = [parts[i], parts[i + 1]];
+    if (key === 'machine' && !out.machineId && isMachineId(value)) out.machineId = value;
+    else if (key === 'version' && !out.workflowVersionId && isWorkflowVersionId(value)) out.workflowVersionId = value;
+    else return null;
+  }
+  return out;
+}
+
+/** Where "Open setup" goes for a card: the surface's own slug/version when it
+ * has them, else the agent the backend named on the card. null = unknown — the
+ * caller must NOT invent a path. */
+export function setupTargetFor(card: SetupRequiredCard, { slug = null, workflowVersionId = null }: { slug?: string | null; workflowVersionId?: string | null } = {}) {
+  const agentSlug = isAgentSlug(slug) ? slug : (card.agent && isAgentSlug(card.agent.slug) ? card.agent.slug : null);
+  if (!agentSlug) return null;
+  const version = isWorkflowVersionId(workflowVersionId) ? workflowVersionId
+    : (card.agent && isWorkflowVersionId(card.agent.workflow_version_id) ? card.agent.workflow_version_id : null);
+  const scope = { machineId: card.machine.id, workflowVersionId: version };
+  return { slug: agentSlug, workflowVersionId: version, path: machineSetupPath(agentSlug, scope), appUrl: appMachineSetupUrl(agentSlug, scope) };
 }
 
 /** Customer-facing copy for each backend setup action (the closed set). The

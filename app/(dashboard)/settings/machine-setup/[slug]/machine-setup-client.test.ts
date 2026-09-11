@@ -122,3 +122,17 @@ test('BLOCKER 17: a refresh that fails clears any Ready state — never a stale 
     assert.ok(r.document.querySelector('[data-testid="machine-setup-ready"]'), 'a successful refresh restores it');
   } finally { r.cleanup(); }
 });
+
+test('GAP 5: opened from a continuation, the page reads the run’s FROZEN version for the selected machine', async () => {
+  const state = { reads: [] as string[] };
+  const r = await render(COMPONENT, { slug: 'visual-evidence-remotion-compositor', machineId: 'mac-mini-a', workflowVersionId: '33333333-3333-4333-8333-333333333333' }, {
+    backend: backendFor(state), bridge: { executionMachineId: async () => 'mac-mini-a', recheckMachineCapabilities: async () => ({ ok: true }) },
+  });
+  try {
+    await settle(r);
+    assert.equal(state.reads[0], '/api/v2/me/machine-capabilities?slug=visual-evidence-remotion-compositor&machineId=mac-mini-a&workflowVersionId=33333333-3333-4333-8333-333333333333');
+    await r.click(recheckButton(r));
+    await settle(r);
+    assert.match(state.reads[1], /&workflowVersionId=33333333-3333-4333-8333-333333333333$/, 'Recheck keeps the frozen version');
+  } finally { r.cleanup(); }
+});

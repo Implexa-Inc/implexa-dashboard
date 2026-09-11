@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 class BackendError extends Error { status: number; body: unknown; constructor(m: string, status: number, body: unknown) { super(m); this.status = status; this.body = body; } }
-import { parseSetupRequired, setupRequiredFromBody, setupReasonCopy, machineCopy, blockingItems, machineSetupPath, appMachineSetupUrl } from './setup-required.ts';
+import { parseSetupRequired, setupRequiredFromBody, setupReasonCopy, machineCopy, blockingItems, machineSetupPath, appMachineSetupUrl, parseSetupScope, setupTargetFor } from './setup-required.ts';
 import fixture from '../test-fixtures/generated/capability-admission.v1.json' with { type: 'json' };
 
 const scenario = (name: string) => (fixture as { scenarios: Record<string, { verdict: { ok: boolean; setupRequired?: unknown } }> }).scenarios[name];
@@ -57,11 +57,35 @@ test('blocking items are REQUIRED and not ready; optional fallbacks never block;
   assert.equal(scenario('registry_tls_bundled_passes_system_fails').verdict.ok, true, 'bundled trust passing means no modal, even though system trust failed');
 });
 
-test('"Open setup in Implexa" routes by path segments only — the app’s deep-link router drops query strings', () => {
+const VERSION = '33333333-3333-4333-8333-333333333333';
+
+test('"Open setup in Implexa" routes by named path segments only — the app’s deep-link router drops query strings', () => {
   assert.equal(machineSetupPath('visual-evidence-remotion-compositor'), '/settings/machine-setup/visual-evidence-remotion-compositor');
   assert.equal(appMachineSetupUrl('a b'), 'implexa://settings/machine-setup/a%20b');
-  // The SELECTED machine rides along as a segment (never a query string).
-  assert.equal(machineSetupPath('slug', 'mac-mini-a'), '/settings/machine-setup/slug/mac-mini-a');
-  assert.equal(appMachineSetupUrl('slug', 'mac mini/a'), 'implexa://settings/machine-setup/slug/mac%20mini%2Fa');
-  assert.equal(machineSetupPath('slug', null), '/settings/machine-setup/slug');
+  assert.equal(machineSetupPath('slug', { machineId: 'mac-mini-a' }), '/settings/machine-setup/slug/machine/mac-mini-a');
+  assert.equal(machineSetupPath('slug', { machineId: 'mac-mini-a', workflowVersionId: VERSION }), `/settings/machine-setup/slug/machine/mac-mini-a/version/${VERSION}`);
+  assert.equal(appMachineSetupUrl('slug', { workflowVersionId: VERSION }), `implexa://settings/machine-setup/slug/version/${VERSION}`);
+  assert.equal(machineSetupPath('slug', { machineId: 'mac mini/../a', workflowVersionId: 'v1' }), '/settings/machine-setup/slug', 'malformed scope is dropped, never encoded into a path');
+});
+
+test('the setup route parses exactly machine/<id> and version/<uuid>; anything else is a 404, never a guess', () => {
+  assert.deepEqual(parseSetupScope(undefined), { machineId: null, workflowVersionId: null });
+  assert.deepEqual(parseSetupScope(['machine', 'mac-mini-a']), { machineId: 'mac-mini-a', workflowVersionId: null });
+  assert.deepEqual(parseSetupScope(['version', VERSION, 'machine', 'mac%3Amini']), { machineId: 'mac:mini', workflowVersionId: VERSION });
+  for (const bad of [['mac-mini-a'], ['machine'], ['machine', 'a b'], ['version', 'not-a-uuid'], ['host', 'x'], ['machine', 'a', 'machine', 'b'], ['machine', 'a', 'version', VERSION, 'x', 'y']]) {
+    assert.equal(parseSetupScope(bad), null, JSON.stringify(bad));
+  }
+});
+
+test('GAP 5: setup is routed to the REAL agent and frozen version — the surface’s own, else the one the backend named on the card; never a guessed slug', () => {
+  const card = parseSetupRequired(new BackendError('x', 409, { setupRequired: scenario('required_cli_missing').verdict.setupRequired }))!;
+  assert.deepEqual(card.agent, { slug: 'visual-evidence-remotion-compositor', workflow_version_id: VERSION }, 'the backend names the agent + frozen version on every card');
+  const fromCard = setupTargetFor(card, {});
+  assert.equal(fromCard!.path, `/settings/machine-setup/visual-evidence-remotion-compositor/machine/mac-mini-a/version/${VERSION}`, 'a continuation with no slug of its own');
+  const own = setupTargetFor({ ...card, agent: null }, { slug: 'my-agent', workflowVersionId: '44444444-4444-4444-8444-444444444444' });
+  assert.equal(own!.path, '/settings/machine-setup/my-agent/machine/mac-mini-a/version/44444444-4444-4444-8444-444444444444');
+  assert.equal(setupTargetFor({ ...card, agent: null }, {}), null, 'nothing names the agent → no target, never /this-agent');
+  assert.equal(setupTargetFor({ ...card, agent: { slug: '../etc', workflow_version_id: null } }, {}), null);
+  const hostile = setupRequiredFromBody({ setupRequired: { ...(scenario('required_cli_missing').verdict.setupRequired as object), agent: { slug: '../../x', workflow_version_id: 'zzz' } } })!;
+  assert.equal(hostile.agent, null, 'a malformed identity is dropped at parse time');
 });
