@@ -20,6 +20,16 @@ test('THE CROSS-FEATURE FIX: when already recovered elsewhere, deriveRecoveredWo
     'a run already recovered by a continuation must short-circuit to non-recoverable, not fall through to the trace-based derivation');
 });
 
+test('THE FALSE-POSITIVE FIX (2026-09-10): the derivation receives the VALIDATED artifacts, and transcript-only evidence gets an explanation, never a finalize button', () => {
+  assert.match(page, /deriveRecoveredWork\(\{ runState: r\.run_state, outputMarkdown: r\.output_markdown, progress, stepsState, validatedArtifacts: verifiedArtifacts \}\)/,
+    'the affordance must be gated on Desktop-validated artifacts, not on heartbeat/step counts');
+  const notice = page.slice(page.indexOf('!recovered.recoverable && recovered.transcriptOnly && ('), page.indexOf('!recovered.recoverable && recovered.transcriptOnly && (') + 900);
+  assert.match(notice, /No deliverable was recovered/);
+  assert.doesNotMatch(notice, /FinalizeRecoveredButton/, 'transcript-only work must never be markable as done');
+  const banner = page.slice(page.indexOf('recovered.recoverable && ('), page.indexOf('recovered.recoverable && (') + 1800);
+  assert.match(banner, /A validated deliverable \(\{recovered\.deliverable\?\.relativePath\}\) exists/);
+});
+
 test('the finalize action renders only when the recovered trace looks complete', () => {
   const i = page.indexOf('recovered.recoverable && (');
   assert.notEqual(i, -1);

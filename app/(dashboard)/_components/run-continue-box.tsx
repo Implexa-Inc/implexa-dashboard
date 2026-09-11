@@ -29,6 +29,8 @@ import { runRequestRefusalCopy, classifyRunRequestRefusal, type RunRequestRefusa
 import ReviewContinuationRecovery from './review-continuation-recovery';
 import { AttachFiles, composeNoteWithFiles, useRunAttachments } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
+import SetupRequiredCard from './setup-required-card';
+import { parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
 import Modal from './modal';
 
 export default function RunContinueBox({
@@ -48,6 +50,9 @@ export default function RunContinueBox({
   // The pre-run capability ask — a continue runs the agent just like a Run does, so
   // it hits the same gate and deserves the same actionable card rather than an error.
   const [capCard, setCapCard] = useState<CapabilityCardData | null>(null);
+  // Machine-capability admission (backend 0346) applies to a Continue too: the
+  // parent run's frozen version carries the same requirements.
+  const [setupCard, setSetupCard] = useState<SetupRequiredCardData | null>(null);
   // A Review Room revision that could not be queued is not an error message —
   // it is a state with an action. Holding the typed refusal (rather than only
   // its sentence) is what lets the recovery panel below offer that action.
@@ -62,6 +67,7 @@ export default function RunContinueBox({
     setBusy(true);
     setMsg('');
     setCapCard(null);
+    setSetupCard(null);
     setRefusal(null);
     try {
       // The prompt + any attached file PATHS, combined into the one-off note the
@@ -84,6 +90,8 @@ export default function RunContinueBox({
     } catch (e) {
       const cap = e instanceof BackendError && e.status === 409 ? e.body?.needsCapability : null;
       if (cap) { setCapCard(cap as CapabilityCardData); return; }
+      const setup = parseSetupRequired(e);
+      if (setup) { setSetupCard(setup); return; }
       const classified = classifyRunRequestRefusal(e);
       // A recoverable refusal hands off to the panel, which owns the copy AND
       // the action. Showing the sentence here as well would say the same thing
@@ -162,6 +170,15 @@ export default function RunContinueBox({
           <CapabilityCard
             card={capCard}
             onRetry={(o) => submit(o)}
+          />
+        )}
+      </Modal>
+      <Modal open={!!setupCard} onClose={() => setSetupCard(null)} title="Setup required before this agent can run.">
+        {setupCard && (
+          <SetupRequiredCard
+            card={setupCard}
+            onAdmitted={async () => { setSetupCard(null); await submit(); }}
+            onCancel={() => setSetupCard(null)}
           />
         )}
       </Modal>

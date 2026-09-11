@@ -1,0 +1,4255 @@
+{
+  "agentSlug": "visual-evidence-remotion-compositor",
+  "claimFields": {
+    "admission": "capability_admission",
+    "contract": "machineCapabilityContract",
+    "digest": "machineCapabilityDigest",
+    "requiredMachine": "required_machine_id"
+  },
+  "contract": {
+    "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+    "value": {
+      "contract_type": "machine_capability_requirements",
+      "contract_version": 1,
+      "profile_id": "visual-evidence-remotion-compositor.machine.v1",
+      "requirements": [
+        {
+          "dependency_cache": {
+            "mode": "offline_optional"
+          },
+          "fallback": {
+            "id": "online_install",
+            "label": "Dependencies will be downloaded from the registry during the run",
+            "mode_label": "online install"
+          },
+          "id": "dependency_cache",
+          "kind": "dependency_cache",
+          "label": "Offline dependency cache",
+          "required": false,
+          "setup": {
+            "actions": [
+              "recheck"
+            ],
+            "instructions": [
+              "Optional: a verified npm cache lets the project install offline."
+            ],
+            "title": "Warm the npm cache"
+          }
+        },
+        {
+          "disk_capacity": {
+            "min_free_bytes": 21474836480
+          },
+          "id": "disk_capacity",
+          "kind": "disk_capacity",
+          "label": "Free disk space",
+          "required": true,
+          "setup": {
+            "actions": [
+              "free_disk",
+              "recheck"
+            ],
+            "instructions": [
+              "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+            ],
+            "title": "Free up disk space"
+          }
+        },
+        {
+          "id": "ffmpeg",
+          "kind": "media_tool",
+          "label": "ffmpeg",
+          "media_tool": {
+            "tool_id": "ffmpeg"
+          },
+          "required": true,
+          "setup": {
+            "actions": [
+              "install_media_tools",
+              "recheck"
+            ],
+            "instructions": [
+              "ffmpeg is required to encode the final video."
+            ],
+            "title": "Install ffmpeg"
+          }
+        },
+        {
+          "id": "ffprobe",
+          "kind": "media_tool",
+          "label": "ffprobe",
+          "media_tool": {
+            "tool_id": "ffprobe"
+          },
+          "required": true,
+          "setup": {
+            "actions": [
+              "install_media_tools",
+              "recheck"
+            ],
+            "instructions": [
+              "ffprobe is required to verify the final video."
+            ],
+            "title": "Install ffprobe"
+          }
+        },
+        {
+          "cli_auth": {
+            "cli_id": "higgsfield",
+            "probe": "account_status"
+          },
+          "id": "higgsfield_auth",
+          "kind": "cli_auth",
+          "label": "Higgsfield account",
+          "required": true,
+          "setup": {
+            "actions": [
+              "sign_in_cli",
+              "recheck"
+            ],
+            "instructions": [
+              "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+            ],
+            "title": "Sign in to Higgsfield"
+          }
+        },
+        {
+          "id": "higgsfield_cli",
+          "kind": "local_cli",
+          "label": "Higgsfield CLI",
+          "local_cli": {
+            "cli_id": "higgsfield",
+            "executable_names": [
+              "higgsfield",
+              "higgs"
+            ],
+            "min_version": "1.1.0"
+          },
+          "required": true,
+          "setup": {
+            "actions": [
+              "install_cli",
+              "recheck"
+            ],
+            "instructions": [
+              "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+            ],
+            "title": "Install the Higgsfield CLI"
+          }
+        },
+        {
+          "id": "higgsfield_model_access",
+          "kind": "provider_model_access",
+          "label": "Required model access",
+          "provider_model_access": {
+            "cli_id": "higgsfield",
+            "discovery_only": true,
+            "models": [
+              "kling3_0"
+            ]
+          },
+          "required": true,
+          "setup": {
+            "actions": [
+              "sign_in_cli",
+              "recheck"
+            ],
+            "instructions": [
+              "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+            ],
+            "title": "Confirm Kling model access"
+          }
+        },
+        {
+          "id": "managed_node_runtime",
+          "kind": "managed_node_runtime",
+          "label": "Node runtime",
+          "managed_node_runtime": {
+            "allow_ambient": true,
+            "ca_trust_required": true,
+            "min_version": "22.19.0",
+            "prefer_managed": true
+          },
+          "required": true,
+          "setup": {
+            "actions": [
+              "install_runtime",
+              "recheck"
+            ],
+            "instructions": [
+              "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+            ],
+            "title": "Install a supported Node runtime"
+          }
+        },
+        {
+          "id": "npm_registry_tls",
+          "kind": "npm_registry_tls",
+          "label": "npm registry connection",
+          "npm_registry_tls": {
+            "registry": "https://registry.npmjs.org",
+            "strict": true
+          },
+          "required": true,
+          "setup": {
+            "actions": [
+              "recheck"
+            ],
+            "instructions": [
+              "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+              "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+            ],
+            "title": "Fix the npm registry connection"
+          }
+        },
+        {
+          "id": "npm_runtime",
+          "kind": "npm_runtime",
+          "label": "npm",
+          "npm_runtime": {
+            "lockfile_version": 3,
+            "min_version": "10.8.0"
+          },
+          "required": true,
+          "setup": {
+            "actions": [
+              "install_runtime",
+              "recheck"
+            ],
+            "instructions": [
+              "npm 10.8 or newer must ship with the selected Node runtime."
+            ],
+            "title": "Install a supported npm"
+          }
+        }
+      ]
+    }
+  },
+  "contractVersion": "capability-admission-fixture.v1",
+  "endpoints": {
+    "dashboardAdmission": {
+      "body": [
+        "workflowSlug",
+        "workflowVersionId?",
+        "executionMachineId?"
+      ],
+      "method": "POST",
+      "path": "/api/v2/me/run-admission",
+      "refusal": {
+        "body": "setupRequired",
+        "status": 409
+      }
+    },
+    "dashboardMachineCapabilities": {
+      "method": "GET",
+      "path": "/api/v2/me/machine-capabilities?slug=&machineId="
+    },
+    "dashboardRunRequest": {
+      "addedBody": [
+        "executionMachineId"
+      ],
+      "method": "POST",
+      "path": "/api/v2/me/run-requests",
+      "refusal": {
+        "body": "setupRequired",
+        "status": 409
+      }
+    },
+    "desktopAttest": {
+      "body": [
+        "attestation"
+      ],
+      "method": "POST",
+      "path": "/api/v2/desktop/machine-capabilities/attest"
+    },
+    "desktopSetupRequired": {
+      "body": [
+        "launchAttemptId",
+        "fencingEpoch",
+        "parentProofToken",
+        "code",
+        "setupRequired"
+      ],
+      "method": "POST",
+      "path": "/api/v2/desktop/run-requests/:id/launch-attempt/setup-required"
+    },
+    "mcpTool": "record_capability_usage",
+    "retrySafely": {
+      "failureFamily": "capability_setup_required:",
+      "get": "/api/v2/me/run-requests/:id/control-plane-retry",
+      "post": "/api/v2/me/run-requests/:id/control-plane-retry"
+    }
+  },
+  "generatedFor": "backend PR feat/capability-admission (migration 0346)",
+  "launchRefusal": {
+    "attemptEnd": {
+      "consequential_work_started": false,
+      "replay_authority": "parent_no_action",
+      "terminal_outcome": "superseded"
+    },
+    "reasonPrefix": "capability_setup_required:",
+    "request": {
+      "avoid_executor": null,
+      "launch_failure_reason": "prelaunch_refused",
+      "lifecycle_state": "failed",
+      "needs_attention_reason": "capability_setup_required",
+      "status": "done"
+    },
+    "run": {
+      "run_close_reason": "capability_setup_required",
+      "run_state": "failed"
+    },
+    "workBudget": "refunded (no consequential work began)"
+  },
+  "now": "2026-09-10T12:00:00.000Z",
+  "revalidation": {
+    "cli_disappeared": {
+      "code": "required_capability_not_ready",
+      "ok": false,
+      "setupRequired": {
+        "actions": [
+          "open_setup",
+          "recheck",
+          "cancel"
+        ],
+        "code": "setup_required",
+        "contract": {
+          "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+          "profile_id": "visual-evidence-remotion-compositor.machine.v1"
+        },
+        "items": [
+          {
+            "actions": [
+              "recheck"
+            ],
+            "capability_key": "dependency_cache",
+            "fallback": "Dependencies will be downloaded from the registry during the run",
+            "id": "dependency_cache",
+            "instructions": [
+              "Optional: a verified npm cache lets the project install offline."
+            ],
+            "label": "Offline dependency cache",
+            "reason": "ready",
+            "required": false,
+            "setupTitle": "Warm the npm cache",
+            "state": "ready",
+            "stateLabel": "Ready"
+          },
+          {
+            "actions": [
+              "free_disk",
+              "recheck"
+            ],
+            "capability_key": "disk_capacity",
+            "fallback": null,
+            "id": "disk_capacity",
+            "instructions": [
+              "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+            ],
+            "label": "Free disk space",
+            "reason": "ready",
+            "required": true,
+            "setupTitle": "Free up disk space",
+            "state": "ready",
+            "stateLabel": "Ready"
+          },
+          {
+            "actions": [
+              "install_media_tools",
+              "recheck"
+            ],
+            "capability_key": "media_tool:ffmpeg",
+            "fallback": null,
+            "id": "ffmpeg",
+            "instructions": [
+              "ffmpeg is required to encode the final video."
+            ],
+            "label": "ffmpeg",
+            "reason": "ready",
+            "required": true,
+            "setupTitle": "Install ffmpeg",
+            "state": "ready",
+            "stateLabel": "Ready"
+          },
+          {
+            "actions": [
+              "install_media_tools",
+              "recheck"
+            ],
+            "capability_key": "media_tool:ffprobe",
+            "fallback": null,
+            "id": "ffprobe",
+            "instructions": [
+              "ffprobe is required to verify the final video."
+            ],
+            "label": "ffprobe",
+            "reason": "ready",
+            "required": true,
+            "setupTitle": "Install ffprobe",
+            "state": "ready",
+            "stateLabel": "Ready"
+          },
+          {
+            "actions": [
+              "sign_in_cli",
+              "recheck"
+            ],
+            "capability_key": "cli_auth:higgsfield",
+            "fallback": null,
+            "id": "higgsfield_auth",
+            "instructions": [
+              "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+            ],
+            "label": "Higgsfield account",
+            "reason": "ready",
+            "required": true,
+            "setupTitle": "Sign in to Higgsfield",
+            "state": "ready",
+            "stateLabel": "Ready"
+          },
+          {
+            "actions": [
+              "install_cli",
+              "recheck"
+            ],
+            "capability_key": "local_cli:higgsfield",
+            "fallback": null,
+            "id": "higgsfield_cli",
+            "instructions": [
+              "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+            ],
+            "label": "Higgsfield CLI",
+            "reason": "missing",
+            "required": true,
+            "setupTitle": "Install the Higgsfield CLI",
+            "state": "missing",
+            "stateLabel": "Not installed"
+          },
+          {
+            "actions": [
+              "sign_in_cli",
+              "recheck"
+            ],
+            "capability_key": "provider_model_access:higgsfield",
+            "fallback": null,
+            "id": "higgsfield_model_access",
+            "instructions": [
+              "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+            ],
+            "label": "Required model access",
+            "reason": "ready",
+            "required": true,
+            "setupTitle": "Confirm Kling model access",
+            "state": "ready",
+            "stateLabel": "Ready"
+          },
+          {
+            "actions": [
+              "install_runtime",
+              "recheck"
+            ],
+            "capability_key": "managed_node_runtime",
+            "fallback": null,
+            "id": "managed_node_runtime",
+            "instructions": [
+              "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+            ],
+            "label": "Node runtime",
+            "reason": "ready",
+            "required": true,
+            "setupTitle": "Install a supported Node runtime",
+            "state": "ready",
+            "stateLabel": "Ready"
+          },
+          {
+            "actions": [
+              "recheck"
+            ],
+            "capability_key": "npm_registry_tls",
+            "fallback": null,
+            "id": "npm_registry_tls",
+            "instructions": [
+              "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+              "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+            ],
+            "label": "npm registry connection",
+            "reason": "ready",
+            "required": true,
+            "setupTitle": "Fix the npm registry connection",
+            "state": "ready",
+            "stateLabel": "Ready"
+          },
+          {
+            "actions": [
+              "install_runtime",
+              "recheck"
+            ],
+            "capability_key": "npm_runtime",
+            "fallback": null,
+            "id": "npm_runtime",
+            "instructions": [
+              "npm 10.8 or newer must ship with the selected Node runtime."
+            ],
+            "label": "npm",
+            "reason": "ready",
+            "required": true,
+            "setupTitle": "Install a supported npm",
+            "state": "ready",
+            "stateLabel": "Ready"
+          }
+        ],
+        "machine": {
+          "id": "mac-mini-a",
+          "label": "Mac mini (studio)",
+          "online": true
+        },
+        "reason": "required_capability_not_ready",
+        "title": "Setup required before this agent can run."
+      }
+    },
+    "unchanged": {
+      "admission": {
+        "admission_version": "capability-admission.v1",
+        "admitted_at": "2026-09-10T12:00:00.000Z",
+        "attestation_checked_at": "2026-09-10T11:59:30.000Z",
+        "attestation_digest": "64f2e5ea8eb62d9451fcc2629eb7d554743d0b66a3cf6a961b6afc65b15df79a",
+        "attestation_expires_at": "2026-09-10T12:09:30.000Z",
+        "ca_trust_mode": "bundled",
+        "contract_digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "fallbacks_used": [],
+        "items": {
+          "cli_auth:higgsfield": {
+            "kind": "cli_auth",
+            "reason": "ready",
+            "required": true,
+            "requirement_id": "higgsfield_auth",
+            "state": "ready"
+          },
+          "dependency_cache": {
+            "kind": "dependency_cache",
+            "reason": "ready",
+            "required": false,
+            "requirement_id": "dependency_cache",
+            "state": "ready"
+          },
+          "disk_capacity": {
+            "kind": "disk_capacity",
+            "reason": "ready",
+            "required": true,
+            "requirement_id": "disk_capacity",
+            "state": "ready"
+          },
+          "local_cli:higgsfield": {
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "reason": "ready",
+            "required": true,
+            "requirement_id": "higgsfield_cli",
+            "state": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "kind": "managed_node_runtime",
+            "reason": "ready",
+            "required": true,
+            "requirement_id": "managed_node_runtime",
+            "source": "ambient",
+            "state": "ready",
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "kind": "media_tool",
+            "reason": "ready",
+            "required": true,
+            "requirement_id": "ffmpeg",
+            "state": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "kind": "media_tool",
+            "reason": "ready",
+            "required": true,
+            "requirement_id": "ffprobe",
+            "state": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "kind": "npm_registry_tls",
+            "reason": "ready",
+            "required": true,
+            "requirement_id": "npm_registry_tls",
+            "state": "ready"
+          },
+          "npm_runtime": {
+            "kind": "npm_runtime",
+            "reason": "ready",
+            "required": true,
+            "requirement_id": "npm_runtime",
+            "state": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "kind": "provider_model_access",
+            "reason": "ready",
+            "required": true,
+            "requirement_id": "higgsfield_model_access",
+            "state": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "machine_label": "Mac mini (studio)",
+        "profile_id": "visual-evidence-remotion-compositor.machine.v1",
+        "required_skipped": []
+      },
+      "ok": true
+    }
+  },
+  "scenarios": {
+    "cli_not_executable": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T12:00:00.000Z",
+            "kind": "local_cli",
+            "status": "not_executable"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "item": "higgsfield_cli",
+        "ok": false,
+        "state": "not_executable"
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "ok": false,
+        "setupRequired": {
+          "actions": [
+            "open_setup",
+            "recheck",
+            "cancel"
+          ],
+          "code": "setup_required",
+          "contract": {
+            "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+            "profile_id": "visual-evidence-remotion-compositor.machine.v1"
+          },
+          "items": [
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "dependency_cache",
+              "fallback": "Dependencies will be downloaded from the registry during the run",
+              "id": "dependency_cache",
+              "instructions": [
+                "Optional: a verified npm cache lets the project install offline."
+              ],
+              "label": "Offline dependency cache",
+              "reason": "ready",
+              "required": false,
+              "setupTitle": "Warm the npm cache",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "free_disk",
+                "recheck"
+              ],
+              "capability_key": "disk_capacity",
+              "fallback": null,
+              "id": "disk_capacity",
+              "instructions": [
+                "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+              ],
+              "label": "Free disk space",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Free up disk space",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffmpeg",
+              "fallback": null,
+              "id": "ffmpeg",
+              "instructions": [
+                "ffmpeg is required to encode the final video."
+              ],
+              "label": "ffmpeg",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffmpeg",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffprobe",
+              "fallback": null,
+              "id": "ffprobe",
+              "instructions": [
+                "ffprobe is required to verify the final video."
+              ],
+              "label": "ffprobe",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffprobe",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "cli_auth:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_auth",
+              "instructions": [
+                "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+              ],
+              "label": "Higgsfield account",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Sign in to Higgsfield",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_cli",
+                "recheck"
+              ],
+              "capability_key": "local_cli:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_cli",
+              "instructions": [
+                "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+              ],
+              "label": "Higgsfield CLI",
+              "reason": "not_executable",
+              "required": true,
+              "setupTitle": "Install the Higgsfield CLI",
+              "state": "not_executable",
+              "stateLabel": "Installed but not runnable"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "provider_model_access:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_model_access",
+              "instructions": [
+                "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+              ],
+              "label": "Required model access",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Confirm Kling model access",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "managed_node_runtime",
+              "fallback": null,
+              "id": "managed_node_runtime",
+              "instructions": [
+                "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+              ],
+              "label": "Node runtime",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported Node runtime",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "npm_registry_tls",
+              "fallback": null,
+              "id": "npm_registry_tls",
+              "instructions": [
+                "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+                "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+              ],
+              "label": "npm registry connection",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Fix the npm registry connection",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "npm_runtime",
+              "fallback": null,
+              "id": "npm_runtime",
+              "instructions": [
+                "npm 10.8 or newer must ship with the selected Node runtime."
+              ],
+              "label": "npm",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported npm",
+              "state": "ready",
+              "stateLabel": "Ready"
+            }
+          ],
+          "machine": {
+            "id": "mac-mini-a",
+            "label": "Mac mini (studio)",
+            "online": true
+          },
+          "reason": "required_capability_not_ready",
+          "title": "Setup required before this agent can run."
+        }
+      }
+    },
+    "cli_on_mac_a_selected_mac_b": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "ok": false,
+        "reason": "attestation_foreign_machine"
+      },
+      "machine": {
+        "id": "macbook-b",
+        "label": "MacBook Pro",
+        "online": true
+      },
+      "verdict": {
+        "ok": false,
+        "setupRequired": {
+          "actions": [
+            "open_setup",
+            "recheck",
+            "cancel"
+          ],
+          "code": "setup_required",
+          "contract": {
+            "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+            "profile_id": "visual-evidence-remotion-compositor.machine.v1"
+          },
+          "items": [
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "dependency_cache",
+              "fallback": "Dependencies will be downloaded from the registry during the run",
+              "id": "dependency_cache",
+              "instructions": [
+                "Optional: a verified npm cache lets the project install offline."
+              ],
+              "label": "Offline dependency cache",
+              "reason": "not_checked",
+              "required": false,
+              "setupTitle": "Warm the npm cache",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "free_disk",
+                "recheck"
+              ],
+              "capability_key": "disk_capacity",
+              "fallback": null,
+              "id": "disk_capacity",
+              "instructions": [
+                "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+              ],
+              "label": "Free disk space",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Free up disk space",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffmpeg",
+              "fallback": null,
+              "id": "ffmpeg",
+              "instructions": [
+                "ffmpeg is required to encode the final video."
+              ],
+              "label": "ffmpeg",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Install ffmpeg",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffprobe",
+              "fallback": null,
+              "id": "ffprobe",
+              "instructions": [
+                "ffprobe is required to verify the final video."
+              ],
+              "label": "ffprobe",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Install ffprobe",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "cli_auth:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_auth",
+              "instructions": [
+                "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+              ],
+              "label": "Higgsfield account",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Sign in to Higgsfield",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "install_cli",
+                "recheck"
+              ],
+              "capability_key": "local_cli:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_cli",
+              "instructions": [
+                "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+              ],
+              "label": "Higgsfield CLI",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Install the Higgsfield CLI",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "provider_model_access:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_model_access",
+              "instructions": [
+                "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+              ],
+              "label": "Required model access",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Confirm Kling model access",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "managed_node_runtime",
+              "fallback": null,
+              "id": "managed_node_runtime",
+              "instructions": [
+                "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+              ],
+              "label": "Node runtime",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Install a supported Node runtime",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "npm_registry_tls",
+              "fallback": null,
+              "id": "npm_registry_tls",
+              "instructions": [
+                "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+                "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+              ],
+              "label": "npm registry connection",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Fix the npm registry connection",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "npm_runtime",
+              "fallback": null,
+              "id": "npm_runtime",
+              "instructions": [
+                "npm 10.8 or newer must ship with the selected Node runtime."
+              ],
+              "label": "npm",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Install a supported npm",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            }
+          ],
+          "machine": {
+            "id": "macbook-b",
+            "label": "MacBook Pro",
+            "online": true
+          },
+          "reason": "attestation_foreign_machine",
+          "title": "Setup required before this agent can run."
+        }
+      }
+    },
+    "cli_unauthenticated": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T12:00:00.000Z",
+            "kind": "cli_auth",
+            "status": "unauthenticated"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "item": "higgsfield_auth",
+        "ok": false,
+        "state": "unauthenticated"
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "ok": false,
+        "setupRequired": {
+          "actions": [
+            "open_setup",
+            "recheck",
+            "cancel"
+          ],
+          "code": "setup_required",
+          "contract": {
+            "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+            "profile_id": "visual-evidence-remotion-compositor.machine.v1"
+          },
+          "items": [
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "dependency_cache",
+              "fallback": "Dependencies will be downloaded from the registry during the run",
+              "id": "dependency_cache",
+              "instructions": [
+                "Optional: a verified npm cache lets the project install offline."
+              ],
+              "label": "Offline dependency cache",
+              "reason": "ready",
+              "required": false,
+              "setupTitle": "Warm the npm cache",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "free_disk",
+                "recheck"
+              ],
+              "capability_key": "disk_capacity",
+              "fallback": null,
+              "id": "disk_capacity",
+              "instructions": [
+                "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+              ],
+              "label": "Free disk space",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Free up disk space",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffmpeg",
+              "fallback": null,
+              "id": "ffmpeg",
+              "instructions": [
+                "ffmpeg is required to encode the final video."
+              ],
+              "label": "ffmpeg",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffmpeg",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffprobe",
+              "fallback": null,
+              "id": "ffprobe",
+              "instructions": [
+                "ffprobe is required to verify the final video."
+              ],
+              "label": "ffprobe",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffprobe",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "cli_auth:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_auth",
+              "instructions": [
+                "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+              ],
+              "label": "Higgsfield account",
+              "reason": "unauthenticated",
+              "required": true,
+              "setupTitle": "Sign in to Higgsfield",
+              "state": "unauthenticated",
+              "stateLabel": "Not connected"
+            },
+            {
+              "actions": [
+                "install_cli",
+                "recheck"
+              ],
+              "capability_key": "local_cli:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_cli",
+              "instructions": [
+                "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+              ],
+              "label": "Higgsfield CLI",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install the Higgsfield CLI",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "provider_model_access:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_model_access",
+              "instructions": [
+                "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+              ],
+              "label": "Required model access",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Confirm Kling model access",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "managed_node_runtime",
+              "fallback": null,
+              "id": "managed_node_runtime",
+              "instructions": [
+                "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+              ],
+              "label": "Node runtime",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported Node runtime",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "npm_registry_tls",
+              "fallback": null,
+              "id": "npm_registry_tls",
+              "instructions": [
+                "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+                "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+              ],
+              "label": "npm registry connection",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Fix the npm registry connection",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "npm_runtime",
+              "fallback": null,
+              "id": "npm_runtime",
+              "instructions": [
+                "npm 10.8 or newer must ship with the selected Node runtime."
+              ],
+              "label": "npm",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported npm",
+              "state": "ready",
+              "stateLabel": "Ready"
+            }
+          ],
+          "machine": {
+            "id": "mac-mini-a",
+            "label": "Mac mini (studio)",
+            "online": true
+          },
+          "reason": "required_capability_not_ready",
+          "title": "Setup required before this agent can run."
+        }
+      }
+    },
+    "cli_unsupported_version": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T12:00:00.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "0.0.9"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "item": "higgsfield_cli",
+        "ok": false,
+        "state": "unsupported_version"
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "ok": false,
+        "setupRequired": {
+          "actions": [
+            "open_setup",
+            "recheck",
+            "cancel"
+          ],
+          "code": "setup_required",
+          "contract": {
+            "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+            "profile_id": "visual-evidence-remotion-compositor.machine.v1"
+          },
+          "items": [
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "dependency_cache",
+              "fallback": "Dependencies will be downloaded from the registry during the run",
+              "id": "dependency_cache",
+              "instructions": [
+                "Optional: a verified npm cache lets the project install offline."
+              ],
+              "label": "Offline dependency cache",
+              "reason": "ready",
+              "required": false,
+              "setupTitle": "Warm the npm cache",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "free_disk",
+                "recheck"
+              ],
+              "capability_key": "disk_capacity",
+              "fallback": null,
+              "id": "disk_capacity",
+              "instructions": [
+                "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+              ],
+              "label": "Free disk space",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Free up disk space",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffmpeg",
+              "fallback": null,
+              "id": "ffmpeg",
+              "instructions": [
+                "ffmpeg is required to encode the final video."
+              ],
+              "label": "ffmpeg",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffmpeg",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffprobe",
+              "fallback": null,
+              "id": "ffprobe",
+              "instructions": [
+                "ffprobe is required to verify the final video."
+              ],
+              "label": "ffprobe",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffprobe",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "cli_auth:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_auth",
+              "instructions": [
+                "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+              ],
+              "label": "Higgsfield account",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Sign in to Higgsfield",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_cli",
+                "recheck"
+              ],
+              "capability_key": "local_cli:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_cli",
+              "instructions": [
+                "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+              ],
+              "label": "Higgsfield CLI",
+              "reason": "cli_version_outside_bounds",
+              "required": true,
+              "setupTitle": "Install the Higgsfield CLI",
+              "state": "unsupported_version",
+              "stateLabel": "Unsupported version"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "provider_model_access:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_model_access",
+              "instructions": [
+                "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+              ],
+              "label": "Required model access",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Confirm Kling model access",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "managed_node_runtime",
+              "fallback": null,
+              "id": "managed_node_runtime",
+              "instructions": [
+                "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+              ],
+              "label": "Node runtime",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported Node runtime",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "npm_registry_tls",
+              "fallback": null,
+              "id": "npm_registry_tls",
+              "instructions": [
+                "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+                "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+              ],
+              "label": "npm registry connection",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Fix the npm registry connection",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "npm_runtime",
+              "fallback": null,
+              "id": "npm_runtime",
+              "instructions": [
+                "npm 10.8 or newer must ship with the selected Node runtime."
+              ],
+              "label": "npm",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported npm",
+              "state": "ready",
+              "stateLabel": "Ready"
+            }
+          ],
+          "machine": {
+            "id": "mac-mini-a",
+            "label": "Mac mini (studio)",
+            "online": true
+          },
+          "reason": "required_capability_not_ready",
+          "title": "Setup required before this agent can run."
+        }
+      }
+    },
+    "kling_model_unavailable": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T12:00:00.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "item": "higgsfield_model_access",
+        "ok": false,
+        "state": "model_unavailable"
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "ok": false,
+        "setupRequired": {
+          "actions": [
+            "open_setup",
+            "recheck",
+            "cancel"
+          ],
+          "code": "setup_required",
+          "contract": {
+            "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+            "profile_id": "visual-evidence-remotion-compositor.machine.v1"
+          },
+          "items": [
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "dependency_cache",
+              "fallback": "Dependencies will be downloaded from the registry during the run",
+              "id": "dependency_cache",
+              "instructions": [
+                "Optional: a verified npm cache lets the project install offline."
+              ],
+              "label": "Offline dependency cache",
+              "reason": "ready",
+              "required": false,
+              "setupTitle": "Warm the npm cache",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "free_disk",
+                "recheck"
+              ],
+              "capability_key": "disk_capacity",
+              "fallback": null,
+              "id": "disk_capacity",
+              "instructions": [
+                "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+              ],
+              "label": "Free disk space",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Free up disk space",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffmpeg",
+              "fallback": null,
+              "id": "ffmpeg",
+              "instructions": [
+                "ffmpeg is required to encode the final video."
+              ],
+              "label": "ffmpeg",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffmpeg",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffprobe",
+              "fallback": null,
+              "id": "ffprobe",
+              "instructions": [
+                "ffprobe is required to verify the final video."
+              ],
+              "label": "ffprobe",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffprobe",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "cli_auth:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_auth",
+              "instructions": [
+                "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+              ],
+              "label": "Higgsfield account",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Sign in to Higgsfield",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_cli",
+                "recheck"
+              ],
+              "capability_key": "local_cli:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_cli",
+              "instructions": [
+                "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+              ],
+              "label": "Higgsfield CLI",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install the Higgsfield CLI",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "provider_model_access:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_model_access",
+              "instructions": [
+                "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+              ],
+              "label": "Required model access",
+              "reason": "required_model_not_listed",
+              "required": true,
+              "setupTitle": "Confirm Kling model access",
+              "state": "model_unavailable",
+              "stateLabel": "Required model access not verified"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "managed_node_runtime",
+              "fallback": null,
+              "id": "managed_node_runtime",
+              "instructions": [
+                "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+              ],
+              "label": "Node runtime",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported Node runtime",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "npm_registry_tls",
+              "fallback": null,
+              "id": "npm_registry_tls",
+              "instructions": [
+                "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+                "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+              ],
+              "label": "npm registry connection",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Fix the npm registry connection",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "npm_runtime",
+              "fallback": null,
+              "id": "npm_runtime",
+              "instructions": [
+                "npm 10.8 or newer must ship with the selected Node runtime."
+              ],
+              "label": "npm",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported npm",
+              "state": "ready",
+              "stateLabel": "Ready"
+            }
+          ],
+          "machine": {
+            "id": "mac-mini-a",
+            "label": "Mac mini (studio)",
+            "online": true
+          },
+          "reason": "required_capability_not_ready",
+          "title": "Setup required before this agent can run."
+        }
+      }
+    },
+    "machine_offline": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "ok": false,
+        "reason": "machine_offline"
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": false
+      },
+      "verdict": {
+        "ok": false,
+        "setupRequired": {
+          "actions": [
+            "open_setup",
+            "recheck",
+            "cancel"
+          ],
+          "code": "setup_required",
+          "contract": {
+            "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+            "profile_id": "visual-evidence-remotion-compositor.machine.v1"
+          },
+          "items": [
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "dependency_cache",
+              "fallback": "Dependencies will be downloaded from the registry during the run",
+              "id": "dependency_cache",
+              "instructions": [
+                "Optional: a verified npm cache lets the project install offline."
+              ],
+              "label": "Offline dependency cache",
+              "reason": "not_checked",
+              "required": false,
+              "setupTitle": "Warm the npm cache",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "free_disk",
+                "recheck"
+              ],
+              "capability_key": "disk_capacity",
+              "fallback": null,
+              "id": "disk_capacity",
+              "instructions": [
+                "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+              ],
+              "label": "Free disk space",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Free up disk space",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffmpeg",
+              "fallback": null,
+              "id": "ffmpeg",
+              "instructions": [
+                "ffmpeg is required to encode the final video."
+              ],
+              "label": "ffmpeg",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Install ffmpeg",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffprobe",
+              "fallback": null,
+              "id": "ffprobe",
+              "instructions": [
+                "ffprobe is required to verify the final video."
+              ],
+              "label": "ffprobe",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Install ffprobe",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "cli_auth:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_auth",
+              "instructions": [
+                "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+              ],
+              "label": "Higgsfield account",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Sign in to Higgsfield",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "install_cli",
+                "recheck"
+              ],
+              "capability_key": "local_cli:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_cli",
+              "instructions": [
+                "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+              ],
+              "label": "Higgsfield CLI",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Install the Higgsfield CLI",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "provider_model_access:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_model_access",
+              "instructions": [
+                "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+              ],
+              "label": "Required model access",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Confirm Kling model access",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "managed_node_runtime",
+              "fallback": null,
+              "id": "managed_node_runtime",
+              "instructions": [
+                "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+              ],
+              "label": "Node runtime",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Install a supported Node runtime",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "npm_registry_tls",
+              "fallback": null,
+              "id": "npm_registry_tls",
+              "instructions": [
+                "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+                "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+              ],
+              "label": "npm registry connection",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Fix the npm registry connection",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "npm_runtime",
+              "fallback": null,
+              "id": "npm_runtime",
+              "instructions": [
+                "npm 10.8 or newer must ship with the selected Node runtime."
+              ],
+              "label": "npm",
+              "reason": "not_checked",
+              "required": true,
+              "setupTitle": "Install a supported npm",
+              "state": "not_checked",
+              "stateLabel": "Not checked yet"
+            }
+          ],
+          "machine": {
+            "id": "mac-mini-a",
+            "label": "Mac mini (studio)",
+            "online": false
+          },
+          "reason": "machine_offline",
+          "title": "Setup required before this agent can run."
+        }
+      }
+    },
+    "node_env_var_present_but_unsupported": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T12:00:00.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": false,
+            "version": "22.18.0"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "item": "managed_node_runtime",
+        "ok": false,
+        "state": "unsupported_version"
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "ok": false,
+        "setupRequired": {
+          "actions": [
+            "open_setup",
+            "recheck",
+            "cancel"
+          ],
+          "code": "setup_required",
+          "contract": {
+            "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+            "profile_id": "visual-evidence-remotion-compositor.machine.v1"
+          },
+          "items": [
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "dependency_cache",
+              "fallback": "Dependencies will be downloaded from the registry during the run",
+              "id": "dependency_cache",
+              "instructions": [
+                "Optional: a verified npm cache lets the project install offline."
+              ],
+              "label": "Offline dependency cache",
+              "reason": "ready",
+              "required": false,
+              "setupTitle": "Warm the npm cache",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "free_disk",
+                "recheck"
+              ],
+              "capability_key": "disk_capacity",
+              "fallback": null,
+              "id": "disk_capacity",
+              "instructions": [
+                "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+              ],
+              "label": "Free disk space",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Free up disk space",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffmpeg",
+              "fallback": null,
+              "id": "ffmpeg",
+              "instructions": [
+                "ffmpeg is required to encode the final video."
+              ],
+              "label": "ffmpeg",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffmpeg",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffprobe",
+              "fallback": null,
+              "id": "ffprobe",
+              "instructions": [
+                "ffprobe is required to verify the final video."
+              ],
+              "label": "ffprobe",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffprobe",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "cli_auth:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_auth",
+              "instructions": [
+                "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+              ],
+              "label": "Higgsfield account",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Sign in to Higgsfield",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_cli",
+                "recheck"
+              ],
+              "capability_key": "local_cli:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_cli",
+              "instructions": [
+                "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+              ],
+              "label": "Higgsfield CLI",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install the Higgsfield CLI",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "provider_model_access:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_model_access",
+              "instructions": [
+                "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+              ],
+              "label": "Required model access",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Confirm Kling model access",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "managed_node_runtime",
+              "fallback": null,
+              "id": "managed_node_runtime",
+              "instructions": [
+                "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+              ],
+              "label": "Node runtime",
+              "reason": "node_version_outside_bounds",
+              "required": true,
+              "setupTitle": "Install a supported Node runtime",
+              "state": "unsupported_version",
+              "stateLabel": "Unsupported version"
+            },
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "npm_registry_tls",
+              "fallback": null,
+              "id": "npm_registry_tls",
+              "instructions": [
+                "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+                "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+              ],
+              "label": "npm registry connection",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Fix the npm registry connection",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "npm_runtime",
+              "fallback": null,
+              "id": "npm_runtime",
+              "instructions": [
+                "npm 10.8 or newer must ship with the selected Node runtime."
+              ],
+              "label": "npm",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported npm",
+              "state": "ready",
+              "stateLabel": "Ready"
+            }
+          ],
+          "machine": {
+            "id": "mac-mini-a",
+            "label": "Mac mini (studio)",
+            "online": true
+          },
+          "reason": "required_capability_not_ready",
+          "title": "Setup required before this agent can run."
+        }
+      }
+    },
+    "optional_cache_fallback": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T12:00:00.000Z",
+            "kind": "dependency_cache",
+            "reason": "cache_integrity_unverified",
+            "status": "degraded"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "fallback": "dependency_cache",
+        "ok": true
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "admission": {
+          "admission_version": "capability-admission.v1",
+          "admitted_at": "2026-09-10T12:00:00.000Z",
+          "attestation_checked_at": "2026-09-10T11:59:30.000Z",
+          "attestation_digest": "1b77e3f4b5d63141e9978dd6c1ad28629c81d0636ef3846b8ff861baf9bc3c94",
+          "attestation_expires_at": "2026-09-10T12:09:30.000Z",
+          "ca_trust_mode": "bundled",
+          "contract_digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+          "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "fallbacks_used": [
+            {
+              "capability_key": "dependency_cache",
+              "fallback": {
+                "id": "online_install",
+                "label": "Dependencies will be downloaded from the registry during the run",
+                "mode_label": "online install"
+              },
+              "id": "dependency_cache",
+              "observed_state": "degraded"
+            }
+          ],
+          "items": {
+            "cli_auth:higgsfield": {
+              "kind": "cli_auth",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_auth",
+              "state": "ready"
+            },
+            "dependency_cache": {
+              "kind": "dependency_cache",
+              "reason": "cache_integrity_unverified",
+              "required": false,
+              "requirement_id": "dependency_cache",
+              "state": "fallback"
+            },
+            "disk_capacity": {
+              "kind": "disk_capacity",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "disk_capacity",
+              "state": "ready"
+            },
+            "local_cli:higgsfield": {
+              "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "kind": "local_cli",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_cli",
+              "state": "ready",
+              "version": "1.1.20"
+            },
+            "managed_node_runtime": {
+              "kind": "managed_node_runtime",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "managed_node_runtime",
+              "source": "ambient",
+              "state": "ready",
+              "version": "22.23.2"
+            },
+            "media_tool:ffmpeg": {
+              "kind": "media_tool",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "ffmpeg",
+              "state": "ready",
+              "version": "8.1.1"
+            },
+            "media_tool:ffprobe": {
+              "kind": "media_tool",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "ffprobe",
+              "state": "ready",
+              "version": "8.1.1"
+            },
+            "npm_registry_tls": {
+              "ca_trust_mode": "bundled",
+              "kind": "npm_registry_tls",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "npm_registry_tls",
+              "state": "ready"
+            },
+            "npm_runtime": {
+              "kind": "npm_runtime",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "npm_runtime",
+              "state": "ready",
+              "version": "10.9.8"
+            },
+            "provider_model_access:higgsfield": {
+              "kind": "provider_model_access",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_model_access",
+              "state": "ready"
+            }
+          },
+          "machine_id": "mac-mini-a",
+          "machine_label": "Mac mini (studio)",
+          "profile_id": "visual-evidence-remotion-compositor.machine.v1",
+          "required_skipped": []
+        },
+        "ok": true
+      }
+    },
+    "ready_on_mac_a": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "ca_trust_mode": "bundled",
+        "ok": true
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "admission": {
+          "admission_version": "capability-admission.v1",
+          "admitted_at": "2026-09-10T12:00:00.000Z",
+          "attestation_checked_at": "2026-09-10T11:59:30.000Z",
+          "attestation_digest": "64f2e5ea8eb62d9451fcc2629eb7d554743d0b66a3cf6a961b6afc65b15df79a",
+          "attestation_expires_at": "2026-09-10T12:09:30.000Z",
+          "ca_trust_mode": "bundled",
+          "contract_digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+          "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "fallbacks_used": [],
+          "items": {
+            "cli_auth:higgsfield": {
+              "kind": "cli_auth",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_auth",
+              "state": "ready"
+            },
+            "dependency_cache": {
+              "kind": "dependency_cache",
+              "reason": "ready",
+              "required": false,
+              "requirement_id": "dependency_cache",
+              "state": "ready"
+            },
+            "disk_capacity": {
+              "kind": "disk_capacity",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "disk_capacity",
+              "state": "ready"
+            },
+            "local_cli:higgsfield": {
+              "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "kind": "local_cli",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_cli",
+              "state": "ready",
+              "version": "1.1.20"
+            },
+            "managed_node_runtime": {
+              "kind": "managed_node_runtime",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "managed_node_runtime",
+              "source": "ambient",
+              "state": "ready",
+              "version": "22.23.2"
+            },
+            "media_tool:ffmpeg": {
+              "kind": "media_tool",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "ffmpeg",
+              "state": "ready",
+              "version": "8.1.1"
+            },
+            "media_tool:ffprobe": {
+              "kind": "media_tool",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "ffprobe",
+              "state": "ready",
+              "version": "8.1.1"
+            },
+            "npm_registry_tls": {
+              "ca_trust_mode": "bundled",
+              "kind": "npm_registry_tls",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "npm_registry_tls",
+              "state": "ready"
+            },
+            "npm_runtime": {
+              "kind": "npm_runtime",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "npm_runtime",
+              "state": "ready",
+              "version": "10.9.8"
+            },
+            "provider_model_access:higgsfield": {
+              "kind": "provider_model_access",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_model_access",
+              "state": "ready"
+            }
+          },
+          "machine_id": "mac-mini-a",
+          "machine_label": "Mac mini (studio)",
+          "profile_id": "visual-evidence-remotion-compositor.machine.v1",
+          "required_skipped": []
+        },
+        "ok": true
+      }
+    },
+    "registry_tls_bundled_passes_system_fails": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T12:00:00.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "ca_trust_mode": "bundled",
+        "no_modal": true,
+        "ok": true
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "admission": {
+          "admission_version": "capability-admission.v1",
+          "admitted_at": "2026-09-10T12:00:00.000Z",
+          "attestation_checked_at": "2026-09-10T11:59:30.000Z",
+          "attestation_digest": "19c80c081fee80757ef36701f984e3bd3251a285aa9094e2f560e98d45820f14",
+          "attestation_expires_at": "2026-09-10T12:09:30.000Z",
+          "ca_trust_mode": "bundled",
+          "contract_digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+          "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "fallbacks_used": [],
+          "items": {
+            "cli_auth:higgsfield": {
+              "kind": "cli_auth",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_auth",
+              "state": "ready"
+            },
+            "dependency_cache": {
+              "kind": "dependency_cache",
+              "reason": "ready",
+              "required": false,
+              "requirement_id": "dependency_cache",
+              "state": "ready"
+            },
+            "disk_capacity": {
+              "kind": "disk_capacity",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "disk_capacity",
+              "state": "ready"
+            },
+            "local_cli:higgsfield": {
+              "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "kind": "local_cli",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_cli",
+              "state": "ready",
+              "version": "1.1.20"
+            },
+            "managed_node_runtime": {
+              "kind": "managed_node_runtime",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "managed_node_runtime",
+              "source": "ambient",
+              "state": "ready",
+              "version": "22.23.2"
+            },
+            "media_tool:ffmpeg": {
+              "kind": "media_tool",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "ffmpeg",
+              "state": "ready",
+              "version": "8.1.1"
+            },
+            "media_tool:ffprobe": {
+              "kind": "media_tool",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "ffprobe",
+              "state": "ready",
+              "version": "8.1.1"
+            },
+            "npm_registry_tls": {
+              "ca_trust_mode": "bundled",
+              "kind": "npm_registry_tls",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "npm_registry_tls",
+              "state": "ready"
+            },
+            "npm_runtime": {
+              "kind": "npm_runtime",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "npm_runtime",
+              "state": "ready",
+              "version": "10.9.8"
+            },
+            "provider_model_access:higgsfield": {
+              "kind": "provider_model_access",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_model_access",
+              "state": "ready"
+            }
+          },
+          "machine_id": "mac-mini-a",
+          "machine_label": "Mac mini (studio)",
+          "profile_id": "visual-evidence-remotion-compositor.machine.v1",
+          "required_skipped": []
+        },
+        "ok": true
+      }
+    },
+    "registry_tls_neither_mode": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "checked_at": "2026-09-10T12:00:00.000Z",
+            "kind": "npm_registry_tls",
+            "reason": "unable_to_get_issuer_cert_locally",
+            "status": "tls_failed"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "item": "npm_registry_tls",
+        "ok": false,
+        "state": "tls_failed"
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "ok": false,
+        "setupRequired": {
+          "actions": [
+            "open_setup",
+            "recheck",
+            "cancel"
+          ],
+          "code": "setup_required",
+          "contract": {
+            "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+            "profile_id": "visual-evidence-remotion-compositor.machine.v1"
+          },
+          "items": [
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "dependency_cache",
+              "fallback": "Dependencies will be downloaded from the registry during the run",
+              "id": "dependency_cache",
+              "instructions": [
+                "Optional: a verified npm cache lets the project install offline."
+              ],
+              "label": "Offline dependency cache",
+              "reason": "ready",
+              "required": false,
+              "setupTitle": "Warm the npm cache",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "free_disk",
+                "recheck"
+              ],
+              "capability_key": "disk_capacity",
+              "fallback": null,
+              "id": "disk_capacity",
+              "instructions": [
+                "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+              ],
+              "label": "Free disk space",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Free up disk space",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffmpeg",
+              "fallback": null,
+              "id": "ffmpeg",
+              "instructions": [
+                "ffmpeg is required to encode the final video."
+              ],
+              "label": "ffmpeg",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffmpeg",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffprobe",
+              "fallback": null,
+              "id": "ffprobe",
+              "instructions": [
+                "ffprobe is required to verify the final video."
+              ],
+              "label": "ffprobe",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffprobe",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "cli_auth:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_auth",
+              "instructions": [
+                "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+              ],
+              "label": "Higgsfield account",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Sign in to Higgsfield",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_cli",
+                "recheck"
+              ],
+              "capability_key": "local_cli:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_cli",
+              "instructions": [
+                "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+              ],
+              "label": "Higgsfield CLI",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install the Higgsfield CLI",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "provider_model_access:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_model_access",
+              "instructions": [
+                "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+              ],
+              "label": "Required model access",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Confirm Kling model access",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "managed_node_runtime",
+              "fallback": null,
+              "id": "managed_node_runtime",
+              "instructions": [
+                "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+              ],
+              "label": "Node runtime",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported Node runtime",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "npm_registry_tls",
+              "fallback": null,
+              "id": "npm_registry_tls",
+              "instructions": [
+                "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+                "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+              ],
+              "label": "npm registry connection",
+              "reason": "unable_to_get_issuer_cert_locally",
+              "required": true,
+              "setupTitle": "Fix the npm registry connection",
+              "state": "tls_failed",
+              "stateLabel": "Secure connection failed"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "npm_runtime",
+              "fallback": null,
+              "id": "npm_runtime",
+              "instructions": [
+                "npm 10.8 or newer must ship with the selected Node runtime."
+              ],
+              "label": "npm",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported npm",
+              "state": "ready",
+              "stateLabel": "Ready"
+            }
+          ],
+          "machine": {
+            "id": "mac-mini-a",
+            "label": "Mac mini (studio)",
+            "online": true
+          },
+          "reason": "required_capability_not_ready",
+          "title": "Setup required before this agent can run."
+        }
+      }
+    },
+    "registry_tls_system_only_passes": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "system",
+            "checked_at": "2026-09-10T12:00:00.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "ca_trust_mode": "system",
+        "ok": true
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "admission": {
+          "admission_version": "capability-admission.v1",
+          "admitted_at": "2026-09-10T12:00:00.000Z",
+          "attestation_checked_at": "2026-09-10T11:59:30.000Z",
+          "attestation_digest": "491ead100271f042725d4b9d15ccbecd061773d6b508dbafcaa3bef05b96b79d",
+          "attestation_expires_at": "2026-09-10T12:09:30.000Z",
+          "ca_trust_mode": "system",
+          "contract_digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+          "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "fallbacks_used": [],
+          "items": {
+            "cli_auth:higgsfield": {
+              "kind": "cli_auth",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_auth",
+              "state": "ready"
+            },
+            "dependency_cache": {
+              "kind": "dependency_cache",
+              "reason": "ready",
+              "required": false,
+              "requirement_id": "dependency_cache",
+              "state": "ready"
+            },
+            "disk_capacity": {
+              "kind": "disk_capacity",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "disk_capacity",
+              "state": "ready"
+            },
+            "local_cli:higgsfield": {
+              "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "kind": "local_cli",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_cli",
+              "state": "ready",
+              "version": "1.1.20"
+            },
+            "managed_node_runtime": {
+              "kind": "managed_node_runtime",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "managed_node_runtime",
+              "source": "ambient",
+              "state": "ready",
+              "version": "22.23.2"
+            },
+            "media_tool:ffmpeg": {
+              "kind": "media_tool",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "ffmpeg",
+              "state": "ready",
+              "version": "8.1.1"
+            },
+            "media_tool:ffprobe": {
+              "kind": "media_tool",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "ffprobe",
+              "state": "ready",
+              "version": "8.1.1"
+            },
+            "npm_registry_tls": {
+              "ca_trust_mode": "system",
+              "kind": "npm_registry_tls",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "npm_registry_tls",
+              "state": "ready"
+            },
+            "npm_runtime": {
+              "kind": "npm_runtime",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "npm_runtime",
+              "state": "ready",
+              "version": "10.9.8"
+            },
+            "provider_model_access:higgsfield": {
+              "kind": "provider_model_access",
+              "reason": "ready",
+              "required": true,
+              "requirement_id": "higgsfield_model_access",
+              "state": "ready"
+            }
+          },
+          "machine_id": "mac-mini-a",
+          "machine_label": "Mac mini (studio)",
+          "profile_id": "visual-evidence-remotion-compositor.machine.v1",
+          "required_skipped": []
+        },
+        "ok": true
+      }
+    },
+    "required_cli_missing": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:59:30.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T12:00:00.000Z",
+            "kind": "local_cli",
+            "status": "missing"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "item": "higgsfield_cli",
+        "ok": false,
+        "reason": "required_capability_not_ready",
+        "state": "missing"
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "ok": false,
+        "setupRequired": {
+          "actions": [
+            "open_setup",
+            "recheck",
+            "cancel"
+          ],
+          "code": "setup_required",
+          "contract": {
+            "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+            "profile_id": "visual-evidence-remotion-compositor.machine.v1"
+          },
+          "items": [
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "dependency_cache",
+              "fallback": "Dependencies will be downloaded from the registry during the run",
+              "id": "dependency_cache",
+              "instructions": [
+                "Optional: a verified npm cache lets the project install offline."
+              ],
+              "label": "Offline dependency cache",
+              "reason": "ready",
+              "required": false,
+              "setupTitle": "Warm the npm cache",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "free_disk",
+                "recheck"
+              ],
+              "capability_key": "disk_capacity",
+              "fallback": null,
+              "id": "disk_capacity",
+              "instructions": [
+                "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+              ],
+              "label": "Free disk space",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Free up disk space",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffmpeg",
+              "fallback": null,
+              "id": "ffmpeg",
+              "instructions": [
+                "ffmpeg is required to encode the final video."
+              ],
+              "label": "ffmpeg",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffmpeg",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffprobe",
+              "fallback": null,
+              "id": "ffprobe",
+              "instructions": [
+                "ffprobe is required to verify the final video."
+              ],
+              "label": "ffprobe",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install ffprobe",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "cli_auth:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_auth",
+              "instructions": [
+                "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+              ],
+              "label": "Higgsfield account",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Sign in to Higgsfield",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_cli",
+                "recheck"
+              ],
+              "capability_key": "local_cli:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_cli",
+              "instructions": [
+                "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+              ],
+              "label": "Higgsfield CLI",
+              "reason": "missing",
+              "required": true,
+              "setupTitle": "Install the Higgsfield CLI",
+              "state": "missing",
+              "stateLabel": "Not installed"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "provider_model_access:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_model_access",
+              "instructions": [
+                "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+              ],
+              "label": "Required model access",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Confirm Kling model access",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "managed_node_runtime",
+              "fallback": null,
+              "id": "managed_node_runtime",
+              "instructions": [
+                "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+              ],
+              "label": "Node runtime",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported Node runtime",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "npm_registry_tls",
+              "fallback": null,
+              "id": "npm_registry_tls",
+              "instructions": [
+                "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+                "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+              ],
+              "label": "npm registry connection",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Fix the npm registry connection",
+              "state": "ready",
+              "stateLabel": "Ready"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "npm_runtime",
+              "fallback": null,
+              "id": "npm_runtime",
+              "instructions": [
+                "npm 10.8 or newer must ship with the selected Node runtime."
+              ],
+              "label": "npm",
+              "reason": "ready",
+              "required": true,
+              "setupTitle": "Install a supported npm",
+              "state": "ready",
+              "stateLabel": "Ready"
+            }
+          ],
+          "machine": {
+            "id": "mac-mini-a",
+            "label": "Mac mini (studio)",
+            "online": true
+          },
+          "reason": "required_capability_not_ready",
+          "title": "Setup required before this agent can run."
+        }
+      }
+    },
+    "stale_attestation": {
+      "attestation": {
+        "attestation_type": "machine_capability_readiness",
+        "attestation_version": 1,
+        "checked_at": "2026-09-10T11:49:00.000Z",
+        "executor_env_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "items": {
+          "cli_auth:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "cli_auth",
+            "status": "ready"
+          },
+          "dependency_cache": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "dependency_cache",
+            "status": "ready"
+          },
+          "disk_capacity": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "free_bytes": 214748364800,
+            "kind": "disk_capacity",
+            "status": "ready"
+          },
+          "local_cli:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "executable_identity_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "local_cli",
+            "status": "ready",
+            "version": "1.1.20"
+          },
+          "managed_node_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "managed_node_runtime",
+            "source": "ambient",
+            "status": "ready",
+            "supports_system_ca": true,
+            "version": "22.23.2"
+          },
+          "media_tool:ffmpeg": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "media_tool:ffprobe": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "media_tool",
+            "status": "ready",
+            "version": "8.1.1"
+          },
+          "npm_registry_tls": {
+            "ca_trust_mode": "bundled",
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_registry_tls",
+            "status": "ready"
+          },
+          "npm_runtime": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "npm_runtime",
+            "status": "ready",
+            "version": "10.9.8"
+          },
+          "provider_model_access:higgsfield": {
+            "checked_at": "2026-09-10T11:59:30.000Z",
+            "kind": "provider_model_access",
+            "models_available": [
+              "kling3_0",
+              "minimax-2"
+            ],
+            "status": "ready"
+          }
+        },
+        "machine_id": "mac-mini-a",
+        "worker_version": "0.4.7"
+      },
+      "expect": {
+        "ok": false,
+        "reason": "attestation_stale"
+      },
+      "machine": {
+        "id": "mac-mini-a",
+        "label": "Mac mini (studio)",
+        "online": true
+      },
+      "verdict": {
+        "ok": false,
+        "setupRequired": {
+          "actions": [
+            "open_setup",
+            "recheck",
+            "cancel"
+          ],
+          "code": "setup_required",
+          "contract": {
+            "digest": "1289aa4fee74f1f7109a937e61b1c3c7440a3742ea7f01fc7a1dd1b8a619b07c",
+            "profile_id": "visual-evidence-remotion-compositor.machine.v1"
+          },
+          "items": [
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "dependency_cache",
+              "fallback": "Dependencies will be downloaded from the registry during the run",
+              "id": "dependency_cache",
+              "instructions": [
+                "Optional: a verified npm cache lets the project install offline."
+              ],
+              "label": "Offline dependency cache",
+              "reason": "stale",
+              "required": false,
+              "setupTitle": "Warm the npm cache",
+              "state": "stale",
+              "stateLabel": "Check expired"
+            },
+            {
+              "actions": [
+                "free_disk",
+                "recheck"
+              ],
+              "capability_key": "disk_capacity",
+              "fallback": null,
+              "id": "disk_capacity",
+              "instructions": [
+                "At least 20 GB must be free on the drive that holds the Implexa Agents folder."
+              ],
+              "label": "Free disk space",
+              "reason": "stale",
+              "required": true,
+              "setupTitle": "Free up disk space",
+              "state": "stale",
+              "stateLabel": "Check expired"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffmpeg",
+              "fallback": null,
+              "id": "ffmpeg",
+              "instructions": [
+                "ffmpeg is required to encode the final video."
+              ],
+              "label": "ffmpeg",
+              "reason": "stale",
+              "required": true,
+              "setupTitle": "Install ffmpeg",
+              "state": "stale",
+              "stateLabel": "Check expired"
+            },
+            {
+              "actions": [
+                "install_media_tools",
+                "recheck"
+              ],
+              "capability_key": "media_tool:ffprobe",
+              "fallback": null,
+              "id": "ffprobe",
+              "instructions": [
+                "ffprobe is required to verify the final video."
+              ],
+              "label": "ffprobe",
+              "reason": "stale",
+              "required": true,
+              "setupTitle": "Install ffprobe",
+              "state": "stale",
+              "stateLabel": "Check expired"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "cli_auth:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_auth",
+              "instructions": [
+                "Sign in to the Higgsfield CLI on this Mac. Implexa only checks account status; it never signs in for you or reads the credential."
+              ],
+              "label": "Higgsfield account",
+              "reason": "stale",
+              "required": true,
+              "setupTitle": "Sign in to Higgsfield",
+              "state": "stale",
+              "stateLabel": "Check expired"
+            },
+            {
+              "actions": [
+                "install_cli",
+                "recheck"
+              ],
+              "capability_key": "local_cli:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_cli",
+              "instructions": [
+                "Install the Higgsfield CLI so it is on the PATH Implexa gives agents (not only your terminal)."
+              ],
+              "label": "Higgsfield CLI",
+              "reason": "stale",
+              "required": true,
+              "setupTitle": "Install the Higgsfield CLI",
+              "state": "stale",
+              "stateLabel": "Check expired"
+            },
+            {
+              "actions": [
+                "sign_in_cli",
+                "recheck"
+              ],
+              "capability_key": "provider_model_access:higgsfield",
+              "fallback": null,
+              "id": "higgsfield_model_access",
+              "instructions": [
+                "Your Higgsfield account must be able to see the Kling 3.0 model. Readiness only lists models; it never generates."
+              ],
+              "label": "Required model access",
+              "reason": "stale",
+              "required": true,
+              "setupTitle": "Confirm Kling model access",
+              "state": "stale",
+              "stateLabel": "Check expired"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "managed_node_runtime",
+              "fallback": null,
+              "id": "managed_node_runtime",
+              "instructions": [
+                "Install the Implexa-managed Node runtime, or Node 22.19+ / 24.6+ on this Mac."
+              ],
+              "label": "Node runtime",
+              "reason": "stale",
+              "required": true,
+              "setupTitle": "Install a supported Node runtime",
+              "state": "stale",
+              "stateLabel": "Check expired"
+            },
+            {
+              "actions": [
+                "recheck"
+              ],
+              "capability_key": "npm_registry_tls",
+              "fallback": null,
+              "id": "npm_registry_tls",
+              "instructions": [
+                "This Mac must reach registry.npmjs.org over strictly verified TLS from the exact Node runtime the agent uses.",
+                "Implexa tries Node's bundled certificates first, then the macOS system trust store. Neither may be disabled."
+              ],
+              "label": "npm registry connection",
+              "reason": "stale",
+              "required": true,
+              "setupTitle": "Fix the npm registry connection",
+              "state": "stale",
+              "stateLabel": "Check expired"
+            },
+            {
+              "actions": [
+                "install_runtime",
+                "recheck"
+              ],
+              "capability_key": "npm_runtime",
+              "fallback": null,
+              "id": "npm_runtime",
+              "instructions": [
+                "npm 10.8 or newer must ship with the selected Node runtime."
+              ],
+              "label": "npm",
+              "reason": "stale",
+              "required": true,
+              "setupTitle": "Install a supported npm",
+              "state": "stale",
+              "stateLabel": "Check expired"
+            }
+          ],
+          "machine": {
+            "id": "mac-mini-a",
+            "label": "Mac mini (studio)",
+            "online": true
+          },
+          "reason": "attestation_stale",
+          "title": "Setup required before this agent can run."
+        }
+      }
+    }
+  },
+  "setupModal": {
+    "actions": [
+      "open_setup",
+      "recheck",
+      "cancel"
+    ],
+    "stateLabels": {
+      "missing": "Not installed",
+      "model_unavailable": "Required model access not verified",
+      "not_checked": "Not checked yet",
+      "stale": "Check expired",
+      "tls_failed": "Secure connection failed",
+      "unauthenticated": "Not connected"
+    },
+    "title": "Setup required before this agent can run."
+  }
+}

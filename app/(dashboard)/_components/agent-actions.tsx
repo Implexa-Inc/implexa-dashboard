@@ -31,6 +31,8 @@ import { getAgentNoteDraft, clearAgentNoteDraft } from '@/lib/agent-note-draft';
 import { AttachFiles, composeNoteWithFiles, desktopBridge, fileName, useRunAttachments,
   type DeferredRunInputSelection } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
+import SetupRequiredCard from './setup-required-card';
+import { parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
 import {
   acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
   resolvePickerResult, revisionAuthorityIssue, serializeArtifactBindings,
@@ -177,6 +179,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // something the engine it would run on doesn't have. Not an error state — a choice
   // (switch engine / grant it / run anyway), so it renders as a card, not a failure.
   const [capCard, setCapCard] = useState<CapabilityCardData | null>(null);
+  // MACHINE-CAPABILITY ADMISSION (backend 0346): the typed "Setup required"
+  // refusal. Raised by POST /me/run-admission at the click, or by the request
+  // itself; either way nothing was queued. Recheck continues the SAME Run.
+  const [setupCard, setSetupCard] = useState<SetupRequiredCardData | null>(null);
   const typedFields = orderedInputFields(inputContract);
   // TWO LAYERS, kept apart on purpose (see lib/run-input-defaults).
   //   inputDefaults  — what the user SAVED in Setup. Reused on every run.
@@ -677,7 +683,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     } catch { return { fingerprint: null, duplicate: null }; }
   }
 
-  async function doQueue(note?: string, opts?: { force?: boolean; fingerprint?: string | null }) {
+  async function doQueue(note?: string, opts?: { force?: boolean; fingerprint?: string | null; admitted?: boolean }) {
     if (state === 'queuing' || state === 'running') return;
     // Remember the note BEFORE the duplicate check can early-return, or "Run again
     // anyway" replays the run with the note dropped — silently different work.
@@ -700,8 +706,25 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     setState('queuing');
     setMsg('');
     setCapCard(null);
+    setSetupCard(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      // The machine the Desktop bridge says it is — a NAME the backend resolves
+      // against its own reports, never a readiness claim. Absent on plain web.
+      const executionMachineId = await desktopBridge()?.executionMachineId?.().catch(() => null) ?? null;
+      // ADMISSION BEFORE CREATION (0346). Ask the backend whether the selected
+      // machine can run this version before a request, run or launch exists.
+      // The request itself re-runs the same decision, so this cannot be skipped
+      // to gain anything; it exists so the modal appears IMMEDIATELY at the click.
+      if (!opts?.admitted) {
+        const admission = await callBackend('/api/v2/me/run-admission', {
+          jwt: session?.access_token, method: 'POST',
+          body: { workflowSlug: slug, ...(workflowVersionId ? { workflowVersionId } : {}), ...(executionMachineId ? { executionMachineId } : {}) },
+        });
+        if (!(admission?.ok === true && admission?.admitted === true)) {
+          throw new Error(admission?.reason ? `Implexa could not verify this computer’s readiness (${admission.reason}). Nothing was queued.` : 'Implexa could not verify this computer’s readiness. Nothing was queued.');
+        }
+      }
       const res = await callBackend('/api/v2/me/run-requests', {
         jwt: session?.access_token,
         method: 'POST',
@@ -726,6 +749,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             } : {}),
           } : {}),
           ...(pendingUpdate && runInstalledVersionConfirmed ? { allowSupersededInstalledVersion: true } : {}),
+          ...(executionMachineId ? { executionMachineId } : {}),
         },
       });
       if (res?.ok === true && res?.preparing === true && typeof res?.preparation?.id === 'string') {
@@ -806,6 +830,15 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         setState('idle');
         setMsg('');
         setCapCard(cap as CapabilityCardData);
+        return;
+      }
+      // "Setup required before this agent can run." — a decision, not an error.
+      // The modal shows what is missing on WHICH computer; nothing was queued.
+      const setup = parseSetupRequired(e);
+      if (setup) {
+        setState('idle');
+        setMsg('');
+        setSetupCard(setup);
         return;
       }
       setState('error');
@@ -955,6 +988,26 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             // it, a run that hit a capability gate and was then forced through would
             // be stored unstamped and never recognised as a duplicate later.
             onRetry={(o) => doQueue(lastNote.current, { ...o, fingerprint: lastFingerprint.current })}
+          />
+        )}
+      </Modal>
+      {/* SETUP REQUIRED (backend 0346). Rendered the instant the backend refuses
+          admission for the selected computer. Recheck re-asks the backend and,
+          on admission, continues the SAME Run — same note, same inputs, exactly
+          once (admitted:true skips the redundant pre-check; the request re-runs
+          the decision server-side regardless). */}
+      <Modal
+        open={!!setupCard}
+        onClose={() => setSetupCard(null)}
+        title="Setup required before this agent can run."
+      >
+        {setupCard && (
+          <SetupRequiredCard
+            card={setupCard}
+            slug={slug}
+            workflowVersionId={workflowVersionId}
+            onAdmitted={async () => { setSetupCard(null); await doQueue(lastNote.current, { fingerprint: lastFingerprint.current, admitted: true }); }}
+            onCancel={() => setSetupCard(null)}
           />
         )}
       </Modal>
