@@ -48,6 +48,7 @@ import MakeRecurring from '../../_components/make-recurring';
 import RunChainSuggestions from '../../_components/run-chain-suggestions';
 import { EngineOverrideBanner } from '../../_components/engine-override-banner';
 import { FinalizeRecoveredButton } from '../../_components/finalize-recovered-button';
+import PreservedWorkContinuation from '../../_components/preserved-work-continuation';
 import { deriveRecoveredWork } from '@/lib/run-recovery';
 import { RunJudgmentCard, type JudgeRepairRequest, type RunJudgment } from '../../_components/run-judgment-card';
 import { RunJudgmentPending } from '../../_components/run-judgment-pending';
@@ -1186,6 +1187,7 @@ export default async function RunDetailPage({
                   This run reported {recovered.stepCount} step{recovered.stepCount === 1 ? '' : 's'} and stopped before the trace showed completion.
                   Implexa will not offer “Mark as done.” Continue only through a typed recovery action that verifies and reuses the preserved work.
                 </p>
+                <PreservedWorkContinuation runId={r.id} />
               </div>
             ))}
             {/* Distinct from "Run again" below: same request, frozen inputs,
@@ -1197,7 +1199,9 @@ export default async function RunDetailPage({
             <div className="mt-4 flex flex-wrap gap-3">
               {/* Restarting a superseded attempt would race the run that is
                   actually carrying this production node. */}
-              {!supersededByRelated && !suppressDuplicateRetry(recoveryPresentation) && (
+              {!supersededByRelated
+                && !(recovered.recoverable && !recovered.looksComplete)
+                && !suppressDuplicateRetry(recoveryPresentation) && (
                 <StuckRunButton
                   engine={executionContext?.executor || 'claude'}
                   threadId={executionContext?.thread_id}

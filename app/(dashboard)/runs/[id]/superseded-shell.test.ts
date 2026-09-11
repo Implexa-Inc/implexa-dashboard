@@ -54,7 +54,7 @@ test('"Run again" is withheld once the parent settled the node as a success', ()
     'the only "Run again" control is gated on lineage and on authoritative recovery evidence');
   // And restarting a superseded attempt would race the run actually carrying
   // the node, so the stuck-run control is withheld too.
-  assert.match(PAGE, /\{!supersededByRelated && !suppressDuplicateRetry\(recoveryPresentation\) && \(\s*\n\s*<StuckRunButton/);
+  assert.match(PAGE, /\{!supersededByRelated[\s\S]*?!suppressDuplicateRetry\(recoveryPresentation\) && \(\s*\n\s*<StuckRunButton/);
 });
 
 test('redirecting to the authoritative run is preferred, but only when nothing is lost', () => {

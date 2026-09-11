@@ -31,6 +31,14 @@ test('the finalize action renders only when the recovered trace looks complete',
   const incomplete = block.slice(block.indexOf('Partial work is preserved — continuation required'));
   assert.doesNotMatch(incomplete, /FinalizeRecoveredButton/,
     'an incomplete trace must never offer manual finalization');
+  assert.match(incomplete, /<PreservedWorkContinuation runId=\{r\.id\} \/>/,
+    'an incomplete trace must offer the managed typed continuation');
+});
+
+test('partial preserved work never falls back to a generic attended Codex task', () => {
+  assert.match(page, /!\(recovered\.recoverable && !recovered\.looksComplete\)[\s\S]*?<StuckRunButton/,
+    'the generic Open-in-Codex escape hatch must be hidden when the typed continuation is available');
+  assert.match(page, /import PreservedWorkContinuation from '\.\.\/\.\.\/_components\/preserved-work-continuation'/);
 });
 
 test('an incomplete trace is not advertised as a deterministic continuation', () => {
