@@ -23,6 +23,27 @@ The Desktop main process is the trusted local custody producer, authenticated to
 
 Each decision requires four bounded fields: chosen, why, process, desiredBehavior. They are retained structurally and projected as the selected quality reference's bounded summary. A timestamp maps to a full-frame PNG (maximum 1280px capture edge, 8 MiB), with a hash, dimensions, timestamp anchor digest and exact source custody receipt. This slice deliberately refuses clips, crops, contact sheets and other unsupported derivatives as local evidence. Negative/contrast examples can be coach-accepted evidence without becoming positive examples.
 
+### Dashboard ↔ Desktop local-training bridge v1
+
+Dashboard requires `window.implexaDesktop.trainingLocalContractVersion === '1'` and fails closed on an absent or different version. Every call uses `trainingLocal(operation, args)` and returns `{ok:true,...}` or `{ok:false,reason}`. The v1 operations are:
+
+| Operation | Arguments | Successful identity-bearing result |
+| --- | --- | --- |
+| `home` | `{slug}` | existing authenticated Training home |
+| `scope` | `{slug,sessionId?}` | `{scope:{agent:{name?,currentVersionId},session?:{sessionId,baseVersionId,terminal}}}` |
+| `create` | `{slug,key}` | `{sessionId}` |
+| `select` | `{sessionId,consent}`; native picker supplies the path | registered source result |
+| `list` | `{sessionId}` | sources with local `token`/optional basename `localName`; `failedDrafts` and `pendingDecisions` each carry typed `retryable` and `reason` |
+| `preview` | `{token,timeMs}` | a transient PNG for the exact source/timestamp |
+| `annotate` | immutable draft body | registered competence draft |
+| `decisionPreview` | `{token,recordId}` | `{image,recordId,recordDigest}` for the persisted, hash-verified derivative—not a fresh frame |
+| `accept` | `{token,recordId,expectedDigest}` | accepted immutable event |
+| `revoke` | `{token,recordId,expectedDigest}` | `{recordId,recordDigest,state:'revoked',receiptDigest}` after custody revalidation |
+| `register`, `retryDraft` | the preserved token/key | replay of only a `retryable:true` local item |
+| `discardDraft` | `{token,decisionKey?}` | `{discarded:true}` for a local-only source/decision alias; never deletes backend evidence |
+
+Dashboard calls `scope` before every local disclosure or evidence mutation. A session whose immutable `baseVersionId` no longer equals the agent's authenticated `currentVersionId` remains preserved but becomes read-only. Preview authority is the triple `(token,timeMs,image)`; changing source or timestamp invalidates it. Acceptance is unavailable until `decisionPreview` returns the exact `recordId` and `recordDigest` and the Coach explicitly confirms that evidence. Permanent duplicate/verification refusals never render a Retry control.
+
 Identical key replay returns the immutable record. A different key for an identical source/decision refuses as a duplicate rather than silently binding an unrecorded alias. Desktop saves submission bodies before sending, so a lost response can be retried after restart. Failed verification and failed annotation drafts remain local. Source mutation, missing source, active writer, mismatched PNG, scope mismatch, expired governance, absent consent or absent handling receipts fail closed. No UI claims an agent is “trained.”
 
 Manager only chooses evidence matching its existing exact-version coverage policy. A newly accepted decision that does not match that policy remains unselected. Original source custody must remain available on the execution machine. Transfer to another machine, URL ingestion, screen capture, automatic learning, and agent version publication are outside this slice.
@@ -34,7 +55,7 @@ Manager only chooses evidence matching its existing exact-version coverage polic
 - Existing backend training/competence unit suites: 74 passed; new service tests: 2 passed.
 - Desktop custody and Manager unit tests: 38 passed. Mutation suite kills removal of expected source identity and active-writer checks.
 - Backend mutation suite kills removal of consent, owner and unsupported-derivative checks.
-- Dashboard TypeScript and production build passed.
+- Dashboard full suite passed 1,849/1,849, including ten real-DOM local-ingress tests. TypeScript and production build passed. The local-ingress mutation harness killed 13/13 regressions with zero survivors.
 - Desktop packaging module smoke passed in `local-pack` mode: actual declared file set, ASAR/source digest checks and require graph. Full offline Electron packaging is **not verified**: default pack lacks the cached Electron download; explicitly using node_modules/electron/dist reports a corrupt/incomplete Electron distribution. These are environment failures, not test regressions. No signing/network guard was bypassed.
 
 Commands (from respective isolated worktrees):
@@ -51,6 +72,8 @@ npm run smoke:packaged-training-local
 # Dashboard
 npx tsc --noEmit
 npm run build
+npm test
+npm run test:training-local-mutations
 ```
 
 No live authenticated Dashboard/Electron interaction or production acceptance was performed. The real Mac Mini accepted baseline was not read or modified. The fixture uses generated media and synthetic database records, not the compositor.
