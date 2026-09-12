@@ -170,7 +170,7 @@ test('active-version drift is detected before evidence access and blocks the old
 });
 
 test('version transition requires coach confirmation, exact-source re-selection, and a fresh successor draft', async () => {
-  const { rendered, calls, setCurrentVersion } = await renderedWith({ state: 'accepted', stages: ['planning', 'build', 'preview', 'qa'] });
+  const { rendered, calls, setCurrentVersion } = await renderedWith({ state: 'accepted', stages: ['planning', 'build', 'preview', 'qa'], managerCoverage: coverage() });
   try {
     setCurrentVersion(VERSION_B);
     await rendered.click(rendered.getByText('Review accepted evidence'));
@@ -186,6 +186,8 @@ test('version transition requires coach confirmation, exact-source re-selection,
     assert.match(String(create.args.key), /^[a-f0-9-]{36}$/);
     assert.match(rendered.text(), /records below remain bound to 11111111/);
     assert.match(rendered.text(), /Re-add source SHA-256 bbbbbbbb/);
+    assert.doesNotMatch(rendered.text(), /This immutable agent version has Manager coverage/, 'old-version readiness cannot transfer to the successor');
+    assert.match(rendered.text(), /Manager coverage status unavailable/, 'a stale old-version projection fails closed until new-version records and coverage exist');
     assert.equal((rendered.getByText('Prepare new-version successor draft') as HTMLButtonElement).disabled, true, 'an old token cannot cross versions');
 
     const consent = rendered.getByText(/I created this source and consent/).closest('label')!.querySelector('input')!;
