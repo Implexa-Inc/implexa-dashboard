@@ -71,6 +71,9 @@ function harness(options: {
   managerCoverage?: Record<string, unknown>;
   successorSha?: string;
   successorBaseVersion?: string;
+  successorCreatedBaseVersion?: string;
+  successorParentSessionId?: string | null;
+  includeCurrentSession?: boolean;
 } = {}) {
   const calls: Call[] = [];
   let currentVersion = options.currentVersion === undefined ? VERSION_A : options.currentVersion;
@@ -81,9 +84,14 @@ function harness(options: {
     trainingLocal: async (operation: string, unknownArgs: unknown) => {
       const args = (unknownArgs || {}) as Record<string, unknown>;
       calls.push({ operation, args });
-      if (operation === 'home') return { ok: true, home: { agent: { name: 'Video craft', currentVersionId: currentVersion }, recentSessions: [{ sessionId: SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_A } }] } };
-      if (operation === 'scope') return { ok: true, scope: { agent: { name: 'Video craft', currentVersionId: currentVersion }, ...(args.sessionId ? { session: { sessionId: String(args.sessionId), baseVersionId: args.sessionId === NEW_SESSION ? (options.successorBaseVersion || currentVersion) : VERSION_A, terminal: false } } : {}) } };
-      if (operation === 'create') return { ok: true, sessionId: NEW_SESSION };
+      if (operation === 'home') return { ok: true, home: { agent: { name: 'Video craft', currentVersionId: currentVersion }, recentSessions: [...(options.includeCurrentSession ? [{ sessionId: NEW_SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_B } }] : []), { sessionId: SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_A } }] } };
+      if (operation === 'scope') return { ok: true, scope: { agent: { name: 'Video craft', currentVersionId: currentVersion }, ...(args.sessionId ? { session: { sessionId: String(args.sessionId), baseVersionId: args.sessionId === NEW_SESSION ? (options.successorBaseVersion || currentVersion) : VERSION_A, parentSessionId: args.sessionId === NEW_SESSION ? (options.successorParentSessionId === undefined ? SESSION : options.successorParentSessionId) : null, terminal: false } } : {}) } };
+      if (operation === 'create') return {
+        ok: true,
+        sessionId: NEW_SESSION,
+        baseVersionId: options.successorCreatedBaseVersion || currentVersion,
+        parentSessionId: options.successorParentSessionId === undefined ? SESSION : options.successorParentSessionId,
+      };
       if (operation === 'select' && args.sessionId === NEW_SESSION) successorSelected = true;
       if (operation === 'list') { const next = source('draft', options.stages); if (options.successorSha) next.metadata.sha256 = options.successorSha; return { ok: true, sources: args.sessionId === NEW_SESSION ? (successorSelected ? [{ ...next, decisions: [] }] : []) : [source(decisionState, options.stages)], failedDrafts: options.failedDrafts || [], pendingDecisions: options.pendingDecisions || [], managerCoverage: options.managerCoverage }; }
       if (operation === 'decisionPreview') return { ok: true, image: PNG, recordId: RECORD, recordDigest: DIGEST };
@@ -183,6 +191,7 @@ test('version transition requires coach confirmation, exact-source re-selection,
     await rendered.click(rendered.getByText('Start successor training session'));
     const create = calls.find((call) => call.operation === 'create')!;
     assert.equal(create.args.slug, 'video-craft');
+    assert.equal(create.args.parentSessionId, SESSION);
     assert.match(String(create.args.key), /^[a-f0-9-]{36}$/);
     assert.match(rendered.text(), /records below remain bound to 11111111/);
     assert.match(rendered.text(), /Re-add source SHA-256 bbbbbbbb/);
@@ -209,6 +218,44 @@ test('version transition requires coach confirmation, exact-source re-selection,
   } finally { rendered.cleanup(); }
 });
 
+test('version transition is restart-durable and retains explicit parent lineage', async () => {
+  const { rendered, calls } = await renderedWith({ currentVersion: VERSION_B, state: 'accepted', stages: ['planning', 'build', 'preview', 'qa'], managerCoverage: coverage() });
+  try {
+    assert.match(rendered.text(), /Active version: 22222222 · Session version: 11111111/);
+    assert.match(rendered.text(), /Move reviewed evidence to the active version explicitly/);
+    assert.equal((rendered.getByText('Add training source') as HTMLButtonElement).disabled, true);
+    await rendered.click(rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await rendered.click(rendered.getByText('Start successor training session'));
+    const create = calls.find((call) => call.operation === 'create')!;
+    assert.deepEqual(create.args.parentSessionId, SESSION);
+    assert.match(rendered.text(), /records below remain bound to 11111111/);
+    assert.doesNotMatch(rendered.text(), /This immutable agent version has Manager coverage/);
+  } finally { rendered.cleanup(); }
+});
+
+test('reload discovers accepted predecessor evidence behind an existing linked active-version session', async () => {
+  const { rendered, calls } = await renderedWith({ currentVersion: VERSION_B, state: 'accepted', includeCurrentSession: true });
+  try {
+    assert.match(rendered.text(), /Active version: 22222222 · Session version: 22222222/);
+    assert.doesNotMatch(rendered.text(), /Move reviewed evidence to the active version explicitly/);
+    assert.match(rendered.text(), /Recreate reviewed decisions for 22222222/);
+    assert.match(rendered.text(), /records below remain bound to 11111111/);
+    assert.match(rendered.text(), /Re-add source SHA-256 bbbbbbbb/);
+    assert.equal(calls.filter((call) => call.operation === 'scope' && call.args.sessionId === SESSION).length, 1);
+    assert.equal(calls.filter((call) => call.operation === 'list' && call.args.sessionId === SESSION).length, 1);
+    assert.equal(calls.some((call) => call.operation === 'create'), false, 'the already linked active session is reused');
+  } finally { rendered.cleanup(); }
+});
+
+test('reload never treats an unrelated active-version session as the evidence successor', async () => {
+  const { rendered } = await renderedWith({ currentVersion: VERSION_B, state: 'accepted', includeCurrentSession: true, successorParentSessionId: null });
+  try {
+    assert.match(rendered.text(), /Active version: 22222222 · Session version: 11111111/);
+    assert.match(rendered.text(), /Move reviewed evidence to the active version explicitly/);
+    assert.doesNotMatch(rendered.text(), /Recreate reviewed decisions/);
+  } finally { rendered.cleanup(); }
+});
+
 test('version successor refuses a raced version binding and never enables a different source hash', async () => {
   const raced = await renderedWith({ state: 'accepted', successorBaseVersion: VERSION_A });
   try {
@@ -232,6 +279,26 @@ test('version successor refuses a raced version binding and never enables a diff
     assert.equal((mismatched.rendered.getByText('Prepare new-version successor draft') as HTMLButtonElement).disabled, true);
     assert.equal(mismatched.calls.some((call) => call.operation === 'annotate' || call.operation === 'accept'), false);
   } finally { mismatched.rendered.cleanup(); }
+
+  const unbound = await renderedWith({ state: 'accepted', successorParentSessionId: null });
+  try {
+    unbound.setCurrentVersion(VERSION_B);
+    await unbound.rendered.click(unbound.rendered.getByText('Review accepted evidence'));
+    await unbound.rendered.click(unbound.rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await unbound.rendered.click(unbound.rendered.getByText('Start successor training session'));
+    assert.match(unbound.rendered.text(), /could not prove the successor session is linked/i);
+    assert.equal(unbound.calls.some((call) => call.operation === 'select' || call.operation === 'annotate'), false);
+  } finally { unbound.rendered.cleanup(); }
+
+  const staleCreate = await renderedWith({ state: 'accepted', successorCreatedBaseVersion: VERSION_A });
+  try {
+    staleCreate.setCurrentVersion(VERSION_B);
+    await staleCreate.rendered.click(staleCreate.rendered.getByText('Review accepted evidence'));
+    await staleCreate.rendered.click(staleCreate.rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await staleCreate.rendered.click(staleCreate.rendered.getByText('Start successor training session'));
+    assert.match(staleCreate.rendered.text(), /could not prove the successor session is linked/i);
+    assert.equal(staleCreate.calls.some((call) => call.operation === 'select' || call.operation === 'annotate'), false);
+  } finally { staleCreate.rendered.cleanup(); }
 });
 
 test('acceptance requires exact saved derivative review and explicit confirmation', async () => {

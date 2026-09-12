@@ -39,7 +39,7 @@ type Home = {
 };
 type Scope = {
   agent: { name?: string; currentVersionId: string | null };
-  session?: { sessionId: string; baseVersionId: string; terminal: boolean };
+  session?: { sessionId: string; baseVersionId: string; parentSessionId?: string | null; terminal: boolean };
 };
 type CoveragePair = { stage: string; property: string; relation: CoverageRelation };
 type ManagerCoverage = {
@@ -60,6 +60,8 @@ type Result = {
   ok: boolean;
   reason?: string;
   sessionId?: string;
+  baseVersionId?: string;
+  parentSessionId?: string | null;
   home?: Home;
   scope?: Scope;
   sources?: Source[];
@@ -201,11 +203,31 @@ export default function TrainingSource({ slug }: { slug: string }) {
       const result = await call('home', { slug });
       if (!live || !result.home) return;
       setAgentName(result.home.agent.name || slug); setCurrentVersion(result.home.agent.currentVersionId);
-      const prior = result.home.recentSessions.find((item) => item.sourceMode === 'raw_input' && !item.terminal && item.agent.baseVersionId === result.home?.agent.currentVersionId);
-      if (prior) {
-        const scoped = await call('scope', { slug, sessionId: prior.sessionId });
-        if (!live || !scoped.scope?.session || scoped.scope.session.baseVersionId !== scoped.scope.agent.currentVersionId) return;
-        setSession(prior.sessionId); rememberScope(scoped.scope); await load(prior.sessionId);
+      const open = result.home.recentSessions.filter((item) => item.sourceMode === 'raw_input' && !item.terminal);
+      const historical = open.find((item) => item.agent.baseVersionId !== result.home?.agent.currentVersionId);
+      let active: { item: Home['recentSessions'][number]; scope: Scope } | null = null;
+      for (const item of open.filter((candidate) => candidate.agent.baseVersionId === result.home?.agent.currentVersionId)) {
+        const scoped = await call('scope', { slug, sessionId: item.sessionId });
+        if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== item.sessionId
+          || scoped.scope.session.terminal || scoped.scope.session.baseVersionId !== scoped.scope.agent.currentVersionId) continue;
+        if (!historical || scoped.scope.session.parentSessionId === historical.sessionId) { active = { item, scope: scoped.scope }; break; }
+      }
+      if (active) {
+        setSession(active.item.sessionId); rememberScope(active.scope); await load(active.item.sessionId);
+        if (historical) {
+          const scoped = await call('scope', { slug, sessionId: historical.sessionId });
+          if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== historical.sessionId || scoped.scope.session.terminal
+            || scoped.scope.session.baseVersionId === scoped.scope.agent.currentVersionId) return;
+          const predecessor = await call('list', { sessionId: historical.sessionId });
+          if (live && predecessor.sources?.some((source) => source.decisions.some((decision) => decision.state === 'accepted'))) {
+            setVersionTransition({ fromVersion: scoped.scope.session.baseVersionId, sources: predecessor.sources });
+          }
+        }
+      } else if (historical) {
+        const scoped = await call('scope', { slug, sessionId: historical.sessionId });
+        if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== historical.sessionId || scoped.scope.session.terminal
+          || scoped.scope.session.baseVersionId === scoped.scope.agent.currentVersionId) return;
+        setSession(historical.sessionId); rememberScope(scoped.scope); await load(historical.sessionId); setVersionChanged(true);
       }
     });
     return () => { live = false; };
@@ -251,8 +273,11 @@ export default function TrainingSource({ slug }: { slug: string }) {
     await work('Starting a successor training session for the active version', async () => {
       const active = await call('scope', { slug });
       if (!active.scope?.agent.currentVersionId || active.scope.agent.currentVersionId !== currentVersion) throw new TrainingError('training_version_changed', 'The active version changed again. Reload before starting the successor session.');
-      const created = await call('create', { slug, key: crypto.randomUUID() });
-      if (!created.sessionId) throw new TrainingError('training_session_unavailable');
+      const predecessorSessionId = session;
+      const created = await call('create', { slug, key: crypto.randomUUID(), parentSessionId: predecessorSessionId });
+      if (!created.sessionId || created.parentSessionId !== predecessorSessionId || created.baseVersionId !== active.scope.agent.currentVersionId) {
+        throw new TrainingError('training_successor_lineage_unavailable', 'Implexa could not prove the successor session is linked to this exact prior training session. No evidence was copied.');
+      }
       const scoped = await call('scope', { slug, sessionId: created.sessionId });
       if (!scoped.scope?.session || scoped.scope.session.sessionId !== created.sessionId || scoped.scope.session.terminal
         || scoped.scope.session.baseVersionId !== active.scope.agent.currentVersionId) throw new TrainingError('training_version_changed', 'The successor session was not bound to the active immutable version.');
