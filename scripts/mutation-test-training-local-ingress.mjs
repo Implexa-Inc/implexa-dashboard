@@ -13,7 +13,11 @@ const originals = new Map([
 ]);
 
 const mutations = [
-  ['bridge-version', helperPath, "export const TRAINING_LOCAL_CONTRACT_VERSION = '1';", "export const TRAINING_LOCAL_CONTRACT_VERSION = '2';"],
+  ['bridge-version', helperPath, "export const TRAINING_LOCAL_CONTRACT_VERSION = '2';", "export const TRAINING_LOCAL_CONTRACT_VERSION = '1';"],
+  ['routing-version', helperPath, "export const TRAINING_STAGE_ROUTING_VERSION = 'manager-training-applicability.v1';", "export const TRAINING_STAGE_ROUTING_VERSION = 'manager-training-applicability.v0';"],
+  ['planning-default', helperPath, "const commonCreativeStages: TrainingStage[] = ['planning', 'build', 'preview', 'qa', 'revision'];", "const commonCreativeStages: TrainingStage[] = ['build', 'preview', 'qa', 'revision'];"],
+  ['scene-contract-default', helperPath, "if (sceneContractProperties.has(property)) stages.splice(1, 0, 'scene_contract');", "if (false) stages.splice(1, 0, 'scene_contract');"],
+  ['stage-canonical-order', helperPath, "TRAINING_STAGE_OPTIONS.map(({ value }) => value).filter((stage) => selected.has(stage));", "[...selected].filter((stage): stage is TrainingStage => true);"],
   ['preview-source', helperPath, 'preview.token === sourceToken && preview.timeMs === timeMs', 'true && preview.timeMs === timeMs'],
   ['preview-time', helperPath, 'preview.token === sourceToken && preview.timeMs === timeMs', 'preview.token === sourceToken'],
   ['version-drift', componentPath, 'result.scope.session.baseVersionId !== result.scope.agent.currentVersionId', 'false'],
@@ -26,6 +30,13 @@ const mutations = [
   ['accept-digest-wire', componentPath, "await call('accept', { token: reviewed.source.token, recordId: reviewed.decision.recordId, expectedDigest: reviewed.decision.recordDigest });", "await call('accept', { token: reviewed.source.token, recordId: reviewed.decision.recordId });"],
   ['accessible-time', componentPath, 'aria-valuetext={formatTrainingTime(time)}', 'aria-label="timestamp"'],
   ['version-negotiation', componentPath, "if (candidate.trainingLocalContractVersion !== TRAINING_LOCAL_CONTRACT_VERSION) {", 'if (false) {'],
+  ['stage-wire', componentPath, 'applicability: { taskFacts: [], stages: normalizeTrainingStages(stages), exceptions: [], priority: 50 },', "applicability: { taskFacts: [], stages: ['preview'], exceptions: [], priority: 50 },"],
+  ['empty-stage-gate', componentPath, 'stages.length === 0 ||', 'false ||'],
+  ['coverage-identity-gate', componentPath, "managerCoverage.workflowVersionId === sessionVersion", 'true'],
+  ['coverage-count-gate', componentPath, "managerCoverage.acceptedLocalRecordCount === acceptedEvidenceCount", 'true'],
+  ['coverage-classified-gate', componentPath, 'managerCoverage.classified', 'true'],
+  ['coverage-pair-gate', componentPath, 'managerCoverage.acceptedPairs.every((pair) => managerCoverage.coveredPairs.some((covered) => coveragePairKey(covered) === coveragePairKey(pair)))', 'true'],
+  ['successor-repreview', componentPath, 'setSelected(source); setTime(decision.content.anchor.startMs); setPreview(null); setReviewed(null);', "setSelected(source); setTime(decision.content.anchor.startMs); setPreview({ token: source.token!, timeMs: decision.content.anchor.startMs, image: 'stale' }); setReviewed(null);"],
 ];
 
 const stale = mutations.filter(([, file, from]) => originals.get(file).split(from).length !== 2);

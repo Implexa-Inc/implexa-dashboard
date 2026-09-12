@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { render, type Rendered } from '../../../../lib/test/render.ts';
-import { formatTrainingTime, previewMatches, TRAINING_LOCAL_CONTRACT_VERSION } from '../../../../lib/training-local-ingress.ts';
+import { deriveTrainingStages, formatTrainingTime, normalizeTrainingStages, previewMatches, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
 
 const VERSION_A = '11111111-1111-4111-8111-111111111111';
 const VERSION_B = '22222222-2222-4222-8222-222222222222';
@@ -15,7 +15,7 @@ const PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
 type Call = { operation: string; args: Record<string, unknown> };
 
-function decision(state: 'draft' | 'accepted' = 'draft') {
+function decision(state: 'draft' | 'accepted' = 'draft', stages: string[] = ['preview', 'build', 'qa']) {
   return {
     recordId: RECORD,
     recordDigest: DIGEST,
@@ -25,19 +25,20 @@ function decision(state: 'draft' | 'accepted' = 'draft') {
       properties: ['layout_variety'],
       summary: 'Chosen: a real map. Why: it grounds the claim. Process: download public map. Desired behavior: overlay the route.',
       anchor: { startMs: 83_125 },
+      applicability: { stages },
     },
     decision: { chosen: 'a real map', why: 'it grounds the claim', process: 'download public map', desiredBehavior: 'overlay the route' },
   };
 }
 
-function source(state: 'draft' | 'accepted' = 'draft') {
+function source(state: 'draft' | 'accepted' = 'draft', stages?: string[]) {
   return {
     sourceId: SOURCE_ID,
     sourceReferenceDigest: 'c'.repeat(64),
     token: TOKEN,
     localName: 'approved-edit.mp4',
     metadata: { durationMs: 710_667, mediaType: 'video/mp4', sha256: SOURCE_DIGEST, width: 1920, height: 1080 },
-    decisions: [decision(state)],
+    decisions: [decision(state, stages)],
   };
 }
 
@@ -46,18 +47,20 @@ function harness(options: {
   currentVersion?: string | null;
   failedDrafts?: Array<Record<string, unknown>>;
   pendingDecisions?: Array<Record<string, unknown>>;
+  stages?: string[];
+  managerCoverage?: Record<string, unknown>;
 } = {}) {
   const calls: Call[] = [];
   let currentVersion = options.currentVersion === undefined ? VERSION_A : options.currentVersion;
   let decisionState = options.state || 'draft';
   const bridge = {
-    trainingLocalContractVersion: '1',
+    trainingLocalContractVersion: '2',
     trainingLocal: async (operation: string, unknownArgs: unknown) => {
       const args = (unknownArgs || {}) as Record<string, unknown>;
       calls.push({ operation, args });
       if (operation === 'home') return { ok: true, home: { agent: { name: 'Video craft', currentVersionId: currentVersion }, recentSessions: [{ sessionId: SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_A } }] } };
       if (operation === 'scope') return { ok: true, scope: { agent: { name: 'Video craft', currentVersionId: currentVersion }, ...(args.sessionId ? { session: { sessionId: SESSION, baseVersionId: VERSION_A, terminal: false } } : {}) } };
-      if (operation === 'list') return { ok: true, sources: [source(decisionState)], failedDrafts: options.failedDrafts || [], pendingDecisions: options.pendingDecisions || [] };
+      if (operation === 'list') return { ok: true, sources: [source(decisionState, options.stages)], failedDrafts: options.failedDrafts || [], pendingDecisions: options.pendingDecisions || [], managerCoverage: options.managerCoverage };
       if (operation === 'decisionPreview') return { ok: true, image: PNG, recordId: RECORD, recordDigest: DIGEST };
       if (operation === 'accept') { decisionState = 'accepted'; return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'accepted' }; }
       if (operation === 'revoke') { decisionState = 'draft'; return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'revoked' }; }
@@ -83,8 +86,18 @@ async function setTextarea(rendered: Rendered, input: Element, value: string) {
   await rendered.act(() => { setter.call(input, value); input.dispatchEvent(new rendered.window.Event('input', { bubbles: true })); });
 }
 
+async function setSelect(rendered: Rendered, input: Element, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(rendered.window.HTMLSelectElement.prototype, 'value')!.set!;
+  await rendered.act(() => { setter.call(input, value); input.dispatchEvent(new rendered.window.Event('change', { bubbles: true })); });
+}
+
 test('timecodes and preview authority are exact to the source token and millisecond', () => {
-  assert.equal(TRAINING_LOCAL_CONTRACT_VERSION, '1');
+  assert.equal(TRAINING_LOCAL_CONTRACT_VERSION, '2');
+  assert.equal(TRAINING_STAGE_ROUTING_VERSION, 'manager-training-applicability.v1');
+  assert.deepEqual(deriveTrainingStages('motion_rhythm'), ['planning', 'build', 'preview', 'qa', 'revision']);
+  assert.deepEqual(deriveTrainingStages('layout_variety'), ['planning', 'scene_contract', 'build', 'preview', 'qa', 'revision']);
+  assert.deepEqual(normalizeTrainingStages(['planning', 'unknown', 'planning', 'qa']), ['planning', 'qa']);
+  assert.deepEqual(normalizeTrainingStages(['qa', 'planning']), ['planning', 'qa'], 'equivalent stage sets have one canonical wire order');
   assert.equal(formatTrainingTime(83_125), '01:23.125');
   assert.equal(formatTrainingTime(3_683_009), '01:01:23.009');
   assert.equal(previewMatches({ token: TOKEN, timeMs: 1000 }, TOKEN, 1000), true);
@@ -92,8 +105,8 @@ test('timecodes and preview authority are exact to the source token and millisec
   assert.equal(previewMatches({ token: TOKEN, timeMs: 1000 }, 'other-token', 1000), false, 'a frame cannot cross sources');
 });
 
-test('web, missing bridge method and wrong bridge version all fail closed with an update path', async () => {
-  for (const bridge of [null, { version: '0.0.1' }, { trainingLocalContractVersion: '0', trainingLocal: async () => ({ ok: true }) }]) {
+test('web, missing bridge method and stale bridge versions all fail closed with an update path', async () => {
+  for (const bridge of [null, { version: '0.0.1' }, { trainingLocalContractVersion: '1', trainingLocal: async () => ({ ok: true }) }]) {
     const rendered = await render('../training/[slug]/training-source.tsx', { slug: 'video-craft' }, { bridge });
     try {
       await rendered.act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
@@ -182,10 +195,97 @@ test('saving consumes the exact preview once and clears the form to prevent acci
     assert.equal(annotation.args.token, TOKEN);
     assert.equal(annotation.args.timeMs, 0);
     assert.equal((annotation.args.decision as Record<string, string>).chosen, 'answer 0');
+    assert.deepEqual(JSON.parse(JSON.stringify((annotation.args.content as { applicability: { stages: string[] } }).applicability.stages)), ['planning', 'build', 'preview', 'qa', 'revision']);
     assert.equal((rendered.getByText('Save decision draft') as HTMLButtonElement).disabled, true);
     assert.ok(Array.from(rendered.document.querySelectorAll('textarea')).every((textarea) => textarea.value === ''));
     assert.equal(rendered.document.querySelector('img[alt^="Training source frame"]'), null, 'consumed preview no longer authorizes another save');
   } finally { rendered.cleanup(); }
+});
+
+test('stage applicability is visible, derived from the property, and sent exactly as selected', async () => {
+  const { rendered, calls } = await renderedWith();
+  try {
+    await rendered.click(rendered.getByText('Annotate source'));
+    assert.match(rendered.text(), /When may the Manager use this decision/);
+    assert.match(rendered.text(), /before tools, generation, or paid actions/);
+    assert.match(rendered.text(), new RegExp(TRAINING_STAGE_ROUTING_VERSION));
+    const selects = rendered.document.querySelectorAll('select');
+    await setSelect(rendered, selects[1], 'layout_variety');
+    const planning = rendered.getByText('Plan the treatment').closest('label')!.querySelector('input') as HTMLInputElement;
+    const scenes = rendered.getByText('Design scene contracts').closest('label')!.querySelector('input') as HTMLInputElement;
+    const assets = rendered.getByText('Select assets').closest('label')!.querySelector('input') as HTMLInputElement;
+    assert.equal(planning.checked, true);
+    assert.equal(scenes.checked, true, 'layout decisions are derived as scene-contract relevant');
+    assert.equal(assets.checked, false, 'unrelated stages are not silently broadened');
+    await rendered.click(planning);
+    await rendered.click(rendered.getByText('Preview this exact frame'));
+    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
+    await rendered.click(rendered.getByText('Save decision draft'));
+    const annotation = calls.find((item) => item.operation === 'annotate')!;
+    assert.deepEqual(JSON.parse(JSON.stringify((annotation.args.content as { applicability: { stages: string[] } }).applicability.stages)), ['scene_contract', 'build', 'preview', 'qa', 'revision']);
+  } finally { rendered.cleanup(); }
+});
+
+test('a decision with no eligible Manager stage cannot be saved', async () => {
+  const { rendered, calls } = await renderedWith();
+  try {
+    await rendered.click(rendered.getByText('Annotate source'));
+    await rendered.click(rendered.getByText('Preview this exact frame'));
+    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
+    for (const label of ['Plan the treatment', 'Build the composition', 'Review previews', 'Check final quality', 'Revise from feedback']) {
+      await rendered.click(rendered.getByText(label).closest('label')!.querySelector('input')!);
+    }
+    assert.equal((rendered.getByText('Save decision draft') as HTMLButtonElement).disabled, true);
+    assert.equal(calls.some((item) => item.operation === 'annotate'), false);
+  } finally { rendered.cleanup(); }
+});
+
+test('an accepted execution-only record stays immutable and requires an independently reviewed planning successor', async () => {
+  const { rendered, calls } = await renderedWith({ state: 'accepted', stages: ['preview', 'build', 'qa'] });
+  try {
+    assert.match(rendered.text(), /cannot guide planning before tools or paid actions/);
+    await rendered.click(rendered.getByText('Review accepted evidence'));
+    assert.match(rendered.text(), /Eligible stagesBuild the composition, Review previews, Check final quality/);
+    await rendered.click(rendered.getByText('Create planning-scoped successor'));
+    assert.equal(calls.some((call) => call.operation === 'annotate' || call.operation === 'accept' || call.operation === 'revoke'), false, 'opening a successor never mutates the accepted record');
+    assert.match(rendered.text(), /Selected time 01:23.125/);
+    const save = rendered.getByText('Save decision draft') as HTMLButtonElement;
+    assert.equal(save.disabled, true, 'the immutable derivative must be previewed again before a successor can be saved');
+    const planning = rendered.getByText('Plan the treatment').closest('label')!.querySelector('input') as HTMLInputElement;
+    assert.equal(planning.checked, true);
+  } finally { rendered.cleanup(); }
+});
+
+test('server-owned Manager coverage exposes unclassified and fully covered agent versions without client inference', async () => {
+  const uncovered = { stage: 'planning', property: 'layout_variety', relation: 'contrast' };
+  const blocked = await renderedWith({ state: 'accepted', managerCoverage: { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_A, classified: false, acceptedLocalRecordCount: 1, acceptedPairs: [uncovered], coveredPairs: [], uncoveredPairs: [uncovered], readiness: 'agent_update_required', reason: 'manager_quality_coverage_unclassified_training' } });
+  try {
+    assert.match(blocked.rendered.text(), /Agent update required before this evidence can guide runs/);
+    assert.match(blocked.rendered.text(), /no Manager training-coverage policy/);
+    assert.match(blocked.rendered.text(), /Plan the treatment · layout variety · Contrastive example/);
+  } finally { blocked.rendered.cleanup(); }
+
+  const ready = await renderedWith({ state: 'accepted', managerCoverage: { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_A, classified: true, acceptedLocalRecordCount: 1, acceptedPairs: [uncovered], coveredPairs: [uncovered], uncoveredPairs: [], readiness: 'ready', reason: null } });
+  try {
+    assert.match(ready.rendered.text(), /Manager coverage for all 1 accepted stage-scoped evidence routes/);
+    assert.doesNotMatch(ready.rendered.text(), /Agent update required/);
+  } finally { ready.rendered.cleanup(); }
+});
+
+test('stale or incomplete Manager coverage can never create a false-ready claim', async () => {
+  const pair = { stage: 'planning', property: 'layout_variety', relation: 'contrast' };
+  for (const managerCoverage of [
+    { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_B, classified: true, acceptedLocalRecordCount: 1, acceptedPairs: [pair], coveredPairs: [pair], uncoveredPairs: [], readiness: 'ready', reason: null },
+    { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_A, classified: true, acceptedLocalRecordCount: 0, acceptedPairs: [], coveredPairs: [], uncoveredPairs: [], readiness: 'ready', reason: null },
+    { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_A, classified: false, acceptedLocalRecordCount: 1, acceptedPairs: [pair], coveredPairs: [pair], uncoveredPairs: [], readiness: 'ready', reason: null },
+    { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_A, classified: true, acceptedLocalRecordCount: 1, acceptedPairs: [pair], coveredPairs: [], uncoveredPairs: [], readiness: 'ready', reason: null },
+  ]) {
+    const { rendered } = await renderedWith({ state: 'accepted', managerCoverage });
+    try {
+      assert.match(rendered.text(), /Manager coverage status unavailable/);
+      assert.doesNotMatch(rendered.text(), /Manager coverage for all/);
+    } finally { rendered.cleanup(); }
+  }
 });
 
 test('accepted evidence has an explicit, confirmed revoke path', async () => {

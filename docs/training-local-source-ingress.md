@@ -23,9 +23,9 @@ The Desktop main process is the trusted local custody producer, authenticated to
 
 Each decision requires four bounded fields: chosen, why, process, desiredBehavior. They are retained structurally and projected as the selected quality reference's bounded summary. A timestamp maps to a full-frame PNG (maximum 1280px capture edge, 8 MiB), with a hash, dimensions, timestamp anchor digest and exact source custody receipt. This slice deliberately refuses clips, crops, contact sheets and other unsupported derivatives as local evidence. Negative/contrast examples can be coach-accepted evidence without becoming positive examples.
 
-### Dashboard ↔ Desktop local-training bridge v1
+### Dashboard ↔ Desktop local-training bridge v2
 
-Dashboard requires `window.implexaDesktop.trainingLocalContractVersion === '1'` and fails closed on an absent or different version. Every call uses `trainingLocal(operation, args)` and returns `{ok:true,...}` or `{ok:false,reason}`. The v1 operations are:
+Dashboard requires `window.implexaDesktop.trainingLocalContractVersion === '2'` and fails closed on an absent or different version. Every call uses `trainingLocal(operation, args)` and returns `{ok:true,...}` or `{ok:false,reason}`. V2 retains every v1 operation and adds the server-owned Manager-coverage projection to `list`:
 
 | Operation | Arguments | Successful identity-bearing result |
 | --- | --- | --- |
@@ -33,7 +33,7 @@ Dashboard requires `window.implexaDesktop.trainingLocalContractVersion === '1'` 
 | `scope` | `{slug,sessionId?}` | `{scope:{agent:{name?,currentVersionId},session?:{sessionId,baseVersionId,terminal}}}` |
 | `create` | `{slug,key}` | `{sessionId}` |
 | `select` | `{sessionId,consent}`; native picker supplies the path | registered source result |
-| `list` | `{sessionId}` | sources with local `token`/optional basename `localName`; `failedDrafts` and `pendingDecisions` each carry typed `retryable` and `reason` |
+| `list` | `{sessionId}` | sources with local `token`/optional basename `localName`; typed retry state; and `managerCoverage` as defined below |
 | `preview` | `{token,timeMs}` | a transient PNG for the exact source/timestamp |
 | `annotate` | immutable draft body | registered competence draft |
 | `decisionPreview` | `{token,recordId}` | `{image,recordId,recordDigest}` for the persisted, hash-verified derivative—not a fresh frame |
@@ -41,6 +41,32 @@ Dashboard requires `window.implexaDesktop.trainingLocalContractVersion === '1'` 
 | `revoke` | `{token,recordId,expectedDigest}` | `{recordId,recordDigest,state:'revoked',receiptDigest}` after custody revalidation |
 | `register`, `retryDraft` | the preserved token/key | replay of only a `retryable:true` local item |
 | `discardDraft` | `{token,decisionKey?}` | `{discarded:true}` for a local-only source/decision alias; never deletes backend evidence |
+
+`managerCoverage` is passed through byte-for-byte from the authenticated backend session read. Desktop and Dashboard do not derive it:
+
+```ts
+{
+  contractVersion: 'manager-training-coverage.v1';
+  workflowVersionId: string;
+  classified: boolean;
+  acceptedLocalRecordCount: number;
+  acceptedPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'}>;
+  coveredPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'}>;
+  uncoveredPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'}>;
+  readiness: 'not_applicable'|'ready'|'agent_update_required';
+  reason: null|'manager_quality_coverage_unclassified_training'|'manager_quality_coverage_incomplete_training';
+}
+```
+
+The backend computes canonical, deduplicated, sorted pairs only from current, accepted, non-revoked, non-expired local records with the exact owner, organization, agent, immutable workflow version, and task signature. Dashboard renders `agent_update_required` as a blocking remediation notice; it never claims an accepted record can guide a run merely because its local stage list contains `planning`.
+
+### Versioned stage applicability
+
+New decisions use Dashboard routing contract `manager-training-applicability.v1`. The Coach sees and explicitly controls the allowed Manager stages. Creative-property defaults include `planning`, `build`, `preview`, `qa`, and `revision`; scene-structure properties also include `scene_contract`. The UI does not silently select `asset_selection` or `render`. A Coach may deliberately narrow or expand the exact allowlist, and an empty allowlist cannot be saved.
+
+`planning` is the only stage that makes a decision eligible before tool selection, generation, or paid actions. This is necessary but not sufficient: the immutable agent version must independently declare a matching Manager v3 coverage policy for the exact `{stage, property, relation}` pair. The backend remains the authority for that intersection.
+
+Already accepted evidence is never restamped. The UI displays its persisted stages and calls out accepted records that do not contain `planning`. “Create planning-scoped successor” only pre-fills a new form. It requires a fresh exact-frame preview, draft save, exact derivative review, and explicit acceptance, producing a distinct immutable record while preserving the original digest and history.
 
 Dashboard calls `scope` before every local disclosure or evidence mutation. A session whose immutable `baseVersionId` no longer equals the agent's authenticated `currentVersionId` remains preserved but becomes read-only. Preview authority is the triple `(token,timeMs,image)`; changing source or timestamp invalidates it. Acceptance is unavailable until `decisionPreview` returns the exact `recordId` and `recordDigest` and the Coach explicitly confirms that evidence. Permanent duplicate/verification refusals never render a Retry control.
 
