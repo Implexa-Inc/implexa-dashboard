@@ -15,6 +15,7 @@ import {
 } from '@/lib/training-local-ingress';
 
 type Relation = 'accepted' | 'rejected' | 'contrast';
+type CoverageRelation = Relation | 'exception';
 type DecisionState = 'draft' | 'accepted' | 'unavailable' | 'revoked';
 type Decision = {
   recordId: string;
@@ -40,13 +41,16 @@ type Scope = {
   agent: { name?: string; currentVersionId: string | null };
   session?: { sessionId: string; baseVersionId: string; terminal: boolean };
 };
-type CoveragePair = { stage: string; property: string; relation: Relation };
+type CoveragePair = { stage: string; property: string; relation: CoverageRelation };
 type ManagerCoverage = {
   contractVersion: 'manager-training-coverage.v1';
+  scope: 'workflow_version';
   workflowVersionId: string;
   classified: boolean;
   acceptedLocalRecordCount: number;
+  listedSessionAcceptedRecordCount: number;
   acceptedPairs: CoveragePair[];
+  listedSessionAcceptedPairs: CoveragePair[];
   coveredPairs: CoveragePair[];
   uncoveredPairs: CoveragePair[];
   readiness: 'not_applicable' | 'ready' | 'agent_update_required';
@@ -79,7 +83,7 @@ class TrainingError extends Error {
 
 const bridge = () => (window as unknown as { implexaDesktop?: Bridge }).implexaDesktop;
 const shortId = (value: string | null | undefined) => value ? value.slice(0, 8) : 'none';
-const relationLabel = (relation: Relation) => ({ accepted: 'Positive example', rejected: 'Negative example', contrast: 'Contrastive example' })[relation];
+const relationLabel = (relation: CoverageRelation) => ({ accepted: 'Positive example', rejected: 'Negative example', contrast: 'Contrastive example', exception: 'Exception' })[relation];
 const reasonLabel = (reason: string) => reason.replaceAll('_', ' ');
 const coveragePairKey = (pair: CoveragePair) => `${pair.stage}:${pair.property}:${pair.relation}`;
 
@@ -87,7 +91,7 @@ function resolveBridge() {
   const candidate = bridge();
   if (!candidate?.trainingLocal) throw new TrainingError('training_desktop_required', 'Open this page in an updated Implexa Desktop to select a local training source.');
   if (candidate.trainingLocalContractVersion !== TRAINING_LOCAL_CONTRACT_VERSION) {
-    throw new TrainingError('training_desktop_update_required', 'Update Implexa Desktop before training. This page requires the local training v1 bridge.');
+    throw new TrainingError('training_desktop_update_required', 'Update Implexa Desktop before training. This page requires the local training v2 bridge.');
   }
   return candidate;
 }
@@ -128,8 +132,10 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const coverageIsCurrent = Boolean(
     managerCoverage
     && managerCoverage.contractVersion === 'manager-training-coverage.v1'
+    && managerCoverage.scope === 'workflow_version'
     && managerCoverage.workflowVersionId === sessionVersion
-    && managerCoverage.acceptedLocalRecordCount === acceptedEvidenceCount,
+    && managerCoverage.listedSessionAcceptedRecordCount === acceptedEvidenceCount
+    && managerCoverage.acceptedLocalRecordCount >= managerCoverage.listedSessionAcceptedRecordCount,
   );
   const coverageCanClaimReady = Boolean(
     coverageIsCurrent
@@ -314,9 +320,9 @@ export default function TrainingSource({ slug }: { slug: string }) {
     <label className="flex gap-3"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection. The original stays on this computer. I can revoke accepted evidence below.</label>
     <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={add}>Add training source</button>
     {busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{error && <p role="alert">{reasonLabel(error)}</p>}
-    {acceptedEvidenceCount > 0 && !coverageCanClaimReady && !coverageNeedsUpdate && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager coverage status unavailable</h2><p>Implexa cannot prove that this exact agent version can consume the accepted evidence. Update Desktop or reload after the coverage service is available. The evidence remains preserved, but this page will not describe it as ready for a run.</p></section>}
-    {coverageNeedsUpdate && managerCoverage && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Agent update required before this evidence can guide runs</h2><p>{managerCoverage.reason === 'manager_quality_coverage_unclassified_training' ? 'This version has no Manager training-coverage policy.' : 'This version does not cover every accepted evidence property, relation, and stage.'} Your accepted evidence remains immutable and preserved, but uncovered decisions cannot be selected at planning or any other uncovered stage.</p><p>Publish a new immutable agent version with Manager v3 coverage for the listed evidence. Existing accepted records will not be rewritten.</p>{managerCoverage.uncoveredPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.uncoveredPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul>}</section>}
-    {coverageCanClaimReady && managerCoverage && <p role="status" className="rounded border border-emerald-600 p-3">This agent version has Manager coverage for all {managerCoverage.acceptedPairs.length} accepted stage-scoped evidence routes.</p>}
+    {(acceptedEvidenceCount > 0 || (managerCoverage?.acceptedLocalRecordCount || 0) > 0) && !coverageCanClaimReady && !coverageNeedsUpdate && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager coverage status unavailable</h2><p>Implexa cannot prove that this exact agent version can consume the accepted evidence across its training sessions. Update Desktop or reload after the coverage service is available. The evidence remains preserved, but this page will not describe it as ready for a run.</p></section>}
+    {coverageNeedsUpdate && managerCoverage && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Agent update required before this evidence can guide runs</h2><p>{managerCoverage.reason === 'manager_quality_coverage_unclassified_training' ? 'This version has no Manager training-coverage policy.' : 'This version does not cover every accepted evidence property, relation, and stage.'} This is the version-wide result across all training sessions for this immutable agent version. Your accepted evidence remains immutable and preserved, but uncovered decisions cannot be selected at planning or any other uncovered stage.</p><p>Publish a new immutable agent version with Manager v3 coverage for the listed evidence. Existing accepted records will not be rewritten.</p>{managerCoverage.uncoveredPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.uncoveredPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul>}</section>}
+    {coverageCanClaimReady && managerCoverage && <p role="status" className="rounded border border-emerald-600 p-3">This immutable agent version has Manager coverage for all {managerCoverage.acceptedPairs.length} accepted stage-scoped evidence routes across all training sessions.</p>}
 
     {failed.map((draft) => <section key={draft.token} className="rounded border border-ink-700 p-3" aria-label="Preserved source draft"><p>Preserved source draft: {reasonLabel(draft.reason)}</p>{draft.retryable ? <button disabled={!!busy} onClick={() => work('Retrying registration', async () => { await requireCurrentScope(); await call('register', { token: draft.token }); await load(session); })}>Retry registration</button> : <p>This refusal cannot be fixed by retrying the same file. Choose a different source or discard this local draft.</p>}{!draft.retryable && <button disabled={!!busy} onClick={() => discardDraft(draft)}>Discard local draft</button>}</section>)}
     {pending.map((draft) => <section key={`${draft.token}:${draft.key}`} className="rounded border border-ink-700 p-3" aria-label="Preserved decision draft"><p>Preserved decision: {reasonLabel(draft.reason)}</p>{draft.retryable ? <button disabled={!!busy} onClick={() => work('Retrying saved decision', async () => { await requireCurrentScope(); await call('retryDraft', { token: draft.token, key: draft.key }); await load(session); })}>Retry saved decision</button> : <><p>This refusal cannot be fixed by sending the same decision again.</p><button disabled={!!busy} onClick={() => discardDraft(draft)}>Discard local draft</button></>}</section>)}

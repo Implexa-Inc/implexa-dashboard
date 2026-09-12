@@ -47,18 +47,23 @@ Dashboard requires `window.implexaDesktop.trainingLocalContractVersion === '2'` 
 ```ts
 {
   contractVersion: 'manager-training-coverage.v1';
+  scope: 'workflow_version';
   workflowVersionId: string;
   classified: boolean;
+  // Version-wide across every training session for this immutable version.
   acceptedLocalRecordCount: number;
-  acceptedPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'}>;
-  coveredPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'}>;
-  uncoveredPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'}>;
+  // Equality fence for accepted decisions returned by this session's list.
+  listedSessionAcceptedRecordCount: number;
+  acceptedPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'|'exception'}>;
+  listedSessionAcceptedPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'|'exception'}>;
+  coveredPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'|'exception'}>;
+  uncoveredPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'|'exception'}>;
   readiness: 'not_applicable'|'ready'|'agent_update_required';
   reason: null|'manager_quality_coverage_unclassified_training'|'manager_quality_coverage_incomplete_training';
 }
 ```
 
-The backend computes canonical, deduplicated, sorted pairs only from current, accepted, non-revoked, non-expired local records with the exact owner, organization, agent, immutable workflow version, and task signature. Dashboard renders `agent_update_required` as a blocking remediation notice; it never claims an accepted record can guide a run merely because its local stage list contains `planning`.
+The backend computes the coverage result version-wide from canonical, deduplicated, sorted pairs over current, accepted, non-revoked, non-expired local records with the exact owner, organization, agent, immutable workflow version, and task signature. `acceptedLocalRecordCount`, `acceptedPairs`, `coveredPairs`, `uncoveredPairs`, and readiness span every training session for that version so the page cannot claim Ready while a run would refuse evidence accepted in another session. `listedSessionAcceptedRecordCount` and `listedSessionAcceptedPairs` are equality/subset fences for accepted decisions returned in the current session list. Dashboard renders `agent_update_required` as a blocking remediation notice; it never claims an accepted record can guide a run merely because its local stage list contains `planning`.
 
 ### Versioned stage applicability
 

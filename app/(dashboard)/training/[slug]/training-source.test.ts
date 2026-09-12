@@ -42,6 +42,25 @@ function source(state: 'draft' | 'accepted' = 'draft', stages?: string[]) {
   };
 }
 
+const planningPair = { stage: 'planning', property: 'layout_variety', relation: 'contrast' };
+function coverage(overrides: Record<string, unknown> = {}) {
+  return {
+    contractVersion: 'manager-training-coverage.v1',
+    scope: 'workflow_version',
+    workflowVersionId: VERSION_A,
+    classified: true,
+    acceptedLocalRecordCount: 1,
+    listedSessionAcceptedRecordCount: 1,
+    acceptedPairs: [planningPair],
+    listedSessionAcceptedPairs: [planningPair],
+    coveredPairs: [planningPair],
+    uncoveredPairs: [],
+    readiness: 'ready',
+    reason: null,
+    ...overrides,
+  };
+}
+
 function harness(options: {
   state?: 'draft' | 'accepted';
   currentVersion?: string | null;
@@ -257,28 +276,28 @@ test('an accepted execution-only record stays immutable and requires an independ
 });
 
 test('server-owned Manager coverage exposes unclassified and fully covered agent versions without client inference', async () => {
-  const uncovered = { stage: 'planning', property: 'layout_variety', relation: 'contrast' };
-  const blocked = await renderedWith({ state: 'accepted', managerCoverage: { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_A, classified: false, acceptedLocalRecordCount: 1, acceptedPairs: [uncovered], coveredPairs: [], uncoveredPairs: [uncovered], readiness: 'agent_update_required', reason: 'manager_quality_coverage_unclassified_training' } });
+  const blocked = await renderedWith({ state: 'accepted', managerCoverage: coverage({ classified: false, coveredPairs: [], uncoveredPairs: [planningPair], readiness: 'agent_update_required', reason: 'manager_quality_coverage_unclassified_training' }) });
   try {
     assert.match(blocked.rendered.text(), /Agent update required before this evidence can guide runs/);
     assert.match(blocked.rendered.text(), /no Manager training-coverage policy/);
     assert.match(blocked.rendered.text(), /Plan the treatment · layout variety · Contrastive example/);
   } finally { blocked.rendered.cleanup(); }
 
-  const ready = await renderedWith({ state: 'accepted', managerCoverage: { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_A, classified: true, acceptedLocalRecordCount: 1, acceptedPairs: [uncovered], coveredPairs: [uncovered], uncoveredPairs: [], readiness: 'ready', reason: null } });
+  const ready = await renderedWith({ state: 'accepted', managerCoverage: coverage() });
   try {
-    assert.match(ready.rendered.text(), /Manager coverage for all 1 accepted stage-scoped evidence routes/);
+    assert.match(ready.rendered.text(), /Manager coverage for all 1 accepted stage-scoped evidence routes across all training sessions/);
     assert.doesNotMatch(ready.rendered.text(), /Agent update required/);
   } finally { ready.rendered.cleanup(); }
 });
 
 test('stale or incomplete Manager coverage can never create a false-ready claim', async () => {
-  const pair = { stage: 'planning', property: 'layout_variety', relation: 'contrast' };
   for (const managerCoverage of [
-    { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_B, classified: true, acceptedLocalRecordCount: 1, acceptedPairs: [pair], coveredPairs: [pair], uncoveredPairs: [], readiness: 'ready', reason: null },
-    { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_A, classified: true, acceptedLocalRecordCount: 0, acceptedPairs: [], coveredPairs: [], uncoveredPairs: [], readiness: 'ready', reason: null },
-    { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_A, classified: false, acceptedLocalRecordCount: 1, acceptedPairs: [pair], coveredPairs: [pair], uncoveredPairs: [], readiness: 'ready', reason: null },
-    { contractVersion: 'manager-training-coverage.v1', workflowVersionId: VERSION_A, classified: true, acceptedLocalRecordCount: 1, acceptedPairs: [pair], coveredPairs: [], uncoveredPairs: [], readiness: 'ready', reason: null },
+    coverage({ workflowVersionId: VERSION_B }),
+    coverage({ scope: 'session' }),
+    coverage({ listedSessionAcceptedRecordCount: 0, listedSessionAcceptedPairs: [] }),
+    coverage({ acceptedLocalRecordCount: 0 }),
+    coverage({ classified: false }),
+    coverage({ coveredPairs: [] }),
   ]) {
     const { rendered } = await renderedWith({ state: 'accepted', managerCoverage });
     try {
@@ -286,6 +305,26 @@ test('stale or incomplete Manager coverage can never create a false-ready claim'
       assert.doesNotMatch(rendered.text(), /Manager coverage for all/);
     } finally { rendered.cleanup(); }
   }
+});
+
+test('version-wide uncovered evidence from another session blocks false Ready in this session', async () => {
+  const otherSessionPair = { stage: 'planning', property: 'motion_rhythm', relation: 'exception' };
+  const { rendered } = await renderedWith({ managerCoverage: coverage({
+    classified: true,
+    acceptedLocalRecordCount: 1,
+    listedSessionAcceptedRecordCount: 0,
+    acceptedPairs: [otherSessionPair],
+    listedSessionAcceptedPairs: [],
+    coveredPairs: [],
+    uncoveredPairs: [otherSessionPair],
+    readiness: 'agent_update_required',
+    reason: 'manager_quality_coverage_incomplete_training',
+  }) });
+  try {
+    assert.match(rendered.text(), /version-wide result across all training sessions/);
+    assert.match(rendered.text(), /Plan the treatment · motion rhythm · Exception/);
+    assert.doesNotMatch(rendered.text(), /Manager coverage for all/);
+  } finally { rendered.cleanup(); }
 });
 
 test('accepted evidence has an explicit, confirmed revoke path', async () => {
