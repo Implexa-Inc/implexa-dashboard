@@ -1,6 +1,44 @@
 export const TRAINING_LOCAL_CONTRACT_VERSION = '2';
 export const TRAINING_STAGE_ROUTING_VERSION = 'manager-training-applicability.v1';
 
+export type TrainingEligiblePredecessor = {
+  sessionId: string;
+  baseVersionId: string;
+  acceptedLocalRecordCount: number;
+};
+
+export type TrainingSuccessorProjection = {
+  contractVersion: 'agent-training-successor-projection.v1';
+  activeVersionId: string | null;
+  eligiblePredecessor: TrainingEligiblePredecessor | null;
+};
+
+const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+const exact = (value: unknown, keys: readonly string[]): value is Record<string, unknown> => Boolean(
+  value && typeof value === 'object' && !Array.isArray(value)
+  && Object.keys(value).length === keys.length
+  && keys.every((key) => Object.hasOwn(value, key)),
+);
+
+export function isTrainingSuccessorProjection(
+  value: unknown,
+  currentVersionId: string | null,
+): value is TrainingSuccessorProjection {
+  if (!exact(value, ['contractVersion', 'activeVersionId', 'eligiblePredecessor'])
+    || value.contractVersion !== 'agent-training-successor-projection.v1'
+    || value.activeVersionId !== currentVersionId
+    || (value.activeVersionId !== null && (typeof value.activeVersionId !== 'string' || !UUID.test(value.activeVersionId)))) return false;
+  const predecessor = value.eligiblePredecessor;
+  if (predecessor === null) return true;
+  return value.activeVersionId !== null
+    && exact(predecessor, ['sessionId', 'baseVersionId', 'acceptedLocalRecordCount'])
+    && typeof predecessor.sessionId === 'string' && UUID.test(predecessor.sessionId)
+    && typeof predecessor.baseVersionId === 'string' && UUID.test(predecessor.baseVersionId)
+    && predecessor.baseVersionId !== value.activeVersionId
+    && Number.isSafeInteger(predecessor.acceptedLocalRecordCount)
+    && Number(predecessor.acceptedLocalRecordCount) > 0;
+}
+
 export const TRAINING_STAGE_OPTIONS = [
   { value: 'planning', label: 'Plan the treatment', help: 'Use before tools, generation, or paid actions are chosen.' },
   { value: 'scene_contract', label: 'Design scene contracts', help: 'Use while deciding the layout and behavior of individual scenes.' },

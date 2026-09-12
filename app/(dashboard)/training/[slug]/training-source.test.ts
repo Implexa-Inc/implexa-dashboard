@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { render, type Rendered } from '../../../../lib/test/render.ts';
-import { deriveTrainingStages, formatTrainingTime, normalizeTrainingStages, previewMatches, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
+import { deriveTrainingStages, formatTrainingTime, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
 
 const VERSION_A = '11111111-1111-4111-8111-111111111111';
 const VERSION_B = '22222222-2222-4222-8222-222222222222';
@@ -74,24 +74,47 @@ function harness(options: {
   successorCreatedBaseVersion?: string;
   successorParentSessionId?: string | null;
   includeCurrentSession?: boolean;
+  predecessorTerminal?: boolean;
+  predecessorCount?: number;
+  successorProjection?: unknown;
+  loseFirstSuccessorResponse?: boolean;
 } = {}) {
   const calls: Call[] = [];
   let currentVersion = options.currentVersion === undefined ? VERSION_A : options.currentVersion;
   let decisionState = options.state || 'draft';
   let successorSelected = false;
+  let successorCreateAttempts = 0;
   const bridge = {
     trainingLocalContractVersion: '2',
     trainingLocal: async (operation: string, unknownArgs: unknown) => {
       const args = (unknownArgs || {}) as Record<string, unknown>;
       calls.push({ operation, args });
-      if (operation === 'home') return { ok: true, home: { agent: { name: 'Video craft', currentVersionId: currentVersion }, recentSessions: [...(options.includeCurrentSession ? [{ sessionId: NEW_SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_B } }] : []), { sessionId: SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_A } }] } };
-      if (operation === 'scope') return { ok: true, scope: { agent: { name: 'Video craft', currentVersionId: currentVersion }, ...(args.sessionId ? { session: { sessionId: String(args.sessionId), baseVersionId: args.sessionId === NEW_SESSION ? (options.successorBaseVersion || currentVersion) : VERSION_A, parentSessionId: args.sessionId === NEW_SESSION ? (options.successorParentSessionId === undefined ? SESSION : options.successorParentSessionId) : null, terminal: false } } : {}) } };
-      if (operation === 'create') return {
-        ok: true,
-        sessionId: NEW_SESSION,
-        baseVersionId: options.successorCreatedBaseVersion || currentVersion,
-        parentSessionId: options.successorParentSessionId === undefined ? SESSION : options.successorParentSessionId,
-      };
+      if (operation === 'home') {
+        const projection = options.successorProjection === undefined ? {
+          contractVersion: 'agent-training-successor-projection.v1',
+          activeVersionId: currentVersion,
+          eligiblePredecessor: currentVersion === VERSION_B ? { sessionId: SESSION, baseVersionId: VERSION_A, acceptedLocalRecordCount: options.predecessorCount ?? 1 } : null,
+        } : options.successorProjection;
+        return { ok: true, home: {
+          agent: { name: 'Video craft', currentVersionId: currentVersion },
+          recentSessions: [
+            ...(options.includeCurrentSession ? [{ sessionId: NEW_SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_B } }] : []),
+            ...(currentVersion === VERSION_A ? [{ sessionId: SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_A } }] : []),
+          ],
+          successorProjection: projection,
+        } };
+      }
+      if (operation === 'scope') return { ok: true, scope: { agent: { name: 'Video craft', currentVersionId: currentVersion }, ...(args.sessionId ? { session: { sessionId: String(args.sessionId), baseVersionId: args.sessionId === NEW_SESSION ? (options.successorBaseVersion || currentVersion) : VERSION_A, parentSessionId: args.sessionId === NEW_SESSION ? (options.successorParentSessionId === undefined ? SESSION : options.successorParentSessionId) : null, terminal: args.sessionId === SESSION && options.predecessorTerminal === true } } : {}) } };
+      if (operation === 'create') {
+        successorCreateAttempts += 1;
+        if (options.loseFirstSuccessorResponse && successorCreateAttempts === 1) return { ok: false, reason: 'training_unavailable' };
+        return {
+          ok: true,
+          sessionId: NEW_SESSION,
+          baseVersionId: options.successorCreatedBaseVersion || currentVersion,
+          parentSessionId: options.successorParentSessionId === undefined ? SESSION : options.successorParentSessionId,
+        };
+      }
       if (operation === 'select' && args.sessionId === NEW_SESSION) successorSelected = true;
       if (operation === 'list') { const next = source('draft', options.stages); if (options.successorSha) next.metadata.sha256 = options.successorSha; return { ok: true, sources: args.sessionId === NEW_SESSION ? (successorSelected ? [{ ...next, decisions: [] }] : []) : [source(decisionState, options.stages)], failedDrafts: options.failedDrafts || [], pendingDecisions: options.pendingDecisions || [], managerCoverage: options.managerCoverage }; }
       if (operation === 'decisionPreview') return { ok: true, image: PNG, recordId: RECORD, recordDigest: DIGEST };
@@ -136,6 +159,11 @@ test('timecodes and preview authority are exact to the source token and millisec
   assert.equal(previewMatches({ token: TOKEN, timeMs: 1000 }, TOKEN, 1000), true);
   assert.equal(previewMatches({ token: TOKEN, timeMs: 1000 }, TOKEN, 1001), false, 'a late old frame cannot authorize the new timestamp');
   assert.equal(previewMatches({ token: TOKEN, timeMs: 1000 }, 'other-token', 1000), false, 'a frame cannot cross sources');
+  assert.equal(isTrainingSuccessorProjection({ contractVersion: 'agent-training-successor-projection.v1', activeVersionId: VERSION_B, eligiblePredecessor: { sessionId: SESSION, baseVersionId: VERSION_A, acceptedLocalRecordCount: 1 } }, VERSION_B), true);
+  assert.equal(isTrainingSuccessorProjection({ contractVersion: 'agent-training-successor-projection.v1', activeVersionId: VERSION_A, eligiblePredecessor: null }, VERSION_B), false, 'a stale server projection cannot authorize a transition');
+  assert.equal(isTrainingSuccessorProjection({ contractVersion: 'agent-training-successor-projection.v1', activeVersionId: VERSION_B, eligiblePredecessor: { sessionId: SESSION, baseVersionId: VERSION_A, acceptedLocalRecordCount: 1, extra: true } }, VERSION_B), false, 'the predecessor wire is exact');
+  assert.equal(isTrainingSuccessorProjection({ contractVersion: 'agent-training-successor-projection.v1', activeVersionId: VERSION_B, eligiblePredecessor: { sessionId: SESSION, baseVersionId: VERSION_B, acceptedLocalRecordCount: 1 } }, VERSION_B), false, 'active-version evidence is never its own predecessor');
+  assert.equal(isTrainingSuccessorProjection({ contractVersion: 'agent-training-successor-projection.v1', activeVersionId: VERSION_B, eligiblePredecessor: { sessionId: SESSION, baseVersionId: VERSION_A, acceptedLocalRecordCount: 0 } }, VERSION_B), false, 'an empty session is not adoption evidence');
 });
 
 test('web, missing bridge method and stale bridge versions all fail closed with an update path', async () => {
@@ -231,6 +259,49 @@ test('version transition is restart-durable and retains explicit parent lineage'
     assert.match(rendered.text(), /records below remain bound to 11111111/);
     assert.doesNotMatch(rendered.text(), /This immutable agent version has Manager coverage/);
   } finally { rendered.cleanup(); }
+});
+
+test('fresh reload discovers a server-owned accepted predecessor outside the capped recent-session feed', async () => {
+  const { rendered, calls } = await renderedWith({ currentVersion: VERSION_B, state: 'accepted', predecessorTerminal: true });
+  try {
+    assert.match(rendered.text(), /Active version: 22222222 · Session version: 11111111/);
+    assert.match(rendered.text(), /Move reviewed evidence to the active version explicitly/);
+    assert.equal(calls.some((call) => call.operation === 'scope' && call.args.sessionId === SESSION), true);
+    assert.equal(calls.some((call) => call.operation === 'list' && call.args.sessionId === SESSION), true);
+    assert.equal(calls.some((call) => call.operation === 'create'), false);
+  } finally { rendered.cleanup(); }
+});
+
+test('lost successor response retries with the same idempotency key and exact predecessor', async () => {
+  const { rendered, calls } = await renderedWith({ currentVersion: VERSION_B, state: 'accepted', loseFirstSuccessorResponse: true });
+  try {
+    await rendered.click(rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await rendered.click(rendered.getByText('Start successor training session'));
+    assert.match(rendered.text(), /training unavailable/i);
+    await rendered.click(rendered.getByText('Start successor training session'));
+    const creates = calls.filter((call) => call.operation === 'create');
+    assert.equal(creates.length, 2);
+    assert.equal(creates[0].args.key, creates[1].args.key);
+    assert.equal(creates[0].args.parentSessionId, SESSION);
+    assert.equal(creates[1].args.parentSessionId, SESSION);
+    assert.match(rendered.text(), /Recreate reviewed decisions for 22222222/);
+  } finally { rendered.cleanup(); }
+});
+
+test('missing, stale, or inconsistent successor discovery never becomes an adoption prompt', async () => {
+  for (const options of [
+    { currentVersion: VERSION_B, successorProjection: null },
+    { currentVersion: VERSION_B, successorProjection: { contractVersion: 'agent-training-successor-projection.v0', activeVersionId: VERSION_B, eligiblePredecessor: null } },
+    { currentVersion: VERSION_B, successorProjection: { contractVersion: 'agent-training-successor-projection.v1', activeVersionId: VERSION_A, eligiblePredecessor: null } },
+    { currentVersion: VERSION_B, predecessorCount: 2 },
+  ]) {
+    const { rendered, calls } = await renderedWith(options);
+    try {
+      assert.match(rendered.text(), /version-transition evidence projection could not be verified|training successor projection unavailable/i);
+      assert.doesNotMatch(rendered.text(), /Start successor training session/);
+      assert.equal(calls.some((call) => call.operation === 'create'), false);
+    } finally { rendered.cleanup(); }
+  }
 });
 
 test('reload discovers accepted predecessor evidence behind an existing linked active-version session', async () => {

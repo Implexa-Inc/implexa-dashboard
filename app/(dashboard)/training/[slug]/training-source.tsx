@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   deriveTrainingStages,
   formatTrainingTime,
+  isTrainingSuccessorProjection,
   normalizeTrainingStages,
   previewMatches,
   trainingStageLabel,
@@ -12,6 +13,7 @@ import {
   TRAINING_STAGE_OPTIONS,
   TRAINING_STAGE_ROUTING_VERSION,
   type TrainingStage,
+  type TrainingSuccessorProjection,
 } from '@/lib/training-local-ingress';
 
 type Relation = 'accepted' | 'rejected' | 'contrast';
@@ -36,6 +38,7 @@ type LocalDraft = { token: string; key?: string; retryable: boolean; reason: str
 type Home = {
   agent: { name?: string; currentVersionId: string | null };
   recentSessions: Array<{ sessionId: string; sourceMode: string; terminal: boolean; agent: { baseVersionId: string } }>;
+  successorProjection: TrainingSuccessorProjection;
 };
 type Scope = {
   agent: { name?: string; currentVersionId: string | null };
@@ -131,6 +134,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [pending, setPending] = useState<LocalDraft[]>([]);
   const [failed, setFailed] = useState<LocalDraft[]>([]);
   const [sessionKey] = useState(() => crypto.randomUUID());
+  const [successorSessionKey] = useState(() => crypto.randomUUID());
   const [decisionKey, setDecisionKey] = useState(() => crypto.randomUUID());
   const previewIsCurrent = useMemo(() => previewMatches(preview, selected?.token, time), [preview, selected, time]);
   const acceptedEvidenceCount = useMemo(() => sources.reduce((count, source) => count + source.decisions.filter((decision) => decision.state === 'accepted').length, 0), [sources]);
@@ -167,14 +171,23 @@ export default function TrainingSource({ slug }: { slug: string }) {
     } finally { busyRef.current = false; setBusy(''); }
   }
 
-  async function load(id: string) {
-    const result = await call('list', { sessionId: id });
+  function rememberList(result: Result) {
     const next = result.sources || [];
     setSources(next);
     setSelected((prior) => prior ? next.find((source) => source.sourceId === prior.sourceId) || null : null);
     setFailed(result.failedDrafts || []);
     setPending(result.pendingDecisions || []);
     setManagerCoverage(result.managerCoverage || null);
+  }
+
+  async function load(id: string) {
+    const result = await call('list', { sessionId: id });
+    rememberList(result);
+    return result;
+  }
+
+  function acceptedCount(result: Result) {
+    return (result.sources || []).reduce((count, source) => count + source.decisions.filter((decision) => decision.state === 'accepted').length, 0);
   }
 
   function rememberScope(scope: Scope) {
@@ -202,32 +215,49 @@ export default function TrainingSource({ slug }: { slug: string }) {
     void work('Loading training evidence', async () => {
       const result = await call('home', { slug });
       if (!live || !result.home) return;
-      setAgentName(result.home.agent.name || slug); setCurrentVersion(result.home.agent.currentVersionId);
-      const open = result.home.recentSessions.filter((item) => item.sourceMode === 'raw_input' && !item.terminal);
-      const historical = open.find((item) => item.agent.baseVersionId !== result.home?.agent.currentVersionId);
+      const home = result.home;
+      if (!isTrainingSuccessorProjection(home.successorProjection, home.agent.currentVersionId)) {
+        throw new TrainingError('training_successor_projection_unavailable', 'Update Implexa Desktop before training. The version-transition evidence projection could not be verified.');
+      }
+      const projection = home.successorProjection;
+      setAgentName(home.agent.name || slug); setCurrentVersion(projection.activeVersionId);
+      const predecessor = projection.eligiblePredecessor;
+      const open = home.recentSessions.filter((item) => item.sourceMode === 'raw_input' && !item.terminal);
       let active: { item: Home['recentSessions'][number]; scope: Scope } | null = null;
-      for (const item of open.filter((candidate) => candidate.agent.baseVersionId === result.home?.agent.currentVersionId)) {
+      for (const item of open.filter((candidate) => candidate.agent.baseVersionId === projection.activeVersionId)) {
         const scoped = await call('scope', { slug, sessionId: item.sessionId });
         if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== item.sessionId
           || scoped.scope.session.terminal || scoped.scope.session.baseVersionId !== scoped.scope.agent.currentVersionId) continue;
-        if (!historical || scoped.scope.session.parentSessionId === historical.sessionId) { active = { item, scope: scoped.scope }; break; }
+        if (!predecessor || scoped.scope.session.parentSessionId === predecessor.sessionId) { active = { item, scope: scoped.scope }; break; }
       }
       if (active) {
         setSession(active.item.sessionId); rememberScope(active.scope); await load(active.item.sessionId);
-        if (historical) {
-          const scoped = await call('scope', { slug, sessionId: historical.sessionId });
-          if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== historical.sessionId || scoped.scope.session.terminal
-            || scoped.scope.session.baseVersionId === scoped.scope.agent.currentVersionId) return;
-          const predecessor = await call('list', { sessionId: historical.sessionId });
-          if (live && predecessor.sources?.some((source) => source.decisions.some((decision) => decision.state === 'accepted'))) {
-            setVersionTransition({ fromVersion: scoped.scope.session.baseVersionId, sources: predecessor.sources });
+        if (predecessor) {
+          const scoped = await call('scope', { slug, sessionId: predecessor.sessionId });
+          if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== predecessor.sessionId
+            || scoped.scope.session.baseVersionId !== predecessor.baseVersionId
+            || scoped.scope.agent.currentVersionId !== projection.activeVersionId) throw new TrainingError('training_successor_projection_unavailable');
+          const prior = await call('list', { sessionId: predecessor.sessionId });
+          if (acceptedCount(prior) !== predecessor.acceptedLocalRecordCount) throw new TrainingError('training_successor_projection_unavailable');
+          if (live) {
+            setVersionTransition({ fromVersion: predecessor.baseVersionId, sources: prior.sources || [] });
           }
         }
-      } else if (historical) {
-        const scoped = await call('scope', { slug, sessionId: historical.sessionId });
-        if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== historical.sessionId || scoped.scope.session.terminal
-          || scoped.scope.session.baseVersionId === scoped.scope.agent.currentVersionId) return;
-        setSession(historical.sessionId); rememberScope(scoped.scope); await load(historical.sessionId); setVersionChanged(true);
+      } else if (predecessor) {
+        const scoped = await call('scope', { slug, sessionId: predecessor.sessionId });
+        if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== predecessor.sessionId
+          || scoped.scope.session.baseVersionId !== predecessor.baseVersionId
+          || scoped.scope.agent.currentVersionId !== projection.activeVersionId) throw new TrainingError('training_successor_projection_unavailable');
+        const prior = await call('list', { sessionId: predecessor.sessionId });
+        if (acceptedCount(prior) !== predecessor.acceptedLocalRecordCount) throw new TrainingError('training_successor_projection_unavailable');
+        setSession(predecessor.sessionId); rememberScope(scoped.scope); rememberList(prior); setVersionChanged(true);
+      } else if (open.length) {
+        for (const item of open.filter((candidate) => candidate.agent.baseVersionId === projection.activeVersionId)) {
+          const scoped = await call('scope', { slug, sessionId: item.sessionId });
+          if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== item.sessionId
+            || scoped.scope.session.terminal || scoped.scope.session.baseVersionId !== scoped.scope.agent.currentVersionId) continue;
+          setSession(item.sessionId); rememberScope(scoped.scope); await load(item.sessionId); break;
+        }
       }
     });
     return () => { live = false; };
@@ -274,7 +304,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
       const active = await call('scope', { slug });
       if (!active.scope?.agent.currentVersionId || active.scope.agent.currentVersionId !== currentVersion) throw new TrainingError('training_version_changed', 'The active version changed again. Reload before starting the successor session.');
       const predecessorSessionId = session;
-      const created = await call('create', { slug, key: crypto.randomUUID(), parentSessionId: predecessorSessionId });
+      const created = await call('create', { slug, key: successorSessionKey, parentSessionId: predecessorSessionId });
       if (!created.sessionId || created.parentSessionId !== predecessorSessionId || created.baseVersionId !== active.scope.agent.currentVersionId) {
         throw new TrainingError('training_successor_lineage_unavailable', 'Implexa could not prove the successor session is linked to this exact prior training session. No evidence was copied.');
       }
