@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/server';
 import { listWorkflows } from '@/lib/workflow-catalog';
 import { remoteSafetyFromCard, type RemoteSafety } from '@/lib/remote-safety';
 import ScheduleRow from './schedule-row';
+import ScheduleReadinessCard from './schedule-readiness-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,6 +89,8 @@ export default async function ScheduledPage() {
             and (optionally) Slack.
           </p>
         </header>
+
+        {items.length > 0 && <ScheduleReadinessCard />}
 
         {items.length === 0 && (
           <section className="card text-sm text-ink-300">
