@@ -1,6 +1,6 @@
 # Arbitrary local training source ingress
 
-Linked draft PRs: [Backend #443](https://github.com/Implexa-Inc/implexa-backend/pull/443) → [Desktop #318](https://github.com/Implexa-Inc/implexa-desktop/pull/318) → [Dashboard #231](https://github.com/Implexa-Inc/implexa-dashboard/pull/231).
+Original ingress PRs: [Backend #443](https://github.com/Implexa-Inc/implexa-backend/pull/443) → [Desktop #318](https://github.com/Implexa-Inc/implexa-desktop/pull/318) → [Dashboard #231](https://github.com/Implexa-Inc/implexa-dashboard/pull/231). Planning-stage hardening: [Backend #446](https://github.com/Implexa-Inc/implexa-backend/pull/446) → [Desktop #322](https://github.com/Implexa-Inc/implexa-desktop/pull/322) → [Dashboard #232](https://github.com/Implexa-Inc/implexa-dashboard/pull/232).
 
 Draft implementation, based on backend fcc284a, Desktop b23b981 (0.4.8), and Dashboard e0368de1. No existing checkout, production database, Mac Mini file, provider, compositor, activation, or release was changed. PostgreSQL migration execution was confined to a newly initialized disposable fixture database.
 
