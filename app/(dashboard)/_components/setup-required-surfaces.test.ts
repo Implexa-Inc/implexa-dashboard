@@ -34,7 +34,8 @@ const settle = (r: { act: (fn: () => unknown) => Promise<void> }) => r.act(async
 
 test('Approve & finish (run-actions): refusal → modal, no navigation; Recheck retries the same continue once, then navigates', async () => {
   const { state, backend } = refuseOnce();
-  const r = await render('run-actions.tsx', { runId: 'run-1', agentName: 'Compositor', reviewStatus: 'pending', holdKind: 'approval_before_action', hasShipStep: true, skillSlug: 'visual-evidence-remotion-compositor' },
+  const r = await render('run-actions.tsx', { runId: 'run-1', agentName: 'Compositor', reviewStatus: 'pending', holdKind: null, hasShipStep: true,
+    stepsState: [{ id: 'render', label: 'Render', status: 'pending' }], skillSlug: 'visual-evidence-remotion-compositor' },
     { backend, bridge: { executionMachineId: async () => 'mac-mini-a', recheckMachineCapabilities: async () => ({ ok: true }) } });
   try {
     await r.click(r.getByText('Continue the work'));

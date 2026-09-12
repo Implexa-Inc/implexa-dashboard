@@ -293,6 +293,20 @@ export default function RunActions({
     window.location.href = `claude://code/new?q=${encodeURIComponent(prompt.slice(0, CLAUDE_CODE_MAX))}`;
   }
 
+  // A paid-action hold must display and authorize the immutable provider batch.
+  // This component has neither the manifest nor that authority, so even an
+  // accidental future caller fails closed instead of restoring generic Continue.
+  if (holdKind === 'approval_before_action') {
+    return (
+      <section className="rounded-lg border border-amber-500/30 bg-ink-950/40 p-4">
+        <p className="text-sm text-ink-200">Review the exact paid provider batch before continuing.</p>
+        <a href={`/runs/${encodeURIComponent(runId)}`} className="btn-primary mt-3 inline-flex px-4 py-2 text-sm">
+          Review exact paid batch
+        </a>
+      </section>
+    );
+  }
+
   const primaryLabel = primaryAction === 'answer'
     ? 'Answer & continue'
     : primaryAction === 'continue'

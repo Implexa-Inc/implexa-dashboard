@@ -58,7 +58,8 @@ test('the held path still owns its own continue (no double CTA)', () => {
   const actionsIdx = page.indexOf('<RunActions');
   assert.ok(actionsIdx !== -1, 'RunActions must still render for held runs');
   const before = page.slice(Math.max(0, actionsIdx - 300), actionsIdx);
-  assert.match(before, /\{held && \(/, 'RunActions must remain gated on `held`');
+  assert.match(before, /\{held && effectiveHoldKind !== 'approval_before_action' && \(/,
+    'generic RunActions must remain held-gated and be impossible for exact paid approval holds');
 
   // And the two conditions must be mutually exclusive by construction: one `held`,
   // one `!held`. If someone later drops the `!` this assertion is what catches it.

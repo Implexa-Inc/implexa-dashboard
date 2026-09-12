@@ -541,7 +541,14 @@ export default function InboxList({
                 Request changes + quiet Dismiss + ⋯). Finished → the universal continue
                 box to iterate on the output. Identical surface in both places. */}
             <div className="mt-5">
-              {openItem.pending ? (
+              {openItem.pending && openItem.holdKind === 'approval_before_action' ? (
+                <a
+                  href={`/runs/${encodeURIComponent(openItem.id)}`}
+                  className="inline-flex rounded-md bg-amber-400 px-4 py-2 text-sm font-medium text-black hover:bg-amber-300"
+                >
+                  Review exact paid batch
+                </a>
+              ) : openItem.pending ? (
                 <RunActions
                   runId={openItem.id}
                   agentName={openItem.name}

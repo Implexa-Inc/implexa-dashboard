@@ -34,6 +34,7 @@ import BackLink from '../../_components/back-link';
 import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
 import RunActions from '../../_components/run-actions';
+import PaidActionApproval from '../../_components/paid-action-approval';
 import RunContinueBox from '../../_components/run-continue-box';
 import RunActionItems, { isRetryableApprovalAction, type RunActionItem } from '../../_components/run-action-items';
 import FinishRunButton from '../../_components/finish-run-button';
@@ -60,6 +61,7 @@ import StageManagerProof from '../../_components/stage-manager-proof';
 import { runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
 import { getReviewPacket } from '@/lib/review';
 import { loadReviewAmendmentTarget } from '@/lib/review-amendment-target';
+import { parsePaidActionApprovalRead, type PaidActionApprovalView } from '@/lib/paid-action-approval';
 
 export const dynamic = 'force-dynamic';
 
@@ -483,6 +485,19 @@ export default async function RunDetailPage({
     : null;
   const held = pending || needsInput;
   const effectiveHoldKind = approvalContinuationRecovery ? 'approval_before_action' : holdKind;
+  // A paid approval is its own immutable authority. The generic held-run action
+  // can queue an unconstrained continuation, so it must never appear for this
+  // hold kind. Read the complete, owner-scoped manifest summary and fail closed
+  // when the backend is old, unavailable, or returns anything malformed.
+  let paidActionApproval: PaidActionApprovalView = { state: 'unavailable', reason: 'missing' };
+  if (held && effectiveHoldKind === 'approval_before_action') {
+    try {
+      const detail = await callBackend(`/api/v2/runs/${encodeURIComponent(r.id)}`, { jwt: session.access_token });
+      paidActionApproval = parsePaidActionApprovalRead(detail, r.id);
+    } catch {
+      paidActionApproval = { state: 'unavailable', reason: 'request_failed' };
+    }
+  }
   // Has a DIFFERENT automatic recovery already delivered the real answer for
   // this run? (2026-07-24 fix.) A successfully-recovered run's PARENT row stays
   // stalled/failed with an empty output_markdown forever — its heartbeat is
@@ -1014,7 +1029,12 @@ export default async function RunDetailPage({
             finish / Mark as done / Answer & continue), Request-changes on demand, a
             quiet Dismiss, and power-user escapes under "⋯". Replaces the old banner +
             Approve & finish + Mark done + always-open Continue box + Hide/Dismiss pile. */}
-        {held && (
+        {held && effectiveHoldKind === 'approval_before_action' && (
+          <div className="mb-6">
+            <PaidActionApproval runId={r.id} view={paidActionApproval} />
+          </div>
+        )}
+        {held && effectiveHoldKind !== 'approval_before_action' && (
           <div className="mb-6">
             <RunActions
               runId={r.id}

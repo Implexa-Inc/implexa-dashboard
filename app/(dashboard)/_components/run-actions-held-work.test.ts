@@ -16,7 +16,7 @@ test('held primary action derives from structured remaining work, not only markd
     'a structured continuation must call approveFinish, not markDone');
 });
 
-test('both held-run surfaces carry the canonical hold contract into RunActions', () => {
+test('ordinary held-run surfaces carry the canonical hold contract, while paid holds use exact review', () => {
   assert.match(detail, /<RunActions[\s\S]*?stepsState=\{stepsState\}/);
   assert.match(detail, /const effectiveHoldKind = approvalContinuationRecovery \? 'approval_before_action' : holdKind/,
     'a recovered historical approval gate must use the actionable hold contract');
@@ -24,4 +24,7 @@ test('both held-run surfaces carry the canonical hold contract into RunActions',
   assert.match(loader, /extraColumns: 'feedback_questions, feedback_answers, feedback_at, steps_state, hold_kind'/);
   assert.match(inbox, /stepsState=\{openItem\.stepsState\}/);
   assert.match(inbox, /holdKind=\{openItem\.holdKind\}/);
+  assert.match(detail, /effectiveHoldKind === 'approval_before_action'[\s\S]*?<PaidActionApproval/);
+  assert.match(detail, /effectiveHoldKind !== 'approval_before_action'[\s\S]*?<RunActions/);
+  assert.match(inbox, /holdKind === 'approval_before_action'[\s\S]*?Review exact paid batch/);
 });
