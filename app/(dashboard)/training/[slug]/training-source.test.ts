@@ -6,6 +6,7 @@ import { deriveTrainingStages, formatTrainingTime, normalizeTrainingStages, prev
 const VERSION_A = '11111111-1111-4111-8111-111111111111';
 const VERSION_B = '22222222-2222-4222-8222-222222222222';
 const SESSION = '33333333-3333-4333-8333-333333333333';
+const NEW_SESSION = '33333333-3333-4333-8333-333333333334';
 const SOURCE_ID = '44444444-4444-4444-8444-444444444444';
 const TOKEN = '55555555-5555-4555-8555-555555555555';
 const RECORD = '66666666-6666-4666-8666-666666666666';
@@ -68,18 +69,23 @@ function harness(options: {
   pendingDecisions?: Array<Record<string, unknown>>;
   stages?: string[];
   managerCoverage?: Record<string, unknown>;
+  successorSha?: string;
+  successorBaseVersion?: string;
 } = {}) {
   const calls: Call[] = [];
   let currentVersion = options.currentVersion === undefined ? VERSION_A : options.currentVersion;
   let decisionState = options.state || 'draft';
+  let successorSelected = false;
   const bridge = {
     trainingLocalContractVersion: '2',
     trainingLocal: async (operation: string, unknownArgs: unknown) => {
       const args = (unknownArgs || {}) as Record<string, unknown>;
       calls.push({ operation, args });
       if (operation === 'home') return { ok: true, home: { agent: { name: 'Video craft', currentVersionId: currentVersion }, recentSessions: [{ sessionId: SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_A } }] } };
-      if (operation === 'scope') return { ok: true, scope: { agent: { name: 'Video craft', currentVersionId: currentVersion }, ...(args.sessionId ? { session: { sessionId: SESSION, baseVersionId: VERSION_A, terminal: false } } : {}) } };
-      if (operation === 'list') return { ok: true, sources: [source(decisionState, options.stages)], failedDrafts: options.failedDrafts || [], pendingDecisions: options.pendingDecisions || [], managerCoverage: options.managerCoverage };
+      if (operation === 'scope') return { ok: true, scope: { agent: { name: 'Video craft', currentVersionId: currentVersion }, ...(args.sessionId ? { session: { sessionId: String(args.sessionId), baseVersionId: args.sessionId === NEW_SESSION ? (options.successorBaseVersion || currentVersion) : VERSION_A, terminal: false } } : {}) } };
+      if (operation === 'create') return { ok: true, sessionId: NEW_SESSION };
+      if (operation === 'select' && args.sessionId === NEW_SESSION) successorSelected = true;
+      if (operation === 'list') { const next = source('draft', options.stages); if (options.successorSha) next.metadata.sha256 = options.successorSha; return { ok: true, sources: args.sessionId === NEW_SESSION ? (successorSelected ? [{ ...next, decisions: [] }] : []) : [source(decisionState, options.stages)], failedDrafts: options.failedDrafts || [], pendingDecisions: options.pendingDecisions || [], managerCoverage: options.managerCoverage }; }
       if (operation === 'decisionPreview') return { ok: true, image: PNG, recordId: RECORD, recordDigest: DIGEST };
       if (operation === 'accept') { decisionState = 'accepted'; return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'accepted' }; }
       if (operation === 'revoke') { decisionState = 'draft'; return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'revoked' }; }
@@ -157,10 +163,73 @@ test('active-version drift is detected before evidence access and blocks the old
     setCurrentVersion(VERSION_B);
     await rendered.click(rendered.getByText('Preview this exact frame'));
     assert.match(rendered.text(), /active agent version changed/i);
-    assert.match(rendered.text(), /frozen to 11111111/);
+    assert.match(rendered.text(), /remain immutable on 11111111/);
     assert.equal(calls.some((call) => call.operation === 'preview'), false, 'no local frame is disclosed after version drift');
     assert.equal((rendered.getByText('Add training source') as HTMLButtonElement).disabled, true);
   } finally { rendered.cleanup(); }
+});
+
+test('version transition requires coach confirmation, exact-source re-selection, and a fresh successor draft', async () => {
+  const { rendered, calls, setCurrentVersion } = await renderedWith({ state: 'accepted', stages: ['planning', 'build', 'preview', 'qa'] });
+  try {
+    setCurrentVersion(VERSION_B);
+    await rendered.click(rendered.getByText('Review accepted evidence'));
+    assert.match(rendered.text(), /session and its accepted decisions remain immutable on 11111111/i);
+    const start = rendered.getByText('Start successor training session') as HTMLButtonElement;
+    assert.equal(start.disabled, true);
+    const confirmation = rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!;
+    await rendered.click(confirmation);
+    assert.equal((rendered.getByText('Start successor training session') as HTMLButtonElement).disabled, false);
+    await rendered.click(rendered.getByText('Start successor training session'));
+    const create = calls.find((call) => call.operation === 'create')!;
+    assert.equal(create.args.slug, 'video-craft');
+    assert.match(String(create.args.key), /^[a-f0-9-]{36}$/);
+    assert.match(rendered.text(), /records below remain bound to 11111111/);
+    assert.match(rendered.text(), /Re-add source SHA-256 bbbbbbbb/);
+    assert.equal((rendered.getByText('Prepare new-version successor draft') as HTMLButtonElement).disabled, true, 'an old token cannot cross versions');
+
+    const consent = rendered.getByText(/I created this source and consent/).closest('label')!.querySelector('input')!;
+    await rendered.click(consent);
+    await rendered.click(rendered.getByText('Add training source'));
+    assert.equal(calls.some((call) => call.operation === 'select' && call.args.sessionId === NEW_SESSION), true);
+    assert.equal((rendered.getByText('Prepare new-version successor draft') as HTMLButtonElement).disabled, false, 'the newly verified source has the exact prior SHA');
+    await rendered.click(rendered.getByText('Prepare new-version successor draft'));
+    assert.match(rendered.text(), /Selected time 01:23.125/);
+    assert.equal((rendered.getByText('Save decision draft') as HTMLButtonElement).disabled, true, 'copied prose never bypasses a fresh frame preview');
+    await rendered.click(rendered.getByText('Preview this exact frame'));
+    await rendered.click(rendered.getByText('Save decision draft'));
+    const annotation = calls.filter((call) => call.operation === 'annotate').at(-1)!;
+    assert.equal(annotation.args.token, TOKEN);
+    assert.equal(annotation.args.timeMs, 83_125);
+    assert.deepEqual(JSON.parse(JSON.stringify(annotation.args.decision)), decision('accepted').decision);
+    assert.deepEqual(JSON.parse(JSON.stringify((annotation.args.content as { applicability: { stages: string[] } }).applicability.stages)), ['planning', 'build', 'preview', 'qa']);
+    assert.equal(calls.some((call) => call.operation === 'accept' || call.operation === 'revoke'), false, 'the successor remains a draft until separately reviewed and confirmed');
+  } finally { rendered.cleanup(); }
+});
+
+test('version successor refuses a raced version binding and never enables a different source hash', async () => {
+  const raced = await renderedWith({ state: 'accepted', successorBaseVersion: VERSION_A });
+  try {
+    raced.setCurrentVersion(VERSION_B);
+    await raced.rendered.click(raced.rendered.getByText('Review accepted evidence'));
+    await raced.rendered.click(raced.rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await raced.rendered.click(raced.rendered.getByText('Start successor training session'));
+    assert.match(raced.rendered.text(), /successor session was not bound to the active immutable version/i);
+    assert.match(raced.rendered.text(), /Session version: 11111111/);
+  } finally { raced.rendered.cleanup(); }
+
+  const mismatched = await renderedWith({ state: 'accepted', successorSha: 'f'.repeat(64) });
+  try {
+    mismatched.setCurrentVersion(VERSION_B);
+    await mismatched.rendered.click(mismatched.rendered.getByText('Review accepted evidence'));
+    await mismatched.rendered.click(mismatched.rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await mismatched.rendered.click(mismatched.rendered.getByText('Start successor training session'));
+    await mismatched.rendered.click(mismatched.rendered.getByText(/I created this source and consent/).closest('label')!.querySelector('input')!);
+    await mismatched.rendered.click(mismatched.rendered.getByText('Add training source'));
+    assert.match(mismatched.rendered.text(), /Re-add source SHA-256 bbbbbbbb/);
+    assert.equal((mismatched.rendered.getByText('Prepare new-version successor draft') as HTMLButtonElement).disabled, true);
+    assert.equal(mismatched.calls.some((call) => call.operation === 'annotate' || call.operation === 'accept'), false);
+  } finally { mismatched.rendered.cleanup(); }
 });
 
 test('acceptance requires exact saved derivative review and explicit confirmation', async () => {

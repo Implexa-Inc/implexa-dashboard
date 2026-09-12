@@ -76,6 +76,7 @@ type Bridge = {
 };
 type Preview = { token: string; timeMs: number; image: string };
 type ReviewedDecision = { source: Source; decision: Decision; image: string };
+type VersionTransition = { fromVersion: string; sources: Source[] };
 
 class TrainingError extends Error {
   constructor(readonly reason: string, message?: string) { super(message || reason); }
@@ -103,6 +104,8 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
   const [agentName, setAgentName] = useState(slug);
   const [versionChanged, setVersionChanged] = useState(false);
+  const [transitionConfirmed, setTransitionConfirmed] = useState(false);
+  const [versionTransition, setVersionTransition] = useState<VersionTransition | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
   const [selected, setSelected] = useState<Source | null>(null);
   const [busy, setBusy] = useState('');
@@ -242,6 +245,30 @@ export default function TrainingSource({ slug }: { slug: string }) {
     setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior);
     setStages(deriveTrainingStages(nextProperty)); setDecisionKey(crypto.randomUUID());
   }
+  async function beginVersionSuccessor() {
+    if (!versionChanged || !transitionConfirmed || !currentVersion || !sessionVersion) return;
+    const predecessor = { fromVersion: sessionVersion, sources };
+    await work('Starting a successor training session for the active version', async () => {
+      const active = await call('scope', { slug });
+      if (!active.scope?.agent.currentVersionId || active.scope.agent.currentVersionId !== currentVersion) throw new TrainingError('training_version_changed', 'The active version changed again. Reload before starting the successor session.');
+      const created = await call('create', { slug, key: crypto.randomUUID() });
+      if (!created.sessionId) throw new TrainingError('training_session_unavailable');
+      const scoped = await call('scope', { slug, sessionId: created.sessionId });
+      if (!scoped.scope?.session || scoped.scope.session.sessionId !== created.sessionId || scoped.scope.session.terminal
+        || scoped.scope.session.baseVersionId !== active.scope.agent.currentVersionId) throw new TrainingError('training_version_changed', 'The successor session was not bound to the active immutable version.');
+      setVersionTransition(predecessor); setSession(created.sessionId); rememberScope(scoped.scope);
+      setSources([]); setSelected(null); setPreview(null); setReviewed(null); setManagerCoverage(null); setPending([]); setFailed([]);
+      setConsent(false); setTransitionConfirmed(false); setVersionChanged(false);
+      await load(created.sessionId);
+    });
+  }
+  function prepareVersionSuccessor(source: Source, decision: Decision) {
+    const nextProperty = decision.content.properties[0] || 'motion_rhythm';
+    setSelected(source); setTime(decision.content.anchor.startMs); setPreview(null); setReviewed(null);
+    setRelation(decision.content.relation); setProperty(nextProperty);
+    setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior);
+    setStages(normalizeTrainingStages(decision.content.applicability?.stages)); setDecisionKey(crypto.randomUUID());
+  }
   function changeTime(next: number) {
     if (!selected || !Number.isFinite(next)) return;
     setTime(Math.min(Math.max(0, Math.round(next)), Math.max(0, selected.metadata.durationMs - 1)));
@@ -316,13 +343,15 @@ export default function TrainingSource({ slug }: { slug: string }) {
     <Link href="/training">← Training</Link>
     <header className="space-y-2"><h1 className="text-2xl font-semibold">Train {agentName}</h1><p className="text-sm text-ink-400">Active version: {shortId(currentVersion)}{sessionVersion ? ` · Session version: ${shortId(sessionVersion)}` : ''}</p></header>
     <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be revoked.</p>
-    {versionChanged && <p role="alert" className="rounded border border-amber-500 p-3">The active version changed. This session is frozen to {shortId(sessionVersion)} and cannot receive more evidence. Reload to start a session for {shortId(currentVersion)}.</p>}
+    {versionChanged && <section role="alert" className="rounded border border-amber-500 p-4 space-y-3"><h2 className="font-semibold">Move reviewed evidence to the active version explicitly</h2><p>This session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version is {shortId(currentVersion)} and cannot select those records. Start a separate successor session, re-select the exact source, and review each new decision before accepting it.</p><label className="flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event) => setTransitionConfirmed(event.target.checked)} />I understand this creates new evidence records for the active version and does not change or automatically accept the existing records.</label><button disabled={!!busy || !transitionConfirmed || !currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></section>}
     <label className="flex gap-3"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection. The original stays on this computer. I can revoke accepted evidence below.</label>
     <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={add}>Add training source</button>
     {busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{error && <p role="alert">{reasonLabel(error)}</p>}
     {(acceptedEvidenceCount > 0 || (managerCoverage?.acceptedLocalRecordCount || 0) > 0) && !coverageCanClaimReady && !coverageNeedsUpdate && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager coverage status unavailable</h2><p>Implexa cannot prove that this exact agent version can consume the accepted evidence across its training sessions. Update Desktop or reload after the coverage service is available. The evidence remains preserved, but this page will not describe it as ready for a run.</p></section>}
     {coverageNeedsUpdate && managerCoverage && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Agent update required before this evidence can guide runs</h2><p>{managerCoverage.reason === 'manager_quality_coverage_unclassified_training' ? 'This version has no Manager training-coverage policy.' : 'This version does not cover every accepted evidence property, relation, and stage.'} This is the version-wide result across all training sessions for this immutable agent version. Your accepted evidence remains immutable and preserved, but uncovered decisions cannot be selected at planning or any other uncovered stage.</p><p>Publish a new immutable agent version with Manager v3 coverage for the listed evidence. Existing accepted records will not be rewritten.</p>{managerCoverage.uncoveredPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.uncoveredPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul>}</section>}
     {coverageCanClaimReady && managerCoverage && <p role="status" className="rounded border border-emerald-600 p-3">This immutable agent version has Manager coverage for all {managerCoverage.acceptedPairs.length} accepted stage-scoped evidence routes across all training sessions.</p>}
+
+    {versionTransition && <section className="rounded border border-brand-500 p-4 space-y-3" aria-labelledby="version-successor-heading"><h2 id="version-successor-heading" className="font-semibold">Recreate reviewed decisions for {shortId(sessionVersion)}</h2><p>The records below remain bound to {shortId(versionTransition.fromVersion)}. Re-add the exact source file; Implexa enables a successor only after its SHA-256 matches. The copied text and stages are only a draft. You must preview the exact frame, save it, review the new immutable digest, and accept it again before Manager readiness can include it.</p><ul className="space-y-3">{versionTransition.sources.flatMap((oldSource) => oldSource.decisions.filter((decision) => decision.state === 'accepted').map((decision) => { const matched = sources.find((candidate) => candidate.metadata.sha256 === oldSource.metadata.sha256); const alreadyCreated = matched?.decisions.some((candidate) => candidate.content.relation === decision.content.relation && candidate.content.anchor.startMs === decision.content.anchor.startMs && candidate.content.summary === decision.content.summary); return <li key={decision.recordId} className="rounded border border-ink-700 p-3 space-y-2"><p>{formatTrainingTime(decision.content.anchor.startMs)} · {decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')} · from digest {shortId(decision.recordDigest)}</p>{!matched && <p>Re-add source SHA-256 {shortId(oldSource.metadata.sha256)} to continue.</p>}{alreadyCreated ? <p role="status">A distinct successor draft or accepted record already exists in this session.</p> : <button disabled={!!busy || !matched} onClick={() => matched && prepareVersionSuccessor(matched, decision)}>Prepare new-version successor draft</button>}</li>; }))}</ul></section>}
 
     {failed.map((draft) => <section key={draft.token} className="rounded border border-ink-700 p-3" aria-label="Preserved source draft"><p>Preserved source draft: {reasonLabel(draft.reason)}</p>{draft.retryable ? <button disabled={!!busy} onClick={() => work('Retrying registration', async () => { await requireCurrentScope(); await call('register', { token: draft.token }); await load(session); })}>Retry registration</button> : <p>This refusal cannot be fixed by retrying the same file. Choose a different source or discard this local draft.</p>}{!draft.retryable && <button disabled={!!busy} onClick={() => discardDraft(draft)}>Discard local draft</button>}</section>)}
     {pending.map((draft) => <section key={`${draft.token}:${draft.key}`} className="rounded border border-ink-700 p-3" aria-label="Preserved decision draft"><p>Preserved decision: {reasonLabel(draft.reason)}</p>{draft.retryable ? <button disabled={!!busy} onClick={() => work('Retrying saved decision', async () => { await requireCurrentScope(); await call('retryDraft', { token: draft.token, key: draft.key }); await load(session); })}>Retry saved decision</button> : <><p>This refusal cannot be fixed by sending the same decision again.</p><button disabled={!!busy} onClick={() => discardDraft(draft)}>Discard local draft</button></>}</section>)}
