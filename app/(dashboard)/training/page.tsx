@@ -1,24 +1,3 @@
-/**
- * /training — the third primary domain.
- *
- * Training answers (DESIGN.md §10.1): *how is an agent I own becoming more
- * competent, and what evidence supports its claims?*
- *
- * WHAT THIS PAGE DELIBERATELY DOES NOT SHOW. Review-derived evidence, tests,
- * benchmarks, model/tool comparisons, version impact, progress, uncertainty and
- * the publishable resume are Phase E, and every one of them depends on a
- * backend evidence contract that does not exist yet. DESIGN.md §14 is explicit
- * that no design phase begins while its backend contract is absent, and §2.1
- * principle 8 forbids collapsing separate trust signals into one unexplained
- * number — so this page renders the entry point and says plainly what is not
- * measured yet. An invented competence score would be worse than an empty page.
- *
- * What it does own today: the honest owner/renter split (§4.2 — a builder is
- * simply a user who owns at least one agent, with no mode toggle anywhere), and
- * a single route for the domain so the navigation model is real rather than
- * aspirational.
- */
-
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
@@ -85,7 +64,7 @@ function OwnedAgents({ feed }: { feed: { active: MyAgent[]; needsActivation: MyA
         {owned.map((a) => (
           <li key={a.slug} className="rounded-lg border border-ink-800 bg-ink-900/40 transition-colors hover:border-ink-700">
             <Link
-              href={`/workflows/${a.slug}`}
+              href={`/training/${a.slug}`}
               className="flex items-center justify-between gap-3 rounded-lg px-4 py-3 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900"
             >
               <span className="min-w-0">
@@ -94,7 +73,7 @@ function OwnedAgents({ feed }: { feed: { active: MyAgent[]; needsActivation: MyA
                   {a.mode === 'on_demand' ? 'On-demand' : (a.scheduleNl || 'Scheduled')}
                 </span>
               </span>
-              <span className="shrink-0 text-xs text-ink-400">Open agent →</span>
+              <span className="shrink-0 text-xs text-ink-400">Open training →</span>
             </Link>
           </li>
         ))}
@@ -104,9 +83,7 @@ function OwnedAgents({ feed }: { feed: { active: MyAgent[]; needsActivation: MyA
           because each item is a separate evidence channel that must never be
           collapsed into one score once it does exist. */}
       <p className="mt-6 text-xs text-ink-500">
-        Review-derived evidence, tests and benchmarks, version history, and progress toward a
-        publishable resume are not available yet. Until they are, this page shows the agents you
-        own and nothing it cannot prove.
+        Open an agent to add a local training source in Implexa Desktop and review timestamped visual decisions. Tests, benchmarks and a publishable resume remain unavailable.
       </p>
     </>
   );
