@@ -2,15 +2,28 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { formatTrainingTime, previewMatches, TRAINING_LOCAL_CONTRACT_VERSION } from '@/lib/training-local-ingress';
+import {
+  deriveTrainingStages,
+  formatTrainingTime,
+  isTrainingSuccessorProjection,
+  normalizeTrainingStages,
+  previewMatches,
+  trainingStageLabel,
+  TRAINING_LOCAL_CONTRACT_VERSION,
+  TRAINING_STAGE_OPTIONS,
+  TRAINING_STAGE_ROUTING_VERSION,
+  type TrainingStage,
+  type TrainingSuccessorProjection,
+} from '@/lib/training-local-ingress';
 
 type Relation = 'accepted' | 'rejected' | 'contrast';
+type CoverageRelation = Relation | 'exception';
 type DecisionState = 'draft' | 'accepted' | 'unavailable' | 'revoked';
 type Decision = {
   recordId: string;
   recordDigest: string;
   state: DecisionState;
-  content: { relation: Relation; properties: string[]; summary: string; anchor: { startMs: number } };
+  content: { relation: Relation; properties: string[]; summary: string; anchor: { startMs: number }; applicability?: { stages?: string[] } };
   decision: { chosen: string; why: string; process: string; desiredBehavior: string };
 };
 type Source = {
@@ -25,15 +38,33 @@ type LocalDraft = { token: string; key?: string; retryable: boolean; reason: str
 type Home = {
   agent: { name?: string; currentVersionId: string | null };
   recentSessions: Array<{ sessionId: string; sourceMode: string; terminal: boolean; agent: { baseVersionId: string } }>;
+  successorProjection: TrainingSuccessorProjection;
 };
 type Scope = {
   agent: { name?: string; currentVersionId: string | null };
-  session?: { sessionId: string; baseVersionId: string; terminal: boolean };
+  session?: { sessionId: string; baseVersionId: string; parentSessionId?: string | null; terminal: boolean };
+};
+type CoveragePair = { stage: string; property: string; relation: CoverageRelation };
+type ManagerCoverage = {
+  contractVersion: 'manager-training-coverage.v1';
+  scope: 'workflow_version';
+  workflowVersionId: string;
+  classified: boolean;
+  acceptedLocalRecordCount: number;
+  listedSessionAcceptedRecordCount: number;
+  acceptedPairs: CoveragePair[];
+  listedSessionAcceptedPairs: CoveragePair[];
+  coveredPairs: CoveragePair[];
+  uncoveredPairs: CoveragePair[];
+  readiness: 'not_applicable' | 'ready' | 'agent_update_required';
+  reason: null | 'manager_quality_coverage_unclassified_training' | 'manager_quality_coverage_incomplete_training';
 };
 type Result = {
   ok: boolean;
   reason?: string;
   sessionId?: string;
+  baseVersionId?: string;
+  parentSessionId?: string | null;
   home?: Home;
   scope?: Scope;
   sources?: Source[];
@@ -42,6 +73,7 @@ type Result = {
   recordDigest?: string;
   failedDrafts?: LocalDraft[];
   pendingDecisions?: LocalDraft[];
+  managerCoverage?: ManagerCoverage;
 };
 type Bridge = {
   trainingLocalContractVersion?: string;
@@ -49,6 +81,7 @@ type Bridge = {
 };
 type Preview = { token: string; timeMs: number; image: string };
 type ReviewedDecision = { source: Source; decision: Decision; image: string };
+type VersionTransition = { fromVersion: string; sources: Source[] };
 
 class TrainingError extends Error {
   constructor(readonly reason: string, message?: string) { super(message || reason); }
@@ -56,14 +89,15 @@ class TrainingError extends Error {
 
 const bridge = () => (window as unknown as { implexaDesktop?: Bridge }).implexaDesktop;
 const shortId = (value: string | null | undefined) => value ? value.slice(0, 8) : 'none';
-const relationLabel = (relation: Relation) => ({ accepted: 'Positive example', rejected: 'Negative example', contrast: 'Contrastive example' })[relation];
+const relationLabel = (relation: CoverageRelation) => ({ accepted: 'Positive example', rejected: 'Negative example', contrast: 'Contrastive example', exception: 'Exception' })[relation];
 const reasonLabel = (reason: string) => reason.replaceAll('_', ' ');
+const coveragePairKey = (pair: CoveragePair) => `${pair.stage}:${pair.property}:${pair.relation}`;
 
 function resolveBridge() {
   const candidate = bridge();
   if (!candidate?.trainingLocal) throw new TrainingError('training_desktop_required', 'Open this page in an updated Implexa Desktop to select a local training source.');
   if (candidate.trainingLocalContractVersion !== TRAINING_LOCAL_CONTRACT_VERSION) {
-    throw new TrainingError('training_desktop_update_required', 'Update Implexa Desktop before training. This page requires the local training v1 bridge.');
+    throw new TrainingError('training_desktop_update_required', 'Update Implexa Desktop before training. This page requires the local training v2 bridge.');
   }
   return candidate;
 }
@@ -75,6 +109,8 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
   const [agentName, setAgentName] = useState(slug);
   const [versionChanged, setVersionChanged] = useState(false);
+  const [transitionConfirmed, setTransitionConfirmed] = useState(false);
+  const [versionTransition, setVersionTransition] = useState<VersionTransition | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
   const [selected, setSelected] = useState<Source | null>(null);
   const [busy, setBusy] = useState('');
@@ -89,6 +125,8 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [time, setTime] = useState(0);
   const [relation, setRelation] = useState<Relation>('accepted');
   const [property, setProperty] = useState('motion_rhythm');
+  const [stages, setStages] = useState<TrainingStage[]>(() => deriveTrainingStages('motion_rhythm'));
+  const [managerCoverage, setManagerCoverage] = useState<ManagerCoverage | null>(null);
   const [chosen, setChosen] = useState('');
   const [why, setWhy] = useState('');
   const [process, setProcess] = useState('');
@@ -96,8 +134,26 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [pending, setPending] = useState<LocalDraft[]>([]);
   const [failed, setFailed] = useState<LocalDraft[]>([]);
   const [sessionKey] = useState(() => crypto.randomUUID());
+  const [successorSessionKey] = useState(() => crypto.randomUUID());
   const [decisionKey, setDecisionKey] = useState(() => crypto.randomUUID());
   const previewIsCurrent = useMemo(() => previewMatches(preview, selected?.token, time), [preview, selected, time]);
+  const acceptedEvidenceCount = useMemo(() => sources.reduce((count, source) => count + source.decisions.filter((decision) => decision.state === 'accepted').length, 0), [sources]);
+  const coverageIsCurrent = Boolean(
+    managerCoverage
+    && managerCoverage.contractVersion === 'manager-training-coverage.v1'
+    && managerCoverage.scope === 'workflow_version'
+    && managerCoverage.workflowVersionId === sessionVersion
+    && managerCoverage.listedSessionAcceptedRecordCount === acceptedEvidenceCount
+    && managerCoverage.acceptedLocalRecordCount >= managerCoverage.listedSessionAcceptedRecordCount,
+  );
+  const coverageCanClaimReady = Boolean(
+    coverageIsCurrent
+    && managerCoverage?.readiness === 'ready'
+    && managerCoverage.classified
+    && managerCoverage.uncoveredPairs.length === 0
+    && managerCoverage.acceptedPairs.every((pair) => managerCoverage.coveredPairs.some((covered) => coveragePairKey(covered) === coveragePairKey(pair))),
+  );
+  const coverageNeedsUpdate = Boolean(coverageIsCurrent && managerCoverage?.readiness === 'agent_update_required' && managerCoverage.reason);
 
   async function call(operation: string, args: unknown) {
     const result = await resolveBridge().trainingLocal(operation, args);
@@ -115,13 +171,23 @@ export default function TrainingSource({ slug }: { slug: string }) {
     } finally { busyRef.current = false; setBusy(''); }
   }
 
-  async function load(id: string) {
-    const result = await call('list', { sessionId: id });
+  function rememberList(result: Result) {
     const next = result.sources || [];
     setSources(next);
     setSelected((prior) => prior ? next.find((source) => source.sourceId === prior.sourceId) || null : null);
     setFailed(result.failedDrafts || []);
     setPending(result.pendingDecisions || []);
+    setManagerCoverage(result.managerCoverage || null);
+  }
+
+  async function load(id: string) {
+    const result = await call('list', { sessionId: id });
+    rememberList(result);
+    return result;
+  }
+
+  function acceptedCount(result: Result) {
+    return (result.sources || []).reduce((count, source) => count + source.decisions.filter((decision) => decision.state === 'accepted').length, 0);
   }
 
   function rememberScope(scope: Scope) {
@@ -149,12 +215,49 @@ export default function TrainingSource({ slug }: { slug: string }) {
     void work('Loading training evidence', async () => {
       const result = await call('home', { slug });
       if (!live || !result.home) return;
-      setAgentName(result.home.agent.name || slug); setCurrentVersion(result.home.agent.currentVersionId);
-      const prior = result.home.recentSessions.find((item) => item.sourceMode === 'raw_input' && !item.terminal && item.agent.baseVersionId === result.home?.agent.currentVersionId);
-      if (prior) {
-        const scoped = await call('scope', { slug, sessionId: prior.sessionId });
-        if (!live || !scoped.scope?.session || scoped.scope.session.baseVersionId !== scoped.scope.agent.currentVersionId) return;
-        setSession(prior.sessionId); rememberScope(scoped.scope); await load(prior.sessionId);
+      const home = result.home;
+      if (!isTrainingSuccessorProjection(home.successorProjection, home.agent.currentVersionId)) {
+        throw new TrainingError('training_successor_projection_unavailable', 'Update Implexa Desktop before training. The version-transition evidence projection could not be verified.');
+      }
+      const projection = home.successorProjection;
+      setAgentName(home.agent.name || slug); setCurrentVersion(projection.activeVersionId);
+      const predecessor = projection.eligiblePredecessor;
+      const open = home.recentSessions.filter((item) => item.sourceMode === 'raw_input' && !item.terminal);
+      let active: { item: Home['recentSessions'][number]; scope: Scope } | null = null;
+      for (const item of open.filter((candidate) => candidate.agent.baseVersionId === projection.activeVersionId)) {
+        const scoped = await call('scope', { slug, sessionId: item.sessionId });
+        if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== item.sessionId
+          || scoped.scope.session.terminal || scoped.scope.session.baseVersionId !== scoped.scope.agent.currentVersionId) continue;
+        if (!predecessor || scoped.scope.session.parentSessionId === predecessor.sessionId) { active = { item, scope: scoped.scope }; break; }
+      }
+      if (active) {
+        setSession(active.item.sessionId); rememberScope(active.scope); await load(active.item.sessionId);
+        if (predecessor) {
+          const scoped = await call('scope', { slug, sessionId: predecessor.sessionId });
+          if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== predecessor.sessionId
+            || scoped.scope.session.baseVersionId !== predecessor.baseVersionId
+            || scoped.scope.agent.currentVersionId !== projection.activeVersionId) throw new TrainingError('training_successor_projection_unavailable');
+          const prior = await call('list', { sessionId: predecessor.sessionId });
+          if (acceptedCount(prior) !== predecessor.acceptedLocalRecordCount) throw new TrainingError('training_successor_projection_unavailable');
+          if (live) {
+            setVersionTransition({ fromVersion: predecessor.baseVersionId, sources: prior.sources || [] });
+          }
+        }
+      } else if (predecessor) {
+        const scoped = await call('scope', { slug, sessionId: predecessor.sessionId });
+        if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== predecessor.sessionId
+          || scoped.scope.session.baseVersionId !== predecessor.baseVersionId
+          || scoped.scope.agent.currentVersionId !== projection.activeVersionId) throw new TrainingError('training_successor_projection_unavailable');
+        const prior = await call('list', { sessionId: predecessor.sessionId });
+        if (acceptedCount(prior) !== predecessor.acceptedLocalRecordCount) throw new TrainingError('training_successor_projection_unavailable');
+        setSession(predecessor.sessionId); rememberScope(scoped.scope); rememberList(prior); setVersionChanged(true);
+      } else if (open.length) {
+        for (const item of open.filter((candidate) => candidate.agent.baseVersionId === projection.activeVersionId)) {
+          const scoped = await call('scope', { slug, sessionId: item.sessionId });
+          if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== item.sessionId
+            || scoped.scope.session.terminal || scoped.scope.session.baseVersionId !== scoped.scope.agent.currentVersionId) continue;
+          setSession(item.sessionId); rememberScope(scoped.scope); await load(item.sessionId); break;
+        }
       }
     });
     return () => { live = false; };
@@ -183,6 +286,44 @@ export default function TrainingSource({ slug }: { slug: string }) {
   function chooseSource(source: Source) {
     setSelected(source); setTime(0); setPreview(null); setReviewed(null); setDecisionKey(crypto.randomUUID());
   }
+  function toggleStage(stage: TrainingStage) {
+    setStages((current) => current.includes(stage) ? current.filter((item) => item !== stage) : [...current, stage]);
+    setDecisionKey(crypto.randomUUID());
+  }
+  function createPlanningSuccessor(source: Source, decision: Decision) {
+    const nextProperty = decision.content.properties[0] || 'motion_rhythm';
+    setSelected(source); setTime(decision.content.anchor.startMs); setPreview(null); setReviewed(null);
+    setRelation(decision.content.relation); setProperty(nextProperty);
+    setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior);
+    setStages(deriveTrainingStages(nextProperty)); setDecisionKey(crypto.randomUUID());
+  }
+  async function beginVersionSuccessor() {
+    if (!versionChanged || !transitionConfirmed || !currentVersion || !sessionVersion) return;
+    const predecessor = { fromVersion: sessionVersion, sources };
+    await work('Starting a successor training session for the active version', async () => {
+      const active = await call('scope', { slug });
+      if (!active.scope?.agent.currentVersionId || active.scope.agent.currentVersionId !== currentVersion) throw new TrainingError('training_version_changed', 'The active version changed again. Reload before starting the successor session.');
+      const predecessorSessionId = session;
+      const created = await call('create', { slug, key: successorSessionKey, parentSessionId: predecessorSessionId });
+      if (!created.sessionId || created.parentSessionId !== predecessorSessionId || created.baseVersionId !== active.scope.agent.currentVersionId) {
+        throw new TrainingError('training_successor_lineage_unavailable', 'Implexa could not prove the successor session is linked to this exact prior training session. No evidence was copied.');
+      }
+      const scoped = await call('scope', { slug, sessionId: created.sessionId });
+      if (!scoped.scope?.session || scoped.scope.session.sessionId !== created.sessionId || scoped.scope.session.terminal
+        || scoped.scope.session.baseVersionId !== active.scope.agent.currentVersionId) throw new TrainingError('training_version_changed', 'The successor session was not bound to the active immutable version.');
+      setVersionTransition(predecessor); setSession(created.sessionId); rememberScope(scoped.scope);
+      setSources([]); setSelected(null); setPreview(null); setReviewed(null); setManagerCoverage(null); setPending([]); setFailed([]);
+      setConsent(false); setTransitionConfirmed(false); setVersionChanged(false);
+      await load(created.sessionId);
+    });
+  }
+  function prepareVersionSuccessor(source: Source, decision: Decision) {
+    const nextProperty = decision.content.properties[0] || 'motion_rhythm';
+    setSelected(source); setTime(decision.content.anchor.startMs); setPreview(null); setReviewed(null);
+    setRelation(decision.content.relation); setProperty(nextProperty);
+    setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior);
+    setStages(normalizeTrainingStages(decision.content.applicability?.stages)); setDecisionKey(crypto.randomUUID());
+  }
   function changeTime(next: number) {
     if (!selected || !Number.isFinite(next)) return;
     setTime(Math.min(Math.max(0, Math.round(next)), Math.max(0, selected.metadata.durationMs - 1)));
@@ -210,11 +351,11 @@ export default function TrainingSource({ slug }: { slug: string }) {
         decision: { chosen, why, process, desiredBehavior: behavior },
         content: {
           relation, properties: [property], mustNotCopy: ['source text', 'source logos', 'protected identity'],
-          applicability: { taskFacts: [], stages: ['preview', 'build', 'qa'], exceptions: [], priority: 50 },
+          applicability: { taskFacts: [], stages: normalizeTrainingStages(stages), exceptions: [], priority: 50 },
           governance: { rightsBasis: 'owner_created', rightsReceipt: 'Coach confirms ownership and grants bounded evidence use', disclosure: 'owner_private', retentionUntil: retention, deletionPolicy: 'revoke_then_delete_derivatives', consent: true, attribution: '' },
         },
       });
-      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); await load(session);
+      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setStages(deriveTrainingStages(property)); await load(session);
     });
   }
 
@@ -256,27 +397,33 @@ export default function TrainingSource({ slug }: { slug: string }) {
   return <main id="main-content" tabIndex={-1} className="mx-auto max-w-3xl px-6 py-12 space-y-6">
     <Link href="/training">← Training</Link>
     <header className="space-y-2"><h1 className="text-2xl font-semibold">Train {agentName}</h1><p className="text-sm text-ink-400">Active version: {shortId(currentVersion)}{sessionVersion ? ` · Session version: ${shortId(sessionVersion)}` : ''}</p></header>
-    <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version shown above and can later be revoked.</p>
-    {versionChanged && <p role="alert" className="rounded border border-amber-500 p-3">The active version changed. This session is frozen to {shortId(sessionVersion)} and cannot receive more evidence. Reload to start a session for {shortId(currentVersion)}.</p>}
+    <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be revoked.</p>
+    {versionChanged && <section role="alert" className="rounded border border-amber-500 p-4 space-y-3"><h2 className="font-semibold">Move reviewed evidence to the active version explicitly</h2><p>This session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version is {shortId(currentVersion)} and cannot select those records. Start a separate successor session, re-select the exact source, and review each new decision before accepting it.</p><label className="flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event) => setTransitionConfirmed(event.target.checked)} />I understand this creates new evidence records for the active version and does not change or automatically accept the existing records.</label><button disabled={!!busy || !transitionConfirmed || !currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></section>}
     <label className="flex gap-3"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection. The original stays on this computer. I can revoke accepted evidence below.</label>
     <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={add}>Add training source</button>
     {busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{error && <p role="alert">{reasonLabel(error)}</p>}
+    {(acceptedEvidenceCount > 0 || (managerCoverage?.acceptedLocalRecordCount || 0) > 0) && !coverageCanClaimReady && !coverageNeedsUpdate && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager coverage status unavailable</h2><p>Implexa cannot prove that this exact agent version can consume the accepted evidence across its training sessions. Update Desktop or reload after the coverage service is available. The evidence remains preserved, but this page will not describe it as ready for a run.</p></section>}
+    {coverageNeedsUpdate && managerCoverage && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Agent update required before this evidence can guide runs</h2><p>{managerCoverage.reason === 'manager_quality_coverage_unclassified_training' ? 'This version has no Manager training-coverage policy.' : 'This version does not cover every accepted evidence property, relation, and stage.'} This is the version-wide result across all training sessions for this immutable agent version. Your accepted evidence remains immutable and preserved, but uncovered decisions cannot be selected at planning or any other uncovered stage.</p><p>Publish a new immutable agent version with Manager v3 coverage for the listed evidence. Existing accepted records will not be rewritten.</p>{managerCoverage.uncoveredPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.uncoveredPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul>}</section>}
+    {coverageCanClaimReady && managerCoverage && <p role="status" className="rounded border border-emerald-600 p-3">This immutable agent version has Manager coverage for all {managerCoverage.acceptedPairs.length} accepted stage-scoped evidence routes across all training sessions.</p>}
+
+    {versionTransition && <section className="rounded border border-brand-500 p-4 space-y-3" aria-labelledby="version-successor-heading"><h2 id="version-successor-heading" className="font-semibold">Recreate reviewed decisions for {shortId(sessionVersion)}</h2><p>The records below remain bound to {shortId(versionTransition.fromVersion)}. Re-add the exact source file; Implexa enables a successor only after its SHA-256 matches. The copied text and stages are only a draft. You must preview the exact frame, save it, review the new immutable digest, and accept it again before Manager readiness can include it.</p><ul className="space-y-3">{versionTransition.sources.flatMap((oldSource) => oldSource.decisions.filter((decision) => decision.state === 'accepted').map((decision) => { const matched = sources.find((candidate) => candidate.metadata.sha256 === oldSource.metadata.sha256); const alreadyCreated = matched?.decisions.some((candidate) => candidate.content.relation === decision.content.relation && candidate.content.anchor.startMs === decision.content.anchor.startMs && candidate.content.summary === decision.content.summary); return <li key={decision.recordId} className="rounded border border-ink-700 p-3 space-y-2"><p>{formatTrainingTime(decision.content.anchor.startMs)} · {decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')} · from digest {shortId(decision.recordDigest)}</p>{!matched && <p>Re-add source SHA-256 {shortId(oldSource.metadata.sha256)} to continue.</p>}{alreadyCreated ? <p role="status">A distinct successor draft or accepted record already exists in this session.</p> : <button disabled={!!busy || !matched} onClick={() => matched && prepareVersionSuccessor(matched, decision)}>Prepare new-version successor draft</button>}</li>; }))}</ul></section>}
 
     {failed.map((draft) => <section key={draft.token} className="rounded border border-ink-700 p-3" aria-label="Preserved source draft"><p>Preserved source draft: {reasonLabel(draft.reason)}</p>{draft.retryable ? <button disabled={!!busy} onClick={() => work('Retrying registration', async () => { await requireCurrentScope(); await call('register', { token: draft.token }); await load(session); })}>Retry registration</button> : <p>This refusal cannot be fixed by retrying the same file. Choose a different source or discard this local draft.</p>}{!draft.retryable && <button disabled={!!busy} onClick={() => discardDraft(draft)}>Discard local draft</button>}</section>)}
     {pending.map((draft) => <section key={`${draft.token}:${draft.key}`} className="rounded border border-ink-700 p-3" aria-label="Preserved decision draft"><p>Preserved decision: {reasonLabel(draft.reason)}</p>{draft.retryable ? <button disabled={!!busy} onClick={() => work('Retrying saved decision', async () => { await requireCurrentScope(); await call('retryDraft', { token: draft.token, key: draft.key }); await load(session); })}>Retry saved decision</button> : <><p>This refusal cannot be fixed by sending the same decision again.</p><button disabled={!!busy} onClick={() => discardDraft(draft)}>Discard local draft</button></>}</section>)}
 
     {sources.map((source, index) => <section key={source.sourceId} className="rounded border border-ink-700 p-4 space-y-3"><h2>Source {index + 1} · Owner demonstration · {source.metadata.mediaType}</h2><p className="text-sm text-ink-400">{source.localName ? `${source.localName} · ` : ''}{source.metadata.width}×{source.metadata.height} · {formatTrainingTime(source.metadata.durationMs)} · SHA-256 {shortId(source.metadata.sha256)}</p><button disabled={!source.token || !!busy || versionChanged} onClick={() => chooseSource(source)}>Annotate source</button>{!source.token && <p>Local evidence is on another computer or unavailable.</p>}
-      <ul className="divide-y divide-ink-800">{source.decisions.map((decision) => <li key={decision.recordId} className="py-3 space-y-2"><p>{formatTrainingTime(decision.content.anchor.startMs)} · {decision.state} · {relationLabel(decision.content.relation)}</p><p>{decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</p><p>{decision.content.summary}</p><p className="text-xs text-ink-500">Evidence digest {shortId(decision.recordDigest)}</p>{(decision.state === 'draft' || decision.state === 'accepted') && <button disabled={!!busy || !source.token || versionChanged} onClick={() => reviewDecision(source, decision)}>{decision.state === 'draft' ? 'Review before accepting' : 'Review accepted evidence'}</button>}</li>)}</ul>
+      <ul className="divide-y divide-ink-800">{source.decisions.map((decision) => { const decisionStages = normalizeTrainingStages(decision.content.applicability?.stages); return <li key={decision.recordId} className="py-3 space-y-2"><p>{formatTrainingTime(decision.content.anchor.startMs)} · {decision.state} · {relationLabel(decision.content.relation)}</p><p>{decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</p><p><span className="font-semibold">Eligible stages:</span> {decisionStages.length ? decisionStages.map(trainingStageLabel).join(', ') : 'Not recorded'}</p>{decision.state === 'accepted' && !decisionStages.includes('planning') && <p className="text-amber-400">This accepted record cannot guide planning before tools or paid actions. Create a new planning-scoped decision to preserve the original record.</p>}<p>{decision.content.summary}</p><p className="text-xs text-ink-500">Evidence digest {shortId(decision.recordDigest)}</p>{(decision.state === 'draft' || decision.state === 'accepted') && <button disabled={!!busy || !source.token || versionChanged} onClick={() => reviewDecision(source, decision)}>{decision.state === 'draft' ? 'Review before accepting' : 'Review accepted evidence'}</button>}</li>; })}</ul>
     </section>)}
 
-    {reviewed && <section className="rounded border border-brand-500 p-4 space-y-4" aria-labelledby="decision-review-heading"><h2 ref={reviewHeadingRef} id="decision-review-heading" tabIndex={-1}>Exact saved evidence</h2><img src={reviewed.image} alt={`Saved evidence at ${formatTrainingTime(reviewed.decision.content.anchor.startMs)}`} className="w-full" /><dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Source</dt><dd>{reviewed.source.localName || `SHA-256 ${shortId(reviewed.source.metadata.sha256)}`}</dd></div><div><dt className="font-semibold">Timestamp</dt><dd>{formatTrainingTime(reviewed.decision.content.anchor.startMs)}</dd></div><div><dt className="font-semibold">Relation</dt><dd>{relationLabel(reviewed.decision.content.relation)}</dd></div><div><dt className="font-semibold">Visual properties</dt><dd>{reviewed.decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</dd></div><div><dt className="font-semibold">Decision</dt><dd>{reviewed.decision.content.summary}</dd></div><div><dt className="font-semibold">Immutable digest</dt><dd className="break-all">{reviewed.decision.recordDigest}</dd></div></dl>
+    {reviewed && <section className="rounded border border-brand-500 p-4 space-y-4" aria-labelledby="decision-review-heading"><h2 ref={reviewHeadingRef} id="decision-review-heading" tabIndex={-1}>Exact saved evidence</h2><img src={reviewed.image} alt={`Saved evidence at ${formatTrainingTime(reviewed.decision.content.anchor.startMs)}`} className="w-full" /><dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Source</dt><dd>{reviewed.source.localName || `SHA-256 ${shortId(reviewed.source.metadata.sha256)}`}</dd></div><div><dt className="font-semibold">Timestamp</dt><dd>{formatTrainingTime(reviewed.decision.content.anchor.startMs)}</dd></div><div><dt className="font-semibold">Relation</dt><dd>{relationLabel(reviewed.decision.content.relation)}</dd></div><div><dt className="font-semibold">Visual properties</dt><dd>{reviewed.decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</dd></div><div><dt className="font-semibold">Eligible stages</dt><dd>{normalizeTrainingStages(reviewed.decision.content.applicability?.stages).length ? normalizeTrainingStages(reviewed.decision.content.applicability?.stages).map(trainingStageLabel).join(', ') : 'Not recorded'}</dd></div><div><dt className="font-semibold">Decision</dt><dd>{reviewed.decision.content.summary}</dd></div><div><dt className="font-semibold">Immutable digest</dt><dd className="break-all">{reviewed.decision.recordDigest}</dd></div></dl>
       {reviewed.decision.state === 'draft' && <><label className="flex gap-3"><input type="checkbox" checked={acceptConfirmed} disabled={!!busy} onChange={(event) => setAcceptConfirmed(event.target.checked)} />I reviewed this exact frame and decision and want it eligible for future Manager selection.</label><button disabled={!!busy || !acceptConfirmed} onClick={acceptReviewed}>Accept this exact decision</button></>}
-      {reviewed.decision.state === 'accepted' && <><label className="flex gap-3"><input type="checkbox" checked={revokeConfirmed} disabled={!!busy} onChange={(event) => setRevokeConfirmed(event.target.checked)} />I understand revocation prevents this evidence from being selected in future runs.</label><button disabled={!!busy || !revokeConfirmed} onClick={revokeReviewed}>Revoke future selection</button></>}
+      {reviewed.decision.state === 'accepted' && <><label className="flex gap-3"><input type="checkbox" checked={revokeConfirmed} disabled={!!busy} onChange={(event) => setRevokeConfirmed(event.target.checked)} />I understand revocation prevents this evidence from being selected in future runs.</label><button disabled={!!busy || !revokeConfirmed} onClick={revokeReviewed}>Revoke future selection</button>{!normalizeTrainingStages(reviewed.decision.content.applicability?.stages).includes('planning') && <div className="rounded border border-amber-500 p-3 space-y-2"><p>This immutable record does not apply during planning. Start a separate planning-scoped successor using the same decision as a draft; you must preview, save, and accept it independently.</p><button disabled={!!busy || versionChanged} onClick={() => createPlanningSuccessor(reviewed.source, reviewed.decision)}>Create planning-scoped successor</button></div>}</>}
       <button disabled={!!busy} onClick={() => setReviewed(null)}>Close evidence review</button>
     </section>}
 
     {selected && <section className="rounded border border-ink-700 p-4 space-y-4"><h2>Timestamped visual decision</h2><fieldset disabled={!!busy || versionChanged} className="space-y-4"><legend className="sr-only">Choose and explain an exact visual decision</legend><label className="block">Frame timestamp<input className="block w-full" type="range" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} step="1" value={time} aria-valuetext={formatTrainingTime(time)} onChange={(event) => changeTime(Number(event.target.value))} /></label><div className="flex flex-wrap items-end gap-2"><label>Exact timestamp in milliseconds<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} value={time} onChange={(event) => changeTime(Number(event.target.value))} /></label>{[-1000, -100, 100, 1000].map((delta) => <button type="button" key={delta} onClick={() => changeTime(time + delta)}>{delta > 0 ? '+' : '−'}{Math.abs(delta)} ms</button>)}</div><p aria-live="polite">Selected time {formatTrainingTime(time)} of {formatTrainingTime(selected.metadata.durationMs)}</p><button type="button" onClick={showPreview}>Preview this exact frame</button>{previewIsCurrent && preview?.image && <img src={preview.image} alt={`Training source frame at ${formatTrainingTime(preview.timeMs)}`} className="w-full" />}
-      <label className="block">Evidence relation<select value={relation} onChange={(event) => { setRelation(event.target.value as Relation); setDecisionKey(crypto.randomUUID()); }}><option value="accepted">Positive example</option><option value="rejected">Negative example</option><option value="contrast">Contrastive example</option></select></label><label className="block">Visual property<select value={property} onChange={(event) => { setProperty(event.target.value); setDecisionKey(crypto.randomUUID()); }}>{['motion_rhythm', 'layout_variety', 'information_hierarchy', 'typography_treatment', 'transition_quality', 'animation_continuity', 'composition_density'].map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</select></label>
-      {([['What was chosen', chosen, setChosen], ['Why this choice', why, setWhy], ['Tool or process used', process, setProcess], ['Desired visual, motion or layout behavior', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={annotate}>Save decision draft</button></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records evidence; it does not claim the agent is trained or automatically add it to every run.</p></section>}
+      <label className="block">Evidence relation<select value={relation} onChange={(event) => { setRelation(event.target.value as Relation); setDecisionKey(crypto.randomUUID()); }}><option value="accepted">Positive example</option><option value="rejected">Negative example</option><option value="contrast">Contrastive example</option></select></label><label className="block">Visual property<select value={property} onChange={(event) => { const next = event.target.value; setProperty(next); setStages(deriveTrainingStages(next)); setDecisionKey(crypto.randomUUID()); }}>{['motion_rhythm', 'layout_variety', 'information_hierarchy', 'typography_treatment', 'transition_quality', 'animation_continuity', 'composition_density'].map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</select></label>
+      <fieldset className="rounded border border-ink-700 p-3 space-y-2"><legend className="font-semibold">When may the Manager use this decision?</legend><p className="text-sm">Suggested from the selected visual property. Narrow or expand it deliberately. Planning must be selected for this evidence to guide decisions before tools, generation, or paid actions.</p><div className="grid gap-2">{TRAINING_STAGE_OPTIONS.map((option) => <label key={option.value} className="flex gap-3"><input type="checkbox" checked={stages.includes(option.value)} onChange={() => toggleStage(option.value)} /><span><span className="block">{option.label}</span><span className="block text-sm text-ink-400">{option.help}</span></span></label>)}</div><p className="text-xs text-ink-500">Routing contract {TRAINING_STAGE_ROUTING_VERSION}</p></fieldset>
+      {([['What was chosen', chosen, setChosen], ['Why this choice', why, setWhy], ['Tool or process used', process, setProcess], ['Desired visual, motion or layout behavior', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || stages.length === 0 || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={annotate}>Save decision draft</button></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
   </main>;
 }

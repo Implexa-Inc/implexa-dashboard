@@ -1,6 +1,6 @@
 # Arbitrary local training source ingress
 
-Linked draft PRs: [Backend #443](https://github.com/Implexa-Inc/implexa-backend/pull/443) → [Desktop #318](https://github.com/Implexa-Inc/implexa-desktop/pull/318) → [Dashboard #231](https://github.com/Implexa-Inc/implexa-dashboard/pull/231).
+Original ingress PRs: [Backend #443](https://github.com/Implexa-Inc/implexa-backend/pull/443) → [Desktop #318](https://github.com/Implexa-Inc/implexa-desktop/pull/318) → [Dashboard #231](https://github.com/Implexa-Inc/implexa-dashboard/pull/231). Planning-stage hardening: [Backend #446](https://github.com/Implexa-Inc/implexa-backend/pull/446) → [Desktop #322](https://github.com/Implexa-Inc/implexa-desktop/pull/322) → [Dashboard #232](https://github.com/Implexa-Inc/implexa-dashboard/pull/232).
 
 Draft implementation, based on backend fcc284a, Desktop b23b981 (0.4.8), and Dashboard e0368de1. No existing checkout, production database, Mac Mini file, provider, compositor, activation, or release was changed. PostgreSQL migration execution was confined to a newly initialized disposable fixture database.
 
@@ -23,17 +23,17 @@ The Desktop main process is the trusted local custody producer, authenticated to
 
 Each decision requires four bounded fields: chosen, why, process, desiredBehavior. They are retained structurally and projected as the selected quality reference's bounded summary. A timestamp maps to a full-frame PNG (maximum 1280px capture edge, 8 MiB), with a hash, dimensions, timestamp anchor digest and exact source custody receipt. This slice deliberately refuses clips, crops, contact sheets and other unsupported derivatives as local evidence. Negative/contrast examples can be coach-accepted evidence without becoming positive examples.
 
-### Dashboard ↔ Desktop local-training bridge v1
+### Dashboard ↔ Desktop local-training bridge v2
 
-Dashboard requires `window.implexaDesktop.trainingLocalContractVersion === '1'` and fails closed on an absent or different version. Every call uses `trainingLocal(operation, args)` and returns `{ok:true,...}` or `{ok:false,reason}`. The v1 operations are:
+Dashboard requires `window.implexaDesktop.trainingLocalContractVersion === '2'` and fails closed on an absent or different version. Every call uses `trainingLocal(operation, args)` and returns `{ok:true,...}` or `{ok:false,reason}`. V2 retains every v1 operation and adds the server-owned Manager-coverage projection to `list`:
 
 | Operation | Arguments | Successful identity-bearing result |
 | --- | --- | --- |
-| `home` | `{slug}` | existing authenticated Training home |
-| `scope` | `{slug,sessionId?}` | `{scope:{agent:{name?,currentVersionId},session?:{sessionId,baseVersionId,terminal}}}` |
-| `create` | `{slug,key}` | `{sessionId}` |
+| `home` | `{slug}` | authenticated Training home with exact server-owned `successorProjection` |
+| `scope` | `{slug,sessionId?}` | `{scope:{agent:{name?,currentVersionId},session?:{sessionId,baseVersionId,parentSessionId,terminal}}}` |
+| `create` | `{slug,key,parentSessionId?}` | `{sessionId,baseVersionId,parentSessionId}`; the server chooses the active version and freezes optional predecessor lineage |
 | `select` | `{sessionId,consent}`; native picker supplies the path | registered source result |
-| `list` | `{sessionId}` | sources with local `token`/optional basename `localName`; `failedDrafts` and `pendingDecisions` each carry typed `retryable` and `reason` |
+| `list` | `{sessionId}` | sources with local `token`/optional basename `localName`; typed retry state; and `managerCoverage` as defined below |
 | `preview` | `{token,timeMs}` | a transient PNG for the exact source/timestamp |
 | `annotate` | immutable draft body | registered competence draft |
 | `decisionPreview` | `{token,recordId}` | `{image,recordId,recordDigest}` for the persisted, hash-verified derivative—not a fresh frame |
@@ -41,6 +41,41 @@ Dashboard requires `window.implexaDesktop.trainingLocalContractVersion === '1'` 
 | `revoke` | `{token,recordId,expectedDigest}` | `{recordId,recordDigest,state:'revoked',receiptDigest}` after custody revalidation |
 | `register`, `retryDraft` | the preserved token/key | replay of only a `retryable:true` local item |
 | `discardDraft` | `{token,decisionKey?}` | `{discarded:true}` for a local-only source/decision alias; never deletes backend evidence |
+
+`managerCoverage` is passed through byte-for-byte from the authenticated backend session read. Desktop and Dashboard do not derive it:
+
+```ts
+{
+  contractVersion: 'manager-training-coverage.v1';
+  scope: 'workflow_version';
+  workflowVersionId: string;
+  classified: boolean;
+  // Version-wide across every training session for this immutable version.
+  acceptedLocalRecordCount: number;
+  // Equality fence for accepted decisions returned by this session's list.
+  listedSessionAcceptedRecordCount: number;
+  acceptedPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'|'exception'}>;
+  listedSessionAcceptedPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'|'exception'}>;
+  coveredPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'|'exception'}>;
+  uncoveredPairs: Array<{stage:string; property:string; relation:'accepted'|'rejected'|'contrast'|'exception'}>;
+  readiness: 'not_applicable'|'ready'|'agent_update_required';
+  reason: null|'manager_quality_coverage_unclassified_training'|'manager_quality_coverage_incomplete_training';
+}
+```
+
+`home.successorProjection` is a separate exact contract: `{contractVersion:'agent-training-successor-projection.v1',activeVersionId,eligiblePredecessor:null|{sessionId,baseVersionId,acceptedLocalRecordCount}}`. The candidate is resolved by the backend across the complete owner/agent history, not the capped recent-session activity feed. Both clients refuse a missing, stale, self-targeting, empty, or extra-key projection.
+
+The backend computes the coverage result version-wide from canonical, deduplicated, sorted pairs over current, accepted, non-revoked, non-expired local records with the exact owner, organization, agent, immutable workflow version, and task signature. `acceptedLocalRecordCount`, `acceptedPairs`, `coveredPairs`, `uncoveredPairs`, and readiness span every training session for that version so the page cannot claim Ready while a run would refuse evidence accepted in another session. `listedSessionAcceptedRecordCount` and `listedSessionAcceptedPairs` are equality/subset fences for accepted decisions returned in the current session list. Dashboard renders `agent_update_required` as a blocking remediation notice; it never claims an accepted record can guide a run merely because its local stage list contains `planning`.
+
+### Versioned stage applicability
+
+New decisions use Dashboard routing contract `manager-training-applicability.v1`. The Coach sees and explicitly controls the allowed Manager stages. Creative-property defaults include `planning`, `build`, `preview`, `qa`, and `revision`; scene-structure properties also include `scene_contract`. The UI does not silently select `asset_selection` or `render`. A Coach may deliberately narrow or expand the exact allowlist, and an empty allowlist cannot be saved.
+
+`planning` is the only stage that makes a decision eligible before tool selection, generation, or paid actions. This is necessary but not sufficient: the immutable agent version must independently declare a matching Manager v3 coverage policy for the exact `{stage, property, relation}` pair. The backend remains the authority for that intersection.
+
+Already accepted evidence is never restamped. The UI displays its persisted stages and calls out accepted records that do not contain `planning`. “Create planning-scoped successor” only pre-fills a new form. It requires a fresh exact-frame preview, draft save, exact derivative review, and explicit acceptance, producing a distinct immutable record while preserving the original digest and history.
+
+An agent-version transition follows the same append-only rule. When the active immutable version changes, the old session becomes read-only and the Coach must explicitly confirm creation of a new raw-input training session. The creation request names the exact backend-selected old session as `parentSessionId`; Dashboard requires the authenticated response to echo that lineage and the server-selected active `baseVersionId` before it proceeds. Its idempotency key remains stable across a lost response, so retry adopts the same session instead of creating another. This makes the transition auditable and restartable without treating the predecessor as authority for the successor. On reload, Dashboard uses the server-owned projection even when the candidate is terminal or lies outside the recent-session cap. It restores an active-version session only when its frozen `parentSessionId` names that exact predecessor; an unrelated current-version session cannot inherit or expose the old evidence. The Coach then grants source consent again and uses the native picker to re-select the source; only an exact SHA-256 match unlocks pre-filling an old accepted decision. Pre-fill copies prose and the persisted stage scope into a new draft, never a backend record or acceptance. A fresh exact-frame preview, save, exact new-digest review, and explicit acceptance are still required. Manager readiness is computed only from accepted records bound to the new version, so publishing a classified version cannot make old-version evidence appear ready.
 
 Dashboard calls `scope` before every local disclosure or evidence mutation. A session whose immutable `baseVersionId` no longer equals the agent's authenticated `currentVersionId` remains preserved but becomes read-only. Preview authority is the triple `(token,timeMs,image)`; changing source or timestamp invalidates it. Acceptance is unavailable until `decisionPreview` returns the exact `recordId` and `recordDigest` and the Coach explicitly confirms that evidence. Permanent duplicate/verification refusals never render a Retry control.
 
