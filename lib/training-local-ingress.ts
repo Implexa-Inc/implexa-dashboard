@@ -131,9 +131,10 @@ export function isManagerTrainingCoverage(value: unknown, workflowVersionId: str
   const coveredSet = new Set(covered); const uncoveredSet = new Set(uncovered); const acceptedSet = new Set(accepted);
   if (covered.some((key) => uncoveredSet.has(key)) || [...covered, ...uncovered].some((key) => !acceptedSet.has(key))
     || accepted.some((key) => !coveredSet.has(key) && !uncoveredSet.has(key))) return false;
-  if (value.readiness === 'not_applicable') return value.reason === null && Number(value.acceptedLocalRecordCount) === 0
+  if (Number(value.acceptedLocalRecordCount) === 0) return value.readiness === 'not_applicable' && value.reason === null
     && accepted.length === 0 && listed.length === 0 && covered.length === 0 && uncovered.length === 0;
-  if (value.readiness === 'ready') return value.classified && value.reason === null && accepted.length > 0
+  if (accepted.length === 0) return false;
+  if (value.readiness === 'ready') return value.classified && value.reason === null
     && uncovered.length === 0 && covered.length === accepted.length;
   if (value.readiness !== 'agent_update_required' || uncovered.length === 0) return false;
   if (value.reason === 'manager_quality_coverage_unclassified_training') return !value.classified

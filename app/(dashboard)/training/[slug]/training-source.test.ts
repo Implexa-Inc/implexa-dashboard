@@ -207,6 +207,8 @@ test('timecodes and preview authority are exact to the source token and millisec
   assert.equal(isManagerTrainingCoverage({ ...coverage(), extra: true }, VERSION_A), false, 'coverage wire rejects unknown keys');
   assert.equal(isManagerTrainingCoverage({ ...coverage(), listedSessionAcceptedRecordCount: 2 }, VERSION_A), false, 'session evidence count cannot exceed version evidence count');
   assert.equal(isManagerTrainingCoverage({ ...coverage(), classified: false }, VERSION_A), false, 'ready coverage must be classified');
+  assert.equal(isManagerTrainingCoverage({ ...coverage(), acceptedLocalRecordCount: 0, listedSessionAcceptedRecordCount: 0, listedSessionAcceptedPairs: [] }, VERSION_A), false, 'zero accepted records cannot carry invented accepted or covered routes');
+  assert.equal(isManagerTrainingCoverage({ ...coverage(), acceptedPairs: [], listedSessionAcceptedPairs: [], coveredPairs: [] }, VERSION_A), false, 'positive accepted-record count must carry at least one accepted route');
   const inventedProperty = { ...planningPair, property: 'invented_property' };
   assert.equal(isManagerTrainingCoverage({ ...coverage(), acceptedPairs: [inventedProperty], listedSessionAcceptedPairs: [inventedProperty], coveredPairs: [inventedProperty] }, VERSION_A), false);
   const inventedRelation = { ...planningPair, relation: 'invented_relation' };
@@ -577,6 +579,19 @@ test('stale or incomplete Manager coverage can never create a false-ready claim'
       assert.doesNotMatch(rendered.text(), /classifies all/);
     } finally { rendered.cleanup(); }
   }
+});
+
+test('an impossible zero-record ready projection cannot create green Manager readiness', async () => {
+  const impossible = coverage({
+    acceptedLocalRecordCount: 0,
+    listedSessionAcceptedRecordCount: 0,
+    listedSessionAcceptedPairs: [],
+  });
+  const { rendered } = await renderedWith({ state: 'draft', managerCoverage: impossible });
+  try {
+    assert.doesNotMatch(rendered.text(), /classifies all/);
+    assert.doesNotMatch(rendered.text(), /Manager reference training ready:/);
+  } finally { rendered.cleanup(); }
 });
 
 test('version-wide uncovered evidence from another session blocks false Ready in this session', async () => {

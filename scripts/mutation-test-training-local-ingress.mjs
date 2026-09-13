@@ -46,6 +46,8 @@ const mutations = [
   ['coverage-scope-gate', helperPath, "value.contractVersion !== 'manager-training-coverage.v1' || value.scope !== 'workflow_version'", "value.contractVersion !== 'manager-training-coverage.v1' || false"],
   ['coverage-session-count-gate', componentPath, "managerCoverage.listedSessionAcceptedRecordCount === acceptedEvidenceCount", 'true'],
   ['coverage-global-count-gate', helperPath, 'Number(value.listedSessionAcceptedRecordCount) > Number(value.acceptedLocalRecordCount)', 'false'],
+  ['coverage-zero-count-pair-gate', helperPath, "if (Number(value.acceptedLocalRecordCount) === 0) return value.readiness === 'not_applicable' && value.reason === null\n    && accepted.length === 0 && listed.length === 0 && covered.length === 0 && uncovered.length === 0;", "if (value.readiness === 'not_applicable') return value.reason === null\n    && accepted.length === 0 && listed.length === 0 && covered.length === 0 && uncovered.length === 0;"],
+  ['coverage-positive-count-pair-gate', helperPath, 'if (accepted.length === 0) return false;', 'if (false) return false;'],
   ['coverage-classified-gate', helperPath, "if (value.readiness === 'ready') return value.classified && value.reason === null", "if (value.readiness === 'ready') return true && value.reason === null"],
   ['coverage-pair-gate', helperPath, "if (covered.some((key) => uncoveredSet.has(key)) || [...covered, ...uncovered].some((key) => !acceptedSet.has(key))\n    || accepted.some((key) => !coveredSet.has(key) && !uncoveredSet.has(key))) return false;", 'if (false) return false;'],
   ['coverage-property-enum', helperPath, "typeof pair.property !== 'string' || !PROPERTY_CODES.has(pair.property)", "typeof pair.property !== 'string'"],
