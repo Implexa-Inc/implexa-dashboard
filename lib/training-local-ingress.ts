@@ -13,6 +13,19 @@ export type TrainingSuccessorProjection = {
   eligiblePredecessor: TrainingEligiblePredecessor | null;
 };
 
+export type TrainingCoveragePair = { stage: TrainingStage; property: string; relation: 'accepted' | 'rejected' | 'contrast' | 'exception' };
+export type ManagerTrainingRequirements = {
+  contractVersion: 'manager-training-requirements.v1';
+  scope: 'workflow_version';
+  workflowVersionId: string;
+  classified: boolean;
+  requiredPairs: TrainingCoveragePair[];
+  fulfilledPairs: TrainingCoveragePair[];
+  missingPairs: TrainingCoveragePair[];
+  readiness: 'not_applicable' | 'ready' | 'coach_training_required';
+  reason: null | 'manager_required_training_missing';
+};
+
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const exact = (value: unknown, keys: readonly string[]): value is Record<string, unknown> => Boolean(
   value && typeof value === 'object' && !Array.isArray(value)
@@ -51,6 +64,45 @@ export const TRAINING_STAGE_OPTIONS = [
 ] as const;
 
 export type TrainingStage = typeof TRAINING_STAGE_OPTIONS[number]['value'];
+
+const RELATIONS = new Set(['accepted', 'rejected', 'contrast', 'exception']);
+function pairKeys(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length > TRAINING_STAGE_OPTIONS.length * 15 * 4) return null;
+  const keys: string[] = [];
+  for (const pair of value) {
+    if (!exact(pair, ['stage', 'property', 'relation'])
+      || !TRAINING_STAGE_OPTIONS.some(({ value: stage }) => stage === pair.stage)
+      || typeof pair.property !== 'string' || !/^[a-z][a-z0-9_]{0,99}$/.test(pair.property)
+      || typeof pair.relation !== 'string' || !RELATIONS.has(pair.relation)) return null;
+    keys.push(`${pair.stage}\u0000${pair.property}\u0000${pair.relation}`);
+  }
+  return keys.some((key, index) => index > 0 && keys[index - 1] >= key) ? null : keys;
+}
+
+export function isManagerTrainingRequirements(value: unknown, workflowVersionId: string | null): value is ManagerTrainingRequirements {
+  if (!workflowVersionId || !exact(value, ['contractVersion', 'scope', 'workflowVersionId', 'classified',
+    'requiredPairs', 'fulfilledPairs', 'missingPairs', 'readiness', 'reason'])
+    || value.contractVersion !== 'manager-training-requirements.v1' || value.scope !== 'workflow_version'
+    || value.workflowVersionId !== workflowVersionId || typeof value.classified !== 'boolean') return false;
+  const required = pairKeys(value.requiredPairs); const fulfilled = pairKeys(value.fulfilledPairs); const missing = pairKeys(value.missingPairs);
+  if (!required || !fulfilled || !missing) return false;
+  const requiredSet = new Set(required); const fulfilledSet = new Set(fulfilled); const missingSet = new Set(missing);
+  if (fulfilled.some((key) => missingSet.has(key)) || [...fulfilled, ...missing].some((key) => !requiredSet.has(key))
+    || required.some((key) => !fulfilledSet.has(key) && !missingSet.has(key))) return false;
+  if (value.readiness === 'not_applicable') return value.reason === null && (!value.classified || required.length === 0)
+    && fulfilled.length === 0 && missing.length === 0;
+  if (value.readiness === 'ready') return value.classified && value.reason === null && required.length > 0
+    && missing.length === 0 && fulfilled.length === required.length;
+  return value.readiness === 'coach_training_required' && value.classified
+    && value.reason === 'manager_required_training_missing' && missing.length > 0;
+}
+
+export function requiredStagesForDecision(requirements: ManagerTrainingRequirements | null, property: string, relation: string): TrainingStage[] {
+  if (!requirements) return [];
+  const required = new Set(requirements.requiredPairs
+    .filter((pair) => pair.property === property && pair.relation === relation).map((pair) => pair.stage));
+  return TRAINING_STAGE_OPTIONS.map(({ value }) => value).filter((stage) => required.has(stage));
+}
 
 const commonCreativeStages: TrainingStage[] = ['planning', 'build', 'preview', 'qa', 'revision'];
 const sceneContractProperties = new Set([
