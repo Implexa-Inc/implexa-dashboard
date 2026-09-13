@@ -5,28 +5,32 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   deriveTrainingStages,
   formatTrainingTime,
+  isManagerTrainingCoverage,
   isManagerTrainingRequirements,
   isTrainingSuccessorProjection,
   normalizeTrainingStages,
   previewMatches,
   trainingStageLabel,
   TRAINING_LOCAL_CONTRACT_VERSION,
+  TRAINING_PROPERTY_CODES,
+  TRAINING_RELATIONS,
   TRAINING_STAGE_OPTIONS,
   TRAINING_STAGE_ROUTING_VERSION,
   requiredStagesForDecision,
   type ManagerTrainingRequirements,
+  type ManagerTrainingCoverage,
+  type TrainingPropertyCode,
+  type TrainingRelation,
   type TrainingStage,
   type TrainingSuccessorProjection,
 } from '@/lib/training-local-ingress';
 
-type Relation = 'accepted' | 'rejected' | 'contrast';
-type CoverageRelation = Relation | 'exception';
 type DecisionState = 'draft' | 'accepted' | 'unavailable' | 'revoked';
 type Decision = {
   recordId: string;
   recordDigest: string;
   state: DecisionState;
-  content: { relation: Relation; properties: string[]; summary: string; anchor: { startMs: number }; applicability?: { stages?: string[] } };
+  content: { relation: TrainingRelation; properties: TrainingPropertyCode[]; summary: string; anchor: { startMs: number }; applicability?: { stages?: string[] } };
   decision: { chosen: string; why: string; process: string; desiredBehavior: string };
 };
 type Source = {
@@ -48,21 +52,6 @@ type Scope = {
   agent: { name?: string; currentVersionId: string | null };
   session?: { sessionId: string; baseVersionId: string; parentSessionId?: string | null; terminal: boolean };
 };
-type CoveragePair = { stage: string; property: string; relation: CoverageRelation };
-type ManagerCoverage = {
-  contractVersion: 'manager-training-coverage.v1';
-  scope: 'workflow_version';
-  workflowVersionId: string;
-  classified: boolean;
-  acceptedLocalRecordCount: number;
-  listedSessionAcceptedRecordCount: number;
-  acceptedPairs: CoveragePair[];
-  listedSessionAcceptedPairs: CoveragePair[];
-  coveredPairs: CoveragePair[];
-  uncoveredPairs: CoveragePair[];
-  readiness: 'not_applicable' | 'ready' | 'agent_update_required';
-  reason: null | 'manager_quality_coverage_unclassified_training' | 'manager_quality_coverage_incomplete_training';
-};
 type Result = {
   ok: boolean;
   reason?: string;
@@ -77,7 +66,7 @@ type Result = {
   recordDigest?: string;
   failedDrafts?: LocalDraft[];
   pendingDecisions?: LocalDraft[];
-  managerCoverage?: ManagerCoverage;
+  managerCoverage?: ManagerTrainingCoverage;
   managerTrainingRequirements?: ManagerTrainingRequirements;
 };
 type Bridge = {
@@ -94,9 +83,9 @@ class TrainingError extends Error {
 
 const bridge = () => (window as unknown as { implexaDesktop?: Bridge }).implexaDesktop;
 const shortId = (value: string | null | undefined) => value ? value.slice(0, 8) : 'none';
-const relationLabel = (relation: CoverageRelation) => ({ accepted: 'Positive example', rejected: 'Negative example', contrast: 'Contrastive example', exception: 'Exception' })[relation];
+const relationLabel = (relation: TrainingRelation) => ({ accepted: 'Positive example', rejected: 'Negative example', contrast: 'Contrastive example', exception: 'Exception' })[relation];
 const reasonLabel = (reason: string) => reason.replaceAll('_', ' ');
-const coveragePairKey = (pair: CoveragePair) => `${pair.stage}:${pair.property}:${pair.relation}`;
+const coveragePairKey = (pair: { stage: string; property: string; relation: string }) => `${pair.stage}:${pair.property}:${pair.relation}`;
 
 function resolveBridge() {
   const candidate = bridge();
@@ -128,10 +117,10 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [acceptConfirmed, setAcceptConfirmed] = useState(false);
   const [revokeConfirmed, setRevokeConfirmed] = useState(false);
   const [time, setTime] = useState(0);
-  const [relation, setRelation] = useState<Relation>('accepted');
-  const [property, setProperty] = useState('motion_rhythm');
+  const [relation, setRelation] = useState<TrainingRelation>('accepted');
+  const [property, setProperty] = useState<TrainingPropertyCode>('motion_rhythm');
   const [stages, setStages] = useState<TrainingStage[]>(() => deriveTrainingStages('motion_rhythm'));
-  const [managerCoverage, setManagerCoverage] = useState<ManagerCoverage | null>(null);
+  const [managerCoverage, setManagerCoverage] = useState<ManagerTrainingCoverage | null>(null);
   const [managerTrainingRequirements, setManagerTrainingRequirements] = useState<ManagerTrainingRequirements | null>(null);
   const [successorStageExpansion, setSuccessorStageExpansion] = useState<{ required: TrainingStage[]; missing: TrainingStage[] } | null>(null);
   const [chosen, setChosen] = useState('');
@@ -145,11 +134,8 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [decisionKey, setDecisionKey] = useState(() => crypto.randomUUID());
   const previewIsCurrent = useMemo(() => previewMatches(preview, selected?.token, time), [preview, selected, time]);
   const acceptedEvidenceCount = useMemo(() => sources.reduce((count, source) => count + source.decisions.filter((decision) => decision.state === 'accepted').length, 0), [sources]);
-  const coverageIsCurrent = Boolean(
-    managerCoverage
-    && managerCoverage.contractVersion === 'manager-training-coverage.v1'
-    && managerCoverage.scope === 'workflow_version'
-    && managerCoverage.workflowVersionId === sessionVersion
+  const coverageIsCurrent = Boolean(isManagerTrainingCoverage(managerCoverage, sessionVersion)
+    && managerCoverage
     && managerCoverage.listedSessionAcceptedRecordCount === acceptedEvidenceCount
     && managerCoverage.acceptedLocalRecordCount >= managerCoverage.listedSessionAcceptedRecordCount,
   );
@@ -163,8 +149,8 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const coverageNeedsUpdate = Boolean(coverageIsCurrent && managerCoverage?.readiness === 'agent_update_required' && managerCoverage.reason);
   const requirementsAreCurrent = isManagerTrainingRequirements(managerTrainingRequirements, sessionVersion || currentVersion);
   const trainingIsReady = Boolean(!versionChanged && requirementsAreCurrent && managerTrainingRequirements
-    && (managerTrainingRequirements.readiness === 'ready' || managerTrainingRequirements.readiness === 'not_applicable'));
-  const trainingNeedsCoach = Boolean(!versionChanged && requirementsAreCurrent && managerTrainingRequirements?.readiness === 'coach_training_required');
+    && (managerTrainingRequirements.readiness === 'reference_training_ready' || managerTrainingRequirements.readiness === 'not_applicable'));
+  const trainingNeedsCoach = Boolean(!versionChanged && requirementsAreCurrent && managerTrainingRequirements?.readiness === 'coach_reference_training_required');
 
   async function call(operation: string, args: unknown) {
     const result = await resolveBridge().trainingLocal(operation, args);
@@ -234,7 +220,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
       const projection = home.successorProjection;
       if (projection.activeVersionId) {
         if (!isManagerTrainingRequirements(home.managerTrainingRequirements, projection.activeVersionId)) {
-          throw new TrainingError('manager_training_requirements_unavailable', 'Implexa cannot verify the active version’s required training coverage. Reload after the backend and Dashboard are updated.');
+          throw new TrainingError('manager_training_requirements_unavailable', 'Implexa cannot verify the active version’s required visual-reference training coverage. Reload after the backend and Dashboard are updated.');
         }
         setManagerTrainingRequirements(home.managerTrainingRequirements);
       } else setManagerTrainingRequirements(null);
@@ -436,12 +422,12 @@ export default function TrainingSource({ slug }: { slug: string }) {
     <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={add}>Add training source</button>
     {busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{error && <p role="alert">{reasonLabel(error)}</p>}
     {acceptedEvidenceCount > 0 && <p role="status" className="rounded border border-emerald-600 p-3">Evidence accepted: {acceptedEvidenceCount} immutable decision{acceptedEvidenceCount === 1 ? '' : 's'} in this session. Acceptance preserves the teaching; Agent readiness is verified separately below.</p>}
-    {currentVersion && !requirementsAreCurrent && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Agent training readiness unavailable</h2><p>Implexa cannot verify the required stage and quality-reference pairs for this exact active version. Accepted evidence remains preserved, but this page will not call the Agent ready.</p></section>}
-    {trainingNeedsCoach && managerTrainingRequirements && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Evidence accepted — Agent not ready</h2><p>The immutable Agent policy still requires accepted evidence at the stage/property routes below. Create or explicitly expand successor drafts, review their exact evidence, and accept each new digest. Implexa does not silently widen an accepted record.</p><ul className="list-disc pl-5">{managerTrainingRequirements.missingPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul></section>}
+    {currentVersion && !requirementsAreCurrent && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager reference training readiness unavailable</h2><p>Implexa cannot verify the required stage and quality-reference pairs for this exact active version. Accepted evidence remains preserved. Decision, procedure, criterion, and machine-custody requirements are verified separately at run prelaunch.</p></section>}
+    {trainingNeedsCoach && managerTrainingRequirements && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Evidence accepted — reference training not ready</h2><p>The immutable Agent policy still requires accepted visual-reference evidence at the stage/property routes below. Create or explicitly expand successor drafts, review their exact evidence, and accept each new digest. Implexa does not silently widen an accepted record. Other Manager families are verified separately before a run starts.</p><ul className="list-disc pl-5">{managerTrainingRequirements.missingPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul></section>}
     {(acceptedEvidenceCount > 0 || (managerCoverage?.acceptedLocalRecordCount || 0) > 0) && !coverageCanClaimReady && !coverageNeedsUpdate && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager coverage status unavailable</h2><p>Implexa cannot prove that this exact agent version can consume the accepted evidence across its training sessions. Update Desktop or reload after the coverage service is available. The evidence remains preserved, but this page will not describe it as ready for a run.</p></section>}
     {coverageNeedsUpdate && managerCoverage && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Agent update required before this evidence can guide runs</h2><p>{managerCoverage.reason === 'manager_quality_coverage_unclassified_training' ? 'This version has no Manager training-coverage policy.' : 'This version does not cover every accepted evidence property, relation, and stage.'} This is the version-wide result across all training sessions for this immutable agent version. Your accepted evidence remains immutable and preserved, but uncovered decisions cannot be selected at planning or any other uncovered stage.</p><p>Publish a new immutable agent version with Manager v3 coverage for the listed evidence. Existing accepted records will not be rewritten.</p>{managerCoverage.uncoveredPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.uncoveredPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul>}</section>}
     {coverageCanClaimReady && managerCoverage && <p role="status" className="rounded border border-emerald-600 p-3">This immutable agent version classifies all {managerCoverage.acceptedPairs.length} accepted stage-scoped evidence routes across all training sessions.</p>}
-    {coverageCanClaimReady && trainingIsReady && managerTrainingRequirements && <p role="status" className="rounded border border-emerald-600 p-3">Agent ready: all {managerTrainingRequirements.requiredPairs.length} required Manager training routes are explicitly fulfilled for this immutable version.</p>}
+    {coverageCanClaimReady && trainingIsReady && managerTrainingRequirements && <p role="status" className="rounded border border-emerald-600 p-3">Manager reference training ready: all {managerTrainingRequirements.requiredPairs.length} required visual-reference routes are explicitly fulfilled for this immutable version. Run prelaunch still verifies decisions, procedures, criteria, custody, and the exact selected evidence set.</p>}
 
     {versionTransition && <section className="rounded border border-brand-500 p-4 space-y-3" aria-labelledby="version-successor-heading"><h2 id="version-successor-heading" className="font-semibold">Recreate reviewed decisions for {shortId(sessionVersion)}</h2><p>The records below remain bound to {shortId(versionTransition.fromVersion)}. Re-add the exact source file; Implexa enables a successor only after its SHA-256 matches. The copied text and stages are only a draft. You must preview the exact frame, save it, review the new immutable digest, and accept it again before Manager readiness can include it.</p><ul className="space-y-3">{versionTransition.sources.flatMap((oldSource) => oldSource.decisions.filter((decision) => decision.state === 'accepted').map((decision) => { const matched = sources.find((candidate) => candidate.metadata.sha256 === oldSource.metadata.sha256); const alreadyCreated = matched?.decisions.some((candidate) => candidate.content.relation === decision.content.relation && candidate.content.anchor.startMs === decision.content.anchor.startMs && candidate.content.summary === decision.content.summary); return <li key={decision.recordId} className="rounded border border-ink-700 p-3 space-y-2"><p>{formatTrainingTime(decision.content.anchor.startMs)} · {decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')} · from digest {shortId(decision.recordDigest)}</p>{!matched && <p>Re-add source SHA-256 {shortId(oldSource.metadata.sha256)} to continue.</p>}{alreadyCreated ? <p role="status">A distinct successor draft or accepted record already exists in this session.</p> : <button disabled={!!busy || !matched} onClick={() => matched && prepareVersionSuccessor(matched, decision)}>Prepare new-version successor draft</button>}</li>; }))}</ul></section>}
 
@@ -459,7 +445,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
     </section>}
 
     {selected && <section className="rounded border border-ink-700 p-4 space-y-4"><h2>Timestamped visual decision</h2>{successorStageExpansion && <section role="status" className="rounded border border-brand-500 p-3 space-y-2"><h3 className="font-semibold">Successor stage diff</h3><p>The predecessor stages were preserved exactly. This active Agent requires this decision at: {successorStageExpansion.required.length ? successorStageExpansion.required.map(trainingStageLabel).join(', ') : 'no additional stages'}.</p>{successorStageExpansion.missing.length > 0 ? <><p>Still missing: {successorStageExpansion.missing.map(trainingStageLabel).join(', ')}. They have not been added automatically.</p><button type="button" disabled={!!busy} onClick={addRequiredSuccessorStages}>Add required stages to this successor draft</button></> : <p>All required stages are now explicitly selected. Preview and accept the new digest separately.</p>}</section>}<fieldset disabled={!!busy || versionChanged} className="space-y-4"><legend className="sr-only">Choose and explain an exact visual decision</legend><label className="block">Frame timestamp<input className="block w-full" type="range" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} step="1" value={time} aria-valuetext={formatTrainingTime(time)} onChange={(event) => changeTime(Number(event.target.value))} /></label><div className="flex flex-wrap items-end gap-2"><label>Exact timestamp in milliseconds<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} value={time} onChange={(event) => changeTime(Number(event.target.value))} /></label>{[-1000, -100, 100, 1000].map((delta) => <button type="button" key={delta} onClick={() => changeTime(time + delta)}>{delta > 0 ? '+' : '−'}{Math.abs(delta)} ms</button>)}</div><p aria-live="polite">Selected time {formatTrainingTime(time)} of {formatTrainingTime(selected.metadata.durationMs)}</p><button type="button" onClick={showPreview}>Preview this exact frame</button>{previewIsCurrent && preview?.image && <img src={preview.image} alt={`Training source frame at ${formatTrainingTime(preview.timeMs)}`} className="w-full" />}
-      <label className="block">Evidence relation<select value={relation} onChange={(event) => { setRelation(event.target.value as Relation); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}><option value="accepted">Positive example</option><option value="rejected">Negative example</option><option value="contrast">Contrastive example</option></select></label><label className="block">Visual property<select value={property} onChange={(event) => { const next = event.target.value; setProperty(next); setStages(deriveTrainingStages(next)); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}>{['motion_rhythm', 'layout_variety', 'information_hierarchy', 'typography_treatment', 'transition_quality', 'animation_continuity', 'composition_density'].map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</select></label>
+      <label className="block">Evidence relation<select value={relation} onChange={(event) => { setRelation(event.target.value as TrainingRelation); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}>{TRAINING_RELATIONS.map((item) => <option key={item} value={item}>{relationLabel(item)}</option>)}</select></label><label className="block">Visual property<select value={property} onChange={(event) => { const next = event.target.value as TrainingPropertyCode; setProperty(next); setStages(deriveTrainingStages(next)); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}>{TRAINING_PROPERTY_CODES.map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</select></label>
       <fieldset className="rounded border border-ink-700 p-3 space-y-2"><legend className="font-semibold">When may the Manager use this decision?</legend><p className="text-sm">Suggested from the selected visual property. Narrow or expand it deliberately. Planning must be selected for this evidence to guide decisions before tools, generation, or paid actions.</p><div className="grid gap-2">{TRAINING_STAGE_OPTIONS.map((option) => <label key={option.value} className="flex gap-3"><input type="checkbox" checked={stages.includes(option.value)} onChange={() => toggleStage(option.value)} /><span><span className="block">{option.label}</span><span className="block text-sm text-ink-400">{option.help}</span></span></label>)}</div><p className="text-xs text-ink-500">Routing contract {TRAINING_STAGE_ROUTING_VERSION}</p></fieldset>
       {([['What was chosen', chosen, setChosen], ['Why this choice', why, setWhy], ['Tool or process used', process, setProcess], ['Desired visual, motion or layout behavior', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || stages.length === 0 || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={annotate}>Save decision draft</button></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
   </main>;

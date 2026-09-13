@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { render, type Rendered } from '../../../../lib/test/render.ts';
-import { deriveTrainingStages, formatTrainingTime, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
+import { deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
 
 const VERSION_A = '11111111-1111-4111-8111-111111111111';
 const VERSION_B = '22222222-2222-4222-8222-222222222222';
@@ -64,14 +64,14 @@ function coverage(overrides: Record<string, unknown> = {}) {
 
 function requirements(workflowVersionId = VERSION_A, overrides: Record<string, unknown> = {}) {
   return {
-    contractVersion: 'manager-training-requirements.v1',
-    scope: 'workflow_version',
+    contractVersion: 'manager-reference-training-readiness.v1',
+    scope: 'workflow_version_quality_references',
     workflowVersionId,
     classified: true,
     requiredPairs: [planningPair],
     fulfilledPairs: [planningPair],
     missingPairs: [],
-    readiness: 'ready',
+    readiness: 'reference_training_ready',
     reason: null,
     ...overrides,
   };
@@ -183,6 +183,8 @@ async function setSelect(rendered: Rendered, input: Element, value: string) {
 test('timecodes and preview authority are exact to the source token and millisecond', () => {
   assert.equal(TRAINING_LOCAL_CONTRACT_VERSION, '2');
   assert.equal(TRAINING_STAGE_ROUTING_VERSION, 'manager-training-applicability.v1');
+  assert.equal(TRAINING_PROPERTY_CODES.length, 15);
+  assert.deepEqual(TRAINING_RELATIONS, ['accepted', 'rejected', 'contrast', 'exception']);
   assert.deepEqual(deriveTrainingStages('motion_rhythm'), ['planning', 'build', 'preview', 'qa', 'revision']);
   assert.deepEqual(deriveTrainingStages('layout_variety'), ['planning', 'scene_contract', 'build', 'preview', 'qa', 'revision']);
   assert.deepEqual(normalizeTrainingStages(['planning', 'unknown', 'planning', 'qa']), ['planning', 'qa']);
@@ -199,8 +201,19 @@ test('timecodes and preview authority are exact to the source token and millisec
   assert.equal(isTrainingSuccessorProjection({ contractVersion: 'agent-training-successor-projection.v1', activeVersionId: VERSION_B, eligiblePredecessor: { sessionId: SESSION, baseVersionId: VERSION_A, acceptedLocalRecordCount: 0 } }, VERSION_B), false, 'an empty session is not adoption evidence');
   assert.equal(isManagerTrainingRequirements(requirements(), VERSION_A), true);
   assert.equal(isManagerTrainingRequirements(requirements(VERSION_B), VERSION_A), false, 'requirements cannot cross immutable versions');
-  assert.equal(isManagerTrainingRequirements(requirements(VERSION_A, { missingPairs: [planningPair], readiness: 'coach_training_required', reason: 'manager_required_training_missing' }), VERSION_A), false, 'a pair cannot be both fulfilled and missing');
-  assert.equal(isManagerTrainingRequirements(requirements(VERSION_A, { fulfilledPairs: [], missingPairs: [planningPair], readiness: 'coach_training_required', reason: 'manager_required_training_missing' }), VERSION_A), true);
+  assert.equal(isManagerTrainingRequirements(requirements(VERSION_A, { missingPairs: [planningPair], readiness: 'coach_reference_training_required', reason: 'manager_required_reference_training_missing' }), VERSION_A), false, 'a pair cannot be both fulfilled and missing');
+  assert.equal(isManagerTrainingRequirements(requirements(VERSION_A, { fulfilledPairs: [], missingPairs: [planningPair], readiness: 'coach_reference_training_required', reason: 'manager_required_reference_training_missing' }), VERSION_A), true);
+  assert.equal(isManagerTrainingCoverage(coverage(), VERSION_A), true);
+  assert.equal(isManagerTrainingCoverage({ ...coverage(), extra: true }, VERSION_A), false, 'coverage wire rejects unknown keys');
+  assert.equal(isManagerTrainingCoverage({ ...coverage(), listedSessionAcceptedRecordCount: 2 }, VERSION_A), false, 'session evidence count cannot exceed version evidence count');
+  assert.equal(isManagerTrainingCoverage({ ...coverage(), classified: false }, VERSION_A), false, 'ready coverage must be classified');
+  const inventedProperty = { ...planningPair, property: 'invented_property' };
+  assert.equal(isManagerTrainingCoverage({ ...coverage(), acceptedPairs: [inventedProperty], listedSessionAcceptedPairs: [inventedProperty], coveredPairs: [inventedProperty] }, VERSION_A), false);
+  const inventedRelation = { ...planningPair, relation: 'invented_relation' };
+  assert.equal(isManagerTrainingCoverage({ ...coverage(), acceptedPairs: [inventedRelation], listedSessionAcceptedPairs: [inventedRelation], coveredPairs: [inventedRelation] }, VERSION_A), false);
+  const secondPair = { ...planningPair, property: 'motion_rhythm' };
+  const foreignPair = { ...planningPair, property: 'transition_quality' };
+  assert.equal(isManagerTrainingCoverage({ ...coverage(), acceptedPairs: [planningPair, secondPair], listedSessionAcceptedPairs: [planningPair], coveredPairs: [planningPair, foreignPair] }, VERSION_A), false, 'covered and missing sets must exactly partition accepted routes');
   assert.deepEqual(requiredStagesForDecision(requirements() as never, 'layout_variety', 'contrast'), ['planning']);
   assert.deepEqual(requiredStagesForDecision(requirements() as never, 'motion_rhythm', 'accepted'), [], 'required stages are exact to both property and relation');
 });
@@ -219,8 +232,8 @@ test('malformed or stale active-version training requirements fail closed before
   for (const managerTrainingRequirements of [null, requirements(VERSION_B), { ...requirements(), extra: true }]) {
     const { rendered } = await renderedWith({ managerTrainingRequirements });
     try {
-      assert.match(rendered.text(), /required training coverage/i);
-      assert.doesNotMatch(rendered.text(), /Agent ready:/);
+      assert.match(rendered.text(), /required visual-reference training coverage|reference training readiness unavailable/i);
+      assert.doesNotMatch(rendered.text(), /Manager reference training ready:/);
     } finally { rendered.cleanup(); }
   }
 });
@@ -544,7 +557,7 @@ test('server-owned Manager coverage exposes unclassified and fully covered agent
   const ready = await renderedWith({ state: 'accepted', managerCoverage: coverage() });
   try {
     assert.match(ready.rendered.text(), /classifies all 1 accepted stage-scoped evidence routes across all training sessions/);
-    assert.match(ready.rendered.text(), /Agent ready: all 1 required Manager training routes/);
+    assert.match(ready.rendered.text(), /Manager reference training ready: all 1 required visual-reference routes/);
     assert.doesNotMatch(ready.rendered.text(), /Agent update required/);
   } finally { ready.rendered.cleanup(); }
 });
@@ -590,15 +603,15 @@ test('accepted evidence remains visibly not ready until every server-required pa
   const missing = requirements(VERSION_A, {
     fulfilledPairs: [],
     missingPairs: [planningPair],
-    readiness: 'coach_training_required',
-    reason: 'manager_required_training_missing',
+    readiness: 'coach_reference_training_required',
+    reason: 'manager_required_reference_training_missing',
   });
   const { rendered } = await renderedWith({ state: 'accepted', managerCoverage: coverage(), managerTrainingRequirements: missing });
   try {
     assert.match(rendered.text(), /Evidence accepted: 1 immutable decision/);
-    assert.match(rendered.text(), /Evidence accepted — Agent not ready/);
+    assert.match(rendered.text(), /Evidence accepted — reference training not ready/);
     assert.match(rendered.text(), /Plan the treatment · layout variety · Contrastive example/);
-    assert.doesNotMatch(rendered.text(), /Agent ready:/);
+    assert.doesNotMatch(rendered.text(), /Manager reference training ready:/);
   } finally { rendered.cleanup(); }
 });
 
@@ -616,8 +629,8 @@ test('successor preserves prior stages and expands required routes only after ex
     requiredPairs,
     fulfilledPairs: [],
     missingPairs: requiredPairs,
-    readiness: 'coach_training_required',
-    reason: 'manager_required_training_missing',
+    readiness: 'coach_reference_training_required',
+    reason: 'manager_required_reference_training_missing',
   });
   const { rendered } = await renderedWith({
     currentVersion: VERSION_B,

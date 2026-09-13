@@ -13,20 +13,38 @@ export type TrainingSuccessorProjection = {
   eligiblePredecessor: TrainingEligiblePredecessor | null;
 };
 
-export type TrainingCoveragePair = { stage: TrainingStage; property: string; relation: 'accepted' | 'rejected' | 'contrast' | 'exception' };
+export const TRAINING_PROPERTY_CODES = [
+  'composition_density', 'layout_variety', 'presenter_graphic_integration', 'information_hierarchy',
+  'typography_treatment', 'palette_and_contrast', 'narrative_visual_alignment', 'motion_rhythm',
+  'transition_quality', 'animation_continuity', 'evidence_legibility', 'internal_label_exclusion',
+  'flicker_exclusion', 'repeated_template_avoidance', 'sparse_motion_avoidance',
+] as const;
+export type TrainingPropertyCode = typeof TRAINING_PROPERTY_CODES[number];
+export const TRAINING_RELATIONS = ['accepted', 'rejected', 'contrast', 'exception'] as const;
+export type TrainingRelation = typeof TRAINING_RELATIONS[number];
+export type TrainingCoveragePair = { stage: TrainingStage; property: TrainingPropertyCode; relation: TrainingRelation };
 export type ManagerTrainingRequirements = {
-  contractVersion: 'manager-training-requirements.v1';
-  scope: 'workflow_version';
+  contractVersion: 'manager-reference-training-readiness.v1';
+  scope: 'workflow_version_quality_references';
   workflowVersionId: string;
   classified: boolean;
   requiredPairs: TrainingCoveragePair[];
   fulfilledPairs: TrainingCoveragePair[];
   missingPairs: TrainingCoveragePair[];
-  readiness: 'not_applicable' | 'ready' | 'coach_training_required';
-  reason: null | 'manager_required_training_missing';
+  readiness: 'not_applicable' | 'reference_training_ready' | 'coach_reference_training_required';
+  reason: null | 'manager_required_reference_training_missing';
 };
 
-const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+export type ManagerTrainingCoverage = {
+  contractVersion: 'manager-training-coverage.v1'; scope: 'workflow_version'; workflowVersionId: string;
+  classified: boolean; acceptedLocalRecordCount: number; listedSessionAcceptedRecordCount: number;
+  acceptedPairs: TrainingCoveragePair[]; listedSessionAcceptedPairs: TrainingCoveragePair[];
+  coveredPairs: TrainingCoveragePair[]; uncoveredPairs: TrainingCoveragePair[];
+  readiness: 'not_applicable' | 'ready' | 'agent_update_required';
+  reason: null | 'manager_quality_coverage_unclassified_training' | 'manager_quality_coverage_incomplete_training';
+};
+
+const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const exact = (value: unknown, keys: readonly string[]): value is Record<string, unknown> => Boolean(
   value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).length === keys.length
@@ -65,14 +83,15 @@ export const TRAINING_STAGE_OPTIONS = [
 
 export type TrainingStage = typeof TRAINING_STAGE_OPTIONS[number]['value'];
 
-const RELATIONS = new Set(['accepted', 'rejected', 'contrast', 'exception']);
+const RELATIONS = new Set<string>(TRAINING_RELATIONS);
+const PROPERTY_CODES = new Set<string>(TRAINING_PROPERTY_CODES);
 function pairKeys(value: unknown): string[] | null {
   if (!Array.isArray(value) || value.length > TRAINING_STAGE_OPTIONS.length * 15 * 4) return null;
   const keys: string[] = [];
   for (const pair of value) {
     if (!exact(pair, ['stage', 'property', 'relation'])
       || !TRAINING_STAGE_OPTIONS.some(({ value: stage }) => stage === pair.stage)
-      || typeof pair.property !== 'string' || !/^[a-z][a-z0-9_]{0,99}$/.test(pair.property)
+      || typeof pair.property !== 'string' || !PROPERTY_CODES.has(pair.property)
       || typeof pair.relation !== 'string' || !RELATIONS.has(pair.relation)) return null;
     keys.push(`${pair.stage}\u0000${pair.property}\u0000${pair.relation}`);
   }
@@ -82,7 +101,7 @@ function pairKeys(value: unknown): string[] | null {
 export function isManagerTrainingRequirements(value: unknown, workflowVersionId: string | null): value is ManagerTrainingRequirements {
   if (!workflowVersionId || !exact(value, ['contractVersion', 'scope', 'workflowVersionId', 'classified',
     'requiredPairs', 'fulfilledPairs', 'missingPairs', 'readiness', 'reason'])
-    || value.contractVersion !== 'manager-training-requirements.v1' || value.scope !== 'workflow_version'
+    || value.contractVersion !== 'manager-reference-training-readiness.v1' || value.scope !== 'workflow_version_quality_references'
     || value.workflowVersionId !== workflowVersionId || typeof value.classified !== 'boolean') return false;
   const required = pairKeys(value.requiredPairs); const fulfilled = pairKeys(value.fulfilledPairs); const missing = pairKeys(value.missingPairs);
   if (!required || !fulfilled || !missing) return false;
@@ -91,13 +110,38 @@ export function isManagerTrainingRequirements(value: unknown, workflowVersionId:
     || required.some((key) => !fulfilledSet.has(key) && !missingSet.has(key))) return false;
   if (value.readiness === 'not_applicable') return value.reason === null && (!value.classified || required.length === 0)
     && fulfilled.length === 0 && missing.length === 0;
-  if (value.readiness === 'ready') return value.classified && value.reason === null && required.length > 0
+  if (value.readiness === 'reference_training_ready') return value.classified && value.reason === null && required.length > 0
     && missing.length === 0 && fulfilled.length === required.length;
-  return value.readiness === 'coach_training_required' && value.classified
-    && value.reason === 'manager_required_training_missing' && missing.length > 0;
+  return value.readiness === 'coach_reference_training_required' && value.classified
+    && value.reason === 'manager_required_reference_training_missing' && missing.length > 0;
 }
 
-export function requiredStagesForDecision(requirements: ManagerTrainingRequirements | null, property: string, relation: string): TrainingStage[] {
+export function isManagerTrainingCoverage(value: unknown, workflowVersionId: string | null): value is ManagerTrainingCoverage {
+  if (!workflowVersionId || !exact(value, ['contractVersion', 'scope', 'workflowVersionId', 'classified',
+    'acceptedLocalRecordCount', 'listedSessionAcceptedRecordCount', 'acceptedPairs', 'listedSessionAcceptedPairs',
+    'coveredPairs', 'uncoveredPairs', 'readiness', 'reason'])
+    || value.contractVersion !== 'manager-training-coverage.v1' || value.scope !== 'workflow_version'
+    || value.workflowVersionId !== workflowVersionId || typeof value.classified !== 'boolean'
+    || !Number.isSafeInteger(value.acceptedLocalRecordCount) || Number(value.acceptedLocalRecordCount) < 0
+    || !Number.isSafeInteger(value.listedSessionAcceptedRecordCount) || Number(value.listedSessionAcceptedRecordCount) < 0
+    || Number(value.listedSessionAcceptedRecordCount) > Number(value.acceptedLocalRecordCount)) return false;
+  const accepted = pairKeys(value.acceptedPairs); const listed = pairKeys(value.listedSessionAcceptedPairs);
+  const covered = pairKeys(value.coveredPairs); const uncovered = pairKeys(value.uncoveredPairs);
+  if (!accepted || !listed || !covered || !uncovered || listed.some((key) => !accepted.includes(key))) return false;
+  const coveredSet = new Set(covered); const uncoveredSet = new Set(uncovered); const acceptedSet = new Set(accepted);
+  if (covered.some((key) => uncoveredSet.has(key)) || [...covered, ...uncovered].some((key) => !acceptedSet.has(key))
+    || accepted.some((key) => !coveredSet.has(key) && !uncoveredSet.has(key))) return false;
+  if (value.readiness === 'not_applicable') return value.reason === null && Number(value.acceptedLocalRecordCount) === 0
+    && accepted.length === 0 && listed.length === 0 && covered.length === 0 && uncovered.length === 0;
+  if (value.readiness === 'ready') return value.classified && value.reason === null && accepted.length > 0
+    && uncovered.length === 0 && covered.length === accepted.length;
+  if (value.readiness !== 'agent_update_required' || uncovered.length === 0) return false;
+  if (value.reason === 'manager_quality_coverage_unclassified_training') return !value.classified
+    && covered.length === 0 && uncovered.length === accepted.length;
+  return value.reason === 'manager_quality_coverage_incomplete_training' && value.classified;
+}
+
+export function requiredStagesForDecision(requirements: ManagerTrainingRequirements | null, property: TrainingPropertyCode, relation: TrainingRelation): TrainingStage[] {
   if (!requirements) return [];
   const required = new Set(requirements.requiredPairs
     .filter((pair) => pair.property === property && pair.relation === relation).map((pair) => pair.stage));
