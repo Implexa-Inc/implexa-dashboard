@@ -30,6 +30,8 @@ export type PaidActionApprovalSummary = {
   approvalIntentId: string;
   requestManifestArtifactId: string;
   requestManifestDigest: string;
+  projectCheckpointId: string;
+  projectCheckpointDigest: string;
   provider: string;
   operation: string;
   requestCount: number;
@@ -44,6 +46,28 @@ export type PaidActionApprovalView =
   | { state: 'agent_update_required'; reason: 'paid_action_manifest_v3_required' }
   | { state: 'unavailable'; reason: 'missing' | 'malformed' | 'request_failed' };
 
+export type HeldApprovalSurface = 'paid_action' | 'unavailable' | 'generic' | 'none';
+
+export function classifyHeldApprovalSurface({
+  held,
+  pending,
+  holdKind,
+  approvalRecovery = false,
+}: {
+  held: boolean;
+  pending: boolean;
+  holdKind: 'approval_before_action' | 'review_delivered_result' | 'needs_input' | null;
+  approvalRecovery?: boolean;
+}): HeldApprovalSurface {
+  if (!held) return 'none';
+  if (approvalRecovery || holdKind === 'approval_before_action') return 'paid_action';
+  // A pending row whose hold contract could not be read is not permission to
+  // resurrect the legacy generic Continue action. The owner must reload after
+  // the authoritative hold becomes readable.
+  if (pending && holdKind === null) return 'unavailable';
+  return 'generic';
+}
+
 const exactKeys = (value: unknown, keys: readonly string[]): value is Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const actual = Object.keys(value as Record<string, unknown>).sort();
@@ -54,12 +78,15 @@ const finite = (value: unknown): value is number => typeof value === 'number' &&
 
 export function parsePaidActionApprovalSummary(value: unknown): PaidActionApprovalSummary | null {
   const summaryKeys = ['contractVersion', 'approvalIntentId', 'requestManifestArtifactId', 'requestManifestDigest',
+    'projectCheckpointId', 'projectCheckpointDigest',
     'provider', 'operation', 'requestCount', 'estimatedCost', 'currency', 'inputs', 'requests'] as const;
   if (!exactKeys(value, summaryKeys)
     || value.contractVersion !== 'paid-action-approval-summary.v3'
     || typeof value.approvalIntentId !== 'string' || !UUID_RE.test(value.approvalIntentId)
     || typeof value.requestManifestArtifactId !== 'string' || !UUID_RE.test(value.requestManifestArtifactId)
     || typeof value.requestManifestDigest !== 'string' || !SHA256_RE.test(value.requestManifestDigest)
+    || typeof value.projectCheckpointId !== 'string' || !UUID_RE.test(value.projectCheckpointId)
+    || typeof value.projectCheckpointDigest !== 'string' || !SHA256_RE.test(value.projectCheckpointDigest)
     || value.provider !== 'higgsfield' || value.operation !== 'kling3_0.video_generation'
     || !Number.isInteger(value.requestCount) || (value.requestCount as number) < 1 || (value.requestCount as number) > 100
     || !finite(value.estimatedCost) || value.estimatedCost < 0 || value.estimatedCost > 10_000_000
@@ -154,7 +181,9 @@ export function validPaidActionApprovalResponse(value: unknown, expected: PaidAc
 export function formatPaidActionCost(amount: number, currency: 'USD' | 'credits'): string {
   // Fixed locale keeps the server-rendered client component and browser
   // hydration byte-identical; the currency itself remains explicit.
-  if (currency === 'USD') return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  if (currency === 'USD') return amount.toLocaleString('en-US', {
+    style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6,
+  });
   return `${amount.toLocaleString('en-US', { maximumFractionDigits: 6 })} credits`;
 }
 

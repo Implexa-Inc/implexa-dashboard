@@ -29,6 +29,8 @@ const SUITES = [
 const mutations = [
   { name: 'v2 summary becomes approvable', file: CONTRACT, from: "value.contractVersion !== 'paid-action-approval-summary.v3'", to: "value.contractVersion !== 'paid-action-approval-summary.v2'" },
   { name: 'manifest digest accepts uppercase', file: CONTRACT, from: "const SHA256_RE = /^[a-f0-9]{64}$/;", to: "const SHA256_RE = /^[A-Fa-f0-9]{64}$/;" },
+  { name: 'checkpoint identity need not be valid', file: CONTRACT, from: "|| typeof value.projectCheckpointId !== 'string' || !UUID_RE.test(value.projectCheckpointId)", to: "|| typeof value.projectCheckpointId !== 'string'" },
+  { name: 'checkpoint digest need not be valid', file: CONTRACT, from: "|| typeof value.projectCheckpointDigest !== 'string' || !SHA256_RE.test(value.projectCheckpointDigest)", to: "|| typeof value.projectCheckpointDigest !== 'string'" },
   { name: 'unbounded trusted input set accepted', file: CONTRACT, from: 'value.inputs.length > 16', to: 'value.inputs.length > 100' },
   { name: 'input path accepted as display name', file: CONTRACT, from: '|| /[\\\\/\\r\\n]/.test(input.displayName)', to: '' },
   { name: 'duplicate input semantics accepted', file: CONTRACT, from: '|| typeof input.semanticKey !== \'string\' || !ACTION_RE.test(input.semanticKey) || semanticKeys.has(input.semanticKey)', to: "|| typeof input.semanticKey !== 'string' || !ACTION_RE.test(input.semanticKey)" },
@@ -54,10 +56,15 @@ const mutations = [
   { name: 'approval response may change reviewed batch', file: CONTRACT, from: 'return summary !== null && canonical(summary) === canonical(expected);', to: 'return summary !== null;' },
   { name: 'approval posts generic continuation', file: COMPONENT, from: '}/paid-action-approval`', to: '}/review`' },
   { name: 'approval drops manifest digest identity', file: COMPONENT, from: 'requestManifestDigest: summary.requestManifestDigest,', to: "requestManifestDigest: '0'.repeat(64)," },
+  { name: 'approval drops checkpoint identity', file: COMPONENT, from: 'projectCheckpointId: summary.projectCheckpointId,', to: "projectCheckpointId: '10000000-0000-4000-8000-000000000099'," },
+  { name: 'approval drops checkpoint digest', file: COMPONENT, from: 'projectCheckpointDigest: summary.projectCheckpointDigest,', to: "projectCheckpointDigest: '0'.repeat(64)," },
   { name: 'double click bypasses single-flight guard', file: COMPONENT, from: 'if (inFlight.current) return;', to: 'if (false) return;' },
-  { name: 'paid hold renders generic run actions', file: PAGE, from: "held && effectiveHoldKind !== 'approval_before_action'", to: 'held && true' },
-  { name: 'paid hold does not render exact approval', file: PAGE, from: "{held && effectiveHoldKind === 'approval_before_action' && (", to: '{held && false && (' },
-  { name: 'inbox paid hold opens generic action', file: INBOX, from: "openItem.pending && openItem.holdKind === 'approval_before_action'", to: 'openItem.pending && false' },
+  { name: 'sub-cent dollars are hidden', file: CONTRACT, from: 'minimumFractionDigits: 2, maximumFractionDigits: 6,', to: 'minimumFractionDigits: 2, maximumFractionDigits: 2,' },
+  { name: 'unknown pending hold becomes generic', file: CONTRACT, from: "if (pending && holdKind === null) return 'unavailable';", to: "if (pending && holdKind === null) return 'generic';" },
+  { name: 'paid hold renders generic run actions', file: PAGE, from: "{heldApprovalSurface === 'generic' && (", to: '{true && (' },
+  { name: 'paid hold does not render exact approval', file: PAGE, from: "{heldApprovalSurface === 'paid_action' && (", to: '{false && (' },
+  { name: 'unreadable hold exposes no unavailable state', file: PAGE, from: "{heldApprovalSurface === 'unavailable' && (", to: '{false && (' },
+  { name: 'inbox paid hold opens generic action', file: INBOX, from: "}) === 'paid_action' ? (", to: "}) === 'never_paid' ? (" },
 ];
 
 announceBaseline({ label: 'paid-action-approval', root, files: FILES,

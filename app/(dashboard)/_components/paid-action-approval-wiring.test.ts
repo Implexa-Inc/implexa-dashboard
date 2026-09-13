@@ -12,13 +12,15 @@ const generic = readFileSync(join(root, 'app/(dashboard)/_components/run-actions
 test('run detail reads the authenticated backend summary and never renders generic RunActions for a paid hold', () => {
   assert.match(page, /callBackend\(`\/api\/v2\/runs\/\$\{encodeURIComponent\(r\.id\)\}`/);
   assert.match(page, /parsePaidActionApprovalRead\(detail, r\.id\)/);
-  assert.match(page, /\{held && effectiveHoldKind === 'approval_before_action' && \(\s*<div[^>]*>\s*<PaidActionApproval/);
-  assert.match(page, /\{held && effectiveHoldKind !== 'approval_before_action' && \(\s*<div[^>]*>\s*<RunActions/);
+  assert.match(page, /\{heldApprovalSurface === 'paid_action' && \(\s*<div[^>]*>\s*<PaidActionApproval/);
+  assert.match(page, /\{heldApprovalSurface === 'unavailable'[\s\S]*?Approval details unavailable[\s\S]*?Reload approval details/);
+  assert.match(page, /\{heldApprovalSurface === 'generic' && \(\s*<div[^>]*>\s*<RunActions/);
 });
 
 test('inbox and Review Room route paid approval to exact run detail instead of generic Continue', () => {
-  assert.match(inbox, /openItem\.pending && openItem\.holdKind === 'approval_before_action'[\s\S]*?Review exact paid batch/);
-  assert.match(inbox, /openItem\.pending && openItem\.holdKind === 'approval_before_action'[\s\S]*?: openItem\.pending \? \([\s\S]*?<RunActions/);
+  assert.match(inbox, /classifyHeldApprovalSurface\([\s\S]*?\) === 'paid_action'[\s\S]*?Review exact paid batch/);
+  assert.match(inbox, /=== 'unavailable'[\s\S]*?Approval details unavailable[\s\S]*?Reload approval details/);
+  assert.match(inbox, /=== 'unavailable'[\s\S]*?: openItem\.pending \? \([\s\S]*?<RunActions/);
   assert.match(review, /showApproveNextAction[\s\S]*?href=\{`\/runs\/\$\{runId\}`\}[\s\S]*?Approve next action/);
   assert.match(generic, /holdKind === 'approval_before_action'[\s\S]*?Review exact paid batch/,
     'even a future accidental generic caller must fail closed to exact review');

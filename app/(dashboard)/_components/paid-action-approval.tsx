@@ -59,6 +59,8 @@ export default function PaidActionApproval({ runId, view }: { runId: string; vie
           approvalIntentId: summary.approvalIntentId,
           requestManifestArtifactId: summary.requestManifestArtifactId,
           requestManifestDigest: summary.requestManifestDigest,
+          projectCheckpointId: summary.projectCheckpointId,
+          projectCheckpointDigest: summary.projectCheckpointDigest,
         },
       });
       if (!validPaidActionApprovalResponse(result, summary)) throw new Error('approval response did not match the reviewed batch');
@@ -133,6 +135,12 @@ export default function PaidActionApproval({ runId, view }: { runId: string; vie
         <p className="text-[10px] uppercase tracking-wider text-ink-500">Frozen request manifest</p>
         <p className="mt-1 break-all font-mono text-[10px] text-ink-400">Artifact {summary.requestManifestArtifactId}</p>
         <p className="mt-0.5 break-all font-mono text-[10px] text-ink-400">SHA-256 {summary.requestManifestDigest}</p>
+      </div>
+
+      <div className="mt-3 rounded-md border border-ink-700/60 bg-black/20 p-3">
+        <p className="text-[10px] uppercase tracking-wider text-ink-500">Verified project checkpoint</p>
+        <p className="mt-1 break-all font-mono text-[10px] text-ink-400">Checkpoint {summary.projectCheckpointId}</p>
+        <p className="mt-0.5 break-all font-mono text-[10px] text-ink-400">SHA-256 {summary.projectCheckpointDigest}</p>
       </div>
 
       {error && <p role="alert" className="mt-4 text-sm text-rose-300">{error}</p>}

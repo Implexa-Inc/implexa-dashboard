@@ -15,6 +15,8 @@ const SUMMARY: PaidActionApprovalSummary = {
   approvalIntentId: '10000000-0000-4000-8000-000000000002',
   requestManifestArtifactId: '10000000-0000-4000-8000-000000000003',
   requestManifestDigest: 'a'.repeat(64),
+  projectCheckpointId: '10000000-0000-4000-8000-000000000007',
+  projectCheckpointDigest: 'e'.repeat(64),
   provider: 'higgsfield',
   operation: 'kling3_0.video_generation',
   requestCount: 2,
@@ -50,6 +52,10 @@ test('refuses summaries whose trusted inputs, request placement or totals are in
   const invalid = [
     { ...SUMMARY, extra: true },
     { ...SUMMARY, requestManifestDigest: 'A'.repeat(64) },
+    { ...SUMMARY, projectCheckpointId: undefined },
+    { ...SUMMARY, projectCheckpointDigest: undefined },
+    { ...SUMMARY, projectCheckpointId: 'not-a-uuid' },
+    { ...SUMMARY, projectCheckpointDigest: 'E'.repeat(64) },
     { ...SUMMARY, inputs: [] },
     { ...SUMMARY, inputs: [...SUMMARY.inputs, ...Array.from({ length: 15 }, (_, index) => ({
       semanticKey: `extra_${index}`, displayName: `extra-${index}.json`,
@@ -100,4 +106,16 @@ test('labels the provider model and cost without hiding currency', () => {
   assert.equal(paidActionModelLabel('kling3_0_turbo'), 'Kling 3.0 Turbo');
   assert.equal(formatPaidActionCost(24, 'credits'), '24 credits');
   assert.match(formatPaidActionCost(24, 'USD'), /\$24\.00/);
+  assert.equal(formatPaidActionCost(0.004, 'USD'), '$0.004');
+  assert.equal(formatPaidActionCost(0.000001, 'USD'), '$0.000001');
+  assert.notEqual(formatPaidActionCost(0.004, 'USD'), '$0.00');
+});
+
+test('unknown pending holds fail closed while known non-paid holds retain their action surface', async () => {
+  const { classifyHeldApprovalSurface } = await import('./paid-action-approval.ts');
+  assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: null }), 'unavailable');
+  assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: 'approval_before_action' }), 'paid_action');
+  assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: null, approvalRecovery: true }), 'paid_action');
+  assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: 'review_delivered_result' }), 'generic');
+  assert.equal(classifyHeldApprovalSurface({ held: false, pending: false, holdKind: null }), 'none');
 });

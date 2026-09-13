@@ -61,7 +61,7 @@ import StageManagerProof from '../../_components/stage-manager-proof';
 import { runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
 import { getReviewPacket } from '@/lib/review';
 import { loadReviewAmendmentTarget } from '@/lib/review-amendment-target';
-import { parsePaidActionApprovalRead, type PaidActionApprovalView } from '@/lib/paid-action-approval';
+import { classifyHeldApprovalSurface, parsePaidActionApprovalRead, type PaidActionApprovalView } from '@/lib/paid-action-approval';
 
 export const dynamic = 'force-dynamic';
 
@@ -485,12 +485,18 @@ export default async function RunDetailPage({
     : null;
   const held = pending || needsInput;
   const effectiveHoldKind = approvalContinuationRecovery ? 'approval_before_action' : holdKind;
+  const heldApprovalSurface = classifyHeldApprovalSurface({
+    held,
+    pending,
+    holdKind: holdKind ?? null,
+    approvalRecovery: approvalContinuationRecovery,
+  });
   // A paid approval is its own immutable authority. The generic held-run action
   // can queue an unconstrained continuation, so it must never appear for this
   // hold kind. Read the complete, owner-scoped manifest summary and fail closed
   // when the backend is old, unavailable, or returns anything malformed.
   let paidActionApproval: PaidActionApprovalView = { state: 'unavailable', reason: 'missing' };
-  if (held && effectiveHoldKind === 'approval_before_action') {
+  if (heldApprovalSurface === 'paid_action') {
     try {
       const detail = await callBackend(`/api/v2/runs/${encodeURIComponent(r.id)}`, { jwt: session.access_token });
       paidActionApproval = parsePaidActionApprovalRead(detail, r.id);
@@ -1029,12 +1035,21 @@ export default async function RunDetailPage({
             finish / Mark as done / Answer & continue), Request-changes on demand, a
             quiet Dismiss, and power-user escapes under "⋯". Replaces the old banner +
             Approve & finish + Mark done + always-open Continue box + Hide/Dismiss pile. */}
-        {held && effectiveHoldKind === 'approval_before_action' && (
+        {heldApprovalSurface === 'paid_action' && (
           <div className="mb-6">
             <PaidActionApproval runId={r.id} view={paidActionApproval} />
           </div>
         )}
-        {held && effectiveHoldKind !== 'approval_before_action' && (
+        {heldApprovalSurface === 'unavailable' && (
+          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-5" role="alert">
+            <p className="text-sm font-semibold text-ink-100">Approval details unavailable</p>
+            <p className="mt-2 text-sm leading-relaxed text-amber-200">
+              Implexa could not verify what this pending approval authorizes. No continuation is available until the exact hold details can be loaded.
+            </p>
+            <a href={`/runs/${encodeURIComponent(r.id)}`} className="btn-outline mt-3 inline-flex px-4 py-2 text-sm">Reload approval details</a>
+          </div>
+        )}
+        {heldApprovalSurface === 'generic' && (
           <div className="mb-6">
             <RunActions
               runId={r.id}
