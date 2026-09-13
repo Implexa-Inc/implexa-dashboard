@@ -29,6 +29,7 @@ import type { RunStateInfo, RunStep } from '@/lib/run-state';
 import NextAgentCards, { type Recommendation } from '../_components/next-agent-cards';
 import RunFeedback, { type FeedbackQuestion } from '../_components/run-feedback';
 import RunActions from '../_components/run-actions';
+import { classifyHeldApprovalSurface } from '@/lib/paid-action-approval';
 
 // A held deliverable that names a step the AGENT runs ON APPROVAL → "Approve &
 // finish"; otherwise deliver-only ("posted by hand", a draft you act on) → "Mark as
@@ -541,7 +542,20 @@ export default function InboxList({
                 Request changes + quiet Dismiss + ⋯). Finished → the universal continue
                 box to iterate on the output. Identical surface in both places. */}
             <div className="mt-5">
-              {openItem.pending ? (
+              {classifyHeldApprovalSurface({ held: openItem.pending, pending: openItem.pending, holdKind: openItem.holdKind }) === 'paid_action' ? (
+                <a
+                  href={`/runs/${encodeURIComponent(openItem.id)}`}
+                  className="inline-flex rounded-md bg-amber-400 px-4 py-2 text-sm font-medium text-black hover:bg-amber-300"
+                >
+                  Review exact paid batch
+                </a>
+              ) : classifyHeldApprovalSurface({ held: openItem.pending, pending: openItem.pending, holdKind: openItem.holdKind }) === 'unavailable' ? (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-4" role="alert">
+                  <p className="text-sm font-medium text-ink-100">Approval details unavailable</p>
+                  <p className="mt-1 text-xs text-amber-200">Open the full run to reload and verify exactly what this approval authorizes.</p>
+                  <a href={`/runs/${encodeURIComponent(openItem.id)}`} className="btn-outline mt-3 inline-flex px-4 py-2 text-sm">Reload approval details</a>
+                </div>
+              ) : openItem.pending ? (
                 <RunActions
                   runId={openItem.id}
                   agentName={openItem.name}
