@@ -44,7 +44,12 @@ import {
   readSavedRunInputs, resolveEffectiveInputs, resolveSavedBindResult,
   type RunInputOverrides,
 } from '@/lib/run-input-defaults';
-import { managerTrainingRunPreflight, type ManagerTrainingRunPreflight } from '@/lib/manager-training-run-preflight';
+import {
+  managerTrainingRunPreflight,
+  trainingSuccessorAdoptionActionAvailable,
+  trainingSuccessorAdoptionReceipt,
+  type ManagerTrainingRunPreflight,
+} from '@/lib/manager-training-run-preflight';
 import { trainingStageLabel } from '@/lib/training-local-ingress';
 
 type RunState = 'idle' | 'queuing' | 'preparing' | 'queued' | 'running' | 'done' | 'error';
@@ -190,6 +195,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [trainingGate, setTrainingGate] = useState<Exclude<ManagerTrainingRunPreflight, { state: 'ready' }> | null>(null);
   const [trainingChecking, setTrainingChecking] = useState(false);
   const trainingCheckingRef = useRef(false);
+  const [adoptionConfirmed, setAdoptionConfirmed] = useState(false);
+  const [adoptionBusy, setAdoptionBusy] = useState(false);
+  const adoptionBusyRef = useRef(false);
+  const [adoptionError, setAdoptionError] = useState('');
+  const adoptionOperationRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const typedFields = orderedInputFields(inputContract);
   // TWO LAYERS, kept apart on purpose (see lib/run-input-defaults).
   //   inputDefaults  — what the user SAVED in Setup. Reused on every run.
@@ -560,6 +570,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       });
       const preflight = managerTrainingRunPreflight(response, workflowVersionId);
       if (preflight.state !== 'ready') {
+        setAdoptionConfirmed(false);
+        setAdoptionError('');
         setTrainingGate(preflight);
         return;
       }
@@ -568,6 +580,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // Unavailable is not equivalent to eligible. Request creation still owns
       // the authoritative database gate, but input custody starts only after a
       // successful early read so late refusal cannot waste a large local hash.
+      setAdoptionConfirmed(false);
+      setAdoptionError('');
       setTrainingGate({ state: 'unavailable' });
       return;
     } finally {
@@ -619,6 +633,49 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // NOW and each saved source resolves into it. Blocking the dialog on a
     // several-hundred-megabyte hash would trade one bad Run click for another.
     void verifySavedFileInputs(savedInputs.filesToVerify, modalInputSessionId);
+  }
+
+  async function adoptCompatibleTraining() {
+    const preview = trainingGate?.state === 'training_required' ? trainingGate.successorAdoption : null;
+    if (adoptionBusyRef.current || !adoptionConfirmed
+      || !trainingSuccessorAdoptionActionAvailable(preview)) return;
+    adoptionBusyRef.current = true;
+    setAdoptionBusy(true);
+    setAdoptionError('');
+    const fingerprint = [preview.targetWorkflowVersionId, preview.sourceWorkflowVersionId,
+      preview.eligibleRecordCount, preview.alreadyAdoptedRecordCount,
+      preview.newlyAdoptableRecordCount, preview.eligibleRouteCount].join(':');
+    let operation = adoptionOperationRef.current;
+    if (!operation || operation.fingerprint !== fingerprint) {
+      operation = { fingerprint, key: crypto.randomUUID() };
+      adoptionOperationRef.current = operation;
+    }
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await callBackend(`/api/v2/agent-training/agents/${encodeURIComponent(slug)}/adopt-successor`, {
+        jwt: session?.access_token, method: 'POST', idempotencyKey: operation.key,
+        body: { expectedActiveVersionId: preview.targetWorkflowVersionId },
+      });
+      const receipt = trainingSuccessorAdoptionReceipt(response, slug, preview);
+      if (!receipt) throw new Error('Implexa could not verify the training adoption receipt. Nothing is being treated as ready.');
+      setTrainingGate(null);
+      setAdoptionConfirmed(false);
+      // Re-read Training home before opening inputs. The receipt proves the
+      // write, while this fresh read proves it is still the active version.
+      await openPreRun(preRunMode);
+    } catch (error) {
+      const reason = error instanceof BackendError ? error.body?.reason : null;
+      setAdoptionError(reason === 'agent_active_version_changed'
+        ? 'The active Agent version changed. Reload before carrying training forward.'
+        : reason === 'training_successor_not_compatible'
+          ? 'These versions are no longer compatible for direct adoption. Use full successor training instead.'
+          : reason === 'training_successor_no_eligible_records'
+            ? 'No eligible accepted records remain to carry. Use full successor training instead.'
+            : error instanceof Error ? error.message : 'Training could not be carried forward.');
+    } finally {
+      adoptionBusyRef.current = false;
+      setAdoptionBusy(false);
+    }
   }
 
   async function loadSetup(): Promise<{
@@ -1062,10 +1119,31 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 ? 'Accepted evidence on the earlier version stays immutable. Training will create an explicit successor draft for this version; review and accept each new digest separately.'
                 : 'Add and accept the exact missing evidence for this immutable version before running it.'}
             </p>
+            {trainingSuccessorAdoptionActionAvailable(trainingGate.successorAdoption) && trainingGate.successorAdoption && (
+              <section className="rounded-md border border-brand-500/50 bg-brand-500/5 p-3 space-y-3">
+                <h3 className="font-semibold text-ink-100">Compatible training can be carried forward</h3>
+                <p>
+                  Implexa verified the same Agent task identity and unchanged Manager policy between these consecutive versions. You can carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} accepted decision{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} spanning {trainingGate.successorAdoption.eligibleRouteCount} compatible reference route{trainingGate.successorAdoption.eligibleRouteCount === 1 ? '' : 's'}.
+                </p>
+                <p>Each decision keeps its original immutable evidence and receives a separate adoption receipt for version {trainingGate.successorAdoption.targetWorkflowVersionId.slice(0, 8)}. Nothing is copied, widened, or silently accepted.</p>
+                <label className="flex items-start gap-2">
+                  <input type="checkbox" checked={adoptionConfirmed} disabled={adoptionBusy}
+                    onChange={(event) => setAdoptionConfirmed(event.target.checked)} />
+                  <span>I want to carry these exact accepted decisions to this compatible version.</span>
+                </label>
+                <button type="button" className="btn-primary" disabled={!adoptionConfirmed || adoptionBusy}
+                  onClick={() => void adoptCompatibleTraining()}>
+                  {adoptionBusy ? 'Carrying training…' : `Carry ${trainingGate.successorAdoption.newlyAdoptableRecordCount} accepted decision${trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'}`}
+                </button>
+              </section>
+            )}
+            {adoptionError && <p role="alert" className="text-rose-300">{adoptionError}</p>}
             <div className="flex justify-end gap-3">
               <button type="button" className="btn-outline" onClick={() => setTrainingGate(null)}>Cancel</button>
               <Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={() => setTrainingGate(null)}>
-                {trainingGate.hasEligiblePredecessor ? 'Open successor training' : 'Open training for this version'}
+                {trainingGate.hasEligiblePredecessor
+                  ? (trainingSuccessorAdoptionActionAvailable(trainingGate.successorAdoption) ? 'Use full successor training' : 'Open successor training')
+                  : 'Open training for this version'}
               </Link>
             </div>
           </div>

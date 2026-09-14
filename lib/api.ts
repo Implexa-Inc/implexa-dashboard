@@ -34,9 +34,13 @@ export async function callBackend(path: string, opts: {
   jwt?: string | null;
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: any;
+  /** Stable operation identity mapped to the one standard header. Callers may
+   * not supply arbitrary headers through this helper. */
+  idempotencyKey?: string;
 } = {}) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (opts.jwt) headers.Authorization = `Bearer ${opts.jwt}`;
+  if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;
 
   const res = await fetch(`${BASE}${path}`, {
     method:  opts.method || 'GET',
