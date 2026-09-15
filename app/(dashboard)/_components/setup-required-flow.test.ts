@@ -28,7 +28,7 @@ function probeOnlyCard() {
   const card = JSON.parse(JSON.stringify(CARD)) as { items: Array<Record<string, unknown>> } & Record<string, unknown>;
   card.items = card.items.map((item) => item.id === 'higgsfield_cli'
     ? { ...item, state: 'ready', stateLabel: 'Ready', reason: 'ready' }
-    : item.id === 'higgsfield_auth'
+    : item.id === 'higgsfield_auth' || item.id === 'higgsfield_model_access'
       ? { ...item, state: 'probe_failed', stateLabel: 'Could not be checked', reason: 'probe_failed' }
       : item);
   return card;
@@ -152,6 +152,89 @@ test('a probe-only request-birth race rechecks this exact Desktop once and repla
     assert.equal(state.runRequests[0].executionMachineId, 'mac-mini-a');
     assert.equal(r.queryByText('Setup required before this agent can run.'), null, 'a repaired race is hands-off');
   } finally { r.cleanup(); }
+});
+
+test('an online all-probe-failed pre-admission rechecks this exact Desktop once and creates one request', async () => {
+  const state = { admissions: 0, births: 0, rechecks: 0 };
+  const r = await render('agent-actions.tsx', props, {
+    backend: (path: string) => {
+      if (path.startsWith('/api/v2/agent-training/agents/')) return readyTrainingHome();
+      if (path.startsWith('/api/v2/agents/') && path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
+      if (path.includes('/run-precheck')) return { ok: true, fingerprint: null, duplicate: null };
+      if (path === '/api/v2/me/run-admission') {
+        state.admissions += 1;
+        if (state.admissions === 1) throw refusal({ ok: false, setupRequired: probeOnlyCard() });
+        return { ok: true, admitted: true, machine: { id: 'mac-mini-a' } };
+      }
+      if (path === '/api/v2/me/run-requests') {
+        state.births += 1;
+        return { ok: true, request: { id: 'req-probe-recovered' } };
+      }
+      return { ok: true };
+    },
+    bridge: {
+      executionMachineId: async () => 'mac-mini-a',
+      recheckMachineCapabilities: async () => {
+        state.rechecks += 1;
+        return { ok: true, machineId: 'mac-mini-a' };
+      },
+    },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    await r.click(r.getByText('▶ Run now'));
+    await r.act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    assert.equal(state.rechecks, 1, 'one full exact-machine Desktop refresh');
+    assert.equal(state.admissions, 2, 'one refusal and one exact backend re-admission');
+    assert.equal(state.births, 1, 'only one request is created');
+    assert.equal(r.queryByText('Setup required before this agent can run.'), null);
+  } finally { r.cleanup(); }
+});
+
+test('permanent or mixed pre-admission capability failures remain explicit and never auto-recheck', async (t) => {
+  for (const stateName of ['missing', 'unauthenticated', 'model_unavailable', 'tls_failed', 'probe_unsupported', 'mixed'] as const) {
+    await t.test(stateName, async () => {
+      const card = probeOnlyCard();
+      let firstBlocker = true;
+      card.items = card.items.map((item) => {
+        if (!item.required || item.state === 'ready') return item;
+        const itemState = stateName === 'mixed'
+          ? (firstBlocker ? 'missing' : 'probe_failed')
+          : stateName;
+        firstBlocker = false;
+        return { ...item, state: itemState, stateLabel: itemState, reason: itemState };
+      });
+      const state = { admissions: 0, births: 0, rechecks: 0 };
+      const r = await render('agent-actions.tsx', props, {
+        backend: (path: string) => {
+          if (path.startsWith('/api/v2/agent-training/agents/')) return readyTrainingHome();
+          if (path.startsWith('/api/v2/agents/') && path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
+          if (path.includes('/run-precheck')) return { ok: true, fingerprint: null, duplicate: null };
+          if (path === '/api/v2/me/run-admission') {
+            state.admissions += 1;
+            throw refusal({ ok: false, setupRequired: card });
+          }
+          if (path === '/api/v2/me/run-requests') state.births += 1;
+          return { ok: true };
+        },
+        bridge: {
+          executionMachineId: async () => 'mac-mini-a',
+          recheckMachineCapabilities: async () => {
+            state.rechecks += 1;
+            return { ok: true, machineId: 'mac-mini-a' };
+          },
+        },
+      });
+      try {
+        await r.click(r.getByText('▶ Run now'));
+        await r.click(r.getByText('▶ Run now'));
+        assert.equal(state.admissions, 1);
+        assert.equal(state.rechecks, 0);
+        assert.equal(state.births, 0);
+        assert.ok(r.queryByText('Setup required before this agent can run.'));
+      } finally { r.cleanup(); }
+    });
+  }
 });
 
 test('an exact-local offline pre-admission is refreshed once and creates exactly one request', async () => {
@@ -382,12 +465,12 @@ test('one shared refresh budget prevents a second automatic recovery at request 
       if (path.includes('/run-precheck')) return { ok: true, fingerprint: null, duplicate: null };
       if (path === '/api/v2/me/run-admission') {
         state.admissions += 1;
-        if (state.admissions === 1) throw refusal({ ok: false, setupRequired: OFFLINE_CARD });
+        if (state.admissions === 1) throw refusal({ ok: false, setupRequired: probeOnlyCard() });
         return { ok: true, admitted: true, machine: { id: 'mac-mini-a' } };
       }
       if (path === '/api/v2/me/run-requests') {
         state.births += 1;
-        throw refusal({ ok: false, setupRequired: probeOnlyCard() });
+        throw refusal({ ok: false, setupRequired: OFFLINE_CARD });
       }
       return { ok: true };
     },
@@ -406,7 +489,7 @@ test('one shared refresh budget prevents a second automatic recovery at request 
   } finally { r.cleanup(); }
 });
 
-test('input evidence mutated while offline refresh is in flight cannot alter the submitted immutable intent', async () => {
+test('input evidence mutated while transient-probe refresh is in flight cannot alter the submitted immutable intent', async () => {
   const firstArtifact = '11111111-1111-4111-8111-111111111111';
   const secondArtifact = '22222222-2222-4222-8222-222222222222';
   const typedProps = {
@@ -440,7 +523,7 @@ test('input evidence mutated while offline refresh is in flight cannot alter the
       if (path.includes('/run-precheck')) return { ok: true, fingerprint: 'original-fingerprint', duplicate: null };
       if (path === '/api/v2/me/run-admission') {
         admissionCalls += 1;
-        if (admissionCalls === 1) throw refusal({ ok: false, setupRequired: OFFLINE_CARD });
+        if (admissionCalls === 1) throw refusal({ ok: false, setupRequired: probeOnlyCard() });
         return { ok: true, admitted: true, machine: { id: 'mac-mini-a' } };
       }
       if (path === '/api/v2/me/run-requests') {
