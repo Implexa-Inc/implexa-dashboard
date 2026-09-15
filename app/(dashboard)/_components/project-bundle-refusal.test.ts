@@ -4,6 +4,7 @@ import { render } from '../../../lib/test/render.ts';
 const version = '33333333-3333-4333-8333-333333333333';
 const first = '11111111-1111-4111-8111-111111111111';
 const second = '22222222-2222-4222-8222-222222222222';
+const presenter = { artifactId: '44444444-4444-4444-8444-444444444444', sha256: 'd'.repeat(64) };
 const props = { slug: 'bundle-consumer', name: 'Bundle consumer', isActive: true, workflowVersionId: version,
   inputContractDigest: 'c'.repeat(64), inputContract: { version: 1, fields: [{ key: 'project_bundle', label: 'Project bundle', description: 'Planner export', kind: 'file', cardinality: 'one', required: true, order: 1, accept: { extensions: ['.zip'], mediaTypes: ['application/zip'] } }] } };
 const refused = { ok: false, reason: 'project_bundle_contract_incompatible', error: '/Users/private/never-display.json', remediation: {
@@ -32,15 +33,16 @@ for (const asError of [false, true]) test(`bundle refusal preserves inputs, avoi
   const requests: any[] = []; let corrected = false, rechecks = 0, session = '';
   let release!: () => void;
   const pending = new Promise<void>(resolve => { release = resolve; });
-  const r = await render('agent-actions.tsx', props, { backend: backend(requests, () => corrected, asError), bridge: {
+  const r = await render('agent-actions.tsx', { ...props, inputContract: { ...props.inputContract, fields: [...props.inputContract.fields, { key: 'presenter_video', label: 'Presenter video', description: 'Presenter', kind: 'file', cardinality: 'one', required: true, order: 2, accept: { extensions: ['.mp4'], mediaTypes: ['video/mp4'] } }] } }, { backend: backend(requests, () => corrected, asError), bridge: {
     executionMachineId: async () => 'test-machine',
-    pickRunInput: async (opts: any) => { session = opts.inputSessionId; return { ok: true, artifactId: first, sha256: 'a'.repeat(64), inputSessionId: session, displayName: 'bundle.zip', mediaType: 'application/zip' }; },
-    pickDeferredRunInput: async () => { throw new Error('bundle inspection must precede request/preparation'); },
+    pickRunInput: async (opts: any) => { session = opts.inputSessionId; if (opts.inputKey === 'presenter_video') return { ok: true, ...presenter, inputSessionId: session, displayName: 'presenter.mp4', mediaType: 'video/mp4' }; return { ok: true, artifactId: first, sha256: 'a'.repeat(64), inputSessionId: session, displayName: 'bundle.zip', mediaType: 'application/zip' }; },
+    // Exercise already registered presenter custody; older bridges register eagerly.
+    pickDeferredRunInput: undefined,
     reinspectProjectBundle: async (opts: any) => { rechecks++; assert.equal(opts.artifactId, first); await pending; corrected = true;
       return { ok: true, artifactId: second, sha256: 'b'.repeat(64), inputSessionId: session, displayName: 'bundle.zip', mediaType: 'application/zip' }; },
   } });
   try {
-    await r.click(r.getByText('▶ Run now')); await r.click(r.getByText('Choose file')); await r.click(r.getByText('▶ Run now'));
+    await r.click(r.getByText('▶ Run now')); await r.click(r.getByText('Choose file')); await r.click(r.getByText('Choose file')); await r.click(r.getByText('▶ Run now'));
     assert.ok(r.queryByText('Project bundle needs an updated Planner export'));
     assert.ok(r.queryByText('Range 1: 150 frames; at least 152 frames required.'));
     assert.equal(r.queryByText('Setup required before this agent can run.'), null);
@@ -53,6 +55,9 @@ for (const asError of [false, true]) test(`bundle refusal preserves inputs, avoi
     assert.equal(requests[0].inputBindings.project_bundle.artifactId, first);
     assert.equal(requests[1].inputBindings.project_bundle.artifactId, second);
     assert.equal(requests[1].inputSessionId, session);
+    assert.deepEqual(JSON.parse(JSON.stringify(requests[0].inputBindings.presenter_video)), presenter);
+    assert.equal(JSON.stringify(requests[1].inputBindings.presenter_video), JSON.stringify(requests[0].inputBindings.presenter_video));
+    assert.equal(JSON.stringify({ ...requests[1].inputBindings, project_bundle: requests[0].inputBindings.project_bundle }), JSON.stringify(requests[0].inputBindings), 'only the bundle binding changes');
   } finally { r.cleanup(); }
 });
 
