@@ -12,9 +12,16 @@ import { render } from '../../../lib/test/render.ts';
 // The shape callBackend's BackendError carries. A plain object with the same
 // fields is what the component sees across the harness bundle boundary.
 function refusal(body: Record<string, unknown>) { return Object.assign(new Error('Setup required before this agent can run.'), { status: 409, body }); }
+async function boundedSignal(signal: Promise<void>, label: string) {
+  await Promise.race([
+    signal,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${label} was not reached`)), 500)),
+  ]);
+}
 import fixture from '../../../test-fixtures/generated/capability-admission.v1.json' with { type: 'json' };
 
 const CARD = (fixture as { scenarios: Record<string, { verdict: { setupRequired: unknown } }> }).scenarios.required_cli_missing.verdict.setupRequired;
+const OFFLINE_CARD = (fixture as { scenarios: Record<string, { verdict: { setupRequired: unknown } }> }).scenarios.machine_offline.verdict.setupRequired;
 const props = { slug: 'visual-evidence-remotion-compositor', name: 'Visual Evidence & Remotion Compositor', isActive: true, workflowVersionId: '33333333-3333-4333-8333-333333333333' };
 
 function probeOnlyCard() {
@@ -131,7 +138,7 @@ test('a probe-only request-birth race rechecks this exact Desktop once and repla
     },
     bridge: {
       executionMachineId: async () => 'mac-mini-a',
-      recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true }; },
+      recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true, machineId: 'mac-mini-a' }; },
     },
   });
   try {
@@ -144,6 +151,338 @@ test('a probe-only request-birth race rechecks this exact Desktop once and repla
     assert.strictEqual(state.runRequests[1], state.runRequests[0], 'the exact frozen body object is replayed');
     assert.equal(state.runRequests[0].executionMachineId, 'mac-mini-a');
     assert.equal(r.queryByText('Setup required before this agent can run.'), null, 'a repaired race is hands-off');
+  } finally { r.cleanup(); }
+});
+
+test('an exact-local offline pre-admission is refreshed once and creates exactly one request', async () => {
+  const state = { admitAfter: 0, admissionCalls: 0, runRequests: [] as Array<Record<string, unknown>>, rechecks: 0 };
+  const base = backendFor(state);
+  const r = await render('agent-actions.tsx', props, {
+    backend: (path: string, init: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/v2/me/run-admission') {
+        state.admissionCalls += 1;
+        if (state.admissionCalls === 1) throw refusal({ ok: false, setupRequired: OFFLINE_CARD });
+        return { ok: true, admitted: true, machine: { id: 'mac-mini-a' }, caTrustMode: 'bundled' };
+      }
+      if (path === '/api/v2/me/run-requests') {
+        state.runRequests.push(init.body || {});
+        return { ok: true, request: { id: 'req-offline-recovered' } };
+      }
+      return base(path, init);
+    },
+    bridge: {
+      executionMachineId: async () => 'mac-mini-a',
+      recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true, machineId: 'mac-mini-a' }; },
+    },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    await r.click(r.getByText('▶ Run now'));
+    assert.equal(state.rechecks, 1, 'one exact-local presence/readiness refresh');
+    assert.equal(state.admissionCalls, 2, 'backend alone re-decides readiness after refresh');
+    assert.equal(state.runRequests.length, 1, 'one durable request birth');
+    assert.equal(state.runRequests[0].executionMachineId, 'mac-mini-a');
+    assert.equal(r.queryByText('Setup required before this agent can run.'), null);
+  } finally { r.cleanup(); }
+});
+
+test('an exact-local offline request-birth refusal re-admits then replays the exact frozen body', async () => {
+  const state = { admissions: [] as Array<Record<string, unknown>>, births: [] as Array<Record<string, unknown>>, rechecks: 0 };
+  const r = await render('agent-actions.tsx', props, {
+    backend: (path: string, init: { body?: Record<string, unknown> }) => {
+      if (path.startsWith('/api/v2/agent-training/agents/')) return readyTrainingHome();
+      if (path.startsWith('/api/v2/agents/') && path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
+      if (path.includes('/run-precheck')) return { ok: true, fingerprint: 'birth-fingerprint', duplicate: null };
+      if (path === '/api/v2/me/run-admission') {
+        state.admissions.push(init.body || {});
+        return { ok: true, admitted: true, machine: { id: 'mac-mini-a' } };
+      }
+      if (path === '/api/v2/me/run-requests') {
+        state.births.push(init.body || {});
+        if (state.births.length === 1) throw refusal({ ok: false, setupRequired: OFFLINE_CARD });
+        return { ok: true, request: { id: 'req-birth-recovered' } };
+      }
+      return { ok: true };
+    },
+    bridge: {
+      executionMachineId: async () => 'mac-mini-a',
+      recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true, machineId: 'mac-mini-a' }; },
+    },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    await r.click(r.getByText('▶ Run now'));
+    assert.equal(state.admissions.length, 2, 'initial admission and one post-refresh re-admission');
+    assert.deepEqual(state.admissions[1], state.admissions[0], 're-admission keeps slug, version, and machine identical');
+    assert.equal(state.rechecks, 1);
+    assert.equal(state.births.length, 2, 'one typed no-birth refusal and one replay');
+    assert.strictEqual(state.births[1], state.births[0], 'the exact frozen object is replayed');
+    assert.equal(state.births[0].inputFingerprint, 'birth-fingerprint');
+  } finally { r.cleanup(); }
+});
+
+test('offline request-birth recovery fails closed after its single replay', async (t) => {
+  const cases = [
+    { name: 'second typed refusal', second: 'offline' },
+    { name: 'second birth network error', second: 'network' },
+    { name: 'second birth backend error', second: 'server' },
+    { name: 'second birth ambiguous success', second: 'ambiguous' },
+  ] as const;
+  for (const scenario of cases) await t.test(scenario.name, async () => {
+    const state = { births: 0, rechecks: 0 };
+    const r = await render('agent-actions.tsx', props, {
+      backend: (path: string) => {
+        if (path.startsWith('/api/v2/agent-training/agents/')) return readyTrainingHome();
+        if (path.startsWith('/api/v2/agents/') && path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
+        if (path.includes('/run-precheck')) return { ok: true, fingerprint: null, duplicate: null };
+        if (path === '/api/v2/me/run-admission') return { ok: true, admitted: true, machine: { id: 'mac-mini-a' } };
+        if (path === '/api/v2/me/run-requests') {
+          state.births += 1;
+          if (state.births === 1 || scenario.second === 'offline') throw refusal({ ok: false, setupRequired: OFFLINE_CARD });
+          if (scenario.second === 'network') throw new Error('network unavailable');
+          if (scenario.second === 'server') throw Object.assign(new Error('server unavailable'), { status: 503, body: { ok: false } });
+          return { ok: false };
+        }
+        return { ok: true };
+      },
+      bridge: {
+        executionMachineId: async () => 'mac-mini-a',
+        recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true, machineId: 'mac-mini-a' }; },
+      },
+    });
+    try {
+      await r.click(r.getByText('▶ Run now'));
+      await r.click(r.getByText('▶ Run now'));
+      await r.act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+      assert.equal(state.rechecks, 1);
+      assert.equal(state.births, 2, 'one refused birth and one replay only');
+      assert.ok(r.queryByText('Setup required before this agent can run.'), 'the original typed offline refusal remains visible');
+    } finally { r.cleanup(); }
+  });
+});
+
+test('offline automatic recovery is visible and same-tick duplicate submits share one flight', async () => {
+  const state = { admissionCalls: 0, runRequests: [] as Array<Record<string, unknown>>, rechecks: 0 };
+  let releaseRefresh!: () => void;
+  let markRefreshStarted!: () => void;
+  const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+  const refreshStarted = new Promise<void>((resolve) => { markRefreshStarted = resolve; });
+  const r = await render('agent-actions.tsx', props, {
+    backend: (path: string, init: { body?: Record<string, unknown> }) => {
+      if (path.startsWith('/api/v2/agent-training/agents/')) return readyTrainingHome();
+      if (path.startsWith('/api/v2/agents/') && path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
+      if (path.includes('/run-precheck')) return { ok: true, fingerprint: 'frozen-fingerprint', duplicate: null };
+      if (path === '/api/v2/me/run-admission') {
+        state.admissionCalls += 1;
+        if (state.admissionCalls === 1) throw refusal({ ok: false, setupRequired: OFFLINE_CARD });
+        return { ok: true, admitted: true, machine: { id: 'mac-mini-a' } };
+      }
+      if (path === '/api/v2/me/run-requests') {
+        state.runRequests.push(init.body || {});
+        return { ok: true, request: { id: 'req-one-flight' } };
+      }
+      return { ok: true };
+    },
+    bridge: {
+      executionMachineId: async () => 'mac-mini-a',
+      recheckMachineCapabilities: async () => {
+        state.rechecks += 1;
+        markRefreshStarted();
+        await refreshGate;
+        return { ok: true, machineId: 'mac-mini-a' };
+      },
+    },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    const submit = r.getByText('▶ Run now');
+    await r.act(() => {
+      submit.dispatchEvent(new r.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+      submit.dispatchEvent(new r.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    await boundedSignal(refreshStarted, 'offline refresh');
+    assert.match(r.text(), /Rechecking this Mac/);
+    releaseRefresh();
+    await r.act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    assert.equal(state.rechecks, 1);
+    assert.equal(state.admissionCalls, 2);
+    assert.equal(state.runRequests.length, 1);
+  } finally { r.cleanup(); }
+});
+
+test('offline recovery fails closed for remote/missing bridges, failed or foreign refresh, and ambiguous re-admission', async (t) => {
+  const cases = [
+    { name: 'no local bridge identity', ids: [] as string[], refresh: null, second: 'pass', admissions: 1, rechecks: 0 },
+    { name: 'missing admission-refresh bridge method', ids: ['mac-mini-a'], refresh: null, second: 'pass', admissions: 1, rechecks: 0 },
+    { name: 'second bridge identity read throws', ids: ['mac-mini-a'], refresh: 'identity-throws', second: 'pass', admissions: 1, rechecks: 0 },
+    { name: 'bridge changed to another machine', ids: ['mac-mini-a', 'mac-studio-b'], refresh: 'pass', second: 'pass', admissions: 1, rechecks: 0 },
+    { name: 'refresh failed', ids: ['mac-mini-a'], refresh: 'fail', second: 'pass', admissions: 1, rechecks: 1 },
+    { name: 'refresh omitted its machine identity', ids: ['mac-mini-a'], refresh: 'identity-omitted', second: 'pass', admissions: 1, rechecks: 1 },
+    { name: 'refresh response named another machine', ids: ['mac-mini-a'], refresh: 'foreign', second: 'pass', admissions: 1, rechecks: 1 },
+    { name: 'second typed refusal', ids: ['mac-mini-a'], refresh: 'pass', second: 'offline', admissions: 2, rechecks: 1 },
+    { name: 'second admission network error', ids: ['mac-mini-a'], refresh: 'pass', second: 'network', admissions: 2, rechecks: 1 },
+    { name: 'second admission backend error', ids: ['mac-mini-a'], refresh: 'pass', second: 'server', admissions: 2, rechecks: 1 },
+    { name: 'second admission ambiguous success', ids: ['mac-mini-a'], refresh: 'pass', second: 'ambiguous', admissions: 2, rechecks: 1 },
+    { name: 'second admission names another machine', ids: ['mac-mini-a'], refresh: 'pass', second: 'foreign', admissions: 2, rechecks: 1 },
+  ] as const;
+  for (const scenario of cases) await t.test(scenario.name, async () => {
+    let identityReads = 0;
+    const state = { admissionCalls: 0, births: 0, rechecks: 0 };
+    const bridge = scenario.ids.length ? {
+      executionMachineId: async () => {
+        if (scenario.refresh === 'identity-throws' && identityReads > 0) throw new Error('bridge unavailable');
+        return scenario.ids[Math.min(identityReads++, scenario.ids.length - 1)];
+      },
+      ...(scenario.refresh ? { recheckMachineCapabilities: async () => {
+        state.rechecks += 1;
+        if (scenario.refresh === 'fail') return { ok: false };
+        if (scenario.refresh === 'identity-omitted') return { ok: true };
+        if (scenario.refresh === 'foreign') return { ok: true, machineId: 'mac-studio-b' };
+        return { ok: true, machineId: 'mac-mini-a' };
+      } } : {}),
+    } : {};
+    const r = await render('agent-actions.tsx', props, {
+      backend: (path: string) => {
+        if (path.startsWith('/api/v2/agent-training/agents/')) return readyTrainingHome();
+        if (path.startsWith('/api/v2/agents/') && path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
+        if (path.includes('/run-precheck')) return { ok: true, fingerprint: null, duplicate: null };
+        if (path === '/api/v2/me/run-admission') {
+          state.admissionCalls += 1;
+          if (state.admissionCalls === 1) throw refusal({ ok: false, setupRequired: OFFLINE_CARD });
+          if (scenario.second === 'offline') throw refusal({ ok: false, setupRequired: OFFLINE_CARD });
+          if (scenario.second === 'network') throw new Error('network unavailable');
+          if (scenario.second === 'server') throw Object.assign(new Error('server unavailable'), { status: 503, body: { ok: false } });
+          if (scenario.second === 'ambiguous') return { ok: false };
+          if (scenario.second === 'foreign') return { ok: true, admitted: true, machine: { id: 'mac-studio-b' } };
+          return { ok: true, admitted: true, machine: { id: 'mac-mini-a' } };
+        }
+        if (path === '/api/v2/me/run-requests') { state.births += 1; return { ok: true, request: { id: 'forbidden' } }; }
+        return { ok: true };
+      },
+      bridge,
+    });
+    try {
+      await r.click(r.getByText('▶ Run now'));
+      await r.click(r.getByText('▶ Run now'));
+      await r.act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+      assert.equal(state.admissionCalls, scenario.admissions);
+      assert.equal(state.rechecks, scenario.rechecks);
+      assert.equal(state.births, 0, 'no request can exist after failed/ambiguous freshness recovery');
+      assert.ok(r.queryByText('Setup required before this agent can run.'), 'the typed offline decision remains visible');
+    } finally { r.cleanup(); }
+  });
+});
+
+test('one shared refresh budget prevents a second automatic recovery at request birth', async () => {
+  const state = { admissions: 0, births: 0, rechecks: 0 };
+  const r = await render('agent-actions.tsx', props, {
+    backend: (path: string) => {
+      if (path.startsWith('/api/v2/agent-training/agents/')) return readyTrainingHome();
+      if (path.startsWith('/api/v2/agents/') && path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
+      if (path.includes('/run-precheck')) return { ok: true, fingerprint: null, duplicate: null };
+      if (path === '/api/v2/me/run-admission') {
+        state.admissions += 1;
+        if (state.admissions === 1) throw refusal({ ok: false, setupRequired: OFFLINE_CARD });
+        return { ok: true, admitted: true, machine: { id: 'mac-mini-a' } };
+      }
+      if (path === '/api/v2/me/run-requests') {
+        state.births += 1;
+        throw refusal({ ok: false, setupRequired: probeOnlyCard() });
+      }
+      return { ok: true };
+    },
+    bridge: {
+      executionMachineId: async () => 'mac-mini-a',
+      recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true, machineId: 'mac-mini-a' }; },
+    },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    await r.click(r.getByText('▶ Run now'));
+    assert.equal(state.admissions, 2);
+    assert.equal(state.rechecks, 1, 'pre-admission consumed the one automatic refresh');
+    assert.equal(state.births, 1, 'the typed no-birth refusal is not replayed after the budget is spent');
+    assert.ok(r.queryByText('Setup required before this agent can run.'));
+  } finally { r.cleanup(); }
+});
+
+test('input evidence mutated while offline refresh is in flight cannot alter the submitted immutable intent', async () => {
+  const firstArtifact = '11111111-1111-4111-8111-111111111111';
+  const secondArtifact = '22222222-2222-4222-8222-222222222222';
+  const typedProps = {
+    ...props,
+    inputContractDigest: 'c'.repeat(64),
+    inputContract: {
+      version: 'workflow-input-contract.v1',
+      fields: [{ key: 'project_bundle', label: 'Project bundle', kind: 'file', cardinality: 'one', required: true, order: 1,
+        accept: { extensions: ['.zip'], mediaTypes: ['application/zip'] } }],
+    },
+  };
+  const pickerResult = {
+    ok: true,
+    artifactId: firstArtifact,
+    sha256: 'a'.repeat(64),
+    displayName: 'Project-v1.zip',
+    mediaType: 'application/zip',
+    origin: 'file',
+    inputSessionId: '',
+  };
+  let admissionCalls = 0;
+  let submitted: Record<string, unknown> | null = null;
+  let releaseRefresh!: () => void;
+  let markRefreshStarted!: () => void;
+  const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+  const refreshStarted = new Promise<void>((resolve) => { markRefreshStarted = resolve; });
+  const r = await render('agent-actions.tsx', typedProps, {
+    backend: (path: string, init: { body?: Record<string, unknown> }) => {
+      if (path.startsWith('/api/v2/agent-training/agents/')) return readyTrainingHome();
+      if (path.startsWith('/api/v2/agents/') && path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
+      if (path.includes('/run-precheck')) return { ok: true, fingerprint: 'original-fingerprint', duplicate: null };
+      if (path === '/api/v2/me/run-admission') {
+        admissionCalls += 1;
+        if (admissionCalls === 1) throw refusal({ ok: false, setupRequired: OFFLINE_CARD });
+        return { ok: true, admitted: true, machine: { id: 'mac-mini-a' } };
+      }
+      if (path === '/api/v2/me/run-requests') {
+        submitted = init.body || {};
+        return { ok: true, request: { id: 'req-frozen-input' } };
+      }
+      return { ok: true };
+    },
+    bridge: {
+      executionMachineId: async () => 'mac-mini-a',
+      pickRunInput: async (options: Record<string, unknown>) => {
+        pickerResult.inputSessionId = String(options.inputSessionId || '');
+        return pickerResult;
+      },
+      recheckMachineCapabilities: async () => {
+        markRefreshStarted();
+        await refreshGate;
+        return { ok: true, machineId: 'mac-mini-a' };
+      },
+    },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    await r.click(r.getByText('Choose file'));
+    assert.match(r.text(), /Project-v1\.zip/);
+    const submit = r.getByText('▶ Run now');
+    await r.act(() => { submit.dispatchEvent(new r.window.MouseEvent('click', { bubbles: true, cancelable: true })); });
+    await boundedSignal(refreshStarted, 'offline refresh');
+    // Adversarial mutation of the bridge-owned object after selection. The
+    // component copied the exact verified identity into this Run before the
+    // asynchronous refresh, so later object changes cannot alter it.
+    pickerResult.artifactId = secondArtifact;
+    pickerResult.sha256 = 'b'.repeat(64);
+    pickerResult.displayName = 'Project-v2.zip';
+    releaseRefresh();
+    await r.act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    assert.ok(submitted);
+    const bindings = submitted!.inputBindings as Record<string, { artifactId: string; sha256: string }>;
+    assert.equal(bindings.project_bundle.artifactId, firstArtifact, 'the in-flight Run keeps the original bound input');
+    assert.equal(bindings.project_bundle.sha256, 'a'.repeat(64));
+    assert.equal(submitted!.inputFingerprint, 'original-fingerprint');
+    assert.equal(submitted!.executionMachineId, 'mac-mini-a');
   } finally { r.cleanup(); }
 });
 
@@ -201,7 +540,7 @@ test('probe-only recovery fails closed for the wrong Desktop, a failed recheck, 
       },
       bridge: {
         executionMachineId: async () => scenario.bridgeMachine,
-        recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: scenario.recheckOk }; },
+        recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: scenario.recheckOk, machineId: scenario.bridgeMachine }; },
       },
     });
     try {
@@ -231,7 +570,7 @@ test('two same-tick Run submissions share one queue flight and cannot duplicate 
     },
     bridge: {
       executionMachineId: async () => 'mac-mini-a',
-      recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true }; },
+      recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true, machineId: 'mac-mini-a' }; },
     },
   });
   try {

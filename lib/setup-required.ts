@@ -72,7 +72,9 @@ export function setupRequiredFromBody(body: unknown): SetupRequiredCard | null {
     code: 'setup_required',
     title: typeof c.title === 'string' && c.title ? c.title : 'Setup required before this agent can run.',
     reason: typeof c.reason === 'string' ? c.reason : 'required_capability_not_ready',
-    machine: { id: c.machine && typeof c.machine.id === 'string' ? c.machine.id : null, label: c.machine?.label ?? null, online: c.machine?.online === true },
+    // Unknown presence is not offline proof. Default it to online-shaped so a
+    // malformed/older card can never enter exact-offline automatic recovery.
+    machine: { id: c.machine && typeof c.machine.id === 'string' ? c.machine.id : null, label: c.machine?.label ?? null, online: c.machine?.online !== false },
     contract: c.contract,
     agent: c.agent && typeof c.agent === 'object' && (isAgentSlug(c.agent.slug) || isWorkflowVersionId(c.agent.workflow_version_id))
       ? { slug: isAgentSlug(c.agent.slug) ? c.agent.slug : null, workflow_version_id: isWorkflowVersionId(c.agent.workflow_version_id) ? c.agent.workflow_version_id : null }
@@ -88,6 +90,8 @@ export function setupReasonCopy(card: SetupRequiredCard): string {
   switch (card.reason) {
     case 'machine_offline': return 'This computer has not reported to Implexa in the last few minutes. Open the Implexa app on it, then Recheck.';
     case 'machine_unavailable': return 'No computer has reported to Implexa yet. Open the Implexa app on the Mac that should run this agent.';
+    case 'execution_engine_unavailable': return 'This computer is online, but no supported execution engine is currently available. Open its setup to reconnect Claude or Codex.';
+    case 'execution_engine_unauthenticated': return 'This computer is online, but its execution engine is not signed in. Sign in to Claude or Codex on that computer, then Recheck.';
     case 'attestation_missing': return 'Implexa has not checked this computer’s setup yet. Recheck to run the check now.';
     case 'attestation_stale': return 'The last setup check on this computer expired. Recheck to run it again.';
     case 'attestation_foreign_machine': return 'The setup check on file belongs to a different computer. Recheck on the selected one.';
@@ -122,6 +126,25 @@ export function isProbeOnlySetupRefusal(card: SetupRequiredCard): boolean {
     && card.actions.includes('recheck')
     && blockers.length > 0
     && blockers.every((item) => item.state === 'probe_failed');
+}
+
+/** A contradictory liveness refusal that THIS Desktop can safely try to repair.
+ *
+ * `machine_offline` is deliberately separate from probe-only recovery. An
+ * offline machine must never be refreshed by whichever browser happens to be
+ * open: the caller additionally proves that the injected Desktop bridge names
+ * this exact machine before asking Desktop to renew its backend presence lease
+ * and capability attestation. `not_checked` is part of the typed offline card;
+ * a mixed or otherwise malformed card remains an explicit user decision.
+ */
+export function isExactMachineOfflineSetupRefusal(card: SetupRequiredCard): boolean {
+  const blockers = blockingItems(card);
+  return card.reason === 'machine_offline'
+    && card.machine.online === false
+    && isMachineId(card.machine.id)
+    && card.actions.includes('recheck')
+    && blockers.length > 0
+    && blockers.every((item) => item.state === 'not_checked');
 }
 
 export type SetupScope = { machineId?: string | null; workflowVersionId?: string | null };

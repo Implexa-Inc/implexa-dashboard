@@ -33,19 +33,23 @@ test('admission is asked BEFORE the run request is created, and the request carr
   }
 });
 
-test('probe-only request-birth recovery is exact-machine, one-shot, immutable, and synchronously single-flight', () => {
+test('offline/probe freshness recovery is exact-machine, shared-budget, immutable, and synchronously single-flight', () => {
   const fn = actions.slice(actions.indexOf('async function doQueue('), actions.indexOf('async function doWatch('));
   assert.match(fn, /if \(queueInFlightRef\.current \|\| state === 'queuing' \|\| state === 'running'\) return;\n\s+queueInFlightRef\.current = true;/,
     'React state is not the duplicate-submission lock');
   assert.match(fn, /finally \{\n\s+queueInFlightRef\.current = false;/, 'the lock releases on every exit');
   assert.match(fn, /const requestBody = \{[\s\S]*inputBindings: serializeArtifactBindings\(inputBindings\)[\s\S]*inputSessionId,[\s\S]*deferredInputManifest:[\s\S]*executionMachineId[\s\S]*\};/,
     'the complete selected-input submission is frozen before request birth');
-  assert.match(fn, /const transient = parseSetupRequired\(firstError\);[\s\S]*isProbeOnlySetupRefusal\(transient\)/,
-    'only the pure, closed transient class enters automatic recovery');
-  assert.match(fn, /transient\.machine\.id !== executionMachineId[\s\S]*bridgeMachine !== executionMachineId/,
-    'both the refusal and answering Desktop are the exact selected machine');
-  assert.match(fn, /recheckMachineCapabilities\(\)[\s\S]*if \(refreshed\.ok !== true\) throw firstError;/,
-    'Desktop must complete a fresh attestation');
+  assert.match(fn, /isExactMachineOfflineSetupRefusal\(card\)[\s\S]*allowProbeOnly && isProbeOnlySetupRefusal\(card\)/,
+    'offline freshness and probe-only capability recovery remain separate pure classes');
+  assert.match(fn, /!automaticRefreshAvailable[\s\S]*card\.machine\.id !== executionMachineId[\s\S]*bridgeMachine !== executionMachineId/,
+    'the one budget, refusal, and answering Desktop all bind the exact selected machine');
+  assert.match(fn, /automaticRefreshAvailable = false;[\s\S]*setMsg\('Rechecking this Mac…'\)[\s\S]*recheckMachineCapabilities\(\)[\s\S]*refreshed\.ok === true/,
+    'Desktop must complete one visible fresh presence/readiness transaction');
+  assert.equal((fn.match(/body: admissionBody/g) || []).length, 2, 'offline pre-admission repeats the identical backend question once');
+  assert.match(fn, /admission\?\.machine\?\.id === executionMachineId/, 're-admission must return the exact frozen machine');
+  assert.equal((fn.match(/requireExactBackendReadmission\(\)/g) || []).length, 2,
+    'the shared exact re-admission helper is required after refresh at both refusal boundaries');
   const births = [...fn.matchAll(/callBackend\('\/api\/v2\/me\/run-requests'/g)];
   assert.equal(births.length, 2, 'one initial birth and one statically bounded replay');
   assert.equal((fn.match(/body: requestBody/g) || []).length, 2, 'both births receive the same immutable body');

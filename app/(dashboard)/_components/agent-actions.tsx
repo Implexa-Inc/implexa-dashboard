@@ -32,7 +32,7 @@ import { AttachFiles, composeNoteWithFiles, desktopBridge, fileName, useRunAttac
   type DeferredRunInputSelection } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import { SetupRequiredModal } from './setup-required-gate';
-import { isProbeOnlySetupRefusal, parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
+import { isExactMachineOfflineSetupRefusal, isProbeOnlySetupRefusal, parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
 import {
   acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
   resolvePickerResult, revisionAuthorityIssue, serializeArtifactBindings,
@@ -815,15 +815,66 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // against its own reports, never a readiness claim. Absent on plain web.
       // After a Recheck admission, THE machine the admission was proven on wins.
       const executionMachineId = opts?.executionMachineId ?? (await desktopBridge()?.executionMachineId?.().catch(() => null) ?? null);
+      // ONE automatic freshness repair for this whole Run submission. It is
+      // shared by the pre-admission and request-birth boundaries: consuming it
+      // at either boundary makes every later refusal explicit. This prevents an
+      // admission race followed by a birth race from silently probing twice.
+      let automaticRefreshAvailable = true;
+      let automaticRecoveryError: unknown = null;
+      const refreshExactLocalAdmissionEvidence = async (card: SetupRequiredCardData, allowProbeOnly: boolean) => {
+        const eligible = isExactMachineOfflineSetupRefusal(card)
+          || (allowProbeOnly && isProbeOnlySetupRefusal(card));
+        if (!automaticRefreshAvailable || !eligible || !executionMachineId
+            || card.machine.id !== executionMachineId) return false;
+        const native = desktopBridge();
+        if (!native?.executionMachineId || !native.recheckMachineCapabilities) return false;
+        const bridgeMachine = await native.executionMachineId().catch(() => null);
+        if (bridgeMachine !== executionMachineId) return false;
+        automaticRefreshAvailable = false;
+        setMsg('Rechecking this Mac…');
+        const refreshed = await native.recheckMachineCapabilities().catch(() => ({ ok: false, machineId: null }));
+        // The full Desktop transaction echoes the exact machine whose presence,
+        // engine report, and capability attestation were renewed. An older or
+        // ambiguous bridge response cannot authorize automatic recovery.
+        return refreshed.ok === true
+          && refreshed.machineId === executionMachineId;
+      };
+      const admissionBody = { workflowSlug: slug, ...(workflowVersionId ? { workflowVersionId } : {}), ...(executionMachineId ? { executionMachineId } : {}) };
+      const requireExactBackendReadmission = async () => {
+        const admission = await callBackend('/api/v2/me/run-admission', {
+          jwt: session?.access_token, method: 'POST', body: admissionBody,
+        });
+        return admission?.ok === true && admission?.admitted === true
+          && admission?.machine?.id === executionMachineId;
+      };
       // ADMISSION BEFORE CREATION (0346). Ask the backend whether the selected
       // machine can run this version before a request, run or launch exists.
       // The request itself re-runs the same decision, so this cannot be skipped
       // to gain anything; it exists so the modal appears IMMEDIATELY at the click.
       if (!opts?.admitted) {
-        const admission = await callBackend('/api/v2/me/run-admission', {
-          jwt: session?.access_token, method: 'POST',
-          body: { workflowSlug: slug, ...(workflowVersionId ? { workflowVersionId } : {}), ...(executionMachineId ? { executionMachineId } : {}) },
-        });
+        let admission;
+        try {
+          admission = await callBackend('/api/v2/me/run-admission', {
+            jwt: session?.access_token, method: 'POST', body: admissionBody,
+          });
+        } catch (firstAdmissionError) {
+          const offline = parseSetupRequired(firstAdmissionError);
+          const refreshed = offline
+            ? await refreshExactLocalAdmissionEvidence(offline, false)
+            : false;
+          if (!refreshed) throw firstAdmissionError;
+          automaticRecoveryError = firstAdmissionError;
+          try {
+            if (!(await requireExactBackendReadmission())) throw firstAdmissionError;
+            admission = { ok: true, admitted: true, machine: { id: executionMachineId } };
+          } catch (secondAdmissionError) {
+            // A newer typed card is more useful. Transport ambiguity and 5xx
+            // retain the original offline card: nothing was queued and the
+            // owner can still use its explicit Recheck action.
+            throw parseSetupRequired(secondAdmissionError) ? secondAdmissionError : firstAdmissionError;
+          }
+          setMsg('');
+        }
         if (!(admission?.ok === true && admission?.admitted === true)) {
           throw new Error(admission?.reason ? `Implexa could not verify this computer’s readiness (${admission.reason}). Nothing was queued.` : 'Implexa could not verify this computer’s readiness. Nothing was queued.');
         }
@@ -861,22 +912,31 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         });
       } catch (firstError) {
         const transient = parseSetupRequired(firstError);
-        const native = desktopBridge();
-        // Only a typed, probe-only request-birth refusal can recover silently.
-        // The named machine must be this Desktop, and its fresh recheck must
-        // succeed. Every other failure falls through to the existing modal.
-        if (!transient || !isProbeOnlySetupRefusal(transient)
-            || !executionMachineId || transient.machine.id !== executionMachineId
-            || !native?.executionMachineId || !native.recheckMachineCapabilities) throw firstError;
-        const bridgeMachine = await native.executionMachineId().catch(() => null);
-        if (bridgeMachine !== executionMachineId) throw firstError;
-        const refreshed = await native.recheckMachineCapabilities().catch(() => ({ ok: false }));
-        if (refreshed.ok !== true) throw firstError;
+        // A typed no-birth refusal may use the same ONE freshness repair, if it
+        // was not already consumed by pre-admission. Offline and probe-only are
+        // separate pure predicates; permanent/mixed cards never enter here.
+        if (!transient) throw automaticRecoveryError ?? firstError;
+        if (!(await refreshExactLocalAdmissionEvidence(transient, true))) throw firstError;
+        automaticRecoveryError = firstError;
+        // The Desktop refresh is evidence, never an admission decision. Ask the
+        // backend again for the exact frozen slug/version/machine before the
+        // single immutable birth replay. Any non-typed or ambiguous response
+        // retains the original no-birth card.
+        try {
+          if (!(await requireExactBackendReadmission())) throw firstError;
+        } catch (readmissionError) {
+          throw parseSetupRequired(readmissionError) ? readmissionError : firstError;
+        }
+        setMsg('');
         // Exactly one replay. A second refusal, network ambiguity, or any other
         // result is handled normally and is never retried again here.
-        res = await callBackend('/api/v2/me/run-requests', {
-          jwt: session?.access_token, method: 'POST', body: requestBody,
-        });
+        try {
+          res = await callBackend('/api/v2/me/run-requests', {
+            jwt: session?.access_token, method: 'POST', body: requestBody,
+          });
+        } catch (secondError) {
+          throw parseSetupRequired(secondError) ? secondError : firstError;
+        }
       }
       if (res?.ok === true && res?.preparing === true && typeof res?.preparation?.id === 'string') {
         const preparationId = res.preparation.id as string;
@@ -918,6 +978,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // typed refusal into HTTP 200 with {ok:false}.
       const confirmedRequestId = confirmedRunRequestId(res);
       if (!confirmedRequestId) {
+        if (automaticRecoveryError) throw automaticRecoveryError;
         throw new Error(res?.error || 'The server did not create a run request.');
       }
       requestId.current = confirmedRequestId;
