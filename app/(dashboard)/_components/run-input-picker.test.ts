@@ -79,7 +79,7 @@ test('required typed inputs still gate the Run button', () => {
 });
 
 test('only digest identity crosses the wire — never a local path', () => {
-  assert.match(src, /inputBindings: serializeArtifactBindings\(inputBindings\)/,
+  assert.match(src, /inputBindings: serializeArtifactBindings\(opts\?\.inputBindingsOverride \?\? inputBindings\)/,
     'the run-create payload is the stripped serialization, not raw component state');
   assert.match(src, /deferredInputManifest:[\s\S]*selectionId: value\.selectionId[\s\S]*sizeBytes: value\.sizeBytes/,
     'a selected large file crosses only as opaque identity and bounded metadata before hashing');
@@ -88,7 +88,7 @@ test('only digest identity crosses the wire — never a local path', () => {
 });
 
 test('background selection is fail-closed to cardinality one', () => {
-  assert.match(src, /selection === 'file' && field\.cardinality === 'one' && bridge\.pickDeferredRunInput/,
+  assert.match(src, /selection === 'file' && field\.key !== 'project_bundle' && field\.cardinality === 'one' && bridge\.pickDeferredRunInput/,
     'v1 must not turn a many-file contract into a replacing scalar selection');
   assert.match(src, /field\.cardinality === 'many' \? 'Add file'/,
     'many-file fields retain the existing append/register picker');

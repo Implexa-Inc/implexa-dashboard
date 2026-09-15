@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { subscribeLiveFeed, notifyRunActivity } from '@/lib/live-feed-poll';
 import { callBackend, BackendError } from '@/lib/api';
+import { projectBundleRefusal, type ProjectBundleRefusal } from '@/lib/project-bundle-refusal';
 import { confirmedRunRequestId } from '@/lib/run-request-receipt';
 import Modal from './modal';
 import SetupChoiceField from './setup-choice-field';
@@ -151,6 +152,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       : inFlight === 'queued' ? 'Queued. Waiting for your Claude to pick it up — the result lands in your inbox.'
       : '');
   const [showRunModal, setShowRunModal] = useState(false);
+  const [bundleRefusal, setBundleRefusal] = useState<ProjectBundleRefusal | null>(null);
+  const [bundleRechecking, setBundleRechecking] = useState(false);
+  const bundleRecheckRef = useRef(false);
   const [runInstalledVersionConfirmed, setRunInstalledVersionConfirmed] = useState(false);
   // One-time permissions heads-up inside the run-triggered modal, shown on the
   // user's first queued run (shared SEEN flag with the Home note so it never
@@ -325,7 +329,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // field. Cardinality-many keeps the existing append/register path until
       // the durable manifest models ordered arrays end to end; never silently
       // replace prior files or submit a scalar the backend must reject.
-      if (selection === 'file' && field.cardinality === 'one' && bridge.pickDeferredRunInput) {
+      if (selection === 'file' && field.key !== 'project_bundle' && field.cardinality === 'one' && bridge.pickDeferredRunInput) {
         const raw: ({ ok: boolean; canceled?: boolean; error?: string } & Partial<DeferredRunInputSelection>) = await bridge.pickDeferredRunInput({ inputKey: field.key, inputSessionId: sessionId,
           ...(field.accept ? { accept: field.accept } : {}) })
           .catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
@@ -776,7 +780,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     } catch { return { fingerprint: null, duplicate: null }; }
   }
 
-  async function doQueue(note?: string, opts?: { force?: boolean; fingerprint?: string | null; admitted?: boolean; executionMachineId?: string | null }) {
+  async function doQueue(note?: string, opts?: { force?: boolean; fingerprint?: string | null; admitted?: boolean; executionMachineId?: string | null; inputBindingsOverride?: RunInputBindings }) {
     if (queueInFlightRef.current || state === 'queuing' || state === 'running') return;
     queueInFlightRef.current = true;
     try {
@@ -786,7 +790,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     }
   }
 
-  async function doQueueLocked(note?: string, opts?: { force?: boolean; fingerprint?: string | null; admitted?: boolean; executionMachineId?: string | null }) {
+  async function doQueueLocked(note?: string, opts?: { force?: boolean; fingerprint?: string | null; admitted?: boolean; executionMachineId?: string | null; inputBindingsOverride?: RunInputBindings }) {
     // Remember the note BEFORE the duplicate check can early-return, or "Run again
     // anyway" replays the run with the note dropped — silently different work.
     lastNote.current = note;
@@ -896,7 +900,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         ...(typedFields.length && workflowVersionId && inputContractDigest ? {
           workflowVersionId,
           inputContractDigest,
-          inputBindings: serializeArtifactBindings(inputBindings),
+          inputBindings: serializeArtifactBindings(opts?.inputBindingsOverride ?? inputBindings),
           inputSessionId,
           ...(Object.keys(deferredSelections).length ? {
             deferredInputManifest: Object.fromEntries(Object.entries(deferredSelections).map(([key, value]) => [key, {
@@ -915,6 +919,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           jwt: session?.access_token, method: 'POST', body: requestBody,
         });
       } catch (firstError) {
+        if (projectBundleRefusal(firstError)) throw firstError;
         const transient = parseSetupRequired(firstError);
         // A typed no-birth refusal may use the same ONE freshness repair, if it
         // was not already consumed by pre-admission. Offline and probe-only are
@@ -939,6 +944,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             jwt: session?.access_token, method: 'POST', body: requestBody,
           });
         } catch (secondError) {
+          if (projectBundleRefusal(secondError)) throw secondError;
           throw parseSetupRequired(secondError) ? secondError : firstError;
         }
       }
@@ -980,6 +986,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // redirect, or render Queued unless the server confirms the one request it
       // created.  This also protects against a proxy accidentally normalising a
       // typed refusal into HTTP 200 with {ok:false}.
+      if (projectBundleRefusal(res)) throw new BackendError('Project bundle needs an updated Planner export', 409, res);
       const confirmedRequestId = confirmedRunRequestId(res);
       if (!confirmedRequestId) {
         if (automaticRecoveryError) throw automaticRecoveryError;
@@ -1013,6 +1020,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         router.push('/workflows');
       }
     } catch (e) {
+      const bundle = projectBundleRefusal(e);
+      if (bundle) {
+        setState('idle'); setMsg(''); setBundleRefusal(bundle);
+        setShowSetupModal(false);
+        return;
+      }
       // A capability refusal is NOT an error — it's a decision the user can make
       // right here (switch engine / grant it / run anyway), so it gets the card
       // rather than a red dead-end sentence.
@@ -1041,6 +1054,34 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // / supervise it live. Deliberately does NOT queue a run-request, so the drainer
   // won't also fire it (no double-run). The per-run note is pushed into the prompt
   // so it's part of the session you're watching.
+  async function recheckProjectBundle() {
+    if (bundleRecheckRef.current || queueInFlightRef.current) return;
+    const binding = inputBindings.project_bundle;
+    const field = typedFields.find(f => f.key === 'project_bundle');
+    const bridge = desktopBridge();
+    if (!bridge?.reinspectProjectBundle || !field || !binding || typeof binding !== 'object'
+        || Array.isArray(binding) || !inputSessionId) {
+      setBundleRefusal(null); setShowSetupModal(true);
+      setInputError('project_bundle', 'Choose the updated Planner export to inspect it again.');
+      return;
+    }
+    bundleRecheckRef.current = true; setBundleRechecking(true);
+    try {
+      const raw = await bridge.reinspectProjectBundle({ artifactId: binding.artifactId, sha256: binding.sha256, inputSessionId });
+      const result = resolvePickerResult(raw, field, 'file');
+      if (result.kind !== 'bound' || raw.inputSessionId !== inputSessionId) {
+        setBundleRefusal({ title: 'Project bundle needs an updated Planner export', details: ['Reinspection could not verify this export. Choose the updated bundle and try again.'] });
+        return;
+      }
+      const next = bindInputValue(inputBindings, field, result.binding);
+      setInputOverrides(previous => bindInputValue(previous, field, result.binding));
+      setBundleRefusal(null);
+      await doQueue(runNote.trim() || undefined, { inputBindingsOverride: next });
+    } catch {
+      setBundleRefusal({ title: 'Project bundle needs an updated Planner export', details: ['Reinspection is unavailable. Your selected inputs are still here.'] });
+    } finally { bundleRecheckRef.current = false; setBundleRechecking(false); }
+  }
+
   async function doWatch(note?: string) {
     setMsg('');
     try {
@@ -1188,7 +1229,16 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           on admission, continues the SAME Run — same note, same inputs, exactly
           once (admitted:true skips the redundant pre-check; the request re-runs
           the decision server-side regardless). */}
-      <SetupRequiredModal
+      <Modal open={!!bundleRefusal} title={bundleRefusal?.title || 'Project bundle needs an updated Planner export'}
+      onClose={() => { if (!bundleRechecking) { setBundleRefusal(null); setShowSetupModal(true); } }}>
+      <p className="text-sm text-slate-300">Nothing was queued. Your selected inputs are preserved. Ask the Planner for a corrected export that retains the approved timeline.</p>
+      <ul className="my-4 list-disc pl-5 text-sm">{bundleRefusal?.details.map((detail, index) => <li key={index}>{detail}</li>)}</ul>
+      <button className="mr-2 rounded-lg border border-slate-600 px-3 py-2 text-sm disabled:opacity-50" type="button" disabled={bundleRechecking} onClick={() => void recheckProjectBundle()}>
+        {bundleRechecking ? 'Rechecking…' : 'Recheck and run'}
+      </button>
+      <button className="mr-2 rounded-lg border border-slate-600 px-3 py-2 text-sm disabled:opacity-50" type="button" disabled={bundleRechecking} onClick={() => { setBundleRefusal(null); setShowSetupModal(true); }}>Choose updated export</button>
+    </Modal>
+    <SetupRequiredModal
         card={setupCard}
         slug={slug}
         workflowVersionId={workflowVersionId}

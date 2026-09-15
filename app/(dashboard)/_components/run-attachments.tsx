@@ -133,6 +133,10 @@ export type DesktopBridge = {
    * so a saved source is not re-picked before every run. No path crosses from
    * this page: Desktop asks the server what the user saved and binds only that,
    * hashing it afresh so the run gets the bytes that exist now. */
+  reinspectProjectBundle?: (opts: { artifactId: string; sha256: string; inputSessionId: string }) => Promise<{
+    ok: boolean; error?: string; inputSessionId?: string; artifactId?: string; sha256?: string;
+    displayName?: string; mediaType?: string;
+  }>;
   bindSavedRunInput?: (opts: {
     slug: string;
     source?: string;

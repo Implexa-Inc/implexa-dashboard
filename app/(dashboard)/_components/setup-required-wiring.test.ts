@@ -38,7 +38,7 @@ test('offline/probe freshness recovery is exact-machine, shared-budget, immutabl
   assert.match(fn, /if \(queueInFlightRef\.current \|\| state === 'queuing' \|\| state === 'running'\) return;\n\s+queueInFlightRef\.current = true;/,
     'React state is not the duplicate-submission lock');
   assert.match(fn, /finally \{\n\s+queueInFlightRef\.current = false;/, 'the lock releases on every exit');
-  assert.match(fn, /const requestBody = \{[\s\S]*inputBindings: serializeArtifactBindings\(inputBindings\)[\s\S]*inputSessionId,[\s\S]*deferredInputManifest:[\s\S]*executionMachineId[\s\S]*\};/,
+  assert.match(fn, /const requestBody = \{[\s\S]*inputBindings: serializeArtifactBindings\(opts\?\.inputBindingsOverride \?\? inputBindings\)[\s\S]*inputSessionId,[\s\S]*deferredInputManifest:[\s\S]*executionMachineId[\s\S]*\};/,
     'the complete selected-input submission is frozen before request birth');
   assert.match(fn, /isExactMachineOfflineSetupRefusal\(card\)[\s\S]*isProbeOnlySetupRefusal\(card\)/,
     'offline and probe-only exact-machine freshness refusals share the one automatic-recovery budget');
