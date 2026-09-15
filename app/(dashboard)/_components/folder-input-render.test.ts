@@ -36,9 +36,17 @@ function runProps(directorySnapshot = true) {
   };
 }
 
+function backend(setup: Record<string, unknown> = { schema: [], answers: {}, note: '', runInputDefaults: {} }) {
+  return (path: string) => path.startsWith('/api/v2/agent-training/agents/') ? { ok: true, home: {
+    agent: { currentVersionId: '33333333-3333-4333-8333-333333333333' },
+    successorProjection: { contractVersion: 'agent-training-successor-projection.v1', activeVersionId: '33333333-3333-4333-8333-333333333333', eligiblePredecessor: null },
+    managerTrainingRequirements: { contractVersion: 'manager-reference-training-readiness.v1', scope: 'workflow_version_quality_references', workflowVersionId: '33333333-3333-4333-8333-333333333333', classified: false, requiredPairs: [], fulfilledPairs: [], missingPairs: [], readiness: 'not_applicable', reason: null },
+  } } : setup;
+}
+
 test('Run now renders folder selection only for a declared directory snapshot capability', async () => {
   const rendered = await render('agent-actions.tsx', runProps(true), {
-    backend: () => ({ schema: [], answers: {}, note: '', runInputDefaults: {} }),
+    backend: backend(),
     bridge: { pickRunInput: async () => ({ ok: false, canceled: true }) },
   });
   try {
@@ -48,7 +56,7 @@ test('Run now renders folder selection only for a declared directory snapshot ca
   } finally { rendered.cleanup(); }
 
   const zipOnly = await render('agent-actions.tsx', runProps(false), {
-    backend: () => ({ schema: [], answers: {}, note: '', runInputDefaults: {} }),
+    backend: backend(),
     bridge: { pickRunInput: async () => ({ ok: false, canceled: true }) },
   });
   try {
@@ -61,7 +69,7 @@ test('Run now renders folder selection only for a declared directory snapshot ca
 
 test('a directory response that is not a frozen directory snapshot refuses visibly', async () => {
   const rendered = await render('agent-actions.tsx', runProps(true), {
-    backend: () => ({ schema: [], answers: {}, note: '', runInputDefaults: {} }),
+    backend: backend(),
     bridge: {
       pickRunInput: async (options: Record<string, unknown>) => ({
         ok: true, artifactId: firstArtifact, sha256: digestA, displayName: 'Project.zip',
@@ -84,7 +92,7 @@ test('Run Now uses the same declared folder capability and replacement identity'
     workflowVersionId: '33333333-3333-4333-8333-333333333333',
     inputContractDigest: 'c'.repeat(64), inputContract: update(true).input_contract,
   }, {
-    backend: () => ({ schema: [], answers: {}, note: '', runInputDefaults: {} }),
+    backend: backend(),
     bridge: {
       pickRunInput: async (options: Record<string, unknown>) => {
         calls.push(options);
@@ -123,7 +131,7 @@ test('Run Now shows folder preparation, blocks duplicate picks and ignores an ol
     workflowVersionId: '33333333-3333-4333-8333-333333333333',
     inputContractDigest: 'c'.repeat(64), inputContract: update(true).input_contract,
   }, {
-    backend: () => ({
+    backend: backend({
       schema: [], answers: {}, note: '',
       runInputDefaults: { project_bundle: '/saved/project-bundle.zip' },
     }),

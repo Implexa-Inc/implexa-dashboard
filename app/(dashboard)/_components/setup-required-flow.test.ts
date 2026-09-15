@@ -17,8 +17,18 @@ import fixture from '../../../test-fixtures/generated/capability-admission.v1.js
 const CARD = (fixture as { scenarios: Record<string, { verdict: { setupRequired: unknown } }> }).scenarios.required_cli_missing.verdict.setupRequired;
 const props = { slug: 'visual-evidence-remotion-compositor', name: 'Visual Evidence & Remotion Compositor', isActive: true, workflowVersionId: '33333333-3333-4333-8333-333333333333' };
 
+function readyTrainingHome() {
+  return { ok: true, home: {
+    agent: { currentVersionId: props.workflowVersionId },
+    successorProjection: { contractVersion: 'agent-training-successor-projection.v1', activeVersionId: props.workflowVersionId, eligiblePredecessor: null },
+    managerTrainingRequirements: { contractVersion: 'manager-reference-training-readiness.v1', scope: 'workflow_version_quality_references',
+      workflowVersionId: props.workflowVersionId, classified: false, requiredPairs: [], fulfilledPairs: [], missingPairs: [], readiness: 'not_applicable', reason: null },
+  } };
+}
+
 function backendFor(state: { admitAfter: number; admissionCalls: number; runRequests: Array<Record<string, unknown>>; rechecks: number }) {
   return (path: string, init: { method?: string; body?: Record<string, unknown> }) => {
+    if (path.startsWith('/api/v2/agent-training/agents/')) return readyTrainingHome();
     if (path.startsWith('/api/v2/agents/') && path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
     if (path.includes('/run-precheck')) return { ok: true, fingerprint: null, duplicate: null };
     if (path === '/api/v2/me/run-admission') {
