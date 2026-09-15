@@ -40,8 +40,8 @@ test('offline/probe freshness recovery is exact-machine, shared-budget, immutabl
   assert.match(fn, /finally \{\n\s+queueInFlightRef\.current = false;/, 'the lock releases on every exit');
   assert.match(fn, /const requestBody = \{[\s\S]*inputBindings: serializeArtifactBindings\(inputBindings\)[\s\S]*inputSessionId,[\s\S]*deferredInputManifest:[\s\S]*executionMachineId[\s\S]*\};/,
     'the complete selected-input submission is frozen before request birth');
-  assert.match(fn, /isExactMachineOfflineSetupRefusal\(card\)[\s\S]*allowProbeOnly && isProbeOnlySetupRefusal\(card\)/,
-    'offline freshness and probe-only capability recovery remain separate pure classes');
+  assert.match(fn, /isExactMachineOfflineSetupRefusal\(card\)[\s\S]*isProbeOnlySetupRefusal\(card\)/,
+    'offline and probe-only exact-machine freshness refusals share the one automatic-recovery budget');
   assert.match(fn, /!automaticRefreshAvailable[\s\S]*card\.machine\.id !== executionMachineId[\s\S]*bridgeMachine !== executionMachineId/,
     'the one budget, refusal, and answering Desktop all bind the exact selected machine');
   assert.match(fn, /automaticRefreshAvailable = false;[\s\S]*setMsg\('Rechecking this Mac…'\)[\s\S]*recheckMachineCapabilities\(\)[\s\S]*refreshed\.ok === true/,

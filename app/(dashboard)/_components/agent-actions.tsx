@@ -821,9 +821,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // admission race followed by a birth race from silently probing twice.
       let automaticRefreshAvailable = true;
       let automaticRecoveryError: unknown = null;
-      const refreshExactLocalAdmissionEvidence = async (card: SetupRequiredCardData, allowProbeOnly: boolean) => {
+      const refreshExactLocalAdmissionEvidence = async (card: SetupRequiredCardData) => {
+        // Both supported automatic classes are exact-machine freshness repairs:
+        // a contradictory stale presence lease, or an otherwise-online machine
+        // whose required probes were all inconclusive. Missing, signed-out,
+        // unsupported, model-unavailable, TLS and mixed cards do not match.
         const eligible = isExactMachineOfflineSetupRefusal(card)
-          || (allowProbeOnly && isProbeOnlySetupRefusal(card));
+          || isProbeOnlySetupRefusal(card);
         if (!automaticRefreshAvailable || !eligible || !executionMachineId
             || card.machine.id !== executionMachineId) return false;
         const native = desktopBridge();
@@ -858,9 +862,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             jwt: session?.access_token, method: 'POST', body: admissionBody,
           });
         } catch (firstAdmissionError) {
-          const offline = parseSetupRequired(firstAdmissionError);
-          const refreshed = offline
-            ? await refreshExactLocalAdmissionEvidence(offline, false)
+          const setupRefusal = parseSetupRequired(firstAdmissionError);
+          const refreshed = setupRefusal
+            ? await refreshExactLocalAdmissionEvidence(setupRefusal)
             : false;
           if (!refreshed) throw firstAdmissionError;
           automaticRecoveryError = firstAdmissionError;
@@ -869,7 +873,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             admission = { ok: true, admitted: true, machine: { id: executionMachineId } };
           } catch (secondAdmissionError) {
             // A newer typed card is more useful. Transport ambiguity and 5xx
-            // retain the original offline card: nothing was queued and the
+            // retain the original setup card: nothing was queued and the
             // owner can still use its explicit Recheck action.
             throw parseSetupRequired(secondAdmissionError) ? secondAdmissionError : firstAdmissionError;
           }
@@ -916,7 +920,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         // was not already consumed by pre-admission. Offline and probe-only are
         // separate pure predicates; permanent/mixed cards never enter here.
         if (!transient) throw automaticRecoveryError ?? firstError;
-        if (!(await refreshExactLocalAdmissionEvidence(transient, true))) throw firstError;
+        if (!(await refreshExactLocalAdmissionEvidence(transient))) throw firstError;
         automaticRecoveryError = firstError;
         // The Desktop refresh is evidence, never an admission decision. Ask the
         // backend again for the exact frozen slug/version/machine before the
