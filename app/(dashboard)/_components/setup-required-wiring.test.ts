@@ -26,11 +26,29 @@ test('admission is asked BEFORE the run request is created, and the request carr
   assert.ok(admission > 0 && request > admission, 'admission precedes creation');
   assert.match(fn, /executionMachineId = opts\?\.executionMachineId \?\? \(await desktopBridge\(\)\?\.executionMachineId\?\.\(\)\.catch\(\(\) => null\) \?\? null\)/,
     'the bridge NAMES the machine; after a Recheck admission the admitted machine wins');
-  assert.match(fn, /\.\.\.\(executionMachineId \? \{ executionMachineId \} : \{\}\),\n\s+\},\n\s+\}\);/);
+  assert.match(fn, /\.\.\.\(executionMachineId \? \{ executionMachineId \} : \{\}\),\n\s+\};\n\s+let res;/);
   const body = fn.slice(request, fn.indexOf('});', request));
   for (const forbidden of ['readiness', 'cliInstalled', 'higgsfield', 'items:', 'attestation']) {
     assert.doesNotMatch(body, new RegExp(forbidden, 'i'), `the request body must never carry a browser readiness claim (${forbidden})`);
   }
+});
+
+test('probe-only request-birth recovery is exact-machine, one-shot, immutable, and synchronously single-flight', () => {
+  const fn = actions.slice(actions.indexOf('async function doQueue('), actions.indexOf('async function doWatch('));
+  assert.match(fn, /if \(queueInFlightRef\.current \|\| state === 'queuing' \|\| state === 'running'\) return;\n\s+queueInFlightRef\.current = true;/,
+    'React state is not the duplicate-submission lock');
+  assert.match(fn, /finally \{\n\s+queueInFlightRef\.current = false;/, 'the lock releases on every exit');
+  assert.match(fn, /const requestBody = \{[\s\S]*inputBindings: serializeArtifactBindings\(inputBindings\)[\s\S]*inputSessionId,[\s\S]*deferredInputManifest:[\s\S]*executionMachineId[\s\S]*\};/,
+    'the complete selected-input submission is frozen before request birth');
+  assert.match(fn, /const transient = parseSetupRequired\(firstError\);[\s\S]*isProbeOnlySetupRefusal\(transient\)/,
+    'only the pure, closed transient class enters automatic recovery');
+  assert.match(fn, /transient\.machine\.id !== executionMachineId[\s\S]*bridgeMachine !== executionMachineId/,
+    'both the refusal and answering Desktop are the exact selected machine');
+  assert.match(fn, /recheckMachineCapabilities\(\)[\s\S]*if \(refreshed\.ok !== true\) throw firstError;/,
+    'Desktop must complete a fresh attestation');
+  const births = [...fn.matchAll(/callBackend\('\/api\/v2\/me\/run-requests'/g)];
+  assert.equal(births.length, 2, 'one initial birth and one statically bounded replay');
+  assert.equal((fn.match(/body: requestBody/g) || []).length, 2, 'both births receive the same immutable body');
 });
 
 test('the typed 409 becomes the modal, not an error sentence; Recheck continues the same doQueue with the remembered note + fingerprint, once', () => {

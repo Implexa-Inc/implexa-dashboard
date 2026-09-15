@@ -282,7 +282,7 @@ test('the duplicate check runs BEFORE queueing, exactly once', () => {
 
 test('the note survives the duplicate detour', () => {
   const src = read('agent-actions.tsx');
-  const body = src.slice(src.indexOf('async function doQueue'), src.indexOf('async function doQueue') + 900);
+  const body = src.slice(src.indexOf('async function doQueue'), src.indexOf('async function doWatch'));
   const notePos = body.indexOf('lastNote.current = note;');
   const checkPos = body.indexOf('const pre = await precheckDuplicate');
   assert.ok(notePos !== -1 && checkPos !== -1);
