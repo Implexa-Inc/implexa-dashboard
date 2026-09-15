@@ -310,6 +310,23 @@ test('version transition requires coach confirmation, exact-source re-selection,
   } finally { rendered.cleanup(); }
 });
 
+test('an adopted ready active version does not ask the coach to recreate immutable predecessor evidence', async () => {
+  const { rendered } = await renderedWith({
+    currentVersion: VERSION_B,
+    state: 'accepted',
+    stages: ['planning'],
+    managerTrainingRequirements: requirements(VERSION_B),
+  });
+  try {
+    assert.match(rendered.text(), /Active-version Manager training is ready/);
+    assert.match(rendered.text(), /active version 22222222 can select the same evidence through explicit immutable adoption receipts/i);
+    assert.match(rendered.text(), /No new successor training session is required to run this Agent/);
+    assert.doesNotMatch(rendered.text(), /active version is 22222222 and cannot select those records/i);
+    assert.equal(rendered.queryByText('Start successor training session'), null);
+    assert.doesNotMatch(rendered.text(), /Manager reference training readiness unavailable/);
+  } finally { rendered.cleanup(); }
+});
+
 test('version transition is restart-durable and retains explicit parent lineage', async () => {
   const { rendered, calls } = await renderedWith({ currentVersion: VERSION_B, state: 'accepted', stages: ['planning', 'build', 'preview', 'qa'], managerCoverage: coverage() });
   try {
