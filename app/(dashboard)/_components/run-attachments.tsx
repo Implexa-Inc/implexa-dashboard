@@ -67,7 +67,13 @@ export type DesktopBridge = {
   /** Machine-capability readiness (backend 0346): a re-probe + re-attest of
    * THIS Mac, and the id the backend resolves it by. Typed statuses only; the
    * page never decides readiness from them. */
-  recheckMachineCapabilities?: () => Promise<{ ok: boolean; reason?: string | null }>;
+  recheckMachineCapabilities?: () => Promise<{
+    ok: boolean;
+    reason?: string | null;
+    /** Identity of the Desktop that renewed presence + readiness. */
+    machineId?: string | null;
+    state?: unknown;
+  }>;
   executionMachineId?: () => Promise<string>;
   handoffAgent?: (prompt: string, surface?: string, target?: string) => Promise<{ ok: boolean; mode?: string }>;
   pickFile?: (opts?: unknown) => Promise<{ ok: boolean; path?: string }>;

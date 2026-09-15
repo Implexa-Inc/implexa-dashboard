@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 class BackendError extends Error { status: number; body: unknown; constructor(m: string, status: number, body: unknown) { super(m); this.status = status; this.body = body; } }
-import { parseSetupRequired, setupRequiredFromBody, setupReasonCopy, machineCopy, blockingItems, isProbeOnlySetupRefusal, machineSetupPath, appMachineSetupUrl, parseSetupScope, setupTargetFor } from './setup-required.ts';
+import { parseSetupRequired, setupRequiredFromBody, setupReasonCopy, machineCopy, blockingItems, isExactMachineOfflineSetupRefusal, isProbeOnlySetupRefusal, machineSetupPath, appMachineSetupUrl, parseSetupScope, setupTargetFor } from './setup-required.ts';
 import fixture from '../test-fixtures/generated/capability-admission.v1.json' with { type: 'json' };
 
 const scenario = (name: string) => (fixture as { scenarios: Record<string, { verdict: { ok: boolean; setupRequired?: unknown } }> }).scenarios[name];
@@ -33,6 +33,8 @@ test('the modal copy names WHICH computer is checked and why, from the backendâ€
   assert.match(setupReasonCopy(foreign), /belongs to a different computer/);
   const stale = parseSetupRequired(new BackendError('x', 409, { setupRequired: scenario('stale_attestation').verdict.setupRequired }))!;
   assert.match(setupReasonCopy(stale), /expired/);
+  assert.match(setupReasonCopy({ ...offline, reason: 'execution_engine_unavailable', machine: { ...offline.machine, online: true } }), /no supported execution engine/);
+  assert.match(setupReasonCopy({ ...offline, reason: 'execution_engine_unauthenticated', machine: { ...offline.machine, online: true } }), /not signed in/);
 });
 
 test('blocking items are REQUIRED and not ready; optional fallbacks never block; states render as their customer-safe labels', () => {
@@ -79,6 +81,29 @@ test('automatic recovery is limited to a nonempty all-probe-failed required set 
   assert.equal(isProbeOnlySetupRefusal({ ...withStates('probe_failed'), machine: { ...base.machine, id: null } }), false, 'unnamed machine');
   assert.equal(isProbeOnlySetupRefusal({ ...withStates('probe_failed'), reason: 'attestation_stale' }), false, 'wrong refusal reason');
   assert.equal(isProbeOnlySetupRefusal({ ...withStates('probe_failed'), actions: ['open_setup', 'cancel'] }), false, 'backend did not offer recheck');
+});
+
+test('offline recovery is a separate exact typed class and never widens probe-only recovery', () => {
+  const offline = parseSetupRequired(new BackendError('x', 409, { setupRequired: scenario('machine_offline').verdict.setupRequired }))!;
+  assert.equal(isExactMachineOfflineSetupRefusal(offline), true);
+  assert.equal(isProbeOnlySetupRefusal(offline), false, 'offline freshness is not a probe-only capability result');
+
+  const raw = scenario('machine_offline').verdict.setupRequired as Record<string, unknown>;
+  const malformed = setupRequiredFromBody({ setupRequired: { ...raw, machine: { id: offline.machine.id, label: offline.machine.label } } })!;
+  assert.equal(isExactMachineOfflineSetupRefusal(malformed), false, 'missing presence evidence is not normalized into an offline proof');
+
+  assert.equal(isExactMachineOfflineSetupRefusal({ ...offline, reason: 'machine_unavailable' }), false);
+  assert.equal(isExactMachineOfflineSetupRefusal({ ...offline, reason: 'execution_engine_unavailable' }), false);
+  assert.equal(isExactMachineOfflineSetupRefusal({ ...offline, reason: 'execution_engine_unauthenticated' }), false);
+  assert.equal(isExactMachineOfflineSetupRefusal({ ...offline, machine: { ...offline.machine, id: null } }), false);
+  assert.equal(isExactMachineOfflineSetupRefusal({ ...offline, machine: { ...offline.machine, online: true } }), false);
+  assert.equal(isExactMachineOfflineSetupRefusal({ ...offline, actions: ['open_setup', 'cancel'] }), false);
+  assert.equal(isExactMachineOfflineSetupRefusal({
+    ...offline,
+    items: offline.items.map((item) => item.required && item.id === 'ffmpeg'
+      ? { ...item, state: 'missing', stateLabel: 'Not installed' }
+      : item),
+  }), false, 'a mixed/permanent card cannot inherit automatic offline recovery');
 });
 
 const VERSION = '33333333-3333-4333-8333-333333333333';
