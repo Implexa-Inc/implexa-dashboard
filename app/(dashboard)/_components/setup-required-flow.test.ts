@@ -17,6 +17,16 @@ import fixture from '../../../test-fixtures/generated/capability-admission.v1.js
 const CARD = (fixture as { scenarios: Record<string, { verdict: { setupRequired: unknown } }> }).scenarios.required_cli_missing.verdict.setupRequired;
 const props = { slug: 'visual-evidence-remotion-compositor', name: 'Visual Evidence & Remotion Compositor', isActive: true, workflowVersionId: '33333333-3333-4333-8333-333333333333' };
 
+function probeOnlyCard() {
+  const card = JSON.parse(JSON.stringify(CARD)) as { items: Array<Record<string, unknown>> } & Record<string, unknown>;
+  card.items = card.items.map((item) => item.id === 'higgsfield_cli'
+    ? { ...item, state: 'ready', stateLabel: 'Ready', reason: 'ready' }
+    : item.id === 'higgsfield_auth'
+      ? { ...item, state: 'probe_failed', stateLabel: 'Could not be checked', reason: 'probe_failed' }
+      : item);
+  return card;
+}
+
 function readyTrainingHome() {
   return { ok: true, home: {
     agent: { currentVersionId: props.workflowVersionId },
@@ -100,6 +110,140 @@ test('a setup refusal raised by the request itself (backend re-check at birth) o
     await r.click(r.getByText('▶ Run now'));
     assert.ok(r.queryByText('Setup required before this agent can run.'));
     assert.match(r.text(), /Higgsfield CLI — Not installed/);
+  } finally { r.cleanup(); }
+});
+
+test('a probe-only request-birth race rechecks this exact Desktop once and replays the immutable submission once', async () => {
+  const state = { admitAfter: 0, admissionCalls: 0, runRequests: [] as Array<Record<string, unknown>>, rechecks: 0 };
+  const base = backendFor(state);
+  let births = 0;
+  let created = 0;
+  const r = await render('agent-actions.tsx', props, {
+    backend: (path: string, init: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/v2/me/run-requests') {
+        births += 1;
+        state.runRequests.push(init.body || {});
+        if (births === 1) throw refusal({ ok: false, setupRequired: probeOnlyCard() });
+        created += 1;
+        return { ok: true, request: { id: 'req-recovered' } };
+      }
+      return base(path, init);
+    },
+    bridge: {
+      executionMachineId: async () => 'mac-mini-a',
+      recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true }; },
+    },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    await r.click(r.getByText('▶ Run now'));
+    await r.act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    assert.equal(state.rechecks, 1, 'one fresh Desktop attestation');
+    assert.equal(births, 2, 'one original birth and one replay');
+    assert.equal(created, 1, 'only the replay created a request');
+    assert.strictEqual(state.runRequests[1], state.runRequests[0], 'the exact frozen body object is replayed');
+    assert.equal(state.runRequests[0].executionMachineId, 'mac-mini-a');
+    assert.equal(r.queryByText('Setup required before this agent can run.'), null, 'a repaired race is hands-off');
+  } finally { r.cleanup(); }
+});
+
+test('mixed or permanent setup blockers never trigger automatic recheck or request replay', async () => {
+  const state = { admitAfter: 0, admissionCalls: 0, runRequests: [] as Array<Record<string, unknown>>, rechecks: 0 };
+  const mixed = probeOnlyCard();
+  mixed.items = mixed.items.map((item) => item.id === 'ffmpeg'
+    ? { ...item, state: 'missing', stateLabel: 'Not installed', reason: 'missing' }
+    : item);
+  const base = backendFor(state);
+  const r = await render('agent-actions.tsx', props, {
+    backend: (path: string, init: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/v2/me/run-requests') {
+        state.runRequests.push(init.body || {});
+        throw refusal({ ok: false, setupRequired: mixed });
+      }
+      return base(path, init);
+    },
+    bridge: {
+      executionMachineId: async () => 'mac-mini-a',
+      recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true }; },
+    },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    await r.click(r.getByText('▶ Run now'));
+    assert.equal(state.rechecks, 0);
+    assert.equal(state.runRequests.length, 1);
+    assert.ok(r.queryByText('Setup required before this agent can run.'));
+  } finally { r.cleanup(); }
+});
+
+test('probe-only recovery fails closed for the wrong Desktop, a failed recheck, a second refusal, network errors, and ambiguous success', async (t) => {
+  const cases = [
+    { name: 'wrong Desktop', bridgeMachine: 'mac-studio-b', recheckOk: true, first: 'probe', expectedBirths: 1, expectedRechecks: 0 },
+    { name: 'failed recheck', bridgeMachine: 'mac-mini-a', recheckOk: false, first: 'probe', expectedBirths: 1, expectedRechecks: 1 },
+    { name: 'second refusal', bridgeMachine: 'mac-mini-a', recheckOk: true, first: 'probe-twice', expectedBirths: 2, expectedRechecks: 1 },
+    { name: 'network error', bridgeMachine: 'mac-mini-a', recheckOk: true, first: 'network', expectedBirths: 1, expectedRechecks: 0 },
+    { name: 'backend 5xx', bridgeMachine: 'mac-mini-a', recheckOk: true, first: 'server', expectedBirths: 1, expectedRechecks: 0 },
+    { name: 'ambiguous 2xx', bridgeMachine: 'mac-mini-a', recheckOk: true, first: 'ambiguous', expectedBirths: 1, expectedRechecks: 0 },
+  ] as const;
+  for (const scenario of cases) await t.test(scenario.name, async () => {
+    const state = { admitAfter: 0, admissionCalls: 0, runRequests: [] as Array<Record<string, unknown>>, rechecks: 0 };
+    const base = backendFor(state);
+    const r = await render('agent-actions.tsx', props, {
+      backend: (path: string, init: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/v2/me/run-requests') {
+          state.runRequests.push(init.body || {});
+          if (scenario.first === 'network') throw new Error('network unavailable');
+          if (scenario.first === 'server') throw Object.assign(new Error('server unavailable'), { status: 503, body: { ok: false } });
+          if (scenario.first === 'ambiguous') return { ok: false };
+          throw refusal({ ok: false, setupRequired: probeOnlyCard() });
+        }
+        return base(path, init);
+      },
+      bridge: {
+        executionMachineId: async () => scenario.bridgeMachine,
+        recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: scenario.recheckOk }; },
+      },
+    });
+    try {
+      await r.click(r.getByText('▶ Run now'));
+      await r.click(r.getByText('▶ Run now'));
+      await r.act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+      assert.equal(state.runRequests.length, scenario.expectedBirths, 'bounded birth attempts');
+      assert.equal(state.rechecks, scenario.expectedRechecks, 'bounded Desktop rechecks');
+      if (scenario.first.startsWith('probe')) assert.ok(r.queryByText('Setup required before this agent can run.'), 'second/permanent refusal remains explicit');
+    } finally { r.cleanup(); }
+  });
+});
+
+test('two same-tick Run submissions share one queue flight and cannot duplicate its recovery', async () => {
+  const state = { admitAfter: 0, admissionCalls: 0, runRequests: [] as Array<Record<string, unknown>>, rechecks: 0 };
+  const base = backendFor(state);
+  let births = 0;
+  const r = await render('agent-actions.tsx', props, {
+    backend: (path: string, init: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/v2/me/run-requests') {
+        births += 1;
+        state.runRequests.push(init.body || {});
+        if (births === 1) throw refusal({ ok: false, setupRequired: probeOnlyCard() });
+        return { ok: true, request: { id: 'req-one' } };
+      }
+      return base(path, init);
+    },
+    bridge: {
+      executionMachineId: async () => 'mac-mini-a',
+      recheckMachineCapabilities: async () => { state.rechecks += 1; return { ok: true }; },
+    },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    const submit = r.getByText('▶ Run now');
+    await r.act(() => {
+      submit.dispatchEvent(new r.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+      submit.dispatchEvent(new r.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    await r.act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    assert.equal(state.rechecks, 1);
+    assert.equal(births, 2, 'one refused birth plus one replay, not two queue chains');
   } finally { r.cleanup(); }
 });
 

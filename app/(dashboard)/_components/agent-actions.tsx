@@ -32,7 +32,7 @@ import { AttachFiles, composeNoteWithFiles, desktopBridge, fileName, useRunAttac
   type DeferredRunInputSelection } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import { SetupRequiredModal } from './setup-required-gate';
-import { parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
+import { isProbeOnlySetupRefusal, parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
 import {
   acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
   resolvePickerResult, revisionAuthorityIssue, serializeArtifactBindings,
@@ -262,6 +262,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // trigger a future duplicate warning. Retries that silently drop it make the
   // backstop leaky in exactly the case where the user already hit friction.
   const lastFingerprint = useRef<string | null>(null);
+  // React state is not a same-tick lock. A double submit must not open two
+  // admission/request-birth chains (especially while one is doing its single
+  // probe-only recovery).
+  const queueInFlightRef = useRef(false);
   const requestId = useRef<string | null>(null);
   const pollStart = useRef(0);
   // Mirrors `state`, readable inside the mount-once external-poll effect below
@@ -773,7 +777,16 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   }
 
   async function doQueue(note?: string, opts?: { force?: boolean; fingerprint?: string | null; admitted?: boolean; executionMachineId?: string | null }) {
-    if (state === 'queuing' || state === 'running') return;
+    if (queueInFlightRef.current || state === 'queuing' || state === 'running') return;
+    queueInFlightRef.current = true;
+    try {
+      await doQueueLocked(note, opts);
+    } finally {
+      queueInFlightRef.current = false;
+    }
+  }
+
+  async function doQueueLocked(note?: string, opts?: { force?: boolean; fingerprint?: string | null; admitted?: boolean; executionMachineId?: string | null }) {
     // Remember the note BEFORE the duplicate check can early-return, or "Run again
     // anyway" replays the run with the note dropped — silently different work.
     lastNote.current = note;
@@ -815,33 +828,56 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           throw new Error(admission?.reason ? `Implexa could not verify this computer’s readiness (${admission.reason}). Nothing was queued.` : 'Implexa could not verify this computer’s readiness. Nothing was queued.');
         }
       }
-      const res = await callBackend('/api/v2/me/run-requests', {
-        jwt: session?.access_token,
-        method: 'POST',
-        body: {
-          workflowSlug: slug, source: 'dashboard', kind: 'run',
-          ...(note ? { note } : {}),
-          // Stamp what these inputs hash to, so the NEXT identical ask is recognised.
-          ...(fingerprint ? { inputFingerprint: fingerprint } : {}),
-          // Carries the card's "Run anyway" through. We ask, we never forbid.
-          ...(opts?.force ? { force: true } : {}),
-          ...(typedFields.length && workflowVersionId && inputContractDigest ? {
-            workflowVersionId,
-            inputContractDigest,
-            inputBindings: serializeArtifactBindings(inputBindings),
-            inputSessionId,
-            ...(Object.keys(deferredSelections).length ? {
-              deferredInputManifest: Object.fromEntries(Object.entries(deferredSelections).map(([key, value]) => [key, {
-                selectionId: value.selectionId, sizeBytes: value.sizeBytes, mediaType: value.mediaType,
-                fileExtension: value.fileExtension,
-              }])),
-              requiredMachineId: Object.values(deferredSelections)[0]?.requiredMachineId,
-            } : {}),
+      // Freeze the complete request before its first birth attempt. If that
+      // authoritative boundary races a transient Desktop probe, the one allowed
+      // replay below sends this exact object — never live/mutated form state.
+      const requestBody = {
+        workflowSlug: slug, source: 'dashboard', kind: 'run',
+        ...(note ? { note } : {}),
+        // Stamp what these inputs hash to, so the NEXT identical ask is recognised.
+        ...(fingerprint ? { inputFingerprint: fingerprint } : {}),
+        // Carries the card's "Run anyway" through. We ask, we never forbid.
+        ...(opts?.force ? { force: true } : {}),
+        ...(typedFields.length && workflowVersionId && inputContractDigest ? {
+          workflowVersionId,
+          inputContractDigest,
+          inputBindings: serializeArtifactBindings(inputBindings),
+          inputSessionId,
+          ...(Object.keys(deferredSelections).length ? {
+            deferredInputManifest: Object.fromEntries(Object.entries(deferredSelections).map(([key, value]) => [key, {
+              selectionId: value.selectionId, sizeBytes: value.sizeBytes, mediaType: value.mediaType,
+              fileExtension: value.fileExtension,
+            }])),
+            requiredMachineId: Object.values(deferredSelections)[0]?.requiredMachineId,
           } : {}),
-          ...(pendingUpdate && runInstalledVersionConfirmed ? { allowSupersededInstalledVersion: true } : {}),
-          ...(executionMachineId ? { executionMachineId } : {}),
-        },
-      });
+        } : {}),
+        ...(pendingUpdate && runInstalledVersionConfirmed ? { allowSupersededInstalledVersion: true } : {}),
+        ...(executionMachineId ? { executionMachineId } : {}),
+      };
+      let res;
+      try {
+        res = await callBackend('/api/v2/me/run-requests', {
+          jwt: session?.access_token, method: 'POST', body: requestBody,
+        });
+      } catch (firstError) {
+        const transient = parseSetupRequired(firstError);
+        const native = desktopBridge();
+        // Only a typed, probe-only request-birth refusal can recover silently.
+        // The named machine must be this Desktop, and its fresh recheck must
+        // succeed. Every other failure falls through to the existing modal.
+        if (!transient || !isProbeOnlySetupRefusal(transient)
+            || !executionMachineId || transient.machine.id !== executionMachineId
+            || !native?.executionMachineId || !native.recheckMachineCapabilities) throw firstError;
+        const bridgeMachine = await native.executionMachineId().catch(() => null);
+        if (bridgeMachine !== executionMachineId) throw firstError;
+        const refreshed = await native.recheckMachineCapabilities().catch(() => ({ ok: false }));
+        if (refreshed.ok !== true) throw firstError;
+        // Exactly one replay. A second refusal, network ambiguity, or any other
+        // result is handled normally and is never retried again here.
+        res = await callBackend('/api/v2/me/run-requests', {
+          jwt: session?.access_token, method: 'POST', body: requestBody,
+        });
+      }
       if (res?.ok === true && res?.preparing === true && typeof res?.preparation?.id === 'string') {
         const preparationId = res.preparation.id as string;
         const bridge = desktopBridge();

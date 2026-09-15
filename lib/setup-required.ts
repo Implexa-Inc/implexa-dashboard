@@ -106,6 +106,24 @@ export function blockingItems(card: SetupRequiredCard): SetupRequiredItem[] {
   return card.items.filter((item) => item.required && item.state !== 'ready');
 }
 
+/** A narrow transient refusal that a fresh Desktop attestation may repair.
+ *
+ * This is deliberately stricter than "the card has a probe failure". Automatic
+ * recovery is allowed only when every required blocker is an inconclusive probe
+ * on the online, named machine and the backend offered Recheck. Missing tools,
+ * authentication, model access, TLS failures, stale/offline machines, and mixed
+ * cards always remain explicit user decisions.
+ */
+export function isProbeOnlySetupRefusal(card: SetupRequiredCard): boolean {
+  const blockers = blockingItems(card);
+  return card.reason === 'required_capability_not_ready'
+    && card.machine.online === true
+    && isMachineId(card.machine.id)
+    && card.actions.includes('recheck')
+    && blockers.length > 0
+    && blockers.every((item) => item.state === 'probe_failed');
+}
+
 export type SetupScope = { machineId?: string | null; workflowVersionId?: string | null };
 
 /** `machine/<id>` and `version/<id>` named segments — path segments only,

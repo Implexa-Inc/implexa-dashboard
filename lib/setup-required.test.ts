@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 class BackendError extends Error { status: number; body: unknown; constructor(m: string, status: number, body: unknown) { super(m); this.status = status; this.body = body; } }
-import { parseSetupRequired, setupRequiredFromBody, setupReasonCopy, machineCopy, blockingItems, machineSetupPath, appMachineSetupUrl, parseSetupScope, setupTargetFor } from './setup-required.ts';
+import { parseSetupRequired, setupRequiredFromBody, setupReasonCopy, machineCopy, blockingItems, isProbeOnlySetupRefusal, machineSetupPath, appMachineSetupUrl, parseSetupScope, setupTargetFor } from './setup-required.ts';
 import fixture from '../test-fixtures/generated/capability-admission.v1.json' with { type: 'json' };
 
 const scenario = (name: string) => (fixture as { scenarios: Record<string, { verdict: { ok: boolean; setupRequired?: unknown } }> }).scenarios[name];
@@ -55,6 +55,30 @@ test('blocking items are REQUIRED and not ready; optional fallbacks never block;
   mixed.items = mixed.items.map((i) => (i.id === 'dependency_cache' ? { ...i, required: false, state: 'degraded', stateLabel: 'Available with limits' } : i));
   assert.deepEqual(blockingItems(mixed).map((i) => i.id), ['higgsfield_cli'], 'an optional item that is not ready is listed but never blocks');
   assert.equal(scenario('registry_tls_bundled_passes_system_fails').verdict.ok, true, 'bundled trust passing means no modal, even though system trust failed');
+});
+
+test('automatic recovery is limited to a nonempty all-probe-failed required set on the named online machine', () => {
+  const base = parseSetupRequired(new BackendError('x', 409, { setupRequired: scenario('required_cli_missing').verdict.setupRequired }))!;
+  const withStates = (...states: string[]) => ({
+    ...base,
+    items: base.items.map((item, index) => item.required
+      ? { ...item, state: states[index % states.length], stateLabel: states[index % states.length] }
+      : item),
+  });
+
+  assert.equal(isProbeOnlySetupRefusal(withStates('probe_failed')), true, 'one or many inconclusive required probes are recoverable');
+  for (const permanent of ['missing', 'unauthenticated', 'model_unavailable', 'tls_failed', 'probe_unsupported', 'stale']) {
+    assert.equal(isProbeOnlySetupRefusal(withStates('probe_failed', permanent)), false, `mixed ${permanent} is never automatic`);
+  }
+
+  const optionalFailure = withStates('probe_failed');
+  optionalFailure.items = optionalFailure.items.map((item) => item.required ? item : { ...item, state: 'missing', stateLabel: 'Not installed' });
+  assert.equal(isProbeOnlySetupRefusal(optionalFailure), true, 'an optional limitation does not become a required blocker');
+  assert.equal(isProbeOnlySetupRefusal({ ...withStates('ready'), items: base.items.map((item) => ({ ...item, state: 'ready' })) }), false, 'no blocker means no recovery');
+  assert.equal(isProbeOnlySetupRefusal({ ...withStates('probe_failed'), machine: { ...base.machine, online: false } }), false, 'offline');
+  assert.equal(isProbeOnlySetupRefusal({ ...withStates('probe_failed'), machine: { ...base.machine, id: null } }), false, 'unnamed machine');
+  assert.equal(isProbeOnlySetupRefusal({ ...withStates('probe_failed'), reason: 'attestation_stale' }), false, 'wrong refusal reason');
+  assert.equal(isProbeOnlySetupRefusal({ ...withStates('probe_failed'), actions: ['open_setup', 'cancel'] }), false, 'backend did not offer recheck');
 });
 
 const VERSION = '33333333-3333-4333-8333-333333333333';
