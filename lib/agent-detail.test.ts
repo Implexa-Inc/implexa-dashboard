@@ -180,6 +180,45 @@ test('a malformed unavailable list cannot smuggle a section in as "available"', 
   assert.deepEqual(out.detail.unavailable, ['activation', 'connections'], 'non-strings dropped, real names kept');
 });
 
+test('missing, null, or malformed lifecycle fails closed even when the unavailable marker is missing', async () => {
+  for (const lifecycle of [
+    undefined,
+    null,
+    {},
+    { requests: [], runningRun: 'false' },
+    { requests: [{ status: 'pending', kind: 'revise' }], runningRun: false },
+    { requests: [{ status: '', kind: 'revise', created_at: '2026-08-11T23:00:00Z' }], runningRun: false },
+    { requests: [{ status: 'queued', kind: 'revise', created_at: '2026-08-11T23:00:00Z' }], runningRun: false },
+    { requests: [{ status: 'pending', kind: '', created_at: '2026-08-11T23:00:00Z' }], runningRun: false },
+    { requests: [{ status: 'pending', kind: 'build', created_at: '2026-08-11T23:00:00Z' }], runningRun: false },
+    { requests: [{ status: 'pending', kind: 'revise', created_at: 'not-a-date' }], runningRun: false },
+  ]) {
+    const envelope = { ...ENVELOPE, unavailable: [] } as Record<string, unknown>;
+    if (lifecycle === undefined) delete envelope.lifecycle;
+    else envelope.lifecycle = lifecycle;
+    const out = await getAgentDetail('daily-brief', 'jwt-123', { fetchImpl: fetchStub(200, envelope).impl });
+    assert.equal(out.status, 'ready');
+    if (out.status !== 'ready') continue;
+    assert.equal(out.detail.lifecycle, null);
+    assert.equal(out.detail.isUnavailable('lifecycle'), true);
+    assert.ok(out.detail.unavailable.includes('lifecycle'));
+  }
+});
+
+test('an explicit empty lifecycle is the only healthy no-work state', async () => {
+  const out = await getAgentDetail('daily-brief', 'jwt-123', {
+    fetchImpl: fetchStub(200, {
+      ...ENVELOPE,
+      lifecycle: { requests: [], runningRun: false },
+      unavailable: [],
+    }).impl,
+  });
+  assert.equal(out.status, 'ready');
+  if (out.status !== 'ready') return;
+  assert.deepEqual(out.detail.lifecycle, { requests: [], runningRun: false });
+  assert.equal(out.detail.isUnavailable('lifecycle'), false);
+});
+
 test('?source= rides the query string', async () => {
   const { impl, calls } = fetchStub(200, ENVELOPE);
   await getAgentDetail('daily-brief', 'jwt-123', { source: 'community', fetchImpl: impl });

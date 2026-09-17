@@ -64,10 +64,10 @@ test('the page branches on isUnavailable, never on a section value being empty',
     'the run action depends on readiness AND reachability; either being unread must withhold it');
 });
 
-test('both AgentActions instances are blocked, not just the header one', () => {
+test('both direct AgentActions and the ActivationCard nested action are blocked', () => {
   const wired = page.match(/statusUnavailable=\{actionsBlocked\}/g) || [];
-  assert.equal(wired.length, 2,
-    'the Setup tab renders its own AgentActions — a Run button there is just as live as the header one');
+  assert.equal(wired.length, 3,
+    'header, setup action, and ActivationCard nested Run must share the same action block');
 });
 
 test('the unavailable notice names each section and says running is paused', () => {

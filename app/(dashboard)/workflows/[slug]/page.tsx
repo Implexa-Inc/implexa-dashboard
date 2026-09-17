@@ -241,8 +241,12 @@ export default async function WorkflowDetailPage({
   // this agent that the failed read cannot support.
   const runsUnavailable = detail!.isUnavailable('runs');
   const schedulesUnavailable = detail!.isUnavailable('schedules');
+  // A failed lifecycle read is not evidence that no run/edit is pending. Treat
+  // it as an action-safety dependency: otherwise a transient backend/transport
+  // failure hides the queued edit and offers both Run now and Edit Agent again.
+  const lifecycleUnavailable = detail!.isUnavailable('lifecycle');
   // Any section whose failure makes the primary action unsafe to offer.
-  const actionsBlocked = activationUnavailable || connectionsUnavailable;
+  const actionsBlocked = activationUnavailable || connectionsUnavailable || lifecycleUnavailable;
   const safety = remoteSafety(workflow);
   const boundCount = workflow.steps.filter((s) => s.ref && !s.gap).length;
 
@@ -579,7 +583,7 @@ export default async function WorkflowDetailPage({
       {/* Same run-input identity the header's <AgentActions/> gets — the card
           renders its own Run now, and a Run button that can't build the envelope
           is a refusal the user has no way to answer from that screen. */}
-      {checklist && <ActivationCard checklist={checklist} surface="setup" runInputs={workflowRunInputs(workflow)} />}
+      {checklist && <ActivationCard checklist={checklist} surface="setup" runInputs={workflowRunInputs(workflow)} statusUnavailable={actionsBlocked} revisePending={revisePending} />}
       <div className="mb-6">
         <ImplexaJudgePolicy slug={workflow.slug} />
       </div>
@@ -629,7 +633,7 @@ export default async function WorkflowDetailPage({
           where the click happens, instead of a tab-switch-and-scroll. */}
 
       {/* "Or have feedback? Tell Claude to change it." */}
-      <AgentFeedback slug={workflow.slug} name={workflow.name} />
+      <AgentFeedback slug={workflow.slug} name={workflow.name} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} />
     </>
   );
 
@@ -699,7 +703,7 @@ export default async function WorkflowDetailPage({
                     pop-up, not a tab-switch-and-scroll — founder feedback: the
                     old Link "doesn't do anything" visible at the click itself).
                     The Setup tab no longer carries its own copy of this form. */}
-                <AgentEditButton slug={workflow.slug} />
+                <AgentEditButton slug={workflow.slug} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} />
               </div>
               <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>
               {revisePending && (
@@ -799,6 +803,9 @@ export default async function WorkflowDetailPage({
               )}
               {connectionsUnavailable && (
                 <li>Connection status unavailable — we could not check whether its accounts are signed in.</li>
+              )}
+              {lifecycleUnavailable && (
+                <li>Run and edit status unavailable — a queued edit may still exist, so another run or edit is paused.</li>
               )}
               {judgeUnavailable && <li>Judge policy unavailable — whether a second model reviews this agent is unknown.</li>}
               {gradeUnavailable && <li>Track record unavailable — this is not the same as having no runs.</li>}

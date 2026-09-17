@@ -21,9 +21,10 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { canSubmitAgentRevision, confirmedRunRequestId } from '@/lib/run-request-receipt';
 import { useSetupRequiredGate } from './setup-required-gate';
 
-export default function AgentFeedback({ slug }: { slug: string; name?: string }) {
+export default function AgentFeedback({ slug, statusUnavailable = false, revisePending = false }: { slug: string; name?: string; statusUnavailable?: boolean; revisePending?: boolean }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [msg, setMsg] = useState('');
@@ -36,7 +37,7 @@ export default function AgentFeedback({ slug }: { slug: string; name?: string })
 
   async function send() {
     const t = text.trim();
-    if (!t || sending) return;
+    if (!canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: sending, note: t })) return;
     setSending(true);
     setMsg('');
     try {
@@ -48,10 +49,11 @@ export default function AgentFeedback({ slug }: { slug: string; name?: string })
         jwt: session?.access_token,
         method: 'POST',
         body: { workflowSlug: slug, source: 'dashboard', kind: 'revise', note: t, ...(machineId ? { executionMachineId: machineId } : {}) },
-      }), () => {
+      }), (receipt) => {
+        if (!confirmedRunRequestId(receipt)) throw new Error('Could not confirm the queued change.');
         setDone(true);
         setText('');
-        setMsg('Claude will update this agent hands-off — it applies to every future run. Watch Alerts if it needs a permission.');
+        setMsg('Edit request queued. The current version stays active until your engine saves a new version. Watch Alerts if it needs a permission.');
       });
       if (!gated.ok) return;
     } catch (e) {
@@ -82,9 +84,13 @@ export default function AgentFeedback({ slug }: { slug: string; name?: string })
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="self-start text-xs text-ink-400 hover:text-ink-200 underline underline-offset-2"
+          disabled={statusUnavailable || revisePending}
+          title={statusUnavailable ? 'Edit status is unavailable. Reload before queueing another edit.' : revisePending ? 'An edit is already queued.' : undefined}
+          className={statusUnavailable || revisePending
+            ? 'self-start text-xs text-ink-600 cursor-not-allowed underline underline-offset-2'
+            : 'self-start text-xs text-ink-400 hover:text-ink-200 underline underline-offset-2'}
         >
-          Change how this agent works →
+          {statusUnavailable ? 'Edit status unavailable' : revisePending ? 'Edit already queued' : 'Change how this agent works →'}
         </button>
         {setupGate.modal}
       </>
@@ -106,14 +112,15 @@ export default function AgentFeedback({ slug }: { slug: string; name?: string })
         rows={2}
         autoFocus
         placeholder="Describe the change…"
+        disabled={statusUnavailable || revisePending}
         className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-none"
       />
       <div className="mt-2 flex items-center gap-3">
         <button
           type="button"
           onClick={send}
-          disabled={sending || !text.trim()}
-          className={sending || !text.trim() ? 'btn-outline text-xs px-3 py-1.5 opacity-50 cursor-not-allowed' : 'btn-success text-xs px-3 py-1.5'}
+          disabled={!canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: sending, note: text })}
+          className={!canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: sending, note: text }) ? 'btn-outline text-xs px-3 py-1.5 opacity-50 cursor-not-allowed' : 'btn-success text-xs px-3 py-1.5'}
         >
           {sending ? 'Sending…' : 'Update the agent'}
         </button>
@@ -126,6 +133,16 @@ export default function AgentFeedback({ slug }: { slug: string; name?: string })
         This agent also learns automatically from each run — use this only to change it on purpose.
         To steer just one run, use the note in “Run now” instead.
       </p>
+      {statusUnavailable && (
+        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+          Run and edit status is unavailable. Reload before queueing another permanent change.
+        </p>
+      )}
+      {!statusUnavailable && revisePending && (
+        <p className="mt-2 text-xs text-violet-600 dark:text-violet-400">
+          An edit is already queued. Wait for it to create a new version before adding another.
+        </p>
+      )}
       {setupGate.modal}
     </div>
   );
