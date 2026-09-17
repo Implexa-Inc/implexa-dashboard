@@ -33,6 +33,7 @@ import { deriveHeldRunPrimaryAction } from '@/lib/held-run-action';
 import { useSetupRequiredGate } from './setup-required-gate';
 import type { RunStep } from '@/lib/run-state';
 import type { ReviewAmendmentTarget } from '@/lib/review-amendment-target';
+import { confirmedAgentRevisionRequestId } from '@/lib/run-request-receipt';
 
 const CLAUDE_CODE_MAX = 13000;
 type LocalInputRecoveryBridge = {
@@ -208,11 +209,21 @@ export default function RunActions({
         // queued, so a revise hiccup never loses the re-run.
         if (editAgent && skillSlug && note.trim()) {
           try {
-            await fetch('/api/agents/revise', {
+            const response = await fetch('/api/agents/revise', {
               method: 'POST', headers: { 'content-type': 'application/json' },
               body: JSON.stringify({ slug: skillSlug, note: note.trim() }),
             });
-          } catch { /* continue queued; the edit can be retried from "Edit this agent" */ }
+            const body = await response.json().catch(() => null);
+            if (!confirmedAgentRevisionRequestId(response.ok, body)) {
+              setErr('The continuation was queued, but the permanent agent edit was not confirmed. Retry that part from Edit Agent.');
+              setBusy(null);
+              return;
+            }
+          } catch {
+            setErr('The continuation was queued, but the permanent agent edit was not confirmed. Retry that part from Edit Agent.');
+            setBusy(null);
+            return;
+          }
         }
         // Land on Active Agents so the new run's loader is visible (parity with Run).
         router.push('/workflows'); router.refresh();

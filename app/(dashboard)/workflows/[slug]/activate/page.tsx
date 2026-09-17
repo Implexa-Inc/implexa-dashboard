@@ -54,7 +54,9 @@ export default async function ActivateAgentPage({ params }: { params: { slug: st
           <>
             <OpenInAppBanner path={`/workflows/${params.slug}/activate`} verb="activate" />
             <p className="text-xs uppercase tracking-wider text-ink-500 mb-3">Switch on</p>
-            <ActivationCard checklist={checklist} proficiency={proficiency} runInputs={runInputs} />
+            {/* This route has no lifecycle envelope. Refuse permanent edits here
+                rather than pretending that no pending edit exists. */}
+            <ActivationCard checklist={checklist} proficiency={proficiency} runInputs={runInputs} statusUnavailable revisePending={false} />
           </>
         )}
       </div>

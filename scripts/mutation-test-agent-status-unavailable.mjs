@@ -27,6 +27,12 @@ const READER = 'lib/agent-detail.ts';
 const TABS = 'app/(dashboard)/_components/agent-tabs.tsx';
 const ACTIONS = 'app/(dashboard)/_components/agent-actions.tsx';
 const PAGE = 'app/(dashboard)/workflows/[slug]/page.tsx';
+const RECEIPT = 'lib/run-request-receipt.ts';
+const IMPROVE = 'app/(dashboard)/_components/improve-agent.tsx';
+const EDIT_BUTTON = 'app/(dashboard)/_components/agent-edit-button.tsx';
+const FEEDBACK = 'app/(dashboard)/_components/agent-feedback.tsx';
+const RUN_FEEDBACK = 'app/(dashboard)/_components/run-feedback.tsx';
+const RUN_ACTIONS = 'app/(dashboard)/_components/run-actions.tsx';
 
 /**
  * The rendered suite BUNDLES agent-actions.tsx with esbuild, from whichever
@@ -75,6 +81,16 @@ const FILES = [
     PAGE,
     TABS,
     'lib/agent-detail.test.ts',
+    'lib/run-request-receipt.ts',
+    'lib/run-request-receipt.test.ts',
+    'app/api/agents/revise/route.ts',
+    IMPROVE,
+    EDIT_BUTTON,
+    FEEDBACK,
+    RUN_FEEDBACK,
+    RUN_ACTIONS,
+    'app/(dashboard)/_components/activation-card.tsx',
+    'app/(dashboard)/_components/agent-edit-queue-honesty.test.ts',
     'app/(dashboard)/_components/agent-status-unavailable.test.ts',
     'app/(dashboard)/_components/agent-tabs-render.test.ts',
     // The reader's own dependencies (workflow-catalog, activation-core,
@@ -102,6 +118,8 @@ const FILES = [
 
 const SUITES = [
   'lib/agent-detail.test.ts',
+  'lib/run-request-receipt.test.ts',
+  'app/(dashboard)/_components/agent-edit-queue-honesty.test.ts',
   // The only suite that can tell whether a USER is actually prevented from
   // starting a run, as opposed to whether the source still spells the guard.
   'app/(dashboard)/_components/agent-status-unavailable.test.ts',
@@ -152,6 +170,31 @@ const mutations = [
     to: '    const unavailable: string[] = [];',
   },
   {
+    boundary: 'reader', name: 'missing lifecycle data is treated as a healthy empty state', file: READER,
+    from: "    if (!lifecycle && !unavailable.includes('lifecycle')) unavailable.push('lifecycle');",
+    to: "    if (false) unavailable.push('lifecycle');",
+  },
+  {
+    boundary: 'reader', name: 'a non-boolean running flag is accepted as lifecycle proof', file: READER,
+    from: "  if (!Array.isArray(raw.requests) || typeof raw.runningRun !== 'boolean') return null;",
+    to: "  if (!Array.isArray(raw.requests)) return null;",
+  },
+  {
+    boundary: 'reader', name: 'an unknown request status is accepted as lifecycle proof', file: READER,
+    from: "    if ((row.status !== 'pending' && row.status !== 'consumed')",
+    to: "    if (false",
+  },
+  {
+    boundary: 'reader', name: 'an unknown request kind is accepted as lifecycle proof', file: READER,
+    from: "      || (row.kind !== 'run' && row.kind !== 'continue' && row.kind !== 'revise')",
+    to: "      || false",
+  },
+  {
+    boundary: 'reader', name: 'an invalid request timestamp is accepted as lifecycle proof', file: READER,
+    from: "      || !Number.isFinite(Date.parse(row.created_at))) return null;",
+    to: ") return null;",
+  },
+  {
     boundary: 'reader', name: 'a section is reported unavailable only when its value is also empty',
     file: READER,
     // The exact confusion this whole change exists to remove: emptiness is not
@@ -164,17 +207,22 @@ const mutations = [
   // ── the page stops blocking ──────────────────────────────────────────────
   {
     boundary: 'page-gate', name: 'an unreadable checklist no longer blocks the run action', file: PAGE,
-    from: '  const actionsBlocked = activationUnavailable || connectionsUnavailable;',
-    to: '  const actionsBlocked = connectionsUnavailable;',
+    from: '  const actionsBlocked = activationUnavailable || connectionsUnavailable || lifecycleUnavailable;',
+    to: '  const actionsBlocked = connectionsUnavailable || lifecycleUnavailable;',
   },
   {
     boundary: 'page-gate', name: 'an unreadable connection registry no longer blocks the run action', file: PAGE,
-    from: '  const actionsBlocked = activationUnavailable || connectionsUnavailable;',
-    to: '  const actionsBlocked = activationUnavailable;',
+    from: '  const actionsBlocked = activationUnavailable || connectionsUnavailable || lifecycleUnavailable;',
+    to: '  const actionsBlocked = activationUnavailable || lifecycleUnavailable;',
+  },
+  {
+    boundary: 'page-gate', name: 'an unreadable edit lifecycle no longer blocks the run action', file: PAGE,
+    from: '  const actionsBlocked = activationUnavailable || connectionsUnavailable || lifecycleUnavailable;',
+    to: '  const actionsBlocked = activationUnavailable || connectionsUnavailable;',
   },
   {
     boundary: 'page-gate', name: 'nothing blocks the run action at all', file: PAGE,
-    from: '  const actionsBlocked = activationUnavailable || connectionsUnavailable;',
+    from: '  const actionsBlocked = activationUnavailable || connectionsUnavailable || lifecycleUnavailable;',
     to: '  const actionsBlocked = false;',
   },
   {
@@ -203,8 +251,55 @@ const mutations = [
   },
   {
     boundary: 'button', name: 'the primary action is withheld but the watch path is not', file: ACTIONS,
-    from: '      {isActive && !statusUnavailable && !revisePending && blocking === 0 && (state === \'idle\' || state === \'error\') && (',
-    to: '      {isActive && !revisePending && blocking === 0 && (state === \'idle\' || state === \'error\') && (',
+    from: '      {isActive && !statusUnavailable && !revisePending && !pendingUpdate && blocking === 0 && (state === \'idle\' || state === \'error\') && (',
+    to: '      {isActive && !revisePending && !pendingUpdate && blocking === 0 && (state === \'idle\' || state === \'error\') && (',
+  },
+
+  // ── permanent-edit submit and receipt boundaries ────────────────────────
+  {
+    boundary: 'edit-submit', name: 'lifecycle unavailability is ignored at submit time', file: RECEIPT,
+    from: '  return !input.statusUnavailable && !input.revisionPending && !input.busy && input.note.trim().length > 0;',
+    to: '  return !input.revisionPending && !input.busy && input.note.trim().length > 0;',
+  },
+  {
+    boundary: 'edit-submit', name: 'a known pending edit does not block a duplicate edit', file: RECEIPT,
+    from: '  return !input.statusUnavailable && !input.revisionPending && !input.busy && input.note.trim().length > 0;',
+    to: '  return !input.statusUnavailable && !input.busy && input.note.trim().length > 0;',
+  },
+  {
+    boundary: 'edit-submit', name: 'an already-open edit modal loses the lifecycle gate', file: EDIT_BUTTON,
+    from: '<ImproveAgent slug={slug} bare statusUnavailable={statusUnavailable} revisePending={revisePending} />',
+    to: '<ImproveAgent slug={slug} bare statusUnavailable={statusUnavailable} />',
+  },
+  {
+    boundary: 'edit-submit', name: 'the permanent feedback form bypasses the lifecycle gate', file: FEEDBACK,
+    from: 'canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: sending, note: t })',
+    to: "canSubmitAgentRevision({ statusUnavailable: false, revisionPending: false, busy: sending, note: t })",
+  },
+  {
+    boundary: 'nested-run', name: 'ActivationCard does not block its nested Run action', file: 'app/(dashboard)/_components/activation-card.tsx',
+    from: '                statusUnavailable={statusUnavailable}',
+    to: '                statusUnavailable={false}',
+  },
+  {
+    boundary: 'queued-copy', name: 'enqueue success claims the permanent version already applies', file: FEEDBACK,
+    from: 'Edit request queued. The current version stays active until your engine saves a new version. Watch Alerts if it needs a permission.',
+    to: 'Claude will update this agent hands-off — it applies to every future run. Watch Alerts if it needs a permission.',
+  },
+  {
+    boundary: 'edit-receipt', name: 'HTTP failure is accepted when its body resembles a receipt', file: RECEIPT,
+    from: '  return httpOk ? confirmedRunRequestId(value) : null;',
+    to: '  return confirmedRunRequestId(value);',
+  },
+  {
+    boundary: 'edit-receipt', name: 'run feedback acknowledges permanent edit without the receipt contract', file: RUN_FEEDBACK,
+    from: 'setPermanentEditQueued(!!confirmedAgentRevisionRequestId(response.ok, body));',
+    to: 'setPermanentEditQueued(response.ok);',
+  },
+  {
+    boundary: 'edit-receipt', name: 'run continuation ignores the permanent-edit receipt', file: RUN_ACTIONS,
+    from: '            if (!confirmedAgentRevisionRequestId(response.ok, body)) {',
+    to: '            if (false) {',
   },
 ];
 

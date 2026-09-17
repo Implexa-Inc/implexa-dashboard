@@ -1130,15 +1130,16 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     <>
     <div className={`flex flex-col gap-1.5 ${align === 'end' ? 'items-end' : 'items-start'}`}>
       {statusUnavailable ? (
-        // A section the run depends on could not be READ (setup/readiness or
-        // connection health). Its failure looks identical to a clean result —
-        // null checklist, empty warnings — so without this the page offered a
-        // confident Activate/Run built on a check that never happened.
+        // A section the action depends on could not be READ (setup/readiness,
+        // connection health, or run/edit lifecycle). Its failure looks identical
+        // to a clean result — null checklist, empty warnings/queue — so without
+        // this the page offered a confident Activate/Run built on a check that
+        // never happened.
         <button
           type="button"
           disabled
           className="btn-success text-sm px-4 py-2 opacity-60 cursor-not-allowed"
-          title="We could not load this agent's setup or connection status, so running is paused. Reload to try again."
+          title="We could not load this agent's setup, connection, or run/edit status, so running is paused. Reload to try again."
         >
           Status unavailable
         </button>

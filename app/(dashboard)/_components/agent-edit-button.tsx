@@ -14,19 +14,23 @@ import { useState } from 'react';
 import Modal from './modal';
 import ImproveAgent from './improve-agent';
 
-export default function AgentEditButton({ slug }: { slug: string }) {
+export default function AgentEditButton({ slug, statusUnavailable = false, revisePending = false }: { slug: string; statusUnavailable?: boolean; revisePending?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-xs text-ink-400 hover:text-ink-200 underline underline-offset-2"
+        disabled={statusUnavailable || revisePending}
+        title={statusUnavailable ? 'Edit status is unavailable. Reload before queueing another edit.' : revisePending ? 'An edit is already queued.' : undefined}
+        className={`text-xs underline underline-offset-2 ${statusUnavailable || revisePending
+          ? 'text-ink-600 cursor-not-allowed'
+          : 'text-ink-400 hover:text-ink-200'}`}
       >
-        Edit Agent
+        {statusUnavailable ? 'Edit status unavailable' : revisePending ? 'Edit queued' : 'Edit Agent'}
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title="Edit this agent" maxWidth="max-w-md">
-        <ImproveAgent slug={slug} bare />
+        <ImproveAgent slug={slug} bare statusUnavailable={statusUnavailable} revisePending={revisePending} />
       </Modal>
     </>
   );

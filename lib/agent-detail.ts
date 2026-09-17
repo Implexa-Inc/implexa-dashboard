@@ -100,6 +100,23 @@ function asStr(v: unknown): string | null {
   return typeof v === 'string' && v ? v : null;
 }
 
+function mapLifecycle(value: unknown): AgentLifecycle | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as { requests?: unknown; runningRun?: unknown };
+  if (!Array.isArray(raw.requests) || typeof raw.runningRun !== 'boolean') return null;
+  const requests: AgentLifecycle['requests'] = [];
+  for (const item of raw.requests) {
+    if (!item || typeof item !== 'object') return null;
+    const row = item as { status?: unknown; kind?: unknown; created_at?: unknown };
+    if ((row.status !== 'pending' && row.status !== 'consumed')
+      || (row.kind !== 'run' && row.kind !== 'continue' && row.kind !== 'revise')
+      || typeof row.created_at !== 'string'
+      || !Number.isFinite(Date.parse(row.created_at))) return null;
+    requests.push({ status: row.status, kind: row.kind, created_at: row.created_at });
+  }
+  return { requests, runningRun: raw.runningRun };
+}
+
 function mapEnvelopeWarnings(raw: unknown): ConnectionWarning[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -197,6 +214,12 @@ export async function getAgentDetail(
     const unavailable: string[] = Array.isArray(body.unavailable)
       ? body.unavailable.filter((s: unknown): s is string => typeof s === 'string')
       : [];
+    const lifecycle = mapLifecycle(body.lifecycle);
+    // The only legitimate "nothing is in flight" representation is an
+    // explicit, well-formed { requests: [], runningRun: false }. Missing,
+    // null, or malformed lifecycle data cannot prove that another revise is
+    // absent, even if an older backend forgot to include the unavailable tag.
+    if (!lifecycle && !unavailable.includes('lifecycle')) unavailable.push('lifecycle');
     const unavailableSet = new Set(unavailable);
     return {
       status: 'ready',
@@ -209,9 +232,7 @@ export async function getAgentDetail(
         judgePolicy: asStr(body.judgePolicy),
         routines: mapRoutines(body.schedules),
         runs: mapRuns(body.runs, workflow),
-        lifecycle: body.lifecycle && Array.isArray(body.lifecycle.requests)
-          ? { requests: body.lifecycle.requests, runningRun: body.lifecycle.runningRun === true }
-          : null,
+        lifecycle,
         unavailable,
       },
     };

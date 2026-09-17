@@ -19,6 +19,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { confirmedAgentRevisionRequestId } from '@/lib/run-request-receipt';
 
 export type FeedbackQuestion = {
   key: string;
@@ -70,6 +71,7 @@ export default function RunFeedback({
   // (a kind='revise'), not just the next run. Default off — most feedback is a
   // one-off "tweak this run", and a permanent edit should be a deliberate choice.
   const [editAgent, setEditAgent] = useState(false);
+  const [permanentEditQueued, setPermanentEditQueued] = useState(false);
   const [error, setError] = useState<string>('');
   const [, startTransition] = useTransition();
 
@@ -111,10 +113,12 @@ export default function RunFeedback({
       const note = instructionNote();
       if (editAgent && agentSlug && note) {
         try {
-          await fetch('/api/agents/revise', {
+          const response = await fetch('/api/agents/revise', {
             method: 'POST', headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ slug: agentSlug, note }),
           });
+          const body = await response.json().catch(() => null);
+          setPermanentEditQueued(!!confirmedAgentRevisionRequestId(response.ok, body));
         } catch { /* feedback saved; the edit can be retried from "Edit this agent" */ }
       }
       setDone(true);
@@ -131,7 +135,9 @@ export default function RunFeedback({
     return (
       <p className="text-sm text-success-700 dark:text-success-400">
         ✓ Thanks. {editAgent
-          ? 'The agent is being updated so every future run does this.'
+          ? permanentEditQueued
+            ? 'The permanent edit request was queued for every future run.'
+            : 'Your feedback was saved, but the permanent edit was not confirmed. Retry it from Edit Agent.'
           : 'The agent will use this to improve on its next run.'}
       </p>
     );

@@ -725,6 +725,8 @@ export function ActivationCard({
   proficiency,
   surface = 'activation',
   runInputs,
+  statusUnavailable,
+  revisePending,
 }: {
   checklist: ActivationChecklist;
   proficiency?: 'novice' | 'beginner' | 'pro' | 'advanced' | null;
@@ -745,6 +747,10 @@ export function ActivationCard({
    * passing an unavailable read off as an empty one.
    */
   runInputs: WorkflowRunInputs | null;
+  /** Whether pending-run/edit lifecycle authority could be read. */
+  statusUnavailable: boolean;
+  /** Whether a known revise request is already queued or running. */
+  revisePending: boolean;
 }) {
   const setupSurface = surface === 'setup';
   // Guided = novice/beginner: friendlier "Turn it on" framing + a reassurance
@@ -1072,7 +1078,7 @@ export function ActivationCard({
             <div id="agent-setup" className="scroll-mt-20 my-1">
               <AgentSetupCard slug={checklist.slug} source={checklist.source} onSaved={() => router.refresh()} />
             </div>
-            <AgentFeedback slug={checklist.slug} name={checklist.name} />
+            <AgentFeedback slug={checklist.slug} name={checklist.name} statusUnavailable={statusUnavailable} revisePending={revisePending} />
             {/* An UNREADABLE run-input contract is not an ABSENT one. Both arrive
                 at <AgentActions/> as the same three nulls, so if this notice were
                 dropped a transient read failure would render as the confident
@@ -1102,6 +1108,8 @@ export function ActivationCard({
                 source={checklist.source}
                 pendingQuestions={checklist.pendingQuestions ?? 0}
                 blockingQuestions={checklist.blockingQuestions}
+                revisePending={revisePending}
+                statusUnavailable={statusUnavailable}
                 workflowVersionId={runInputs?.workflowVersionId ?? null}
                 inputContract={runInputs?.inputContract ?? null}
                 inputContractDigest={runInputs?.inputContractDigest ?? null}

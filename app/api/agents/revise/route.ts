@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { confirmedRunRequestId } from '@/lib/run-request-receipt';
 
 /**
  * POST /api/agents/revise  { slug, note }
@@ -40,10 +41,16 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(8000),
     });
     const data = await res.json().catch(() => null);
-    if (!res.ok || !data?.ok) {
+    const requestId = confirmedRunRequestId(data);
+    // HTTP success alone is not a queue receipt. The backend returns the row it
+    // just inserted; require that durable identity before the browser is allowed
+    // to say "queued". This matches Run now's receipt boundary and prevents a
+    // malformed/degraded proxy response from acknowledging work that cannot be
+    // found after refresh.
+    if (!res.ok || !requestId) {
       return NextResponse.json({ ok: false, error: data?.error || 'could not queue the change' }, { status: 502 });
     }
-    return NextResponse.json({ ok: true, request: data.request });
+    return NextResponse.json({ ok: true, request: data.request, requestId });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : 'could not queue the change' }, { status: 500 });
   }
