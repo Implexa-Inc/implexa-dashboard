@@ -326,7 +326,7 @@ export default function RunActions({
     : primaryAction === 'continue'
       ? 'Continue the work'
       : primaryAction === 'approve_finish'
-        ? (stepsState?.some((step) => step.status === 'running' && /\bcut[- ]plan\b/i.test(step.label || ''))
+        ? (stepsState?.some((step) => /\bcut[- ]plan\b/i.test(step.label || ''))
           ? 'Approve cut plan'
           : 'Approve & finish')
         : 'Mark as done';
