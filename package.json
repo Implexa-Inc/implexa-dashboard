@@ -42,7 +42,8 @@
     "test:reviewer-resolution-mutations": "node scripts/mutation-test-reviewer-resolution.mjs",
     "test:outcome-orchestration-mutations": "node scripts/mutation-test-outcome-orchestration.mjs",
     "test:lifecycle-continuity-mutations": "node scripts/mutation-test-lifecycle-continuity.mjs",
-    "test:setup-required-mutations": "node scripts/mutation-test-setup-required.mjs"
+    "test:setup-required-mutations": "node scripts/mutation-test-setup-required.mjs",
+    "test:checkpointed-continuation-history-mutations": "node scripts/mutation-test-checkpointed-continuation-history.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
