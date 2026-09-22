@@ -43,9 +43,10 @@ test('accepts the complete v3 summary and binds it to the exact run', () => {
 test('legacy or incomplete manifests are update-required and never approval-ready', () => {
   assert.deepEqual(parsePaidActionApprovalRead(read({ contractVersion: 'paid-action-approval-unavailable.v1', reason: 'paid_action_manifest_v3_required' }), RUN),
     { state: 'agent_update_required', reason: 'paid_action_manifest_v3_required' });
+  assert.deepEqual(parsePaidActionApprovalRead(read(null), RUN), { state: 'not_applicable' });
   assert.deepEqual(parsePaidActionApprovalRead(read({ ...SUMMARY, contractVersion: 'paid-action-approval-summary.v2', inputs: undefined }), RUN),
     { state: 'unavailable', reason: 'malformed' });
-  assert.deepEqual(parsePaidActionApprovalRead(read(null), RUN), { state: 'unavailable', reason: 'missing' });
+  assert.deepEqual(parsePaidActionApprovalRead(read(undefined), RUN), { state: 'unavailable', reason: 'missing' });
 });
 
 test('refuses summaries whose trusted inputs, request placement or totals are incomplete or contradictory', () => {
@@ -114,8 +115,10 @@ test('labels the provider model and cost without hiding currency', () => {
 test('unknown pending holds fail closed while known non-paid holds retain their action surface', async () => {
   const { classifyHeldApprovalSurface } = await import('./paid-action-approval.ts');
   assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: null }), 'unavailable');
-  assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: 'approval_before_action' }), 'paid_action');
-  assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: null, approvalRecovery: true }), 'paid_action');
+  assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: 'approval_before_action', paidActionApproval: { state: 'ready', summary: SUMMARY } }), 'paid_action');
+  assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: 'approval_before_action', paidActionApproval: { state: 'not_applicable' } }), 'generic');
+  assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: 'approval_before_action', paidActionApproval: { state: 'unavailable', reason: 'request_failed' } }), 'unavailable');
+  assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: null, approvalRecovery: true }), 'generic');
   assert.equal(classifyHeldApprovalSurface({ held: true, pending: true, holdKind: 'review_delivered_result' }), 'generic');
   assert.equal(classifyHeldApprovalSurface({ held: false, pending: false, holdKind: null }), 'none');
 });

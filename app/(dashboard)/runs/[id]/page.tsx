@@ -496,18 +496,12 @@ export default async function RunDetailPage({
     : null;
   const held = pending || needsInput;
   const effectiveHoldKind = approvalContinuationRecovery ? 'approval_before_action' : holdKind;
-  const heldApprovalSurface = classifyHeldApprovalSurface({
-    held,
-    pending,
-    holdKind: holdKind ?? null,
-    approvalRecovery: approvalContinuationRecovery,
-  });
   // A paid approval is its own immutable authority. The generic held-run action
   // can queue an unconstrained continuation, so it must never appear for this
   // hold kind. Read the complete, owner-scoped manifest summary and fail closed
   // when the backend is old, unavailable, or returns anything malformed.
   let paidActionApproval: PaidActionApprovalView = { state: 'unavailable', reason: 'missing' };
-  if (heldApprovalSurface === 'paid_action') {
+  if (held && holdKind === 'approval_before_action') {
     try {
       const detail = await callBackend(`/api/v2/runs/${encodeURIComponent(r.id)}`, { jwt: session.access_token });
       paidActionApproval = parsePaidActionApprovalRead(detail, r.id);
@@ -515,6 +509,13 @@ export default async function RunDetailPage({
       paidActionApproval = { state: 'unavailable', reason: 'request_failed' };
     }
   }
+  const heldApprovalSurface = classifyHeldApprovalSurface({
+    held,
+    pending,
+    holdKind: holdKind ?? null,
+    approvalRecovery: approvalContinuationRecovery,
+    paidActionApproval,
+  });
   // Has a DIFFERENT automatic recovery already delivered the real answer for
   // this run? (2026-07-24 fix.) A successfully-recovered run's PARENT row stays
   // stalled/failed with an empty output_markdown forever — its heartbeat is
@@ -1075,6 +1076,7 @@ export default async function RunDetailPage({
               skillSlug={r.skill_slug}
               workflowVersionId={runWorkflowVersionId}
               approvalRecovery={approvalContinuationRecovery}
+              nonPaidApprovalVerified={paidActionApproval.state === 'not_applicable'}
               reviewAmendment={reviewAmendment}
             />
           </div>

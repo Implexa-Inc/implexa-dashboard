@@ -15,13 +15,19 @@ test('run detail reads the authenticated backend summary and never renders gener
   assert.match(page, /\{heldApprovalSurface === 'paid_action' && \(\s*<div[^>]*>\s*<PaidActionApproval/);
   assert.match(page, /\{heldApprovalSurface === 'unavailable'[\s\S]*?Approval details unavailable[\s\S]*?Reload approval details/);
   assert.match(page, /\{heldApprovalSurface === 'generic' && \(\s*<div[^>]*>\s*<RunActions/);
+  assert.match(page, /nonPaidApprovalVerified=\{paidActionApproval\.state === 'not_applicable'\}/,
+    'ordinary owner approvals must be released only by the authenticated null paid-action projection');
 });
 
-test('inbox and Review Room route paid approval to exact run detail instead of generic Continue', () => {
-  assert.match(inbox, /classifyHeldApprovalSurface\([\s\S]*?\) === 'paid_action'[\s\S]*?Review exact paid batch/);
+test('inbox and Review Room route approval holds to exact run detail instead of guessing paid versus ordinary', () => {
+  assert.match(inbox, /holdKind === 'approval_before_action'[\s\S]*?Review approval/);
   assert.match(inbox, /=== 'unavailable'[\s\S]*?Approval details unavailable[\s\S]*?Reload approval details/);
   assert.match(inbox, /=== 'unavailable'[\s\S]*?: openItem\.pending \? \([\s\S]*?<RunActions/);
   assert.match(review, /showApproveNextAction[\s\S]*?href=\{`\/runs\/\$\{runId\}`\}[\s\S]*?Approve next action/);
   assert.match(generic, /holdKind === 'approval_before_action'[\s\S]*?Review exact paid batch/,
     'even a future accidental generic caller must fail closed to exact review');
+  assert.match(generic, /holdKind === 'approval_before_action' && !nonPaidApprovalVerified/,
+    'the generic continuation must require explicit non-paid authority');
+  assert.match(generic, /Approve cut plan/,
+    'a verified cut-plan checkpoint must present the concrete approval action');
 });
