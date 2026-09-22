@@ -30,6 +30,8 @@ test('inbox and Review Room route approval holds to exact run detail instead of 
     'the generic continuation must require explicit non-paid authority');
   assert.match(generic, /Approve cut plan/,
     'a verified cut-plan checkpoint must present the concrete approval action');
-  assert.match(generic, /stepsState\?\.some\(\(step\) => \/\\bcut\[- \]plan\\b\/i\.test\(step\.label \|\| ''\)\)/,
+  assert.match(generic, /const cutPlanApproval = nonPaidApprovalVerified[\s\S]*?stepsState\?\.some\(\(step\) => \/\\bcut\[- \]plan\\b\/i\.test\(step\.label \|\| ''\)\)/,
     'a recorded review step remains the approval subject after its heartbeat marks the step done');
+  assert.match(generic, /primaryAction === 'answer'[\s\S]*?: cutPlanApproval[\s\S]*?\? 'Approve cut plan'/,
+    'the exact cut-plan label outranks the generic continuation action');
 });
