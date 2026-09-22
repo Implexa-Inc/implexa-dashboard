@@ -26,5 +26,5 @@ test('ordinary held-run surfaces carry the canonical hold contract, while paid h
   assert.match(inbox, /holdKind=\{openItem\.holdKind\}/);
   assert.match(detail, /heldApprovalSurface === 'paid_action'[\s\S]*?<PaidActionApproval/);
   assert.match(detail, /heldApprovalSurface === 'generic'[\s\S]*?<RunActions/);
-  assert.match(inbox, /=== 'paid_action'[\s\S]*?Review exact paid batch/);
+  assert.match(inbox, /holdKind === 'approval_before_action'[\s\S]*?Review approval/);
 });

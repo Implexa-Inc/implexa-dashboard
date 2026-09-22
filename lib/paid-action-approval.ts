@@ -44,6 +44,7 @@ export type PaidActionApprovalSummary = {
 export type PaidActionApprovalView =
   | { state: 'ready'; summary: PaidActionApprovalSummary }
   | { state: 'agent_update_required'; reason: 'paid_action_manifest_v3_required' }
+  | { state: 'not_applicable' }
   | { state: 'unavailable'; reason: 'missing' | 'malformed' | 'request_failed' };
 
 export type HeldApprovalSurface = 'paid_action' | 'unavailable' | 'generic' | 'none';
@@ -53,14 +54,27 @@ export function classifyHeldApprovalSurface({
   pending,
   holdKind,
   approvalRecovery = false,
+  paidActionApproval = null,
 }: {
   held: boolean;
   pending: boolean;
   holdKind: 'approval_before_action' | 'review_delivered_result' | 'needs_input' | null;
   approvalRecovery?: boolean;
+  paidActionApproval?: PaidActionApprovalView | null;
 }): HeldApprovalSurface {
   if (!held) return 'none';
-  if (approvalRecovery || holdKind === 'approval_before_action') return 'paid_action';
+  if (paidActionApproval?.state === 'ready' || paidActionApproval?.state === 'agent_update_required') {
+    return 'paid_action';
+  }
+  // The backend's owner-scoped paid-action projection is the authority for WHAT
+  // the owner is approving. A successful null projection proves this is an
+  // ordinary decision checkpoint (cut plan, preview, render, publish), while an
+  // unreadable/malformed projection must never fall back to generic Continue.
+  if (holdKind === 'approval_before_action') {
+    if (paidActionApproval?.state === 'not_applicable') return 'generic';
+    return 'unavailable';
+  }
+  if (approvalRecovery) return 'generic';
   // A pending row whose hold contract could not be read is not permission to
   // resurrect the legacy generic Continue action. The owner must reload after
   // the authoritative hold becomes readable.
@@ -150,7 +164,8 @@ export function parsePaidActionApprovalRead(value: unknown, expectedRunId: strin
   const run = response.run as Record<string, unknown>;
   if (run.id !== expectedRunId) return { state: 'unavailable', reason: 'malformed' };
   const approval = run.paidActionApproval;
-  if (approval === null || approval === undefined) return { state: 'unavailable', reason: 'missing' };
+  if (approval === null) return { state: 'not_applicable' };
+  if (approval === undefined) return { state: 'unavailable', reason: 'missing' };
   if (exactKeys(approval, ['contractVersion', 'reason'])
     && approval.contractVersion === 'paid-action-approval-unavailable.v1'
     && approval.reason === 'paid_action_manifest_v3_required') {

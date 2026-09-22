@@ -51,6 +51,9 @@ const mutations = [
   { name: 'batch count need not match requests', file: CONTRACT, from: '|| !Array.isArray(value.requests) || value.requests.length !== value.requestCount', to: '|| !Array.isArray(value.requests)' },
   { name: 'cost total need not match items', file: CONTRACT, from: 'if (Number(estimatedTotal.toFixed(6)) !== Number(value.estimatedCost.toFixed(6))) return null;', to: '' },
   { name: 'summary can bind another run', file: CONTRACT, from: "if (run.id !== expectedRunId) return { state: 'unavailable', reason: 'malformed' };", to: '' },
+  { name: 'empty paid projection is not recognized as ordinary approval', file: CONTRACT, from: "if (approval === null) return { state: 'not_applicable' };", to: "if (approval === null) return { state: 'unavailable', reason: 'missing' };" },
+  { name: 'ordinary approval stays stranded behind paid details', file: CONTRACT, from: "if (paidActionApproval?.state === 'not_applicable') return 'generic';", to: "if (paidActionApproval?.state === 'not_applicable') return 'unavailable';" },
+  { name: 'unreadable paid authority falls through to generic approval', file: CONTRACT, from: "if (paidActionApproval?.state === 'not_applicable') return 'generic';\n    return 'unavailable';", to: "if (paidActionApproval?.state === 'not_applicable') return 'generic';\n    return 'generic';" },
   { name: 'v2 unavailable reason is treated as ready migration', file: CONTRACT, from: "approval.reason === 'paid_action_manifest_v3_required'", to: "approval.reason === 'paid_action_manifest_v2_required'" },
   { name: 'approval response may add authority', file: CONTRACT, from: "if (!exactKeys(value, ['ok', 'requestId', 'approvalDigest', 'summary', 'idempotent'])", to: "if (!value || typeof value !== 'object'" },
   { name: 'approval response may change reviewed batch', file: CONTRACT, from: 'return summary !== null && canonical(summary) === canonical(expected);', to: 'return summary !== null;' },
@@ -64,7 +67,8 @@ const mutations = [
   { name: 'paid hold renders generic run actions', file: PAGE, from: "{heldApprovalSurface === 'generic' && (", to: '{true && (' },
   { name: 'paid hold does not render exact approval', file: PAGE, from: "{heldApprovalSurface === 'paid_action' && (", to: '{false && (' },
   { name: 'unreadable hold exposes no unavailable state', file: PAGE, from: "{heldApprovalSurface === 'unavailable' && (", to: '{false && (' },
-  { name: 'inbox paid hold opens generic action', file: INBOX, from: "}) === 'paid_action' ? (", to: "}) === 'never_paid' ? (" },
+  { name: 'ordinary approval reaches generic component without verified authority', file: PAGE, from: "nonPaidApprovalVerified={paidActionApproval.state === 'not_applicable'}", to: 'nonPaidApprovalVerified={false}' },
+  { name: 'inbox approval bypasses exact run detail', file: INBOX, from: "openItem.pending && openItem.holdKind === 'approval_before_action'", to: 'false' },
 ];
 
 announceBaseline({ label: 'paid-action-approval', root, files: FILES,

@@ -57,6 +57,7 @@ export default function RunActions({
   claudeTaskId,
   skillSlug,
   approvalRecovery = false,
+  nonPaidApprovalVerified = false,
   reviewAmendment = null,
   workflowVersionId = null,
 }: {
@@ -76,6 +77,8 @@ export default function RunActions({
   skillSlug?: string | null;
   /** Historical brokered approval hold; requests the server-owned no-redo continuation. */
   approvalRecovery?: boolean;
+  /** Backend proved that this approval_before_action has no paid-action authority. */
+  nonPaidApprovalVerified?: boolean;
   /** The run's FROZEN workflow version — where setup for a continuation must point. */
   workflowVersionId?: string | null;
   /** Exact owner-scoped original Review, resolved on the server from this child. */
@@ -307,7 +310,7 @@ export default function RunActions({
   // A paid-action hold must display and authorize the immutable provider batch.
   // This component has neither the manifest nor that authority, so even an
   // accidental future caller fails closed instead of restoring generic Continue.
-  if (holdKind === 'approval_before_action') {
+  if (holdKind === 'approval_before_action' && !nonPaidApprovalVerified) {
     return (
       <section className="rounded-lg border border-amber-500/30 bg-ink-950/40 p-4">
         <p className="text-sm text-ink-200">Review the exact paid provider batch before continuing.</p>
@@ -323,7 +326,9 @@ export default function RunActions({
     : primaryAction === 'continue'
       ? 'Continue the work'
       : primaryAction === 'approve_finish'
-        ? 'Approve & finish'
+        ? (stepsState?.some((step) => step.status === 'running' && /\bcut[- ]plan\b/i.test(step.label || ''))
+          ? 'Approve cut plan'
+          : 'Approve & finish')
         : 'Mark as done';
 
   if (reviewAmendment) {
