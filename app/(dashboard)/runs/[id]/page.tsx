@@ -62,6 +62,7 @@ import { runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-p
 import { getReviewPacket } from '@/lib/review';
 import { loadReviewAmendmentTarget } from '@/lib/review-amendment-target';
 import { classifyHeldApprovalSurface, parsePaidActionApprovalRead, type PaidActionApprovalView } from '@/lib/paid-action-approval';
+import CheckpointedContinuationHistoryCard, { type CheckpointedContinuationHistory } from '../../_components/checkpointed-continuation-history';
 
 export const dynamic = 'force-dynamic';
 
@@ -246,6 +247,16 @@ export default async function RunDetailPage({
   // data. Read the same owner-scoped contract as Review Room; an unavailable packet
   // stays visibly unavailable and is never reinterpreted as "no skills".
   const competencePacket = await getReviewPacket(r.id);
+
+  let checkpointedContinuations: CheckpointedContinuationHistory = {
+    status: 'unavailable', reason: 'continuation_history_unavailable',
+  };
+  try {
+    const response = await callBackend(`/api/v2/runs/${encodeURIComponent(r.id)}`, { jwt: session.access_token });
+    const history = response?.run?.checkpointedContinuations;
+    if (history?.status === 'available' && Array.isArray(history.items)) checkpointedContinuations = history;
+    else if (history?.status === 'unavailable' && typeof history.reason === 'string') checkpointedContinuations = history;
+  } catch { /* unavailable is rendered honestly below, never normalized to an empty history */ }
 
   // 0139 is additive. Read the explicit hold contract separately so a dashboard
   // deploy before its migration still renders the legacy-safe action rather than
@@ -1014,6 +1025,8 @@ export default async function RunDetailPage({
             )}
           </div>
         )}
+
+        <CheckpointedContinuationHistoryCard history={checkpointedContinuations} />
 
         {/* First quality-mode entry point: only offer B-roll generation beside a
             desktop-validated video deliverable. A markdown path is a worker claim,
