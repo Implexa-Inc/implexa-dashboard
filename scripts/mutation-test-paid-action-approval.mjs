@@ -69,6 +69,7 @@ const mutations = [
   { name: 'unreadable hold exposes no unavailable state', file: PAGE, from: "{heldApprovalSurface === 'unavailable' && (", to: '{false && (' },
   { name: 'ordinary approval reaches generic component without verified authority', file: PAGE, from: "nonPaidApprovalVerified={paidActionApproval.state === 'not_applicable'}", to: 'nonPaidApprovalVerified={false}' },
   { name: 'completed cut-plan review loses its concrete approval label', file: 'app/(dashboard)/_components/run-actions.tsx', from: "stepsState?.some((step) => /\\bcut[- ]plan\\b/i.test(step.label || ''))", to: "stepsState?.some((step) => step.status === 'running' && /\\bcut[- ]plan\\b/i.test(step.label || ''))" },
+  { name: 'cut-plan authority loses precedence over generic continue copy', file: 'app/(dashboard)/_components/run-actions.tsx', from: ": cutPlanApproval\n      ? 'Approve cut plan'", to: ": false\n      ? 'Approve cut plan'" },
   { name: 'inbox approval bypasses exact run detail', file: INBOX, from: "openItem.pending && openItem.holdKind === 'approval_before_action'", to: 'false' },
 ];
 

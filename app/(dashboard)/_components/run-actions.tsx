@@ -321,14 +321,16 @@ export default function RunActions({
     );
   }
 
+  const cutPlanApproval = nonPaidApprovalVerified
+    && stepsState?.some((step) => /\bcut[- ]plan\b/i.test(step.label || ''));
   const primaryLabel = primaryAction === 'answer'
     ? 'Answer & continue'
+    : cutPlanApproval
+      ? 'Approve cut plan'
     : primaryAction === 'continue'
       ? 'Continue the work'
       : primaryAction === 'approve_finish'
-        ? (stepsState?.some((step) => /\bcut[- ]plan\b/i.test(step.label || ''))
-          ? 'Approve cut plan'
-          : 'Approve & finish')
+        ? 'Approve & finish'
         : 'Mark as done';
 
   if (reviewAmendment) {
