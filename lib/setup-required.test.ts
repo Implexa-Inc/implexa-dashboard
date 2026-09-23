@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 class BackendError extends Error { status: number; body: unknown; constructor(m: string, status: number, body: unknown) { super(m); this.status = status; this.body = body; } }
-import { parseSetupRequired, setupRequiredFromBody, setupReasonCopy, machineCopy, blockingItems, isExactMachineOfflineSetupRefusal, isProbeOnlySetupRefusal, machineSetupPath, appMachineSetupUrl, parseSetupScope, setupTargetFor } from './setup-required.ts';
+import { parseSetupRequired, setupRequiredFromBody, setupReasonCopy, machineCopy, blockingItems, isExactMachineOfflineSetupRefusal, isProbeOnlySetupRefusal, machineSetupPath, appMachineSetupUrl, parseSetupScope, setupTargetFor,
+  parseVersionContractRefusal, versionContractRefusalFromBody, VERSION_CONTRACT_REASON } from './setup-required.ts';
 import fixture from '../test-fixtures/generated/capability-admission.v1.json' with { type: 'json' };
 
 const scenario = (name: string) => (fixture as { scenarios: Record<string, { verdict: { ok: boolean; setupRequired?: unknown } }> }).scenarios[name];
@@ -137,4 +138,43 @@ test('GAP 5: setup is routed to the REAL agent and frozen version — the surfac
   assert.equal(setupTargetFor({ ...card, agent: { slug: '../etc', workflow_version_id: null } }, {}), null);
   const hostile = setupRequiredFromBody({ setupRequired: { ...(scenario('required_cli_missing').verdict.setupRequired as object), agent: { slug: '../../x', workflow_version_id: 'zzz' } } })!;
   assert.equal(hostile.agent, null, 'a malformed identity is dropped at parse time');
+});
+
+// ── version-contract refusals (backend 0386) ────────────────────────────────
+
+test('a version-contract refusal is recognised from the typed 409, and only from it', () => {
+  const body = { ok: false, reason: VERSION_CONTRACT_REASON, cause: 'machine_capability_contract_missing', retrySafe: false,
+    workflowVersionId: '33333333-3333-4333-8333-333333333333', error: 'This version of the agent was published without its machine requirements.' };
+  const refused = parseVersionContractRefusal({ status: 409, body });
+  assert.equal(refused?.title, 'This agent version is incomplete');
+  assert.equal(refused?.message, body.error, 'the backend owns the per-cause sentence');
+  assert.equal(refused?.cause, 'machine_capability_contract_missing');
+  assert.equal(refused?.retrySafe, false);
+  assert.equal(refused?.workflowVersionId, body.workflowVersionId);
+  assert.equal(parseVersionContractRefusal({ status: 400, body }), null, 'only a 409');
+  assert.equal(parseVersionContractRefusal({ status: 409, body: { ...body, reason: 'capability_admission_unavailable:version_read_failed' } }), null);
+  assert.equal(parseVersionContractRefusal(new Error('boom')), null);
+});
+
+test('a setup card wins: a refusal about this computer is not a version refusal', () => {
+  assert.equal(versionContractRefusalFromBody({ reason: VERSION_CONTRACT_REASON, setupRequired: { code: 'setup_required', items: [] } }), null);
+});
+
+test('an older backend body with only the reason never degrades to a status code', () => {
+  const refused = versionContractRefusalFromBody({ ok: false, reason: VERSION_CONTRACT_REASON });
+  assert.ok(refused);
+  assert.doesNotMatch(refused!.message, /Request failed/);
+  assert.match(refused!.message, /Revise the agent/);
+  assert.equal(refused!.cause, null);
+  const retry = versionContractRefusalFromBody({ ok: false, reason: VERSION_CONTRACT_REASON, retrySafe: true });
+  assert.equal(retry!.title, 'Couldn’t read this agent version');
+  assert.match(retry!.message, /Try again/);
+});
+
+test('untrusted fields are shape-checked, not passed through', () => {
+  const refused = versionContractRefusalFromBody({ reason: VERSION_CONTRACT_REASON, cause: '<script>', workflowVersionId: 'not-a-uuid', retrySafe: 'yes', error: '   ' });
+  assert.equal(refused!.cause, null);
+  assert.equal(refused!.workflowVersionId, null);
+  assert.equal(refused!.retrySafe, false, 'only a literal true is retry-safe');
+  assert.match(refused!.message, /Revise the agent/, 'a blank sentence falls back');
 });
