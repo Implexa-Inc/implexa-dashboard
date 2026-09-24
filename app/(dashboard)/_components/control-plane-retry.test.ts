@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { render } from '../../../lib/test/render.ts';
 
 const REQUEST = '414249d0-3715-4493-a45c-1f070724b502';
+const RUN = 'f2eb0cae-2093-4626-8c49-f84bf4b71383';
 const PATH = `/api/v2/me/run-requests/${REQUEST}/control-plane-retry`;
 const GRANT = '5b1f6c2e-2c1b-4b1e-9a3e-1f1f1f1f1f1f';
 const VERSION = 'c3350000-0000-4000-8000-000000000010';
@@ -17,6 +18,7 @@ const button = (r: Awaited<ReturnType<typeof render>>, text: string) => {
   return found;
 };
 const settle = async (r: Awaited<ReturnType<typeof render>>) => { await r.act(async () => { await new Promise(res => setTimeout(res, 20)); }); };
+const NO_LOCAL_BRIDGE = { localInputReauthorizationState: async () => ({ ok: true, applicable: false }) };
 const backend = (opts: { eligibility?: unknown; post?: (init: unknown) => unknown }) => (path: string, init: unknown) => {
   const method = (init as { method?: string })?.method || 'GET';
   if (path !== PATH) throw new Error(`unexpected path ${path}`);
@@ -25,7 +27,7 @@ const backend = (opts: { eligibility?: unknown; post?: (init: unknown) => unknow
 };
 
 test('eligible: the claim, the explicit distinction, confirmation, then POST with the grant only and the JWT', async () => {
-  const r = await render('control-plane-retry.tsx', { requestId: REQUEST }, { backend: backend({}) });
+  const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: backend({}), bridge: NO_LOCAL_BRIDGE });
   try {
     await settle(r);
     assert.equal(r.calls.backend.length, 1, 'one eligibility read');
@@ -48,9 +50,83 @@ test('eligible: the claim, the explicit distinction, confirmation, then POST wit
   } finally { r.cleanup(); }
 });
 
+test('a restarted Desktop restores the exact local source before consuming the retry grant', async () => {
+  let restored = false;
+  let reconnects = 0;
+  const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, {
+    backend: backend({}),
+    bridge: {
+      localInputReauthorizationState: async () => ({ ok: true, applicable: true, required: !restored }),
+      reauthorizeRunInputs: async () => { reconnects++; restored = true; return { ok: true, recovered: 1 }; },
+    },
+  });
+  try {
+    await settle(r);
+    await r.click(button(r, 'Retry safely'));
+    await r.click(button(r, 'Queue the same request'));
+    await settle(r);
+    assert.equal(reconnects, 1);
+    assert.deepEqual(r.calls.backend.map((call) => call.path), [PATH, PATH]);
+    assert.match(r.text(), /Queued again safely/);
+  } finally { r.cleanup(); }
+});
+
+for (const recovery of [
+  { result: { ok: false, canceled: true }, message: /selection canceled/i },
+  { result: { ok: false, error: 'input_digest_mismatch' }, message: /does not match the original source/i },
+  { result: { ok: false, error: 'read_failed' }, message: /Could not verify the original source/i },
+]) {
+  test(`a local source recovery refusal ${JSON.stringify(recovery.result)} never consumes the grant`, async () => {
+    const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, {
+      backend: backend({}),
+      bridge: {
+        localInputReauthorizationState: async () => ({ ok: true, applicable: true, required: true }),
+        reauthorizeRunInputs: async () => recovery.result,
+      },
+    });
+    try {
+      await settle(r);
+      await r.click(button(r, 'Retry safely'));
+      await r.click(button(r, 'Queue the same request'));
+      await settle(r);
+      assert.match(r.document.querySelector('[role="alert"]')?.textContent || '', recovery.message);
+      assert.equal(r.calls.backend.filter((call) => (call.init as { method?: string })?.method === 'POST').length, 0);
+    } finally { r.cleanup(); }
+  });
+}
+
+test('a missing Desktop bridge leaves a local-source retry unqueued', async () => {
+  const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, {
+    backend: backend({}),
+  });
+  try {
+    await settle(r);
+    await r.click(button(r, 'Retry safely'));
+    await r.click(button(r, 'Queue the same request'));
+    await settle(r);
+    assert.match(r.text(), /Open this run in Implexa on the source Mac/);
+    assert.equal(r.calls.backend.filter((call) => (call.init as { method?: string })?.method === 'POST').length, 0);
+  } finally { r.cleanup(); }
+});
+
+test('an uncertain Desktop authority response fails closed before the retry grant', async () => {
+  const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, {
+    backend: backend({}),
+    bridge: { localInputReauthorizationState: async () => ({ ok: false, error: 'unavailable' }) },
+  });
+  try {
+    await settle(r);
+    await r.click(button(r, 'Retry safely'));
+    await r.click(button(r, 'Queue the same request'));
+    await settle(r);
+    assert.match(r.text(), /Could not queue the safe retry/);
+    assert.equal(r.calls.backend.filter((call) => (call.init as { method?: string })?.method === 'POST').length, 0);
+  } finally { r.cleanup(); }
+});
+
 test('Keep it paused cancels without a request; double activation is single-flight', async () => {
   let posts = 0;
-  const r = await render('control-plane-retry.tsx', { requestId: REQUEST }, { backend: backend({ post: () => { posts += 1; return new Promise(() => {}); } }) });
+  const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: backend({ post: () => { posts += 1; return new Promise(() => {}); } }), bridge: NO_LOCAL_BRIDGE });
   try {
     await settle(r);
     await r.click(button(r, 'Retry safely'));
@@ -69,7 +145,7 @@ test('Keep it paused cancels without a request; double activation is single-flig
 for (const reply of [null, {}, { ok: true }, { requeued: true }, { ok: false, requeued: false, reason: 'control_plane_retry_grant_stale' },
   { ok: false, requeued: false, reason: 'external_action_recorded' }, 'throw']) {
   test(`unconfirmed reply ${JSON.stringify(reply)} is not a claimed queue and re-reads eligibility`, async () => {
-    const r = await render('control-plane-retry.tsx', { requestId: REQUEST }, { backend: backend({ post: () => { if (reply === 'throw') throw new Error('network'); return reply; } }) });
+    const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: backend({ post: () => { if (reply === 'throw') throw new Error('network'); return reply; } }), bridge: NO_LOCAL_BRIDGE });
     try {
       await settle(r);
       await r.click(button(r, 'Retry safely'));
@@ -77,7 +153,7 @@ for (const reply of [null, {}, { ok: true }, { requeued: true }, { ok: false, re
       await settle(r);
       assert.match(r.document.querySelector('[role="alert"]')?.textContent || '', /Could not queue the safe retry/);
       assert.doesNotMatch(r.text(), /Queued again safely/);
-      assert.equal(r.calls.backend.length, 3, 'GET, POST, then GET again');
+      assert.equal(r.calls.backend.length, 3, 'eligibility GET, POST, then eligibility GET again');
       assert.equal((r.calls.backend[2].init as { method?: string }).method ?? 'GET', 'GET');
     } finally { r.cleanup(); }
   });
@@ -85,7 +161,7 @@ for (const reply of [null, {}, { ok: true }, { requeued: true }, { ok: false, re
 
 test('a refusal after the click that says work may have occurred removes the claim on re-read', async () => {
   let reads = 0;
-  const r = await render('control-plane-retry.tsx', { requestId: REQUEST }, { backend: (path: string, init: unknown) => {
+  const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { bridge: NO_LOCAL_BRIDGE, backend: (path: string, init: unknown) => {
     const method = (init as { method?: string })?.method || 'GET';
     if (method === 'POST') return { ok: false, requeued: false, reason: 'external_action_recorded' };
     reads += 1;
@@ -104,7 +180,7 @@ test('a refusal after the click that says work may have occurred removes the cla
 });
 
 test('already queued on the server renders the queued receipt and no button', async () => {
-  const r = await render('control-plane-retry.tsx', { requestId: REQUEST }, { backend: backend({ eligibility: { ok: true, eligible: true, alreadyQueued: true } }) });
+  const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: backend({ eligibility: { ok: true, eligible: true, alreadyQueued: true } }) });
   try {
     await settle(r);
     assert.match(r.text(), /Queued again safely/);
@@ -119,7 +195,7 @@ const WORK_MAY_HAVE_OCCURRED = ['consequential_work_recorded', 'external_action_
   'not_control_plane_attachment_failure', 'surfaced_attempt_mismatch'];
 for (const reason of WORK_MAY_HAVE_OCCURRED) {
   test(`${reason}: disabled, says work may have occurred, never claims no work, Run again stays separate`, async () => {
-    const r = await render('control-plane-retry.tsx', { requestId: REQUEST }, { backend: backend({ eligibility: { ok: false, eligible: false, reason } }) });
+    const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: backend({ eligibility: { ok: false, eligible: false, reason } }) });
     try {
       await settle(r);
       assert.doesNotMatch(r.text(), CLAIM, `no-work claim leaked for ${reason}`);
@@ -134,7 +210,7 @@ const PROMISE_NOT_KEEPABLE = ['workflow_version_unpinned', 'workflow_version_una
   'input_contract_identity_mismatch', 'continuation_parent_unavailable', 'bootstrap_retry_cap_reached', 'control_plane_retry_already_advanced'];
 for (const reason of PROMISE_NOT_KEEPABLE) {
   test(`${reason}: disabled with its explanation, never claims no work, nothing can be posted`, async () => {
-    const r = await render('control-plane-retry.tsx', { requestId: REQUEST }, { backend: backend({ eligibility: { ok: false, eligible: false, reason } }) });
+    const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: backend({ eligibility: { ok: false, eligible: false, reason } }) });
     try {
       await settle(r);
       assert.doesNotMatch(r.text(), CLAIM, `no-work claim leaked for ${reason}`);
@@ -152,7 +228,7 @@ for (const eligibility of [{ ok: false, eligible: false, reason: 'request_not_fo
   { ok: true, eligible: true, alreadyQueued: false, workflowVersionId: VERSION },
   { ok: true, eligible: true, alreadyQueued: false, grantId: GRANT, workflowVersionId: null }, 'throw']) {
   test(`${JSON.stringify(eligibility)} renders nothing — and therefore no claim`, async () => {
-    const r = await render('control-plane-retry.tsx', { requestId: REQUEST }, { backend: () => { if (eligibility === 'throw') throw new Error('down'); return eligibility; } });
+    const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: () => { if (eligibility === 'throw') throw new Error('down'); return eligibility; } });
     try { await settle(r); assert.equal(r.text().trim(), ''); assert.equal(r.calls.backend.length, 1); } finally { r.cleanup(); }
   });
 }

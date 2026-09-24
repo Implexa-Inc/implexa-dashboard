@@ -22,7 +22,21 @@ import {
   RETRY_SAFELY_LABEL, RETRY_SAFELY_DISTINCTION, RUN_AGAIN_DISTINCTION, NO_WORK_CLAIM, QUEUED_RECEIPT,
 } from '@/lib/control-plane-retry';
 
-export function ControlPlaneRetry({ requestId }: { requestId: string }) {
+type LocalInputBridge = {
+  localInputReauthorizationState?: (runId: string) => Promise<{
+    ok?: boolean; applicable?: boolean; required?: boolean;
+  }>;
+  reauthorizeRunInputs?: (runId: string) => Promise<{
+    ok?: boolean; canceled?: boolean; error?: string;
+  }>;
+};
+
+function localInputBridge(): LocalInputBridge | null {
+  if (typeof window === 'undefined') return null;
+  return (window as Window & { implexaDesktop?: LocalInputBridge }).implexaDesktop || null;
+}
+
+export function ControlPlaneRetry({ requestId, runId }: { requestId: string; runId: string }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [eligibility, setEligibility] = useState<unknown>(null);
@@ -69,6 +83,38 @@ export function ControlPlaneRetry({ requestId }: { requestId: string }) {
     setError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('missing_session');
+      // A retry preserves the input binding, not Desktop's process-local access
+      // to a large source. The Desktop bridge owns the API-key-only authority
+      // read and verifies the exact bytes before this UI may consume the grant.
+      const bridge = localInputBridge();
+      if (!bridge?.localInputReauthorizationState) {
+        setError('Open this run in Implexa on the source Mac before retrying. Nothing was queued.');
+        return;
+      }
+      const state = await bridge.localInputReauthorizationState(runId);
+      if (!state?.ok || typeof state.applicable !== 'boolean'
+          || (state.applicable && typeof state.required !== 'boolean')) {
+        throw new Error('local_input_reauthorization_unavailable');
+      }
+      if (state.applicable && state.required) {
+        if (!bridge.reauthorizeRunInputs) {
+          setError('This Implexa app cannot reconnect the original file; nothing was queued.');
+          return;
+        }
+        const restored = await bridge.reauthorizeRunInputs(runId);
+        if (!restored?.ok) {
+          setError(restored?.canceled ? 'Original file selection canceled; nothing was queued.'
+            : restored?.error === 'input_digest_mismatch'
+              ? 'That file does not match the original source; nothing was queued.'
+              : 'Could not verify the original source; nothing was queued.');
+          return;
+        }
+        const rechecked = await bridge.localInputReauthorizationState(runId);
+        if (!rechecked?.ok || rechecked.applicable !== true || rechecked.required !== false) {
+          throw new Error('local_input_reauthorization_unavailable');
+        }
+      }
       const result = await callBackend(path, {
         jwt: session?.access_token, method: 'POST',
         body: { grantId: presentation.grantId },
