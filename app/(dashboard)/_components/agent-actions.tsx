@@ -33,7 +33,7 @@ import { AttachFiles, composeNoteWithFiles, desktopBridge, fileName, useRunAttac
   type DeferredRunInputSelection } from './run-attachments';
 import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import { SetupRequiredModal } from './setup-required-gate';
-import { isExactMachineOfflineSetupRefusal, isProbeOnlySetupRefusal, parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
+import { isExactMachineOfflineSetupRefusal, isProbeOnlySetupRefusal, parseSetupRequired, parseVersionContractRefusal, type SetupRequiredCard as SetupRequiredCardData, type VersionContractRefusal } from '@/lib/setup-required';
 import {
   acceptsDirectorySnapshot, bindInputValue, missingRequiredInputs, orderedInputFields, reusablePreferences,
   resolvePickerResult, revisionAuthorityIssue, serializeArtifactBindings,
@@ -194,6 +194,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // refusal. Raised by POST /me/run-admission at the click, or by the request
   // itself; either way nothing was queued. Recheck continues the SAME Run.
   const [setupCard, setSetupCard] = useState<SetupRequiredCardData | null>(null);
+  // A refusal about the AGENT VERSION rather than this computer (backend 0386).
+  // Setup cannot fix it, so it is not the setup card.
+  const [versionRefusal, setVersionRefusal] = useState<VersionContractRefusal | null>(null);
   // Checked before the Run form opens. A large local input must never be walked,
   // hashed or registered before this immutable version's training is eligible.
   const [trainingGate, setTrainingGate] = useState<Exclude<ManagerTrainingRunPreflight, { state: 'ready' }> | null>(null);
@@ -1045,6 +1048,16 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         setSetupCard(setup);
         return;
       }
+      // "This agent version is incomplete" — the version, not this computer,
+      // cannot be admitted. Production's Planner v26 fell through to the line
+      // below and the owner read only "Request failed (409)".
+      const versionContract = parseVersionContractRefusal(e);
+      if (versionContract) {
+        setState('idle');
+        setMsg('');
+        setVersionRefusal(versionContract);
+        return;
+      }
       setState('error');
       setMsg(e instanceof Error ? e.message : 'Could not queue the run. Try again.');
     }
@@ -1247,6 +1260,32 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         onAdmitted={async (machineId) => { setSetupCard(null); await doQueue(lastNote.current, { fingerprint: lastFingerprint.current, admitted: true, executionMachineId: machineId }); }}
         onCancel={() => setSetupCard(null)}
       />
+      {/* VERSION CONTRACT (backend 0386). A rare interruption, so a modal. It is
+          about the agent VERSION, so it never offers Setup actions: an
+          incomplete version is fixed by publishing a complete one, and only an
+          unreadable read is worth retrying. */}
+      <Modal open={versionRefusal !== null} onClose={() => setVersionRefusal(null)}
+        title={versionRefusal?.title || 'This agent version is incomplete'}>
+        {versionRefusal && (
+          <div className="space-y-4 text-sm text-ink-300" data-version-contract-cause={versionRefusal.cause || 'unknown'}>
+            <p>{versionRefusal.message}</p>
+            {!versionRefusal.retrySafe && (
+              <p className="text-ink-400">This is an agent publishing issue, not a problem with your computer or input. The agent’s publisher needs to provide a complete version. Nothing was queued, and your inputs are preserved.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {versionRefusal.retrySafe && (
+                <button type="button" className="rounded-lg border border-slate-600 px-3 py-2 text-sm"
+                  onClick={() => { setVersionRefusal(null); void doQueue(lastNote.current, { fingerprint: lastFingerprint.current }); }}>
+                  Try again
+                </button>
+              )}
+              <button type="button" className="rounded-lg border border-slate-600 px-3 py-2 text-sm" onClick={() => setVersionRefusal(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
       <Modal
         open={trainingGate !== null}
         onClose={() => setTrainingGate(null)}

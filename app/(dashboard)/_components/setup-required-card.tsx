@@ -22,7 +22,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
-import { blockingItems, machineCopy, parseSetupRequired, setupReasonCopy, setupTargetFor, type SetupRequiredCard as Card } from '@/lib/setup-required';
+import { blockingItems, machineCopy, parseSetupRequired, parseVersionContractRefusal, setupReasonCopy, setupTargetFor, type SetupRequiredCard as Card } from '@/lib/setup-required';
 
 type Bridge = {
   recheckMachineCapabilities?: () => Promise<{ ok: boolean; reason?: string | null }>;
@@ -107,7 +107,9 @@ export default function SetupRequiredCard({ card, slug = null, workflowVersionId
     } catch (e) {
       const next = parseSetupRequired(e);
       if (next) { setCurrent(next); return; }
-      setNote(e instanceof Error ? e.message : 'Recheck failed.');
+      // A Recheck can learn the VERSION is incomplete; say so, not the status code.
+      const versionContract = parseVersionContractRefusal(e);
+      setNote(versionContract ? versionContract.message : (e instanceof Error ? e.message : 'Recheck failed.'));
     } finally {
       inFlightRef.current = false;
       setChecking(false);

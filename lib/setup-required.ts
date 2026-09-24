@@ -85,6 +85,58 @@ export function setupRequiredFromBody(body: unknown): SetupRequiredCard | null {
   };
 }
 
+/** The backend reason for a refusal about the AGENT VERSION rather than this
+ * computer (backend 0371 admission, typed by 0386). */
+export const VERSION_CONTRACT_REASON = 'deterministic_project_machine_capability_required';
+
+/** A version-contract refusal: this agent version cannot be admitted on ANY
+ * computer, so Setup cannot fix it. Production's Planner v26 hit this and the
+ * owner saw only "Request failed (409)", because the pre-run admission check
+ * sent no sentence and the client fell back to its status code. */
+export type VersionContractRefusal = {
+  code: 'version_contract_refused';
+  title: string;
+  message: string;
+  /** The backend's typed cause, or null from a backend older than 0386. */
+  cause: string | null;
+  /** Only an unreadable read can succeed on retry; an incomplete version cannot. */
+  retrySafe: boolean;
+  workflowVersionId: string | null;
+};
+
+// Used ONLY when the backend sent no sentence (a pin older than 0386). The
+// backend owns the per-cause wording; this is the honest general case, never
+// a status code.
+const VERSION_CONTRACT_FALLBACK = 'This version of the agent cannot be checked against any computer. Its publisher needs to provide a complete version. Nothing was queued.';
+const VERSION_CONTRACT_RETRY_FALLBACK = 'Implexa could not read this agent version\u2019s requirements. Try again; nothing was queued.';
+
+/** The typed version-contract refusal from a 409, or null for any other error.
+ * Duck-typed on `{ status: 409, body }` for the same reason as parseSetupRequired. */
+export function parseVersionContractRefusal(error: unknown): VersionContractRefusal | null {
+  if (!error || typeof error !== 'object') return null;
+  const e = error as { status?: unknown; body?: unknown };
+  if (e.status !== 409) return null;
+  return versionContractRefusalFromBody(e.body);
+}
+
+export function versionContractRefusalFromBody(body: unknown): VersionContractRefusal | null {
+  if (!body || typeof body !== 'object') return null;
+  const b = body as { reason?: unknown; error?: unknown; cause?: unknown; retrySafe?: unknown; workflowVersionId?: unknown; setupRequired?: unknown };
+  if (b.reason !== VERSION_CONTRACT_REASON) return null;
+  // A setup card is about this computer and has its own modal; it wins.
+  if (b.setupRequired) return null;
+  const retrySafe = b.retrySafe === true;
+  const sentence = typeof b.error === 'string' && b.error.trim() ? b.error.trim() : null;
+  return {
+    code: 'version_contract_refused',
+    title: retrySafe ? 'Couldn\u2019t read this agent version' : 'This agent version is incomplete',
+    message: sentence || (retrySafe ? VERSION_CONTRACT_RETRY_FALLBACK : VERSION_CONTRACT_FALLBACK),
+    cause: typeof b.cause === 'string' && /^[a-z][a-z0-9_]{2,63}$/.test(b.cause) ? b.cause : null,
+    retrySafe,
+    workflowVersionId: isWorkflowVersionId(b.workflowVersionId) ? b.workflowVersionId : null,
+  };
+}
+
 /** Why the card was raised, in the user's terms. Reason codes are the backend's closed set. */
 export function setupReasonCopy(card: SetupRequiredCard): string {
   switch (card.reason) {
