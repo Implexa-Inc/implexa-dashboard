@@ -107,7 +107,7 @@ export type VersionContractRefusal = {
 // Used ONLY when the backend sent no sentence (a pin older than 0386). The
 // backend owns the per-cause wording; this is the honest general case, never
 // a status code.
-const VERSION_CONTRACT_FALLBACK = 'This version of the agent cannot be checked against any computer. Revise the agent to publish a complete version. Nothing was queued.';
+const VERSION_CONTRACT_FALLBACK = 'This version of the agent cannot be checked against any computer. Its publisher needs to provide a complete version. Nothing was queued.';
 const VERSION_CONTRACT_RETRY_FALLBACK = 'Implexa could not read this agent version\u2019s requirements. Try again; nothing was queued.';
 
 /** The typed version-contract refusal from a 409, or null for any other error.

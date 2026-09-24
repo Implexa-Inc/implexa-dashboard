@@ -1270,7 +1270,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           <div className="space-y-4 text-sm text-ink-300" data-version-contract-cause={versionRefusal.cause || 'unknown'}>
             <p>{versionRefusal.message}</p>
             {!versionRefusal.retrySafe && (
-              <p className="text-ink-400">Setup on this computer cannot fix this. Use Edit Agent to publish a complete version. Nothing was queued, and your inputs are preserved.</p>
+              <p className="text-ink-400">This is an agent publishing issue, not a problem with your computer or input. The agent’s publisher needs to provide a complete version. Nothing was queued, and your inputs are preserved.</p>
             )}
             <div className="flex flex-wrap gap-2">
               {versionRefusal.retrySafe && (

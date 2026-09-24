@@ -164,7 +164,7 @@ test('an older backend body with only the reason never degrades to a status code
   const refused = versionContractRefusalFromBody({ ok: false, reason: VERSION_CONTRACT_REASON });
   assert.ok(refused);
   assert.doesNotMatch(refused!.message, /Request failed/);
-  assert.match(refused!.message, /Revise the agent/);
+  assert.match(refused!.message, /Its publisher needs/);
   assert.equal(refused!.cause, null);
   const retry = versionContractRefusalFromBody({ ok: false, reason: VERSION_CONTRACT_REASON, retrySafe: true });
   assert.equal(retry!.title, 'Couldn’t read this agent version');
@@ -176,5 +176,5 @@ test('untrusted fields are shape-checked, not passed through', () => {
   assert.equal(refused!.cause, null);
   assert.equal(refused!.workflowVersionId, null);
   assert.equal(refused!.retrySafe, false, 'only a literal true is retry-safe');
-  assert.match(refused!.message, /Revise the agent/, 'a blank sentence falls back');
+  assert.match(refused!.message, /Its publisher needs/, 'a blank sentence falls back');
 });

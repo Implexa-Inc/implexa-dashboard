@@ -63,7 +63,8 @@ test('a version published without its machine contract: a precise modal, never "
     await clickRun(r);
     assert.ok(r.queryByText('This agent version is incomplete'), 'the modal title names the VERSION');
     assert.match(r.text(), /published without its machine requirements/);
-    assert.match(r.text(), /Setup on this computer cannot fix this\. Use Edit Agent/);
+    assert.match(r.text(), /agent publishing issue, not a problem with your computer or input/);
+    assert.equal(r.queryByText('Edit Agent'), null, 'customers are not directed into authoring');
     assert.doesNotMatch(r.text(), /Request failed \(409\)/);
     // Setup cannot fix a version defect, so no Setup action is offered, and a
     // retry cannot help, so there is none either.
@@ -84,7 +85,7 @@ test('an older backend that sends only the reason still gets a precise sentence,
   try {
     await clickRun(r);
     assert.ok(r.queryByText('This agent version is incomplete'));
-    assert.match(r.text(), /cannot be checked against any computer\. Revise the agent/);
+    assert.match(r.text(), /cannot be checked against any computer\. Its publisher needs/);
     assert.doesNotMatch(r.text(), /Request failed \(409\)/);
     assert.equal(state.runRequests.length, 0);
   } finally { r.cleanup(); }
