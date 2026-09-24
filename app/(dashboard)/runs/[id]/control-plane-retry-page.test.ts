@@ -9,7 +9,7 @@ const component = readFileSync(join(process.cwd(), 'app', '(dashboard)', '_compo
 test('the safe retry is mounted for the request this run was surfaced for, beside — never instead of — Run again', () => {
   assert.match(page, /import ControlPlaneRetry from '\.\.\/\.\.\/_components\/control-plane-retry';/);
   assert.match(page, /\.from\('run_requests'\)\s*\n\s*\.select\('id, status, lifecycle_state'\)\s*\n\s*\.eq\('run_id', r\.id\)\s*\n\s*\.eq\('status', 'done'\)\s*\n\s*\.eq\('lifecycle_state', 'failed'\)/);
-  assert.match(page, /\{controlPlaneRetryRequestId && !supersededByRelated && \(\s*\n\s*<ControlPlaneRetry requestId=\{controlPlaneRetryRequestId\} \/>/);
+  assert.match(page, /\{controlPlaneRetryRequestId && !supersededByRelated && \(\s*\n\s*<ControlPlaneRetry requestId=\{controlPlaneRetryRequestId\} runId=\{params\.id\} \/>/);
   const retryAt = page.indexOf('<ControlPlaneRetry requestId=');
   const runAgainAt = page.indexOf('>Run again</Link>', retryAt);
   assert.ok(retryAt > 0 && runAgainAt > retryAt, 'Run again stays available on the same panel');

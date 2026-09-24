@@ -1264,7 +1264,7 @@ export default async function RunDetailPage({
                 new fenced generation — and only when the backend proves no work
                 started. The component hides itself for every other failure. */}
             {controlPlaneRetryRequestId && !supersededByRelated && (
-              <ControlPlaneRetry requestId={controlPlaneRetryRequestId} />
+              <ControlPlaneRetry requestId={controlPlaneRetryRequestId} runId={params.id} />
             )}
             <div className="mt-4 flex flex-wrap gap-3">
               {/* Restarting a superseded attempt would race the run that is
