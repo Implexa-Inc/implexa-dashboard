@@ -11,7 +11,11 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
  */
 
 const PROTECTED_PREFIXES = ['/skills', '/settings', '/pricing'];
-const AUTH_READ_TIMEOUT_MS = 4000;
+// Refresh and verified-user lookup are sequential SDK operations. A slow but
+// successful refresh must not consume the verification allowance. Together they
+// stay below Vercel's 25-second middleware response limit (at most 12 seconds).
+const AUTH_REFRESH_TIMEOUT_MS = 8000;
+const AUTH_VERIFY_TIMEOUT_MS = 4000;
 
 function authUnavailable() {
   return NextResponse.json({
@@ -32,19 +36,42 @@ function isSignedOutError(error: unknown) {
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
   const controller = new AbortController();
-  const expiresAt = performance.now() + AUTH_READ_TIMEOUT_MS;
+  const startedAt = performance.now();
+  const refreshExpiresAt = startedAt + AUTH_REFRESH_TIMEOUT_MS;
+  const overallExpiresAt = refreshExpiresAt + AUTH_VERIFY_TIMEOUT_MS;
+  let expiresAt = refreshExpiresAt;
   // Do not let a failed/late refresh delete or replace the browser's cookies.
   // Only a verified result (including genuine sign-out) commits the SDK writes.
   const pendingCookies: CookieToSet[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let user;
-  try {
+  async function withinDeadline<T>(operation: () => Promise<T>, phaseExpiresAt: number): Promise<T> {
+    // One allowance per phase, not per SDK retry or upstream fetch.
+    expiresAt = Math.min(phaseExpiresAt, overallExpiresAt);
+    const remainingMs = expiresAt - performance.now();
+    if (remainingMs <= 0 || controller.signal.aborted) {
+      controller.abort();
+      throw new Error('auth_read_deadline');
+    }
     const deadline = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
         controller.abort();
         reject(new Error('auth_read_deadline'));
-      }, AUTH_READ_TIMEOUT_MS);
+      }, remainingMs);
     });
+    try {
+      const result = await Promise.race([operation(), deadline]);
+      if (controller.signal.aborted || performance.now() >= expiresAt) {
+        controller.abort();
+        throw new Error('auth_read_deadline');
+      }
+      return result;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+    }
+  }
+  let user;
+  try {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -76,12 +103,14 @@ export async function middleware(request: NextRequest) {
         },
       },
     );
-    const result = await Promise.race([supabase.auth.getUser(), deadline]);
-    // Reject late results even if an event-loop stall delayed the timer.
-    if (controller.signal.aborted || performance.now() >= expiresAt) {
+    // getSession awaits SDK initialization/refresh. Its stored user is UNTRUSTED
+    // and never authorizes access; getUser remains the independent authority.
+    const prepared = await withinDeadline(() => supabase.auth.getSession(), refreshExpiresAt);
+    if (!prepared?.data || (prepared.error && !isSignedOutError(prepared.error))) {
       controller.abort();
       return authUnavailable();
     }
+    const result = await withinDeadline(() => supabase.auth.getUser(), performance.now() + AUTH_VERIFY_TIMEOUT_MS);
     if (!result?.data || (result.error && (!isSignedOutError(result.error) || result.data.user !== null))
       || (result.data.user !== null && !result.data.user?.id)) {
       controller.abort();
