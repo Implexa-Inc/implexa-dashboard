@@ -33,6 +33,15 @@ npm run dev      # → http://localhost:3001
 
 ## How auth works
 
+Navigation middleware verifies the existing Supabase session with a four-second,
+request-local deadline (including SDK initialization/refresh). It cancels upstream
+transport and rejects late results. Dependency errors return a sanitized,
+non-cacheable `503 auth_read_unavailable`, never a login/onboarding redirect or
+an authentication bypass. Uncertain results do not commit cookie changes.
+Successful session refresh and genuine sign-out keep the existing behavior;
+protected prefixes, route matcher and downstream auth/Run gates are unchanged.
+This supersedes the unbounded middleware read, not authentication itself.
+
 1. User signs up via Supabase Auth (email/password or OAuth).
 2. `/auth/callback` exchanges the code for a session.
 3. If the user has no `users` row → redirected to `/onboarding`.
