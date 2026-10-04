@@ -20,6 +20,7 @@ type ProfileQuery = {
 
 export async function readUserProfile(query: ProfileQuery): Promise<Record<string, any> | null> {
   const controller = new AbortController();
+  const expiresAt = performance.now() + PROFILE_READ_TIMEOUT_MS;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -31,6 +32,12 @@ export async function readUserProfile(query: ProfileQuery): Promise<Record<strin
     // The race bounds even a transport that ignores AbortSignal; abort also
     // cancels the real PostgREST request rather than leaving it running.
     const result = await Promise.race([query.abortSignal(controller.signal).maybeSingle(), deadline]);
+    // A stalled event loop can deliver the response before the timeout callback
+    // runs. Never admit a late result, including null/absence, in that window.
+    if (controller.signal.aborted || performance.now() >= expiresAt) {
+      controller.abort();
+      throw new ProfileReadUnavailableError();
+    }
     if (!result || result.error || result.data === undefined
       || (result.data !== null && (typeof result.data !== 'object' || Array.isArray(result.data)))) {
       throw new ProfileReadUnavailableError();

@@ -31,6 +31,20 @@ test('rejected diagnostics are sanitized', async () => {
   });
 });
 
+test('late results are refused even before a delayed timer callback runs', async t => {
+  let now = 0;
+  t.mock.method(performance, 'now', () => now);
+  let signal: AbortSignal | undefined;
+  await assert.rejects(readUserProfile({ abortSignal: value => {
+    signal = value;
+    return { maybeSingle: async () => {
+      now = PROFILE_READ_TIMEOUT_MS + 1;
+      return { data: null, error: null };
+    } };
+  } }), ProfileReadUnavailableError);
+  assert.equal(signal?.aborted, true);
+});
+
 test('a never-settling read is bounded and cancelled, even when transport ignores abort', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let signal: AbortSignal | undefined;
