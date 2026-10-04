@@ -15,6 +15,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { isExecutorConnected } from '@/lib/connection';
 import { getProficiency, isGuided } from '@/lib/proficiency';
 import { listSuggestedAgents } from '@/lib/workflow-catalog';
@@ -30,9 +31,8 @@ export default async function CreatePage() {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id, last_mcp_call_at, last_hook_event_at')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id, last_mcp_call_at, last_hook_event_at').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   const [discovery, suggested, proficiency] = await Promise.all([

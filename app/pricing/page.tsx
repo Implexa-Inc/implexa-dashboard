@@ -23,6 +23,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { computeSetupStatus } from '@/lib/setup-status';
 import { Logo } from '@/components/logo';
 import Sidebar, { MobileTopBar } from '@/app/(dashboard)/_components/sidebar';
@@ -49,11 +50,8 @@ export default async function PricingPage() {
   if (isAuthed) {
     // Pull the same shape the (dashboard) layout needs so we can render the
     // Sidebar consistently. One query — all fields.
-    const { data: profile } = await supabase
-      .from('users')
-      .select('id, organization_id, display_name, email, founding_creator_unlocked_at, last_mcp_call_at, last_hook_event_at')
-      .eq('id', session!.user.id)
-      .maybeSingle();
+    const profile = await readUserProfile(supabase
+      .from('users').select('id, organization_id, display_name, email, founding_creator_unlocked_at, last_mcp_call_at, last_hook_event_at').eq('id', session!.user.id));
 
     isFoundingCreator = !!profile?.founding_creator_unlocked_at;
 

@@ -14,6 +14,7 @@
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { computeSetupStatus } from '@/lib/setup-status';
 import { postAuthDestination } from '@/lib/navigation';
 import { macDownloadUrl } from '@/lib/app-links';
@@ -27,11 +28,8 @@ export default async function GetAppPage() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login?next=/get-app');
 
-  const { data: profile } = await supabase
-    .from('users')
-    .select('display_name, last_mcp_call_at, last_hook_event_at')
-    .eq('id', session.user.id)
-    .maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('display_name, last_mcp_call_at, last_hook_event_at').eq('id', session.user.id));
 
   // Already connected → the dashboard is theirs; don't hold them on the door.
   const setup = computeSetupStatus(profile?.last_mcp_call_at, profile?.last_hook_event_at);

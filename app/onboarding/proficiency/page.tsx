@@ -8,6 +8,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import ProficiencyPicker from './picker-client';
 import { Logo } from '@/components/logo';
 
@@ -19,9 +20,8 @@ export default async function ProficiencyPage({ searchParams }: { searchParams?:
   if (!session?.user) redirect('/login');
 
   // Workspace must be provisioned first.
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id, display_name')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id, display_name').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   const next = typeof searchParams?.next === 'string' && searchParams.next.startsWith('/')

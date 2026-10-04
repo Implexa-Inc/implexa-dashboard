@@ -9,6 +9,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import SkillActions from './actions';
 import { InstallStatusBadge, ForkToCustomizeButton } from './install-controls';
 import { CreatorBadge } from '@/components/creator-badge';
@@ -38,9 +39,8 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
   // also missed the row when scope=private.
   //
   // Fix: query users to get the real org_id, then filter org_skills by it.
-  const { data: profile } = await supabase
-    .from('users').select('organization_id')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('organization_id').eq('id', session.user.id));
   const userOrgId = profile?.organization_id;
 
   // Detail-view columns. Excludes history (audit log, not rendered here) and

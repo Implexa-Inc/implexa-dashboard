@@ -12,6 +12,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { ROLE_PACKS } from '@/lib/role-packs';
 import RolePickerClient from './picker-client';
 import { Logo } from '@/components/logo';
@@ -24,9 +25,8 @@ export default async function RolePickerPage() {
   if (!session?.user) redirect('/login');
 
   // Need an org assigned (provision must have run first)
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id, display_name')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id, display_name').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   return (

@@ -25,6 +25,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { loadInboxItems } from '@/lib/inbox';
 import { loadNeedsYou } from '@/lib/needs-you';
 import { attentionWarning } from '@/lib/attention';
@@ -50,9 +51,8 @@ export default async function WorkPage({
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   const view = parseWorkView(searchParams?.view);

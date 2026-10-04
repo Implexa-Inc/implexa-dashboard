@@ -24,6 +24,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { listMyWorkflows, workflowRunInputs } from '@/lib/workflow-catalog';
 import { getAgentDetail } from '@/lib/agent-detail';
 import { remoteSafety } from '@/lib/remote-safety';
@@ -95,9 +96,8 @@ export default async function WorkflowDetailPage({
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   // ONE ENVELOPE, OWNER-SCOPED AND ALWAYS FRESH (cache: 'no-store'). The

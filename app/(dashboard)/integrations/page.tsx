@@ -17,6 +17,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import {
   INTEGRATIONS,
   integrationsForTool,
@@ -68,9 +69,8 @@ export default async function IntegrationsPage() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id, display_name, email')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id, display_name, email').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   // ── 1. Build the "Recommended for you" list ────────────────────────────

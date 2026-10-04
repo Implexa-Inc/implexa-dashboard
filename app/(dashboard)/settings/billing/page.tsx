@@ -11,6 +11,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { callBackend } from '@/lib/api';
 import PortalButton from './portal-button';
 
@@ -28,9 +29,8 @@ export default async function BillingPage() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id, founding_creator_unlocked_at')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id, founding_creator_unlocked_at').eq('id', session.user.id));
 
   let plan = 'free';
   let seatCount = 1;

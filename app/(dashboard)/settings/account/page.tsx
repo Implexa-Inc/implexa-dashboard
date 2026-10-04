@@ -7,6 +7,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import AccountForm from './account-form';
 
 export const dynamic = 'force-dynamic';
@@ -16,9 +17,8 @@ export default async function AccountSettingsPage() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('users').select('id, email, display_name, created_at')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, email, display_name, created_at').eq('id', session.user.id));
   if (!profile) redirect('/onboarding');
 
   return (

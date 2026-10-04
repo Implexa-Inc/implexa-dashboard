@@ -27,6 +27,7 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { loadInboxItems } from '@/lib/inbox';
 import { loadNeedsYou } from '@/lib/needs-you';
 import { attentionWarning } from '@/lib/attention';
@@ -48,9 +49,8 @@ export default async function OverviewPage() {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id, display_name, last_mcp_call_at, last_hook_event_at')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id, display_name, last_mcp_call_at, last_hook_event_at').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   // The todo list + "needs you" (grants/sign-ins/missed) + the manager's-desk

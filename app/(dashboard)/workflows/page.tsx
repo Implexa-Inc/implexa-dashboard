@@ -15,6 +15,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { listMyWorkflows, listDismissedWorkflows, listFavoriteSlugs } from '@/lib/workflow-catalog';
 import { getMyAgents } from '@/lib/agents-home';
 import { buildRoster } from '@/lib/agents-roster';
@@ -34,9 +35,8 @@ export default async function WorkflowsPage() {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   const [feed, mine, dismissed, favoriteSlugs, discovery, chainOfferings] = await Promise.all([

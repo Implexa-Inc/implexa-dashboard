@@ -9,6 +9,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import InstallToast from './install-toast';
 import WelcomeBanner from './welcome-banner';
 import FoundingCreatorBanner from './founding-creator-banner';
@@ -26,9 +27,8 @@ export default async function SkillsPage({ searchParams }: { searchParams?: Skil
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id, display_name, email')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id, display_name, email').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   // Org skills + system Playbooks. RLS gates org_id scope.
