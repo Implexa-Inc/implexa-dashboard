@@ -17,6 +17,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { callBackend } from '@/lib/api';
 import InstallFlow from './install-flow';
 import HeroInstall from './hero-install';
@@ -30,8 +31,8 @@ export default async function InstallPage({ searchParams }: { searchParams: { we
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login?next=/install');
 
-  const { data: profile } = await supabase
-    .from('users').select('id, email').eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, email').eq('id', session.user.id));
   if (!profile) redirect('/onboarding?next=/install');
 
   // Find the most-recently-created active API key (surface only the prefix —

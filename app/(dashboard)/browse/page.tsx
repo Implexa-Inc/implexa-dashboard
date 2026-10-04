@@ -10,6 +10,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { listAgentDiscovery } from '@/lib/agent-discovery';
 import AgentDiscoveryCatalog from '../_components/agent-discovery-catalog';
 
@@ -19,8 +20,8 @@ export default async function BrowsePage() {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
-  const { data: profile } = await supabase
-    .from('users').select('organization_id').eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   const discovery = await listAgentDiscovery(session.access_token);

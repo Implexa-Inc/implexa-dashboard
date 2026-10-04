@@ -10,6 +10,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { selectRuns } from '@/lib/run-state';
 import RunsCalendar, { type CalRun } from '../_components/runs-calendar';
 
@@ -20,9 +21,8 @@ export default async function RunsPage() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   // RLS-scoped to caller. A lightweight slice (no output_markdown) — the calendar

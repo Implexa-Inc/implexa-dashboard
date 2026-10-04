@@ -8,6 +8,8 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
+import { postAuthDestination } from '@/lib/navigation';
 import { callBackend } from '@/lib/api';
 import OnboardingPicker from './picker';
 
@@ -20,7 +22,14 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
 
   const email = session.user.email!;
   const displayName = session.user.user_metadata?.display_name || session.user.user_metadata?.name || email.split('@')[0];
-  const nextParam = typeof searchParams?.next === 'string' && searchParams.next.startsWith('/') ? searchParams.next : null;
+  const nextParam = typeof searchParams?.next === 'string'
+    && searchParams.next.startsWith('/') && !searchParams.next.startsWith('//')
+    && !searchParams.next.split('?')[0].startsWith('/onboarding') ? searchParams.next : null;
+
+  // Read before ANY provisioning/invite side effect. An unavailable lookup
+  // must not make a returning user look new, even on a stale onboarding URL.
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id').eq('id', session.user.id));
 
   // ─── Invite acceptance path ────────────────────────────────────────────
   // If the user signed up via /signup?invite=TOKEN, the token is forwarded
@@ -55,6 +64,10 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
   if (acceptedInvite) {
     redirect('/get-app');
   }
+
+  // Preserve explicit invite acceptance above, but an existing member never
+  // sees join/create choices (including after an invalid invite).
+  if (profile?.organization_id) redirect(postAuthDestination({ next: nextParam }));
 
   let suggestion: { organizationId: string; organizationName: string; memberCount: number } | null = null;
 

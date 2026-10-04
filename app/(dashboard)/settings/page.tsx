@@ -18,6 +18,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,9 +27,8 @@ export default async function SettingsHubPage() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id, display_name, email, founding_creator_unlocked_at')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id, display_name, email, founding_creator_unlocked_at').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   // Light context shown on the hub

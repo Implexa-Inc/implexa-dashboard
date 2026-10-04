@@ -15,6 +15,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { BackendError, callBackend } from '@/lib/api';
 import { getWorkspaceRoot } from '@/lib/run-env';
 import RunMarkdown from '../../_components/run-markdown';
@@ -170,9 +171,8 @@ export default async function RunDetailPage({
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id, email')
-    .eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id, email').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   const { data: run } = await supabase

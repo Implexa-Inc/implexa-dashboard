@@ -14,6 +14,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { callBackend } from '@/lib/api';
 import InviteForm from './invite-form';
 import PendingInviteRow from './pending-invite-row';
@@ -38,8 +39,8 @@ export default async function TeamSettingsPage() {
   } catch (_) { /* show empty state */ }
 
   // Pull org plan + org-skill share count (for the 3-skill cap UX)
-  const { data: profile } = await supabase
-    .from('users').select('organization_id').eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('organization_id').eq('id', session.user.id));
   let plan = 'free';
   if (profile?.organization_id) {
     const { data: org } = await supabase

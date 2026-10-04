@@ -21,6 +21,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { callBackend } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -39,8 +40,8 @@ export default async function InstallBounceback({ params }: { params: { token: s
   if (!session?.user) redirect(`/login?next=/s/${encodeURIComponent(params.token)}/install`);
 
   // Ensure the user has completed onboarding (has a users row with organization_id)
-  const { data: profile } = await supabase
-    .from('users').select('organization_id').eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) {
     redirect(`/onboarding?next=/s/${encodeURIComponent(params.token)}/install`);
   }

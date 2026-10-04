@@ -20,6 +20,7 @@
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { computeSetupStatus } from '@/lib/setup-status';
 import Sidebar, { MobileTopBar } from './_components/sidebar';
 import UpdateBanner from './_components/update-banner';
@@ -39,11 +40,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Pulling the new activity timestamps in the same query the layout
   // already runs — zero extra round-trips. Drives the setup-status chip
   // in the sidebar (Level 2 of the post-share-install gate work).
-  const { data: profile } = await supabase
-    .from('users')
-    .select('id, organization_id, display_name, email, founding_creator_unlocked_at, last_mcp_call_at, last_hook_event_at')
-    .eq('id', session.user.id)
-    .maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, organization_id, display_name, email, founding_creator_unlocked_at, last_mcp_call_at, last_hook_event_at').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   const { data: org } = await supabase

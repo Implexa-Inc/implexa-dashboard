@@ -21,6 +21,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import { callBackend } from '@/lib/api';
 import { Logo } from '@/components/logo';
 import CliAuthApproval from './cli-auth-approval';
@@ -70,8 +71,8 @@ export default async function CliAuthPage({ searchParams }: { searchParams: { co
 
   // Make sure they finished onboarding (have an organization). If not,
   // route through /onboarding which also supports the ?next= param.
-  const { data: profile } = await supabase
-    .from('users').select('id, email, organization_id').eq('id', session.user.id).maybeSingle();
+  const profile = await readUserProfile(supabase
+    .from('users').select('id, email, organization_id').eq('id', session.user.id));
   if (!profile || !profile.organization_id) {
     redirect(`/onboarding?next=${encodeURIComponent(selfUrl)}`);
   }

@@ -16,6 +16,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile, ProfileReadUnavailableError } from '@/lib/profile-read';
 import { postAuthDestination } from '@/lib/navigation';
 import type { EmailOtpType } from '@supabase/supabase-js';
 
@@ -111,8 +112,16 @@ export async function GET(request: Request) {
     }
   }
 
-  const { data: profile } = await supabase
-    .from('users').select('id, organization_id').eq('id', user.id).maybeSingle();
+  let profile;
+  try {
+    profile = await readUserProfile(supabase
+      .from('users').select('id, organization_id').eq('id', user.id));
+  } catch (error) {
+    if (!(error instanceof ProfileReadUnavailableError)) throw error;
+    return NextResponse.json({ error: error.message, code: error.code }, {
+      status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '5' },
+    });
+  }
 
   if (!profile || !profile.organization_id) {
     const onboardingUrl = new URL('/onboarding', url.origin);

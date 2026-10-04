@@ -14,6 +14,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { createClient } from '@/lib/supabase/server';
+import { readUserProfile } from '@/lib/profile-read';
 import InstallCta from './install-cta';
 import { CreatorBadge } from '@/components/creator-badge';
 import { ShareButtons } from '@/components/share-buttons';
@@ -151,11 +152,8 @@ export default async function SharePreviewPage({ params }: { params: { token: st
   // through to the public preview (no harm done — they can still navigate
   // to /skills manually).
   if (isAuthed) {
-    const { data: profile } = await supabase
-      .from('users')
-      .select('organization_id')
-      .eq('id', user!.id)
-      .maybeSingle();
+    const profile = await readUserProfile(supabase
+      .from('users').select('organization_id').eq('id', user!.id));
     if (profile?.organization_id && profile.organization_id === sharedBy.orgId) {
       redirect(`/skills/${skill.slug}`);
     }
