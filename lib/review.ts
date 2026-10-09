@@ -482,8 +482,39 @@ function isCount(value: unknown, maximum = Number.MAX_SAFE_INTEGER): value is nu
 export function parseStageManagerProof(raw: unknown): StageManagerProof | null {
   if (!isObject(raw) || !MANAGER_PROOF_STATUSES.has(String(raw.status))) return null;
   const rootKeys = new Set(['status', 'unavailableReason', 'stageCount', 'stages',
-    'handlingStatus', 'verificationStatus', 'disclosure']);
+    'handlingStatus', 'verificationStatus', 'disclosure', 'capabilityProof', 'verificationRefusal']);
   if (Object.keys(raw).some((key) => !rootKeys.has(key))) return null;
+  const capability = raw.capabilityProof;
+  const token = (value: unknown): value is string => typeof value === 'string'
+    && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(value);
+  const tokenList = (value: unknown): value is string[] => Array.isArray(value)
+    && value.every(token) && new Set(value).size === value.length;
+  if (capability !== undefined) {
+    if (!isObject(capability) || capability.classified !== true || typeof capability.gap !== 'boolean') return null;
+    const keys = new Set(['classified', 'gap', 'reason', 'missing', 'skipped', 'fallbacksUsed',
+      'unavailable', 'pendingUsage', 'usageStatus', 'pendingRequirementIds']);
+    if (Object.keys(capability).some((key) => !keys.has(key))) return null;
+    if (!(capability.reason === null || token(capability.reason))
+        || !tokenList(capability.missing) || !tokenList(capability.skipped)
+        || !Array.isArray(capability.fallbacksUsed)) return null;
+    if (!capability.fallbacksUsed.every((entry) => isObject(entry)
+        && Object.keys(entry).length === 2 && token(entry.requirementId)
+        && typeof entry.fallback === 'string' && entry.fallback.trim().length > 0
+        && entry.fallback.length <= 240)) return null;
+    if (capability.unavailable !== undefined && typeof capability.unavailable !== 'boolean') return null;
+    if (capability.pendingUsage !== undefined && capability.pendingUsage !== false) return null;
+    if (capability.usageStatus !== undefined) {
+      if (capability.usageStatus !== 'pending' || capability.gap || capability.reason !== null
+          || capability.unavailable || capability.missing.length || capability.skipped.length
+          || !tokenList(capability.pendingRequirementIds)) return null;
+    } else if (capability.pendingRequirementIds !== undefined) return null;
+    if (capability.unavailable) {
+      if (!capability.gap || !token(capability.reason) || raw.status !== 'unavailable') return null;
+    } else if (capability.gap) {
+      if (raw.verificationStatus !== 'failed'
+          || raw.verificationRefusal !== (capability.reason || 'required_capability_skipped')) return null;
+    } else if (capability.missing.length || capability.skipped.length || raw.verificationRefusal !== undefined) return null;
+  } else if (raw.verificationRefusal !== undefined) return null;
   if (!isCount(raw.stageCount, MANAGER_STAGES.size) || !Array.isArray(raw.stages)) return null;
   if (!MANAGER_VERIFICATION_STATUSES.has(String(raw.verificationStatus))) return null;
 
@@ -493,7 +524,8 @@ export function parseStageManagerProof(raw: unknown): StageManagerProof | null {
     return raw as unknown as StageManagerProof;
   }
   if (raw.status === 'none') {
-    if (raw.stageCount !== 0 || raw.stages.length !== 0 || raw.verificationStatus !== 'not_required') return null;
+    if (raw.stageCount !== 0 || raw.stages.length !== 0
+        || raw.verificationStatus !== (isObject(capability) && capability.gap ? 'failed' : 'not_required')) return null;
     return raw as unknown as StageManagerProof;
   }
 
@@ -538,7 +570,7 @@ export function parseStageManagerProof(raw: unknown): StageManagerProof | null {
       : required.some((stage) => stage.verificationStatus === 'unavailable') ? 'unavailable'
       : required.some((stage) => stage.verificationStatus === 'failed') ? 'failed'
         : required.every((stage) => stage.verificationStatus === 'passed') ? 'passed' : 'incomplete';
-  if (raw.verificationStatus !== expectedVerification) return null;
+  if (raw.verificationStatus !== (isObject(capability) && capability.gap ? 'failed' : expectedVerification)) return null;
   return raw as unknown as StageManagerProof;
 }
 

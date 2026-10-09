@@ -24,6 +24,15 @@ export default function StageManagerProof({ proof }: { proof: StageManagerProof 
       <p className="mt-1 text-xs text-ink-500">
         Stage handling and independent evidence are shown separately from the original run status and Judge verdict.
       </p>
+      {proof.capabilityProof && (
+        <p className="mt-2 text-xs text-ink-400">
+          {proof.capabilityProof.unavailable ? 'Machine capability evidence is unavailable; no pass is inferred.'
+            : proof.capabilityProof.gap ? `Machine capability proof failed: ${proof.verificationRefusal}.`
+              : proof.capabilityProof.usageStatus === 'pending' ? 'Machine capability usage evidence is pending; not a completed proof.'
+                : 'Required machine capability evidence is complete.'}
+          {proof.capabilityProof.fallbacksUsed.length > 0 && ` ${proof.capabilityProof.fallbacksUsed.length} fallback(s) recorded.`}
+        </p>
+      )}
 
       {proof.status === 'unavailable' ? (
         <p className="mt-2 text-xs text-amber-300">Manager verification could not be loaded. No result is inferred.</p>

@@ -27,6 +27,19 @@ export type StageManagerProof = {
   handlingStatus?: 'ready' | 'incomplete';
   verificationStatus: ManagerVerificationStatus;
   disclosure?: 'aggregate_stage_proof_only';
+  capabilityProof?: {
+    classified: true;
+    gap: boolean;
+    reason: string | null;
+    missing: string[];
+    skipped: string[];
+    fallbacksUsed: Array<{ requirementId: string; fallback: string }>;
+    unavailable?: boolean;
+    pendingUsage?: boolean;
+    usageStatus?: 'pending';
+    pendingRequirementIds?: string[];
+  };
+  verificationRefusal?: string;
 };
 
 export const MANAGER_PROOF_UNAVAILABLE: StageManagerProof = {
