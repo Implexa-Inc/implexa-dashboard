@@ -39,6 +39,13 @@ test('accepts current backend capability projections without laundering pending,
       missing: [], skipped: [], fallbacksUsed: [],
     } };
   assert.ok(parseStageManagerProof(unavailable));
+  const unavailableStages = { status: 'unavailable', unavailableReason: 'stage_context_unavailable',
+    stageCount: 0, stages: [], verificationStatus: 'failed', capabilityProof: gap,
+    verificationRefusal: gap.reason };
+  assert.equal(parseStageManagerProof(unavailableStages)?.verificationStatus, 'failed');
+  assert.equal(parseStageManagerProof({ ...unavailableStages, verificationStatus: 'unavailable' }), null);
+  assert.equal(parseStageManagerProof({ ...unavailableStages, verificationRefusal: 'different_reason' }), null);
+  assert.equal(parseStageManagerProof({ ...unavailable, verificationRefusal: gap.reason }), null);
   for (const capabilityProof of [
     { ...complete, privateTrace: 'private' }, { ...complete, missing: ['desktop_media'] },
     { ...pending, gap: true }, { ...pending, pendingRequirementIds: 'desktop_media' },

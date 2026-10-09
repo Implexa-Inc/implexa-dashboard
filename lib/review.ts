@@ -509,7 +509,8 @@ export function parseStageManagerProof(raw: unknown): StageManagerProof | null {
           || !tokenList(capability.pendingRequirementIds)) return null;
     } else if (capability.pendingRequirementIds !== undefined) return null;
     if (capability.unavailable) {
-      if (!capability.gap || !token(capability.reason) || raw.status !== 'unavailable') return null;
+      if (!capability.gap || !token(capability.reason) || raw.status !== 'unavailable'
+          || raw.verificationRefusal !== undefined) return null;
     } else if (capability.gap) {
       if (raw.verificationStatus !== 'failed'
           || raw.verificationRefusal !== (capability.reason || 'required_capability_skipped')) return null;
@@ -519,7 +520,9 @@ export function parseStageManagerProof(raw: unknown): StageManagerProof | null {
   if (!MANAGER_VERIFICATION_STATUSES.has(String(raw.verificationStatus))) return null;
 
   if (raw.status === 'unavailable') {
-    if (raw.stageCount !== 0 || raw.stages.length !== 0 || raw.verificationStatus !== 'unavailable') return null;
+    const expectedVerification = isObject(capability) && capability.gap && !capability.unavailable
+      ? 'failed' : 'unavailable';
+    if (raw.stageCount !== 0 || raw.stages.length !== 0 || raw.verificationStatus !== expectedVerification) return null;
     if (typeof raw.unavailableReason !== 'string' || !raw.unavailableReason.trim()) return null;
     return raw as unknown as StageManagerProof;
   }

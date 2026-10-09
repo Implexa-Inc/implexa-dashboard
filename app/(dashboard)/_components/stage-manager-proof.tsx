@@ -29,7 +29,7 @@ export default function StageManagerProof({ proof }: { proof: StageManagerProof 
           {proof.capabilityProof.unavailable ? 'Machine capability evidence is unavailable; no pass is inferred.'
             : proof.capabilityProof.gap ? `Machine capability proof failed: ${proof.verificationRefusal}.`
               : proof.capabilityProof.usageStatus === 'pending' ? 'Machine capability usage evidence is pending; not a completed proof.'
-                : 'Required machine capability evidence is complete.'}
+                : 'No required machine capability evidence is missing or skipped.'}
           {proof.capabilityProof.fallbacksUsed.length > 0 && ` ${proof.capabilityProof.fallbacksUsed.length} fallback(s) recorded.`}
         </p>
       )}
