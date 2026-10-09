@@ -18,6 +18,44 @@ const passing = {
   disclosure: 'aggregate_stage_proof_only',
 };
 
+test('accepts current backend capability projections without laundering pending, failed or unavailable proof', () => {
+  const none = { status: 'none', stageCount: 0, stages: [], verificationStatus: 'not_required' };
+  const complete = { classified: true, gap: false, reason: null, missing: [], skipped: [],
+    fallbacksUsed: [], pendingUsage: false };
+  assert.ok(parseStageManagerProof({ ...none, capabilityProof: complete }));
+  assert.ok(parseStageManagerProof({ ...passing, capabilityProof: complete }));
+  const pending = { classified: true, gap: false, reason: null, missing: [], skipped: [],
+    fallbacksUsed: [], usageStatus: 'pending', pendingRequirementIds: ['desktop_media'] };
+  assert.equal(parseStageManagerProof({ ...none, capabilityProof: pending })?.capabilityProof?.usageStatus, 'pending');
+  const gap = { ...complete, gap: true, reason: 'required_capability_unproven', missing: ['desktop_media'] };
+  for (const base of [none, passing]) {
+    assert.equal(parseStageManagerProof({ ...base, capabilityProof: gap, verificationStatus: 'failed',
+      verificationRefusal: gap.reason })?.verificationStatus, 'failed');
+    assert.equal(parseStageManagerProof({ ...base, capabilityProof: gap }), null);
+  }
+  const unavailable = { status: 'unavailable', unavailableReason: 'capability_state_unavailable',
+    stageCount: 0, stages: [], verificationStatus: 'unavailable', capabilityProof: {
+      classified: true, gap: true, unavailable: true, reason: 'capability_state_unavailable',
+      missing: [], skipped: [], fallbacksUsed: [],
+    } };
+  assert.ok(parseStageManagerProof(unavailable));
+  const unavailableStages = { status: 'unavailable', unavailableReason: 'stage_context_unavailable',
+    stageCount: 0, stages: [], verificationStatus: 'failed', capabilityProof: gap,
+    verificationRefusal: gap.reason };
+  assert.equal(parseStageManagerProof(unavailableStages)?.verificationStatus, 'failed');
+  assert.equal(parseStageManagerProof({ ...unavailableStages, verificationStatus: 'unavailable' }), null);
+  assert.equal(parseStageManagerProof({ ...unavailableStages, verificationRefusal: 'different_reason' }), null);
+  assert.equal(parseStageManagerProof({ ...unavailable, verificationRefusal: gap.reason }), null);
+  for (const capabilityProof of [
+    { ...complete, privateTrace: 'private' }, { ...complete, missing: ['desktop_media'] },
+    { ...pending, gap: true }, { ...pending, pendingRequirementIds: 'desktop_media' },
+    { ...complete, fallbacksUsed: [{ requirementId: 'media', fallback: 'native', privateTrace: 'private' }] },
+  ]) assert.equal(parseStageManagerProof({ ...none, capabilityProof }), null);
+  assert.equal(parseStageManagerProof({ ...none, verificationRefusal: 'required_capability_unproven' }), null);
+  assert.equal(parseStageManagerProof({ ...none, capabilityProof: gap, verificationStatus: 'failed',
+    verificationRefusal: 'different_reason' }), null);
+});
+
 test('accepts the exact aggregate composed 5/5 Manager proof', () => {
   const proof = parseStageManagerProof(passing);
   assert.ok(proof);
@@ -82,6 +120,9 @@ test('Review packet preserves Manager proof and requires its owner-scoped source
   const parsed = parseReviewPacketResponse(packet, 'run-1');
   assert.ok(parsed);
   assert.equal(parsed.managerProof.verificationStatus, 'passed');
+  assert.ok(parseReviewPacketResponse({ ...packet, managerProof: { ...passing, capabilityProof: {
+    classified: true, gap: false, reason: null, missing: [], skipped: [], fallbacksUsed: [], pendingUsage: false,
+  } } }, 'run-1'), 'current capability-bearing backend packet remains reviewable');
   const missingSource = { ...packet, sources: { ...packet.sources } };
   delete (missingSource.sources as Record<string, unknown>).manager_context;
   assert.equal(parseReviewPacketResponse(missingSource, 'run-1'), null);
@@ -99,5 +140,7 @@ test('Run Detail and Review both surface Manager proof separately from Judge his
   assert.match(labels, /Manager needs your input/);
   assert.match(card, /Independent verification did not/);
   assert.match(card, /no Judge result or successful Manager proof is inferred/);
+  assert.match(card, /usage evidence is pending; not a completed proof/);
+  assert.match(card, /Machine capability proof failed/);
   assert.doesNotMatch(card, /decisionTrace|criterion_id|instruction|evidenceRepairReceipt/);
 });
