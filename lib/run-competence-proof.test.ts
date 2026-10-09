@@ -40,3 +40,14 @@ test('an applied receipt reports exact stages without claiming quality', () => {
 test('an unreadable receipt source stays unavailable, not empty', () => {
   assert.equal(stageSkillStatus(skill, proof({ handlingStatus: 'unavailable' })).label, 'Execution receipt unavailable');
 });
+
+test('a receipt for the same skill at another stage cannot color this binding as applied', () => {
+  const scoped = { ...skill, stages: [9] };
+  const receipts = [8, 9].map((stage) => ({ ...skill, receiptId: `receipt-${stage}`, stages: [stage],
+    handling: stage === 8 ? 'applied' as const : 'refused' as const,
+    reason: `Stage ${stage}`, evidenceBinding: {}, reportDigest: 'c'.repeat(64),
+    causationClaim: 'not_claimed' as const, createdAt: '2026-10-09T12:00:00Z' }));
+  assert.equal(stageSkillStatus(scoped, proof({ receipts, handlingStatus: 'ready' })).label, 'refused');
+  assert.equal(stageSkillStatus(scoped, proof({ receipts: [receipts[0]], handlingStatus: 'incomplete' })).label,
+    'Execution receipt not recorded');
+});

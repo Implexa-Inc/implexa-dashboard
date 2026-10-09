@@ -1,6 +1,8 @@
 import { parseHistoricalCandidates } from './historical-review-candidate.ts';
 import {
   COMPETENCE_PROOF_UNAVAILABLE,
+  stageSkillBindingKey,
+  type FrozenStageSkill,
   type StageCompetenceProof,
 } from './run-competence-proof.ts';
 import {
@@ -450,8 +452,10 @@ export function parseStageCompetenceProof(raw: unknown): StageCompetenceProof | 
   const contextStatus = raw.contextStatus as StageCompetenceProof['contextStatus'];
   const bindings = raw.bindings as Array<Record<string, unknown>>;
   const receipts = raw.receipts as Array<Record<string, unknown>>;
-  if (new Set(bindings.map((binding) => String(binding.skillId))).size !== bindings.length) return null;
-  if (new Set(receipts.map((receipt) => String(receipt.skillId))).size !== receipts.length) return null;
+  const bindingKey = (value: Record<string, unknown>) => stageSkillBindingKey(value as unknown as FrozenStageSkill);
+  if (new Set(bindings.map(bindingKey)).size !== bindings.length) return null;
+  if (new Set(receipts.map(bindingKey)).size !== receipts.length
+      || new Set(receipts.map((receipt) => String(receipt.receiptId))).size !== receipts.length) return null;
   if (contextStatus !== 'ready' && raw.bindings.length > 0) return null;
   if (contextStatus === 'ready' && raw.bindings.length === 0) return null;
   if (raw.handlingStatus === 'unavailable' && raw.receipts.length > 0) return null;
@@ -460,10 +464,7 @@ export function parseStageCompetenceProof(raw: unknown): StageCompetenceProof | 
   if (raw.supplyStatus === 'unavailable' && !isId(raw.supplyUnavailableReason)) return null;
   if (raw.handlingStatus === 'unavailable' && !isId(raw.handlingUnavailableReason)) return null;
   for (const receipt of receipts) {
-    const binding = bindings.find((candidate) => candidate.skillId === receipt.skillId);
-    if (!binding || binding.source !== receipt.source || binding.slug !== receipt.slug
-        || binding.contentDigest !== receipt.contentDigest
-        || JSON.stringify(binding.stages) !== JSON.stringify(receipt.stages)) return null;
+    if (!bindings.some((candidate) => bindingKey(candidate) === bindingKey(receipt))) return null;
   }
 
   return raw as unknown as StageCompetenceProof;

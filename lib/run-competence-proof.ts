@@ -52,11 +52,16 @@ export const COMPETENCE_PROOF_UNAVAILABLE: StageCompetenceProof = {
   receipts: [],
 };
 
+/** A skill reused by another stage is a distinct frozen binding, not a duplicate. */
+export function stageSkillBindingKey(skill: FrozenStageSkill): string {
+  return JSON.stringify([skill.skillId, skill.source, skill.slug, skill.contentDigest, skill.stages]);
+}
+
 export function stageSkillStatus(
   skill: FrozenStageSkill,
   proof: StageCompetenceProof,
 ): { label: string; detail: string; tone: 'neutral' | 'positive' | 'warning' } {
-  const receipt = proof.receipts.find((item) => item.skillId === skill.skillId);
+  const receipt = proof.receipts.find((item) => stageSkillBindingKey(item) === stageSkillBindingKey(skill));
   if (proof.handlingStatus === 'unavailable') {
     return {
       label: 'Execution receipt unavailable',
