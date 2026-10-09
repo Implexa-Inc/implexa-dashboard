@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { competenceEmptyCopy, competenceSupplyLabel, stageSkillStatus, type StageCompetenceProof } from './run-competence-proof.ts';
 
 const skill = { skillId: 'skill-1', source: 'org', slug: 'remotion', stages: [4, 12], contentDigest: 'a'.repeat(64) };
@@ -39,4 +40,18 @@ test('an applied receipt reports exact stages without claiming quality', () => {
 
 test('an unreadable receipt source stays unavailable, not empty', () => {
   assert.equal(stageSkillStatus(skill, proof({ handlingStatus: 'unavailable' })).label, 'Execution receipt unavailable');
+});
+
+test('a receipt for the same skill at another stage cannot color this binding as applied', () => {
+  const scoped = { ...skill, stages: [9] };
+  const receipts = [8, 9].map((stage) => ({ ...skill, receiptId: `receipt-${stage}`, stages: [stage],
+    handling: stage === 8 ? 'applied' as const : 'refused' as const,
+    reason: `Stage ${stage}`, evidenceBinding: {}, reportDigest: 'c'.repeat(64),
+    causationClaim: 'not_claimed' as const, createdAt: '2026-10-09T12:00:00Z' }));
+  assert.equal(stageSkillStatus(scoped, proof({ receipts, handlingStatus: 'ready' })).label, 'refused');
+  assert.equal(stageSkillStatus(scoped, proof({ receipts: [receipts[0]], handlingStatus: 'incomplete' })).label,
+    'Execution receipt not recorded');
+  const card = readFileSync(new URL('../app/(dashboard)/_components/stage-competence-proof.tsx', import.meta.url), 'utf8');
+  assert.match(card, /stageSkillBindingKey\(item\) === stageSkillBindingKey\(skill\)/);
+  assert.match(card, /key=\{stageSkillBindingKey\(skill\)\}/);
 });

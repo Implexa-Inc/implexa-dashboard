@@ -31,6 +31,20 @@ test('malformed competence proof cannot create an execution claim', () => {
   }), null);
 });
 
+test('stage-scoped reuse matches exact bindings and refuses duplicates or cross-stage receipts', () => {
+  const bindings = [8, 9, 11].map((stage) => ({ ...binding, stages: [stage] }));
+  const receipts = bindings.map((b, index) => ({ ...receipt, ...b, receiptId: `receipt-${index}` }));
+  const proof = { contextStatus: 'ready', attemptContextId: 'attempt-1', contextDigest: digest('c'),
+    workflowVersionId: null, bindings, supplyStatus: 'supplied', handlingStatus: 'ready', receipts };
+  assert.ok(parseStageCompetenceProof(proof));
+  assert.equal(parseStageCompetenceProof({ ...proof, bindings: [...bindings, bindings[0]] }), null);
+  assert.equal(parseStageCompetenceProof({ ...proof, receipts: [...receipts, receipts[0]] }), null);
+  assert.equal(parseStageCompetenceProof({ ...proof, receipts: [receipts[0], { ...receipts[1], receiptId: receipts[0].receiptId }, receipts[2]] }), null);
+  for (const change of [{ stages: [10] }, { source: 'other' }, { slug: 'other' }, { contentDigest: digest('d') }]) {
+    assert.equal(parseStageCompetenceProof({ ...proof, receipts: [receipts[0], { ...receipts[1], ...change }, receipts[2]] }), null);
+  }
+});
+
 test('unavailable context and handling carry explicit reasons and no rows', () => {
   assert.ok(parseStageCompetenceProof({
     contextStatus: 'unavailable', unavailableReason: 'context_read_failed', attemptContextId: null, contextDigest: null,

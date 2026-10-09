@@ -2,6 +2,7 @@ import {
   competenceEmptyCopy,
   competenceSupplyLabel,
   stageSkillStatus,
+  stageSkillBindingKey,
   type StageCompetenceProof,
 } from '@/lib/run-competence-proof';
 
@@ -19,9 +20,9 @@ export default function StageCompetenceProof({ proof }: { proof: StageCompetence
         <ul className="mt-3 space-y-2">
           {proof.bindings.map((skill) => {
             const status = stageSkillStatus(skill, proof);
-            const receipt = proof.receipts.find((item) => item.skillId === skill.skillId);
+            const receipt = proof.receipts.find((item) => stageSkillBindingKey(item) === stageSkillBindingKey(skill));
             return (
-              <li key={skill.skillId} className="rounded-md border border-ink-800 px-3 py-2">
+              <li key={stageSkillBindingKey(skill)} className="rounded-md border border-ink-800 px-3 py-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-medium text-ink-100">{skill.source}/{skill.slug}</p>
                   <span className={`text-[11px] ${status.tone === 'positive' ? 'text-emerald-300' : status.tone === 'warning' ? 'text-amber-300' : 'text-ink-400'}`}>
