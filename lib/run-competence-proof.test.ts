@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { competenceEmptyCopy, competenceSupplyLabel, stageSkillStatus, type StageCompetenceProof } from './run-competence-proof.ts';
 
 const skill = { skillId: 'skill-1', source: 'org', slug: 'remotion', stages: [4, 12], contentDigest: 'a'.repeat(64) };
@@ -50,4 +51,7 @@ test('a receipt for the same skill at another stage cannot color this binding as
   assert.equal(stageSkillStatus(scoped, proof({ receipts, handlingStatus: 'ready' })).label, 'refused');
   assert.equal(stageSkillStatus(scoped, proof({ receipts: [receipts[0]], handlingStatus: 'incomplete' })).label,
     'Execution receipt not recorded');
+  const card = readFileSync(new URL('../app/(dashboard)/_components/stage-competence-proof.tsx', import.meta.url), 'utf8');
+  assert.match(card, /stageSkillBindingKey\(item\) === stageSkillBindingKey\(skill\)/);
+  assert.match(card, /key=\{stageSkillBindingKey\(skill\)\}/);
 });
