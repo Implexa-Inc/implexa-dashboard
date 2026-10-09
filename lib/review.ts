@@ -180,6 +180,9 @@ export type ReviewPacket = {
   issues: ReviewIssue[];
   sources: Record<string, SourceState>;
   live: boolean;
+  readFailure?: 'session_unavailable' | 'http_refused' | 'response_unreadable'
+    | 'contract_manager_proof' | 'contract_competence_proof' | 'contract_packet' | 'timeout' | 'transport';
+  httpStatus?: number;
 };
 
 const PACKET_UNAVAILABLE: ReviewPacket = {
@@ -768,22 +771,35 @@ export async function getReviewQueue(): Promise<ReviewQueue> {
   }
 }
 
+/** Identify a refused projection without returning private packet fields or error text. */
+export function reviewPacketContractFailure(body: unknown): NonNullable<ReviewPacket['readFailure']> {
+  if (isObject(body) && body.ok === true) {
+    if (body.managerProof !== undefined && !parseStageManagerProof(body.managerProof)) return 'contract_manager_proof';
+    if (body.competenceProof !== undefined && !parseStageCompetenceProof(body.competenceProof)) return 'contract_competence_proof';
+  }
+  return 'contract_packet';
+}
+
 export async function getReviewPacket(runId: string): Promise<ReviewPacket> {
   const jwt = await sessionToken();
-  if (!jwt) return PACKET_UNAVAILABLE;
+  if (!jwt) return { ...PACKET_UNAVAILABLE, readFailure: 'session_unavailable' };
   try {
     const res = await fetch(`${BACKEND}/api/v2/review/runs/${encodeURIComponent(runId)}`, {
       headers: { authorization: `Bearer ${jwt}` },
       cache: 'no-store',
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) return PACKET_UNAVAILABLE;
-    const body = await res.json();
+    if (!res.ok) return { ...PACKET_UNAVAILABLE, readFailure: 'http_refused', httpStatus: res.status };
+    let body: unknown;
+    try { body = await res.json(); }
+    catch { return { ...PACKET_UNAVAILABLE, readFailure: 'response_unreadable' }; }
     // Reject, do not coerce. Defaulting the missing pieces would render an
     // "actionable empty review" over a response we did not understand.
-    return parseReviewPacketResponse(body, runId) ?? PACKET_UNAVAILABLE;
-  } catch {
-    return PACKET_UNAVAILABLE;
+    return parseReviewPacketResponse(body, runId)
+      ?? { ...PACKET_UNAVAILABLE, readFailure: reviewPacketContractFailure(body) };
+  } catch (error) {
+    return { ...PACKET_UNAVAILABLE, readFailure: error instanceof Error
+      && ['TimeoutError', 'AbortError'].includes(error.name) ? 'timeout' : 'transport' };
   }
 }
 

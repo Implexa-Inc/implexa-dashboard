@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PACKET_SOURCE_KEYS, parseReviewPacketResponse, parseStageManagerProof } from './review.ts';
+import { PACKET_SOURCE_KEYS, parseReviewPacketResponse, parseStageManagerProof, reviewPacketContractFailure } from './review.ts';
 
 const passing = {
   status: 'ready',
@@ -17,6 +17,13 @@ const passing = {
   verificationStatus: 'passed',
   disclosure: 'aggregate_stage_proof_only',
 };
+
+test('read diagnostics name refused contracts without exposing private packet or error content', () => {
+  assert.equal(reviewPacketContractFailure({ ok: true, managerProof: { privateTrace: 'secret' } }), 'contract_manager_proof');
+  assert.equal(reviewPacketContractFailure({ ok: true, managerProof: passing, competenceProof: {} }), 'contract_competence_proof');
+  assert.equal(reviewPacketContractFailure({ ok: false, error: 'private upstream text' }), 'contract_packet');
+  assert.equal(reviewPacketContractFailure(null), 'contract_packet');
+});
 
 test('accepts current backend capability projections without laundering pending, failed or unavailable proof', () => {
   const none = { status: 'none', stageCount: 0, stages: [], verificationStatus: 'not_required' };

@@ -40,6 +40,9 @@ export default async function ReviewRoomPage({ params, searchParams }: {
         <p className="mt-2 text-sm text-ink-400">
           That doesn&apos;t mean the result is gone — its Review data could not be loaded or verified just now.
         </p>
+        {packet.readFailure && <p className="mt-2 text-xs text-ink-500">
+          Read failure: {packet.readFailure}{packet.httpStatus ? ` (${packet.httpStatus})` : ''}.
+        </p>}
         <Link href="/review" className="mt-6 inline-block text-sm text-sky-400 hover:underline">
           Back to Review
         </Link>
