@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import Modal from './modal';
 
 type Scope = {
   kind: 'private_agent'; agentSlug: string; agentFamilyId: string;
@@ -97,6 +98,11 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
   const [activeEditingId, setActiveEditingId] = useState<string | null>(null);
   const [activeEditInstruction, setActiveEditInstruction] = useState('');
   const [activeEditError, setActiveEditError] = useState<string | null>(null);
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const [proposal, setProposal] = useState({ requestId: '', issueId: '', category: 'factuality', ruleClass: 'preference', polarity: 'negative', rule: '' });
+  const [proposalError, setProposalError] = useState<string | null>(null);
+  const [proposalStatus, setProposalStatus] = useState<string | null>(null);
+  const closeProposal = useCallback(() => { if (busy !== 'propose') setProposalOpen(false); }, [busy]);
 
   const token = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -151,6 +157,35 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
       await load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Past feedback could not be analyzed.');
+    } finally { setBusy(null); }
+  }
+
+  async function proposeFromFeedback() {
+    if (source !== 'ready' || busy !== null) return;
+    const body = { ...proposal, requestId: proposal.requestId.trim(), issueId: proposal.issueId.trim(),
+      rule: proposal.rule.trim().replace(/\s+/g, ' ') };
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(body.requestId) || !uuid.test(body.issueId)) {
+      setProposalError('Enter the Review request and issue IDs from the completed revision.'); return;
+    }
+    if (body.rule.length < 12 || body.rule.length > 300) {
+      setProposalError('Write a general rule between 12 and 300 characters.'); return;
+    }
+    setBusy('propose'); setProposalError(null); setProposalStatus(null);
+    try {
+      const result = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/learning-influence/propose`, {
+        jwt: await token(), method: 'POST', body,
+      });
+      if (result?.ok !== true || result?.status !== 'suggested' || result?.active !== false
+          || typeof result?.created !== 'boolean' || typeof result?.candidateId !== 'string'
+          || !uuid.test(result.candidateId) || !/^[0-9a-f]{64}$/i.test(result?.candidateKey || '')) {
+        throw new Error('The proposal result could not be verified. No approval or learning use is claimed.');
+      }
+      setProposalOpen(false);
+      setProposalStatus(result.created ? 'Suggestion recorded. It is not active or approved.' : 'Existing suggestion linked. It is not active or approved.');
+      await load();
+    } catch (caught) {
+      setProposalError(caught instanceof Error ? caught.message : 'The learning suggestion could not be proposed.');
     } finally { setBusy(null); }
   }
 
@@ -240,6 +275,9 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
           className="btn-outline mt-3 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40">
           {busy === 'historical-backfill' ? 'Analyzing past feedback…' : 'Analyze past feedback'}
         </button>
+        <button type="button" disabled={busy !== null} onClick={() => { setProposalError(null); setProposalOpen(true); }}
+          className="btn-outline ml-2 mt-3 px-3 py-1.5 text-xs disabled:opacity-40">Propose from a Review issue</button>
+        {proposalStatus && <p role="status" className="mt-2 text-xs text-sky-700 dark:text-sky-300">{proposalStatus}</p>}
         {analysis && (
           <p role="status" className="mt-2 text-xs text-sky-700 dark:text-sky-300">
             {analysis.agentEvidence === 0
@@ -250,6 +288,37 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
           </p>
         )}
       </div>
+
+      <Modal open={proposalOpen} onClose={closeProposal} title="Propose a learning suggestion"
+        subtitle="Use a completed Review revision. This records inert evidence only; approval is a separate human decision.">
+        <form onSubmit={(event) => { event.preventDefault(); void proposeFromFeedback(); }} className="space-y-3">
+          {(['requestId', 'issueId'] as const).map((key) => (
+            <label key={key} className="block text-xs text-ink-300">{key === 'requestId' ? 'Review request ID' : 'Review issue ID'}
+              <input required value={proposal[key]} disabled={busy === 'propose'} className="mt-1 w-full rounded border border-ink-700 bg-ink-900 p-2"
+                onChange={(event) => setProposal({ ...proposal, [key]: event.target.value })} />
+            </label>
+          ))}
+          {([
+            ['category', 'Feedback category', ['factuality', 'visual_relevance', 'text_treatment', 'pacing', 'composition', 'audio_treatment', 'timing', 'structure', 'tone', 'completeness', 'other']],
+            ['ruleClass', 'Rule class', ['preference', 'reliability']],
+            ['polarity', 'Rule direction', ['negative', 'positive']],
+          ] as const).map(([key, label, options]) => (
+            <label key={key} className="block text-xs text-ink-300">{label}
+              <select value={proposal[key]} disabled={busy === 'propose'} className="ml-2 rounded border border-ink-700 bg-ink-900 p-2"
+                onChange={(event) => setProposal({ ...proposal, [key]: event.target.value })}>
+                {options.map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>
+          ))}
+          <label className="block text-xs text-ink-300">General rule (no private names, paths or IDs)
+            <textarea required minLength={12} maxLength={300} value={proposal.rule} disabled={busy === 'propose'}
+              className="mt-1 w-full rounded border border-ink-700 bg-ink-900 p-2" rows={3}
+              onChange={(event) => setProposal({ ...proposal, rule: event.target.value })} />
+          </label>
+          {proposalError && <p role="alert" className="text-xs text-red-400">{proposalError}</p>}
+          <button type="submit" disabled={busy !== null} className="btn-primary">{busy === 'propose' ? 'Proposing…' : 'Record suggestion'}</button>
+        </form>
+      </Modal>
 
       <div className="mt-5">
         <h3 className="text-sm font-semibold text-ink-100">Suggested</h3>
