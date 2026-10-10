@@ -5,6 +5,33 @@ import { render } from '../../../lib/test/render.ts';
 const ready = { ok: true, source: 'ready',
   selectedVersion: { id: 'agent-version-13', version: 13, taskSignatureDigest: 'b'.repeat(64) },
   suggested: [], active: [] };
+
+test('only the latest explicitly disabled rule can be enabled through its exact version digest', async () => {
+  const item = { ruleVersionId: 'version-2', ruleId: 'rule-1', version: 2, state: 'disabled',
+    action: 'disable', versionDigest: 'd'.repeat(64), latest: true,
+    suggestedAt: null, approvedAt: null, runs: [] };
+  const payload = { ...ready, history: [item] };
+  const rendered = await render('agent-learnings-card.tsx', {
+    slug: 'video/agent', initialPayload: payload, initialSource: 'ready',
+  }, { backend() { return payload; } });
+  try {
+    await rendered.click(rendered.getByText('Enable rule'));
+    const writes = rendered.calls.backend.filter((call) => (call.init as { method?: string })?.method === 'POST');
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].path, '/api/v2/agents/video%2Fagent/learning-influence/rules/rule-1/enable');
+    assert.equal(JSON.stringify((writes[0].init as { body?: unknown }).body), JSON.stringify({ versionDigest: 'd'.repeat(64) }));
+    assert.ok((writes[0].init as { jwt?: string }).jwt);
+  } finally { rendered.cleanup(); }
+  for (const change of [{ latest: false }, { latest: undefined }, { state: 'revoked' },
+    { action: 'undo' }, { versionDigest: null }, { versionDigest: 'bad' }]) {
+    const p = { ...ready, history: [{ ...item, ...change }] };
+    const r = await render('agent-learnings-card.tsx', {
+      slug: 'video-agent', initialPayload: p, initialSource: 'ready',
+    }, { backend() { return p; } });
+    try { assert.equal(r.queryByText('Enable rule'), null); }
+    finally { r.cleanup(); }
+  }
+});
 const oneRunSuggestion = {
   id: 'candidate-1', candidateKey: 'a'.repeat(64), ruleClass: 'preference', polarity: 'positive',
   summary: 'Time text and animations to the spoken narration.',
