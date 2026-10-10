@@ -34,7 +34,8 @@ type ProofRun = {
   outcomeEvidenceId: string | null; causationClaim: 'not_claimed';
 };
 type RuleHistory = { ruleVersionId: string; ruleId: string; version: number;
-  state: 'active' | 'disabled' | 'revoked'; suggestedAt: string | null; approvedAt: string | null; runs: ProofRun[] };
+  state: 'active' | 'disabled' | 'revoked'; action?: string; versionDigest?: string | null; latest?: boolean;
+  suggestedAt: string | null; approvedAt: string | null; runs: ProofRun[] };
 type Payload = { ok: true; source: 'ready';
   selectedVersion: { id: string; version: number; taskSignatureDigest: string };
   suggested: Candidate[]; active: ActiveRule[]; history?: RuleHistory[] };
@@ -468,6 +469,13 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
             {(payload.history || []).map((item) => (
               <li key={item.ruleVersionId} className="rounded-lg border border-ink-800 bg-ink-900/40 p-3">
                 <p className="text-xs font-medium text-ink-200">Rule v{item.version} · {item.state}</p>
+                {item.state === 'disabled' && item.action === 'disable' && item.latest === true
+                  && /^[0-9a-f]{64}$/i.test(item.versionDigest || '') && (
+                  <button type="button" className="btn-outline mt-2 text-xs" disabled={busy !== null}
+                    onClick={() => void act(`rules/${item.ruleId}/enable`, { versionDigest: item.versionDigest! }, item.ruleVersionId)}>
+                    {busy === item.ruleVersionId ? 'Enabling…' : 'Enable rule'}
+                  </button>
+                )}
                 {item.runs.length === 0 ? (
                   <p className="mt-2 text-[11px] text-ink-500">Suggested → approved → not yet supplied</p>
                 ) : item.runs.map((run) => (
