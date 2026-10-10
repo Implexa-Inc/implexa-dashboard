@@ -15,6 +15,89 @@ const oneRunSuggestion = {
   eligible: false, eligibilityReason: 'insufficient_recurrence',
 };
 
+const proposal = { requestId: '11111111-1111-4111-8111-111111111111',
+  issueId: '22222222-2222-4222-8222-222222222222', category: 'factuality',
+  ruleClass: 'preference', polarity: 'negative',
+  rule: 'Keep diagnostic timing readouts out of audience-facing content.' };
+const proposalReceipt = { ok: true, status: 'suggested', active: false, created: true,
+  candidateId: '33333333-3333-4333-8333-333333333333', candidateKey: 'a'.repeat(64) };
+
+async function fillProposal(rendered: Awaited<ReturnType<typeof render>>, values = proposal) {
+  await rendered.click(rendered.getByText('Propose from a Review issue'));
+  const inputs = rendered.document.querySelectorAll('input');
+  await rendered.act(() => {
+    const setInput = Object.getOwnPropertyDescriptor(rendered.window.HTMLInputElement.prototype, 'value')!.set!;
+    for (const [index, value] of [values.requestId, values.issueId].entries()) {
+      setInput.call(inputs[index], value);
+      inputs[index].dispatchEvent(new rendered.window.Event('input', { bubbles: true }));
+    }
+    const textarea = rendered.document.querySelector('textarea')!;
+    Object.getOwnPropertyDescriptor(rendered.window.HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, values.rule);
+    textarea.dispatchEvent(new rendered.window.Event('input', { bubbles: true }));
+  });
+}
+async function submitProposal(rendered: Awaited<ReturnType<typeof render>>) {
+  await rendered.act(() => rendered.document.querySelector('form')!.dispatchEvent(
+    new rendered.window.Event('submit', { bubbles: true, cancelable: true })));
+}
+
+test('owner proposal records only an inert suggestion through the agent-bound API, including replay', async () => {
+  for (const created of [true, false]) {
+    const calls: Array<{ path: string; body?: unknown; method?: string; jwt?: string }> = [];
+    const rendered = await render('agent-learnings-card.tsx', {
+      slug: 'video/agent', initialPayload: ready, initialSource: 'ready',
+    }, { backend(path, init) {
+      calls.push({ path, ...(init as object) });
+      return path.endsWith('/propose') ? { ...proposalReceipt, created } : ready;
+    } });
+    try {
+      await fillProposal(rendered); await submitProposal(rendered);
+      const writes = calls.filter((call) => call.method === 'POST');
+      assert.equal(writes.length, 1);
+      assert.equal(writes[0].path, '/api/v2/agents/video%2Fagent/learning-influence/propose');
+      assert.equal(JSON.stringify(writes[0].body), JSON.stringify(proposal));
+      assert.ok(writes[0].jwt, 'uses the existing session auth path');
+      assert.match(rendered.text(), /Suggestion recorded|Existing suggestion linked/);
+      assert.match(rendered.text(), /not active or approved/);
+      assert.equal(rendered.document.querySelector('[role="dialog"]'), null);
+      assert.ok(calls.filter((call) => call.path.endsWith('/learning-influence')).length >= 2, 'refreshes the server-owned candidate list');
+    } finally { rendered.cleanup(); }
+  }
+});
+
+test('owner proposal refuses unverifiable or active responses without showing success or approving', async () => {
+  for (const result of [{ ok: false, error: 'wrong owner' }, { ...proposalReceipt, active: true },
+    { ...proposalReceipt, candidateId: null }, { ...proposalReceipt, candidateKey: '' }]) {
+    const rendered = await render('agent-learnings-card.tsx', {
+      slug: 'video-agent', initialPayload: ready, initialSource: 'ready',
+    }, { backend(path) { return path.endsWith('/propose') ? result : ready; } });
+    try {
+      await fillProposal(rendered); await submitProposal(rendered);
+      assert.match(rendered.text(), /proposal result could not be verified/);
+      assert.doesNotMatch(rendered.text(), /Suggestion recorded|Existing suggestion linked/);
+      assert.ok(rendered.document.querySelector('[role="dialog"]'));
+    } finally { rendered.cleanup(); }
+  }
+});
+
+test('owner proposal validates IDs and general rule before a write; unavailable source exposes no action', async () => {
+  for (const values of [{ ...proposal, requestId: 'not-an-id' }, { ...proposal, rule: 'short' }]) {
+    const rendered = await render('agent-learnings-card.tsx', {
+      slug: 'video-agent', initialPayload: ready, initialSource: 'ready',
+    }, { backend() { return ready; } });
+    try {
+      await fillProposal(rendered, values); await submitProposal(rendered);
+      assert.equal(rendered.calls.backend.filter((call) => (call.init as { method?: string })?.method === 'POST').length, 0);
+      assert.ok(rendered.document.querySelector('[role="alert"]'));
+    } finally { rendered.cleanup(); }
+  }
+  const rendered = await render('agent-learnings-card.tsx', {
+    slug: 'video-agent', initialPayload: null, initialSource: 'unavailable',
+  }, { backend() { return { ok: false }; } });
+  try { assert.equal(rendered.queryByText('Propose from a Review issue'), null); }
+  finally { rendered.cleanup(); }
+});
+
 test('historical feedback analysis posts to the agent-bound backfill and refreshes suggestions', async () => {
   const responses: Array<{ path: string; method?: string }> = [];
   const rendered = await render('agent-learnings-card.tsx', {
