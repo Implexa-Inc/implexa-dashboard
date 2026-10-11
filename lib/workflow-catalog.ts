@@ -157,6 +157,9 @@ export type WorkflowVersionEntry = {
 };
 
 export type WorkflowDetail = {
+  /** Exact immutable authoring envelope, never rebuilt from display steps. */
+  revision_contract?: AgentRevisionContract | null;
+  definition_version_source?: 'installed' | 'live' | null;
   id: string;
   source: string;
   slug: string;
@@ -549,9 +552,32 @@ export async function getWorkflowRunInputs(
 // or the me/agents/:slug/detail envelope) -> the dashboard WorkflowDetail
 // shape. Exported so lib/agent-detail.ts maps the envelope's workflow section
 // through the exact same defensive mapping as the legacy reads.
+export type AgentRevisionContract = Record<string, unknown> & {
+  workflow_id: string;
+  workflow_version_id: string;
+  steps: Array<Record<string, unknown> & { order: number; label: string }>;
+};
+
+function mapRevisionContract(w: any): AgentRevisionContract | null {
+  const c = w.revision_contract;
+  if (!c || typeof c !== 'object' || Array.isArray(c)
+    || typeof c.workflow_id !== 'string' || !c.workflow_id || c.workflow_id !== w.id
+    || typeof c.workflow_version_id !== 'string' || !c.workflow_version_id
+    || c.workflow_version_id !== w.workflow_version_id || !Array.isArray(c.steps)
+    || !c.steps.length || !Array.from(c.steps).every((s: any) => s && typeof s === 'object'
+      && !Array.isArray(s) && Number.isSafeInteger(s.order) && s.order > 0 && typeof s.label === 'string')) return null;
+  if (new Set(c.steps.map((s: any) => s.order)).size !== c.steps.length) return null;
+  // Preserve all execution fields; filtering them through WorkflowStep loses I/O.
+  return c;
+}
+
 export function mapWorkflowDetail(w: any, slug: string, source: string): WorkflowDetail {
   const num = (v: unknown) => (typeof v === 'number' && v >= 0 ? v : 0);
   return {
+    revision_contract: mapRevisionContract(w),
+    // Unlike the legacy run-input default below, unknown is NOT proof of live.
+    definition_version_source: w.run_input_version_source === 'live' || w.run_input_version_source === 'installed'
+      ? w.run_input_version_source : null,
     id: String(w.id ?? ''),
     source: String(w.source ?? source),
     slug: String(w.slug ?? slug),
