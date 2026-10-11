@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import Modal from './modal';
 import { orderedInputFields, type WorkflowInputContract } from '@/lib/workflow-input-contract';
 import { describeAuthorityDelta, type AgentAuthorityDelta } from '@/lib/agent-authority-delta';
+import { trainingProposedAdoptionPreview, trainingProposedAdoptionReceipt,
+  trainingSuccessorAdoptionActionAvailable } from '@/lib/manager-training-run-preflight';
 
 export type AvailableAgentUpdate = {
   workflow_version_id: string;
@@ -17,6 +19,107 @@ export type AvailableAgentUpdate = {
   /** The exact authority delta, when the backend classified this as expanding. */
   authority_delta?: AgentAuthorityDelta | null;
 };
+
+/** Owner acceptance of a compiler-passed proposal; never launches a run. */
+export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string; baseVersionId: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [targetId, setTargetId] = useState('');
+  const [preview, setPreview] = useState<NonNullable<ReturnType<typeof trainingProposedAdoptionPreview>> | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [receipt, setReceipt] = useState<NonNullable<ReturnType<typeof trainingProposedAdoptionReceipt>> | null>(null);
+  const [applied, setApplied] = useState(false);
+  const [message, setMessage] = useState('');
+  const [uncertain, setUncertain] = useState(false);
+  const operation = useRef<{ digest: string; key: string } | null>(null);
+  const canActivate = !!receipt || (preview?.readiness === 'already_adopted' && preview.eligibleRouteCount > 0);
+  const supabase = createClient();
+  async function call(path: string, body?: unknown, idempotencyKey?: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('Sign in before reviewing this update.');
+    return callBackend(path, { jwt: session.access_token, method: body ? 'POST' : 'GET', body, idempotencyKey });
+  }
+  const endpoint = `/api/v2/agent-training/agents/${encodeURIComponent(slug)}`;
+  async function review() {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(true); setOpen(true); setMessage('');
+    setPreview(null); setConfirmed(false); setReceipt(null); setApplied(false); setTargetId('');
+    try {
+      const projection = await call(`/api/v2/agents/${encodeURIComponent(slug)}/hardening`);
+      const candidate = projection?.latestCandidate;
+      if (projection?.ok !== true || projection.slug !== slug || projection.activeVersion?.id !== baseVersionId
+        || candidate?.versionStatus !== 'proposed' || candidate.result !== 'hardening_passed'
+        || candidate.activationEligible !== true || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(candidate.workflowVersionId || '')
+        || !/^[a-f0-9]{64}$/.test(candidate.manifestDigest || '')) {
+        throw new Error('No current compiler-passed proposal could be verified. Reload the agent page.');
+      }
+      const target = candidate.workflowVersionId;
+      setTargetId(target);
+      const result = await call(`${endpoint}/preview-proposed-adoption`, { sourceVersionId: baseVersionId, targetVersionId: target });
+      const checked = trainingProposedAdoptionPreview(result, baseVersionId, target);
+      if (!checked) throw new Error(result?.reason || 'Reference preview could not be verified.');
+      setPreview(checked);
+      if (checked.readiness !== 'adoption_available') setMessage(checked.reason || 'References are already carried forward.');
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Proposal review unavailable.'); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
+  async function adopt() {
+    if (busyRef.current || !confirmed || !preview || !trainingSuccessorAdoptionActionAvailable(preview)) return;
+    busyRef.current = true; setBusy(true); setMessage('');
+    try {
+      const storageKey = `proposed-adoption:${slug}:${baseVersionId}:${targetId}`;
+      if (operation.current?.digest !== preview.expectedAdoptionDigest) {
+        const saved = sessionStorage.getItem(storageKey);
+        const retained = saved ? JSON.parse(saved) : null;
+        operation.current = retained?.digest === preview.expectedAdoptionDigest && typeof retained.key === 'string'
+          ? retained : { digest: preview.expectedAdoptionDigest, key: crypto.randomUUID() };
+      }
+      const retainedOperation = operation.current;
+      if (!retainedOperation) throw new Error('Carry-forward identity unavailable.');
+      sessionStorage.setItem(storageKey, JSON.stringify(retainedOperation)); // before delivery
+      setUncertain(true);
+      const result = await call(`${endpoint}/adopt-proposed`, { sourceVersionId: baseVersionId,
+        targetVersionId: targetId, expectedAdoptionDigest: preview.expectedAdoptionDigest }, retainedOperation.key);
+      const checked = trainingProposedAdoptionReceipt(result, slug, preview);
+      if (!checked) throw new Error(result?.reason || 'Adoption receipt could not be verified.');
+      setReceipt(checked); setConfirmed(false); setUncertain(false);
+      setMessage('Accepted references carried forward. The proposal is not activated and no run was started.');
+    } catch (error) { setMessage(`Reference carry-forward was not confirmed: ${error instanceof Error ? error.message : 'unavailable'}. Refresh or confirm the same operation; no automatic retry.`); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
+  async function apply() {
+    if (busyRef.current || !confirmed || !canActivate || applied) return;
+    busyRef.current = true; setBusy(true); setMessage('');
+    try {
+      const result = await call(`/api/v2/agents/${encodeURIComponent(slug)}/revisions/${encodeURIComponent(targetId)}/apply`,
+        { expectedBaseVersionId: baseVersionId });
+      if (result?.ok !== true || result.version_id !== targetId || result.status !== 'applied')
+        throw new Error(result?.reason || result?.error || 'Activation was not confirmed.');
+      setApplied(true); setConfirmed(false);
+      setMessage(`Definition v${result.version_number} applied (${targetId}). Reload to verify your installed version. No run was started.`);
+      router.refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Activation delivery unconfirmed; confirm this same version.'); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
+  return <>
+    <button type="button" className="btn-outline text-xs" disabled={busy} onClick={review}>Review proposed update</button>
+    <Modal open={open} onClose={() => !busy && setOpen(false)} title="Review proposed agent update">
+      <p className="text-sm">This carries already accepted references to a reviewed proposal. It creates no new training and starts no run.</p>
+      <p className="mt-2 text-xs break-all">Current definition: {baseVersionId}</p>
+      {targetId && <p className="text-xs break-all">Proposed definition: {targetId}</p>}
+      {preview && <p className="mt-3">{preview.eligibleRecordCount} accepted records cover {preview.eligibleRouteCount} reference routes.</p>}
+      {preview && !applied && (canActivate || trainingSuccessorAdoptionActionAvailable(preview)) && <>
+        <label className="mt-3 block text-sm"><input type="checkbox" checked={confirmed} disabled={busy}
+          onChange={e => setConfirmed(e.target.checked)} /> {canActivate ? 'I reviewed this exact proposal and approve activating it.' : 'Carry these existing accepted references to this exact proposal.'}</label>
+        <button type="button" className="btn-primary mt-3" disabled={busy || !confirmed}
+          onClick={() => void (canActivate ? apply() : adopt())}>{busy ? 'Working…' : canActivate ? 'Activate reviewed proposal' : uncertain ? 'Confirm same carry-forward' : 'Carry accepted references'}</button>
+      </>}
+      {message && <p role="status" className="mt-3 text-sm">{message}</p>}
+    </Modal>
+  </>;
+}
 
 /**
  * The activation gate — for the updates that still need one.

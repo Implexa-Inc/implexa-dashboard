@@ -50,7 +50,7 @@ import { ImplexaJudgePolicy } from '../../_components/implexa-judge-policy';
 import AgentFeedback from '../../_components/agent-feedback';
 import AgentEditButton from '../../_components/agent-edit-button';
 import AgentDefinitionReview from '../../_components/agent-definition-review';
-import AgentUpdateGate from '../../_components/agent-update-gate';
+import AgentUpdateGate, { ProposedAgentUpdateGate } from '../../_components/agent-update-gate';
 import ReviseLandedPoller from '../../_components/revise-landed-poller';
 import StepRow from '../../_components/step-row';
 import ExtendChain from '../../_components/extend-chain';
@@ -523,6 +523,9 @@ export default async function WorkflowDetailPage({
               <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/40 text-amber-700 dark:text-amber-300">
                 {workflow.proposed_count} proposed
               </span>
+            )}
+            {workflow.proposed_count > 0 && workflow.workflow_version_id && !actionsBlocked && !revisePending && (
+              <ProposedAgentUpdateGate key={`${workflow.slug}:${workflow.workflow_version_id}`} slug={workflow.slug} baseVersionId={workflow.workflow_version_id} />
             )}
           </div>
           <ol className="space-y-2 text-sm">
