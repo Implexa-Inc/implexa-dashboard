@@ -181,7 +181,7 @@ function SavedFinding({ item, slug, baseVersionId, blocked }: { item: Finding; s
       const data = await r.json();
       if (data.ok === true && data.state === 'applied' && typeof data.versionId === 'string') {
         setApplied(true); setUncertain(false);
-        setMessage(`Correction saved as version ${data.versionNumber ?? ''} (${data.versionId}). Reload the agent to read the saved definition. No run was started.`);
+        setMessage(`Correction saved as version ${data.versionNumber ?? ''} (${data.versionId}). Your installed version pin is unchanged. Reload the agent to read the saved definition and any available update. No run was started.`);
       } else if (data.state === 'candidate_saved') {
         setApplied(true); setUncertain(false);
         setMessage(`Candidate saved (${data.versionId}); not applied: ${data.reason}. No run was started.`);
@@ -212,7 +212,7 @@ function SavedFinding({ item, slug, baseVersionId, blocked }: { item: Finding; s
     {preview && <section aria-label="Unreviewed draft preview"><h5>{applied ? 'Saved correction' : 'Unreviewed draft — not applied'}</h5><pre className="whitespace-pre-wrap">Before: {preview.change.before}</pre><pre className="whitespace-pre-wrap">After: {preview.change.after}</pre><p>The replacement still needs review. Preview alone cannot apply or run the agent.</p>
       {preview.previewDigest && !blocked && !applied && <>
         <label><input type="checkbox" checked={reviewed} disabled={busy || uncertain} onChange={e => setReviewed(e.target.checked)} /> I reviewed this exact replacement.</label>
-        <p>Apply creates a new version through the existing compiler gate. Other stages and typed contracts are preserved; this does not start a run.</p>
+        <p>Apply creates a new version through the existing compiler gate. Other stages and the input, bundle, task, policy and permission contracts are preserved. Bases with unsupported additional authority refuse; this does not start a run or update your installed pin.</p>
         <button type="button" className="btn-primary" disabled={busy || !reviewed} onClick={applyPreview}>{uncertain ? 'Confirm same Apply result' : 'Apply exact correction'}</button>
       </>}
     </section>}
