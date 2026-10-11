@@ -49,6 +49,7 @@ import AgentExecutorPreference from '../../_components/agent-executor-preference
 import { ImplexaJudgePolicy } from '../../_components/implexa-judge-policy';
 import AgentFeedback from '../../_components/agent-feedback';
 import AgentEditButton from '../../_components/agent-edit-button';
+import AgentDefinitionReview from '../../_components/agent-definition-review';
 import AgentUpdateGate from '../../_components/agent-update-gate';
 import ReviseLandedPoller from '../../_components/revise-landed-poller';
 import StepRow from '../../_components/step-row';
@@ -704,6 +705,7 @@ export default async function WorkflowDetailPage({
                     old Link "doesn't do anything" visible at the click itself).
                     The Setup tab no longer carries its own copy of this form. */}
                 <AgentEditButton slug={workflow.slug} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} />
+                <AgentDefinitionReview definition={workflow.revision_contract ?? null} versionSource={workflow.definition_version_source ?? null} updateAvailable={!!workflow.update_available} revisePending={revisePending} statusUnavailable={lifecycleUnavailable} slug={workflow.slug} />
               </div>
               <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>
               {revisePending && (
