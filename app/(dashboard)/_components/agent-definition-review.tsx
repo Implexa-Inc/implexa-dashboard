@@ -46,7 +46,7 @@ export default function AgentDefinitionReview({ slug, definition, versionSource,
           <p>Definition review is not execution verification.</p>
         </section>
         {slug && definition && <DefinitionCheckAction key={`${slug}:${definition.workflow_version_id}`} slug={slug} baseVersionId={definition.workflow_version_id} blocked={revisePending || statusUnavailable || updateAvailable || (versionSource !== 'live' && versionSource !== 'installed')} />}
-        {slug && definition && <SavedDefinitionFindings key={`${slug}:${definition.workflow_version_id}:${revisePending}:${statusUnavailable}:${updateAvailable}`} slug={slug} baseVersionId={definition.workflow_version_id} previewBlocked={revisePending || statusUnavailable || updateAvailable || versionSource !== 'live'} />}
+        {slug && definition && <SavedDefinitionFindings key={`${slug}:${definition.workflow_version_id}:${revisePending}:${statusUnavailable}:${updateAvailable}`} slug={slug} baseVersionId={definition.workflow_version_id} previewBlocked={revisePending || statusUnavailable || updateAvailable || !['live', 'installed'].includes(versionSource || '')} />}
       </div>
     </Modal>
   </>;
@@ -143,7 +143,7 @@ export function SavedDefinitionFindings({ slug, baseVersionId, previewBlocked }:
       <p className="break-all">Report {report.reportId}: {report.findingCount} finding(s) — {report.state === 'stale' ? 'source binding changed' : report.provenanceKind === 'system_generated' ? 'automated Check, not certification' : 'operator import, not certification'}.</p>
       {report.requestId && <p className="break-all">Check request: {report.requestId}</p>}
     </div>)}
-    {result?.items?.map((item, i) => <SavedFinding key={`${item.reportId}:${item.assessmentId}:${i}`} item={item} slug={slug} baseVersionId={baseVersionId} blocked={previewBlocked || !!result.historical} />)}
+    {result?.items?.map((item, i) => <SavedFinding key={`${item.reportId}:${item.assessmentId}:${i}`} item={item} slug={slug} baseVersionId={baseVersionId} blocked={previewBlocked || result.historical !== false} />)}
   </section>;
 }
 
@@ -151,11 +151,14 @@ function SavedFinding({ item, slug, baseVersionId, blocked }: { item: Finding; s
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [after, setAfter] = useState('');
   const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState<{ change: { before: string; after: string }; reviewRequired: boolean } | null>(null);
+  const [preview, setPreview] = useState<{ change: { before: string; after: string }; reviewRequired: boolean; previewDigest?: string } | null>(null);
+  const [reviewed, setReviewed] = useState(false);
+  const [applied, setApplied] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
   const [message, setMessage] = useState('');
   const quote = item.finding.quotes[quoteIndex];
   async function showPreview() {
-    setBusy(true); setPreview(null); setMessage('');
+    setBusy(true); setPreview(null); setReviewed(false); setMessage('');
     try {
       const r = await fetch(`/api/agents/definition-review?slug=${encodeURIComponent(slug)}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ baseVersionId, reportId: item.reportId, assessmentId: item.assessmentId, findingId: item.finding.id, edit: { location: quote.location, before: quote.text, after } }) });
       const data = await r.json();
@@ -164,6 +167,31 @@ function SavedFinding({ item, slug, baseVersionId, blocked }: { item: Finding; s
       }
       setPreview(data);
     } catch { setMessage('Preview unavailable. Nothing changed.'); }
+    finally { setBusy(false); }
+  }
+  async function applyPreview() {
+    if (!preview?.previewDigest || !reviewed || blocked || applied) return;
+    setBusy(true); setMessage('');
+    try {
+      const r = await fetch(`/api/agents/definition-review?slug=${encodeURIComponent(slug)}&action=apply`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ baseVersionId, reportId: item.reportId, assessmentId: item.assessmentId,
+          findingId: item.finding.id, edit: { location: quote.location, before: quote.text, after }, previewDigest: preview.previewDigest }),
+      });
+      const data = await r.json();
+      if (data.ok === true && data.state === 'applied' && typeof data.versionId === 'string') {
+        setApplied(true); setUncertain(false);
+        setMessage(`Correction saved as version ${data.versionNumber ?? ''} (${data.versionId}). Your installed version pin is unchanged. Reload the agent to read the saved definition and any available update. No run was started.`);
+      } else if (data.state === 'candidate_saved') {
+        setApplied(true); setUncertain(false);
+        setMessage(`Candidate saved (${data.versionId}); not applied: ${data.reason}. No run was started.`);
+      } else if (r.status >= 500) {
+        setUncertain(true); setMessage('Apply delivery is unconfirmed. Confirm the same Apply result; do not create another edit.');
+      } else {
+        setPreview(null); setReviewed(false); setUncertain(false);
+        setMessage(`Apply refused: ${data.reason || 'unavailable'}. Reload the saved report and current definition.`);
+      }
+    } catch { setUncertain(true); setMessage('Apply delivery is unconfirmed. Confirm the same Apply result; do not create another edit.'); }
     finally { setBusy(false); }
   }
   return <article className="rounded border border-ink-700 p-3 space-y-3">
@@ -175,12 +203,18 @@ function SavedFinding({ item, slug, baseVersionId, blocked }: { item: Finding; s
     {typeof item.assessment?.rationale === 'string' && <p>Assessment rationale: {item.assessment.rationale}</p>}
     {item.finding.quotes.map((q, i) => <blockquote key={i} className="whitespace-pre-wrap text-xs">{q.location}: {q.text}</blockquote>)}
     {!blocked && item.assessmentId && item.classification.draftEligible && quote && <>
-      <label className="block">Quoted text to replace<select disabled={busy} className="block w-full" value={quoteIndex} onChange={e => { setQuoteIndex(Number(e.target.value)); setPreview(null); }}>{item.finding.quotes.map((q, i) => <option key={i} value={i}>{q.location} — quote {i + 1}</option>)}</select></label>
-      <label className="block">Proposed replacement<textarea disabled={busy} className="block w-full" value={after} onChange={e => { setAfter(e.target.value); setPreview(null); }} /></label>
-      <button type="button" disabled={busy || !after.trim()} onClick={showPreview} className="btn-secondary">{busy ? 'Preparing preview…' : 'Preview replacement'}</button>
+      <label className="block">Quoted text to replace<select disabled={busy || applied || uncertain} className="block w-full" value={quoteIndex} onChange={e => { setQuoteIndex(Number(e.target.value)); setPreview(null); setReviewed(false); }}>{item.finding.quotes.map((q, i) => <option key={i} value={i}>{q.location} — quote {i + 1}</option>)}</select></label>
+      <label className="block">Proposed replacement<textarea disabled={busy || applied || uncertain} className="block w-full" value={after} onChange={e => { setAfter(e.target.value); setPreview(null); setReviewed(false); }} /></label>
+      <button type="button" disabled={busy || applied || uncertain || !after.trim()} onClick={showPreview} className="btn-secondary">{busy ? 'Working…' : 'Preview replacement'}</button>
     </>}
     {blocked && <p>Preview unavailable for this page/version state. Reload before editing.</p>}
     {message && <p role="status">{message}</p>}
-    {preview && <section aria-label="Unreviewed draft preview"><h5>Unreviewed draft — not applied</h5><pre className="whitespace-pre-wrap">Before: {preview.change.before}</pre><pre className="whitespace-pre-wrap">After: {preview.change.after}</pre><p>The replacement still needs review. This preview cannot apply or run the agent.</p></section>}
+    {preview && <section aria-label="Unreviewed draft preview"><h5>{applied ? 'Saved correction' : 'Unreviewed draft — not applied'}</h5><pre className="whitespace-pre-wrap">Before: {preview.change.before}</pre><pre className="whitespace-pre-wrap">After: {preview.change.after}</pre><p>The replacement still needs review. Preview alone cannot apply or run the agent.</p>
+      {preview.previewDigest && !blocked && !applied && <>
+        <label><input type="checkbox" checked={reviewed} disabled={busy || uncertain} onChange={e => setReviewed(e.target.checked)} /> I reviewed this exact replacement.</label>
+        <p>Apply creates a new version through the existing compiler gate. Other stages and the input, bundle, task, policy and permission contracts are preserved. Bases with unsupported additional authority refuse; this does not start a run or update your installed pin.</p>
+        <button type="button" className="btn-primary" disabled={busy || !reviewed} onClick={applyPreview}>{uncertain ? 'Confirm same Apply result' : 'Apply exact correction'}</button>
+      </>}
+    </section>}
   </article>;
 }

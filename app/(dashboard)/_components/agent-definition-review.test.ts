@@ -217,3 +217,51 @@ test('generated reports show request provenance, empty summaries and alternative
     assert.deepEqual(Array.from(host.querySelectorAll('button')).map(b => b.textContent), ['Load saved Check reports']);
   } finally { await React.act(async () => root.unmount()); host.remove(); globalThis.fetch = originalFetch; }
 });
+
+test('exact Apply needs explicit replacement review and confirms the same mutation after a lost reply', async () => {
+  const { SavedDefinitionFindings } = await import('./agent-definition-review.tsx');
+  const calls: any[] = []; let applyCalls = 0;
+  globalThis.fetch = (async (url: any, init: any) => {
+    const body = init?.body ? JSON.parse(init.body) : null; calls.push({ url: String(url), body });
+    if (String(url).includes('action=apply')) {
+      if (++applyCalls === 1) throw new Error('lost reply after commit');
+      return new Response(JSON.stringify({ ok: true, state: 'applied', versionId: 'v2', versionNumber: 2, idempotent: true }));
+    }
+    return new Response(JSON.stringify(init?.method === 'POST'
+      ? { ok: true, status: 'preview', baseVersionId: 'v1', change: { before: '33', after: '34' }, reviewRequired: true, applyAllowed: false, previewDigest: 'a'.repeat(64) }
+      : { ok: true, baseVersionId: 'v1', state: 'saved_reports', historical: false, items: [{ reportId: 'r', assessmentId: 'a', finding: { id: 'F1', explanation: 'Count', quotes: [{ location: 'stage 1', text: '33' }] }, provenance: 'Operator-attested', classification: { status: 'draft_candidate', draftEligible: true } }] }));
+  }) as typeof fetch;
+  const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+  const button = (label: string) => Array.from(host.querySelectorAll('button')).find(b => b.textContent === label)!;
+  try {
+    await React.act(async () => root.render(React.createElement(SavedDefinitionFindings, { slug: 'planner', baseVersionId: 'v1', previewBlocked: false })));
+    await React.act(async () => button('Load saved Check reports').click());
+    await React.act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')!.set!.call(host.querySelector('textarea'), '34'); host.querySelector('textarea')!.dispatchEvent(new dom.window.Event('input', { bubbles: true })); });
+    await React.act(async () => button('Preview replacement').click());
+    assert.equal(button('Apply exact correction').disabled, true); assert.equal(applyCalls, 0);
+    await React.act(async () => (host.querySelector('input[type=checkbox]') as HTMLInputElement).click());
+    await React.act(async () => button('Apply exact correction').click());
+    assert.match(host.textContent!, /delivery is unconfirmed/); assert.equal(host.querySelector('textarea')!.disabled, true);
+    await React.act(async () => button('Confirm same Apply result').click());
+    assert.deepEqual(calls[2].body, calls[3].body);
+    assert.deepEqual(Object.keys(calls[2].body).sort(), ['assessmentId', 'baseVersionId', 'edit', 'findingId', 'previewDigest', 'reportId']);
+    assert.match(host.textContent!, /Correction saved as version 2 \(v2\)/); assert.match(host.textContent!, /No run was started/);
+    assert.equal(button('Apply exact correction'), undefined); assert.equal(host.querySelector('textarea')!.disabled, true);
+    assert.equal(applyCalls, 2);
+  } finally { await React.act(async () => root.unmount()); host.remove(); globalThis.fetch = originalFetch; }
+});
+
+test('installed preview needs saved-review currentness false, not merely an absent stale flag', async () => {
+  for (const historical of [undefined, null, true, false]) {
+    globalThis.fetch = async () => new Response(JSON.stringify({ ok: true, baseVersionId: definition.workflow_version_id,
+      state: 'saved_reports', historical, items: [{ reportId: 'r', assessmentId: 'a', finding: { id: 'F1', explanation: 'Count', quotes: [{ location: 'stage 1', text: '33' }] }, provenance: 'Operator-attested', classification: { status: 'draft_candidate', draftEligible: true } }] }));
+    const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+    try {
+      await React.act(async () => root.render(React.createElement(Review, { slug: 'planner', definition, versionSource: 'installed', updateAvailable: false, revisePending: false, statusUnavailable: false })));
+      await React.act(async () => host.querySelector('button')!.click());
+      await React.act(async () => Array.from(host.querySelectorAll('button')).find(b => b.textContent === 'Load saved Check reports')!.click());
+      assert.equal(!!host.querySelector('textarea'), historical === false);
+    } finally { await React.act(async () => root.unmount()); host.remove(); }
+  }
+  globalThis.fetch = originalFetch;
+});

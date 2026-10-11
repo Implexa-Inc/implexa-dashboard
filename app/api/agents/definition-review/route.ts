@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 const BACKEND = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implexa.ai').replace(/\/$/, '');
-// Owner Check/read/preview proxy. Never imports an assessment or invokes revision.
+// Owner Check/read/preview/exact Apply proxy. Never imports an assessment.
 async function forward(request: Request, preview: boolean) {
   const { data: { session } } = await createClient().auth.getSession();
   if (!session?.access_token) return NextResponse.json({ ok: false, reason: 'unauthorized' }, { status: 401 });
@@ -12,10 +12,11 @@ async function forward(request: Request, preview: boolean) {
     if (!slug) return NextResponse.json({ ok: false, reason: 'slug_required' }, { status: 400 });
     const path = `${BACKEND}/api/v2/agents/${encodeURIComponent(slug)}/definition-review`;
     const check = url.searchParams.get('action') === 'check';
+    const apply = url.searchParams.get('action') === 'apply';
     const body = preview ? await request.json() : null;
     const query = new URLSearchParams({ baseVersionId: url.searchParams.get('baseVersionId') || '' });
     if (url.searchParams.has('requestId')) query.set('requestId', url.searchParams.get('requestId')!);
-    const response = await fetch(preview ? `${path}/${check ? 'check' : 'preview'}` : `${path}${check ? '/check' : ''}?${query}`, {
+    const response = await fetch(preview ? `${path}/${check ? 'check' : apply ? 'apply' : 'preview'}` : `${path}${check ? '/check' : ''}?${query}`, {
       method: preview ? 'POST' : 'GET', headers: { authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
       ...(preview ? { body: JSON.stringify(body) } : {}), cache: 'no-store', signal: AbortSignal.timeout(8000),
     });
