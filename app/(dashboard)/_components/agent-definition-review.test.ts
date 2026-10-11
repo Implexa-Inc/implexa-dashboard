@@ -27,7 +27,7 @@ test('Check action uses explicit readiness, retains uncertain identity and reads
   const values = new Map<string,string>();
   Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem:(k:string)=>values.get(k)||null,setItem:(k:string,v:string)=>values.set(k,v),removeItem:(k:string)=>values.delete(k)}});
   const host=document.createElement('div');document.body.append(host);const root=createRoot(host);
-  const posts:any[]=[];let status:any={ok:true,requestBusReady:true,request:null};
+  const posts:any[]=[];let status:any={ok:true,requestBusReady:true,historical:false,request:null};
   globalThis.fetch=(async (_url:any,init:any)=>{
     if(init?.method==='POST'){posts.push(JSON.parse(init.body));if(posts.length===1)throw new Error('lost reply');return {ok:true,json:async()=>({ok:true,requestId:posts[0].requestId,state:'pending'})};}
     return {ok:true,json:async()=>status};
@@ -42,7 +42,7 @@ test('Check action uses explicit readiness, retains uncertain identity and reads
     await React.act(async()=>button('Resubmit same Check request').click());
     assert.deepEqual(posts[0],posts[1]);assert.deepEqual(Object.keys(posts[0]).sort(),['baseVersionId','requestId']);
     assert.equal(button('Request another Check').disabled,true);
-    status={ok:true,requestBusReady:true,request:{requestId:posts[0].requestId,state:'done'}};
+    status={ok:true,requestBusReady:true,historical:false,request:{requestId:posts[0].requestId,state:'done'}};
     await React.act(async()=>button('Refresh Check status').click());assert.equal(posts.length,2);
     assert.match(host.textContent!,/findings remain unreviewed/);
     await React.act(async()=>root.render(React.createElement(DefinitionCheckAction,{slug:'planner',baseVersionId:'base',blocked:true})));
@@ -55,7 +55,7 @@ test('a confirmed duplicate refusal clears only the rejected identity and discov
   const values=new Map<string,string>();
   Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem:(k:string)=>values.get(k)||null,setItem:(k:string,v:string)=>values.set(k,v),removeItem:(k:string)=>values.delete(k)}});
   const host=document.createElement('div');document.body.append(host);const root=createRoot(host);let reads=0;
-  globalThis.fetch=(async(_url:any,init:any)=>({ok:init?.method!=='POST',json:async()=>init?.method==='POST'?{ok:false,reason:'check_already_pending'}:{ok:true,requestBusReady:true,request:++reads===1?null:{requestId:'existing',state:'pending'}}})) as any;
+  globalThis.fetch=(async(_url:any,init:any)=>({ok:init?.method!=='POST',json:async()=>init?.method==='POST'?{ok:false,reason:'check_already_pending'}:{ok:true,requestBusReady:true,historical:false,request:++reads===1?null:{requestId:'existing',state:'pending'}}})) as any;
   const click=async(text:string)=>React.act(async()=>Array.from(host.querySelectorAll('button')).find(b=>b.textContent===text)!.click());
   try{
     await React.act(async()=>root.render(React.createElement(DefinitionCheckAction,{slug:'planner',baseVersionId:'base',blocked:false})));
@@ -64,6 +64,48 @@ test('a confirmed duplicate refusal clears only the rejected identity and discov
     assert.match(host.textContent!,/existing — pending/);
     assert.equal(Array.from(host.querySelectorAll('button')).find(b=>b.textContent==='Request another Check')!.disabled,true);
   }finally{await React.act(async()=>root.unmount());host.remove();globalThis.fetch=originalFetch;}
+});
+
+test('installed definition Check requires explicit currentness and retains all other page guards', async () => {
+  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: { getItem: () => null } });
+  const cases = [
+    { name: 'installed current', source: 'installed', historical: false, enabled: true },
+    { name: 'live current', source: 'live', historical: false, enabled: true },
+    { name: 'installed stale', source: 'installed', historical: true },
+    { name: 'missing currentness', source: 'installed' },
+    { name: 'malformed currentness', source: 'installed', historical: 0 },
+    { name: 'unknown source', source: null, historical: false },
+    { name: 'unrecognized source', source: 'unexpected', historical: false },
+    { name: 'pending revision', source: 'installed', historical: false, revisePending: true },
+    { name: 'status unavailable', source: 'installed', historical: false, statusUnavailable: true },
+    { name: 'update available', source: 'installed', historical: false, updateAvailable: true },
+    { name: 'bus unavailable', source: 'installed', historical: false, bus: false },
+  ];
+  for (const item of cases) {
+    const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
+    let reads = 0; let posts = 0;
+    globalThis.fetch = (async (_url: any, init: any) => {
+      if (init?.method === 'POST') { posts++; throw new Error('No Check should be submitted by readiness'); }
+      reads++;
+      return new Response(JSON.stringify({ ok: true, historical: item.historical, requestBusReady: item.bus !== false, request: null }));
+    }) as typeof fetch;
+    const button = (label: string) => Array.from(host.querySelectorAll('button')).find(b => b.textContent === label)!;
+    try {
+      await React.act(async () => root.render(React.createElement(Review, {
+        slug: 'planner', definition, versionSource: item.source as any,
+        revisePending: !!item.revisePending, statusUnavailable: !!item.statusUnavailable, updateAvailable: !!item.updateAvailable,
+      })));
+      await React.act(async () => button('Review definition').click());
+      assert.equal(button('Check definition').disabled, true, item.name + ' before refresh');
+      assert.equal(reads, 0);
+      await React.act(async () => button('Refresh Check status').click());
+      assert.equal(button('Check definition').disabled, !item.enabled, item.name);
+      assert.equal(reads, 1); assert.equal(posts, 0);
+      if (item.source === 'installed') assert.match(host.textContent!, /Installed version/);
+      assert.equal(button('Edit Agent'), undefined);
+    } finally { await React.act(async () => root.unmount()); host.remove(); }
+  }
+  globalThis.fetch = originalFetch;
 });
 
 test('real modal opens, shows exact contract safely, says unchecked, closes; no action request', async () => {

@@ -45,7 +45,7 @@ export default function AgentDefinitionReview({ slug, definition, versionSource,
           <p>Saved reports may be loaded below. No saved report does not mean no issues were found. Operator attestations are not system-verified independent reviews.</p>
           <p>Definition review is not execution verification.</p>
         </section>
-        {slug && definition && <DefinitionCheckAction key={`${slug}:${definition.workflow_version_id}`} slug={slug} baseVersionId={definition.workflow_version_id} blocked={revisePending || statusUnavailable || updateAvailable || versionSource !== 'live'} />}
+        {slug && definition && <DefinitionCheckAction key={`${slug}:${definition.workflow_version_id}`} slug={slug} baseVersionId={definition.workflow_version_id} blocked={revisePending || statusUnavailable || updateAvailable || (versionSource !== 'live' && versionSource !== 'installed')} />}
         {slug && definition && <SavedDefinitionFindings key={`${slug}:${definition.workflow_version_id}:${revisePending}:${statusUnavailable}:${updateAvailable}`} slug={slug} baseVersionId={definition.workflow_version_id} previewBlocked={revisePending || statusUnavailable || updateAvailable || versionSource !== 'live'} />}
       </div>
     </Modal>
@@ -67,14 +67,17 @@ export function DefinitionCheckAction({ slug, baseVersionId, blocked }: { slug: 
       const response = await fetch(`${endpoint}${retained ? `&requestId=${encodeURIComponent(retained)}` : ''}`, { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error();
-      setReady(data.requestBusReady === true && !data.historical);
+      // Installed is a source label, not proof of staleness. The owner-scoped
+      // status read establishes exact-version currentness; enqueue rechecks it.
+      setReady(data.requestBusReady === true && data.historical === false);
       setRequest(data.request);
       // A missing row after a lost reply is not proof that enqueue cannot still
       // arrive. An explicit resubmission reuses the retained UUID, never a new one.
       setUncertain(!!retained && !data.request);
       setMessage(data.request ? `Check ${data.request.state}. ${data.request.state === 'done' ? 'Load saved Check reports below; findings remain unreviewed.' : 'Refresh to read progress; this does not restart the Check.'}`
         : retained ? 'No confirmed request yet. Resubmit the same request identity or refresh; no automatic retry.'
-        : data.historical ? 'This definition is no longer current. Reload the agent page.'
+        : data.historical === true ? 'This definition is no longer current. Reload the agent page.'
+        : data.historical !== false ? 'Definition currentness is unavailable. No new request was sent.'
         : data.requestBusReady ? 'Ready to request a read-only report. No agent run or edit will be started.' : 'Check is unavailable until the backend update is installed.');
     } catch { setReady(false); setMessage('Check status unavailable. No new request was sent.'); }
     finally { setBusy(false); }
