@@ -87,6 +87,24 @@ export function trainingSuccessorAdoptionActionAvailable(
     && value.newlyAdoptableRecordCount > 0 && value.eligibleRouteCount > 0;
 }
 
+/** Proposed adoption uses the same reference projection, with an exact snapshot. */
+export function trainingProposedAdoptionPreview(value: unknown, sourceId: string, targetId: string) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const { ok, expectedAdoptionDigest, ...projection } = value as Record<string, unknown>;
+  const preview = trainingSuccessorAdoptionPreview(projection, targetId);
+  return ok === true && preview && preview.sourceWorkflowVersionId === sourceId
+    && typeof expectedAdoptionDigest === 'string' && /^[a-f0-9]{64}$/.test(expectedAdoptionDigest)
+    ? { ...preview, expectedAdoptionDigest } : null;
+}
+
+export function trainingProposedAdoptionReceipt(value: unknown, agentSlug: string,
+  preview: TrainingSuccessorAdoptionPreview) {
+  if (!exact(value, ['ok', 'contractVersion', 'created', 'targetWorkflowVersionId',
+    'sourceWorkflowVersionId', 'adoptedRecordCount', 'adoptionReceiptIds', 'eligibleRouteCount',
+    'adoptionSetDigest', 'managerTrainingRequirements'])) return null;
+  return trainingSuccessorAdoptionReceipt({ ...value, agentSlug }, agentSlug, preview);
+}
+
 export function trainingSuccessorAdoptionReceipt(
   value: unknown,
   agentSlug: string,
