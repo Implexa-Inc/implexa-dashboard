@@ -44,6 +44,23 @@ test('paid prelaunch recovery uses the same owner grant, without a parent no-wor
   } finally { r.cleanup(); }
 });
 
+test('paid expired lease retirement is explicit and never claims process death or no work', async () => {
+  const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, {
+    backend: backend({ eligibility: { ...ELIGIBLE, failureCode: 'paid_prelaunch_recovery', leaseRetirementRequired: true } }), bridge: NO_LOCAL_BRIDGE,
+  });
+  try {
+    await settle(r);
+    assert.match(r.text(), /does not prove that an unknown process died/);
+    assert.doesNotMatch(r.text(), CLAIM);
+    await r.click(button(r, 'Retry safely'));
+    assert.match(r.text(), /Retire the expired lease and queue the same approved batch/);
+    await r.click(button(r, 'Queue the same request'));
+    await settle(r);
+    assert.deepEqual(JSON.parse(JSON.stringify(r.calls.backend[1].init)), { jwt: 'test-jwt', method: 'POST', body: { grantId: GRANT } });
+    assert.match(r.text(), /No extra paid authority was created/);
+  } finally { r.cleanup(); }
+});
+
 test('eligible: the claim, the explicit distinction, confirmation, then POST with the grant only and the JWT', async () => {
   const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: backend({}), bridge: NO_LOCAL_BRIDGE });
   try {

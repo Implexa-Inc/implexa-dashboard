@@ -27,6 +27,7 @@ export type ControlPlaneRetryEligibility = {
   inputContractDigest?: string | null;
   inputBindingsDigest?: string;
   failureCode?: string;
+  leaseRetirementRequired?: boolean;
   noWorkEvidence?: {
     attemptsProven?: number;
     consequentialWorkStarted?: boolean;
@@ -40,7 +41,7 @@ export type ControlPlaneRetryPresentation =
   | { state: 'hidden' }
   | { state: 'queued'; paidPrelaunch?: true }
   | { state: 'disabled'; reason: string; explanation: string; workMayHaveOccurred: boolean }
-  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string; paidPrelaunch?: true };
+  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string; paidPrelaunch?: true; leaseRetirement?: true };
 
 export const RETRY_SAFELY_LABEL = 'Retry safely — no work started previously';
 export const RETRY_SAFELY_DISTINCTION = 'Retry safely: same request and frozen inputs';
@@ -50,6 +51,7 @@ export const QUEUED_RECEIPT = 'Queued again safely — same request, frozen inpu
 export const PAID_RECOVERY_LABEL = 'Resume the same approved paid batch';
 export const PAID_RECOVERY_CLAIM = 'The failed attempt ended without a start acknowledgment or an irreversible paid claim. Recovery retains the same approved requests and budget; it does not approve a new batch.';
 export const PAID_QUEUED_RECEIPT = 'The same approved paid batch was queued again with frozen inputs. No extra paid authority was created.';
+export const PAID_LEASE_RETIREMENT_CLAIM = 'This expired prelaunch lease never completed its mandatory tool-contract issuance. Retire its authority and resume the same approved batch, preserving stored learning records. This does not prove that an unknown process died or approve extra spending.';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -96,6 +98,7 @@ export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPres
       state: 'available', grantId: e.grantId, workflowVersionId: e.workflowVersionId,
       failureCode: typeof e.failureCode === 'string' && e.failureCode ? e.failureCode : 'attachment_unobserved',
       ...(paid ? { paidPrelaunch: true as const } : {}),
+      ...(paid && e.leaseRetirementRequired === true ? { leaseRetirement: true as const } : {}),
     };
   }
   const reason = typeof e.reason === 'string' ? e.reason : '';
