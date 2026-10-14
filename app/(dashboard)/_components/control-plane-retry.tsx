@@ -31,7 +31,7 @@ import {
 
 type LocalInputBridge = {
   localInputReauthorizationState?: (runId: string, requestId?: string) => Promise<{
-    ok?: boolean; applicable?: boolean; required?: boolean; error?: string;
+    ok?: boolean; applicable?: boolean; required?: boolean; error?: string; paidSettlementArchiveChecked?: boolean;
   }>;
   reauthorizeRunInputs?: (runId: string) => Promise<{
     ok?: boolean; canceled?: boolean; error?: string;
@@ -104,6 +104,10 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
         setError('Wait for Implexa to finish recovering and archiving the existing paid clip before resuming. Nothing was queued.');
         return;
       }
+      if (presentation.failureCode === 'paid_settled_batch_resume' && state?.paidSettlementArchiveChecked !== true) {
+        setError('This Implexa app cannot confirm that paid settlement recovery finished. Update the app before resuming; nothing was queued.');
+        return;
+      }
       if (!state?.ok || typeof state.applicable !== 'boolean'
           || (state.applicable && typeof state.required !== 'boolean')) {
         throw new Error('local_input_reauthorization_unavailable');
@@ -122,7 +126,8 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
           return;
         }
         const rechecked = await bridge.localInputReauthorizationState(runId, requestId);
-        if (!rechecked?.ok || rechecked.applicable !== true || rechecked.required !== false) {
+        if (!rechecked?.ok || rechecked.applicable !== true || rechecked.required !== false
+            || (presentation.failureCode === 'paid_settled_batch_resume' && rechecked.paidSettlementArchiveChecked !== true)) {
           throw new Error('local_input_reauthorization_unavailable');
         }
       }
