@@ -21,6 +21,7 @@ import {
   describeControlPlaneRetry, retryConfirmed, mayClaimNoWork,
   RETRY_SAFELY_LABEL, RETRY_SAFELY_DISTINCTION, RUN_AGAIN_DISTINCTION, NO_WORK_CLAIM, QUEUED_RECEIPT,
   PAID_RECOVERY_LABEL, PAID_RECOVERY_CLAIM, PAID_QUEUED_RECEIPT,
+  PAID_LEASE_RETIREMENT_CLAIM,
 } from '@/lib/control-plane-retry';
 
 type LocalInputBridge = {
@@ -137,7 +138,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
     <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/[0.06] px-3 py-3">
       <div className="text-sm font-semibold text-ink-100">{'paidPrelaunch' in presentation && presentation.paidPrelaunch ? PAID_RECOVERY_LABEL : RETRY_SAFELY_LABEL}</div>
       {presentation.state === 'available' && presentation.paidPrelaunch && (
-        <p className="mt-1 text-xs text-ink-300 leading-relaxed">{PAID_RECOVERY_CLAIM}</p>
+        <p className="mt-1 text-xs text-ink-300 leading-relaxed">{presentation.leaseRetirement ? PAID_LEASE_RETIREMENT_CLAIM : PAID_RECOVERY_CLAIM}</p>
       )}
       {mayClaimNoWork(presentation) && (
         <p className="mt-1 text-xs text-ink-300 leading-relaxed">{NO_WORK_CLAIM}</p>
@@ -160,7 +161,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
       )}
       {presentation.state === 'available' && confirming && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-ink-300">Queue the same request with its frozen version and inputs?</span>
+          <span className="text-xs text-ink-300">{presentation.leaseRetirement ? 'Retire the expired lease and queue the same approved batch?' : 'Queue the same request with its frozen version and inputs?'}</span>
           <button type="button" onClick={() => void retry()} disabled={busy}
             className="rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60">
             {busy ? 'Queuing…' : 'Queue the same request'}
