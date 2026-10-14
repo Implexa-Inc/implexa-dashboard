@@ -121,6 +121,18 @@ test('settled batch resume describes reuse, not no-submission, and posts only th
     assert.match(r.text(),/No extra paid authority was created/);
   }finally{r.cleanup();}
 });
+test('same-request paid outbox must finish local recovery before the grant can be consumed',async()=>{
+  const observed: unknown[]=[];
+  const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({eligibility:{...ELIGIBLE,
+    failureCode:'paid_settled_batch_resume'}}),bridge:{localInputReauthorizationState:async(...args:unknown[])=>{
+      observed.push(args);return{ok:false,error:'paid_action_settlement_recovery_pending'};}}});
+  try{
+    await settle(r);await r.click(button(r,'Retry safely'));await r.click(button(r,'Queue the same request'));await settle(r);
+    assert.deepEqual(JSON.parse(JSON.stringify(observed)),[[RUN,REQUEST]]);
+    assert.equal(r.calls.backend.length,1,'no grant-consuming POST while local evidence is pending');
+    assert.match(r.text(),/recovering and archiving the existing paid clip/);assert.match(r.text(),/Nothing was queued/);
+  }finally{r.cleanup();}
+});
 
 test('poststart unclaimed recovery never claims no work, and future prelaunch retains unknown history',async()=>{
   for(const failureCode of ['paid_poststart_unclaimed','paid_owner_closed_prelaunch_recovery']) {

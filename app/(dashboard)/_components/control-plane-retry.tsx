@@ -30,8 +30,8 @@ import {
 } from '@/lib/control-plane-retry';
 
 type LocalInputBridge = {
-  localInputReauthorizationState?: (runId: string) => Promise<{
-    ok?: boolean; applicable?: boolean; required?: boolean;
+  localInputReauthorizationState?: (runId: string, requestId?: string) => Promise<{
+    ok?: boolean; applicable?: boolean; required?: boolean; error?: string;
   }>;
   reauthorizeRunInputs?: (runId: string) => Promise<{
     ok?: boolean; canceled?: boolean; error?: string;
@@ -99,7 +99,11 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
         setError('Open this run in Implexa on the source Mac before retrying. Nothing was queued.');
         return;
       }
-      const state = await bridge.localInputReauthorizationState(runId);
+      const state = await bridge.localInputReauthorizationState(runId, requestId);
+      if (state?.error === 'paid_action_settlement_recovery_pending') {
+        setError('Wait for Implexa to finish recovering and archiving the existing paid clip before resuming. Nothing was queued.');
+        return;
+      }
       if (!state?.ok || typeof state.applicable !== 'boolean'
           || (state.applicable && typeof state.required !== 'boolean')) {
         throw new Error('local_input_reauthorization_unavailable');
@@ -117,7 +121,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
               : 'Could not verify the original source; nothing was queued.');
           return;
         }
-        const rechecked = await bridge.localInputReauthorizationState(runId);
+        const rechecked = await bridge.localInputReauthorizationState(runId, requestId);
         if (!rechecked?.ok || rechecked.applicable !== true || rechecked.required !== false) {
           throw new Error('local_input_reauthorization_unavailable');
         }
