@@ -37,6 +37,15 @@ test('paid issued-contract retirement uses the same grant and paid queued receip
   assert.equal(queued.state==='queued'&&queued.paidPrelaunch,true);
   assert.equal(mayClaimNoWork(queued),false);
 });
+test('closed paid owner recovery uses a paid grant without lease or no-work claims',()=>{
+  const value={...ELIGIBLE,failureCode:'paid_owner_closed_prelaunch_recovery',leaseRetirementRequired:false};
+  const p=describeControlPlaneRetry(value);
+  assert.equal(p.state==='available'&&p.paidPrelaunch,true);
+  assert.equal(p.state==='available'&&p.leaseRetirement,undefined);
+  assert.equal(mayClaimNoWork(p),false);
+  assert.equal(mayClaimNoWork(describeControlPlaneRetry({...value,alreadyQueued:true})),false);
+  assert.equal(describeControlPlaneRetry({...value,grantId:null}).state,'hidden');
+});
 
 test('an eligible payload with a grant becomes an available action carrying the grant and the frozen version', () => {
   const p = describeControlPlaneRetry(ELIGIBLE);
