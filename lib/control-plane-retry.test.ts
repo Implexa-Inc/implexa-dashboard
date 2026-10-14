@@ -103,6 +103,17 @@ test('only a server-confirmed requeue counts', () => {
   for (const bad of [{ ok: true }, { requeued: true }, { ok: false, requeued: true }, null, 'x', {}]) assert.equal(retryConfirmed(bad), false);
 });
 
+test('bounded closed prelaunch class displays only server-projected owner count, never client authority', () => {
+  const e={...ELIGIBLE,failureCode:'paid_owner_closed_prelaunch_recovery',noWorkEvidence:{ownerRecoveryIndex:1,ownerRecoveryLimit:5}};
+  const p=describeControlPlaneRetry(e);
+  assert.equal(p.state,'available');
+  if(p.state==='available'){assert.equal(p.ownerRecoveryIndex,1);assert.equal(p.ownerRecoveryLimit,5);}
+  for(const ownerRecoveryIndex of [0,6,1.5,'1']) {
+    const bad=describeControlPlaneRetry({...e,noWorkEvidence:{ownerRecoveryIndex,ownerRecoveryLimit:5}});
+    assert.equal(bad.state==='available'&&bad.ownerRecoveryIndex,undefined);
+  }
+});
+
 test('the distinction from Run again and the claim are explicit copy', () => {
   assert.equal(RETRY_SAFELY_LABEL, 'Retry safely — no work started previously');
   assert.equal(RETRY_SAFELY_DISTINCTION, 'Retry safely: same request and frozen inputs');

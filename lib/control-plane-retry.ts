@@ -34,6 +34,9 @@ export type ControlPlaneRetryEligibility = {
     operationReceipts?: number;
     artifacts?: number;
     reviewMutations?: number;
+    ownerRecoveryIndex?: number;
+    ownerRecoveryLimit?: number;
+    ownerRecoveryExpiresAt?: string;
   };
 };
 
@@ -41,7 +44,7 @@ export type ControlPlaneRetryPresentation =
   | { state: 'hidden' }
   | { state: 'queued'; paidPrelaunch?: true }
   | { state: 'disabled'; reason: string; explanation: string; workMayHaveOccurred: boolean }
-  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string; paidPrelaunch?: true; leaseRetirement?: true };
+  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string; paidPrelaunch?: true; leaseRetirement?: true; ownerRecoveryIndex?: number; ownerRecoveryLimit?: number };
 
 export const RETRY_SAFELY_LABEL = 'Retry safely — no work started previously';
 export const RETRY_SAFELY_DISTINCTION = 'Retry safely: same request and frozen inputs';
@@ -54,6 +57,7 @@ export const PAID_QUEUED_RECEIPT = 'The same approved paid batch was queued agai
 export const PAID_LEASE_RETIREMENT_CLAIM = 'This expired prelaunch lease never completed its mandatory tool-contract issuance. Retire its authority and resume the same approved batch, preserving stored learning records. This does not prove that an unknown process died or approve extra spending.';
 export const PAID_ISSUED_LEASE_RETIREMENT_CLAIM = 'This expired attempt received its tool contract but never acknowledged process start. Retire its authority and use one additional owner-approved recovery of the same batch. Its contract and history remain preserved. This does not prove that an unknown process died or approve extra spending.';
 export const PAID_CLOSED_OWNER_RECOVERY_CLAIM = 'This attempt is already closed without a start acknowledgment or an irreversible paid claim. Use the one additional owner-approved recovery of the same batch, retaining its issued contract and original failure. The recorded failure cause is unknown. This does not prove process death or approve extra spending.';
+export const PAID_CLOSED_CLASS_RECOVERY_CLAIM = 'This attempt is closed without a recorded worker start, output or irreversible paid claim. Owner-confirmed recovery keeps the same approved batch, budget and original failure history. This recovery window closes at the first worker start, after five owner recoveries or after 24 hours. It does not prove process death or approve extra spending.';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -102,6 +106,11 @@ export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPres
       failureCode: typeof e.failureCode === 'string' && e.failureCode ? e.failureCode : 'attachment_unobserved',
       ...(paid ? { paidPrelaunch: true as const } : {}),
       ...(paid && e.leaseRetirementRequired === true ? { leaseRetirement: true as const } : {}),
+      ...(e.failureCode === 'paid_owner_closed_prelaunch_recovery'
+        && Number.isInteger(e.noWorkEvidence?.ownerRecoveryIndex)
+        && e.noWorkEvidence!.ownerRecoveryIndex! >= 1 && e.noWorkEvidence!.ownerRecoveryIndex! <= 5
+        && e.noWorkEvidence?.ownerRecoveryLimit === 5
+        ? { ownerRecoveryIndex: e.noWorkEvidence.ownerRecoveryIndex, ownerRecoveryLimit: 5 } : {}),
     };
   }
   const reason = typeof e.reason === 'string' ? e.reason : '';
