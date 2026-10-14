@@ -17,6 +17,17 @@ const PROMISE_REASONS = ['workflow_version_unpinned', 'workflow_version_unavaila
 const HIDDEN_REASONS = ['request_not_found', 'request_still_pending', 'request_cancelled', 'no_launch_attempt', 'request_not_surfaced_failure',
   'control_plane_retry_schema_unavailable', 'control_plane_retry_identity_invalid', 'something_new', undefined, ''];
 
+test('settled batch resume retains only the owner grant and count, never no-work claims',()=>{
+  const value={...ELIGIBLE,failureCode:'paid_settled_batch_resume',noWorkEvidence:{ownerRecoveryIndex:3,ownerRecoveryLimit:5,
+    priorWorkerStarted:true,globalNoActionProven:false}};
+  const p=describeControlPlaneRetry(value);
+  assert.equal(p.state==='available'&&p.paidPrelaunch,true);
+  assert.equal(p.state==='available'&&p.ownerRecoveryIndex,3);assert.equal(mayClaimNoWork(p),false);
+  assert.equal(mayClaimNoWork(describeControlPlaneRetry({...value,alreadyQueued:true})),false);
+  assert.equal(describeControlPlaneRetry({...value,grantId:null}).state,'hidden');
+  assert.equal(describeControlPlaneRetry({ok:false,reason:'paid_settled_resume_unavailable'}).state,'disabled');
+});
+
 test('paid prelaunch recovery retains the grant path but never claims parent-proven no work', () => {
   const paid = { ...ELIGIBLE, failureCode: 'paid_prelaunch_recovery' };
   const p = describeControlPlaneRetry(paid);

@@ -109,6 +109,19 @@ test('bounded closed class shows count and posts only the opaque grant',async()=
   }finally{r.cleanup();}
 });
 
+test('settled batch resume describes reuse, not no-submission, and posts only the opaque grant',async()=>{
+  const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({eligibility:{...ELIGIBLE,
+    failureCode:'paid_settled_batch_resume',noWorkEvidence:{ownerRecoveryIndex:3,ownerRecoveryLimit:5,priorWorkerStarted:true,globalNoActionProven:false}}}),bridge:NO_LOCAL_BRIDGE});
+  try{
+    await settle(r);assert.match(r.text(),/reusing those settled clips/);assert.match(r.text(),/remaining unclaimed items/);
+    assert.match(r.text(),/Owner recovery 3 of 5/);assert.doesNotMatch(r.text(),CLAIM);
+    assert.doesNotMatch(r.text(),/proved no managed paid submission|any paid claim blocks|No managed paid execution claim was issued/);
+    await r.click(button(r,'Retry safely'));await r.click(button(r,'Queue the same request'));await settle(r);
+    assert.deepEqual(JSON.parse(JSON.stringify(r.calls.backend[1].init)),{jwt:'test-jwt',method:'POST',body:{grantId:GRANT}});
+    assert.match(r.text(),/No extra paid authority was created/);
+  }finally{r.cleanup();}
+});
+
 test('poststart unclaimed recovery never claims no work, and future prelaunch retains unknown history',async()=>{
   for(const failureCode of ['paid_poststart_unclaimed','paid_owner_closed_prelaunch_recovery']) {
     const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({eligibility:{...ELIGIBLE,failureCode,
