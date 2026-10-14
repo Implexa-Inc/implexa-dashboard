@@ -100,13 +100,26 @@ test('bounded closed class shows count and posts only the opaque grant',async()=
     backend:backend({eligibility:{...ELIGIBLE,failureCode:'paid_owner_closed_prelaunch_recovery',noWorkEvidence:{ownerRecoveryIndex:1,ownerRecoveryLimit:5}}}),bridge:NO_LOCAL_BRIDGE,
   });
   try{
-    await settle(r);assert.match(r.text(),/Owner recovery 1 of 5/);assert.match(r.text(),/first worker start/);
+    await settle(r);assert.match(r.text(),/Owner recovery 1 of 5/);assert.match(r.text(),/any paid claim blocks/);
     assert.doesNotMatch(r.text(),CLAIM);assert.doesNotMatch(r.text(),/one additional owner-approved recovery/);
     await r.click(button(r,'Retry safely'));assert.match(r.text(),/Use owner recovery 1 of 5/);
     await r.click(button(r,'Queue the same request'));await settle(r);
     assert.deepEqual(JSON.parse(JSON.stringify(r.calls.backend[1].init)),{jwt:'test-jwt',method:'POST',body:{grantId:GRANT}});
     assert.match(r.text(),/No extra paid authority was created/);
   }finally{r.cleanup();}
+});
+
+test('poststart unclaimed recovery never claims no work, and future prelaunch retains unknown history',async()=>{
+  for(const failureCode of ['paid_poststart_unclaimed','paid_owner_closed_prelaunch_recovery']) {
+    const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({eligibility:{...ELIGIBLE,failureCode,
+      noWorkEvidence:{ownerRecoveryIndex:2,ownerRecoveryLimit:5,priorWorkerStarted:true,globalNoActionProven:false}}}),bridge:NO_LOCAL_BRIDGE});
+    try{
+      await settle(r);assert.doesNotMatch(r.text(),CLAIM);assert.match(r.text(),/Owner recovery 2 of 5/);
+      assert.match(r.text(),failureCode==='paid_poststart_unclaimed'?/worker started.*failed, empty result/i:/earlier worker ran/i);
+      await r.click(button(r,'Retry safely'));await r.click(button(r,'Queue the same request'));await settle(r);
+      assert.deepEqual(JSON.parse(JSON.stringify(r.calls.backend[1].init)),{jwt:'test-jwt',method:'POST',body:{grantId:GRANT}});
+    }finally{r.cleanup();}
+  }
 });
 
 test('eligible: the claim, the explicit distinction, confirmation, then POST with the grant only and the JWT', async () => {
