@@ -38,21 +38,25 @@ export type ControlPlaneRetryEligibility = {
 
 export type ControlPlaneRetryPresentation =
   | { state: 'hidden' }
-  | { state: 'queued' }
+  | { state: 'queued'; paidPrelaunch?: true }
   | { state: 'disabled'; reason: string; explanation: string; workMayHaveOccurred: boolean }
-  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string };
+  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string; paidPrelaunch?: true };
 
 export const RETRY_SAFELY_LABEL = 'Retry safely — no work started previously';
 export const RETRY_SAFELY_DISTINCTION = 'Retry safely: same request and frozen inputs';
 export const RUN_AGAIN_DISTINCTION = 'Run again: creates a new request';
 export const NO_WORK_CLAIM = 'Implexa could not attach its control tools before work began. No work or provider action started.';
 export const QUEUED_RECEIPT = 'Queued again safely — same request, frozen inputs. Implexa will verify its control tools before any work starts.';
+export const PAID_RECOVERY_LABEL = 'Resume the same approved paid batch';
+export const PAID_RECOVERY_CLAIM = 'The failed attempt ended without a start acknowledgment or an irreversible paid claim. Recovery retains the same approved requests and budget; it does not approve a new batch.';
+export const PAID_QUEUED_RECEIPT = 'The same approved paid batch was queued again with frozen inputs. No extra paid authority was created.';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Refusals where work or an external action MAY have occurred. These must never
 // be accompanied by the no-work claim.
 const WORK_MAY_HAVE_OCCURRED: Record<string, string> = {
+  paid_prelaunch_recovery_unproven: 'This paid continuation cannot be shown to be a fenced prelaunch failure with its original approval and no irreversible paid claim.',
   consequential_work_recorded: 'A previous attempt recorded work with outside effects, so it cannot be replayed as if nothing happened.',
   external_action_recorded: 'A previous attempt recorded an external action, so a safe replay cannot be proven.',
   artifact_recorded: 'A previous attempt declared an artifact, so a safe replay cannot be proven.',
@@ -81,7 +85,8 @@ const PROMISE_NOT_KEEPABLE: Record<string, string> = {
 
 export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPresentation {
   const e = (value && typeof value === 'object' ? value : {}) as ControlPlaneRetryEligibility;
-  if (e.ok === true && e.eligible === true && e.alreadyQueued === true) return { state: 'queued' };
+  const paid = e.failureCode === 'paid_prelaunch_recovery';
+  if (e.ok === true && e.eligible === true && e.alreadyQueued === true) return { state: 'queued', ...(paid ? { paidPrelaunch: true as const } : {}) };
   if (e.ok === true && e.eligible === true) {
     // The grant is the only authority we may act with; an eligibility without
     // one (or without the frozen version it promises) is not actionable.
@@ -90,6 +95,7 @@ export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPres
     return {
       state: 'available', grantId: e.grantId, workflowVersionId: e.workflowVersionId,
       failureCode: typeof e.failureCode === 'string' && e.failureCode ? e.failureCode : 'attachment_unobserved',
+      ...(paid ? { paidPrelaunch: true as const } : {}),
     };
   }
   const reason = typeof e.reason === 'string' ? e.reason : '';
@@ -100,7 +106,7 @@ export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPres
 
 // Whether the presentation may carry the no-work claim at all.
 export function mayClaimNoWork(p: ControlPlaneRetryPresentation): boolean {
-  return p.state === 'available' || p.state === 'queued';
+  return (p.state === 'available' || p.state === 'queued') && !p.paidPrelaunch;
 }
 
 // The POST result. Only a server-confirmed requeue counts; anything else is
