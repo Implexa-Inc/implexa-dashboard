@@ -61,6 +61,25 @@ test('paid expired lease retirement is explicit and never claims process death o
   } finally { r.cleanup(); }
 });
 
+test('paid issued-contract recovery confirms one extra slot and preserves history without claiming death', async () => {
+  const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, {
+    backend: backend({ eligibility: { ...ELIGIBLE, failureCode: 'paid_unacknowledged_lease_retirement', leaseRetirementRequired: true } }), bridge: NO_LOCAL_BRIDGE,
+  });
+  try {
+    await settle(r);
+    assert.match(r.text(), /received its tool contract but never acknowledged process start/);
+    assert.match(r.text(), /contract and history remain preserved/);
+    assert.match(r.text(), /does not prove that an unknown process died/);
+    assert.doesNotMatch(r.text(), /never completed its mandatory tool-contract issuance/);
+    assert.doesNotMatch(r.text(), CLAIM);
+    await r.click(button(r, 'Retry safely'));
+    assert.match(r.text(), /use the one additional recovery/);
+    await r.click(button(r, 'Queue the same request'));await settle(r);
+    assert.deepEqual(JSON.parse(JSON.stringify(r.calls.backend[1].init)), { jwt: 'test-jwt', method: 'POST', body: { grantId: GRANT } });
+    assert.match(r.text(), /No extra paid authority was created/);
+  } finally { r.cleanup(); }
+});
+
 test('eligible: the claim, the explicit distinction, confirmation, then POST with the grant only and the JWT', async () => {
   const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: backend({}), bridge: NO_LOCAL_BRIDGE });
   try {

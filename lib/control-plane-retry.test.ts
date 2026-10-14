@@ -28,6 +28,15 @@ test('paid prelaunch recovery retains the grant path but never claims parent-pro
   assert.equal(describeControlPlaneRetry({ ...paid, grantId: null }).state, 'hidden');
   assert.equal(describeControlPlaneRetry({ ok: false, reason: 'paid_prelaunch_recovery_unproven' }).state, 'disabled');
 });
+test('paid issued-contract retirement uses the same grant and paid queued receipt', () => {
+  const value={...ELIGIBLE,failureCode:'paid_unacknowledged_lease_retirement',leaseRetirementRequired:true};
+  const p=describeControlPlaneRetry(value);
+  assert.equal(p.state==='available'&&p.paidPrelaunch&&p.leaseRetirement,true);
+  assert.equal(mayClaimNoWork(p),false);
+  const queued=describeControlPlaneRetry({...value,alreadyQueued:true});
+  assert.equal(queued.state==='queued'&&queued.paidPrelaunch,true);
+  assert.equal(mayClaimNoWork(queued),false);
+});
 
 test('an eligible payload with a grant becomes an available action carrying the grant and the frozen version', () => {
   const p = describeControlPlaneRetry(ELIGIBLE);
