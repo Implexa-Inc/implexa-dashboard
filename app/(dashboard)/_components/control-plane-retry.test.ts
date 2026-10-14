@@ -143,6 +143,16 @@ test('an older app cannot silently skip the settled-batch local archive check',a
     assert.match(r.text(),/nothing was queued/);
   }finally{r.cleanup();}
 });
+test('ordinary retry does not opt into the paid outbox preflight',async()=>{
+  let observed=false;
+  const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({}),bridge:{
+    localInputReauthorizationState:async(runId:string,requestId?:string)=>{
+      assert.equal(runId,RUN);assert.equal(requestId,undefined);observed=true;return{ok:true,applicable:false};}}});
+  try{
+    await settle(r);await r.click(button(r,'Retry safely'));await r.click(button(r,'Queue the same request'));await settle(r);
+    assert.equal(observed,true);assert.equal(r.calls.backend.length,2);assert.match(r.text(),/Queued again safely/);
+  }finally{r.cleanup();}
+});
 
 test('poststart unclaimed recovery never claims no work, and future prelaunch retains unknown history',async()=>{
   for(const failureCode of ['paid_poststart_unclaimed','paid_owner_closed_prelaunch_recovery']) {
