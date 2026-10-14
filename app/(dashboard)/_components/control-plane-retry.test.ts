@@ -95,6 +95,20 @@ test('closed paid owner recovery confirms one extra slot without pretending leas
   }finally{r.cleanup();}
 });
 
+test('bounded closed class shows count and posts only the opaque grant',async()=>{
+  const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{
+    backend:backend({eligibility:{...ELIGIBLE,failureCode:'paid_owner_closed_prelaunch_recovery',noWorkEvidence:{ownerRecoveryIndex:1,ownerRecoveryLimit:5}}}),bridge:NO_LOCAL_BRIDGE,
+  });
+  try{
+    await settle(r);assert.match(r.text(),/Owner recovery 1 of 5/);assert.match(r.text(),/first worker start/);
+    assert.doesNotMatch(r.text(),CLAIM);assert.doesNotMatch(r.text(),/one additional owner-approved recovery/);
+    await r.click(button(r,'Retry safely'));assert.match(r.text(),/Use owner recovery 1 of 5/);
+    await r.click(button(r,'Queue the same request'));await settle(r);
+    assert.deepEqual(JSON.parse(JSON.stringify(r.calls.backend[1].init)),{jwt:'test-jwt',method:'POST',body:{grantId:GRANT}});
+    assert.match(r.text(),/No extra paid authority was created/);
+  }finally{r.cleanup();}
+});
+
 test('eligible: the claim, the explicit distinction, confirmation, then POST with the grant only and the JWT', async () => {
   const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: backend({}), bridge: NO_LOCAL_BRIDGE });
   try {
