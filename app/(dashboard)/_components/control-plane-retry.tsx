@@ -25,6 +25,7 @@ import {
   PAID_ISSUED_LEASE_RETIREMENT_CLAIM,
   PAID_CLOSED_OWNER_RECOVERY_CLAIM,
   PAID_CLOSED_CLASS_RECOVERY_CLAIM,
+  PAID_POSTSTART_UNCLAIMED_CLAIM,
 } from '@/lib/control-plane-retry';
 
 type LocalInputBridge = {
@@ -141,7 +142,10 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
     <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/[0.06] px-3 py-3">
       <div className="text-sm font-semibold text-ink-100">{'paidPrelaunch' in presentation && presentation.paidPrelaunch ? PAID_RECOVERY_LABEL : RETRY_SAFELY_LABEL}</div>
       {presentation.state === 'available' && presentation.paidPrelaunch && (
-        <p className="mt-1 text-xs text-ink-300 leading-relaxed">{presentation.ownerRecoveryIndex ? PAID_CLOSED_CLASS_RECOVERY_CLAIM : presentation.failureCode === 'paid_owner_closed_prelaunch_recovery' ? PAID_CLOSED_OWNER_RECOVERY_CLAIM : presentation.failureCode === 'paid_unacknowledged_lease_retirement' ? PAID_ISSUED_LEASE_RETIREMENT_CLAIM : presentation.leaseRetirement ? PAID_LEASE_RETIREMENT_CLAIM : PAID_RECOVERY_CLAIM}</p>
+        <p className="mt-1 text-xs text-ink-300 leading-relaxed">{presentation.failureCode === 'paid_poststart_unclaimed' ? PAID_POSTSTART_UNCLAIMED_CLAIM : presentation.ownerRecoveryIndex ? PAID_CLOSED_CLASS_RECOVERY_CLAIM : presentation.failureCode === 'paid_owner_closed_prelaunch_recovery' ? PAID_CLOSED_OWNER_RECOVERY_CLAIM : presentation.failureCode === 'paid_unacknowledged_lease_retirement' ? PAID_ISSUED_LEASE_RETIREMENT_CLAIM : presentation.leaseRetirement ? PAID_LEASE_RETIREMENT_CLAIM : PAID_RECOVERY_CLAIM}</p>
+      )}
+      {presentation.state === 'available' && presentation.unknownRuntimeHistory && presentation.failureCode !== 'paid_poststart_unclaimed' && (
+        <p className="mt-1 text-xs text-ink-300">An earlier worker ran and its failed settlement remains preserved. Its owner recovery proved no managed paid submission, not global no-action.</p>
       )}
       {presentation.state === 'available' && presentation.ownerRecoveryIndex && (
         <p className="mt-1 text-xs text-ink-300">Owner recovery {presentation.ownerRecoveryIndex} of {presentation.ownerRecoveryLimit} in this window.</p>

@@ -37,6 +37,8 @@ export type ControlPlaneRetryEligibility = {
     ownerRecoveryIndex?: number;
     ownerRecoveryLimit?: number;
     ownerRecoveryExpiresAt?: string;
+    priorWorkerStarted?: boolean;
+    globalNoActionProven?: boolean | null;
   };
 };
 
@@ -44,7 +46,7 @@ export type ControlPlaneRetryPresentation =
   | { state: 'hidden' }
   | { state: 'queued'; paidPrelaunch?: true }
   | { state: 'disabled'; reason: string; explanation: string; workMayHaveOccurred: boolean }
-  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string; paidPrelaunch?: true; leaseRetirement?: true; ownerRecoveryIndex?: number; ownerRecoveryLimit?: number };
+  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string; paidPrelaunch?: true; leaseRetirement?: true; ownerRecoveryIndex?: number; ownerRecoveryLimit?: number; unknownRuntimeHistory?: true };
 
 export const RETRY_SAFELY_LABEL = 'Retry safely — no work started previously';
 export const RETRY_SAFELY_DISTINCTION = 'Retry safely: same request and frozen inputs';
@@ -57,14 +59,16 @@ export const PAID_QUEUED_RECEIPT = 'The same approved paid batch was queued agai
 export const PAID_LEASE_RETIREMENT_CLAIM = 'This expired prelaunch lease never completed its mandatory tool-contract issuance. Retire its authority and resume the same approved batch, preserving stored learning records. This does not prove that an unknown process died or approve extra spending.';
 export const PAID_ISSUED_LEASE_RETIREMENT_CLAIM = 'This expired attempt received its tool contract but never acknowledged process start. Retire its authority and use one additional owner-approved recovery of the same batch. Its contract and history remain preserved. This does not prove that an unknown process died or approve extra spending.';
 export const PAID_CLOSED_OWNER_RECOVERY_CLAIM = 'This attempt is already closed without a start acknowledgment or an irreversible paid claim. Use the one additional owner-approved recovery of the same batch, retaining its issued contract and original failure. The recorded failure cause is unknown. This does not prove process death or approve extra spending.';
-export const PAID_CLOSED_CLASS_RECOVERY_CLAIM = 'This attempt is closed without a recorded worker start, output or irreversible paid claim. Owner-confirmed recovery keeps the same approved batch, budget and original failure history. This recovery window closes at the first worker start, after five owner recoveries or after 24 hours. It does not prove process death or approve extra spending.';
+export const PAID_CLOSED_CLASS_RECOVERY_CLAIM = 'This prelaunch attempt is closed. Owner-confirmed recovery keeps the same approved batch, budget and original failure history. The window allows five owner recoveries within 24 hours; any paid claim blocks this recovery. Other started or unknown attempts cannot be retried this way. This does not prove process death or approve extra spending.';
+export const PAID_POSTSTART_UNCLAIMED_CLAIM = 'The worker started and its failed, empty result was settled. No managed paid execution claim was issued for this approved batch. One owner recovery uses the same frozen batch and budget, inside the existing deadline and count limit. The original unknown-runtime classification stays unchanged. This is not proof of no work or process death, and cannot retry submitted media.';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Refusals where work or an external action MAY have occurred. These must never
 // be accompanied by the no-work claim.
 const WORK_MAY_HAVE_OCCURRED: Record<string, string> = {
-  paid_prelaunch_recovery_unproven: 'This paid continuation cannot be shown to be a fenced prelaunch failure with its original approval and no irreversible paid claim.',
+  paid_prelaunch_recovery_unproven: 'This paid continuation lacks the closed-attempt and no-managed-submission evidence required for owner recovery with its original approval.',
+  paid_poststart_recovery_unavailable: 'This closed worker cannot use the one-time unclaimed-paid recovery within its fixed window. Its history stays unchanged; no new paid batch is authorized.',
   consequential_work_recorded: 'A previous attempt recorded work with outside effects, so it cannot be replayed as if nothing happened.',
   external_action_recorded: 'A previous attempt recorded an external action, so a safe replay cannot be proven.',
   artifact_recorded: 'A previous attempt declared an artifact, so a safe replay cannot be proven.',
@@ -94,7 +98,7 @@ const PROMISE_NOT_KEEPABLE: Record<string, string> = {
 export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPresentation {
   const e = (value && typeof value === 'object' ? value : {}) as ControlPlaneRetryEligibility;
   const paid = e.failureCode === 'paid_prelaunch_recovery' || e.failureCode === 'paid_unacknowledged_lease_retirement'
-    || e.failureCode === 'paid_owner_closed_prelaunch_recovery';
+    || e.failureCode === 'paid_owner_closed_prelaunch_recovery' || e.failureCode === 'paid_poststart_unclaimed';
   if (e.ok === true && e.eligible === true && e.alreadyQueued === true) return { state: 'queued', ...(paid ? { paidPrelaunch: true as const } : {}) };
   if (e.ok === true && e.eligible === true) {
     // The grant is the only authority we may act with; an eligibility without
@@ -106,11 +110,13 @@ export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPres
       failureCode: typeof e.failureCode === 'string' && e.failureCode ? e.failureCode : 'attachment_unobserved',
       ...(paid ? { paidPrelaunch: true as const } : {}),
       ...(paid && e.leaseRetirementRequired === true ? { leaseRetirement: true as const } : {}),
-      ...(e.failureCode === 'paid_owner_closed_prelaunch_recovery'
+      ...((e.failureCode === 'paid_owner_closed_prelaunch_recovery' || e.failureCode === 'paid_poststart_unclaimed')
         && Number.isInteger(e.noWorkEvidence?.ownerRecoveryIndex)
         && e.noWorkEvidence!.ownerRecoveryIndex! >= 1 && e.noWorkEvidence!.ownerRecoveryIndex! <= 5
         && e.noWorkEvidence?.ownerRecoveryLimit === 5
         ? { ownerRecoveryIndex: e.noWorkEvidence.ownerRecoveryIndex, ownerRecoveryLimit: 5 } : {}),
+      ...(paid && e.noWorkEvidence?.priorWorkerStarted === true && e.noWorkEvidence?.globalNoActionProven === false
+        ? { unknownRuntimeHistory: true as const } : {}),
     };
   }
   const reason = typeof e.reason === 'string' ? e.reason : '';
