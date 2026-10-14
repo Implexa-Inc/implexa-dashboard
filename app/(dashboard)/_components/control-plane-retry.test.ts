@@ -80,6 +80,21 @@ test('paid issued-contract recovery confirms one extra slot and preserves histor
   } finally { r.cleanup(); }
 });
 
+test('closed paid owner recovery confirms one extra slot without pretending lease or process death',async()=>{
+  const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{
+    backend:backend({eligibility:{...ELIGIBLE,failureCode:'paid_owner_closed_prelaunch_recovery',leaseRetirementRequired:false}}),bridge:NO_LOCAL_BRIDGE,
+  });
+  try {
+    await settle(r);assert.match(r.text(),/attempt is already closed/);
+    assert.match(r.text(),/recorded failure cause is unknown/);assert.match(r.text(),/does not prove process death/);
+    assert.doesNotMatch(r.text(),CLAIM);assert.doesNotMatch(r.text(),/Retire the expired lease/);
+    await r.click(button(r,'Retry safely'));assert.match(r.text(),/one additional recovery for this closed attempt/);
+    await r.click(button(r,'Queue the same request'));await settle(r);
+    assert.deepEqual(JSON.parse(JSON.stringify(r.calls.backend[1].init)),{jwt:'test-jwt',method:'POST',body:{grantId:GRANT}});
+    assert.match(r.text(),/No extra paid authority was created/);
+  }finally{r.cleanup();}
+});
+
 test('eligible: the claim, the explicit distinction, confirmation, then POST with the grant only and the JWT', async () => {
   const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: backend({}), bridge: NO_LOCAL_BRIDGE });
   try {

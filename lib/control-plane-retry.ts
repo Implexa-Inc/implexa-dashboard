@@ -53,6 +53,7 @@ export const PAID_RECOVERY_CLAIM = 'The failed attempt ended without a start ack
 export const PAID_QUEUED_RECEIPT = 'The same approved paid batch was queued again with frozen inputs. No extra paid authority was created.';
 export const PAID_LEASE_RETIREMENT_CLAIM = 'This expired prelaunch lease never completed its mandatory tool-contract issuance. Retire its authority and resume the same approved batch, preserving stored learning records. This does not prove that an unknown process died or approve extra spending.';
 export const PAID_ISSUED_LEASE_RETIREMENT_CLAIM = 'This expired attempt received its tool contract but never acknowledged process start. Retire its authority and use one additional owner-approved recovery of the same batch. Its contract and history remain preserved. This does not prove that an unknown process died or approve extra spending.';
+export const PAID_CLOSED_OWNER_RECOVERY_CLAIM = 'This attempt is already closed without a start acknowledgment or an irreversible paid claim. Use the one additional owner-approved recovery of the same batch, retaining its issued contract and original failure. The recorded failure cause is unknown. This does not prove process death or approve extra spending.';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -88,7 +89,8 @@ const PROMISE_NOT_KEEPABLE: Record<string, string> = {
 
 export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPresentation {
   const e = (value && typeof value === 'object' ? value : {}) as ControlPlaneRetryEligibility;
-  const paid = e.failureCode === 'paid_prelaunch_recovery' || e.failureCode === 'paid_unacknowledged_lease_retirement';
+  const paid = e.failureCode === 'paid_prelaunch_recovery' || e.failureCode === 'paid_unacknowledged_lease_retirement'
+    || e.failureCode === 'paid_owner_closed_prelaunch_recovery';
   if (e.ok === true && e.eligible === true && e.alreadyQueued === true) return { state: 'queued', ...(paid ? { paidPrelaunch: true as const } : {}) };
   if (e.ok === true && e.eligible === true) {
     // The grant is the only authority we may act with; an eligibility without
