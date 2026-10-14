@@ -109,6 +109,51 @@ test('bounded closed class shows count and posts only the opaque grant',async()=
   }finally{r.cleanup();}
 });
 
+test('settled batch resume describes reuse, not no-submission, and posts only the opaque grant',async()=>{
+  const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({eligibility:{...ELIGIBLE,
+    failureCode:'paid_settled_batch_resume',noWorkEvidence:{ownerRecoveryIndex:3,ownerRecoveryLimit:5,priorWorkerStarted:true,globalNoActionProven:false}}}),
+    bridge:{localInputReauthorizationState:async()=>({ok:true,applicable:false,paidSettlementArchiveChecked:true})}});
+  try{
+    await settle(r);assert.match(r.text(),/reusing those settled clips/);assert.match(r.text(),/remaining unclaimed items/);
+    assert.match(r.text(),/Owner recovery 3 of 5/);assert.doesNotMatch(r.text(),CLAIM);
+    assert.doesNotMatch(r.text(),/proved no managed paid submission|any paid claim blocks|No managed paid execution claim was issued/);
+    await r.click(button(r,'Retry safely'));await r.click(button(r,'Queue the same request'));await settle(r);
+    assert.deepEqual(JSON.parse(JSON.stringify(r.calls.backend[1].init)),{jwt:'test-jwt',method:'POST',body:{grantId:GRANT}});
+    assert.match(r.text(),/No extra paid authority was created/);
+  }finally{r.cleanup();}
+});
+test('same-request paid outbox must finish local recovery before the grant can be consumed',async()=>{
+  const observed: unknown[]=[];
+  const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({eligibility:{...ELIGIBLE,
+    failureCode:'paid_settled_batch_resume'}}),bridge:{localInputReauthorizationState:async(...args:unknown[])=>{
+      observed.push(args);return{ok:false,error:'paid_action_settlement_recovery_pending'};}}});
+  try{
+    await settle(r);await r.click(button(r,'Retry safely'));await r.click(button(r,'Queue the same request'));await settle(r);
+    assert.deepEqual(JSON.parse(JSON.stringify(observed)),[[RUN,REQUEST]]);
+    assert.equal(r.calls.backend.length,1,'no grant-consuming POST while local evidence is pending');
+    assert.match(r.text(),/recovering and archiving the existing paid clip/);assert.match(r.text(),/Nothing was queued/);
+  }finally{r.cleanup();}
+});
+test('an older app cannot silently skip the settled-batch local archive check',async()=>{
+  const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({eligibility:{...ELIGIBLE,
+    failureCode:'paid_settled_batch_resume'}}),bridge:NO_LOCAL_BRIDGE});
+  try{
+    await settle(r);await r.click(button(r,'Retry safely'));await r.click(button(r,'Queue the same request'));await settle(r);
+    assert.equal(r.calls.backend.length,1);assert.match(r.text(),/cannot confirm that paid settlement recovery finished/);
+    assert.match(r.text(),/nothing was queued/);
+  }finally{r.cleanup();}
+});
+test('ordinary retry does not opt into the paid outbox preflight',async()=>{
+  let observed=false;
+  const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({}),bridge:{
+    localInputReauthorizationState:async(runId:string,requestId?:string)=>{
+      assert.equal(runId,RUN);assert.equal(requestId,undefined);observed=true;return{ok:true,applicable:false};}}});
+  try{
+    await settle(r);await r.click(button(r,'Retry safely'));await r.click(button(r,'Queue the same request'));await settle(r);
+    assert.equal(observed,true);assert.equal(r.calls.backend.length,2);assert.match(r.text(),/Queued again safely/);
+  }finally{r.cleanup();}
+});
+
 test('poststart unclaimed recovery never claims no work, and future prelaunch retains unknown history',async()=>{
   for(const failureCode of ['paid_poststart_unclaimed','paid_owner_closed_prelaunch_recovery']) {
     const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({eligibility:{...ELIGIBLE,failureCode,
