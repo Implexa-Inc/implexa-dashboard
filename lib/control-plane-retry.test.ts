@@ -17,6 +17,18 @@ const PROMISE_REASONS = ['workflow_version_unpinned', 'workflow_version_unavaila
 const HIDDEN_REASONS = ['request_not_found', 'request_still_pending', 'request_cancelled', 'no_launch_attempt', 'request_not_surfaced_failure',
   'control_plane_retry_schema_unavailable', 'control_plane_retry_identity_invalid', 'something_new', undefined, ''];
 
+test('paid prelaunch recovery retains the grant path but never claims parent-proven no work', () => {
+  const paid = { ...ELIGIBLE, failureCode: 'paid_prelaunch_recovery' };
+  const p = describeControlPlaneRetry(paid);
+  assert.equal(p.state === 'available' && p.paidPrelaunch, true);
+  assert.equal(mayClaimNoWork(p), false);
+  const queued = describeControlPlaneRetry({ ...paid, alreadyQueued: true });
+  assert.equal(queued.state === 'queued' && queued.paidPrelaunch, true);
+  assert.equal(mayClaimNoWork(queued), false);
+  assert.equal(describeControlPlaneRetry({ ...paid, grantId: null }).state, 'hidden');
+  assert.equal(describeControlPlaneRetry({ ok: false, reason: 'paid_prelaunch_recovery_unproven' }).state, 'disabled');
+});
+
 test('an eligible payload with a grant becomes an available action carrying the grant and the frozen version', () => {
   const p = describeControlPlaneRetry(ELIGIBLE);
   assert.deepEqual(p, { state: 'available', grantId: GRANT, workflowVersionId: VERSION, failureCode: 'child_exited_before_attachment' });

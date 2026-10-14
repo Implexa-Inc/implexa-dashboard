@@ -20,6 +20,7 @@ import { createClient } from '@/lib/supabase/client';
 import {
   describeControlPlaneRetry, retryConfirmed, mayClaimNoWork,
   RETRY_SAFELY_LABEL, RETRY_SAFELY_DISTINCTION, RUN_AGAIN_DISTINCTION, NO_WORK_CLAIM, QUEUED_RECEIPT,
+  PAID_RECOVERY_LABEL, PAID_RECOVERY_CLAIM, PAID_QUEUED_RECEIPT,
 } from '@/lib/control-plane-retry';
 
 type LocalInputBridge = {
@@ -70,7 +71,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
   if (queued || presentation.state === 'queued') {
     return (
       <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-3 text-sm text-ink-200">
-        {QUEUED_RECEIPT}
+        {'paidPrelaunch' in presentation && presentation.paidPrelaunch ? PAID_QUEUED_RECEIPT : QUEUED_RECEIPT}
       </div>
     );
   }
@@ -134,7 +135,10 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
 
   return (
     <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/[0.06] px-3 py-3">
-      <div className="text-sm font-semibold text-ink-100">{RETRY_SAFELY_LABEL}</div>
+      <div className="text-sm font-semibold text-ink-100">{'paidPrelaunch' in presentation && presentation.paidPrelaunch ? PAID_RECOVERY_LABEL : RETRY_SAFELY_LABEL}</div>
+      {presentation.state === 'available' && presentation.paidPrelaunch && (
+        <p className="mt-1 text-xs text-ink-300 leading-relaxed">{PAID_RECOVERY_CLAIM}</p>
+      )}
       {mayClaimNoWork(presentation) && (
         <p className="mt-1 text-xs text-ink-300 leading-relaxed">{NO_WORK_CLAIM}</p>
       )}

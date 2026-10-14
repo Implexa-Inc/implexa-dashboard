@@ -26,6 +26,24 @@ const backend = (opts: { eligibility?: unknown; post?: (init: unknown) => unknow
   return opts.post ? opts.post(init) : { ok: true, requeued: true, alreadyQueued: false, drainRetryEpoch: 3, grantId: GRANT };
 };
 
+test('paid prelaunch recovery uses the same owner grant, without a parent no-work claim', async () => {
+  const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, {
+    backend: backend({ eligibility: { ...ELIGIBLE, failureCode: 'paid_prelaunch_recovery' } }), bridge: NO_LOCAL_BRIDGE,
+  });
+  try {
+    await settle(r);
+    assert.match(r.text(), /Resume the same approved paid batch/);
+    assert.match(r.text(), /does not approve a new batch/);
+    assert.doesNotMatch(r.text(), CLAIM);
+    await r.click(button(r, 'Retry safely'));
+    await r.click(button(r, 'Queue the same request'));
+    await settle(r);
+    assert.deepEqual(JSON.parse(JSON.stringify(r.calls.backend[1].init)), { jwt: 'test-jwt', method: 'POST', body: { grantId: GRANT } });
+    assert.match(r.text(), /No extra paid authority was created/);
+    assert.doesNotMatch(r.text(), CLAIM);
+  } finally { r.cleanup(); }
+});
+
 test('eligible: the claim, the explicit distinction, confirmation, then POST with the grant only and the JWT', async () => {
   const r = await render('control-plane-retry.tsx', { requestId: REQUEST, runId: RUN }, { backend: backend({}), bridge: NO_LOCAL_BRIDGE });
   try {
