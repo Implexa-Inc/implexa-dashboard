@@ -27,11 +27,13 @@ import {
   PAID_CLOSED_CLASS_RECOVERY_CLAIM,
   PAID_POSTSTART_UNCLAIMED_CLAIM,
   PAID_SETTLED_BATCH_RESUME_CLAIM,
+  PAID_RENDER_ONLY_RESUME_CLAIM, PAID_RENDER_ONLY_QUEUED_RECEIPT,
 } from '@/lib/control-plane-retry';
 
 type LocalInputBridge = {
   localInputReauthorizationState?: (runId: string, requestId?: string) => Promise<{
     ok?: boolean; applicable?: boolean; required?: boolean; error?: string; paidSettlementArchiveChecked?: boolean;
+    paidRenderReadinessChecked?: boolean; paidRenderBindingVersion?: number | null;
   }>;
   reauthorizeRunInputs?: (runId: string) => Promise<{
     ok?: boolean; canceled?: boolean; error?: string;
@@ -77,7 +79,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
   if (queued || presentation.state === 'queued') {
     return (
       <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-3 text-sm text-ink-200">
-        {'paidPrelaunch' in presentation && presentation.paidPrelaunch ? PAID_QUEUED_RECEIPT : QUEUED_RECEIPT}
+        {'renderOnly' in presentation && presentation.renderOnly ? PAID_RENDER_ONLY_QUEUED_RECEIPT : 'paidPrelaunch' in presentation && presentation.paidPrelaunch ? PAID_QUEUED_RECEIPT : QUEUED_RECEIPT}
       </div>
     );
   }
@@ -101,12 +103,20 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
       }
       const archiveRequestId = presentation.failureCode === 'paid_settled_batch_resume' ? requestId : undefined;
       const state = await bridge.localInputReauthorizationState(runId, archiveRequestId);
+      if (state?.error === 'paid_action_render_recovery_pending') {
+        setError('Wait for the existing render to finish or be reconciled before resuming. Nothing was queued.');
+        return;
+      }
       if (state?.error === 'paid_action_settlement_recovery_pending') {
         setError('Wait for Implexa to finish recovering and archiving the existing paid clip before resuming. Nothing was queued.');
         return;
       }
       if (presentation.failureCode === 'paid_settled_batch_resume' && state?.paidSettlementArchiveChecked !== true) {
         setError('This Implexa app cannot confirm that paid settlement recovery finished. Update the app before resuming; nothing was queued.');
+        return;
+      }
+      if (presentation.renderOnly && (state?.paidRenderReadinessChecked !== true || state?.paidRenderBindingVersion !== 1)) {
+        setError('This Implexa app cannot confirm render-only recovery readiness. Update the app before resuming; nothing was queued.');
         return;
       }
       if (!state?.ok || typeof state.applicable !== 'boolean'
@@ -128,7 +138,8 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
         }
         const rechecked = await bridge.localInputReauthorizationState(runId, archiveRequestId);
         if (!rechecked?.ok || rechecked.applicable !== true || rechecked.required !== false
-            || (presentation.failureCode === 'paid_settled_batch_resume' && rechecked.paidSettlementArchiveChecked !== true)) {
+            || (presentation.failureCode === 'paid_settled_batch_resume' && rechecked.paidSettlementArchiveChecked !== true)
+            || (presentation.renderOnly && (rechecked.paidRenderReadinessChecked !== true || rechecked.paidRenderBindingVersion !== 1))) {
           throw new Error('local_input_reauthorization_unavailable');
         }
       }
@@ -153,7 +164,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
     <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/[0.06] px-3 py-3">
       <div className="text-sm font-semibold text-ink-100">{'paidPrelaunch' in presentation && presentation.paidPrelaunch ? PAID_RECOVERY_LABEL : RETRY_SAFELY_LABEL}</div>
       {presentation.state === 'available' && presentation.paidPrelaunch && (
-        <p className="mt-1 text-xs text-ink-300 leading-relaxed">{presentation.failureCode === 'paid_settled_batch_resume' ? PAID_SETTLED_BATCH_RESUME_CLAIM : presentation.failureCode === 'paid_poststart_unclaimed' ? PAID_POSTSTART_UNCLAIMED_CLAIM : presentation.ownerRecoveryIndex ? PAID_CLOSED_CLASS_RECOVERY_CLAIM : presentation.failureCode === 'paid_owner_closed_prelaunch_recovery' ? PAID_CLOSED_OWNER_RECOVERY_CLAIM : presentation.failureCode === 'paid_unacknowledged_lease_retirement' ? PAID_ISSUED_LEASE_RETIREMENT_CLAIM : presentation.leaseRetirement ? PAID_LEASE_RETIREMENT_CLAIM : PAID_RECOVERY_CLAIM}</p>
+        <p className="mt-1 text-xs text-ink-300 leading-relaxed">{presentation.renderOnly ? PAID_RENDER_ONLY_RESUME_CLAIM : presentation.failureCode === 'paid_settled_batch_resume' ? PAID_SETTLED_BATCH_RESUME_CLAIM : presentation.failureCode === 'paid_poststart_unclaimed' ? PAID_POSTSTART_UNCLAIMED_CLAIM : presentation.ownerRecoveryIndex ? PAID_CLOSED_CLASS_RECOVERY_CLAIM : presentation.failureCode === 'paid_owner_closed_prelaunch_recovery' ? PAID_CLOSED_OWNER_RECOVERY_CLAIM : presentation.failureCode === 'paid_unacknowledged_lease_retirement' ? PAID_ISSUED_LEASE_RETIREMENT_CLAIM : presentation.leaseRetirement ? PAID_LEASE_RETIREMENT_CLAIM : PAID_RECOVERY_CLAIM}</p>
       )}
       {presentation.state === 'available' && presentation.unknownRuntimeHistory && !['paid_poststart_unclaimed','paid_settled_batch_resume'].includes(presentation.failureCode) && (
         <p className="mt-1 text-xs text-ink-300">An earlier worker ran and its failed settlement remains preserved. Its owner recovery proved no managed paid submission, not global no-action.</p>

@@ -39,14 +39,15 @@ export type ControlPlaneRetryEligibility = {
     ownerRecoveryExpiresAt?: string;
     priorWorkerStarted?: boolean;
     globalNoActionProven?: boolean | null;
+    renderOnly?: boolean;
   };
 };
 
 export type ControlPlaneRetryPresentation =
   | { state: 'hidden' }
-  | { state: 'queued'; paidPrelaunch?: true }
+  | { state: 'queued'; paidPrelaunch?: true; renderOnly?: true }
   | { state: 'disabled'; reason: string; explanation: string; workMayHaveOccurred: boolean }
-  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string; paidPrelaunch?: true; leaseRetirement?: true; ownerRecoveryIndex?: number; ownerRecoveryLimit?: number; unknownRuntimeHistory?: true };
+  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string; paidPrelaunch?: true; renderOnly?: true; leaseRetirement?: true; ownerRecoveryIndex?: number; ownerRecoveryLimit?: number; unknownRuntimeHistory?: true };
 
 export const RETRY_SAFELY_LABEL = 'Retry safely — no work started previously';
 export const RETRY_SAFELY_DISTINCTION = 'Retry safely: same request and frozen inputs';
@@ -62,6 +63,8 @@ export const PAID_CLOSED_OWNER_RECOVERY_CLAIM = 'This attempt is already closed 
 export const PAID_CLOSED_CLASS_RECOVERY_CLAIM = 'This prelaunch attempt is closed. Owner-confirmed recovery keeps the same approved batch, budget and original failure history. The window allows five owner recoveries within 24 hours; any paid claim blocks this recovery. Other started or unknown attempts cannot be retried this way. This does not prove process death or approve extra spending.';
 export const PAID_POSTSTART_UNCLAIMED_CLAIM = 'The worker started and its failed, empty result was settled. No managed paid execution claim was issued for this approved batch. One owner recovery uses the same frozen batch and budget, inside the existing deadline and count limit. The original unknown-runtime classification stays unchanged. This is not proof of no work or process death, and cannot retry submitted media.';
 export const PAID_SETTLED_BATCH_RESUME_CLAIM = 'The worker failed after its managed paid claims were settled. Resume the same approved batch by reusing those settled clips and submitting only the remaining unclaimed items, within the original budget and deadline. The original failed runtime history stays unchanged. This is not proof of no work or process death and does not authorize another purchase of a settled clip.';
+export const PAID_RENDER_ONLY_RESUME_CLAIM = 'All approved clips are settled. Resume only rendering and delivery, reusing those clips with their original receipts. No media purchase is authorized. The original failed runtime history and recovery deadline remain unchanged.';
+export const PAID_RENDER_ONLY_QUEUED_RECEIPT = 'The same request was queued for rendering and delivery using its settled clips. No media purchase is authorized.';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -102,7 +105,8 @@ export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPres
   const paid = e.failureCode === 'paid_prelaunch_recovery' || e.failureCode === 'paid_unacknowledged_lease_retirement'
     || e.failureCode === 'paid_owner_closed_prelaunch_recovery' || e.failureCode === 'paid_poststart_unclaimed'
     || e.failureCode === 'paid_settled_batch_resume';
-  if (e.ok === true && e.eligible === true && e.alreadyQueued === true) return { state: 'queued', ...(paid ? { paidPrelaunch: true as const } : {}) };
+  const renderOnly = e.failureCode === 'paid_settled_batch_resume' && e.noWorkEvidence?.renderOnly === true;
+  if (e.ok === true && e.eligible === true && e.alreadyQueued === true) return { state: 'queued', ...(paid ? { paidPrelaunch: true as const } : {}), ...(renderOnly ? { renderOnly: true as const } : {}) };
   if (e.ok === true && e.eligible === true) {
     // The grant is the only authority we may act with; an eligibility without
     // one (or without the frozen version it promises) is not actionable.
@@ -112,6 +116,7 @@ export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPres
       state: 'available', grantId: e.grantId, workflowVersionId: e.workflowVersionId,
       failureCode: typeof e.failureCode === 'string' && e.failureCode ? e.failureCode : 'attachment_unobserved',
       ...(paid ? { paidPrelaunch: true as const } : {}),
+      ...(renderOnly ? { renderOnly: true as const } : {}),
       ...(paid && e.leaseRetirementRequired === true ? { leaseRetirement: true as const } : {}),
       ...((e.failureCode === 'paid_owner_closed_prelaunch_recovery' || e.failureCode === 'paid_poststart_unclaimed'
         || e.failureCode === 'paid_settled_batch_resume')

@@ -134,6 +134,39 @@ test('same-request paid outbox must finish local recovery before the grant can b
     assert.match(r.text(),/recovering and archiving the existing paid clip/);assert.match(r.text(),/Nothing was queued/);
   }finally{r.cleanup();}
 });
+test('render-only recovery describes no further purchases and requires the loaded render readiness before consuming the grant',async()=>{
+  const eligibility={...ELIGIBLE,failureCode:'paid_settled_batch_resume',noWorkEvidence:{renderOnly:true,ownerRecoveryIndex:5,ownerRecoveryLimit:5}};
+  for(const state of [
+    {ok:false,error:'paid_action_render_recovery_pending'},
+    {ok:true,applicable:false,paidSettlementArchiveChecked:true},
+    {ok:true,applicable:false,paidSettlementArchiveChecked:true,paidRenderReadinessChecked:true,paidRenderBindingVersion:0},
+    {ok:true,applicable:false,paidSettlementArchiveChecked:true,paidRenderReadinessChecked:true,paidRenderBindingVersion:1},
+  ]){
+    const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({eligibility}),
+      bridge:{localInputReauthorizationState:async(runId:string,requestId?:string)=>{
+        assert.equal(runId,RUN);assert.equal(requestId,REQUEST);return state;}}});
+    try{
+      await settle(r);assert.match(r.text(),/All approved clips are settled/);assert.match(r.text(),/No media purchase is authorized/);
+      assert.match(r.text(),/Owner recovery 5 of 5/);assert.doesNotMatch(r.text(),/remaining unclaimed items/);assert.doesNotMatch(r.text(),CLAIM);
+      await r.click(button(r,'Retry safely'));await r.click(button(r,'Queue the same request'));await settle(r);
+      if('paidRenderBindingVersion' in state&&state.paidRenderBindingVersion===1){
+        assert.deepEqual(JSON.parse(JSON.stringify(r.calls.backend[1].init)),{jwt:'test-jwt',method:'POST',body:{grantId:GRANT}});
+        assert.match(r.text(),/queued for rendering and delivery/);assert.doesNotMatch(r.text(),CLAIM);
+      }else{assert.equal(r.calls.backend.length,1);assert.match(r.text(),/nothing was queued/i);}
+    }finally{r.cleanup();}
+  }
+});
+test('render-only readiness is rechecked after reconnecting the original input',async()=>{
+  let reads=0;
+  const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({eligibility:{...ELIGIBLE,
+    failureCode:'paid_settled_batch_resume',noWorkEvidence:{renderOnly:true}}}),bridge:{
+      localInputReauthorizationState:async()=>({ok:true,applicable:true,required:++reads===1,paidSettlementArchiveChecked:true,
+        paidRenderReadinessChecked:true,paidRenderBindingVersion:reads===1?1:null}),
+      reauthorizeRunInputs:async()=>({ok:true})}});
+  try{await settle(r);await r.click(button(r,'Retry safely'));await r.click(button(r,'Queue the same request'));await settle(r);
+    assert.equal(reads,2);assert.equal(r.calls.backend.filter(c=>(c.init as {method?:string}).method==='POST').length,0);
+  }finally{r.cleanup();}
+});
 test('an older app cannot silently skip the settled-batch local archive check',async()=>{
   const r=await render('control-plane-retry.tsx',{requestId:REQUEST,runId:RUN},{backend:backend({eligibility:{...ELIGIBLE,
     failureCode:'paid_settled_batch_resume'}}),bridge:NO_LOCAL_BRIDGE});
