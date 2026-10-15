@@ -27,6 +27,13 @@ test('settled batch resume retains only the owner grant and count, never no-work
   assert.equal(describeControlPlaneRetry({...value,grantId:null}).state,'hidden');
   assert.equal(describeControlPlaneRetry({ok:false,reason:'paid_settled_resume_unavailable'}).state,'disabled');
 });
+test('render-only presentation requires the exact settled-resume evidence and never claims no work',()=>{
+  const value={...ELIGIBLE,failureCode:'paid_settled_batch_resume',noWorkEvidence:{renderOnly:true,ownerRecoveryIndex:5,ownerRecoveryLimit:5}};
+  const p=describeControlPlaneRetry(value);assert.equal(p.state==='available'&&p.renderOnly,true);assert.equal(mayClaimNoWork(p),false);
+  const queued=describeControlPlaneRetry({...value,alreadyQueued:true});assert.equal(queued.state==='queued'&&queued.renderOnly,true);
+  for(const changed of [{...value,failureCode:'paid_prelaunch_recovery'},{...value,noWorkEvidence:{renderOnly:'true'}},
+    {...value,noWorkEvidence:{renderOnly:false}}])assert.equal('renderOnly' in describeControlPlaneRetry(changed),false);
+});
 
 test('paid prelaunch recovery retains the grant path but never claims parent-proven no work', () => {
   const paid = { ...ELIGIBLE, failureCode: 'paid_prelaunch_recovery' };
