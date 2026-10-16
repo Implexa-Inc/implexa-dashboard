@@ -38,12 +38,49 @@ export const CATEGORIES = ['layout_visual', 'motion_timing', 'audio', 'copy', 'p
 const TYPE_LABEL: Record<LearningType, string> = {
   check: 'Check (measurable rule over the scene)', criterion: 'Judge criterion', taste: 'Taste (preference)',
 };
+// Where an admitted learning WILL go. Delivery is not built yet for any type, so every
+// label says so: nothing here may read as if the learning already reaches a run.
 const ACTIVATION_LABEL: Record<string, string> = {
-  next_agent_version: 'Becomes a Judge criterion in the next agent version',
-  per_run_snapshot: 'Goes into each run’s taste snapshot',
+  next_agent_version: 'Will become a Judge criterion in the next agent version (not yet delivered to runs)',
+  per_run_snapshot: 'Will go into each run’s taste snapshot (not yet delivered to runs)',
   blocked_pending_schema: 'Waits for scene schema v2 before it can run',
   inactive: 'Inactive',
 };
+// Backend refusals (0471 / Learning Influence) in plain language.
+const REFUSAL: Record<string, string> = {
+  stale_typed_candidate: 'This learning changed since you opened it. The latest version is now shown.',
+  typed_candidate_dismissed: 'This suggestion was dismissed or replaced by a newer wording.',
+  typed_learning_untyped: 'Choose a type first: nothing is admitted untyped.',
+  typed_learning_needs_stage: 'Choose the stage this learning governs first.',
+  typed_learning_needs_preview: 'Run the preview for this exact version first.',
+  preview_blocks_known_good: 'The preview would block an output you accepted. Acknowledge it to admit.',
+  category_wide_needs_confirmation: 'Confirm the category-wide scope to admit.',
+  typed_learning_evidence_no_longer_valid: 'Some of the evidence this learning cites is no longer valid.',
+  typed_learning_not_eligible: 'This learning cannot be admitted: its evidence is contradicted or too old.',
+  typed_learning_already_admitted: 'This learning was already admitted.',
+  stale_typed_preview: 'A newer preview exists for this learning. It is now shown; review it before admitting.',
+  typed_learning_reword_collides_with_typed: 'Another typed learning already uses these words. Reword this one differently.',
+  typed_learning_admit_through_typed_path: 'Typed learnings are admitted from this panel only.',
+  typed_learning_text_rule_collision: 'The same words already exist as a plain learning rule. Reword this one.',
+  typed_candidate_not_in_agent_scope: 'This learning belongs to another agent.',
+  evidence_not_in_agent_scope: 'That Review issue belongs to another agent.',
+  evidence_not_implemented: 'Only implemented Review feedback can become a learning.',
+  evidence_not_stored: 'That evidence was never uploaded, so it cannot be opened.',
+};
+function refusalText(caught: unknown, fallback: string) {
+  const body = (caught as { body?: { error?: unknown; detail?: unknown } } | null)?.body;
+  const code = typeof body?.error === 'string' ? body.error : caught instanceof Error ? caught.message : '';
+  const detail = typeof body?.detail === 'string' ? ` (${body.detail})` : '';
+  return REFUSAL[code] ? `${REFUSAL[code]}${detail}` : fallback;
+}
+function evidenceUrlAllowed(url: string) {
+  const configured = typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_SUPABASE_URL : undefined;
+  try {
+    const u = new URL(url);
+    if (configured) return u.origin === new URL(configured).origin;
+    return u.protocol === 'https:';
+  } catch { return false; }
+}
 // The object a reviewer opens first for each evidence kind (backend evidenceObjectKey names).
 const PRIMARY_OBJECT: Record<string, string> = {
   annotated_visual_frame_v1: 'annotated.png', corrected_output_frame_v1: 'corrected.png',
@@ -54,12 +91,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const label = (v: string | null | undefined) => (v ? v.replaceAll('_', ' ') : '—');
 const ms = (v: number | null) => (v == null ? '' : `${(v / 1000).toFixed(1)}s`);
-function provenance(c: TypedCandidate['classification']) {
+function provenance(c: TypedCandidate['classification'], typed: boolean) {
   if (c.source === 'trainer') return 'typed by you';
-  if (c.source === 'model') return `model, ${Math.round(100 * Number(c.typeConfidence || 0))}% confidence`;
+  if (c.source === 'model') {
+    const pct = `${Math.round(100 * Number(c.typeConfidence || 0))}%`;
+    return typed ? `typed by a model at ${pct} confidence` : `a model suggested a type at ${pct}, below the 80% floor; you decide`;
+  }
   return 'drafted from your words; not typed';
 }
 function evidenceLine(e: Evidence) {
+  if (!e.kind || !e.side) return 'evidence no longer available';
   const kind = { annotated_visual_frame_v1: 'marked frame', corrected_output_frame_v1: 'corrected frame', section_frames_v1: 'section frames',
     section_clip_v1: 'section clip', section_audio_v1: 'section audio' }[e.kind] || label(e.kind);
   const when = e.captureTimeMs != null ? ` at ${ms(e.captureTimeMs)}`
@@ -93,6 +134,11 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
   const [edits, setEdits] = useState<{ learningType: string; owningStage: string; category: string; scope: string; text: string }>({
     learningType: '', owningStage: '', category: '', scope: 'agent', text: '' });
   const [flags, setFlags] = useState({ acknowledge: false, confirmWide: false });
+  const [confirmDismiss, setConfirmDismiss] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  // An acknowledgement belongs to ONE version: a new digest (edit, reword, reload) clears it.
+  const reviewingDigest = reviewing?.typedDigest;
+  useEffect(() => { setFlags({ acknowledge: false, confirmWide: false }); setConfirmDismiss(false); }, [reviewingDigest]);
   const base = `/api/v2/agents/${encodeURIComponent(slug)}/learning-influence`;
 
   const token = useCallback(async () => {
@@ -119,7 +165,7 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
   }), [base, token]);
 
   function openReview(c: TypedCandidate) {
-    setReviewing(c); setError(null); setFlags({ acknowledge: false, confirmWide: false });
+    setReviewing(c); setError(null); setNotice(null); setFlags({ acknowledge: false, confirmWide: false });
     setEdits({ learningType: c.learningType || '', owningStage: c.owningStage || '', category: c.category, scope: c.scope, text: c.text });
   }
 
@@ -127,7 +173,15 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
     const next = await load();
     const found = next?.candidates.find((c) => c.candidateId === candidateId) || null;
     setReviewing(found);
+    if (found) setEdits({ learningType: found.learningType || '', owningStage: found.owningStage || '', category: found.category, scope: found.scope, text: found.text });
     return found;
+  }
+
+  // After ANY refusal the shown version may be stale: reload so the trainer acts on the
+  // latest one instead of resubmitting a refused snapshot.
+  async function refused(caught: unknown, candidateId: string | null, fallback: string) {
+    setError(refusalText(caught, fallback));
+    if (candidateId) await refreshReviewing(candidateId); else await load();
   }
 
   async function saveEdits(c: TypedCandidate) {
@@ -141,16 +195,23 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
       if (text.length < 12 || text.length > 300) { setError('Write the learning in 12 to 300 characters.'); return; }
       change.text = text;
     }
-    if (!Object.keys(change).length) return;
-    setBusy('edit'); setError(null);
+    if (!Object.keys(change).length) { setNotice('Nothing changed.'); return; }
+    setBusy('edit'); setError(null); setNotice(null);
+    let target: string | null = null;
     try {
       const res = await post(`typed/${c.candidateId}/edit`, { typedDigest: c.typedDigest, edits: change });
       if (res?.ok !== true || !UUID.test(res?.candidateId || '') || !HEX64.test(res?.typedDigest || '')) throw new Error('The edit could not be verified.');
-      // A reword replaces the candidate; a fresh preview is needed for the new version.
-      await post(`typed/${res.candidateId}/preview`, { typedDigest: res.typedDigest });
+      // The edit is saved: from here on the modal follows the NEW version (a reword is a
+      // new candidate id), even if its preview cannot be stored.
+      target = res.candidateId;
+      try {
+        await post(`typed/${res.candidateId}/preview`, { typedDigest: res.typedDigest });
+      } catch (caught) {
+        setError(refusalText(caught, 'Saved, but the preview of the new version could not be run. Run it before admitting.'));
+      }
       await refreshReviewing(res.candidateId);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'The learning could not be updated.');
+      if (!target) await refused(caught, c.candidateId, 'The learning could not be updated.');
     } finally { setBusy(null); }
   }
 
@@ -161,7 +222,7 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
       if (res?.ok !== true) throw new Error('The preview could not be stored.');
       await refreshReviewing(c.candidateId);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'The preview could not be run.');
+      await refused(caught, c.candidateId, 'The preview could not be run.');
     } finally { setBusy(null); }
   }
 
@@ -170,24 +231,27 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
     setBusy('admit'); setError(null);
     try {
       const res = await post(`typed/${c.candidateId}/admit`, {
-        candidateKey: c.candidateKey, typedDigest: c.typedDigest,
+        // The trainer admits what they SAW: the exact preview shown in this modal.
+        candidateKey: c.candidateKey, typedDigest: c.typedDigest, previewId: c.preview?.id,
         acknowledgeKnownGoodBlocks: flags.acknowledge === true, confirmCategoryWide: flags.confirmWide === true,
       });
       if (res?.ok !== true || !UUID.test(res?.ruleVersionId || '')) throw new Error('The admission could not be verified.');
       setReviewing(null); await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'The learning could not be admitted.');
+      await refused(caught, c.candidateId, 'The learning could not be admitted.');
     } finally { setBusy(null); }
   }
 
   async function dismiss(c: TypedCandidate) {
+    // Dismissing is final, so it takes a second, explicit click.
+    if (!confirmDismiss) { setConfirmDismiss(true); return; }
     setBusy(`dismiss:${c.candidateId}`); setError(null);
     try {
       await post(`candidates/${c.candidateId}/dismiss`, { candidateKey: c.candidateKey });
       setReviewing(null); await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'The suggestion could not be dismissed.');
-    } finally { setBusy(null); }
+      await refused(caught, c.candidateId, 'The suggestion could not be dismissed.');
+    } finally { setBusy(null); setConfirmDismiss(false); }
   }
 
   async function draftFromIssue() {
@@ -199,7 +263,7 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
       if (res?.ok !== true || res?.active !== false || !UUID.test(res?.candidateId || '')) throw new Error('The draft could not be verified. Nothing was admitted.');
       setDraftOpen(false); setDraftIds({ requestId: '', issueId: '' }); await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'The learning could not be drafted.');
+      setError(refusalText(caught, 'The learning could not be drafted.'));
     } finally { setBusy(null); }
   }
 
@@ -207,22 +271,28 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
     const name = PRIMARY_OBJECT[e.kind];
     if (!name) return;
     setError(null);
+    // Open the tab inside the click (popup blockers allow only that), then point it at the
+    // signed URL once it arrives — or close it if the URL cannot be trusted.
+    const tab = window.open('about:blank', '_blank');
+    if (tab) tab.opener = null;
     try {
       const res = await callBackend(`${base}/typed/${c.candidateId}/evidence/${e.id}/url?name=${encodeURIComponent(name)}`, { jwt: await token() });
-      if (res?.ok !== true || typeof res.signedUrl !== 'string' || !/^https:\/\//.test(res.signedUrl)) throw new Error('The evidence is not available.');
-      window.open(res.signedUrl, '_blank', 'noopener');
+      if (res?.ok !== true || typeof res.signedUrl !== 'string' || !evidenceUrlAllowed(res.signedUrl)) throw new Error('The evidence is not available.');
+      if (tab) tab.location.href = res.signedUrl;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'The evidence could not be opened.');
+      if (tab) tab.close();
+      setError(refusalText(caught, 'The evidence could not be opened.'));
     }
   }
 
   if (source === 'loading') return <div className="mt-4 text-xs text-ink-500" aria-busy="true">Loading typed learnings…</div>;
+  // A backend without typed learnings is the normal state until 0471 ships: say so quietly
+  // instead of putting a warning on every agent's learnings card.
   if (source !== 'ready' || !payload) {
     return (
-      <div className="mt-4 rounded-lg border border-amber-500/30 p-3" aria-label="Typed learnings unavailable">
-        <p className="text-sm font-medium text-ink-100">Typed learnings unavailable</p>
-        <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">The typed learning source could not be verified. Nothing is shown as empty and every action is disabled.</p>
-      </div>
+      <p className="mt-4 text-[11px] text-ink-500" aria-label="Typed learnings unavailable">
+        Typed learnings are not available on this backend yet. No typed learning is shown or admitted.
+      </p>
     );
   }
 
@@ -244,7 +314,7 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
             <li key={c.candidateId} className="rounded-lg border border-ink-800 bg-ink-900/40 p-3">
               <p className="text-sm text-ink-100">{c.text}</p>
               <p className="mt-1 text-[11px] text-ink-400">
-                {c.learningType ? TYPE_LABEL[c.learningType] : 'Untyped — you decide'} · stage {label(c.owningStage)} · {label(c.category)} · {c.scope === 'category_wide' ? 'category-wide' : 'this agent'} · {provenance(c.classification)}
+                {c.learningType ? TYPE_LABEL[c.learningType] : 'Untyped — you decide'} · stage {label(c.owningStage)} · {label(c.category)} · {c.scope === 'category_wide' ? 'category-wide' : 'this agent'} · {provenance(c.classification, c.learningType !== null)}
                 {c.checkState === 'pending_schema' ? ' · waits for scene schema v2' : ''}
               </p>
               <p className="mt-1 text-[11px] text-ink-500">Evidence: {c.evidence.map(evidenceLine).join('; ')}</p>
@@ -285,7 +355,7 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
       </Modal>
 
       <Modal open={reviewing !== null} onClose={() => { if (busy === null) setReviewing(null); }} title="Review a typed learning"
-        subtitle="Admitting appends an immutable, reversible version. Checks and criteria reach runs only through a new agent version.">
+        subtitle="Admitting appends an immutable version that is never sent to a run as prose. Delivery to runs is not built yet for any type.">
         {reviewing && (
           <div className="space-y-3 text-xs text-ink-300">
             <label className="block">Learning
@@ -330,7 +400,7 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
                 {reviewing.evidence.map((e) => (
                   <li key={e.id}>
                     {evidenceLine(e)} {e.status !== 'validated' ? <span className="text-rose-500">({e.status})</span> : null}
-                    {e.stored && PRIMARY_OBJECT[e.kind] && (
+                    {e.stored && e.status === 'validated' && PRIMARY_OBJECT[e.kind] && (
                       <button type="button" className="ml-2 underline" onClick={() => void openEvidence(reviewing, e)}>Open</button>
                     )}
                   </li>
@@ -343,7 +413,7 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
                 <p className="mt-1">
                   {reviewing.preview.evaluated
                     ? `Evaluated by ${reviewing.preview.evaluator}: would catch ${reviewing.preview.wouldCatchRunIds.length}, would block ${reviewing.preview.wouldBlockRunIds.length} of ${reviewing.preview.relatedRunIds.length} recent runs.`
-                    : `Not evaluated: checks wait for scene schema v2 and criteria need an approved model budget. ${reviewing.preview.relatedRunIds.length} recent runs and ${reviewing.preview.relatedEvidenceIds.length} related reviews are listed for you to inspect.`}
+                    : `Not evaluated: no evaluator exists yet (checks wait for scene schema v2; criteria and taste need an approved model budget). ${reviewing.preview.relatedRunIds.length} recent runs and ${reviewing.preview.relatedEvidenceIds.length} related reviews are listed for you to inspect.`}
                 </p>
               ) : (
                 <button type="button" disabled={busy !== null} onClick={() => void runPreview(reviewing)} className="btn-outline mt-1 px-3 py-1 text-xs">
@@ -369,11 +439,14 @@ export default function TypedLearningsPanel({ slug, initialPayload = null, initi
                 onClick={() => void admit(reviewing)} className="btn-primary px-3 py-1.5 text-xs disabled:opacity-40">
                 {busy === 'admit' ? 'Admitting…' : 'Admit learning'}
               </button>
-              <button type="button" disabled={busy !== null} onClick={() => void dismiss(reviewing)} className="btn-outline px-3 py-1.5 text-xs">Dismiss</button>
+              <button type="button" disabled={busy !== null} onClick={() => void dismiss(reviewing)} className="btn-outline px-3 py-1.5 text-xs">
+                {confirmDismiss ? 'Confirm dismiss (final)' : 'Dismiss'}
+              </button>
             </div>
           </div>
         )}
       </Modal>
+      {notice && <p role="status" className="mt-3 text-xs text-ink-400">{notice}</p>}
       {error && <p role="alert" className="mt-3 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
     </div>
   );
