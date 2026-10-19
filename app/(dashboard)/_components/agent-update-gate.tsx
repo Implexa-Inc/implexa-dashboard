@@ -34,7 +34,8 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
   const [message, setMessage] = useState('');
   const [uncertain, setUncertain] = useState(false);
   const operation = useRef<{ digest: string; key: string } | null>(null);
-  const canActivate = !!receipt || (preview?.readiness === 'already_adopted' && preview.eligibleRouteCount > 0);
+  const canActivate = !!receipt || (preview?.readiness === 'already_adopted'
+    && (preview.eligibleRouteCount > 0 || preview.managerTrainingRequirements?.readiness === 'not_applicable'));
   const supabase = createClient();
   async function call(path: string, body?: unknown, idempotencyKey?: string) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -94,7 +95,8 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
     busyRef.current = true; setBusy(true); setMessage('');
     try {
       const result = await call(`/api/v2/agents/${encodeURIComponent(slug)}/revisions/${encodeURIComponent(targetId)}/apply`,
-        { expectedBaseVersionId: baseVersionId });
+        { expectedBaseVersionId: baseVersionId,
+          ...(preview?.managerPolicyRemap ? { managerPolicyRemapAcknowledgement: preview.managerPolicyRemap.acknowledgement } : {}) });
       if (result?.ok !== true || result.version_id !== targetId || result.status !== 'applied')
         throw new Error(result?.reason || result?.error || 'Activation was not confirmed.');
       setApplied(true); setConfirmed(false);
@@ -110,9 +112,23 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
       <p className="mt-2 text-xs break-all">Current definition: {baseVersionId}</p>
       {targetId && <p className="text-xs break-all">Proposed definition: {targetId}</p>}
       {preview && <p className="mt-3">{preview.eligibleRecordCount} accepted records cover {preview.eligibleRouteCount} reference routes.</p>}
+      {preview?.managerPolicyRemap && <section className="mt-3 text-xs">
+        <p>This proposal moves or consolidates Manager responsibilities. Only surviving same-label references may carry forward.</p>
+        <ul>{preview.managerPolicyRemap.entries.map(entry => <li key={entry.from.order}>
+          Stage {entry.from.order} {entry.from.label} → stage {entry.to.order} {entry.to.label} ({entry.disposition})
+        </li>)}</ul>
+        <p>Excluded retired labels: {preview.managerPolicyRemap.retiredLabels.join(', ') || 'none'}.</p>
+        <p className="break-all">Source policies: {preview.managerPolicyRemap.acknowledgement.sourcePolicySetDigest}</p>
+        <p className="break-all">Target policies: {preview.managerPolicyRemap.acknowledgement.targetPolicySetDigest}</p>
+        <p className="break-all">Remap: {preview.managerPolicyRemap.acknowledgement.remapDigest}</p>
+        <p className="break-all">Acknowledgement receipt: {preview.managerPolicyRemap.activationReceiptDigest}</p>
+        <p>Reference training: {preview.managerTrainingRequirements?.readiness}. Missing routes: {preview.managerTrainingRequirements?.missingPairs.length ?? 'unknown'}.</p>
+      </section>}
       {preview && !applied && (canActivate || trainingSuccessorAdoptionActionAvailable(preview)) && <>
         <label className="mt-3 block text-sm"><input type="checkbox" checked={confirmed} disabled={busy}
-          onChange={e => setConfirmed(e.target.checked)} /> {canActivate ? 'I reviewed this exact proposal and approve activating it.' : 'Carry these existing accepted references to this exact proposal.'}</label>
+          onChange={e => setConfirmed(e.target.checked)} /> {canActivate
+            ? preview?.managerPolicyRemap ? 'I reviewed this exact policy remap and version pair and approve activating it.' : 'I reviewed this exact proposal and approve activating it.'
+            : 'Carry these existing accepted same-label references to this exact proposal.'}</label>
         <button type="button" className="btn-primary mt-3" disabled={busy || !confirmed}
           onClick={() => void (canActivate ? apply() : adopt())}>{busy ? 'Working…' : canActivate ? 'Activate reviewed proposal' : uncertain ? 'Confirm same carry-forward' : 'Carry accepted references'}</button>
       </>}
