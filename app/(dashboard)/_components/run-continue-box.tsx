@@ -47,6 +47,7 @@ export default function RunContinueBox({
   initialNote?: string;
 }) {
   const [note, setNote] = useState(initialNote);
+  const [preservePlannerIdentity, setPreservePlannerIdentity] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [msg, setMsg] = useState('');
@@ -82,6 +83,7 @@ export default function RunContinueBox({
         method: 'POST',
         body: {
           kind: 'continue', runId, note: composed, source: 'dashboard',
+          ...(preservePlannerIdentity ? { revisionPreservation: 'planner-bundle-identity-preservation.v1' } : {}),
           ...(opts?.force ? { force: true } : {}),
           // On a Recheck-admitted retry: the machine the admission was proven on.
           ...(opts?.executionMachineId ? { executionMachineId: opts.executionMachineId } : {}),
@@ -138,6 +140,12 @@ export default function RunContinueBox({
         error={attachError}
         hint="A screenshot, the captured footage, a doc — the run reads it as input."
       />
+      {!pending && <label className="mt-3 flex items-start gap-2 text-xs text-ink-400">
+        <input type="checkbox" checked={preservePlannerIdentity}
+          onChange={(e) => setPreservePlannerIdentity(e.target.checked)} />
+        <span>Planner timing/layout revision: preserve the transcript, presenter, point and scene identities,
+          and existing media requests. Implexa verifies this against the original bundle; other agents do not support this option.</span>
+      </label>}
       <div className="mt-3 flex items-center gap-3 flex-wrap">
         <button
           type="button"
