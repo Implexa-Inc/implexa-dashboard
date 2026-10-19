@@ -56,6 +56,7 @@ const exact = (value: unknown, keys: readonly string[]): value is Record<string,
 export function trainingSuccessorAdoptionPreview(
   value: unknown,
   targetWorkflowVersionId: string,
+  requirements: ManagerTrainingRequirements | null = null,
 ): TrainingSuccessorAdoptionPreview | null {
   if (!exact(value, ['contractVersion', 'targetWorkflowVersionId', 'sourceWorkflowVersionId',
     'eligibleRecordCount', 'alreadyAdoptedRecordCount', 'newlyAdoptableRecordCount',
@@ -74,8 +75,12 @@ export function trainingSuccessorAdoptionPreview(
     if (value.reason !== null || value.sourceWorkflowVersionId === null
       || Number(value.newlyAdoptableRecordCount) < 1) return null;
   } else if (value.readiness === 'already_adopted') {
+    const zero = requirements?.readiness === 'not_applicable' && requirements.reason === null
+      && requirements.workflowVersionId === targetWorkflowVersionId
+      && requirements.requiredPairs.length === 0 && requirements.fulfilledPairs.length === 0 && requirements.missingPairs.length === 0
+      && ['eligibleRecordCount', 'alreadyAdoptedRecordCount', 'newlyAdoptableRecordCount', 'eligibleRouteCount'].every(key => value[key] === 0);
     if (value.reason !== null || value.sourceWorkflowVersionId === null
-      || Number(value.alreadyAdoptedRecordCount) < 1 || Number(value.newlyAdoptableRecordCount) !== 0) return null;
+      || (!zero && Number(value.alreadyAdoptedRecordCount) < 1) || Number(value.newlyAdoptableRecordCount) !== 0) return null;
   } else if (value.reason === null || Number(value.newlyAdoptableRecordCount) !== 0) return null;
   return value as TrainingSuccessorAdoptionPreview;
 }
@@ -90,11 +95,46 @@ export function trainingSuccessorAdoptionActionAvailable(
 /** Proposed adoption uses the same reference projection, with an exact snapshot. */
 export function trainingProposedAdoptionPreview(value: unknown, sourceId: string, targetId: string) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const { ok, expectedAdoptionDigest, ...projection } = value as Record<string, unknown>;
-  const preview = trainingSuccessorAdoptionPreview(projection, targetId);
+  const raw = value as Record<string, unknown>;
+  const { ok, expectedAdoptionDigest, managerPolicyRemap, managerTrainingRequirements, ...projection } = raw;
+  const details = Object.hasOwn(raw, 'managerPolicyRemap') || Object.hasOwn(raw, 'managerTrainingRequirements');
+  if (details && (!Object.hasOwn(raw, 'managerPolicyRemap') || !Object.hasOwn(raw, 'managerTrainingRequirements')
+    || !isManagerTrainingRequirements(managerTrainingRequirements, targetId))) return null;
+  const requirements = details ? managerTrainingRequirements as ManagerTrainingRequirements : null;
+  // Zero is accepted only with the server's separately verified, genuinely
+  // not-applicable requirements. It is never counted as positive coverage.
+  const preview = trainingSuccessorAdoptionPreview(projection, targetId, requirements);
+  const remap = managerPolicyRemap === null || managerPolicyRemap === undefined ? null
+    : managerPolicyRemapReview(managerPolicyRemap, sourceId, targetId);
+  if (details && managerPolicyRemap !== null && !remap) return null;
   return ok === true && preview && preview.sourceWorkflowVersionId === sourceId
     && typeof expectedAdoptionDigest === 'string' && /^[a-f0-9]{64}$/.test(expectedAdoptionDigest)
-    ? { ...preview, expectedAdoptionDigest } : null;
+    ? { ...preview,
+      expectedAdoptionDigest, managerPolicyRemap: remap, managerTrainingRequirements: requirements } : null;
+}
+
+export type ManagerPolicyRemapAcknowledgement = { fromVersionId: string; targetVersionId: string;
+  sourcePolicySetDigest: string; targetPolicySetDigest: string; remapDigest: string };
+type RemapEntry = { from: { order: number; kind: string; label: string; policyDigest: string };
+  to: { order: number; label: string }; disposition: 'moved' | 'consolidated' };
+function managerPolicyRemapReview(value: unknown, source: string, target: string) {
+  if (!exact(value, ['acknowledgement', 'entries', 'retiredLabels', 'activationReceiptDigest'])
+    || typeof value.activationReceiptDigest !== 'string' || !/^[a-f0-9]{64}$/.test(value.activationReceiptDigest)) return null;
+  const ack = value.acknowledgement;
+  if (!exact(ack, ['fromVersionId', 'targetVersionId', 'sourcePolicySetDigest', 'targetPolicySetDigest', 'remapDigest'])
+    || ack.fromVersionId !== source || ack.targetVersionId !== target
+    || !['sourcePolicySetDigest', 'targetPolicySetDigest', 'remapDigest'].every(key => typeof ack[key] === 'string' && /^[a-f0-9]{64}$/.test(ack[key] as string))
+    || !Array.isArray(value.entries) || value.entries.length < 1 || value.entries.length > 16
+    || !Array.isArray(value.retiredLabels) || !value.retiredLabels.every(label => typeof label === 'string' && /^[a-z_]{1,40}$/.test(label))) return null;
+  for (const e of value.entries) {
+    if (!exact(e, ['from', 'to', 'disposition']) || !exact(e.from, ['order', 'kind', 'label', 'policyDigest'])
+      || !exact(e.to, ['order', 'label']) || !['moved', 'consolidated'].includes(String(e.disposition))
+      || ![e.from, e.to].every(loc => Number.isSafeInteger(loc.order) && Number(loc.order) > 0
+        && typeof loc.label === 'string' && /^[a-z_]{1,40}$/.test(loc.label))
+      || !['skill', 'tool', 'decision', 'workflow'].includes(String(e.from.kind))
+      || typeof e.from.policyDigest !== 'string' || !/^[a-f0-9]{64}$/.test(e.from.policyDigest)) return null;
+  }
+  return { acknowledgement: ack as ManagerPolicyRemapAcknowledgement, entries: value.entries as RemapEntry[], retiredLabels: value.retiredLabels as string[], activationReceiptDigest: value.activationReceiptDigest };
 }
 
 export function trainingProposedAdoptionReceipt(value: unknown, agentSlug: string,

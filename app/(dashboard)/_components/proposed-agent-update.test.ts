@@ -53,3 +53,40 @@ test('a fresh already-adopted preview recovers a lost adoption reply without ano
   const calls:string[]=[];const ui=await mount(path=>{calls.push(path);if(path.endsWith('/hardening'))return hardening();if(path.endsWith('/preview-proposed-adoption'))return{...preview(),alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,readiness:'already_adopted'};return{ok:true,version_id:TARGET,status:'applied',version_number:37};});
   try{await ui.click('Review proposed update');await ui.confirm();await ui.click('Activate reviewed proposal');assert.equal(calls.some(p=>p.endsWith('/adopt-proposed')),false);assert.match(ui.text(),/Definition v37 applied/);}finally{await ui.close();}
 });
+const remapReview=()=>({acknowledgement:{fromVersionId:SOURCE,targetVersionId:TARGET,
+  sourcePolicySetDigest:'d'.repeat(64),targetPolicySetDigest:'e'.repeat(64),remapDigest:'f'.repeat(64)},
+  activationReceiptDigest:'9'.repeat(64),entries:[{from:{order:13,kind:'decision',label:'build',policyDigest:'8'.repeat(64)},
+    to:{order:4,label:'scene_contract'},disposition:'consolidated'}],retiredLabels:['build']});
+const zeroRequirements=()=>({contractVersion:'manager-reference-training-readiness.v1',scope:'workflow_version_quality_references',
+  workflowVersionId:TARGET,classified:true,requiredPairs:[],fulfilledPairs:[],missingPairs:[],readiness:'not_applicable',reason:null});
+test('only verified not-applicable requirements allow a zero-reference remap review',()=>{
+  const value={...preview(),eligibleRecordCount:0,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0,
+    readiness:'already_adopted',managerPolicyRemap:remapReview(),managerTrainingRequirements:zeroRequirements()};
+  const checked=trainingProposedAdoptionPreview(value,SOURCE,TARGET)!;
+  assert.ok(checked);assert.equal(checked.eligibleRecordCount,0);
+  assert.deepEqual(checked.managerPolicyRemap,remapReview());
+  for(const invalid of [
+    {...value,managerTrainingRequirements:receipt().managerTrainingRequirements},
+    {...value,managerTrainingRequirements:{...zeroRequirements(),missingPairs:[PAIR]}},
+    {...value,managerPolicyRemap:{...remapReview(),extra:true}},
+    {...value,managerPolicyRemap:{...remapReview(),acknowledgement:{...remapReview().acknowledgement,targetVersionId:SOURCE}}},
+    {...value,managerPolicyRemap:{...remapReview(),activationReceiptDigest:'unknown'}},
+  ])assert.equal(trainingProposedAdoptionPreview(invalid,SOURCE,TARGET),null);
+});
+test('owner sees exact policy remap and excluded label, then acknowledges only on Apply without adoption',async()=>{
+  const calls:any[]=[];
+  const value={...preview(),eligibleRecordCount:0,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0,
+    readiness:'already_adopted',managerPolicyRemap:remapReview(),managerTrainingRequirements:zeroRequirements()};
+  const ui=await mount((path,options)=>{calls.push({path,options});if(path.endsWith('/hardening'))return hardening();
+    if(path.endsWith('/preview-proposed-adoption'))return value;
+    if(path.endsWith('/apply'))return{ok:true,version_id:TARGET,status:'applied',version_number:43};throw Error('unexpected write');});
+  try{
+    await ui.click('Review proposed update');
+    assert.match(ui.text(),/Stage 13 build → stage 4 scene_contract/);assert.match(ui.text(),/Excluded retired labels: build/);
+    assert.ok(ui.text().includes(remapReview().acknowledgement.remapDigest));assert.ok(ui.text().includes(remapReview().activationReceiptDigest));
+    assert.equal(document.querySelector<HTMLButtonElement>('button.btn-primary')!.disabled,true);
+    await ui.confirm();await ui.click('Activate reviewed proposal');
+    assert.deepEqual(calls.at(-1).options.body,{expectedBaseVersionId:SOURCE,managerPolicyRemapAcknowledgement:remapReview().acknowledgement});
+    assert.equal(calls.some(c=>c.path.endsWith('/adopt-proposed')),false);assert.match(ui.text(),/Definition v43 applied/);
+  }finally{await ui.close();}
+});
