@@ -8,7 +8,7 @@
 export function createClient() {
   return {
     auth: {
-      getSession: async () => ({ data: { session: { access_token: 'test-token' } } }),
+      getSession: async () => ({ data: { session: { access_token: globalThis.__implexaTestOwnerSession || 'test-token' } } }),
     },
   };
 }

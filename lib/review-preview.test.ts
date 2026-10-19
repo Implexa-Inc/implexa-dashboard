@@ -14,10 +14,69 @@ import {
   previewKind, desktopPreviewSupported, inDesktopApp, decidePreview,
   interpretPreviewResult, isSafePreviewUrl, parsePreviewUrl,
   previewText, previewTextTruncated, desktopReviewHref,
+  parseStagePreviewRead, parseStagePreviewView, stagePreviewTokens, requestStagePreview, parseStageTemporalSummary,
 } from './review-preview.ts';
 
 const TOKEN = 'a'.repeat(24);
 const GOOD = `implexa-artifact://preview/${TOKEN}`;
+test('owner decision digest is retained only for a passing held Preview, never inferred from old views', () => {
+  const summary={contractVersion:'stage-preview-summary.v1' as const,runId:'10000000-0000-4000-8000-000000000001',
+    preparationId:'10000000-0000-4000-8000-000000000002',receiptDigest:'a'.repeat(64),
+    machineId:'10000000-0000-4000-8000-000000000003',reviewState:'pass' as const,ownerHoldReady:true};
+  const view={...summary,ok:true,contractVersion:'stage-preview-local-view.v1',readOnly:true,ownerApproved:false,
+    temporalQaPassed:false,criteria:[],judgments:[],items:[]};
+  assert.equal(parseStagePreviewView(view,summary)?.decisionDigest,null);
+  assert.equal(parseStagePreviewView({...view,decisionDigest:'b'.repeat(64)},summary)?.decisionDigest,'b'.repeat(64));
+  for(const decisionDigest of ['not-a-digest',true,{},'b'.repeat(65)])
+    assert.equal(parseStagePreviewView({...view,decisionDigest},summary),null);
+  assert.equal(parseStagePreviewView({...view,decisionDigest:'b'.repeat(64),ownerHoldReady:false},summary),null);
+  assert.equal(parseStagePreviewView({...view,decisionDigest:'b'.repeat(64)}, {...summary,ownerHoldReady:false}),null);
+});
+test('temporal Preview decoding preserves the 2-of-8 offset proof rather than claiming all offsets verified', () => {
+  const t={contractVersion:'stage-preview-temporal-summary.v1',status:'passed',calibrationDigest:'a'.repeat(64),
+    slotCount:8,passedSlotCount:8,offsetIndexProvenSlotCount:2,notVisuallyResolvableSlotCount:6,
+    slots:Array.from({length:8},(_,i)=>({sceneId:'scene-1',slotId:`slot-${i}`,verdict:'passed',
+      offsetEvidence:i<2?'informative':'not_visually_resolvable'}))};
+  assert.deepEqual(parseStageTemporalSummary(t),t);
+  for(const delta of [{offsetIndexProvenSlotCount:8},{notVisuallyResolvableSlotCount:0},{slots:[]},{passedSlotCount:7},
+    {status:'not_applicable'},{calibrationDigest:null},{slots:[null,...t.slots.slice(1)]},
+    {slots:[{...t.slots[0],offsetEvidence:'verified'},...t.slots.slice(1)]}])assert.equal(parseStageTemporalSummary({...t,...delta}),null);
+});
+
+test('stage Preview metadata is exact, read-only and separate from delivery validation', () => {
+  const runId='10000000-0000-4000-8000-000000000001';
+  const summary={contractVersion:'stage-preview-summary.v1',runId,preparationId:'10000000-0000-4000-8000-000000000002',
+    receiptDigest:'a'.repeat(64),machineId:'10000000-0000-4000-8000-000000000003',reviewState:'pass',ownerHoldReady:true};
+  const response={ok:true,run:{id:runId,stagePreview:summary}};
+  assert.deepEqual(parseStagePreviewRead(response,runId),{state:'ready',summary});
+  assert.deepEqual(parseStagePreviewRead({ok:true,run:{id:runId,stagePreview:null}},runId),{state:'not_applicable'});
+  for(const bad of [{ok:true,run:{id:runId}}, {...response,run:{id:'wrong',stagePreview:summary}},
+    ...[{preparationId:'../local'},{ownerHoldReady:'yes'},{reviewState:'approved'},{hostPath:'/private/custody'}]
+      .map(delta=>({ok:true,run:{id:runId,stagePreview:{...summary,...delta}}}))])
+    assert.equal(parseStagePreviewRead(bad,runId).state,'unavailable');
+  assert.equal(decidePreview({artifact:{status:'declared',relativePath:'preview.png'},inDesktop:true,bridgeSupported:true}).state,'not_validated');
+});
+
+test('stage Preview collection binds all identities and accepts only opaque typed media', async () => {
+  const summary={contractVersion:'stage-preview-summary.v1' as const,runId:'10000000-0000-4000-8000-000000000001',
+    preparationId:'10000000-0000-4000-8000-000000000002',receiptDigest:'a'.repeat(64),
+    machineId:'10000000-0000-4000-8000-000000000003',reviewState:'pass' as const,ownerHoldReady:true};
+  const view={ok:true,contractVersion:'stage-preview-local-view.v1',...summary,readOnly:true,ownerApproved:false,temporalQaPassed:false,
+    criteria:[{id:'clarity',requirement:'Readable title',artifactPath:'compose/scene.json'}],
+    judgments:[{criterionId:'clarity',verdict:'pass',reason:'Visible in frame-1.',frameIds:['frame-1']}],
+    items:[{id:'frame-1',kind:'full_resolution',mime:'image/png',url:GOOD}]};
+  view.contractVersion='stage-preview-local-view.v1';
+  assert.equal(parseStagePreviewView(view,summary)?.criteria[0].statement,'Readable title');
+  assert.deepEqual(stagePreviewTokens(view),[TOKEN]);
+  for(const delta of [{runId:'wrong'},{preparationId:'wrong'},{machineId:'wrong'},{receiptDigest:'f'.repeat(64)},
+    {reviewState:'fail'},{ownerApproved:true},{temporalQaPassed:true},{readOnly:false},
+    {items:[{...view.items[0],url:'file:///private/custody/frame.png'}]},
+    {items:[{...view.items[0],kind:'internal_context'}]},{items:[...view.items,...view.items]},
+    {items:[{...view.items[0],mime:'text/html'}]},
+    {judgments:[{...view.judgments[0],criterionId:'unknown'}]}]) assert.equal(parseStagePreviewView({...view,...delta},summary),null);
+  assert.equal((await requestStagePreview('../wrong',summary.preparationId) as {error:string}).error,'bad_request');
+  assert.equal((await requestStagePreview(summary.runId,summary.preparationId) as {error:string}).error,'desktop_required');
+});
 
 const validated = (path: string) => ({ status: 'validated', relativePath: path });
 

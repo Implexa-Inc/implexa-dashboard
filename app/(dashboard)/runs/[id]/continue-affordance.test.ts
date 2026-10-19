@@ -25,6 +25,17 @@ import { join } from 'node:path';
 
 const page = readFileSync(join(import.meta.dirname, 'page.tsx'), 'utf8');
 
+test('typed stage Preview replaces generic approval, including unreadable metadata', () => {
+  assert.match(page,/stagePreview = parseStagePreviewRead\(detail, r.id\)/);
+  assert.match(page,/stagePreview.state === 'ready' && <div[^\n]+<StagePreviewReview summary=\{stagePreview.summary\}/);
+  assert.match(page,/heldApprovalSurface === 'generic' && \(effectiveHoldKind !== 'approval_before_action' \|\| stagePreview.state === 'not_applicable'\)/);
+  const viewer=readFileSync(join(import.meta.dirname,'../../_components/stage-preview-review.tsx'),'utf8');
+  assert.match(viewer,/<Modal open=\{open\}/);
+  assert.match(viewer,/parseStagePreviewView\(result, summary\)/);
+  assert.match(viewer,/tokens.forEach\(t => void revokePreview\(t\)\)/);
+  assert.doesNotMatch(viewer,/createRunRequest|approvePreview|window.open|dangerouslySetInnerHTML/);
+});
+
 test('the run page imports RunContinueBox — the universal continue affordance', () => {
   assert.match(
     page,
