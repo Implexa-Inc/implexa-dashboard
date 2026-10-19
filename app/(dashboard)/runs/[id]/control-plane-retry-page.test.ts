@@ -40,10 +40,10 @@ test('the browser supplies request identity plus the opaque grant it read back, 
   assert.match(component, /RUN_AGAIN_DISTINCTION/);
 });
 
-test('the no-work claim is rendered only behind mayClaimNoWork (affirmative eligibility or a queued receipt)', () => {
+test('the no-work claim is rendered only behind mayClaimNoWork and excludes paid recovery', () => {
   assert.match(component, /\{mayClaimNoWork\(presentation\) && \(\s*\n\s*<p[^>]*>\{NO_WORK_CLAIM\}<\/p>/);
   assert.equal((component.match(/NO_WORK_CLAIM/g) || []).length, 2, 'imported once, rendered once, behind the guard');
   assert.doesNotMatch(component, /No work or provider action started/, 'the sentence lives in the classifier, not as loose copy');
   const lib = readFileSync(join(process.cwd(), 'lib', 'control-plane-retry.ts'), 'utf8');
-  assert.match(lib, /return p\.state === 'available' \|\| p\.state === 'queued';/);
+  assert.match(lib, /return \(p\.state === 'available' \|\| p\.state === 'queued'\) && !p\.paidPrelaunch;/);
 });
