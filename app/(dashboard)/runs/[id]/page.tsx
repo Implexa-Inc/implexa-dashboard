@@ -36,6 +36,8 @@ import OpenInAppPrompt from '../../_components/open-in-app-prompt';
 import NotInApp from '../../_components/not-in-app';
 import RunActions from '../../_components/run-actions';
 import PaidActionApproval from '../../_components/paid-action-approval';
+import StagePreviewReview from '../../_components/stage-preview-review';
+import { parseStagePreviewRead, type StagePreviewRead } from '@/lib/review-preview';
 import RunContinueBox from '../../_components/run-continue-box';
 import RunActionItems, { isRetryableApprovalAction, type RunActionItem } from '../../_components/run-action-items';
 import FinishRunButton from '../../_components/finish-run-button';
@@ -272,7 +274,7 @@ export default async function RunDetailPage({
   let executionContext: { executor?: 'claude' | 'codex'; thread_id?: string | null; workspace?: string | null } | null = null;
   try {
     const { data } = await supabase.from('run_execution_contexts')
-      .select('executor, thread_id, workspace').eq('run_id', r.id).maybeSingle();
+      .select('executor, thread_id, workspace').eq('run_id', r.id).is('superseded_at', null).maybeSingle();
     executionContext = data || null;
   } catch { /* pre-migration run: use the legacy Claude recovery path */ }
 
@@ -501,10 +503,12 @@ export default async function RunDetailPage({
   // hold kind. Read the complete, owner-scoped manifest summary and fail closed
   // when the backend is old, unavailable, or returns anything malformed.
   let paidActionApproval: PaidActionApprovalView = { state: 'unavailable', reason: 'missing' };
+  let stagePreview: StagePreviewRead = { state: 'unavailable' };
   if (held && holdKind === 'approval_before_action') {
     try {
       const detail = await callBackend(`/api/v2/runs/${encodeURIComponent(r.id)}`, { jwt: session.access_token });
       paidActionApproval = parsePaidActionApprovalRead(detail, r.id);
+      stagePreview = parseStagePreviewRead(detail, r.id);
     } catch {
       paidActionApproval = { state: 'unavailable', reason: 'request_failed' };
     }
@@ -1054,7 +1058,8 @@ export default async function RunDetailPage({
             <PaidActionApproval runId={r.id} view={paidActionApproval} />
           </div>
         )}
-        {heldApprovalSurface === 'unavailable' && (
+        {stagePreview.state === 'ready' && <div className="mb-6"><StagePreviewReview summary={stagePreview.summary} /></div>}
+        {(heldApprovalSurface === 'unavailable' || heldApprovalSurface === 'generic' && effectiveHoldKind === 'approval_before_action' && stagePreview.state === 'unavailable') && (
           <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-5" role="alert">
             <p className="text-sm font-semibold text-ink-100">Approval details unavailable</p>
             <p className="mt-2 text-sm leading-relaxed text-amber-200">
@@ -1063,7 +1068,7 @@ export default async function RunDetailPage({
             <a href={`/runs/${encodeURIComponent(r.id)}`} className="btn-outline mt-3 inline-flex px-4 py-2 text-sm">Reload approval details</a>
           </div>
         )}
-        {heldApprovalSurface === 'generic' && (
+        {heldApprovalSurface === 'generic' && (effectiveHoldKind !== 'approval_before_action' || stagePreview.state === 'not_applicable') && (
           <div className="mb-6">
             <RunActions
               runId={r.id}

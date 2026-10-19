@@ -1,4 +1,7 @@
 export type CheckpointedContinuationItem = {
+  kind?: 'owner_preview';
+  destinationRequestId?: string;
+  destinationRequestStatus?: string;
   checkpointId: string;
   checkpointDigest: string;
   intentId: string;
@@ -6,8 +9,8 @@ export type CheckpointedContinuationItem = {
   sourceAttemptId: string;
   sourceFence: number;
   continuationAttemptId: string | null;
-  continuationFence: number;
-  continuationNumber: number;
+  continuationFence: number | null;
+  continuationNumber: number | null;
   lastCompletedStage: number;
   nextStage: number;
   materializationState: 'verified' | 'refused' | 'pending';
@@ -45,19 +48,21 @@ export default function CheckpointedContinuationHistoryCard({ history }:
   }
   return <section className="mb-6 rounded-lg border border-sky-500/30 bg-sky-500/[0.06] p-4" aria-label="Checkpointed continuation history">
     <h2 className="text-sm font-semibold text-ink-100">Preserved-work continuations</h2>
-    <p className="mt-1 text-xs text-ink-400">Technical continuations resume automatically; they do not need your input. This shows durable attempt state; Desktop verifies preserved files locally before launch.</p>
+    <p className="mt-1 text-xs text-ink-400">Technical continuations resume automatically; they do not need your input. Preview continuation requires the owner’s exact approval. This shows past approval and durable attempt state—not new permission or delivered video. Desktop verifies preserved files locally before launch.</p>
     <ol className="mt-3 space-y-3">
       {history.items.map((item) => <li key={item.intentId} className="rounded-md border border-ink-800 bg-ink-950/40 p-3 text-xs">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-300">
-          <span className="font-medium text-ink-100">Continuation {item.continuationNumber}</span>
+          <span className="font-medium text-ink-100">{item.kind==='owner_preview'?'Preview approval used':`Continuation ${item.continuationNumber}`}</span>
           <span>step {item.lastCompletedStage} → {item.nextStage}</span>
           <span>{materializationState(item.materializationState)}</span>
           <span>{attemptState(item.attemptLifecycleState)}</span>
+          {item.kind==='owner_preview'&&item.destinationRequestStatus==='cancelled'&&<span>Queued Master continuation cancelled; approval remains consumed.</span>}
         </div>
         <div className="mt-2 grid gap-1 font-mono text-[11px] text-ink-500 sm:grid-cols-2">
           <span title={item.checkpointDigest}>checkpoint {short(item.checkpointId)}</span>
           <span title={item.requestId}>request {short(item.requestId)}</span>
-          <span>fence {item.sourceFence} → {item.continuationFence}</span>
+          <span>fence {item.sourceFence} → {item.continuationFence??'pending'}{item.kind==='owner_preview'?' (new request)':''}</span>
+          {item.destinationRequestId&&<span title={item.destinationRequestId}>destination {short(item.destinationRequestId)}</span>}
           <span title={item.sourceAttemptId}>source {short(item.sourceAttemptId)}</span>
           <span title={item.continuationAttemptId || undefined}>continuation {short(item.continuationAttemptId)}</span>
           {item.materializationDigest && <span title={item.materializationDigest}>materialization {short(item.materializationDigest)}</span>}

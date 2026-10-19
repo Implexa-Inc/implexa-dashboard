@@ -40,6 +40,8 @@ export type PreviewKind = 'video' | 'audio' | 'image' | 'text' | 'pdf' | 'unsupp
 
 type DesktopBridge = {
   createArtifactPreview?: (runId: string, artifactId: string) => Promise<unknown>;
+  createStagePreview?: (runId: string, preparationId: string) => Promise<unknown>;
+  approveStagePreview?: (runId: string, preparationId: string, decisionDigest: string, ownerSessionToken: string) => Promise<unknown>;
   revokeArtifactPreview?: (token: string) => Promise<unknown>;
 };
 type WindowWithBridge = Window & { implexaDesktop?: DesktopBridge };
@@ -287,4 +289,133 @@ export function parsePreviewUrl(url: unknown): { token: string } | null {
  */
 export function isSafePreviewUrl(url: unknown): boolean {
   return parsePreviewUrl(url) !== null;
+}
+
+// Net new stage-capture view, not a relaxation of delivered-artifact validation.
+// The parent verifies custody; this decoder binds the opaque media collection to
+// the exact summary the owner opened. It cannot approve or resume a run.
+export type StagePreviewSummary = {
+  contractVersion: 'stage-preview-summary.v1'; runId: string; preparationId: string;
+  receiptDigest: string; machineId: string; reviewState: 'pass' | 'fail' | 'incomplete'; ownerHoldReady: boolean;
+};
+export type StagePreviewRead = { state: 'ready'; summary: StagePreviewSummary }
+  | { state: 'not_applicable' | 'unavailable' };
+const HASH_RE = /^[a-f0-9]{64}$/;
+const MEDIA_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
+function record(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+export function parseStagePreviewRead(value: unknown, runId: string): StagePreviewRead {
+  if (!RUN_ID_RE.test(runId) || !record(value) || value.ok !== true || !record(value.run)
+    || value.run.id !== runId) return { state: 'unavailable' };
+  const s = value.run.stagePreview;
+  if (s === null) return { state: 'not_applicable' };
+  if (!record(s) || Object.keys(s).sort().join(',') !==
+    ['contractVersion','runId','preparationId','receiptDigest','machineId','reviewState','ownerHoldReady'].sort().join(',')
+    || s.contractVersion !== 'stage-preview-summary.v1' || s.runId !== runId
+    || !RUN_ID_RE.test(String(s.preparationId)) || !RUN_ID_RE.test(String(s.machineId))
+    || !HASH_RE.test(String(s.receiptDigest)) || !['pass','fail','incomplete'].includes(String(s.reviewState))
+    || typeof s.ownerHoldReady !== 'boolean') return { state: 'unavailable' };
+  return { state: 'ready', summary: s as StagePreviewSummary };
+}
+export type StagePreviewMedia = { id: string; kind: 'full_resolution' | 'overview' | 'provider_window'; url: string };
+export type StagePreviewTemporalSummary = {
+  contractVersion: 'stage-preview-temporal-summary.v1';
+  status: 'passed' | 'failed' | 'not_assessable' | 'unavailable' | 'not_applicable';
+  calibrationDigest: string | null; slotCount: number; passedSlotCount: number;
+  offsetIndexProvenSlotCount: number; notVisuallyResolvableSlotCount: number;
+  slots: { sceneId: string; slotId: string; verdict: 'passed' | 'failed' | 'not_assessable';
+    offsetEvidence: 'informative' | 'not_visually_resolvable' }[];
+};
+export function parseStageTemporalSummary(value: unknown): StagePreviewTemporalSummary | null {
+  if (!record(value) || Object.keys(value).sort().join(',') !== ['contractVersion','status','calibrationDigest','slotCount',
+    'passedSlotCount','offsetIndexProvenSlotCount','notVisuallyResolvableSlotCount','slots'].sort().join(',')
+    || value.contractVersion !== 'stage-preview-temporal-summary.v1'
+    || !['passed','failed','not_assessable','unavailable','not_applicable'].includes(String(value.status))
+    || !['slotCount','passedSlotCount','offsetIndexProvenSlotCount','notVisuallyResolvableSlotCount'].every(k =>
+      typeof value[k] === 'number' && Number.isSafeInteger(value[k]) && value[k] >= 0 && value[k] <= 128)
+    || !Array.isArray(value.slots)) return null;
+  const t = value as unknown as StagePreviewTemporalSummary;
+  if (['unavailable','not_applicable'].includes(t.status)) return t.calibrationDigest === null && t.slots.length === 0
+    && t.passedSlotCount === 0 && t.offsetIndexProvenSlotCount === 0 && t.notVisuallyResolvableSlotCount === 0
+    && (t.status === 'unavailable' ? t.slotCount > 0 : t.slotCount === 0) ? t : null;
+  if (!HASH_RE.test(t.calibrationDigest || '') || t.slotCount < 1 || t.slots.length !== t.slotCount
+    || t.slots.some(s => !record(s) || Object.keys(s).sort().join(',') !== ['sceneId','slotId','verdict','offsetEvidence'].sort().join(',')
+      || ![s.sceneId,s.slotId].every(id => typeof id === 'string' && MEDIA_ID_RE.test(id))
+      || !['passed','failed','not_assessable'].includes(s.verdict) || !['informative','not_visually_resolvable'].includes(s.offsetEvidence))
+    || new Set(t.slots.map(s => JSON.stringify([s.sceneId,s.slotId]))).size !== t.slotCount) return null;
+  const status = t.slots.some(s => s.verdict === 'failed') ? 'failed'
+    : t.slots.some(s => s.verdict === 'not_assessable') ? 'not_assessable' : 'passed';
+  return t.status === status && t.passedSlotCount === t.slots.filter(s => s.verdict === 'passed').length
+    && t.offsetIndexProvenSlotCount === t.slots.filter(s => s.verdict === 'passed' && s.offsetEvidence === 'informative').length
+    && t.notVisuallyResolvableSlotCount === t.slots.filter(s => s.offsetEvidence === 'not_visually_resolvable').length ? t : null;
+}
+export type StagePreviewView = {
+  reviewState: StagePreviewSummary['reviewState']; items: StagePreviewMedia[];
+  // Exact displayed evidence identity, not owner approval or launch permission.
+  decisionDigest: string | null;
+  temporalQa: StagePreviewTemporalSummary | null;
+  criteria: { id: string; statement: string }[];
+  judgments: { criterionId: string; verdict: 'pass' | 'fail'; reason: string; frameIds: string[] }[];
+};
+export function stagePreviewTokens(value: unknown): string[] {
+  if (!record(value) || !Array.isArray(value.items)) return [];
+  return [...new Set(value.items.slice(0, 768).flatMap(item => {
+    const parsed = record(item) ? parsePreviewUrl(item.url) : null;
+    return parsed ? [parsed.token] : [];
+  }))];
+}
+export function parseStagePreviewView(value: unknown, expected: StagePreviewSummary): StagePreviewView | null {
+  if (!record(value) || value.ok !== true || value.contractVersion !== 'stage-preview-local-view.v1'
+    || value.runId !== expected.runId || value.preparationId !== expected.preparationId
+    || value.receiptDigest !== expected.receiptDigest || value.machineId !== expected.machineId
+    || value.reviewState !== expected.reviewState || value.readOnly !== true
+    || value.ownerApproved !== false || typeof value.temporalQaPassed !== 'boolean'
+    || value.decisionDigest != null && (typeof value.decisionDigest !== 'string'
+      || !/^[a-f0-9]{64}$/.test(value.decisionDigest) || value.reviewState !== 'pass'
+      || value.ownerHoldReady !== true || expected.ownerHoldReady !== true)
+    || !Array.isArray(value.items) || value.items.length > 768
+    || !Array.isArray(value.criteria) || value.criteria.length > 64
+    || !Array.isArray(value.judgments) || value.judgments.length > 4096) return null;
+  const temporalQa = value.temporalQa === undefined ? null : parseStageTemporalSummary(value.temporalQa);
+  if (value.temporalQa === undefined ? value.temporalQaPassed !== false
+    : !temporalQa || value.temporalQaPassed !== (temporalQa.status === 'passed')) return null;
+  const items: StagePreviewMedia[] = [], criteria: StagePreviewView['criteria'] = [], judgments: StagePreviewView['judgments'] = [];
+  for (const item of value.items) {
+    if (!record(item) || !MEDIA_ID_RE.test(String(item.id)) || !parsePreviewUrl(item.url)
+      || !['full_resolution','overview','provider_window'].includes(String(item.kind))
+      || item.mime !== (item.kind === 'provider_window' ? 'video/mp4' : 'image/png')) return null;
+    items.push({ id: item.id as string, kind: item.kind as StagePreviewMedia['kind'], url: item.url as string });
+  }
+  if (new Set(items.map(i => i.id)).size !== items.length || stagePreviewTokens(value).length !== items.length) return null;
+  for (const c of value.criteria) {
+    if (!record(c) || !MEDIA_ID_RE.test(String(c.id)) || typeof c.requirement !== 'string' || c.requirement.length > 8192) return null;
+    criteria.push({ id: c.id as string, statement: c.requirement });
+  }
+  for (const j of value.judgments) {
+    if (!record(j) || !criteria.some(c => c.id === j.criterionId) || !['pass','fail'].includes(String(j.verdict))
+      || typeof j.reason !== 'string' || j.reason.length > 8192 || !Array.isArray(j.frameIds)
+      || j.frameIds.length > 512 || !j.frameIds.every(id => typeof id === 'string' && MEDIA_ID_RE.test(id))) return null;
+    judgments.push({ criterionId: j.criterionId as string, verdict: j.verdict as 'pass' | 'fail', reason: j.reason, frameIds: j.frameIds });
+  }
+  return { reviewState: expected.reviewState, items, criteria, judgments, temporalQa,
+    decisionDigest: typeof value.decisionDigest === 'string' ? value.decisionDigest : null };
+}
+export async function requestStagePreview(runId: string, preparationId: string): Promise<unknown> {
+  if (!RUN_ID_RE.test(runId) || !RUN_ID_RE.test(preparationId)) return { ok: false, error: 'bad_request' };
+  const w = (typeof window !== 'undefined' ? window : undefined) as WindowWithBridge | undefined;
+  if (!w?.implexaDesktop) return { ok: false, error: 'desktop_required' };
+  if (typeof w.implexaDesktop.createStagePreview !== 'function') return { ok: false, error: 'update_required' };
+  try { return await w.implexaDesktop.createStagePreview(runId, preparationId); }
+  catch { return { ok: false, error: 'scene_preview_view_unavailable' }; }
+}
+
+export async function approveStagePreview(runId:string,preparationId:string,decisionDigest:string,ownerSessionToken:string):Promise<unknown>{
+  if(!RUN_ID_RE.test(runId)||!RUN_ID_RE.test(preparationId)||!HASH_RE.test(decisionDigest)
+    ||typeof ownerSessionToken!=='string'||ownerSessionToken.length<16||ownerSessionToken.length>16384)return {ok:false,error:'bad_request'};
+  const w=(typeof window!=='undefined'?window:undefined) as WindowWithBridge|undefined;
+  if(!w?.implexaDesktop)return {ok:false,error:'desktop_required'};
+  if(typeof w.implexaDesktop.approveStagePreview!=='function')return {ok:false,error:'update_required'};
+  try{return await w.implexaDesktop.approveStagePreview(runId,preparationId,decisionDigest,ownerSessionToken);}
+  catch{return {ok:false,error:'scene_preview_owner_approval_unconfirmed'};}
 }

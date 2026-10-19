@@ -5,6 +5,19 @@ import { join } from 'node:path';
 
 const page = readFileSync(join(process.cwd(), 'app', '(dashboard)', 'runs', '[id]', 'page.tsx'), 'utf8');
 const component = readFileSync(join(process.cwd(), 'app', '(dashboard)', '_components', 'control-plane-retry.tsx'), 'utf8');
+test('run page ignores the retired source context during owner handoff and selects the live destination',async()=>{
+  const start=page.indexOf('  let executionContext:'),end=page.indexOf('  // A path written in output_markdown',start);
+  assert.ok(start>=0&&end>start);
+  const block=page.slice(start,end).replace(/let executionContext:.*? = null;/,'let executionContext = null;');
+  const read=new Function('supabase','r',`return (async()=>{${block};return executionContext;})()`);
+  let rows=[{executor:'codex',thread_id:'source',superseded_at:'2030-01-01'}];
+  const db={from(table:string){assert.equal(table,'run_execution_contexts');let live=false;return {
+    select(){return this;},eq(){return this;},is(key:string,value:null){assert.equal(key,'superseded_at');assert.equal(value,null);live=true;return this;},
+    async maybeSingle(){const found=rows.filter(r=>!live||r.superseded_at==null);if(found.length>1)throw Error('ambiguous context');return {data:found[0]||null};}};}};
+  assert.equal(await read(db,{id:'run'}),null,'retired source must not appear live before destination opens');
+  rows.push({executor:'codex',thread_id:'destination',superseded_at:null as unknown as string});
+  assert.equal((await read(db,{id:'run'})).thread_id,'destination');
+});
 
 test('the safe retry is mounted for the request this run was surfaced for, beside — never instead of — Run again', () => {
   assert.match(page, /import ControlPlaneRetry from '\.\.\/\.\.\/_components\/control-plane-retry';/);
