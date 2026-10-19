@@ -25,6 +25,14 @@ import { join } from 'node:path';
 
 const page = readFileSync(join(import.meta.dirname, 'page.tsx'), 'utf8');
 
+test('Planner preservation is owner-selected, off by default and sent as intent rather than authority', () => {
+  const box=readFileSync(join(import.meta.dirname,'../../_components/run-continue-box.tsx'),'utf8');
+  assert.match(box,/\[preservePlannerIdentity, setPreservePlannerIdentity\] = useState\(false\)/);
+  assert.match(box,/preservePlannerIdentity \? \{ revisionPreservation: 'planner-bundle-identity-preservation\.v1' \} : \{\}/);
+  assert.match(box,/!pending && <label/);
+  assert.doesNotMatch(box,/revisionSource:|execution_lifecycle_policy:|review_artifact_manifest:/);
+});
+
 test('typed stage Preview replaces generic approval, including unreadable metadata', () => {
   assert.match(page,/stagePreview = parseStagePreviewRead\(detail, r.id\)/);
   assert.match(page,/stagePreview.state === 'ready' && <div[^\n]+<StagePreviewReview summary=\{stagePreview.summary\}/);
