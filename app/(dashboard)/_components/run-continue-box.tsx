@@ -48,6 +48,8 @@ export default function RunContinueBox({
 }) {
   const [note, setNote] = useState(initialNote);
   const [preservePlannerIdentity, setPreservePlannerIdentity] = useState(false);
+  const [completePointClaims, setCompletePointClaims] = useState(false);
+  const [claimScope, setClaimScope] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [msg, setMsg] = useState('');
@@ -77,13 +79,20 @@ export default function RunContinueBox({
       // The prompt + any attached file PATHS, combined into the one-off note the
       // run-request carries (read back by the drainer from the request's `intent`).
       const composed = composeNoteWithFiles(note, files);
+      let revisionClaimScope;
+      if (preservePlannerIdentity && completePointClaims) {
+        try { revisionClaimScope = JSON.parse(claimScope); }
+        catch { setMsg('Enter the named point IDs and refused-review binding as valid JSON.'); return; }
+      }
       const { data: { session } } = await supabase.auth.getSession();
       await callBackend('/api/v2/me/run-requests', {
         jwt: session?.access_token,
         method: 'POST',
         body: {
           kind: 'continue', runId, note: composed, source: 'dashboard',
-          ...(preservePlannerIdentity ? { revisionPreservation: 'planner-bundle-identity-preservation.v1' } : {}),
+          ...(preservePlannerIdentity ? { revisionPreservation: completePointClaims
+            ? 'planner-bundle-point-claim-revision.v1' : 'planner-bundle-identity-preservation.v1' } : {}),
+          ...(preservePlannerIdentity && completePointClaims ? { revisionClaimScope } : {}),
           ...(opts?.force ? { force: true } : {}),
           // On a Recheck-admitted retry: the machine the admission was proven on.
           ...(opts?.executionMachineId ? { executionMachineId: opts.executionMachineId } : {}),
@@ -146,6 +155,19 @@ export default function RunContinueBox({
         <span>Planner timing/layout revision: preserve the transcript, presenter, point and scene identities,
           and existing media requests. Implexa verifies this against the original bundle; other agents do not support this option.</span>
       </label>}
+      {!pending && preservePlannerIdentity && <div className="mt-2 text-xs text-ink-400">
+        <label className="flex items-start gap-2">
+          <input type="checkbox" checked={completePointClaims} onChange={(e) => setCompletePointClaims(e.target.checked)} />
+          <span>Also correct only named fragmented claims using adjacent transcript quotations. Original reveal anchors,
+            point IDs, source media and factual content stay protected; no new media spending.</span>
+        </label>
+        {completePointClaims && <>
+          <label htmlFor="revision-claim-scope" className="block mt-2">Named point scope and refused-review provenance (JSON)</label>
+          <textarea id="revision-claim-scope" value={claimScope} onChange={(e) => setClaimScope(e.target.value)} rows={4}
+            placeholder={'{"preparationId":"…","receiptDigest":"…","findingId":"…","pointIds":["…"]}'}
+            className="mt-1 w-full bg-ink-900 border border-ink-700 rounded-md px-3 py-2 text-ink-100" />
+        </>}
+      </div>}
       <div className="mt-3 flex items-center gap-3 flex-wrap">
         <button
           type="button"
