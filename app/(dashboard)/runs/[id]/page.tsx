@@ -104,6 +104,8 @@ const NEEDS_BROWSER_GRANT_RE = /Needs browser access on this Mac|grant Computer 
 // own output IS the explanation) -> no message here.
 function closeReasonMessage(reason: string | null): string | null {
   switch (reason) {
+    case 'continuation_successor_never_opened':
+      return 'The continuation could not start. Earlier verified work is preserved; this does not mean the source files failed verification.';
     case 'silence_ceiling_forced':
       return "It went silent for a long time with no update, so Implexa stopped it automatically. It's safe to run again.";
     case 'orphaned_parent_gone':

@@ -28,9 +28,13 @@ const page = readFileSync(join(import.meta.dirname, 'page.tsx'), 'utf8');
 test('Planner preservation is owner-selected, off by default and sent as intent rather than authority', () => {
   const box=readFileSync(join(import.meta.dirname,'../../_components/run-continue-box.tsx'),'utf8');
   assert.match(box,/\[preservePlannerIdentity, setPreservePlannerIdentity\] = useState\(false\)/);
-  assert.match(box,/preservePlannerIdentity \? \{ revisionPreservation: 'planner-bundle-identity-preservation\.v1' \} : \{\}/);
+  assert.match(box,/preservePlannerIdentity \? \{ revisionPreservation: completePointClaims/);
+  assert.match(box,/'planner-bundle-point-claim-revision\.v1' : 'planner-bundle-identity-preservation\.v1'/);
+  assert.match(box,/preservePlannerIdentity && completePointClaims \? \{ revisionClaimScope \} : \{\}/);
+  assert.match(box,/\[completePointClaims, setCompletePointClaims\] = useState\(false\)/);
   assert.match(box,/!pending && <label/);
   assert.doesNotMatch(box,/revisionSource:|execution_lifecycle_policy:|review_artifact_manifest:/);
+  assert.match(page,/case 'continuation_successor_never_opened':\s+return 'The continuation could not start\. Earlier verified work is preserved/);
 });
 
 test('typed stage Preview replaces generic approval, including unreadable metadata', () => {
