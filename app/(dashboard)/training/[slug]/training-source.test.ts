@@ -504,10 +504,83 @@ test('saving consumes the exact preview once and clears the form to prevent acci
     assert.equal(annotation.args.token, TOKEN);
     assert.equal(annotation.args.timeMs, 0);
     assert.equal((annotation.args.decision as Record<string, string>).chosen, 'answer 0');
+    assert.equal((annotation.args.content as { applicability: { priority: number } }).applicability.priority, 50);
     assert.deepEqual(JSON.parse(JSON.stringify((annotation.args.content as { applicability: { stages: string[] } }).applicability.stages)), ['planning', 'build', 'preview', 'qa', 'revision']);
     assert.equal((rendered.getByText('Save decision draft') as HTMLButtonElement).disabled, true);
     assert.ok(Array.from(rendered.document.querySelectorAll('textarea')).every((textarea) => textarea.value === ''));
     assert.equal(rendered.document.querySelector('img[alt^="Training source frame"]'), null, 'consumed preview no longer authorizes another save');
+  } finally { rendered.cleanup(); }
+});
+
+test('explicit preference saves the exact bounded priority and resets for the next draft', async () => {
+  for (const value of ['0', '60', '100']) {
+    const { rendered, calls } = await renderedWith();
+    try {
+      await rendered.click(rendered.getByText('Annotate source'));
+      await rendered.click(rendered.getByText('Preview this exact frame'));
+      for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
+      const input = rendered.getByText('Selection priority').querySelector('input')!;
+      assert.equal((input as HTMLInputElement).value, '50');
+      await setInput(rendered, input, value);
+      await rendered.click(rendered.getByText('Save decision draft'));
+      const annotation = calls.find((item) => item.operation === 'annotate')!;
+      const applicability = (annotation.args.content as { applicability: { priority: number; stages: string[] } }).applicability;
+      assert.equal(applicability.priority, Number(value));
+      assert.deepEqual(JSON.parse(JSON.stringify(applicability.stages)), deriveTrainingStages('motion_rhythm'));
+      assert.equal(calls.some((call) => call.operation === 'accept' || call.operation === 'revoke'), false);
+      assert.equal((input as HTMLInputElement).value, '50');
+    } finally { rendered.cleanup(); }
+  }
+});
+
+test('empty, fractional and out-of-range priorities cannot create a decision', async () => {
+  const { rendered, calls } = await renderedWith();
+  try {
+    await rendered.click(rendered.getByText('Annotate source'));
+    await rendered.click(rendered.getByText('Preview this exact frame'));
+    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
+    const input = rendered.getByText('Selection priority').querySelector('input')!;
+    for (const value of ['', '-1', '101', '1.5', '1e2']) {
+      await setInput(rendered, input, value);
+      assert.equal((rendered.getByText('Save decision draft') as HTMLButtonElement).disabled, true, value);
+      assert.equal(input.getAttribute('aria-invalid'), 'true');
+      await rendered.click(rendered.getByText('Save decision draft'));
+    }
+    assert.equal(calls.some((call) => call.operation === 'annotate'), false);
+    await setInput(rendered, input, '60');
+    assert.equal((rendered.getByText('Save decision draft') as HTMLButtonElement).disabled, false);
+  } finally { rendered.cleanup(); }
+});
+
+test('priority changes get a fresh draft key while saved review and acceptance keep the original identity', async () => {
+  const h = harness();
+  const original = h.bridge.trainingLocal;
+  h.bridge.trainingLocal = async (operation, args) => {
+    if (operation === 'annotate') { h.calls.push({ operation, args: args as Record<string, unknown> }); return { ok: false, reason: 'training_network_unavailable' }; }
+    const result = await original(operation, args);
+    if (operation === 'list' && result.sources?.[0]) Object.assign(result.sources[0].decisions[0].content.applicability, { priority: 75 });
+    return result;
+  };
+  const rendered = await render('../training/[slug]/training-source.tsx', { slug: 'video-craft' }, { bridge: h.bridge });
+  try {
+    await rendered.click(rendered.getByText('Review before accepting'));
+    assert.match(rendered.text(), /Selection priority: 75/);
+    await rendered.click(rendered.getByText('Close evidence review'));
+    await rendered.click(rendered.getByText('Annotate source'));
+    await rendered.click(rendered.getByText('Preview this exact frame'));
+    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
+    await rendered.click(rendered.getByText('Save decision draft'));
+    await setInput(rendered, rendered.getByText('Selection priority').querySelector('input')!, '60');
+    await rendered.click(rendered.getByText('Save decision draft'));
+    const annotations = h.calls.filter((call) => call.operation === 'annotate');
+    assert.equal(annotations.length, 2);
+    assert.notEqual(annotations[0].args.idempotencyKey, annotations[1].args.idempotencyKey);
+    assert.equal(h.calls.some((call) => call.operation === 'accept' || call.operation === 'revoke'), false);
+    await rendered.click(rendered.getByText('Review before accepting'));
+    assert.match(rendered.text(), /Selection priority: 75/);
+    await rendered.click(rendered.getByText(/I reviewed this exact frame/).closest('label')!.querySelector('input')!);
+    await rendered.click(rendered.getByText('Accept this exact decision'));
+    assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find((call) => call.operation === 'accept')!.args)), { token: TOKEN, recordId: RECORD, expectedDigest: DIGEST });
   } finally { rendered.cleanup(); }
 });
 
