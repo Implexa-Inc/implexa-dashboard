@@ -30,7 +30,7 @@ type Decision = {
   recordId: string;
   recordDigest: string;
   state: DecisionState;
-  content: { relation: TrainingRelation; properties: TrainingPropertyCode[]; summary: string; anchor: { startMs: number }; applicability?: { stages?: string[] } };
+  content: { relation: TrainingRelation; properties: TrainingPropertyCode[]; summary: string; anchor: { startMs: number }; applicability?: { stages?: string[]; priority?: number } };
   decision: { chosen: string; why: string; process: string; desiredBehavior: string };
 };
 type Source = {
@@ -127,6 +127,8 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [why, setWhy] = useState('');
   const [process, setProcess] = useState('');
   const [behavior, setBehavior] = useState('');
+  const [selectionPriority, setSelectionPriority] = useState('50');
+  const priorityIsValid = /^\d{1,3}$/.test(selectionPriority) && Number(selectionPriority) <= 100;
   const [pending, setPending] = useState<LocalDraft[]>([]);
   const [failed, setFailed] = useState<LocalDraft[]>([]);
   const [sessionKey] = useState(() => crypto.randomUUID());
@@ -292,6 +294,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
 
   function chooseSource(source: Source) {
     setSelected(source); setTime(0); setPreview(null); setReviewed(null); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID());
+    setSelectionPriority('50');
   }
   function toggleStage(stage: TrainingStage) {
     setStages((current) => {
@@ -307,6 +310,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
     setSelected(source); setTime(decision.content.anchor.startMs); setPreview(null); setReviewed(null);
     setRelation(decision.content.relation); setProperty(nextProperty);
     setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior);
+    setSelectionPriority(String(decision.content.applicability?.priority ?? 50));
     setStages(deriveTrainingStages(nextProperty)); setDecisionKey(crypto.randomUUID());
   }
   async function beginVersionSuccessor() {
@@ -334,6 +338,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
     setSelected(source); setTime(decision.content.anchor.startMs); setPreview(null); setReviewed(null);
     setRelation(decision.content.relation); setProperty(nextProperty);
     setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior);
+    setSelectionPriority(String(decision.content.applicability?.priority ?? 50));
     const preserved = normalizeTrainingStages(decision.content.applicability?.stages);
     const required = requiredStagesForDecision(managerTrainingRequirements, nextProperty, decision.content.relation);
     setStages(preserved);
@@ -363,7 +368,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
   }
 
   async function annotate() {
-    if (!selected?.token || !previewIsCurrent) return;
+    if (!selected?.token || !previewIsCurrent || !priorityIsValid) return;
     const source = selected; const requestedTime = time; const requestedPreview = preview;
     await work('Saving the visual decision draft', async () => {
       await requireCurrentScope();
@@ -373,11 +378,11 @@ export default function TrainingSource({ slug }: { slug: string }) {
         decision: { chosen, why, process, desiredBehavior: behavior },
         content: {
           relation, properties: [property], mustNotCopy: ['source text', 'source logos', 'protected identity'],
-          applicability: { taskFacts: [], stages: normalizeTrainingStages(stages), exceptions: [], priority: 50 },
+          applicability: { taskFacts: [], stages: normalizeTrainingStages(stages), exceptions: [], priority: Number(selectionPriority) },
           governance: { rightsBasis: 'owner_created', rightsReceipt: 'Coach confirms ownership and grants bounded evidence use', disclosure: 'owner_private', retentionUntil: retention, deletionPolicy: 'revoke_then_delete_derivatives', consent: true, attribution: '' },
         },
       });
-      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null); await load(session);
+      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setSelectionPriority('50'); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null); await load(session);
     });
   }
 
@@ -442,6 +447,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
     </section>)}
 
     {reviewed && <section className="rounded border border-brand-500 p-4 space-y-4" aria-labelledby="decision-review-heading"><h2 ref={reviewHeadingRef} id="decision-review-heading" tabIndex={-1}>Exact saved evidence</h2><img src={reviewed.image} alt={`Saved evidence at ${formatTrainingTime(reviewed.decision.content.anchor.startMs)}`} className="w-full" /><dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Source</dt><dd>{reviewed.source.localName || `SHA-256 ${shortId(reviewed.source.metadata.sha256)}`}</dd></div><div><dt className="font-semibold">Timestamp</dt><dd>{formatTrainingTime(reviewed.decision.content.anchor.startMs)}</dd></div><div><dt className="font-semibold">Relation</dt><dd>{relationLabel(reviewed.decision.content.relation)}</dd></div><div><dt className="font-semibold">Visual properties</dt><dd>{reviewed.decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</dd></div><div><dt className="font-semibold">Eligible stages</dt><dd>{normalizeTrainingStages(reviewed.decision.content.applicability?.stages).length ? normalizeTrainingStages(reviewed.decision.content.applicability?.stages).map(trainingStageLabel).join(', ') : 'Not recorded'}</dd></div><div><dt className="font-semibold">Decision</dt><dd>{reviewed.decision.content.summary}</dd></div><div><dt className="font-semibold">Immutable digest</dt><dd className="break-all">{reviewed.decision.recordDigest}</dd></div></dl>
+      <p><span className="font-semibold">Selection priority:</span> {reviewed.decision.content.applicability?.priority ?? 'Not recorded'}. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not guarantee selection or override checks, criteria or facts.</p>
       {reviewed.decision.state === 'draft' && <><label className="flex gap-3"><input type="checkbox" checked={acceptConfirmed} disabled={!!busy} onChange={(event) => setAcceptConfirmed(event.target.checked)} />I reviewed this exact frame and decision and want it eligible for future Manager selection.</label><button disabled={!!busy || !acceptConfirmed} onClick={acceptReviewed}>Accept this exact decision</button></>}
       {reviewed.decision.state === 'accepted' && <><label className="flex gap-3"><input type="checkbox" checked={revokeConfirmed} disabled={!!busy} onChange={(event) => setRevokeConfirmed(event.target.checked)} />I understand revocation prevents this evidence from being selected in future runs.</label><button disabled={!!busy || !revokeConfirmed} onClick={revokeReviewed}>Revoke future selection</button>{!normalizeTrainingStages(reviewed.decision.content.applicability?.stages).includes('planning') && <div className="rounded border border-amber-500 p-3 space-y-2"><p>This immutable record does not apply during planning. Start a separate planning-scoped successor using the same decision as a draft; you must preview, save, and accept it independently.</p><button disabled={!!busy || versionChanged} onClick={() => createPlanningSuccessor(reviewed.source, reviewed.decision)}>Create planning-scoped successor</button></div>}</>}
       <button disabled={!!busy} onClick={() => setReviewed(null)}>Close evidence review</button>
@@ -449,7 +455,10 @@ export default function TrainingSource({ slug }: { slug: string }) {
 
     {selected && <section className="rounded border border-ink-700 p-4 space-y-4"><h2>Timestamped visual decision</h2>{successorStageExpansion && <section role="status" className="rounded border border-brand-500 p-3 space-y-2"><h3 className="font-semibold">Successor stage diff</h3><p>The predecessor stages were preserved exactly. This active Agent requires this decision at: {successorStageExpansion.required.length ? successorStageExpansion.required.map(trainingStageLabel).join(', ') : 'no additional stages'}.</p>{successorStageExpansion.missing.length > 0 ? <><p>Still missing: {successorStageExpansion.missing.map(trainingStageLabel).join(', ')}. They have not been added automatically.</p><button type="button" disabled={!!busy} onClick={addRequiredSuccessorStages}>Add required stages to this successor draft</button></> : <p>All required stages are now explicitly selected. Preview and accept the new digest separately.</p>}</section>}<fieldset disabled={!!busy || versionChanged} className="space-y-4"><legend className="sr-only">Choose and explain an exact visual decision</legend><label className="block">Frame timestamp<input className="block w-full" type="range" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} step="1" value={time} aria-valuetext={formatTrainingTime(time)} onChange={(event) => changeTime(Number(event.target.value))} /></label><div className="flex flex-wrap items-end gap-2"><label>Exact timestamp in milliseconds<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} value={time} onChange={(event) => changeTime(Number(event.target.value))} /></label>{[-1000, -100, 100, 1000].map((delta) => <button type="button" key={delta} onClick={() => changeTime(time + delta)}>{delta > 0 ? '+' : '−'}{Math.abs(delta)} ms</button>)}</div><p aria-live="polite">Selected time {formatTrainingTime(time)} of {formatTrainingTime(selected.metadata.durationMs)}</p><button type="button" onClick={showPreview}>Preview this exact frame</button>{previewIsCurrent && preview?.image && <img src={preview.image} alt={`Training source frame at ${formatTrainingTime(preview.timeMs)}`} className="w-full" />}
       <label className="block">Evidence relation<select value={relation} onChange={(event) => { setRelation(event.target.value as TrainingRelation); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}>{TRAINING_RELATIONS.map((item) => <option key={item} value={item}>{relationLabel(item)}</option>)}</select></label><label className="block">Visual property<select value={property} onChange={(event) => { const next = event.target.value as TrainingPropertyCode; setProperty(next); setStages(deriveTrainingStages(next)); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}>{TRAINING_PROPERTY_CODES.map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</select></label>
+      <label className="block">Selection priority<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max="100" step="1" value={selectionPriority} aria-describedby="training-priority-help" aria-invalid={!priorityIsValid} onChange={(event) => { setSelectionPriority(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>
+      <p id="training-priority-help" className="text-sm">50 is normal. Prefer this example by choosing a higher number, up to 100. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not widen eligible stages or properties, guarantee selection, or override checks, criteria or facts. Saved decisions stay immutable; changing a preference requires a new reviewed and accepted draft.</p>
+      {!priorityIsValid && <p role="alert">Choose a whole-number priority from 0 to 100.</p>}
       <fieldset className="rounded border border-ink-700 p-3 space-y-2"><legend className="font-semibold">When may the Manager use this decision?</legend><p className="text-sm">Suggested from the selected visual property. Narrow or expand it deliberately. Planning must be selected for this evidence to guide decisions before tools, generation, or paid actions.</p><div className="grid gap-2">{TRAINING_STAGE_OPTIONS.map((option) => <label key={option.value} className="flex gap-3"><input type="checkbox" checked={stages.includes(option.value)} onChange={() => toggleStage(option.value)} /><span><span className="block">{option.label}</span><span className="block text-sm text-ink-400">{option.help}</span></span></label>)}</div><p className="text-xs text-ink-500">Routing contract {TRAINING_STAGE_ROUTING_VERSION}</p></fieldset>
-      {([['What was chosen', chosen, setChosen], ['Why this choice', why, setWhy], ['Tool or process used', process, setProcess], ['Desired visual, motion or layout behavior', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || stages.length === 0 || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={annotate}>Save decision draft</button></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
+      {([['What was chosen', chosen, setChosen], ['Why this choice', why, setWhy], ['Tool or process used', process, setProcess], ['Desired visual, motion or layout behavior', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || !priorityIsValid || stages.length === 0 || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={annotate}>Save decision draft</button></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
   </main>;
 }
