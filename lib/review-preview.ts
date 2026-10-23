@@ -42,6 +42,7 @@ type DesktopBridge = {
   createArtifactPreview?: (runId: string, artifactId: string) => Promise<unknown>;
   createStagePreview?: (runId: string, preparationId: string) => Promise<unknown>;
   approveStagePreview?: (runId: string, preparationId: string, decisionDigest: string, ownerSessionToken: string) => Promise<unknown>;
+  reviseStagePreview?: (runId: string, preparationId: string, decisionDigest: string, ownerSessionToken: string) => Promise<unknown>;
   revokeArtifactPreview?: (token: string) => Promise<unknown>;
 };
 type WindowWithBridge = Window & { implexaDesktop?: DesktopBridge };
@@ -354,6 +355,7 @@ export type StagePreviewView = {
   reviewState: StagePreviewSummary['reviewState']; items: StagePreviewMedia[];
   // Exact displayed evidence identity, not owner approval or launch permission.
   decisionDigest: string | null;
+  revisionDecisionDigest: string | null;
   temporalQa: StagePreviewTemporalSummary | null;
   criteria: { id: string; statement: string }[];
   judgments: { criterionId: string; verdict: 'pass' | 'fail' | 'not_applicable'; reason: string; frameIds: string[] }[];
@@ -373,6 +375,9 @@ export function parseStagePreviewView(value: unknown, expected: StagePreviewSumm
     || value.ownerApproved !== false || typeof value.temporalQaPassed !== 'boolean'
     || value.decisionDigest != null && (typeof value.decisionDigest !== 'string'
       || !/^[a-f0-9]{64}$/.test(value.decisionDigest) || value.reviewState !== 'pass'
+      || value.ownerHoldReady !== true || expected.ownerHoldReady !== true)
+    || value.revisionDecisionDigest != null && (typeof value.revisionDecisionDigest !== 'string'
+      || !HASH_RE.test(value.revisionDecisionDigest) || value.reviewState !== 'fail'
       || value.ownerHoldReady !== true || expected.ownerHoldReady !== true)
     || !Array.isArray(value.items) || value.items.length > 768
     || !Array.isArray(value.criteria) || value.criteria.length > 64
@@ -401,7 +406,8 @@ export function parseStagePreviewView(value: unknown, expected: StagePreviewSumm
     judgments.push({ criterionId: j.criterionId as string, verdict: j.verdict as StagePreviewView['judgments'][number]['verdict'], reason: j.reason, frameIds: j.frameIds });
   }
   return { reviewState: expected.reviewState, items, criteria, judgments, temporalQa,
-    decisionDigest: typeof value.decisionDigest === 'string' ? value.decisionDigest : null };
+    decisionDigest: typeof value.decisionDigest === 'string' ? value.decisionDigest : null,
+    revisionDecisionDigest: typeof value.revisionDecisionDigest === 'string' ? value.revisionDecisionDigest : null };
 }
 export async function requestStagePreview(runId: string, preparationId: string): Promise<unknown> {
   if (!RUN_ID_RE.test(runId) || !RUN_ID_RE.test(preparationId)) return { ok: false, error: 'bad_request' };
@@ -413,11 +419,18 @@ export async function requestStagePreview(runId: string, preparationId: string):
 }
 
 export async function approveStagePreview(runId:string,preparationId:string,decisionDigest:string,ownerSessionToken:string):Promise<unknown>{
+  return stagePreviewDecision(runId,preparationId,decisionDigest,ownerSessionToken,false);
+}
+export async function reviseStagePreview(runId:string,preparationId:string,decisionDigest:string,ownerSessionToken:string):Promise<unknown>{
+  return stagePreviewDecision(runId,preparationId,decisionDigest,ownerSessionToken,true);
+}
+async function stagePreviewDecision(runId:string,preparationId:string,decisionDigest:string,ownerSessionToken:string,revision:boolean):Promise<unknown>{
   if(!RUN_ID_RE.test(runId)||!RUN_ID_RE.test(preparationId)||!HASH_RE.test(decisionDigest)
     ||typeof ownerSessionToken!=='string'||ownerSessionToken.length<16||ownerSessionToken.length>16384)return {ok:false,error:'bad_request'};
   const w=(typeof window!=='undefined'?window:undefined) as WindowWithBridge|undefined;
   if(!w?.implexaDesktop)return {ok:false,error:'desktop_required'};
-  if(typeof w.implexaDesktop.approveStagePreview!=='function')return {ok:false,error:'update_required'};
-  try{return await w.implexaDesktop.approveStagePreview(runId,preparationId,decisionDigest,ownerSessionToken);}
+  const action=revision?w.implexaDesktop.reviseStagePreview:w.implexaDesktop.approveStagePreview;
+  if(typeof action!=='function')return {ok:false,error:'update_required'};
+  try{return await action(runId,preparationId,decisionDigest,ownerSessionToken);}
   catch{return {ok:false,error:'scene_preview_owner_approval_unconfirmed'};}
 }

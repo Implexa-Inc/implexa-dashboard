@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Modal from './modal';
-import { approveStagePreview, desktopReviewHref, parseStagePreviewView, requestStagePreview, revokePreview,
+import { approveStagePreview, reviseStagePreview, desktopReviewHref, parseStagePreviewView, requestStagePreview, revokePreview,
   stagePreviewTokens, type StagePreviewSummary, type StagePreviewView } from '@/lib/review-preview';
 
 export default function StagePreviewReview({ summary }: { summary: StagePreviewSummary }) {
@@ -36,15 +36,16 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
     });
     return () => { active = false; tokens.forEach(t => void revokePreview(t)); };
   }, [open, summary]);
-  async function approve(){
-    if(inFlight.current||!view?.decisionDigest||mediaFailure||continuationId)return;
+  async function approve(revision=false){
+    const digest=revision?view?.revisionDecisionDigest:view?.decisionDigest;
+    if(inFlight.current||!digest||mediaFailure||continuationId)return;
     inFlight.current=true;setApproving(true);setDecisionMessage(null);
     try{
       const {data:{session}}=await createClient().auth.getSession();
       if(!session?.access_token)throw Error('session');
       // One click, one invocation. The bearer is never stored in component
       // state, receipts or worker context. Main and the backend recheck it.
-      const result=await approveStagePreview(summary.runId,summary.preparationId,view.decisionDigest,session.access_token) as {
+      const result=await (revision?reviseStagePreview:approveStagePreview)(summary.runId,summary.preparationId,digest,session.access_token) as {
         ok?:boolean;continuationRequestId?:string;error?:string};
       if(result?.ok!==true||!result.continuationRequestId||!/^[a-f0-9-]{36}$/i.test(result.continuationRequestId)){
         if(result?.error==='scene_preview_runtime_changed_after_approval')setDecisionMessage('Desktop’s renderer changed after Preview; review a fresh Preview before approving Master.');
@@ -52,7 +53,9 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
         else setDecisionMessage('Approval was not confirmed. Reopen this Preview to read its current state; do not start a separate run.');
         return;
       }
-      setContinuationId(result.continuationRequestId);setDecisionMessage('This exact Preview was approved. Master is queued on the same run; this is not video delivery or new media spending.');
+      setContinuationId(result.continuationRequestId);setDecisionMessage(revision
+        ?'Compose correction is queued from the preserved scene and visual findings. Compose and Preview must pass fresh reviews; Master is not approved. No new media spending.'
+        :'This exact Preview was approved. Master is queued on the same run; this is not video delivery or new media spending.');
     }catch{setDecisionMessage('The owner session could not be verified. Sign in again; no approval is confirmed here.');}
     finally{inFlight.current=false;setApproving(false);}
   }
@@ -62,7 +65,7 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
       subtitle="Preserved Preview evidence. Owner approval is a separate action below; this is not delivered video.">
       <p className="mb-4 text-sm text-ink-300">{summary.reviewState === 'incomplete'
         ? 'This review is incomplete; completed batches are evidence, not an overall verdict.'
-        : summary.reviewState === 'fail' ? 'Preview failed. Compose must be revised through an owner action; Master is not available from this review.'
+        : summary.reviewState === 'fail' ? 'Preview failed. When the retained scene and correction allowance are verified, you can send these findings back to Compose below. Master is not available from this review.'
         : `Visual Judge result: ${summary.reviewState}. ${['passed','not_applicable'].includes(view?.temporalQa?.status || '')
           ? 'The exact owner decision is still required before Master.'
           : 'All-eight temporal QA and the exact owner decision are still required before Master.'}`}</p>
@@ -103,6 +106,11 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
           <figcaption className="mt-1 text-xs text-ink-400">{item.kind}: {item.id}</figcaption>
         </figure>)}</div>
         {view.items.length === 0 && <p className="text-sm text-ink-300">No rendered media was retained for this incomplete review.</p>}
+        {view.reviewState==='fail'&&summary.ownerHoldReady&&view.revisionDecisionDigest&&!continuationId&&<section className="mt-5 border-t border-ink-700 pt-4">
+          <p className="mb-3 text-sm text-ink-300">Return the exact preserved scene and these visual findings to Compose. Stages 1–3 stay unchanged. This uses one shared continuation slot and requires fresh Compose and Preview reviews. It does not approve Master or new media purchases.</p>
+          <button type="button" className="btn-primary px-4 py-2 text-sm" disabled={approving||mediaFailure} onClick={()=>void approve(true)}>
+            {approving?'Rechecking revision…':'Send findings back to Compose'}</button>
+        </section>}
         {view.reviewState==='pass'&&summary.ownerHoldReady&&view.decisionDigest&&!continuationId&&<section className="mt-5 border-t border-ink-700 pt-4">
           <p className="mb-3 text-sm text-ink-300">Approve only the Preview shown here, including its temporal uncertainty above. Master must reverify the same sources and renderer. No new media purchase is authorized.</p>
           <button type="button" className="btn-primary px-4 py-2 text-sm" disabled={approving||mediaFailure} onClick={()=>void approve()}>
