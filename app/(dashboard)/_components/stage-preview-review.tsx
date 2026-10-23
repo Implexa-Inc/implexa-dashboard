@@ -63,7 +63,7 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
       <p className="mb-4 text-sm text-ink-300">{summary.reviewState === 'incomplete'
         ? 'This review is incomplete; completed batches are evidence, not an overall verdict.'
         : summary.reviewState === 'fail' ? 'Preview failed. Compose must be revised through an owner action; Master is not available from this review.'
-        : `Visual Judge result: ${summary.reviewState}. ${view?.temporalQa?.status === 'passed'
+        : `Visual Judge result: ${summary.reviewState}. ${['passed','not_applicable'].includes(view?.temporalQa?.status || '')
           ? 'The exact owner decision is still required before Master.'
           : 'All-eight temporal QA and the exact owner decision are still required before Master.'}`}</p>
       {!view && <p role="status" className="text-sm text-ink-300">{message}</p>}
@@ -91,7 +91,7 @@ export default function StagePreviewReview({ summary }: { summary: StagePreviewS
         {view.criteria.map(c => <section key={c.id} className="mb-3 text-sm">
           <h3 className="font-semibold text-ink-100">{c.statement}</h3>
           {view.judgments.filter(j => j.criterionId === c.id).map((j, i) => <p key={i} className="text-ink-300">
-            {j.verdict}: {j.reason} {j.frameIds.length > 0 && `Frames: ${j.frameIds.join(', ')}`}
+            {j.verdict === 'not_applicable' ? j.reason : `${j.verdict}: ${j.reason}`} {j.frameIds.length > 0 && `Frames: ${j.frameIds.join(', ')}`}
           </p>)}
         </section>)}
         <div className="grid gap-4 md:grid-cols-2">{view.items.map(item => <figure key={item.id}>

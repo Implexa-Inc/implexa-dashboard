@@ -42,6 +42,23 @@ test('temporal Preview decoding preserves the 2-of-8 offset proof rather than cl
     {status:'not_applicable'},{calibrationDigest:null},{slots:[null,...t.slots.slice(1)]},
     {slots:[{...t.slots[0],offsetEvidence:'verified'},...t.slots.slice(1)]}])assert.equal(parseStageTemporalSummary({...t,...delta}),null);
 });
+test('Preview displays provider N/A explicitly without turning it into a passing judgment', () => {
+  const summary = { contractVersion: 'stage-preview-summary.v1' as const, runId: '10000000-0000-4000-8000-000000000001',
+    preparationId: '10000000-0000-4000-8000-000000000002', receiptDigest: 'a'.repeat(64),
+    machineId: '10000000-0000-4000-8000-000000000003', reviewState: 'pass' as const, ownerHoldReady: true };
+  const view = { ...summary, ok: true, contractVersion: 'stage-preview-local-view.v1', readOnly: true, ownerApproved: false,
+    temporalQaPassed: false, criteria: [{ id: 'clip_fit', requirement: 'Relevant supplied provider slots.' }], items: [],
+    temporalQa: { contractVersion: 'stage-preview-temporal-summary.v1', status: 'not_applicable', calibrationDigest: null,
+      slotCount: 0, passedSlotCount: 0, offsetIndexProvenSlotCount: 0, notVisuallyResolvableSlotCount: 0, slots: [] },
+    judgments: [{ criterionId: 'clip_fit', verdict: 'not_applicable', reason: 'Not applicable: no provider windows', frameIds: [] }] };
+  const parsed = parseStagePreviewView(view, summary);
+  assert.equal(parsed?.judgments[0].verdict, 'not_applicable');
+  assert.equal(parsed?.judgments[0].reason, 'Not applicable: no provider windows');
+  assert.equal(parsed?.judgments.some(j => j.verdict === 'pass'), false); assert.equal(parsed?.decisionDigest, null);
+  assert.equal(parseStagePreviewView({ ...view, temporalQa: undefined }, summary), null);
+  for (const delta of [{ reason: 'optional' }, { frameIds: ['frame-1'] }])
+    assert.equal(parseStagePreviewView({ ...view, judgments: [{ ...view.judgments[0], ...delta }] }, summary), null);
+});
 
 test('stage Preview metadata is exact, read-only and separate from delivery validation', () => {
   const runId='10000000-0000-4000-8000-000000000001';
