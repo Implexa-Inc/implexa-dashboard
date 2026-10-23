@@ -19,6 +19,18 @@ import {
 
 const TOKEN = 'a'.repeat(24);
 const GOOD = `implexa-artifact://preview/${TOKEN}`;
+test('revision disclosure is retained only for a failed held Preview, not converted to approval',()=>{
+  const summary={contractVersion:'stage-preview-summary.v1' as const,runId:'10000000-0000-4000-8000-000000000001',
+    preparationId:'10000000-0000-4000-8000-000000000002',receiptDigest:'a'.repeat(64),
+    machineId:'10000000-0000-4000-8000-000000000003',reviewState:'fail' as const,ownerHoldReady:true};
+  const view={...summary,ok:true,contractVersion:'stage-preview-local-view.v1',readOnly:true,ownerApproved:false,
+    temporalQaPassed:false,criteria:[],judgments:[],items:[],revisionDecisionDigest:'b'.repeat(64)};
+  assert.equal(parseStagePreviewView(view,summary)?.revisionDecisionDigest,'b'.repeat(64));
+  assert.equal(parseStagePreviewView(view,summary)?.decisionDigest,null);
+  for(const delta of [{revisionDecisionDigest:'bad'},{ownerHoldReady:false},{reviewState:'pass'}])
+    assert.equal(parseStagePreviewView({...view,...delta},summary),null);
+  assert.equal(parseStagePreviewView({...view,revisionDecisionDigest:undefined},summary)?.revisionDecisionDigest,null);
+});
 test('owner decision digest is retained only for a passing held Preview, never inferred from old views', () => {
   const summary={contractVersion:'stage-preview-summary.v1' as const,runId:'10000000-0000-4000-8000-000000000001',
     preparationId:'10000000-0000-4000-8000-000000000002',receiptDigest:'a'.repeat(64),

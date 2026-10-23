@@ -1,5 +1,5 @@
 export type CheckpointedContinuationItem = {
-  kind?: 'owner_preview';
+  kind?: 'owner_preview' | 'owner_compose_revision';
   destinationRequestId?: string;
   destinationRequestStatus?: string;
   checkpointId: string;
@@ -52,16 +52,17 @@ export default function CheckpointedContinuationHistoryCard({ history }:
     <ol className="mt-3 space-y-3">
       {history.items.map((item) => <li key={item.intentId} className="rounded-md border border-ink-800 bg-ink-950/40 p-3 text-xs">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-300">
-          <span className="font-medium text-ink-100">{item.kind==='owner_preview'?'Preview approval used':`Continuation ${item.continuationNumber}`}</span>
+          <span className="font-medium text-ink-100">{item.kind==='owner_preview'?'Preview approval used':item.kind==='owner_compose_revision'?'Compose revision authorized':`Continuation ${item.continuationNumber}`}</span>
           <span>step {item.lastCompletedStage} → {item.nextStage}</span>
           <span>{materializationState(item.materializationState)}</span>
           <span>{attemptState(item.attemptLifecycleState)}</span>
           {item.kind==='owner_preview'&&item.destinationRequestStatus==='cancelled'&&<span>Queued Master continuation cancelled; approval remains consumed.</span>}
+          {item.kind==='owner_compose_revision'&&<span>Fresh Compose and Preview required; this is not Master approval.</span>}
         </div>
         <div className="mt-2 grid gap-1 font-mono text-[11px] text-ink-500 sm:grid-cols-2">
           <span title={item.checkpointDigest}>checkpoint {short(item.checkpointId)}</span>
           <span title={item.requestId}>request {short(item.requestId)}</span>
-          <span>fence {item.sourceFence} → {item.continuationFence??'pending'}{item.kind==='owner_preview'?' (new request)':''}</span>
+          <span>fence {item.sourceFence} → {item.continuationFence??'pending'}{item.kind?' (new request)':''}</span>
           {item.destinationRequestId&&<span title={item.destinationRequestId}>destination {short(item.destinationRequestId)}</span>}
           <span title={item.sourceAttemptId}>source {short(item.sourceAttemptId)}</span>
           <span title={item.continuationAttemptId || undefined}>continuation {short(item.continuationAttemptId)}</span>
