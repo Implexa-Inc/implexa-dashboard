@@ -356,7 +356,7 @@ export type StagePreviewView = {
   decisionDigest: string | null;
   temporalQa: StagePreviewTemporalSummary | null;
   criteria: { id: string; statement: string }[];
-  judgments: { criterionId: string; verdict: 'pass' | 'fail'; reason: string; frameIds: string[] }[];
+  judgments: { criterionId: string; verdict: 'pass' | 'fail' | 'not_applicable'; reason: string; frameIds: string[] }[];
 };
 export function stagePreviewTokens(value: unknown): string[] {
   if (!record(value) || !Array.isArray(value.items)) return [];
@@ -393,10 +393,12 @@ export function parseStagePreviewView(value: unknown, expected: StagePreviewSumm
     criteria.push({ id: c.id as string, statement: c.requirement });
   }
   for (const j of value.judgments) {
-    if (!record(j) || !criteria.some(c => c.id === j.criterionId) || !['pass','fail'].includes(String(j.verdict))
+    if (!record(j) || !criteria.some(c => c.id === j.criterionId) || !['pass','fail','not_applicable'].includes(String(j.verdict))
       || typeof j.reason !== 'string' || j.reason.length > 8192 || !Array.isArray(j.frameIds)
       || j.frameIds.length > 512 || !j.frameIds.every(id => typeof id === 'string' && MEDIA_ID_RE.test(id))) return null;
-    judgments.push({ criterionId: j.criterionId as string, verdict: j.verdict as 'pass' | 'fail', reason: j.reason, frameIds: j.frameIds });
+    if (j.verdict === 'not_applicable' && (temporalQa?.status !== 'not_applicable' || j.frameIds.length !== 0
+      || j.reason !== 'Not applicable: no provider windows')) return null;
+    judgments.push({ criterionId: j.criterionId as string, verdict: j.verdict as StagePreviewView['judgments'][number]['verdict'], reason: j.reason, frameIds: j.frameIds });
   }
   return { reviewState: expected.reviewState, items, criteria, judgments, temporalQa,
     decisionDigest: typeof value.decisionDigest === 'string' ? value.decisionDigest : null };
