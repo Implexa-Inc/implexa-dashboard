@@ -255,8 +255,12 @@ export default async function RunDetailPage({
   let checkpointedContinuations: CheckpointedContinuationHistory = {
     status: 'unavailable', reason: 'continuation_history_unavailable',
   };
+  let stagePreview: StagePreviewRead = { state: 'unavailable' };
   try {
     const response = await callBackend(`/api/v2/runs/${encodeURIComponent(r.id)}`, { jwt: session.access_token });
+    // Owner continuation clears the approval hold, not its retained Preview.
+    // Reuse this existing owner-scoped read; readiness still comes from its summary.
+    stagePreview = parseStagePreviewRead(response, r.id);
     const history = response?.run?.checkpointedContinuations;
     if (history?.status === 'available' && Array.isArray(history.items)) checkpointedContinuations = history;
     else if (history?.status === 'unavailable' && typeof history.reason === 'string') checkpointedContinuations = history;
@@ -505,7 +509,6 @@ export default async function RunDetailPage({
   // hold kind. Read the complete, owner-scoped manifest summary and fail closed
   // when the backend is old, unavailable, or returns anything malformed.
   let paidActionApproval: PaidActionApprovalView = { state: 'unavailable', reason: 'missing' };
-  let stagePreview: StagePreviewRead = { state: 'unavailable' };
   if (held && holdKind === 'approval_before_action') {
     try {
       const detail = await callBackend(`/api/v2/runs/${encodeURIComponent(r.id)}`, { jwt: session.access_token });
