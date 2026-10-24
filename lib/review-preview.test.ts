@@ -19,6 +19,20 @@ import {
 
 const TOKEN = 'a'.repeat(24);
 const GOOD = `implexa-artifact://preview/${TOKEN}`;
+test('preACK recovery hint preserves the failed Preview without becoming Master approval',()=>{
+  const summary={contractVersion:'stage-preview-summary.v1' as const,runId:'10000000-0000-4000-8000-000000000001',
+    preparationId:'10000000-0000-4000-8000-000000000002',receiptDigest:'a'.repeat(64),
+    machineId:'10000000-0000-4000-8000-000000000003',reviewState:'fail' as const,ownerHoldReady:false};
+  const view={...summary,ok:true,contractVersion:'stage-preview-local-view.v1',readOnly:true,ownerApproved:false,
+    temporalQaPassed:false,criteria:[],judgments:[],items:[],ownerRecoveryDecisionDigest:'b'.repeat(64),
+    ownerRecoveryDisclosure:'Server-fenced; local actions between bind and retirement are unverified.'};
+  assert.equal(parseStagePreviewView(view,summary)?.ownerRecoveryDecisionDigest,'b'.repeat(64));
+  assert.equal(parseStagePreviewView(view,summary)?.decisionDigest,null);
+  for(const delta of [{ownerRecoveryDecisionDigest:'bad'},{ownerRecoveryDisclosure:'no prior actions proved'}]){
+    const parsed=parseStagePreviewView({...view,...delta},summary);assert.ok(parsed);
+    assert.equal(parsed.ownerRecoveryDecisionDigest,undefined,'invalid optional recovery hint cannot authorize action or hide preserved evidence');
+  }
+});
 test('revision disclosure is retained only for a failed held Preview, not converted to approval',()=>{
   const summary={contractVersion:'stage-preview-summary.v1' as const,runId:'10000000-0000-4000-8000-000000000001',
     preparationId:'10000000-0000-4000-8000-000000000002',receiptDigest:'a'.repeat(64),

@@ -43,6 +43,7 @@ type DesktopBridge = {
   createStagePreview?: (runId: string, preparationId: string) => Promise<unknown>;
   approveStagePreview?: (runId: string, preparationId: string, decisionDigest: string, ownerSessionToken: string) => Promise<unknown>;
   reviseStagePreview?: (runId: string, preparationId: string, decisionDigest: string, ownerSessionToken: string) => Promise<unknown>;
+  resumeStagePreview?: (runId: string, preparationId: string, decisionDigest: string, ownerSessionToken: string) => Promise<unknown>;
   revokeArtifactPreview?: (token: string) => Promise<unknown>;
 };
 type WindowWithBridge = Window & { implexaDesktop?: DesktopBridge };
@@ -356,6 +357,8 @@ export type StagePreviewView = {
   // Exact displayed evidence identity, not owner approval or launch permission.
   decisionDigest: string | null;
   revisionDecisionDigest: string | null;
+  ownerRecoveryDecisionDigest?: string;
+  ownerRecoveryDisclosure?: string;
   temporalQa: StagePreviewTemporalSummary | null;
   criteria: { id: string; statement: string }[];
   judgments: { criterionId: string; verdict: 'pass' | 'fail' | 'not_applicable'; reason: string; frameIds: string[] }[];
@@ -406,6 +409,9 @@ export function parseStagePreviewView(value: unknown, expected: StagePreviewSumm
     judgments.push({ criterionId: j.criterionId as string, verdict: j.verdict as StagePreviewView['judgments'][number]['verdict'], reason: j.reason, frameIds: j.frameIds });
   }
   return { reviewState: expected.reviewState, items, criteria, judgments, temporalQa,
+    ...(value.reviewState==='fail'&&typeof value.ownerRecoveryDecisionDigest==='string'&&HASH_RE.test(value.ownerRecoveryDecisionDigest)
+      &&value.ownerRecoveryDisclosure==='Server-fenced; local actions between bind and retirement are unverified.'
+      ?{ownerRecoveryDecisionDigest:value.ownerRecoveryDecisionDigest,ownerRecoveryDisclosure:value.ownerRecoveryDisclosure}:{}),
     decisionDigest: typeof value.decisionDigest === 'string' ? value.decisionDigest : null,
     revisionDecisionDigest: typeof value.revisionDecisionDigest === 'string' ? value.revisionDecisionDigest : null };
 }
@@ -424,12 +430,15 @@ export async function approveStagePreview(runId:string,preparationId:string,deci
 export async function reviseStagePreview(runId:string,preparationId:string,decisionDigest:string,ownerSessionToken:string):Promise<unknown>{
   return stagePreviewDecision(runId,preparationId,decisionDigest,ownerSessionToken,true);
 }
-async function stagePreviewDecision(runId:string,preparationId:string,decisionDigest:string,ownerSessionToken:string,revision:boolean):Promise<unknown>{
+export async function resumeStagePreview(runId:string,preparationId:string,decisionDigest:string,ownerSessionToken:string):Promise<unknown>{
+  return stagePreviewDecision(runId,preparationId,decisionDigest,ownerSessionToken,false,true);
+}
+async function stagePreviewDecision(runId:string,preparationId:string,decisionDigest:string,ownerSessionToken:string,revision:boolean,recovery=false):Promise<unknown>{
   if(!RUN_ID_RE.test(runId)||!RUN_ID_RE.test(preparationId)||!HASH_RE.test(decisionDigest)
     ||typeof ownerSessionToken!=='string'||ownerSessionToken.length<16||ownerSessionToken.length>16384)return {ok:false,error:'bad_request'};
   const w=(typeof window!=='undefined'?window:undefined) as WindowWithBridge|undefined;
   if(!w?.implexaDesktop)return {ok:false,error:'desktop_required'};
-  const action=revision?w.implexaDesktop.reviseStagePreview:w.implexaDesktop.approveStagePreview;
+  const action=recovery?w.implexaDesktop.resumeStagePreview:revision?w.implexaDesktop.reviseStagePreview:w.implexaDesktop.approveStagePreview;
   if(typeof action!=='function')return {ok:false,error:'update_required'};
   try{return await action(runId,preparationId,decisionDigest,ownerSessionToken);}
   catch{return {ok:false,error:'scene_preview_owner_approval_unconfirmed'};}
