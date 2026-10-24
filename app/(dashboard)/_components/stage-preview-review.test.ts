@@ -20,6 +20,27 @@ const token='previewToken1234567890',url=`implexa-artifact://preview/${token}`;
 const evidence={...summary,ok:true,contractVersion:'stage-preview-local-view.v1',readOnly:true,ownerApproved:false,temporalQaPassed:false,
   criteria:[{id:'title',requirement:'Readable title'}],judgments:[{criterionId:'title',verdict:'pass',reason:'Checked title.',frameIds:['frame-1']}],
   items:[{id:'frame-1',kind:'full_resolution',mime:'image/png',url}]};
+test('resume correction uses one explicit owner action, not a new revision or Master approval',async()=>{
+  const auth='synthetic-owner-session-not-a-credential';(globalThis as any).__implexaTestOwnerSession=auth;
+  const host=document.createElement('div');document.body.append(host);const root=createRoot(host),calls:unknown[][]=[];
+  const held={...summary,reviewState:'fail' as const,ownerHoldReady:false};
+  (window as any).implexaDesktop={createStagePreview:async()=>({...evidence,...held,contractVersion:'stage-preview-local-view.v1',
+    ownerRecoveryDecisionDigest:'c'.repeat(64),ownerRecoveryDisclosure:'Server-fenced; local actions between bind and retirement are unverified.'}),
+    resumeStagePreview:async(...args:unknown[])=>{calls.push(args);return{ok:true,continuationRequestId:summary.runId,historical:false};},
+    approveStagePreview:()=>assert.fail('not Master approval'),reviseStagePreview:()=>assert.fail('no new continuation slot'),
+    revokeArtifactPreview:async()=>({ok:true})};
+  try{
+    await React.act(async()=>root.render(React.createElement(View,{summary:held})));
+    await React.act(async()=>host.querySelector('button')!.click());
+    assert.match(host.textContent!,/local actions between bind and retirement are unverified/);
+    const button=[...host.querySelectorAll('button')].find(b=>b.textContent==='Resume correction') as HTMLButtonElement;
+    assert.ok(button);assert.equal(calls.length,0);
+    await React.act(async()=>{button.click();button.click();});
+    assert.deepEqual(calls,[[summary.runId,summary.preparationId,'c'.repeat(64),auth]]);
+    assert.match(host.textContent!,/same run with its remaining allowance/);assert.equal(host.textContent!.includes(auth),false);
+    assert.equal([...host.querySelectorAll('button')].some(b=>b.textContent==='Resume correction'),false);
+  }finally{await React.act(async()=>root.unmount());host.remove();delete(window as any).implexaDesktop;delete(globalThis as any).__implexaTestOwnerSession;}
+});
 test('explicit owner click sends the displayed digest once and media display failure disables approval',async()=>{
   const auth='synthetic-owner-session-not-a-credential';(globalThis as any).__implexaTestOwnerSession=auth;
   for(const broken of [false,true]){
@@ -72,7 +93,7 @@ test('a failed Preview requests upstream Compose revision, never approval to Mas
   try{
     await React.act(async()=>root.render(React.createElement(View,{summary:{...summary,reviewState:'fail'}})));
     await React.act(async()=>host.querySelector('button')!.click());
-    assert.match(host.textContent!,/Preview failed\. Compose must be revised through an owner action; Master is not available/);
+    assert.match(host.textContent!,/Preview failed\..*send these findings back to Compose.*Master is not available/);
     assert.doesNotMatch(host.textContent!,/owner decision are still required before Master/);
   }finally{await React.act(async()=>root.unmount());host.remove();}
 });
