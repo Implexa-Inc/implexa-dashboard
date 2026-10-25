@@ -26,6 +26,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { render } from '../../../lib/test/render.ts';
 
 const src = readFileSync(join(import.meta.dirname, 'agent-actions.tsx'), 'utf8');
 
@@ -73,4 +74,83 @@ test('a run-request started from THIS component still defers to its own dedicate
     'effect-setup guard must survive');
   const tickGuardCount = (body.match(/if \(requestId\.current\) return;/g) || []).length;
   assert.equal(tickGuardCount, 2, 'the requestId guard must appear both at effect setup AND inside each interval tick');
+});
+
+const VERSION = '33333333-3333-4333-8333-333333333333';
+async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, statusUnavailable = false) {
+  return render('agent-actions.tsx', {
+    slug: 'video-agent', isActive: true, inFlight, statusUnavailable,
+    workflowVersionId: VERSION, inputContractDigest: 'c'.repeat(64),
+    inputContract: { version: 1, fields: [{ key: 'brief', label: 'Brief', kind: 'text',
+      cardinality: 'one', required: true, order: 1 }] },
+  }, { backend: path => {
+    if (path.startsWith('/api/v2/agent-training/agents/')) return { ok: true, home: {
+      agent: { currentVersionId: VERSION },
+      successorProjection: { contractVersion: 'agent-training-successor-projection.v1',
+        activeVersionId: VERSION, eligiblePredecessor: null },
+      managerTrainingRequirements: { contractVersion: 'manager-reference-training-readiness.v1',
+        scope: 'workflow_version_quality_references', workflowVersionId: VERSION,
+        classified: false, requiredPairs: [], fulfilledPairs: [], missingPairs: [],
+        readiness: 'not_applicable', reason: null },
+    } };
+    if (path.includes('/setup')) return { schema: [{ key: 'format', question: 'Format', kind: 'text', optional: true }],
+      answers: { format: '16:9' }, note: '', runInputDefaults: { brief: 'same preserved input' } };
+    if (path.includes('/run-precheck')) return { ok: true, fingerprint: 'same-fingerprint',
+      duplicate: duplicate ? { message: 'The same input has an open run.', runId: 'existing-run' } : null };
+    if (path === '/api/v2/me/run-admission') return { ok: true, admitted: true };
+    if (path === '/api/v2/me/run-requests') return { ok: true, request: { id: 'fresh-request' } };
+    return { ok: true };
+  } });
+}
+
+for (const status of ['running', 'queued'] as const) {
+  test(`a separately observed ${status} run permits one new normal, version-bound submission`, async () => {
+    const r = await renderAnother(status);
+    try {
+      await r.click(r.getByText('Run another…'));
+      assert.match(r.text(), /does not stop, retry or change that run/);
+      assert.ok(r.getByText('View existing runs'));
+      await r.click(r.getByText('Save & run'));
+      const paths = r.calls.backend.map(c => c.path);
+      const pre = paths.findIndex(p => p.includes('/run-precheck'));
+      const admission = paths.indexOf('/api/v2/me/run-admission');
+      const created = paths.indexOf('/api/v2/me/run-requests');
+      assert.ok(pre >= 0 && admission > pre && created > admission);
+      const posts = r.calls.backend.filter(c => c.path === '/api/v2/me/run-requests');
+      assert.equal(posts.length, 1);
+      const body = (posts[0].init as { body: Record<string, unknown> }).body;
+      assert.equal(body.workflowVersionId, VERSION);
+      assert.equal(body.inputContractDigest, 'c'.repeat(64));
+      assert.deepEqual(JSON.parse(JSON.stringify(body.inputBindings)), { brief: 'same preserved input' });
+      assert.equal(body.force, undefined);
+      assert.equal(r.queryByText('Run another…'), null, 'its own queued request remains locked');
+      assert.ok(!paths.some(p => /cancel|stop/.test(p)), 'the first request is untouched');
+    } finally { r.cleanup(); }
+  });
+}
+
+test('another run still requires the existing duplicate confirmation before force', async () => {
+  const r = await renderAnother('running', true);
+  try {
+    await r.click(r.getByText('Run another…'));
+    await r.click(r.getByText('Save & run'));
+    assert.equal(r.calls.backend.filter(c => c.path === '/api/v2/me/run-requests').length, 0);
+    await r.click(r.getByText('Run again anyway'));
+    const posts = r.calls.backend.filter(c => c.path === '/api/v2/me/run-requests');
+    assert.equal(posts.length, 1);
+    const body = (posts[0].init as { body: Record<string, unknown> }).body;
+    assert.equal(body.force, true);
+    assert.equal(body.inputFingerprint, 'same-fingerprint');
+    assert.equal(body.workflowVersionId, VERSION);
+    assert.deepEqual(JSON.parse(JSON.stringify(body.inputBindings)), { brief: 'same preserved input' });
+    assert.equal(r.calls.backend.filter(c => c.path.includes('/run-precheck')).length, 1);
+    assert.ok(r.calls.backend.some(c => c.path === '/api/v2/me/run-admission'));
+    assert.ok(!r.calls.backend.some(c => /cancel|stop/.test(c.path)));
+  } finally { r.cleanup(); }
+});
+
+test('unreadable lifecycle state still withholds Run another', async () => {
+  const r = await renderAnother('running', false, true);
+  try { assert.equal(r.queryByText('Run another…'), null); assert.ok(r.getByText('Status unavailable')); }
+  finally { r.cleanup(); }
 });
