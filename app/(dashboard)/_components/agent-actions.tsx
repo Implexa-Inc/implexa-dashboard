@@ -900,7 +900,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         ...(fingerprint ? { inputFingerprint: fingerprint } : {}),
         // Carries the card's "Run anyway" through. We ask, we never forbid.
         ...(opts?.force ? { force: true } : {}),
-        ...(typedFields.length && workflowVersionId && inputContractDigest ? {
+        // An explicit empty contract still pins the version and digest. Field
+        // count controls the form, not whether the backend requires an envelope.
+        ...(inputContract && workflowVersionId && inputContractDigest ? {
           workflowVersionId,
           inputContractDigest,
           inputBindings: serializeArtifactBindings(opts?.inputBindingsOverride ?? inputBindings),
