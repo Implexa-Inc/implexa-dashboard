@@ -14,6 +14,20 @@ export default function AgentDefinitionReview({ slug, definition, versionSource,
   statusUnavailable: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [reviewMap, setReviewMap] = useState<{stages: Array<{order: number; learning: unknown;
+    executionPolicyStatus: string; outputs: Array<{name: string; review: {kind: string; availability: string}}>}>} | null>(null);
+  const [reviewStatus, setReviewStatus] = useState('Runtime review availability has not been checked.');
+  function refreshReviewMap() {
+    if (!slug || !definition) return;
+    fetch(`/api/v2/agents/${encodeURIComponent(slug)}/hardening`, {cache: 'no-store'})
+      .then(r => r.json()).then(data => {
+        if (!data.ok || data.activeVersion?.id !== definition.workflow_version_id) {
+          setReviewMap(null); setReviewStatus('Current version review map unavailable. Reload before using it.'); return;
+        }
+        setReviewMap(data.executionReviewMap || null);
+        setReviewStatus(data.reviewReadiness?.error || 'Graded review uses this agent’s existing Judge policy. Engine and model declarations are hints, not separate per-stage launches.');
+      }).catch(() => setReviewStatus('Runtime review availability could not be read.'));
+  }
   return <>
     <button type="button" className="text-xs underline underline-offset-2 text-ink-400 hover:text-ink-200" onClick={() => setOpen(true)}>
       Review definition
@@ -29,6 +43,16 @@ export default function AgentDefinitionReview({ slug, definition, versionSource,
             <p className="break-all font-mono text-xs">Base version: {definition.workflow_version_id}</p>
             {updateAvailable && <p>A newer version is available. This snapshot must not be treated as the current edit base.</p>}
           </div>
+          <section aria-label="Learning and review map" className="rounded border border-ink-700 p-3 space-y-2">
+            <h3 className="font-medium">Learning and review map</h3>
+            {slug && <button type="button" className="btn-secondary text-xs" onClick={refreshReviewMap}>Read runtime review map</button>}
+            <p className="text-xs text-ink-400">{reviewStatus}</p>
+            {reviewMap?.stages.map(stage => <details key={stage.order}>
+              <summary>Stage {stage.order}: {stage.learning ? 'learning policy declared' : 'no learning policy declared'}</summary>
+              {stage.outputs.map((output, i) => <p key={i} className="text-xs mt-1">{output.name}: {output.review.kind} — {output.review.availability}</p>)}
+              {!!stage.learning && <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(stage.learning, null, 2)}</pre>}
+            </details>)}
+          </section>
           {definition.steps.map((step) => <details key={step.order} className="rounded border border-ink-700 p-3">
             <summary className="cursor-pointer">Stage {step.order}</summary>
             <pre className="mt-3 whitespace-pre-wrap break-words text-xs">{step.label}</pre>

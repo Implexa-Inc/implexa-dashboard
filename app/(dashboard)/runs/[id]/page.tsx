@@ -662,7 +662,7 @@ export default async function RunDetailPage({
   let repairRequest: JudgeRepairRequest | null = null;
   try {
     const { data: jr } = await supabase.from('run_judgments')
-      .select('id, verdict, summary, criteria_results, evidence_refs, paths_taken, next_action, repair_prompt, repair_round, repair_limit, worker_executor, worker_model, judge_executor, judge_model, deterministic_verification, created_at, feedback')
+      .select('id, verdict, summary, criteria_results, evidence_refs, paths_taken, next_action, repair_prompt, repair_round, repair_limit, worker_executor, worker_model, judge_executor, judge_model, deterministic_verification, created_at, feedback, creative_grade')
       .eq('run_id', params.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
     judgment = (jr as RunJudgment | null) || null;
   } catch { /* 0121 not applied, or no judgment — keep the run page intact */ }
@@ -695,6 +695,23 @@ export default async function RunDetailPage({
       judgeRequestStatus = (jq && jq.status) || null;
       judgeRequestCreatedAt = (jq && jq.created_at) || null;
     } catch { /* 0121 not applied — no pending state */ }
+  }
+
+  let creativeGradeNotice: string | null = null;
+  if (runWorkflowVersionId && !judgment?.creative_grade) {
+    try {
+      const {data: version} = await supabase.from('workflow_versions').select('steps').eq('id', runWorkflowVersionId).maybeSingle();
+      const required = (Array.isArray(version?.steps) ? version.steps : []).some((step: any) =>
+        (Array.isArray(step.outputs) ? step.outputs : []).some((output: any) => output.review?.required === true));
+      if (required) {
+        const {data: policy} = await supabase.from('user_agent_judge_policies').select('mode')
+          .eq('skill_slug', r.skill_slug).maybeSingle();
+        creativeGradeNotice = policy?.mode === 'off'
+          ? 'Creative grade required, but this agent’s Judge was disabled by its owner. The delivered output remains available.'
+          : judgmentPending ? 'Creative grade pending. Delivery and grading are separate.'
+            : 'Creative grade required but not available yet. This output has no assessed creative grade.';
+      }
+    } catch { /* Existing delivery is still readable when review metadata is unavailable. */ }
   }
 
   const agentHref = wf
@@ -957,6 +974,7 @@ export default async function RunDetailPage({
           )}
         </section>
 
+        {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-amber-300">{creativeGradeNotice}</p>}
         <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id} />
         {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
         {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (
