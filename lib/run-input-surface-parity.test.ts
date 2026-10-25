@@ -175,11 +175,11 @@ test('the envelope AgentActions builds still needs exactly these three from its 
   const actions = readFileSync(join(ROOT, 'app/(dashboard)/_components/agent-actions.tsx'), 'utf8');
   assert.match(
     actions,
-    /\.\.\.\(typedFields\.length && workflowVersionId && inputContractDigest \? \{/,
-    'the envelope is gated on the contract fields the parent supplies',
+    /\.\.\.\(inputContract && workflowVersionId && inputContractDigest \? \{/,
+    'a declared contract requires its envelope even when it declares zero fields',
   );
   assert.match(actions, /const typedFields = orderedInputFields\(inputContract\)/,
-    'typedFields — the gate on both the rendered inputs form and the envelope — comes from the inputContract prop');
+    'typedFields — the gate on the rendered inputs form — comes from the inputContract prop');
 });
 
 // ── the derivation ──────────────────────────────────────────────────────────
