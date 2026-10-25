@@ -280,6 +280,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // restart the interval — and lose `misses` — on every status flip).
   const stateRef = useRef<RunState>(state);
   useEffect(() => { stateRef.current = state; }, [state]);
+  // A feed-observed open attempt is not this form's submission lock. A new
+  // request still uses the ordinary inputs, precheck and admission below.
+  const observingOpenRun = !requestId.current && (state === 'queued' || state === 'running');
+  const runActionBusy = state === 'queuing'
+    || (!!requestId.current && (state === 'queued' || state === 'running'));
   const supabase = createClient();
   const router = useRouter();
 
@@ -545,7 +550,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   }
 
   async function runNow() {
-    if (state === 'queuing' || state === 'running') return;
+    if (runActionBusy) return;
     // Hard gate: never hand off a run that is missing required answers. Surface
     // the questions instead of producing a dead "nothing happened" run.
     if (blocking > 0) { surfaceQuestions(); return; }
@@ -565,7 +570,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const blankRequired = setupFields.filter((f) => !isOptionalField(f) && (setupValues[f.key] ?? '').toString().trim() === '');
 
   async function openPreRun(mode: 'queue' | 'watch') {
-    if (state === 'queuing' || state === 'running' || trainingCheckingRef.current) return;
+    if (runActionBusy || (mode === 'watch' && observingOpenRun) || trainingCheckingRef.current) return;
     // Preserve which Run path the user chose even when readiness is temporarily
     // unavailable and they use Check again from the refusal dialog.
     setPreRunMode(mode);
@@ -784,7 +789,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   }
 
   async function doQueue(note?: string, opts?: { force?: boolean; fingerprint?: string | null; admitted?: boolean; executionMachineId?: string | null; inputBindingsOverride?: RunInputBindings }) {
-    if (queueInFlightRef.current || state === 'queuing' || state === 'running') return;
+    if (queueInFlightRef.current || runActionBusy) return;
     queueInFlightRef.current = true;
     try {
       await doQueueLocked(note, opts);
@@ -1191,11 +1196,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <button
           type="button"
           onClick={runNow}
-          disabled={trainingChecking || state === 'queuing' || state === 'running'}
+          disabled={trainingChecking || runActionBusy}
           className="btn-success text-sm px-4 py-2 disabled:opacity-60"
         >
           {trainingChecking ? 'Checking training…'
             : state === 'queuing' ? 'Queuing…'
+            : observingOpenRun ? 'Run another…'
             : state === 'running' ? 'Running…'
             : state === 'queued' ? 'Queued ✓'
             : '▶ Run now'}
@@ -1455,6 +1461,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       title={preRunMode === 'watch' ? 'Before it opens in Claude' : setupFields.length ? 'Before it runs' : 'Add a note for this run'}
       maxWidth="max-w-2xl"
     >
+      {observingOpenRun && preRunMode === 'queue' && (
+        <p className="text-sm text-amber-700 dark:text-amber-300 mb-4">
+          Another run of this agent is still open. Starting another runs separately;
+          it does not stop, retry or change that run.{' '}
+          <Link href={`/workflows/${encodeURIComponent(slug)}?tab=runs`} className="underline">View existing runs</Link>
+        </p>
+      )}
       <p className="text-sm text-ink-300 leading-relaxed mb-4">
         {setupFields.length
           ? <>Confirm or change {setupFields.length === 1 ? 'this preference' : 'these preferences'} — kept and reused on every run{typedFields.length ? ', separate from the inputs this run needs fresh' : ''} — and add anything for just this run below.</>
