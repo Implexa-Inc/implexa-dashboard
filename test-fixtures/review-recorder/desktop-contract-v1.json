@@ -1,0 +1,423 @@
+{
+  "_provenance": "Generated from Implexa Desktop feat review recorder at e2db82d: src/recorder/review-recorder.js handleDashboardOperation over a real createRecordingStore and createPointerTrack. Do not hand-edit; regenerate.",
+  "list": {
+    "ok": true,
+    "recordings": [
+      {
+        "recordingId": "2d0f5c74-8b3a-4e4c-9f3d-5a7b9c1e3f4a",
+        "title": "Empty",
+        "origin": "recorded",
+        "state": "failed",
+        "failureReason": "empty_capture",
+        "createdAt": "2026-10-25T12:00:00.000Z",
+        "durationMs": null,
+        "sizeBytes": null,
+        "width": null,
+        "height": null,
+        "hasMicrophone": true,
+        "hasPointerTrack": false,
+        "momentCount": 0
+      },
+      {
+        "recordingId": "1c9e4b63-7a2f-4d3b-8e2c-4f6a8b0d2e3f",
+        "title": "Half a session",
+        "origin": "recorded",
+        "state": "interrupted",
+        "failureReason": null,
+        "createdAt": "2026-10-25T12:00:00.000Z",
+        "durationMs": null,
+        "sizeBytes": null,
+        "width": null,
+        "height": null,
+        "hasMicrophone": true,
+        "hasPointerTrack": false,
+        "momentCount": 0
+      },
+      {
+        "recordingId": "0b8f3a52-6f1e-4c2a-9d1b-3e5f7a9c1d2e",
+        "title": "Checkout flow",
+        "origin": "recorded",
+        "state": "ready",
+        "failureReason": null,
+        "createdAt": "2026-10-25T12:00:00.000Z",
+        "durationMs": 10007,
+        "sizeBytes": 1234,
+        "width": 2880,
+        "height": 1800,
+        "hasMicrophone": true,
+        "hasPointerTrack": true,
+        "momentCount": 0
+      }
+    ],
+    "library": {
+      "usedBytes": 2623,
+      "limitBytes": 10737418240
+    }
+  },
+  "saveMoments": {
+    "ok": true,
+    "moments": [
+      {
+        "momentId": "aa0f5c74-8b3a-4e4c-9f3d-5a7b9c1e3f4a",
+        "startMs": 500,
+        "endMs": 1600,
+        "region": {
+          "x": 0,
+          "y": 0,
+          "width": 400000,
+          "height": 300000
+        },
+        "card": {
+          "whatToDo": "Keep the price visible",
+          "why": "",
+          "insteadOf": "",
+          "howToCheck": "",
+          "whenNot": ""
+        },
+        "createdAt": "2026-10-25T12:05:00.000Z"
+      }
+    ]
+  },
+  "get": {
+    "ok": true,
+    "recording": {
+      "recordingId": "0b8f3a52-6f1e-4c2a-9d1b-3e5f7a9c1d2e",
+      "title": "Checkout flow",
+      "origin": "recorded",
+      "state": "ready",
+      "failureReason": null,
+      "createdAt": "2026-10-25T12:00:00.000Z",
+      "durationMs": 10007,
+      "sizeBytes": 1234,
+      "width": 2880,
+      "height": 1800,
+      "hasMicrophone": true,
+      "hasPointerTrack": true,
+      "momentCount": 1,
+      "pointerTrack": {
+        "contractVersion": "pointer-track.v1",
+        "videoWidth": 2880,
+        "videoHeight": 1800,
+        "samples": [
+          [
+            33,
+            0,
+            0
+          ],
+          [
+            66,
+            13888,
+            11111
+          ],
+          [
+            99,
+            27777,
+            22222
+          ],
+          [
+            132,
+            41666,
+            33333
+          ],
+          [
+            165,
+            55555,
+            44444
+          ],
+          [
+            198,
+            69444,
+            55555
+          ],
+          [
+            231,
+            83333,
+            66666
+          ],
+          [
+            264,
+            97222,
+            77777
+          ],
+          [
+            297,
+            111111,
+            88888
+          ],
+          [
+            330,
+            125000,
+            100000
+          ],
+          [
+            363,
+            138888,
+            111111
+          ],
+          [
+            396,
+            152777,
+            122222
+          ],
+          [
+            429,
+            166666,
+            133333
+          ],
+          [
+            462,
+            180555,
+            144444
+          ],
+          [
+            495,
+            194444,
+            155555
+          ],
+          [
+            528,
+            208333,
+            166666
+          ],
+          [
+            561,
+            222222,
+            177777
+          ],
+          [
+            594,
+            236111,
+            188888
+          ],
+          [
+            627,
+            250000,
+            200000
+          ],
+          [
+            660,
+            263888,
+            211111
+          ],
+          [
+            693,
+            277777,
+            222222
+          ],
+          [
+            726,
+            291666,
+            233333
+          ],
+          [
+            759,
+            305555,
+            244444
+          ],
+          [
+            792,
+            319444,
+            255555
+          ],
+          [
+            825,
+            333333,
+            266666
+          ],
+          [
+            858,
+            347222,
+            277777
+          ],
+          [
+            891,
+            361111,
+            288888
+          ],
+          [
+            924,
+            375000,
+            300000
+          ],
+          [
+            957,
+            388888,
+            311111
+          ],
+          [
+            990,
+            402777,
+            322222
+          ],
+          [
+            1023,
+            416666,
+            333333
+          ],
+          [
+            1056,
+            430555,
+            344444
+          ],
+          [
+            1089,
+            444444,
+            355555
+          ],
+          [
+            1122,
+            458333,
+            366666
+          ],
+          [
+            1155,
+            472222,
+            377777
+          ],
+          [
+            1188,
+            486111,
+            388888
+          ],
+          [
+            1221,
+            500000,
+            400000
+          ],
+          [
+            1254,
+            513888,
+            411111
+          ],
+          [
+            1287,
+            527777,
+            422222
+          ],
+          [
+            1320,
+            541666,
+            433333
+          ],
+          [
+            1353,
+            555555,
+            444444
+          ],
+          [
+            1386,
+            569444,
+            455555
+          ],
+          [
+            1419,
+            583333,
+            466666
+          ],
+          [
+            1452,
+            597222,
+            477777
+          ],
+          [
+            1485,
+            611111,
+            488888
+          ],
+          [
+            1518,
+            625000,
+            500000
+          ],
+          [
+            1551,
+            638888,
+            511111
+          ],
+          [
+            1584,
+            652777,
+            522222
+          ],
+          [
+            1617,
+            666666,
+            533333
+          ],
+          [
+            1650,
+            680555,
+            544444
+          ],
+          [
+            1660
+          ],
+          [
+            1710,
+            999930,
+            999888
+          ]
+        ]
+      },
+      "moments": [
+        {
+          "momentId": "aa0f5c74-8b3a-4e4c-9f3d-5a7b9c1e3f4a",
+          "startMs": 500,
+          "endMs": 1600,
+          "region": {
+            "x": 0,
+            "y": 0,
+            "width": 400000,
+            "height": 300000
+          },
+          "card": {
+            "whatToDo": "Keep the price visible",
+            "why": "",
+            "insteadOf": "",
+            "howToCheck": "",
+            "whenNot": ""
+          },
+          "createdAt": "2026-10-25T12:05:00.000Z"
+        }
+      ]
+    }
+  },
+  "getInterrupted": {
+    "ok": true,
+    "recording": {
+      "recordingId": "1c9e4b63-7a2f-4d3b-8e2c-4f6a8b0d2e3f",
+      "title": "Half a session",
+      "origin": "recorded",
+      "state": "interrupted",
+      "failureReason": null,
+      "createdAt": "2026-10-25T12:00:00.000Z",
+      "durationMs": null,
+      "sizeBytes": null,
+      "width": null,
+      "height": null,
+      "hasMicrophone": true,
+      "hasPointerTrack": false,
+      "momentCount": 0,
+      "pointerTrack": null,
+      "moments": []
+    }
+  },
+  "refusals": {
+    "notFound": {
+      "ok": false,
+      "reason": "recording_not_found"
+    },
+    "deleteCancelled": {
+      "ok": false,
+      "reason": "delete_cancelled"
+    },
+    "unknownOperation": {
+      "ok": false,
+      "reason": "recorder_operation_invalid"
+    },
+    "importCancelled": {
+      "ok": false,
+      "reason": "selection_cancelled"
+    }
+  }
+}
