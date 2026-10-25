@@ -23,8 +23,8 @@
  * Bridge contract version '1' (window.implexaDesktop.reviewRecorderContractVersion).
  */
 
-import { normalizedRectFromDrag, overlayStyleForGeometry } from './review-spatial-geometry.ts';
-import { parsePreviewUrl } from './review-preview.ts';
+import { overlayStyleForGeometry } from './review-spatial-geometry.ts';
+import { desktopBridge, inDesktopApp, parsePreviewUrl } from './review-preview.ts';
 
 export const REVIEW_RECORDER_CONTRACT_VERSION = '1';
 
@@ -113,18 +113,18 @@ export const CLIENT_REASONS = ['desktop_required', 'desktop_update_required', 'r
 export type RecorderReason = typeof DESKTOP_REASONS[number] | typeof CLIENT_REASONS[number];
 
 export const REASON_MESSAGES: Record<RecorderReason, string> = {
-  forbidden: 'This recording belongs to a different Implexa account on this Mac.',
+  forbidden: 'Implexa Desktop only accepts recorder requests from its own app window. Reopen this page from Implexa Desktop and try again.',
   not_linked: 'Sign in to Implexa Desktop with this account to use recordings.',
-  recorder_busy: 'A recording is already in progress. Finish or discard it first.',
+  recorder_busy: 'That recording is busy right now. Try again in a moment.',
   library_full: 'Your recordings library is full (10 GB). Delete a recording to make room.',
   disk_full: 'This Mac is out of disk space. Free some space and try again.',
-  media_tools_unavailable: 'Recording needs ffmpeg on this Mac. Install it from Settings → Tools.',
+  media_tools_unavailable: 'Recording needs the media tools (ffmpeg) on this Mac, and Implexa Desktop could not find them. Update Implexa Desktop or install ffmpeg, then try again.',
   recording_not_found: 'This recording is no longer in your library on this Mac.',
   recording_not_ready: 'This recording is still being saved. Try again in a moment.',
   moments_invalid: 'Implexa Desktop could not save these moments. Check each range is inside the recording and at most 30 seconds, then save again.',
   selection_cancelled: 'No file was chosen.',
   delete_cancelled: 'The recording was not deleted.',
-  import_unsupported: 'That file type cannot be added. Choose an MP4, MOV, M4V or WebM video.',
+  import_unsupported: 'That video could not be added: it is not an MP4, MOV, M4V or WebM file, or it could not be converted. Try another file.',
   import_too_long: 'That video is too long to add to your recordings library.',
   import_too_large: 'That video is too large to add to your recordings library.',
   recorder_failed: 'The recorder hit a problem. Your other recordings are unaffected. Try again.',
@@ -140,6 +140,21 @@ export const SILENT_REASONS: ReadonlySet<RecorderReason> = new Set(['selection_c
 
 const DESKTOP_REASON_SET: ReadonlySet<string> = new Set(DESKTOP_REASONS);
 
+/** Why a recording is `failed` (Desktop packet `failureReason`). Never shown raw. */
+export const FAILURE_REASONS = ['empty_capture', 'finalize_failed', 'too_long', 'too_large', 'source_changed', 'media_tools_unavailable'] as const;
+export type FailureReason = typeof FAILURE_REASONS[number];
+export const FAILURE_REASON_MESSAGES: Record<FailureReason, string> = {
+  empty_capture: 'Nothing was captured, so there is nothing to play.',
+  finalize_failed: 'The video could not be finished or converted into a playable file.',
+  too_long: 'The video is longer than the recordings library allows.',
+  too_large: 'The video is larger than the recordings library allows.',
+  source_changed: 'The original file changed while it was being added, so the copy was not kept.',
+  media_tools_unavailable: 'The media tools (ffmpeg) were not available to finish this video.',
+};
+const FAILURE_REASON_SET: ReadonlySet<string> = new Set(FAILURE_REASONS);
+export const failureMessage = (reason: string | null): string =>
+  reason !== null && FAILURE_REASON_SET.has(reason) ? FAILURE_REASON_MESSAGES[reason as FailureReason] : 'This recording could not be saved.';
+
 export class RecorderError extends Error {
   readonly reason: RecorderReason;
   constructor(reason: RecorderReason) {
@@ -147,6 +162,15 @@ export class RecorderError extends Error {
     this.reason = reason;
   }
   get silent(): boolean { return SILENT_REASONS.has(this.reason); }
+}
+
+/**
+ * The one user-facing message for anything a recorder call threw. Cancels are silent
+ * (null); anything that is not a RecorderError gets the generic recorder message.
+ */
+export function recorderErrorMessage(caught: unknown): string | null {
+  if (caught instanceof RecorderError) return caught.silent ? null : caught.message;
+  return REASON_MESSAGES.recorder_failed;
 }
 
 export function reasonMessage(reason: string): string {
@@ -158,14 +182,8 @@ export function reasonMessage(reason: string): string {
 // ── shape validation ─────────────────────────────────────────────────────────
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-/**
- * An opaque recording id. Letters, digits, `_` and `-` only: no `/`, `\`, `.` or `%`,
- * so a value that passes cannot name, traverse to, or encode a path.
- */
-const RECORDING_ID = /^[A-Za-z0-9_-]{1,128}$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$/;
 const MAX_TITLE = 512;
-const MAX_FAILURE_REASON = 512;
 /** Two hours at 60 Hz with headroom. A track larger than this is not one we draw. */
 const MAX_POINTER_SAMPLES = 1_000_000;
 
@@ -181,7 +199,8 @@ const coord = (v: unknown): v is number => nonNegInt(v) && v <= COORD_MAX;
 const isoDate = (v: unknown): v is string => typeof v === 'string' && ISO_DATE.test(v) && Number.isFinite(Date.parse(v));
 const nullable = <T>(check: (v: unknown) => v is T) => (v: unknown): v is T | null => v === null || check(v);
 
-export const isRecordingId = (v: unknown): v is string => typeof v === 'string' && RECORDING_ID.test(v);
+/** Recording ids are UUID v4 (Desktop contract) — so a value that passes cannot carry a path. */
+export const isRecordingId = (v: unknown): v is string => typeof v === 'string' && UUID_V4.test(v);
 export const isMomentId = (v: unknown): v is string => typeof v === 'string' && UUID_V4.test(v);
 
 const SUMMARY_KEYS = ['recordingId', 'title', 'origin', 'state', 'failureReason', 'createdAt', 'durationMs',
@@ -195,7 +214,7 @@ function summaryFieldsValid(v: Obj): boolean {
     && typeof v.title === 'string' && v.title.length <= MAX_TITLE
     && (v.origin === 'recorded' || v.origin === 'imported')
     && (RECORDING_STATES as readonly unknown[]).includes(v.state)
-    && (v.failureReason === null || (typeof v.failureReason === 'string' && v.failureReason.length <= MAX_FAILURE_REASON))
+    && (v.failureReason === null || (typeof v.failureReason === 'string' && FAILURE_REASON_SET.has(v.failureReason)))
     && isoDate(v.createdAt)
     && nullable(nonNegInt)(v.durationMs)
     && nullable(nonNegInt)(v.sizeBytes)
@@ -301,7 +320,8 @@ function refusal(v: unknown): RecorderError | null {
   return new RecorderError(v.reason as RecorderReason);
 }
 
-function unique<T>(values: T[]): boolean { return new Set(values).size === values.length; }
+/** More rows than this is not a library this page will render. */
+const MAX_LIBRARY_ROWS = 10_000;
 
 export const parse = {
   start(v: unknown): { recordingId: string } {
@@ -315,12 +335,21 @@ export const parse = {
     }
     throw refusal(v) ?? new RecorderError('response_invalid');
   },
-  list(v: unknown): { recordings: RecordingSummary[]; library: LibraryUsage } {
+  /**
+   * The envelope is strict; ROWS are not all-or-nothing. A malformed row (or a repeated
+   * id) is dropped and counted, so one unreadable recording cannot hide the library.
+   */
+  list(v: unknown): { recordings: RecordingSummary[]; library: LibraryUsage; unreadable: number } {
     if (exact(v, ['ok', 'recordings', 'library']) && v.ok === true
-      && Array.isArray(v.recordings) && v.recordings.every(isRecordingSummary)
-      && unique((v.recordings as RecordingSummary[]).map((r) => r.recordingId))
-      && isLibraryUsage(v.library)) {
-      return { recordings: v.recordings as RecordingSummary[], library: v.library };
+      && Array.isArray(v.recordings) && v.recordings.length <= MAX_LIBRARY_ROWS && isLibraryUsage(v.library)) {
+      const seen = new Set<string>();
+      const recordings: RecordingSummary[] = [];
+      for (const row of v.recordings as unknown[]) {
+        if (!isRecordingSummary(row) || seen.has(row.recordingId)) continue;
+        seen.add(row.recordingId);
+        recordings.push(row);
+      }
+      return { recordings, library: v.library, unreadable: v.recordings.length - recordings.length };
     }
     throw refusal(v) ?? new RecorderError('response_invalid');
   },
@@ -355,11 +384,7 @@ type RecorderBridge = {
 };
 type InvokeFn = (operation: string, args?: object) => Promise<unknown>;
 
-const bridgeOf = (win?: unknown): RecorderBridge | undefined => {
-  const w = (win ?? (typeof window !== 'undefined' ? window : undefined)) as { implexaDesktop?: RecorderBridge } | undefined;
-  const b = w?.implexaDesktop;
-  return b && typeof b === 'object' ? b : undefined;
-};
+const bridgeOf = (win?: unknown) => desktopBridge<RecorderBridge>(win);
 
 export type RecorderAvailability =
   | { state: 'ready' }
@@ -374,7 +399,7 @@ export function recorderAvailability(win?: unknown): RecorderAvailability {
   const b = bridgeOf(win);
   if (!b || typeof b.reviewRecorder !== 'function') {
     // An older Desktop exposes the bridge object but not the recorder.
-    const reason = b ? 'desktop_update_required' : 'desktop_required';
+    const reason = inDesktopApp(win) ? 'desktop_update_required' : 'desktop_required';
     return { state: reason, message: REASON_MESSAGES[reason] };
   }
   if (b.reviewRecorderContractVersion !== REVIEW_RECORDER_CONTRACT_VERSION) {
@@ -493,23 +518,26 @@ function regionFromNormalized(r: { x: number; y: number; width: number; height: 
   return isRegion(region) ? region : null;
 }
 
+/** A click (or Enter) on the picture marks a box this big, centered on the point. */
+export const POINT_REGION_SIZE = 200_000;
+
 /**
- * A drag rectangle on the displayed `<video>` → a region in the VIDEO FRAME's space.
- * The element is `object-fit: contain`, so letterbox and pillarbox bars are excluded
- * through the same content-rect math the Review Room overlay uses: a drag that starts
- * on a bar marks nothing (null) and one that runs off the picture stops at its edge.
+ * What the Review Room's spatial overlay produced (normalized 0..1, letterbox already
+ * excluded by its contain-fit math) → a moment region in the video frame's integer
+ * space. A drag is its rectangle; a click or the overlay's keyboard Enter is a point,
+ * which becomes a 20% box centered on it and kept inside the frame.
  */
-export function regionFromDrag(args: {
-  startClientX: number; startClientY: number; endClientX: number; endClientY: number;
-  elementRect: { left: number; top: number; width: number; height: number };
-  videoWidth: number; videoHeight: number;
-}): Region | null {
-  const rect = normalizedRectFromDrag({
-    startClientX: args.startClientX, startClientY: args.startClientY,
-    endClientX: args.endClientX, endClientY: args.endClientY,
-    elementRect: args.elementRect, naturalWidth: args.videoWidth, naturalHeight: args.videoHeight,
-  });
-  return rect ? regionFromNormalized(rect) : null;
+export function regionFromSpatial(geometry: { kind: 'point' | 'rect'; x: number; y: number; width: number | null; height: number | null }): Region | null {
+  if (![geometry.x, geometry.y].every(Number.isFinite)) return null;
+  if (geometry.kind === 'rect') {
+    if (!Number.isFinite(geometry.width) || !Number.isFinite(geometry.height)) return null;
+    return regionFromNormalized({ x: geometry.x, y: geometry.y, width: geometry.width as number, height: geometry.height as number });
+  }
+  const half = POINT_REGION_SIZE / 2;
+  const cx = Math.min(COORD_MAX - half, Math.max(half, Math.round(geometry.x * COORD_MAX)));
+  const cy = Math.min(COORD_MAX - half, Math.max(half, Math.round(geometry.y * COORD_MAX)));
+  const region = { x: cx - half, y: cy - half, width: POINT_REGION_SIZE, height: POINT_REGION_SIZE };
+  return isRegion(region) ? region : null;
 }
 
 /** Percent CSS for drawing a region over the element box (letterbox folded in). */
@@ -523,22 +551,32 @@ export function regionOverlayStyle(region: Region, el: { elementWidth: number; e
 type Positioned = [number, number, number];
 const isPositioned = (s: PointerSample): s is Positioned => s.length === 3;
 
-/** Index of the first sample with t >= tMs (samples are time-ordered). */
-function lowerBound(samples: readonly PointerSample[], tMs: number): number {
+/** Index of the first sample with t > tMs (samples are time-ordered). */
+function upperBound(samples: readonly PointerSample[], tMs: number): number {
   let lo = 0; let hi = samples.length;
-  while (lo < hi) { const mid = (lo + hi) >> 1; if (samples[mid][0] < tMs) lo = mid + 1; else hi = mid; }
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (samples[mid][0] <= tMs) lo = mid + 1; else hi = mid; }
   return lo;
 }
 
 /**
- * The moment's default region: the box the pointer moved in during [startMs, endMs],
- * padded by 2% of the frame on every side and clamped to it. Null when the pointer
- * was never on the captured display during the range.
+ * Where to start reading the pointer AS OF `tMs`: the last sample at or before it. The
+ * sampler records nothing while the pointer is still, so that sample (if it is a
+ * position, not a gap) is where the pointer rested at `tMs` — a cursor parked for the
+ * whole range must still count as being there.
+ */
+function seedIndex(samples: readonly PointerSample[], tMs: number): number {
+  return Math.max(0, upperBound(samples, tMs) - 1);
+}
+
+/**
+ * The moment's default region: the box the pointer occupied during [startMs, endMs]
+ * (including where it rested when the range began), padded by 2% of the frame on every
+ * side and clamped to it. Null when the pointer was never on the captured display.
  */
 export function defaultRegionFromPointer(samples: readonly PointerSample[] | null | undefined, startMs: number, endMs: number): Region | null {
   if (!samples?.length) return null;
   let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
-  for (let i = lowerBound(samples, startMs); i < samples.length && samples[i][0] <= endMs; i++) {
+  for (let i = seedIndex(samples, startMs); i < samples.length && samples[i][0] <= endMs; i++) {
     const s = samples[i];
     if (!isPositioned(s)) continue;
     minX = Math.min(minX, s[1]); maxX = Math.max(maxX, s[1]);
@@ -600,14 +638,15 @@ export function suggestMoments(samples: readonly PointerSample[] | null | undefi
 }
 
 /**
- * The trail to draw at `tMs`: positioned samples in the last 1.5 s, split into runs
- * wherever the pointer left the display, so the trail never draws a line across a gap.
+ * The trail to draw at `tMs`: the pointer's path over the last 1.5 s (starting from
+ * where it was 1.5 s ago, so a still pointer keeps its dot), split into runs wherever
+ * it left the display, so the trail never draws a line across a gap.
  */
 export function pointerTrailAt(samples: readonly PointerSample[] | null | undefined, tMs: number, windowMs = TRAIL_WINDOW_MS): Array<Array<[number, number]>> {
   if (!samples?.length || !Number.isFinite(tMs)) return [];
   const runs: Array<Array<[number, number]>> = [];
   let run: Array<[number, number]> = [];
-  for (let i = lowerBound(samples, tMs - windowMs); i < samples.length && samples[i][0] <= tMs; i++) {
+  for (let i = seedIndex(samples, tMs - windowMs); i < samples.length && samples[i][0] <= tMs; i++) {
     const s = samples[i];
     if (isPositioned(s)) run.push([s[1], s[2]]);
     else if (run.length) { runs.push(run); run = []; }
@@ -623,8 +662,8 @@ export const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startM
   a.startMs < b.endMs && b.startMs < a.endMs;
 
 /**
- * Append a new draft moment, or refuse (null) when the list is full or the range is
- * not a valid moment. `momentId` comes from `crypto.randomUUID()` at the call site.
+ * Append a new draft moment, or refuse (null) when the list is full, the range is
+ * empty (start === end — from the bar or from M…M alike), or it is not a valid moment. `momentId` comes from `crypto.randomUUID()` at the call site.
  */
 export function addMoment(
   moments: readonly Moment[],
@@ -633,6 +672,8 @@ export function addMoment(
   ids: { momentId: string; createdAt: string },
 ): Moment[] | null {
   if (moments.length >= MAX_MOMENTS) return null;
+  // A new mark needs a span. (A stored zero-length moment is still valid contract data.)
+  if (draft.endMs <= draft.startMs) return null;
   const moment: Moment = { momentId: ids.momentId, startMs: draft.startMs, endMs: draft.endMs, region: draft.region, card: emptyCard(), createdAt: ids.createdAt };
   if (!isMoment(moment, durationMs) || moments.some((m) => m.momentId === moment.momentId)) return null;
   return [...moments, moment].sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
@@ -653,12 +694,15 @@ export function formatRecordingDuration(ms: number | null): string {
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-/** Decimal units, matching how macOS Finder reports sizes (the library limit is 10 GB). */
+/**
+ * Binary units labelled KB/MB/GB: the Desktop's library limit is 10 GiB
+ * (10 737 418 240 bytes), which must read as the "10 GB" the copy promises.
+ */
 export function formatBytes(bytes: number | null): string {
   if (bytes === null || !Number.isFinite(bytes) || bytes < 0) return '—';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let v = bytes; let u = 0;
-  while (v >= 1000 && u < units.length - 1) { v /= 1000; u++; }
+  while (v >= 1024 && u < units.length - 1) { v /= 1024; u++; }
   return `${u === 0 ? v : v < 10 ? v.toFixed(1) : Math.round(v)} ${units[u]}`;
 }
 
@@ -679,3 +723,54 @@ export const ACTIVE_STATE_LABELS: Record<ActiveState, string> = {
   paused: 'Paused. Use the floating control bar to resume or stop.',
   finalizing: 'Saving your recording…',
 };
+
+/**
+ * Recover finalizes what was saved of an interrupted recording, and also retries a
+ * failed RECORDED one (the Desktop keeps its raw capture). An upload that failed has
+ * nothing to retry: it is deleted and added again.
+ */
+export function recoverAction(r: Pick<RecordingSummary, 'state' | 'origin'>): { label: 'Recover' | 'Try again' } | null {
+  if (r.state === 'interrupted') return { label: 'Recover' };
+  if (r.state === 'failed' && r.origin === 'recorded') return { label: 'Try again' };
+  return null;
+}
+
+// ── card text rules (spec §3.3) ──────────────────────────────────────────────
+
+export const WHAT_TO_DO_MIN = 12;
+export const WHAT_TO_DO_MAX = 300;
+export const LEARNING_REFUSAL_PREFIX = 'This will be refused when it becomes a learning';
+
+/**
+ * The learning text rules (backend `learning_text_violation`: no URLs, paths, emails,
+ * @handles, runs of 7+ digits, file names), checked as the Coach types. These are
+ * WARNINGS, not blocks: a card is a draft until a later slice turns it into a learning,
+ * and that is where the backend refuses. Order matters only for the message order.
+ */
+const TEXT_RULES: ReadonlyArray<[string, RegExp]> = [
+  ['a web address', /\b(?:https?:\/\/|www\.)\S+/i],
+  ['an email address', /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/],
+  ['an @handle', /(?:^|[^\w@.])@[A-Za-z0-9_]{2,}/],
+  ['a file path', /(?:^|[\s("'])(?:~|\.{1,2})?\/[\w.-]+\/|(?:^|[\s("'])[A-Za-z]:\\/],
+  ['a file name', /\b[\w-]+\.(?:mp4|mov|m4v|webm|mkv|avi|png|jpe?g|gif|webp|heic|svg|pdf|docx?|xlsx?|pptx?|key|csv|tsv|txt|md|json|ya?ml|xml|js|jsx|ts|tsx|py|rb|go|java|html?|css|zip|wav|mp3|m4a|aac|psd|fig)\b/i],
+  ['a web address', /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|ai|dev|app|co|us|uk|de|fr|me|tv|xyz)\b/i],
+  ['a long number', /\d{7,}/],
+];
+
+export type CardWarnings = Partial<Record<CardField, string[]>>;
+
+export function cardWarnings(card: MomentCard): CardWarnings {
+  const out: CardWarnings = {};
+  for (const field of CARD_FIELDS) {
+    const text = card[field];
+    const found: string[] = [];
+    if (field === 'whatToDo' && text.trim().length > 0
+      && (text.trim().length < WHAT_TO_DO_MIN || text.trim().length > WHAT_TO_DO_MAX)) {
+      found.push(`${LEARNING_REFUSAL_PREFIX}: "What to do" needs ${WHAT_TO_DO_MIN}–${WHAT_TO_DO_MAX} characters.`);
+    }
+    const kinds = [...new Set(TEXT_RULES.filter(([, re]) => re.test(text)).map(([kind]) => kind))];
+    if (kinds.length) found.push(`${LEARNING_REFUSAL_PREFIX}: it contains ${kinds.join(', ')}.`);
+    if (found.length) out[field] = found;
+  }
+  return out;
+}

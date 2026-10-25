@@ -13,8 +13,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ACTIVE_STATE_LABELS, RECORD_NOTICE, RECORDING_STATE_LABELS, RecorderError, createReviewRecorderClient,
-  formatBytes, formatRecordingDuration, recordingPlayerHref as playerHref, recorderAvailability,
+  ACTIVE_STATE_LABELS, RECORD_NOTICE, RECORDING_STATE_LABELS, createReviewRecorderClient, failureMessage,
+  formatBytes, formatRecordingDuration, recordingPlayerHref as playerHref, recorderAvailability, recorderErrorMessage,
+  recoverAction,
   type ActiveRecording, type LibraryUsage, type RecorderAvailability, type RecordingSummary,
 } from '@/lib/review-recorder';
 
@@ -27,11 +28,6 @@ const STATE_BADGE: Record<RecordingSummary['state'], string> = {
   interrupted: 'bg-amber-500/15 text-amber-300',
   failed: 'bg-rose-500/15 text-rose-300',
 };
-
-function errorMessage(caught: unknown): string | null {
-  if (caught instanceof RecorderError) return caught.silent ? null : caught.message;
-  return 'The recorder hit a problem. Try again.';
-}
 
 export default function NewReview() {
   const router = useRouter();
@@ -46,17 +42,25 @@ export default function NewReview() {
   const [library, setLibrary] = useState<LibraryUsage | null>(null);
   const [active, setActive] = useState<ActiveRecording | null>(null);
   const [microphone, setMicrophone] = useState(true);
-  const [busy, setBusy] = useState<string | null>(null);
-  const busyRef = useRef(false);
+  // Per-operation busy keys ('record', 'upload', 'recover:<id>', 'delete:<id>'): a long
+  // import must not lock Record or another row's buttons.
+  const [inFlight, setInFlight] = useState<ReadonlySet<string>>(() => new Set());
+  const inFlightRef = useRef(new Set<string>());
+  const [unreadable, setUnreadable] = useState(0);
+  const refreshSeq = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   // The recording this page started: when it becomes ready, open it (spec §3.2 step 4).
   const startedRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
+    // Events, focus and actions all refresh; an older answer must not overwrite a newer one.
+    const seq = ++refreshSeq.current;
     try {
       const [listed, status] = await Promise.all([client.list(), client.status()]);
+      if (seq !== refreshSeq.current) return;
       setRecordings(listed.recordings);
+      setUnreadable(listed.unreadable);
       setLibrary(listed.library);
       setActive(status.active);
       setLoadError(null);
@@ -66,7 +70,8 @@ export default function NewReview() {
         routerRef.current.push(playerHref(started));
       }
     } catch (caught) {
-      setLoadError(errorMessage(caught) ?? 'Your recordings library could not be read just now.');
+      if (seq !== refreshSeq.current) return;
+      setLoadError(recorderErrorMessage(caught) ?? 'Your recordings library could not be read just now.');
     }
   }, [client]);
 
@@ -81,14 +86,15 @@ export default function NewReview() {
     return () => { off(); window.removeEventListener('focus', onFocus); };
   }, [client, refresh]);
 
-  async function work(label: string, fn: () => Promise<void>) {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setBusy(label); setError(null);
+  async function work(key: string, fn: () => Promise<void>) {
+    if (inFlightRef.current.has(key)) return;
+    inFlightRef.current.add(key);
+    setInFlight(new Set(inFlightRef.current)); setError(null);
     try { await fn(); }
-    catch (caught) { setError(errorMessage(caught)); }
-    finally { busyRef.current = false; setBusy(null); }
+    catch (caught) { setError(recorderErrorMessage(caught)); }
+    finally { inFlightRef.current.delete(key); setInFlight(new Set(inFlightRef.current)); }
   }
+  const busy = (key: string) => inFlight.has(key);
 
   const record = () => work('record', async () => {
     const { recordingId } = await client.start(microphone);
@@ -96,8 +102,13 @@ export default function NewReview() {
     await refresh();
   });
   const upload = () => work('upload', async () => {
-    const { recordingId } = await client.importVideo();
-    router.push(playerHref(recordingId));
+    try {
+      const { recordingId } = await client.importVideo();
+      router.push(playerHref(recordingId));
+    } finally {
+      // A failed copy stays in the library (listed as failed), so show it.
+      void refresh();
+    }
   });
   const recover = (id: string) => work(`recover:${id}`, async () => { await client.recover(id); await refresh(); });
   const remove = (id: string) => work(`delete:${id}`, async () => { await client.remove(id); await refresh(); });
@@ -140,11 +151,11 @@ export default function NewReview() {
             <p className="mt-1 text-xs text-ink-400">MP4, MOV, M4V or WebM. A copy is added to your recordings library.</p>
             <button
               type="button"
-              disabled={!ready || busy !== null}
+              disabled={!ready || busy('upload')}
               onClick={() => void upload()}
               className="mt-4 rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {busy === 'upload' ? 'Adding…' : 'Choose a video'}
+              {busy('upload') ? 'Adding…' : 'Choose a video'}
             </button>
           </section>
 
@@ -157,11 +168,11 @@ export default function NewReview() {
             </label>
             <button
               type="button"
-              disabled={!ready || busy !== null || recorderBusy}
+              disabled={!ready || busy('record') || recorderBusy}
               onClick={() => void record()}
               className="mt-3 rounded-md bg-rose-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {busy === 'record' ? 'Opening recorder…' : 'Record'}
+              {busy('record') ? 'Opening recorder…' : 'Record'}
             </button>
             <p className="mt-2 text-[11px] leading-snug text-ink-500" data-testid="record-notice">{RECORD_NOTICE}</p>
           </section>
@@ -188,17 +199,28 @@ export default function NewReview() {
             )}
 
             {loadError && <p role="status" className="mb-3 text-sm text-amber-300">{loadError}</p>}
+            {unreadable > 0 && (
+              <p role="status" className="mb-3 text-sm text-amber-300">
+                {unreadable === 1 ? '1 recording could not be read.' : `${unreadable} recordings could not be read.`} Updating Implexa Desktop may fix this.
+              </p>
+            )}
             {recordings === null && !loadError && <div className="h-20 animate-pulse rounded bg-ink-800/50" aria-label="Loading recordings" />}
-            {recordings?.length === 0 && (
+            {recordings?.length === 0 && !busy('upload') && (
               <p className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-8 text-center text-sm text-ink-400">
                 No recordings yet. Record a session or upload a video to start.
               </p>
             )}
 
             <ul className="space-y-2">
+              {busy('upload') && (
+                <li className="rounded-lg border border-dashed border-ink-700 bg-ink-900/40 p-3 text-sm text-ink-300" data-testid="import-placeholder">
+                  Adding video… Long videos take a while to convert.
+                </li>
+              )}
               {recordings?.map((r) => {
                 const isActive = active?.recordingId === r.recordingId;
-                const rowBusy = busy !== null;
+                const rowBusy = busy(`recover:${r.recordingId}`) || busy(`delete:${r.recordingId}`);
+                const recovery = recoverAction(r);
                 return (
                   <li key={r.recordingId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink-800 bg-ink-900/40 p-3">
                     <div className="min-w-0">
@@ -215,23 +237,23 @@ export default function NewReview() {
                         <span aria-hidden>·</span>
                         <span>{r.momentCount === 1 ? '1 moment' : `${r.momentCount} moments`}</span>
                       </p>
-                      {r.state === 'failed' && r.failureReason && <p className="mt-1 text-xs text-rose-300">{r.failureReason}</p>}
+                      {r.state === 'failed' && <p className="mt-1 text-xs text-rose-300">{failureMessage(r.failureReason)}</p>}
                       {r.state === 'interrupted' && <p className="mt-1 text-xs text-amber-300">This recording stopped unexpectedly. Recover keeps what was saved before it stopped.</p>}
                     </div>
                     <div className="flex shrink-0 gap-2">
                       {r.state === 'ready' && (
                         <Link href={playerHref(r.recordingId)} className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 hover:bg-white">Open</Link>
                       )}
-                      {r.state === 'interrupted' && (
+                      {recovery && (
                         <button type="button" disabled={rowBusy} onClick={() => void recover(r.recordingId)}
                           className="rounded-md border border-amber-500/40 px-3 py-1.5 text-sm text-amber-200 disabled:opacity-40">
-                          {busy === `recover:${r.recordingId}` ? 'Recovering…' : 'Recover'}
+                          {busy(`recover:${r.recordingId}`) ? 'Working…' : recovery.label}
                         </button>
                       )}
                       {!isActive && r.state !== 'recording' && r.state !== 'finalizing' && (
                         <button type="button" disabled={rowBusy} onClick={() => void remove(r.recordingId)}
                           className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-300 hover:border-rose-500/50 hover:text-rose-200 disabled:opacity-40">
-                          {busy === `delete:${r.recordingId}` ? 'Deleting…' : 'Delete'}
+                          {busy(`delete:${r.recordingId}`) ? 'Deleting…' : 'Delete'}
                         </button>
                       )}
                     </div>

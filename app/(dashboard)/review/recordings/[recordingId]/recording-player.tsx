@@ -1,11 +1,12 @@
 'use client';
 
 /**
- * The recording player (spec §5). NET NEW — built as its own component rather than on
- * the Review Room's `ArtifactSurface`, which is bound to run artifacts (run id, preview
- * decision, review issues, the issue-pin overlay) and whose markup is pinned in
- * review-room.tsx by existing source tests; see the L1 report for why that extraction
- * was deferred.
+ * The recording player (spec §5). NET NEW — and a SECOND video surface, which is
+ * tracked debt: spec §5 asks for the Review Room's `ArtifactSurface` to be extracted and
+ * reused, but lib/review-player-layout.test.ts and lib/review-room-feedback-wiring.test.ts
+ * pin its <video> markup inside review-room.tsx, so it cannot move without changing
+ * those tests (AGENTS.md rule 3), and it is bound to run artifacts (run id, preview
+ * decision, review issues). Region drawing DOES reuse the Review Room's overlay.
  *
  * What it adds on the recording: a pointer-trail overlay, a range bar to drag-mark a
  * moment (or M … M at the playhead), region drawing on the picture (defaulting to the
@@ -21,14 +22,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import Modal from '../../../_components/modal';
+import ReviewSpatialOverlay from '../../../_components/review-spatial-overlay';
 import { formatMs } from '@/lib/review-anchor';
-import { revokePreview } from '@/lib/review-preview';
+import { inDesktopApp, revokePreview } from '@/lib/review-preview';
 import { visualContentRect } from '@/lib/review-spatial-geometry';
 import {
   CARD_FIELDS, CARD_FIELD_LABELS, CARD_FIELD_MAX, COORD_MAX, MAX_MOMENTS, MAX_MOMENT_MS, MOMENTS_NEXT_NOTE,
-  RecorderError, addMoment, createReviewRecorderClient, defaultRegionFromPointer, momentsDirty,
-  pointerTrailAt, rangeFromDrag, rangesOverlap, recorderAvailability, regionFromDrag, regionOverlayStyle,
-  suggestMoments,
+  addMoment, cardWarnings, createReviewRecorderClient, defaultRegionFromPointer, failureMessage, momentsDirty,
+  pointerTrailAt, rangeFromDrag, rangesOverlap, recorderAvailability, recorderErrorMessage, recoverAction,
+  regionFromSpatial, regionOverlayStyle, suggestMoments,
   type CardField, type Moment, type RecorderAvailability, type RecordingDetail, type RecordingPreview, type Region,
 } from '@/lib/review-recorder';
 
@@ -37,11 +39,6 @@ const BAR_DRAG_PX = 4;
 const LEAVE_COPY = 'You have unsaved moments on this recording. If you leave now, those changes are lost.';
 
 type Range = { startMs: number; endMs: number };
-
-function errorMessage(caught: unknown): string | null {
-  if (caught instanceof RecorderError) return caught.silent ? null : caught.message;
-  return 'The recorder hit a problem. Try again.';
-}
 
 const pct = (n: number) => `${Math.round(n / (COORD_MAX / 100))}%`;
 const regionLabel = (r: Region) => `${pct(r.width)} × ${pct(r.height)} at (${pct(r.x)}, ${pct(r.y)})`;
@@ -61,7 +58,6 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
   const [markStartMs, setMarkStartMs] = useState<number | null>(null);
   const [barDraft, setBarDraft] = useState<Range | null>(null);
   const [drawing, setDrawing] = useState(false);
-  const [drawRect, setDrawRect] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const [showTrail, setShowTrail] = useState(true);
   const [videoDims, setVideoDims] = useState<{ w: number; h: number } | null>(null);
   const [elementSize, setElementSize] = useState<{ w: number; h: number } | null>(null);
@@ -76,7 +72,7 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
   const barRef = useRef<HTMLDivElement | null>(null);
   const playLineRef = useRef<HTMLDivElement | null>(null);
   const barGesture = useRef<{ anchorMs: number; startX: number; dragging: boolean } | null>(null);
-  const drawStart = useRef<{ x: number; y: number } | null>(null);
+  const loadSeq = useRef(0);
   const busyRef = useRef(false);
 
   const durationMs = detail?.state === 'ready' ? detail.durationMs : null;
@@ -96,14 +92,18 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
   // ── loading ────────────────────────────────────────────────────────────────
 
   const load = useCallback(async () => {
+    // Change events can trigger overlapping loads; only the newest answer applies.
+    const seq = ++loadSeq.current;
     try {
       const d = await client.get(recordingId);
+      if (seq !== loadSeq.current) return;
       setDetail(d);
       setSaved(d.moments);
       setMoments(d.moments);
       setLoadError(null);
     } catch (caught) {
-      setLoadError(errorMessage(caught) ?? 'This recording could not be opened just now.');
+      if (seq !== loadSeq.current) return;
+      setLoadError(recorderErrorMessage(caught) ?? 'This recording could not be opened just now.');
     }
   }, [client, recordingId]);
 
@@ -133,7 +133,7 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
       setPreview(p);
       setPreviewError(null);
     }).catch((caught) => {
-      if (live) setPreviewError(errorMessage(caught) ?? 'This recording could not be played just now.');
+      if (live) setPreviewError(recorderErrorMessage(caught) ?? 'This recording could not be played just now.');
     });
     return () => { live = false; setPreview(null); if (token) void revokePreview(token); };
   }, [client, detailState, recordingId]);
@@ -142,6 +142,10 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
 
   useEffect(() => {
     if (!dirty) return;
+    // Plain browser only. Inside Implexa Desktop (Electron) a prevented beforeunload
+    // shows NO dialog: it silently blocks Cmd+Q, window close and reload. There the
+    // in-app modal below is the guard.
+    const guardUnload = !inDesktopApp();
     const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
     // In-app links are intercepted before Next's Link handler sees them, so leaving
     // asks first (a rare interruption, so a modal) instead of silently dropping edits.
@@ -155,9 +159,12 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
       e.stopPropagation();
       setLeaveHref(url.pathname + url.search + url.hash);
     };
-    window.addEventListener('beforeunload', onBeforeUnload);
+    if (guardUnload) window.addEventListener('beforeunload', onBeforeUnload);
     document.addEventListener('click', onClick, true);
-    return () => { window.removeEventListener('beforeunload', onBeforeUnload); document.removeEventListener('click', onClick, true); };
+    return () => {
+      if (guardUnload) window.removeEventListener('beforeunload', onBeforeUnload);
+      document.removeEventListener('click', onClick, true);
+    };
   }, [dirty]);
 
   // ── element geometry and the trail ────────────────────────────────────────
@@ -246,14 +253,20 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return;
       if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || leaveHref) return;
-      if (e.key === 'Escape') { setMark(null); setDrawing(false); setDrawRect(null); return; }
+      if (e.key === 'Escape') { setMark(null); setDrawing(false); return; }
       if (e.key !== 'm' && e.key !== 'M') return;
       e.preventDefault();
       const now = Math.round((videoRef.current?.currentTime ?? 0) * 1000);
       const start = markStartRef.current;
-      if (start === null) { setMark(now); return; }
+      if (start === null) { setMark(now); setNotice(null); return; }
+      const range = rangeFromDrag(start, now, durationMs);
+      // Same rule as the bar: a moment needs a span. The mark stays open.
+      if (!range || range.endMs <= range.startMs) {
+        setNotice('A moment needs a start and an end. Play or seek, then press M again.');
+        return;
+      }
       setMark(null);
-      createMoment(rangeFromDrag(start, now, durationMs));
+      createMoment(range);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -287,32 +300,30 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
   };
 
   // ── region drawing on the picture ─────────────────────────────────────────
+  // The Review Room's own <ReviewSpatialOverlay /> does the gesture: drag threshold,
+  // letterbox rejection, the native-controls exclusion band, pointer capture, keyboard
+  // Enter/Escape. It is mounted only while drawing, so the video stays fully clickable
+  // otherwise.
 
-  const onDrawDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    drawStart.current = { x: e.clientX, y: e.clientY };
-    const box = e.currentTarget.getBoundingClientRect();
-    setDrawRect({ x0: e.clientX - box.left, y0: e.clientY - box.top, x1: e.clientX - box.left, y1: e.clientY - box.top });
-  };
-  const onDrawMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!drawStart.current) return;
-    const box = e.currentTarget.getBoundingClientRect();
-    setDrawRect((r) => (r ? { ...r, x1: e.clientX - box.left, y1: e.clientY - box.top } : r));
-  };
-  const onDrawUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const start = drawStart.current;
-    drawStart.current = null;
-    setDrawRect(null);
+  const freezeForRegion = () => {
     const v = videoRef.current;
-    if (!start || !v || !selectedId) return;
-    const region = regionFromDrag({
-      startClientX: start.x, startClientY: start.y, endClientX: e.clientX, endClientY: e.clientY,
-      elementRect: v.getBoundingClientRect(), videoWidth: v.videoWidth, videoHeight: v.videoHeight,
-    });
-    if (!region) { setNotice('Start the box on the picture, not on the black bars around it.'); return; }
+    if (!v) return null;
+    v.pause();
+    return Math.round(v.currentTime * 1000);
+  };
+  const onRegionAnnotate = ({ spatial }: { spatial: { geometry: { kind: 'point' | 'rect'; x: number; y: number; width: number | null; height: number | null } } }) => {
+    if (!selectedId) return;
+    const region = regionFromSpatial(spatial.geometry);
+    if (!region) return;
     setRegion(selectedId, region);
     setDrawing(false);
   };
+
+  useEffect(() => {
+    if (!drawing) return;
+    // Keyboard path: focus the overlay so Enter places a box and Escape cancels.
+    (document.querySelector('[data-testid="spatial-overlay"]') as HTMLElement | null)?.focus();
+  }, [drawing]);
 
   // ── edits ─────────────────────────────────────────────────────────────────
 
@@ -329,14 +340,23 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
   async function save() {
     if (busyRef.current || durationMs === null) return;
     busyRef.current = true; setBusy('save'); setError(null);
+    // What is being sent. Edits made while the save is in flight must survive it.
+    const sent = momentsRef.current;
     try {
-      const stored = await client.saveMoments(recordingId, moments, durationMs);
+      const stored = await client.saveMoments(recordingId, sent, durationMs);
       setSaved(stored);
-      setMoments(stored);
-      if (selectedId && !stored.some((m) => m.momentId === selectedId)) setSelectedId(null);
-      setNotice('Moments saved on this Mac.');
+      if (momentsRef.current === sent) {
+        // Nothing changed meanwhile: the Desktop's stored list is the truth.
+        momentsRef.current = stored;
+        setMoments(stored);
+        if (selectedId && !stored.some((m) => m.momentId === selectedId)) setSelectedId(null);
+        setNotice('Moments saved on this Mac.');
+      } else {
+        // Newer edits stay, and stay dirty against the stored baseline.
+        setNotice('Saved. You have changed moments since; save again to keep those changes.');
+      }
     } catch (caught) {
-      setError(errorMessage(caught));
+      setError(recorderErrorMessage(caught));
     } finally { busyRef.current = false; setBusy(null); }
   }
 
@@ -344,7 +364,7 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
     if (busyRef.current) return;
     busyRef.current = true; setBusy('recover'); setError(null);
     try { await client.recover(recordingId); await load(); }
-    catch (caught) { setError(errorMessage(caught)); }
+    catch (caught) { setError(recorderErrorMessage(caught)); }
     finally { busyRef.current = false; setBusy(null); }
   }
 
@@ -374,15 +394,13 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
         <div className="rounded-lg border border-ink-800 bg-ink-900/40 p-6 text-center text-sm text-ink-200">
           {detail.state === 'recording' && <p>This recording is still in progress. Stop it from the floating control bar.</p>}
           {detail.state === 'finalizing' && <p>Saving this recording… It opens here when it is ready.</p>}
-          {detail.state === 'failed' && <p>This recording could not be saved{detail.failureReason ? `: ${detail.failureReason}` : '.'}</p>}
-          {detail.state === 'interrupted' && (
-            <>
-              <p>This recording stopped unexpectedly. Recover keeps what was saved before it stopped.</p>
-              <button type="button" disabled={busy !== null} onClick={() => void recover()}
-                className="mt-3 rounded-md border border-amber-500/40 px-3 py-1.5 text-sm text-amber-200 disabled:opacity-40">
-                {busy === 'recover' ? 'Recovering…' : 'Recover'}
-              </button>
-            </>
+          {detail.state === 'failed' && <p>This recording could not be saved. {failureMessage(detail.failureReason)}</p>}
+          {detail.state === 'interrupted' && <p>This recording stopped unexpectedly. Recover keeps what was saved before it stopped.</p>}
+          {recoverAction(detail) && (
+            <button type="button" disabled={busy !== null} onClick={() => void recover()}
+              className="mt-3 rounded-md border border-amber-500/40 px-3 py-1.5 text-sm text-amber-200 disabled:opacity-40">
+              {busy === 'recover' ? 'Working…' : recoverAction(detail)!.label}
+            </button>
           )}
         </div>
       </Shell>
@@ -419,7 +437,7 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
               onSeeked={(e) => setPlayheadMs(Math.round(e.currentTarget.currentTime * 1000))}
             />
             <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" />
-            {selectedRegionStyle && !drawing && (
+            {selectedRegionStyle && (
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute rounded-sm border-2 border-sky-400 bg-sky-400/10"
@@ -427,18 +445,18 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
               />
             )}
             {drawing && (
-              <div
-                className="absolute inset-0 cursor-crosshair bg-black/10"
-                onPointerDown={onDrawDown}
-                onPointerMove={onDrawMove}
-                onPointerUp={onDrawUp}
-                aria-label="Drag a box on the picture to set this moment's region"
-              >
-                {drawRect && (
-                  <div className="pointer-events-none absolute border-2 border-dashed border-sky-300"
-                    style={{ left: Math.min(drawRect.x0, drawRect.x1), top: Math.min(drawRect.y0, drawRect.y1), width: Math.abs(drawRect.x1 - drawRect.x0), height: Math.abs(drawRect.y1 - drawRect.y0) }} />
-                )}
-              </div>
+              <ReviewSpatialOverlay
+                mediaKind="video"
+                mediaEl={() => videoRef.current}
+                enabled
+                pins={[]}
+                draftSpatial={null}
+                freezeMedia={freezeForRegion}
+                onAnnotate={onRegionAnnotate}
+                onNudgeDraft={() => {}}
+                onCancelDraft={() => setDrawing(false)}
+                onOpenIssue={() => {}}
+              />
             )}
           </div>
         )}
@@ -453,7 +471,8 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
               Pointer trail
             </label>
           )}
-          {drawing && <button type="button" onClick={() => { setDrawing(false); setDrawRect(null); }} className="text-sky-300 hover:underline">Cancel drawing</button>}
+          {drawing && <span className="text-sky-300">Drag a box on the picture (or click for a box around a point).</span>}
+          {drawing && <button type="button" onClick={() => setDrawing(false)} className="text-sky-300 hover:underline">Cancel drawing</button>}
         </div>
       </div>
 
@@ -530,6 +549,7 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
           {moments.map((m, i) => {
             const isSel = m.momentId === selectedId;
             const pointerBox = defaultRegionFromPointer(samples, m.startMs, m.endMs);
+            const warnings = cardWarnings(m.card);
             return (
               <li key={m.momentId} className={`rounded-lg border p-4 ${isSel ? 'border-sky-500/60 bg-ink-900/70' : 'border-ink-800 bg-ink-900/40'}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -560,8 +580,12 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
                           value={m.card[field]}
                           onFocus={() => setSelectedId(m.momentId)}
                           onChange={(e) => setField(m.momentId, field, e.target.value)}
+                          aria-describedby={warnings[field] ? `${id}-warn` : undefined}
                           className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-2 py-1.5 text-sm text-ink-100 focus:border-sky-500 focus:outline-none"
                         />
+                        {warnings[field] && (
+                          <p id={`${id}-warn`} className="mt-1 text-[11px] text-amber-300" data-testid="card-warning">{warnings[field]!.join(' ')}</p>
+                        )}
                       </div>
                     );
                   })}
