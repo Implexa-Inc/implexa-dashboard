@@ -33,6 +33,11 @@ export default function ReadyForReviewList({
 
   return (
     <section aria-label="Ready for review">
+      {/* Entry to /review/new (record or upload a video to review). A link only:
+          the queue below is unchanged. */}
+      <div className="mb-3 flex justify-end">
+        <Link href="/review/new" className="text-sm text-sky-400 hover:underline">New review</Link>
+      </div>
       {warning && (
         <div
           role="status"
