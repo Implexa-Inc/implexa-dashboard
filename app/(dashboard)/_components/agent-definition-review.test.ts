@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { register } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
-register(new URL('../../../scripts/dom-test-loader.mjs', import.meta.url));
+register(new URL('../../../scripts/dom-test-loader.mjs', import.meta.url), {data: {stubs: {
+  '@/lib/supabase/client': ['scripts','stubs','supabase-client.mjs'],
+  '@/lib/api': ['scripts','stubs','backend-api.mjs'],
+}}});
 let React: typeof import('react');
 let createRoot: typeof import('react-dom/client').createRoot;
 let Review: typeof import('./agent-definition-review.tsx').default;
@@ -264,4 +267,24 @@ test('installed preview needs saved-review currentness false, not merely an abse
     } finally { await React.act(async () => root.unmount()); host.remove(); }
   }
   globalThis.fetch = originalFetch;
+});
+
+
+test('runtime review map reads the authenticated backend for the exact displayed version without starting a Check', async () => {
+  const host=document.createElement('div');document.body.append(host);const root=createRoot(host);const calls:any[]=[];
+  (globalThis as any).__implexaTestOwnerSession='owner-map-token';
+  (globalThis as any).__IMPLEXA_TEST_BACKEND__=async(path:string,options:any)=>{
+    calls.push({path,options});return {ok:true,activeVersion:{id:definition.workflow_version_id},
+      executionReviewMap:{stages:[{order:1,learning:{stage:'planning'},outputs:[{name:'video',review:{kind:'graded_creative',availability:'unavailable'}}]}]},
+      reviewReadiness:{error:'Enable the agent Judge for grading.'}};
+  };
+  const button=(text:string)=>Array.from(document.querySelectorAll('button')).find(b=>b.textContent===text)!;
+  try {
+    await React.act(async()=>root.render(React.createElement(Review,{slug:'private-video',definition,versionSource:'live',updateAvailable:false,revisePending:false,statusUnavailable:false})));
+    await React.act(async()=>button('Review definition').click());assert.equal(calls.length,0);
+    await React.act(async()=>button('Read runtime review map').click());
+    assert.deepEqual(calls,[{path:'/api/v2/agents/private-video/hardening',options:{jwt:'owner-map-token'}}]);
+    assert.match(document.body.textContent!,/Enable the agent Judge/);
+    assert.match(document.body.textContent!,/graded_creative — unavailable/);
+  } finally {await React.act(async()=>root.unmount());host.remove();delete(globalThis as any).__IMPLEXA_TEST_BACKEND__;delete(globalThis as any).__implexaTestOwnerSession;}
 });

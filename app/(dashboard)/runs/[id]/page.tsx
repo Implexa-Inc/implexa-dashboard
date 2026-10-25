@@ -666,6 +666,15 @@ export default async function RunDetailPage({
       .eq('run_id', params.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
     judgment = (jr as RunJudgment | null) || null;
   } catch { /* 0121 not applied, or no judgment — keep the run page intact */ }
+  // Read the additive grade separately: a partial rollout must not erase the
+  // existing technical judgment card when the new column is unavailable.
+  if (judgment?.id) {
+    try {
+      const {data: gradeRow, error: gradeError} = await supabase.from('run_judgments').select('creative_grade')
+        .eq('id', judgment.id).maybeSingle();
+      if (!gradeError) judgment.creative_grade = gradeRow?.creative_grade || null;
+    } catch { /* Existing judgment remains visible; missing grade is explicit below. */ }
+  }
   if (judgment?.id && judgment.verdict === 'repair') {
     try {
       const { data: rr } = await supabase.from('run_requests')
@@ -695,6 +704,25 @@ export default async function RunDetailPage({
       judgeRequestStatus = (jq && jq.status) || null;
       judgeRequestCreatedAt = (jq && jq.created_at) || null;
     } catch { /* 0121 not applied — no pending state */ }
+  }
+
+  let creativeGradeNotice: string | null = null;
+  if (runWorkflowVersionId && !judgment?.creative_grade) {
+    try {
+      const {data: version} = await supabase.from('workflow_versions').select('steps').eq('id', runWorkflowVersionId).maybeSingle();
+      const required = (Array.isArray(version?.steps) ? version.steps : []).some((step: any) =>
+        (Array.isArray(step.outputs) ? step.outputs : []).some((output: any) => output.review?.required === true));
+      if (required) {
+        const {data: policy, error: policyError} = await supabase.from('user_agent_judge_policies').select('mode')
+          .eq('skill_slug', r.skill_slug).maybeSingle();
+        creativeGradeNotice = policyError
+          ? 'Creative grade unavailable: the agent’s Judge policy could not be read.'
+          : (!policy || policy.mode === 'off')
+          ? 'Creative grade required, but this agent’s Judge is off. The delivered output remains available.'
+          : judgmentPending ? 'Creative grade pending. Delivery and grading are separate.'
+            : 'Creative grade required but not available yet. This output has no assessed creative grade.';
+      }
+    } catch { /* Existing delivery is still readable when review metadata is unavailable. */ }
   }
 
   const agentHref = wf
@@ -957,6 +985,7 @@ export default async function RunDetailPage({
           )}
         </section>
 
+        {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-amber-300">{creativeGradeNotice}</p>}
         <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id} />
         {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
         {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (

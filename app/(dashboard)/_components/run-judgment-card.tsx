@@ -21,6 +21,12 @@ export type RunJudgment = {
   repair_round?: number | null;
   repair_limit?: number | null;
   created_at?: string | null;
+  creative_grade?: { contractVersion: 'creative-grade.v1'; overallBand: string; summary: string;
+    calibration: 'uncalibrated'; relativePath: string; artifactSha256: string; rubricDigest: string;
+    dimensions: Array<{id: string; band: string; explanation: string;
+      gaps: Array<{timestampMs: number; observation: string; suggestion: string}>}>;
+    coverage: {durationMs: number; timestampsMs: number[]; limitations: string; continuousPlaybackVerified: false};
+  } | null;
 };
 
 export type JudgeRepairRequest = {
@@ -59,7 +65,8 @@ export function RunJudgmentCard({
     currentRunId,
     maxRounds: repairLimit,
   });
-  const verdictLabel = judgment.verdict !== 'repair' ? s.label
+  const verdictLabel = judgment.verdict === 'pass' && judgment.creative_grade ? 'Technical delivery reviewed'
+    : judgment.verdict !== 'repair' ? s.label
     : repair.phase === 'completed' ? 'Repaired'
     : repair.phase === 'queued' || repair.phase === 'running' ? 'Repairing'
     : 'Needs review';
@@ -75,6 +82,21 @@ export function RunJudgmentCard({
         </div>
         <span className="flex-none text-[10px] uppercase tracking-wide text-ink-500">AI review</span>
       </div>
+
+      {judgment.creative_grade && <section aria-label="Creative grade" className="mt-4 rounded-lg border border-ink-700 p-3 space-y-2">
+        <h3 className="text-sm font-semibold text-ink-100">Creative grade: {judgment.creative_grade.overallBand}</h3>
+        <p className="text-xs text-ink-400">Uncalibrated AI assessment. Separate from technical delivery; an open quality gap is not a failed run.</p>
+        <p className="text-sm text-ink-200">{judgment.creative_grade.summary}</p>
+        {judgment.creative_grade.dimensions.map(d => <details key={d.id} className="text-sm">
+          <summary>{d.id.replaceAll('_', ' ')} — {d.band}</summary>
+          <p className="mt-1 text-ink-300">{d.explanation}</p>
+          {d.gaps.map((g, i) => <p key={i} className="mt-2 text-ink-300">{(g.timestampMs / 1000).toFixed(1)}s: {g.observation} {g.suggestion}</p>)}
+        </details>)}
+        <p className="text-xs text-ink-400">Sampled stills at {judgment.creative_grade.coverage.timestampsMs.map(t => `${(t / 1000).toFixed(1)}s`).join(', ')}. {judgment.creative_grade.coverage.limitations}</p>
+        <details className="text-xs text-ink-500"><summary>Review binding</summary>
+          <p className="break-all">Output: {judgment.creative_grade.relativePath}<br />SHA-256: {judgment.creative_grade.artifactSha256}<br />Rubric: {judgment.creative_grade.rubricDigest}</p>
+        </details>
+      </section>}
 
       {judgment.next_action && judgment.verdict !== 'pass' && (
         <div className="mt-3 rounded-lg border border-ink-700 bg-ink-950/50 px-3 py-2.5">
