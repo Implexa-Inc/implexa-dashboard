@@ -65,7 +65,8 @@ export function RunJudgmentCard({
     currentRunId,
     maxRounds: repairLimit,
   });
-  const verdictLabel = judgment.verdict !== 'repair' ? s.label
+  const verdictLabel = judgment.verdict === 'pass' && judgment.creative_grade ? 'Technical delivery reviewed'
+    : judgment.verdict !== 'repair' ? s.label
     : repair.phase === 'completed' ? 'Repaired'
     : repair.phase === 'queued' || repair.phase === 'running' ? 'Repairing'
     : 'Needs review';

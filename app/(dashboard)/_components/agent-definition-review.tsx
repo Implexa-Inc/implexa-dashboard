@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { callBackend } from '@/lib/api';
 import type { AgentRevisionContract } from '../../../lib/workflow-catalog';
 import Modal from './modal';
 
@@ -17,16 +19,18 @@ export default function AgentDefinitionReview({ slug, definition, versionSource,
   const [reviewMap, setReviewMap] = useState<{stages: Array<{order: number; learning: unknown;
     executionPolicyStatus: string; outputs: Array<{name: string; review: {kind: string; availability: string}}>}>} | null>(null);
   const [reviewStatus, setReviewStatus] = useState('Runtime review availability has not been checked.');
-  function refreshReviewMap() {
+  async function refreshReviewMap() {
     if (!slug || !definition) return;
-    fetch(`/api/v2/agents/${encodeURIComponent(slug)}/hardening`, {cache: 'no-store'})
-      .then(r => r.json()).then(data => {
+    try {
+      const {data: {session}} = await createClient().auth.getSession();
+      if (!session?.access_token) throw new Error('Sign in before reading the review map.');
+      const data = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/hardening`, {jwt: session.access_token});
         if (!data.ok || data.activeVersion?.id !== definition.workflow_version_id) {
           setReviewMap(null); setReviewStatus('Current version review map unavailable. Reload before using it.'); return;
         }
         setReviewMap(data.executionReviewMap || null);
         setReviewStatus(data.reviewReadiness?.error || 'Graded review uses this agent’s existing Judge policy. Engine and model declarations are hints, not separate per-stage launches.');
-      }).catch(() => setReviewStatus('Runtime review availability could not be read.'));
+    } catch { setReviewStatus('Runtime review availability could not be read.'); }
   }
   return <>
     <button type="button" className="text-xs underline underline-offset-2 text-ink-400 hover:text-ink-200" onClick={() => setOpen(true)}>

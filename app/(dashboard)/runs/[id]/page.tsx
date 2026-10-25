@@ -662,10 +662,19 @@ export default async function RunDetailPage({
   let repairRequest: JudgeRepairRequest | null = null;
   try {
     const { data: jr } = await supabase.from('run_judgments')
-      .select('id, verdict, summary, criteria_results, evidence_refs, paths_taken, next_action, repair_prompt, repair_round, repair_limit, worker_executor, worker_model, judge_executor, judge_model, deterministic_verification, created_at, feedback, creative_grade')
+      .select('id, verdict, summary, criteria_results, evidence_refs, paths_taken, next_action, repair_prompt, repair_round, repair_limit, worker_executor, worker_model, judge_executor, judge_model, deterministic_verification, created_at, feedback')
       .eq('run_id', params.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
     judgment = (jr as RunJudgment | null) || null;
   } catch { /* 0121 not applied, or no judgment — keep the run page intact */ }
+  // Read the additive grade separately: a partial rollout must not erase the
+  // existing technical judgment card when the new column is unavailable.
+  if (judgment?.id) {
+    try {
+      const {data: gradeRow, error: gradeError} = await supabase.from('run_judgments').select('creative_grade')
+        .eq('id', judgment.id).maybeSingle();
+      if (!gradeError) judgment.creative_grade = gradeRow?.creative_grade || null;
+    } catch { /* Existing judgment remains visible; missing grade is explicit below. */ }
+  }
   if (judgment?.id && judgment.verdict === 'repair') {
     try {
       const { data: rr } = await supabase.from('run_requests')
@@ -704,10 +713,12 @@ export default async function RunDetailPage({
       const required = (Array.isArray(version?.steps) ? version.steps : []).some((step: any) =>
         (Array.isArray(step.outputs) ? step.outputs : []).some((output: any) => output.review?.required === true));
       if (required) {
-        const {data: policy} = await supabase.from('user_agent_judge_policies').select('mode')
+        const {data: policy, error: policyError} = await supabase.from('user_agent_judge_policies').select('mode')
           .eq('skill_slug', r.skill_slug).maybeSingle();
-        creativeGradeNotice = policy?.mode === 'off'
-          ? 'Creative grade required, but this agent’s Judge was disabled by its owner. The delivered output remains available.'
+        creativeGradeNotice = policyError
+          ? 'Creative grade unavailable: the agent’s Judge policy could not be read.'
+          : (!policy || policy.mode === 'off')
+          ? 'Creative grade required, but this agent’s Judge is off. The delivered output remains available.'
           : judgmentPending ? 'Creative grade pending. Delivery and grading are separate.'
             : 'Creative grade required but not available yet. This output has no assessed creative grade.';
       }
