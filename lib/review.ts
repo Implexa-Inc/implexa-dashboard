@@ -545,8 +545,9 @@ export function parseStageManagerProof(raw: unknown): StageManagerProof | null {
     if (!isObject(stage) || !MANAGER_STAGES.has(String(stage.stage)) || stageNames.has(String(stage.stage))) return null;
     const stageKeys = new Set(['stage', 'decisionCount', 'handlingStatus', 'appliedCount',
       'exceptionCount', 'unavailableCount', 'refusedCount', 'causationClaim',
-      'verificationStatus', 'requiredCriterionCount', 'verifiedCriterionCount']);
+      'verificationStatus', 'requiredCriterionCount', 'verifiedCriterionCount', 'undisclosedReferenceCount']);
     if (Object.keys(stage).some((key) => !stageKeys.has(key))) return null;
+    if (stage.undisclosedReferenceCount !== undefined && !isCount(stage.undisclosedReferenceCount, 16)) return null;
     stageNames.add(String(stage.stage));
     if (!isCount(stage.decisionCount, 8) || !isCount(stage.appliedCount, 8)
         || !isCount(stage.exceptionCount, 8) || !isCount(stage.unavailableCount, 8)

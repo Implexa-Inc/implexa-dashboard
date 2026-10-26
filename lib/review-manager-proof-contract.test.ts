@@ -130,6 +130,9 @@ test('Review packet preserves Manager proof and requires its owner-scoped source
   assert.ok(parseReviewPacketResponse({ ...packet, managerProof: { ...passing, capabilityProof: {
     classified: true, gap: false, reason: null, missing: [], skipped: [], fallbacksUsed: [], pendingUsage: false,
   } } }, 'run-1'), 'current capability-bearing backend packet remains reviewable');
+  assert.ok(parseReviewPacketResponse({ ...packet, managerProof: { ...passing, stages: [
+    { ...passing.stages[0], undisclosedReferenceCount: 4 },
+  ] } }, 'run-1'), 'new aggregate field must not invalidate the entire review packet');
   const missingSource = { ...packet, sources: { ...packet.sources } };
   delete (missingSource.sources as Record<string, unknown>).manager_context;
   assert.equal(parseReviewPacketResponse(missingSource, 'run-1'), null);
@@ -150,4 +153,25 @@ test('Run Detail and Review both surface Manager proof separately from Judge his
   assert.match(card, /usage evidence is pending; not a completed proof/);
   assert.match(card, /Machine capability proof failed/);
   assert.doesNotMatch(card, /decisionTrace|criterion_id|instruction|evidenceRepairReceipt/);
+});
+
+
+test('question-mode disclosure count remains readable without treating held references as handled', () => {
+  const proof = { ...passing, stageCount: 2, verificationStatus: 'not_required', stages: [
+    { ...passing.stages[0], stage: 'planning', decisionCount: 1, appliedCount: 0, unavailableCount: 1,
+      undisclosedReferenceCount: 4, verificationStatus: 'not_required', requiredCriterionCount: 0, verifiedCriterionCount: 0 },
+    { ...passing.stages[0], stage: 'build', decisionCount: 1, appliedCount: 1,
+      undisclosedReferenceCount: 4, verificationStatus: 'not_required', requiredCriterionCount: 0, verifiedCriterionCount: 0 },
+  ] };
+  const parsed = parseStageManagerProof(proof);
+  assert.ok(parsed);
+  assert.equal(parsed.stages[0].appliedCount, 0);
+  assert.equal(parsed.stages[0].undisclosedReferenceCount, 4);
+  assert.equal(parsed.stages[1].decisionCount, 1);
+  for (const count of [-1, 17, 0.5, '4', null]) {
+    assert.equal(parseStageManagerProof({ ...proof, stages: [{ ...proof.stages[0], undisclosedReferenceCount: count }, proof.stages[1]] }), null);
+  }
+  assert.equal(parseStageManagerProof({ ...proof, stages: [{ ...proof.stages[0], privateQuestion: 'secret' }, proof.stages[1]] }), null);
+  for (const count of [0, 16]) assert.ok(parseStageManagerProof({ ...proof, stages: [{ ...proof.stages[0], undisclosedReferenceCount: count }, proof.stages[1]] }));
+  assert.ok(parseStageManagerProof(passing), 'legacy aggregate remains valid');
 });
