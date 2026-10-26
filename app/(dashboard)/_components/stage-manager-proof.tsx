@@ -51,9 +51,12 @@ export default function StageManagerProof({ proof }: { proof: StageManagerProof 
                 </span>
               </div>
               <p className="mt-1 text-xs text-ink-400">
-                {stage.decisionCount} decision{stage.decisionCount === 1 ? '' : 's'} selected · {stage.appliedCount} applied
+                {stage.decisionCount} {stage.undisclosedReferenceCount === undefined
+                  ? `decision${stage.decisionCount === 1 ? '' : 's'} selected`
+                  : `item${stage.decisionCount === 1 ? '' : 's'} disclosed`} · {stage.appliedCount} applied
+                {stage.undisclosedReferenceCount !== undefined ? ` · ${stage.undisclosedReferenceCount} reference${stage.undisclosedReferenceCount === 1 ? '' : 's'} held` : ''}
                 {stage.exceptionCount ? ` · ${stage.exceptionCount} inapplicable` : ''}
-                {stage.unavailableCount ? ` · ${stage.unavailableCount} unavailable` : ''}
+                {stage.unavailableCount ? ` · ${stage.unavailableCount} ${stage.undisclosedReferenceCount === undefined ? 'unavailable' : 'deferred or unavailable'}` : ''}
                 {stage.refusedCount ? ` · ${stage.refusedCount} refused` : ''}
               </p>
               {stage.handlingStatus === 'not_recorded' && (

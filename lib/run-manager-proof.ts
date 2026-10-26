@@ -4,6 +4,7 @@ export type ManagerVerificationStatus = 'passed' | 'failed' | 'needs_you' | 'inc
 export type ManagerStageProof = {
   stage: string;
   decisionCount: number;
+  undisclosedReferenceCount?: number;
   handlingStatus: 'reported' | 'not_recorded';
   appliedCount: number;
   exceptionCount: number;
