@@ -90,3 +90,48 @@ test('fails closed on stale, malformed, or widened training projections', () => 
     assert.equal(managerTrainingRunPreflight(candidate, TARGET).state, 'unavailable');
   }
 });
+
+function optionalHome() {
+  const result = home();
+  Object.assign(result.home.managerTrainingRequirements, {
+    readiness: 'not_applicable', reason: null, requiredPairs: [], fulfilledPairs: [], missingPairs: [],
+  });
+  return { ...result, home: { ...result.home, successorAdoption: {
+    contractVersion: 'manager-training-successor-adoption-preview.v1', targetWorkflowVersionId: TARGET,
+    sourceWorkflowVersionId: SOURCE, eligibleRecordCount: 5, alreadyAdoptedRecordCount: 0,
+    newlyAdoptableRecordCount: 5, eligibleRouteCount: 10, readiness: 'adoption_available', reason: null,
+  } } };
+}
+
+test('optional training offers explicit carryover, without making empty or adopted training mandatory', () => {
+  const value = optionalHome();
+  const gate = managerTrainingRunPreflight(value, TARGET);
+  assert.equal(gate.state, 'training_required');
+  assert.ok(gate.state === 'training_required' && gate.optional === true);
+  assert.equal(managerTrainingRunPreflight({ ...value, home: { ...value.home, successorAdoption: undefined } }, TARGET).state, 'ready');
+  for (const count of [0, 5]) {
+    const adopted = { ...value.home.successorAdoption, eligibleRecordCount: count,
+      alreadyAdoptedRecordCount: count, newlyAdoptableRecordCount: 0,
+      eligibleRouteCount: count ? 10 : 0, readiness: 'already_adopted' };
+    assert.equal(managerTrainingRunPreflight({ ...value, home: { ...value.home, successorAdoption: adopted } }, TARGET).state, 'ready');
+  }
+  const malformed = { ...value.home.successorAdoption, targetWorkflowVersionId: SOURCE };
+  assert.equal(managerTrainingRunPreflight({ ...value, home: { ...value.home, successorAdoption: malformed } }, TARGET).state, 'unavailable');
+});
+
+test('optional adoption receipt proves the same exact counts and genuine zero requirements', () => {
+  const value = optionalHome();
+  const preview = trainingSuccessorAdoptionPreview(value.home.successorAdoption, TARGET)!;
+  const ids = Array.from({ length: 5 }, (_, i) => `${String(i+1).repeat(8)}-${String(i+1).repeat(4)}-4${String(i+1).repeat(3)}-8${String(i+1).repeat(3)}-${String(i+1).repeat(12)}`);
+  const receipt = { ok: true, contractVersion: 'manager-training-successor-adoption.v1', created: true,
+    agentSlug: 'visual-compositor', targetWorkflowVersionId: TARGET, sourceWorkflowVersionId: SOURCE,
+    adoptedRecordCount: 5, adoptionReceiptIds: ids, eligibleRouteCount: 10, adoptionSetDigest: 'a'.repeat(64),
+    managerTrainingRequirements: value.home.managerTrainingRequirements };
+  assert.ok(trainingSuccessorAdoptionReceipt(receipt, 'visual-compositor', preview));
+  for (const invalid of [{ ...receipt, adoptedRecordCount: 4 }, { ...receipt, eligibleRouteCount: 9 },
+    { ...receipt, managerTrainingRequirements: { ...receipt.managerTrainingRequirements, reason: 'unavailable' } },
+    { ...receipt, managerTrainingRequirements: { ...receipt.managerTrainingRequirements, classified: false, requiredPairs: [PAIR] } },
+    { ...receipt, managerTrainingRequirements: { ...receipt.managerTrainingRequirements, workflowVersionId: SOURCE } }]) {
+    assert.equal(trainingSuccessorAdoptionReceipt(invalid, 'visual-compositor', preview), null);
+  }
+});

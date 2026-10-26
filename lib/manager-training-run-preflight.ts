@@ -11,6 +11,7 @@ export type ManagerTrainingRunPreflight =
     requirements: ManagerTrainingRequirements;
     hasEligiblePredecessor: boolean;
     successorAdoption: TrainingSuccessorAdoptionPreview | null;
+    optional?: true;
   }
   | { state: 'unavailable' };
 
@@ -166,7 +167,11 @@ export function trainingSuccessorAdoptionReceipt(
     || value.adoptionReceiptIds.some((id, index, ids) => typeof id !== 'string' || !UUID.test(id)
       || (index > 0 && ids[index - 1] >= id))
     || !isManagerTrainingRequirements(value.managerTrainingRequirements, preview.targetWorkflowVersionId)
-    || value.managerTrainingRequirements.readiness !== 'reference_training_ready') return null;
+    || !(value.managerTrainingRequirements.readiness === 'reference_training_ready'
+      || (value.managerTrainingRequirements.readiness === 'not_applicable'
+        && value.managerTrainingRequirements.requiredPairs.length === 0
+        && value.managerTrainingRequirements.fulfilledPairs.length === 0
+        && value.managerTrainingRequirements.missingPairs.length === 0))) return null;
   return value as TrainingSuccessorAdoptionReceipt;
 }
 
@@ -196,15 +201,19 @@ export function managerTrainingRunPreflight(
     return { state: 'unavailable' };
   }
   const requirements = home.managerTrainingRequirements;
+  const successorAdoption = home.successorAdoption === undefined
+    ? null : trainingSuccessorAdoptionPreview(home.successorAdoption, workflowVersionId, requirements);
+  if (home.successorAdoption !== undefined && !successorAdoption) return { state: 'unavailable' };
   if (requirements.readiness === 'coach_reference_training_required') {
-    const successorAdoption = home.successorAdoption === undefined
-      ? null : trainingSuccessorAdoptionPreview(home.successorAdoption, workflowVersionId);
-    if (home.successorAdoption !== undefined && !successorAdoption) return { state: 'unavailable' };
     return {
       state: 'training_required', requirements,
       hasEligiblePredecessor: home.successorProjection.eligiblePredecessor !== null,
       successorAdoption,
     };
+  }
+  if (trainingSuccessorAdoptionActionAvailable(successorAdoption)) {
+    return { state: 'training_required', requirements, optional: true,
+      hasEligiblePredecessor: home.successorProjection.eligiblePredecessor !== null, successorAdoption };
   }
   return { state: 'ready', requirements };
 }
