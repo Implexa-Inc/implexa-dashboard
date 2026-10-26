@@ -117,6 +117,13 @@ test('optional training offers explicit carryover, without making empty or adopt
   }
   const malformed = { ...value.home.successorAdoption, targetWorkflowVersionId: SOURCE };
   assert.equal(managerTrainingRunPreflight({ ...value, home: { ...value.home, successorAdoption: malformed } }, TARGET).state, 'unavailable');
+  const noRoute = { ...value.home.successorAdoption, eligibleRouteCount: 0,
+    readiness: 'not_compatible', reason: 'training_successor_adoption_incomplete' };
+  assert.equal(managerTrainingRunPreflight({ ...value, home: { ...value.home, successorAdoption: noRoute } }, TARGET).state, 'ready');
+  const mandatory = { ...home(), home: { ...home().home, successorAdoption: noRoute } };
+  const mandatoryGate = managerTrainingRunPreflight(mandatory, TARGET);
+  assert.equal(mandatoryGate.state, 'training_required');
+  assert.ok(mandatoryGate.state === 'training_required' && !mandatoryGate.optional);
 });
 
 test('optional adoption receipt proves the same exact counts and genuine zero requirements', () => {

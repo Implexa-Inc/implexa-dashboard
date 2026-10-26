@@ -82,7 +82,7 @@ export function trainingSuccessorAdoptionPreview(
       && ['eligibleRecordCount', 'alreadyAdoptedRecordCount', 'newlyAdoptableRecordCount', 'eligibleRouteCount'].every(key => value[key] === 0);
     if (value.reason !== null || value.sourceWorkflowVersionId === null
       || (!zero && Number(value.alreadyAdoptedRecordCount) < 1) || Number(value.newlyAdoptableRecordCount) !== 0) return null;
-  } else if (value.reason === null || Number(value.newlyAdoptableRecordCount) !== 0) return null;
+  } else if (value.reason === null) return null;
   return value as TrainingSuccessorAdoptionPreview;
 }
 
