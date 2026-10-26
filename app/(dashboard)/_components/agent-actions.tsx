@@ -569,7 +569,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // construction, so no later edit can accidentally re-require them.
   const blankRequired = setupFields.filter((f) => !isOptionalField(f) && (setupValues[f.key] ?? '').toString().trim() === '');
 
-  async function openPreRun(mode: 'queue' | 'watch') {
+  async function openPreRun(mode: 'queue' | 'watch', skipOptionalCarry = false) {
     if (runActionBusy || (mode === 'watch' && observingOpenRun) || trainingCheckingRef.current) return;
     // Preserve which Run path the user chose even when readiness is temporarily
     // unavailable and they use Check again from the refusal dialog.
@@ -585,7 +585,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         jwt: session?.access_token,
       });
       const preflight = managerTrainingRunPreflight(response, workflowVersionId);
-      if (preflight.state !== 'ready') {
+      if (preflight.state !== 'ready'
+        && !(preflight.state === 'training_required' && preflight.optional && skipOptionalCarry)) {
         setAdoptionConfirmed(false);
         setAdoptionError('');
         setTrainingGate(preflight);
@@ -1298,12 +1299,14 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         open={trainingGate !== null}
         onClose={() => setTrainingGate(null)}
         title={trainingGate?.state === 'training_required'
-          ? 'Reference training needed before this run'
+          ? (trainingGate.optional ? 'Carry your accepted training forward?' : 'Reference training needed before this run')
           : 'Training readiness unavailable'}
       >
         {trainingGate?.state === 'training_required' ? (
           <div className="space-y-4 text-sm text-ink-300">
-            <p>
+            {trainingGate.optional ? <p>
+              This version can run without reference training, but accepted decisions from its earlier version are available to carry forward. They will not guide this version until you carry them forward explicitly.
+            </p> : <><p>
               This active Agent version is missing {trainingGate.requirements.missingPairs.length} required Manager reference-training route{trainingGate.requirements.missingPairs.length === 1 ? '' : 's'}. No run inputs were selected, verified, or prepared.
             </p>
             <ul className="list-disc pl-5 space-y-1">
@@ -1318,6 +1321,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 ? 'Accepted evidence on the earlier version stays immutable. Training will create an explicit successor draft for this version; review and accept each new digest separately.'
                 : 'Add and accept the exact missing evidence for this immutable version before running it.'}
             </p>
+            </>}
             {trainingSuccessorAdoptionActionAvailable(trainingGate.successorAdoption) && trainingGate.successorAdoption && (
               <section className="rounded-md border border-brand-500/50 bg-brand-500/5 p-3 space-y-3">
                 <h3 className="font-semibold text-ink-100">Compatible training can be carried forward</h3>
@@ -1339,6 +1343,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             {adoptionError && <p role="alert" className="text-rose-300">{adoptionError}</p>}
             <div className="flex justify-end gap-3">
               <button type="button" className="btn-outline" onClick={() => setTrainingGate(null)}>Cancel</button>
+              {trainingGate.optional && <button type="button" className="btn-outline" disabled={adoptionBusy}
+                onClick={() => { setTrainingGate(null); void openPreRun(preRunMode, true); }}>
+                Continue without carrying
+              </button>}
               <Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={() => setTrainingGate(null)}>
                 {trainingGate.hasEligiblePredecessor
                   ? (trainingSuccessorAdoptionActionAvailable(trainingGate.successorAdoption) ? 'Use full successor training' : 'Open successor training')

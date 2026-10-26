@@ -158,3 +158,67 @@ test('compatible adoption is explicit, count-disclosed, idempotent, and rechecks
     assert.ok(r.queryByText('Run inputs'));
   } finally { r.cleanup(); }
 });
+
+function optionalTrainingHome(adopted = false) {
+  const value = trainingHome('reference_training_ready', true);
+  Object.assign(value.home.managerTrainingRequirements, {
+    readiness: 'not_applicable', reason: null, requiredPairs: [], fulfilledPairs: [], missingPairs: [],
+  });
+  if (adopted) Object.assign(value.home.successorAdoption!, {
+    alreadyAdoptedRecordCount: 5, newlyAdoptableRecordCount: 0, readiness: 'already_adopted',
+  });
+  return value;
+}
+
+test('optional carryover uses the same acknowledged adoption action and opens inputs only after a fresh read', async () => {
+  let adopted = false; let posts = 0; let reads = 0;
+  const ids = Array.from({ length: 5 }, (_, i) => `${String(i+1).repeat(8)}-${String(i+1).repeat(4)}-4${String(i+1).repeat(3)}-8${String(i+1).repeat(3)}-${String(i+1).repeat(12)}`);
+  const r = await render('agent-actions.tsx', props, { backend: (path: string) => {
+    if (path.endsWith('/adopt-successor')) {
+      posts++; adopted = true;
+      return { ok: true, contractVersion: 'manager-training-successor-adoption.v1', created: true,
+        agentSlug: 'visual-compositor', targetWorkflowVersionId: VERSION, sourceWorkflowVersionId: PREVIOUS,
+        adoptedRecordCount: 5, adoptionReceiptIds: ids, eligibleRouteCount: 4, adoptionSetDigest: 'd'.repeat(64),
+        managerTrainingRequirements: optionalTrainingHome(true).home.managerTrainingRequirements };
+    }
+    if (path.startsWith('/api/v2/agent-training/agents/')) { reads++; return optionalTrainingHome(adopted); }
+    if (path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
+    return { ok: true };
+  } });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    assert.match(r.text(), /Carry your accepted training forward/);
+    assert.doesNotMatch(r.text(), /missing 0 required/);
+    assert.ok(r.queryByText('Continue without carrying'));
+    const carry = r.getByText('Carry 3 accepted decisions') as HTMLButtonElement;
+    assert.ok(carry.disabled);
+    await r.click(r.getByText('I want to carry these exact accepted decisions'));
+    await r.click(carry);
+    assert.equal(posts, 1); assert.equal(reads, 2);
+    assert.ok(r.queryByText('Run inputs'));
+  } finally { r.cleanup(); }
+});
+
+test('skipping optional carryover rechecks authority and never bypasses new mandatory training', async () => {
+  for (const mandatory of [false, true]) {
+    let reads = 0; let posts = 0; let setups = 0;
+    const r = await render('agent-actions.tsx', props, { backend: (path: string) => {
+      if (path.endsWith('/adopt-successor')) { posts++; throw Error('must not adopt on skip'); }
+      if (path.startsWith('/api/v2/agent-training/agents/')) {
+        reads++; return reads === 1 || !mandatory ? optionalTrainingHome() : trainingHome('coach_reference_training_required');
+      }
+      if (path.includes('/setup')) { setups++; return { schema: [], answers: {}, note: '', runInputDefaults: {} }; }
+      return { ok: true };
+    } });
+    try {
+      await r.click(r.getByText('▶ Run now'));
+      await r.click(r.getByText('Continue without carrying'));
+      assert.equal(reads, 2); assert.equal(posts, 0);
+      if (mandatory) {
+        assert.match(r.text(), /Reference training needed before this run/);
+        assert.equal(r.queryByText('Continue without carrying'), null);
+        assert.equal(setups, 0);
+      } else { assert.ok(r.queryByText('Run inputs')); assert.equal(setups, 1); }
+    } finally { r.cleanup(); }
+  }
+});
