@@ -6,6 +6,7 @@ import { getReviewPacket, unavailableSources } from '@/lib/review';
 import ReviewRoom from '../../_components/review-room';
 import StageCompetenceProof from '../../_components/stage-competence-proof';
 import StageManagerProof from '../../_components/stage-manager-proof';
+import TasteFitReviewCard from '../../_components/taste-fit-review';
 
 export const dynamic = 'force-dynamic';
 
@@ -116,6 +117,8 @@ export default async function ReviewRoomPage({ params, searchParams }: {
       <StageCompetenceProof proof={packet.competenceProof} />
 
       <StageManagerProof proof={packet.managerProof} />
+
+        <TasteFitReviewCard review={packet.tasteFit} />
 
       <section className="mb-5 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learnings used">
         <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
