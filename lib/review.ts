@@ -163,6 +163,33 @@ export type ReviewProduction = {
   segments: ReviewProductionSegment[];
 } | null;
 
+export type TasteFitReview = {
+  status: 'ready' | 'unavailable'; preparationId: string | null;
+  assessment: null | { contractVersion: 'taste-fit-assessment.v1'; status: 'assessed' | 'unavailable';
+    reason: string | null; fit: 'strong' | 'partial' | 'weak' | 'unassessed' | null;
+    referenceSetDigest: string; artifactSha256: string | null; explanation: string;
+    gaps: Array<{ timestampMs: number; observation: string; suggestion: string }> };
+};
+function parseTasteFitReview(value: unknown, artifacts: ReviewArtifact[]): TasteFitReview | null {
+  const exact=(v:Record<string,unknown>,keys:string[])=>Object.keys(v).sort().join(',')===keys.sort().join(',');
+  const text=(v:unknown,max:number)=>typeof v==='string' && v.trim().length>0 && v.length<=max;
+  const sha=(v:unknown)=>typeof v==='string' && /^[a-f0-9]{64}$/.test(v);
+  if(!isObject(value)||!exact(value,['status','preparationId','assessment']))return null;
+  if(value.status==='unavailable')return value.preparationId===null&&value.assessment===null?value as TasteFitReview:null;
+  const f=value.assessment;
+  if(value.status!=='ready'||!isId(value.preparationId)||!isObject(f)
+    ||!exact(f,['contractVersion','status','reason','fit','referenceSetDigest','artifactSha256','explanation','gaps'])
+    ||f.contractVersion!=='taste-fit-assessment.v1'||!sha(f.referenceSetDigest)||!sha(f.artifactSha256)
+    ||!artifacts.some(a=>a.role==='final_output'&&a.status==='validated'&&a.sha256===f.artifactSha256)
+    ||!text(f.explanation,2000)||!Array.isArray(f.gaps)||f.gaps.length>12
+    ||!f.gaps.every(g=>isObject(g)&&exact(g,['timestampMs','observation','suggestion'])&&Number.isSafeInteger(g.timestampMs)
+      &&Number(g.timestampMs)>=0&&text(g.observation,1000)&&text(g.suggestion,1000)))return null;
+  if(f.status==='assessed'?f.reason!==null||!['strong','partial','weak','unassessed'].includes(String(f.fit))
+    :f.status!=='unavailable'||f.fit!==null||f.gaps.length!==0
+      ||!['reference_context_unavailable','reference_set_empty','reference_bytes_unavailable','reference_authority_unavailable','judge_unavailable','invalid_response','time_reserve','technical_checks_failed'].includes(String(f.reason)))return null;
+  return value as TasteFitReview;
+}
+
 export type ReviewPacket = {
   ok: boolean;
   run: {
@@ -176,6 +203,7 @@ export type ReviewPacket = {
   verification: { receipts: Array<{ id: string; adapterKind: string; status: string; createdAt: string }> };
   competenceProof: StageCompetenceProof;
   managerProof: StageManagerProof;
+  tasteFit?: TasteFitReview;
   production: ReviewProduction;
   session: ReviewSession;
   reviewArtifacts: ReviewSessionArtifact[];
@@ -727,6 +755,9 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
     if (sources.manager_handling === 'unavailable') return null;
   }
 
+  const tasteFit=body.tasteFit===undefined?undefined:parseTasteFitReview(body.tasteFit,body.artifacts as ReviewArtifact[]);
+  if(tasteFit===null)return null;
+
   // judgment is legitimately null; when present every field the UI renders must be there.
   if (!(body.judgment === null || isValidJudgment(body.judgment))) return null;
   if (!(body.production === null || isValidProduction(body.production))) return null;
@@ -741,6 +772,7 @@ export function parseReviewPacketResponse(body: unknown, expectedRunId?: string)
     verification: body.verification as ReviewPacket['verification'],
     competenceProof,
     managerProof,
+    ...(tasteFit?{tasteFit}:{}),
     production: body.production as ReviewProduction,
     session: body.session as ReviewSession,
     reviewArtifacts: body.reviewArtifacts as ReviewSessionArtifact[],

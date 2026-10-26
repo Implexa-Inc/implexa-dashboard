@@ -61,6 +61,7 @@ import VerifiedArtifacts, { type VerifiedArtifact } from '../../_components/veri
 import { isValidatedVideoOutput } from '@/lib/generation-entry-eligibility';
 import StageCompetenceProof from '../../_components/stage-competence-proof';
 import StageManagerProof from '../../_components/stage-manager-proof';
+import TasteFitReviewCard from '../../_components/taste-fit-review';
 import { runProblemHeadline, suppressDuplicateRetry } from '@/lib/run-recovery-presentation';
 import { getReviewPacket } from '@/lib/review';
 import { loadReviewAmendmentTarget } from '@/lib/review-amendment-target';
@@ -945,6 +946,8 @@ export default async function RunDetailPage({
         <StageCompetenceProof proof={competencePacket.competenceProof} />
 
         <StageManagerProof proof={competencePacket.managerProof} />
+
+        <TasteFitReviewCard review={competencePacket.tasteFit} />
 
         <section className="mb-6 rounded-lg border border-ink-800 bg-ink-950/40 p-4" aria-label="Learnings used">
           <h2 className="text-sm font-semibold text-ink-100">Learnings used</h2>
