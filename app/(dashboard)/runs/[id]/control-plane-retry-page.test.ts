@@ -21,7 +21,7 @@ test('run page ignores the retired source context during owner handoff and selec
 
 test('the safe retry is mounted for the request this run was surfaced for, beside — never instead of — Run again', () => {
   assert.match(page, /import ControlPlaneRetry from '\.\.\/\.\.\/_components\/control-plane-retry';/);
-  assert.match(page, /\.from\('run_requests'\)\s*\n\s*\.select\('id, status, lifecycle_state'\)\s*\n\s*\.eq\('run_id', r\.id\)\s*\n\s*\.eq\('status', 'done'\)\s*\n\s*\.eq\('lifecycle_state', 'failed'\)/);
+  assert.match(page, /\.from\('run_requests'\)\s*\n\s*\.select\('id, status, lifecycle_state, needs_attention_reason'\)\s*\n\s*\.eq\('run_id', r\.id\)\s*\n\s*\.eq\('user_id', session\.user\.id\)\s*\n\s*\.eq\('status', 'done'\)\s*\n\s*\.in\('lifecycle_state', \['failed', 'fallback_blocked'\]\)/);
   assert.match(page, /\{controlPlaneRetryRequestId && !supersededByRelated && \(\s*\n\s*<ControlPlaneRetry requestId=\{controlPlaneRetryRequestId\} runId=\{params\.id\} \/>/);
   const retryAt = page.indexOf('<ControlPlaneRetry requestId=');
   const runAgainAt = page.indexOf('>Run again</Link>', retryAt);
@@ -46,4 +46,33 @@ test('the no-work claim is rendered only behind mayClaimNoWork and excludes paid
   assert.doesNotMatch(component, /No work or provider action started/, 'the sentence lives in the classifier, not as loose copy');
   const lib = readFileSync(join(process.cwd(), 'lib', 'control-plane-retry.ts'), 'utf8');
   assert.match(lib, /return \(p\.state === 'available' \|\| p\.state === 'queued'\) && !p\.paidPrelaunch;/);
+});
+
+
+test('a settled missing-training hold shows Training without offering the bootstrap retry', async () => {
+  const start=page.indexOf('  let controlPlaneRetryRequestId:'),end=page.indexOf('  const productionLineage =',start);
+  assert.ok(start>=0&&end>start);
+  const block=page.slice(start,end).replace(': string | null','').replace(' as string','');
+  const read=new Function('supabase','r','session',`return (async()=>{${block};return {controlPlaneRetryRequestId,requiredTrainingHold};})()`);
+  const owner='owner',run='run';
+  for (const row of [
+    {id:'request',lifecycle_state:'fallback_blocked',needs_attention_reason:'manager_required_reference_training_missing'},
+    {id:'request',lifecycle_state:'fallback_blocked',needs_attention_reason:'other'},
+    {id:'request',lifecycle_state:'failed',needs_attention_reason:'manager_required_reference_training_missing'},
+    null,
+  ]) {
+    const filters: Record<string,unknown>={};
+    const db={from(table:string){assert.equal(table,'run_requests');return {
+      select(){return this;},eq(key:string,value:unknown){filters[key]=value;return this;},
+      in(key:string,values:string[]){assert.equal(key,'lifecycle_state');assert.deepEqual(values,['failed','fallback_blocked']);return this;},
+      order(){return this;},limit(n:number){assert.equal(n,1);return this;},async maybeSingle(){return {data:row};},
+    };}};
+    const result=await read(db,{id:run},{user:{id:owner}});
+    assert.deepEqual(filters,{run_id:run,user_id:owner,status:'done'});
+    assert.equal(result.requiredTrainingHold,row?.lifecycle_state==='fallback_blocked'&&row.needs_attention_reason==='manager_required_reference_training_missing');
+    assert.equal(result.controlPlaneRetryRequestId,row?.lifecycle_state==='failed'?'request':null);
+  }
+  assert.match(page,/requiredTrainingHold && <div role="status"/);
+  assert.match(page,/href=\{`\/training\/\$\{encodeURIComponent\(r\.skill_slug\)\}`\}/);
+  assert.match(page,/Accept replacement training before starting a new run/);
 });

@@ -842,17 +842,21 @@ export default async function RunDetailPage({
   // query: absent column/row ⇒ no control. The backend decides eligibility; the
   // page only finds the request this run was surfaced for.
   let controlPlaneRetryRequestId: string | null = null;
+  let requiredTrainingHold = false;
   try {
     const { data: surfaced } = await supabase
       .from('run_requests')
-      .select('id, status, lifecycle_state')
+      .select('id, status, lifecycle_state, needs_attention_reason')
       .eq('run_id', r.id)
+      .eq('user_id', session.user.id)
       .eq('status', 'done')
-      .eq('lifecycle_state', 'failed')
+      .in('lifecycle_state', ['failed', 'fallback_blocked'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (surfaced?.id) controlPlaneRetryRequestId = surfaced.id as string;
+    if (surfaced?.id && surfaced.lifecycle_state === 'failed') controlPlaneRetryRequestId = surfaced.id as string;
+    requiredTrainingHold = surfaced?.lifecycle_state === 'fallback_blocked'
+      && surfaced.needs_attention_reason === 'manager_required_reference_training_missing';
   } catch { /* pre-migration schema or unreadable → no control */ }
   const productionLineage = await loadProductionLineage(r.id, session.access_token);
   // A completed related run must never leave the user with a primary "this run
@@ -875,6 +879,10 @@ export default async function RunDetailPage({
     <main className="min-h-screen px-4 py-12">
       <div className="max-w-3xl mx-auto">
         <BackLink fallback="/work" label="Work" className="text-xs text-ink-500 hover:text-ink-200 inline-flex items-center gap-1.5" />
+        {requiredTrainingHold && <div role="status" className="mt-4 rounded-lg border border-amber-500/40 px-4 py-3 text-sm text-ink-200">
+          <p>Required reference training is missing. This run stopped before the worker started. Accept replacement training before starting a new run.</p>
+          <Link href={`/training/${encodeURIComponent(r.skill_slug)}`} className="mt-2 inline-block underline">Open Training</Link>
+        </div>}
 
         {/* A run inside an outcome production points at its parent FIRST: the
             production is the canonical account of the job, and this page is a

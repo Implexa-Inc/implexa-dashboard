@@ -35,14 +35,18 @@ export type ManagerTrainingRequirements = {
   reason: null | 'manager_required_reference_training_missing';
 };
 
-export type ManagerTrainingCoverage = {
-  contractVersion: 'manager-training-coverage.v1'; scope: 'workflow_version'; workflowVersionId: string;
+type TrainingCoverageFields = {
+  scope: 'workflow_version'; workflowVersionId: string;
   classified: boolean; acceptedLocalRecordCount: number; listedSessionAcceptedRecordCount: number;
   acceptedPairs: TrainingCoveragePair[]; listedSessionAcceptedPairs: TrainingCoveragePair[];
   coveredPairs: TrainingCoveragePair[]; uncoveredPairs: TrainingCoveragePair[];
   readiness: 'not_applicable' | 'ready' | 'agent_update_required';
   reason: null | 'manager_quality_coverage_unclassified_training' | 'manager_quality_coverage_incomplete_training';
 };
+export type ManagerTrainingCoverage = TrainingCoverageFields & (
+  { contractVersion: 'manager-training-coverage.v1' }
+  | { contractVersion: 'manager-training-coverage.v2'; optionalPairs: TrainingCoveragePair[]; unsupportedPairs: TrainingCoveragePair[] }
+);
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const exact = (value: unknown, keys: readonly string[]): value is Record<string, unknown> => Boolean(
@@ -117,10 +121,12 @@ export function isManagerTrainingRequirements(value: unknown, workflowVersionId:
 }
 
 export function isManagerTrainingCoverage(value: unknown, workflowVersionId: string | null): value is ManagerTrainingCoverage {
+  const v2 = Boolean(value && typeof value === 'object' && 'contractVersion' in value
+    && value.contractVersion === 'manager-training-coverage.v2');
   if (!workflowVersionId || !exact(value, ['contractVersion', 'scope', 'workflowVersionId', 'classified',
     'acceptedLocalRecordCount', 'listedSessionAcceptedRecordCount', 'acceptedPairs', 'listedSessionAcceptedPairs',
-    'coveredPairs', 'uncoveredPairs', 'readiness', 'reason'])
-    || value.contractVersion !== 'manager-training-coverage.v1' || value.scope !== 'workflow_version'
+    'coveredPairs', 'uncoveredPairs', 'readiness', 'reason', ...(v2 ? ['optionalPairs', 'unsupportedPairs'] : [])])
+    || (!v2 && value.contractVersion !== 'manager-training-coverage.v1') || value.scope !== 'workflow_version'
     || value.workflowVersionId !== workflowVersionId || typeof value.classified !== 'boolean'
     || !Number.isSafeInteger(value.acceptedLocalRecordCount) || Number(value.acceptedLocalRecordCount) < 0
     || !Number.isSafeInteger(value.listedSessionAcceptedRecordCount) || Number(value.listedSessionAcceptedRecordCount) < 0
@@ -131,6 +137,24 @@ export function isManagerTrainingCoverage(value: unknown, workflowVersionId: str
   const coveredSet = new Set(covered); const uncoveredSet = new Set(uncovered); const acceptedSet = new Set(accepted);
   if (covered.some((key) => uncoveredSet.has(key)) || [...covered, ...uncovered].some((key) => !acceptedSet.has(key))
     || accepted.some((key) => !coveredSet.has(key) && !uncoveredSet.has(key))) return false;
+  if (v2) {
+    const optional = pairKeys(value.optionalPairs); const unsupported = pairKeys(value.unsupportedPairs);
+    if (!optional || !unsupported) return false;
+    const optionalSet = new Set(optional); const unsupportedSet = new Set(unsupported);
+    if (optional.some((key) => unsupportedSet.has(key))
+      || [...optional, ...unsupported].some((key) => !uncoveredSet.has(key))
+      || uncovered.some((key) => !optionalSet.has(key) && !unsupportedSet.has(key))) return false;
+    // Initial optional routing supports only the existing visual-query roles.
+    if ((value.optionalPairs as TrainingCoveragePair[]).some((pair) => !['planning', 'build'].includes(pair.stage)
+      || !['accepted', 'rejected'].includes(pair.relation))) return false;
+    if (Number(value.acceptedLocalRecordCount) === 0) return value.readiness === 'not_applicable' && value.reason === null
+      && accepted.length === 0 && listed.length === 0 && covered.length === 0 && uncovered.length === 0;
+    if (!accepted.length) return false;
+    if (value.readiness === 'ready') return value.classified && value.reason === null;
+    return value.readiness === 'agent_update_required' && !value.classified
+      && value.reason === 'manager_quality_coverage_unclassified_training' && covered.length === 0
+      && optional.length === 0 && unsupported.length === accepted.length;
+  }
   if (Number(value.acceptedLocalRecordCount) === 0) return value.readiness === 'not_applicable' && value.reason === null
     && accepted.length === 0 && listed.length === 0 && covered.length === 0 && uncovered.length === 0;
   if (accepted.length === 0) return false;

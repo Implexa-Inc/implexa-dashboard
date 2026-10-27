@@ -25,7 +25,7 @@ import {
   type TrainingSuccessorProjection,
 } from '@/lib/training-local-ingress';
 
-type DecisionState = 'draft' | 'accepted' | 'unavailable' | 'revoked';
+type DecisionState = 'draft' | 'accepted' | 'retired' | 'unavailable' | 'revoked';
 type Decision = {
   recordId: string;
   recordDigest: string;
@@ -64,6 +64,7 @@ type Result = {
   image?: string;
   recordId?: string;
   recordDigest?: string;
+  state?: DecisionState;
   failedDrafts?: LocalDraft[];
   pendingDecisions?: LocalDraft[];
   managerCoverage?: ManagerTrainingCoverage;
@@ -74,7 +75,7 @@ type Bridge = {
   trainingLocal: (operation: string, args: unknown) => Promise<Result>;
 };
 type Preview = { token: string; timeMs: number; image: string };
-type ReviewedDecision = { source: Source; decision: Decision; image: string };
+type ReviewedDecision = { source: Source; decision: Decision; image: string | null };
 type VersionTransition = { fromVersion: string; sources: Source[] };
 
 class TrainingError extends Error {
@@ -115,6 +116,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [reviewed, setReviewed] = useState<ReviewedDecision | null>(null);
   const reviewHeadingRef = useRef<HTMLHeadingElement>(null);
   const [acceptConfirmed, setAcceptConfirmed] = useState(false);
+  const [retireConfirmed, setRetireConfirmed] = useState(false);
   const [revokeConfirmed, setRevokeConfirmed] = useState(false);
   const [time, setTime] = useState(0);
   const [relation, setRelation] = useState<TrainingRelation>('accepted');
@@ -145,8 +147,9 @@ export default function TrainingSource({ slug }: { slug: string }) {
     coverageIsCurrent
     && managerCoverage?.readiness === 'ready'
     && managerCoverage.classified
-    && managerCoverage.uncoveredPairs.length === 0
-    && managerCoverage.acceptedPairs.every((pair) => managerCoverage.coveredPairs.some((covered) => coveragePairKey(covered) === coveragePairKey(pair))),
+    && (managerCoverage.contractVersion === 'manager-training-coverage.v2'
+      || (managerCoverage.uncoveredPairs.length === 0
+        && managerCoverage.acceptedPairs.every((pair) => managerCoverage.coveredPairs.some((covered) => coveragePairKey(covered) === coveragePairKey(pair))))),
   );
   const coverageNeedsUpdate = Boolean(coverageIsCurrent && managerCoverage?.readiness === 'agent_update_required' && managerCoverage.reason);
   const requirementsAreCurrent = isManagerTrainingRequirements(managerTrainingRequirements, sessionVersion || currentVersion);
@@ -392,8 +395,12 @@ export default function TrainingSource({ slug }: { slug: string }) {
       await requireCurrentScope();
       const result = await call('decisionPreview', { token: source.token, recordId: decision.recordId });
       if (result.recordId !== decision.recordId || result.recordDigest !== decision.recordDigest || !result.image) throw new TrainingError('training_decision_preview_mismatch', 'The saved evidence identity could not be verified.');
-      setReviewed({ source, decision, image: result.image }); setAcceptConfirmed(false); setRevokeConfirmed(false);
+      setReviewed({ source, decision, image: result.image }); setAcceptConfirmed(false); setRetireConfirmed(false); setRevokeConfirmed(false);
     });
+  }
+
+  function manageDecision(source: Source, decision: Decision) {
+    setReviewed({ source, decision, image: null }); setAcceptConfirmed(false); setRetireConfirmed(false); setRevokeConfirmed(false);
   }
 
   async function acceptReviewed() {
@@ -405,12 +412,21 @@ export default function TrainingSource({ slug }: { slug: string }) {
     });
   }
 
-  async function revokeReviewed() {
-    if (!reviewed?.source.token || !revokeConfirmed || reviewed.decision.state !== 'accepted') return;
-    await work('Revoking future evidence selection', async () => {
-      await requireCurrentScope();
-      await call('revoke', { token: reviewed.source.token, recordId: reviewed.decision.recordId, expectedDigest: reviewed.decision.recordDigest });
-      await load(session); setReviewed(null);
+  async function reduceReviewedAuthority(operation: 'retire' | 'revoke') {
+    if (!reviewed || (operation === 'retire' ? !retireConfirmed || reviewed.decision.state !== 'accepted'
+      : !revokeConfirmed || !['accepted', 'retired'].includes(reviewed.decision.state))) return;
+    await work(operation === 'retire' ? 'Stopping selection in new runs' : 'Withdrawing permission', async () => {
+      const result = await call(operation, { sessionId: session, recordId: reviewed.decision.recordId, expectedDigest: reviewed.decision.recordDigest });
+      if (result.recordId !== reviewed.decision.recordId || result.recordDigest !== reviewed.decision.recordDigest
+        || result.state !== (operation === 'retire' ? 'retired' : 'revoked')) throw new TrainingError('training_authority_response_invalid', 'The teaching authority change could not be verified.');
+      const acknowledged = reviewed.decision;
+      const state: DecisionState = operation === 'retire' ? 'retired' : 'revoked';
+      setSources(prior => prior.map(source => ({ ...source, decisions: source.decisions.map(decision =>
+        decision.recordId === acknowledged.recordId && decision.recordDigest === acknowledged.recordDigest
+          ? { ...decision, state } : decision) })));
+      setReviewed(null);
+      try { await load(session); }
+      catch { setError('The change was applied, but the teaching list could not refresh. Reload Training to update the list.'); }
     });
   }
 
@@ -424,9 +440,9 @@ export default function TrainingSource({ slug }: { slug: string }) {
   return <main id="main-content" tabIndex={-1} className="mx-auto max-w-3xl px-6 py-12 space-y-6">
     <Link href="/training">← Training</Link>
     <header className="space-y-2"><h1 className="text-2xl font-semibold">Train {agentName}</h1><p className="text-sm text-ink-400">Active version: {shortId(currentVersion)}{sessionVersion ? ` · Session version: ${shortId(sessionVersion)}` : ''}</p></header>
-    <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be revoked.</p>
+    <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>
     {versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded border p-4 space-y-3 ${activeVersionTrainingIsReady ? 'border-emerald-600' : 'border-amber-500'}`}><h2 className="font-semibold">{activeVersionTrainingIsReady ? 'Active-version Manager training is ready' : 'Move reviewed evidence to the active version explicitly'}</h2>{activeVersionTrainingIsReady ? <><p>This historical session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version {shortId(currentVersion)} can select the same evidence through explicit immutable adoption receipts; all {managerTrainingRequirements?.requiredPairs.length || 0} required visual-reference routes are fulfilled.</p><p>No new successor training session is required to run this Agent. Start one only when you want to change or add training evidence for the active version.</p></> : <><p>This session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version is {shortId(currentVersion)} and cannot select those records. Start a separate successor session, re-select the exact source, and review each new decision before accepting it.</p><label className="flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event) => setTransitionConfirmed(event.target.checked)} />I understand this creates new evidence records for the active version and does not change or automatically accept the existing records.</label><button disabled={!!busy || !transitionConfirmed || !currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></>}</section>}
-    <label className="flex gap-3"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection. The original stays on this computer. I can revoke accepted evidence below.</label>
+    <label className="flex gap-3"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection. The original stays on this computer. I can stop future selection or withdraw permission below.</label>
     <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={add}>Add training source</button>
     {busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{error && <p role="alert">{reasonLabel(error)}</p>}
     {acceptedEvidenceCount > 0 && <p role="status" className="rounded border border-emerald-600 p-3">Evidence accepted: {acceptedEvidenceCount} immutable decision{acceptedEvidenceCount === 1 ? '' : 's'} in this session. Acceptance preserves the teaching; Agent readiness is verified separately below.</p>}
@@ -434,7 +450,8 @@ export default function TrainingSource({ slug }: { slug: string }) {
     {trainingNeedsCoach && managerTrainingRequirements && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Evidence accepted — reference training not ready</h2><p>The immutable Agent policy still requires accepted visual-reference evidence at the stage/property routes below. Create or explicitly expand successor drafts, review their exact evidence, and accept each new digest. Implexa does not silently widen an accepted record. Other Manager families are verified separately before a run starts.</p><ul className="list-disc pl-5">{managerTrainingRequirements.missingPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul></section>}
     {(acceptedEvidenceCount > 0 || (managerCoverage?.acceptedLocalRecordCount || 0) > 0) && !coverageCanClaimReady && !coverageNeedsUpdate && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager coverage status unavailable</h2><p>Implexa cannot prove that this exact agent version can consume the accepted evidence across its training sessions. Update Desktop or reload after the coverage service is available. The evidence remains preserved, but this page will not describe it as ready for a run.</p></section>}
     {coverageNeedsUpdate && managerCoverage && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Agent update required before this evidence can guide runs</h2><p>{managerCoverage.reason === 'manager_quality_coverage_unclassified_training' ? 'This version has no Manager training-coverage policy.' : 'This version does not cover every accepted evidence property, relation, and stage.'} This is the version-wide result across all training sessions for this immutable agent version. Your accepted evidence remains immutable and preserved, but uncovered decisions cannot be selected at planning or any other uncovered stage.</p><p>Publish a new immutable agent version with Manager v3 coverage for the listed evidence. Existing accepted records will not be rewritten.</p>{managerCoverage.uncoveredPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.uncoveredPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul>}</section>}
-    {coverageCanClaimReady && managerCoverage && <p role="status" className="rounded border border-emerald-600 p-3">This immutable agent version classifies all {managerCoverage.acceptedPairs.length} accepted stage-scoped evidence routes across all training sessions.</p>}
+    {coverageCanClaimReady && managerCoverage?.contractVersion === 'manager-training-coverage.v1' && <p role="status" className="rounded border border-emerald-600 p-3">This immutable agent version classifies all {managerCoverage.acceptedPairs.length} accepted stage-scoped evidence routes across all training sessions.</p>}
+    {coverageCanClaimReady && managerCoverage?.contractVersion === 'manager-training-coverage.v2' && <section role="status" className="rounded border border-ink-700 p-3 space-y-2"><h2 className="font-semibold">Private training routing available</h2><p>{managerCoverage.coveredPairs.length} required-policy routes · {managerCoverage.optionalPairs.length} optional taste routes. Optional taste can guide supported decisions without editing this agent. Each run selects a bounded set; eligibility does not mean an example was selected or applied.</p>{managerCoverage.optionalPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.optionalPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)} · Optional taste</li>)}</ul>}{managerCoverage.unsupportedPairs.length > 0 && <div className="text-amber-400"><p>{managerCoverage.unsupportedPairs.length} accepted routes are not supported by this routing policy. They remain saved, are not selected through optional routing, and do not block other supported training.</p><ul className="list-disc pl-5">{managerCoverage.unsupportedPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)} · Unsupported</li>)}</ul></div>}</section>}
     {coverageCanClaimReady && trainingIsReady && managerTrainingRequirements && <p role="status" className="rounded border border-emerald-600 p-3">Manager reference training ready: all {managerTrainingRequirements.requiredPairs.length} required visual-reference routes are explicitly fulfilled for this immutable version. Run prelaunch still verifies decisions, procedures, criteria, custody, and the exact selected evidence set.</p>}
 
     {versionTransition && <section className="rounded border border-brand-500 p-4 space-y-3" aria-labelledby="version-successor-heading"><h2 id="version-successor-heading" className="font-semibold">Recreate reviewed decisions for {shortId(sessionVersion)}</h2><p>The records below remain bound to {shortId(versionTransition.fromVersion)}. Re-add the exact source file; Implexa enables a successor only after its SHA-256 matches. The copied text and stages are only a draft. You must preview the exact frame, save it, review the new immutable digest, and accept it again before Manager readiness can include it.</p><ul className="space-y-3">{versionTransition.sources.flatMap((oldSource) => oldSource.decisions.filter((decision) => decision.state === 'accepted').map((decision) => { const matched = sources.find((candidate) => candidate.metadata.sha256 === oldSource.metadata.sha256); const alreadyCreated = matched?.decisions.some((candidate) => candidate.content.relation === decision.content.relation && candidate.content.anchor.startMs === decision.content.anchor.startMs && candidate.content.summary === decision.content.summary); return <li key={decision.recordId} className="rounded border border-ink-700 p-3 space-y-2"><p>{formatTrainingTime(decision.content.anchor.startMs)} · {decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')} · from digest {shortId(decision.recordDigest)}</p>{!matched && <p>Re-add source SHA-256 {shortId(oldSource.metadata.sha256)} to continue.</p>}{alreadyCreated ? <p role="status">A distinct successor draft or accepted record already exists in this session.</p> : <button disabled={!!busy || !matched} onClick={() => matched && prepareVersionSuccessor(matched, decision)}>Prepare new-version successor draft</button>}</li>; }))}</ul></section>}
@@ -443,13 +460,24 @@ export default function TrainingSource({ slug }: { slug: string }) {
     {pending.map((draft) => <section key={`${draft.token}:${draft.key}`} className="rounded border border-ink-700 p-3" aria-label="Preserved decision draft"><p>Preserved decision: {reasonLabel(draft.reason)}</p>{draft.retryable ? <button disabled={!!busy} onClick={() => work('Retrying saved decision', async () => { await requireCurrentScope(); await call('retryDraft', { token: draft.token, key: draft.key }); await load(session); })}>Retry saved decision</button> : <><p>This refusal cannot be fixed by sending the same decision again.</p><button disabled={!!busy} onClick={() => discardDraft(draft)}>Discard local draft</button></>}</section>)}
 
     {sources.map((source, index) => <section key={source.sourceId} className="rounded border border-ink-700 p-4 space-y-3"><h2>Source {index + 1} · Owner demonstration · {source.metadata.mediaType}</h2><p className="text-sm text-ink-400">{source.localName ? `${source.localName} · ` : ''}{source.metadata.width}×{source.metadata.height} · {formatTrainingTime(source.metadata.durationMs)} · SHA-256 {shortId(source.metadata.sha256)}</p><button disabled={!source.token || !!busy || versionChanged} onClick={() => chooseSource(source)}>Annotate source</button>{!source.token && <p>Local evidence is on another computer or unavailable.</p>}
-      <ul className="divide-y divide-ink-800">{source.decisions.map((decision) => { const decisionStages = normalizeTrainingStages(decision.content.applicability?.stages); return <li key={decision.recordId} className="py-3 space-y-2"><p>{formatTrainingTime(decision.content.anchor.startMs)} · {decision.state} · {relationLabel(decision.content.relation)}</p><p>{decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</p><p><span className="font-semibold">Eligible stages:</span> {decisionStages.length ? decisionStages.map(trainingStageLabel).join(', ') : 'Not recorded'}</p>{decision.state === 'accepted' && !decisionStages.includes('planning') && <p className="text-amber-400">This accepted record cannot guide planning before tools or paid actions. Create a new planning-scoped decision to preserve the original record.</p>}<p>{decision.content.summary}</p><p className="text-xs text-ink-500">Evidence digest {shortId(decision.recordDigest)}</p>{(decision.state === 'draft' || decision.state === 'accepted') && <button disabled={!!busy || !source.token || versionChanged} onClick={() => reviewDecision(source, decision)}>{decision.state === 'draft' ? 'Review before accepting' : 'Review accepted evidence'}</button>}</li>; })}</ul>
+      <ul className="divide-y divide-ink-800">{source.decisions.map((decision) => { const decisionStages = normalizeTrainingStages(decision.content.applicability?.stages); return <li key={decision.recordId} className="py-3 space-y-2"><p>{formatTrainingTime(decision.content.anchor.startMs)} · {decision.state} · {relationLabel(decision.content.relation)}</p><p>{decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</p><p><span className="font-semibold">Eligible stages:</span> {decisionStages.length ? decisionStages.map(trainingStageLabel).join(', ') : 'Not recorded'}</p>{decision.state === 'accepted' && !decisionStages.includes('planning') && <p className="text-amber-400">This accepted record cannot guide planning before tools or paid actions. Create a new planning-scoped decision to preserve the original record.</p>}<p>{decision.content.summary}</p><p className="text-xs text-ink-500">Evidence digest {shortId(decision.recordDigest)}</p>{(decision.state === 'draft' || decision.state === 'accepted') && <button disabled={!!busy || !source.token || versionChanged} onClick={() => reviewDecision(source, decision)}>{decision.state === 'draft' ? 'Review before accepting' : 'Review accepted evidence'}</button>}{(decision.state === 'accepted' || decision.state === 'retired') && <button disabled={!!busy} onClick={() => manageDecision(source, decision)}>Manage teaching</button>}</li>; })}</ul>
     </section>)}
 
-    {reviewed && <section className="rounded border border-brand-500 p-4 space-y-4" aria-labelledby="decision-review-heading"><h2 ref={reviewHeadingRef} id="decision-review-heading" tabIndex={-1}>Exact saved evidence</h2><img src={reviewed.image} alt={`Saved evidence at ${formatTrainingTime(reviewed.decision.content.anchor.startMs)}`} className="w-full" /><dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Source</dt><dd>{reviewed.source.localName || `SHA-256 ${shortId(reviewed.source.metadata.sha256)}`}</dd></div><div><dt className="font-semibold">Timestamp</dt><dd>{formatTrainingTime(reviewed.decision.content.anchor.startMs)}</dd></div><div><dt className="font-semibold">Relation</dt><dd>{relationLabel(reviewed.decision.content.relation)}</dd></div><div><dt className="font-semibold">Visual properties</dt><dd>{reviewed.decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</dd></div><div><dt className="font-semibold">Eligible stages</dt><dd>{normalizeTrainingStages(reviewed.decision.content.applicability?.stages).length ? normalizeTrainingStages(reviewed.decision.content.applicability?.stages).map(trainingStageLabel).join(', ') : 'Not recorded'}</dd></div><div><dt className="font-semibold">Decision</dt><dd>{reviewed.decision.content.summary}</dd></div><div><dt className="font-semibold">Immutable digest</dt><dd className="break-all">{reviewed.decision.recordDigest}</dd></div></dl>
+    {reviewed && <section className="rounded border border-brand-500 p-4 space-y-4" aria-labelledby="decision-review-heading"><h2 ref={reviewHeadingRef} id="decision-review-heading" tabIndex={-1}>{reviewed.image ? 'Exact saved evidence' : 'Saved teaching'}</h2>{reviewed.image && <img src={reviewed.image} alt={`Saved evidence at ${formatTrainingTime(reviewed.decision.content.anchor.startMs)}`} className="w-full" />}<dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Source</dt><dd>{reviewed.source.localName || `SHA-256 ${shortId(reviewed.source.metadata.sha256)}`}</dd></div><div><dt className="font-semibold">Timestamp</dt><dd>{formatTrainingTime(reviewed.decision.content.anchor.startMs)}</dd></div><div><dt className="font-semibold">Relation</dt><dd>{relationLabel(reviewed.decision.content.relation)}</dd></div><div><dt className="font-semibold">Visual properties</dt><dd>{reviewed.decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</dd></div><div><dt className="font-semibold">Eligible stages</dt><dd>{normalizeTrainingStages(reviewed.decision.content.applicability?.stages).length ? normalizeTrainingStages(reviewed.decision.content.applicability?.stages).map(trainingStageLabel).join(', ') : 'Not recorded'}</dd></div><div><dt className="font-semibold">Decision</dt><dd>{reviewed.decision.content.summary}</dd></div><div><dt className="font-semibold">Immutable digest</dt><dd className="break-all">{reviewed.decision.recordDigest}</dd></div></dl>
       <p><span className="font-semibold">Selection priority:</span> {reviewed.decision.content.applicability?.priority ?? 'Not recorded'}. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not guarantee selection or override checks, criteria or facts.</p>
       {reviewed.decision.state === 'draft' && <><label className="flex gap-3"><input type="checkbox" checked={acceptConfirmed} disabled={!!busy} onChange={(event) => setAcceptConfirmed(event.target.checked)} />I reviewed this exact frame and decision and want it eligible for future Manager selection.</label><button disabled={!!busy || !acceptConfirmed} onClick={acceptReviewed}>Accept this exact decision</button></>}
-      {reviewed.decision.state === 'accepted' && <><label className="flex gap-3"><input type="checkbox" checked={revokeConfirmed} disabled={!!busy} onChange={(event) => setRevokeConfirmed(event.target.checked)} />I understand revocation prevents this evidence from being selected in future runs.</label><button disabled={!!busy || !revokeConfirmed} onClick={revokeReviewed}>Revoke future selection</button>{!normalizeTrainingStages(reviewed.decision.content.applicability?.stages).includes('planning') && <div className="rounded border border-amber-500 p-3 space-y-2"><p>This immutable record does not apply during planning. Start a separate planning-scoped successor using the same decision as a draft; you must preview, save, and accept it independently.</p><button disabled={!!busy || versionChanged} onClick={() => createPlanningSuccessor(reviewed.source, reviewed.decision)}>Create planning-scoped successor</button></div>}</>}
+      {reviewed.decision.state === 'accepted' && <>
+        <label className="flex gap-3"><input type="checkbox" checked={retireConfirmed} disabled={!!busy} onChange={(event) => setRetireConfirmed(event.target.checked)} />Stop selecting this teaching for new runs. Runs already using a frozen selection keep it.</label>
+        <p className="text-sm text-ink-400">A future run may need replacement training if this teaching fulfils a required reference.</p>
+        <button disabled={!!busy || !retireConfirmed} onClick={() => reduceReviewedAuthority('retire')}>Stop using in new runs</button>
+        {!normalizeTrainingStages(reviewed.decision.content.applicability?.stages).includes('planning') && <div className="rounded border border-amber-500 p-3 space-y-2"><p>This immutable record does not apply during planning. Start a separate planning-scoped successor using the same decision as a draft; you must preview, save, and accept it independently.</p><button disabled={!!busy || versionChanged} onClick={() => createPlanningSuccessor(reviewed.source, reviewed.decision)}>Create planning-scoped successor</button></div>}
+      </>}
+      {reviewed.decision.state === 'retired' && <p>This teaching is stopped for new runs. Existing run selections remain frozen; permission can still be withdrawn below.</p>}
+      {(reviewed.decision.state === 'accepted' || reviewed.decision.state === 'retired') && <>
+        {!reviewed.image && <button disabled={!!busy || !reviewed.source.token || versionChanged} onClick={() => reviewDecision(reviewed.source, reviewed.decision)}>Preview exact saved frame</button>}
+        <label className="flex gap-3"><input type="checkbox" checked={revokeConfirmed} disabled={!!busy} onChange={(event) => setRevokeConfirmed(event.target.checked)} />Withdraw permission for further use now, including active runs. This may interrupt them; already disclosed material cannot be recalled.</label>
+        <button disabled={!!busy || !revokeConfirmed} onClick={() => reduceReviewedAuthority('revoke')}>Withdraw permission now</button>
+      </>}
       <button disabled={!!busy} onClick={() => setReviewed(null)}>Close evidence review</button>
     </section>}
 
