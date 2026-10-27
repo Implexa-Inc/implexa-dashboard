@@ -21,9 +21,9 @@ export type RunJudgment = {
   repair_round?: number | null;
   repair_limit?: number | null;
   created_at?: string | null;
-  creative_grade?: { contractVersion: 'creative-grade.v1'; overallBand: string; summary: string;
+  creative_grade?: { contractVersion: 'creative-grade.v1' | 'creative-grade.v2'; overallBand: string; overallScore?: number | null; summary: string;
     calibration: 'uncalibrated'; relativePath: string; artifactSha256: string; rubricDigest: string;
-    dimensions: Array<{id: string; band: string; explanation: string;
+    dimensions: Array<{id: string; band: string; score?: number | null; explanation: string;
       gaps: Array<{timestampMs: number; observation: string; suggestion: string}>}>;
     coverage: {durationMs: number; timestampsMs: number[]; limitations: string; continuousPlaybackVerified: false};
   } | null;
@@ -52,6 +52,9 @@ export function RunJudgmentCard({
   currentRunId?: string;
 }) {
   if (!judgment) return null;
+  const scored = judgment.creative_grade?.contractVersion === 'creative-grade.v2';
+  const total = judgment.creative_grade?.overallScore;
+  const assessedScore = typeof total === 'number' && Number.isInteger(total) && total >= 0 && total <= 100;
   const s = STYLE[judgment.verdict] || STYLE.uncertain;
   const criteria = Array.isArray(judgment.criteria_results) ? judgment.criteria_results : [];
   const details = criteria.length || judgment.paths_taken?.length || judgment.evidence_refs?.length;
@@ -83,12 +86,14 @@ export function RunJudgmentCard({
         <span className="flex-none text-[10px] uppercase tracking-wide text-ink-500">AI review</span>
       </div>
 
-      {judgment.creative_grade && <section aria-label="Creative grade" className="mt-4 rounded-lg border border-ink-700 p-3 space-y-2">
-        <h3 className="text-sm font-semibold text-ink-100">Creative grade: {judgment.creative_grade.overallBand}</h3>
-        <p className="text-xs text-ink-400">Uncalibrated AI assessment. Separate from technical delivery; an open quality gap is not a failed run.</p>
+      {judgment.creative_grade && <section aria-label={scored ? 'Quality score' : 'Creative grade'} className="mt-4 rounded-lg border border-ink-700 p-3 space-y-2">
+        <h3 className="text-sm font-semibold text-ink-100">{scored
+          ? assessedScore ? `Quality ${total}/100` : 'Quality not assessed'
+          : `Creative grade: ${judgment.creative_grade.overallBand}`}</h3>
+        <p className="text-xs text-ink-400">{scored ? 'One model review, not calibrated.' : 'Uncalibrated AI assessment.'} Separate from technical delivery; an open quality gap is not a failed run.</p>
         <p className="text-sm text-ink-200">{judgment.creative_grade.summary}</p>
         {judgment.creative_grade.dimensions.map(d => <details key={d.id} className="text-sm">
-          <summary>{d.id.replaceAll('_', ' ')} — {d.band}</summary>
+          <summary>{d.id.replaceAll('_', ' ')} — {scored ? typeof d.score === 'number' ? `${d.score}/100` : 'not assessed' : d.band}</summary>
           <p className="mt-1 text-ink-300">{d.explanation}</p>
           {d.gaps.map((g, i) => <p key={i} className="mt-2 text-ink-300">{(g.timestampMs / 1000).toFixed(1)}s: {g.observation} {g.suggestion}</p>)}
         </details>)}
