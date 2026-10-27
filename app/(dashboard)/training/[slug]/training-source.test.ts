@@ -62,6 +62,17 @@ function coverage(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function optionalCoverage(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const optional = { stage: 'build', property: 'internal_label_exclusion', relation: 'rejected' };
+  const unsupported = { stage: 'preview', property: 'motion_rhythm', relation: 'accepted' };
+  return coverage({
+    contractVersion: 'manager-training-coverage.v2', acceptedLocalRecordCount: 3,
+    acceptedPairs: [optional, planningPair, unsupported], listedSessionAcceptedPairs: [planningPair],
+    optionalPairs: [optional], unsupportedPairs: [unsupported], uncoveredPairs: [optional, unsupported],
+    ...overrides,
+  });
+}
+
 function requirements(workflowVersionId = VERSION_A, overrides: Record<string, unknown> = {}) {
   return {
     contractVersion: 'manager-reference-training-readiness.v1',
@@ -218,6 +229,45 @@ test('timecodes and preview authority are exact to the source token and millisec
   assert.equal(isManagerTrainingCoverage({ ...coverage(), acceptedPairs: [planningPair, secondPair], listedSessionAcceptedPairs: [planningPair], coveredPairs: [planningPair, foreignPair] }, VERSION_A), false, 'covered and missing sets must exactly partition accepted routes');
   assert.deepEqual(requiredStagesForDecision(requirements() as never, 'layout_variety', 'contrast'), ['planning']);
   assert.deepEqual(requiredStagesForDecision(requirements() as never, 'motion_rhythm', 'accepted'), [], 'required stages are exact to both property and relation');
+});
+
+test('optional coverage has an exact disjoint partition without weakening historical coverage', () => {
+  const valid = optionalCoverage();
+  assert.equal(isManagerTrainingCoverage(valid, VERSION_A), true);
+  const optional = valid.optionalPairs as unknown[];
+  const unsupported = valid.unsupportedPairs as unknown[];
+  for (const invalid of [
+    { ...valid, optionalPairs: [] },
+    { ...valid, unsupportedPairs: [...optional, ...unsupported] },
+    { ...valid, coveredPairs: [...optional, planningPair] },
+    { ...valid, optionalPairs: [...optional, ...optional] },
+    { ...valid, unsupportedPairs: [] },
+    { ...valid, unknown: true },
+    { ...valid, classified: false },
+    { ...valid, workflowVersionId: VERSION_B },
+    { ...valid, contractVersion: 'manager-training-coverage.v1' },
+  ]) assert.equal(isManagerTrainingCoverage(invalid, VERSION_A), false);
+  assert.equal(isManagerTrainingCoverage(coverage({ uncoveredPairs: [planningPair], coveredPairs: [] }), VERSION_A), false,
+    'a legacy ready response cannot acquire optional semantics');
+});
+
+test('optional taste stays distinct from unsupported training and from a missing mandatory reference', async () => {
+  const ready = await renderedWith({ state: 'accepted', managerCoverage: optionalCoverage() });
+  try {
+    assert.match(ready.rendered.text(), /Private training routing available/);
+    assert.match(ready.rendered.text(), /internal label exclusion.*Optional taste/);
+    assert.match(ready.rendered.text(), /motion rhythm.*Unsupported/);
+    assert.match(ready.rendered.text(), /eligibility does not mean an example was selected or applied/);
+    assert.doesNotMatch(ready.rendered.text(), /classifies all|Agent update required|coverage status unavailable/);
+  } finally { ready.rendered.cleanup(); }
+  const missing = await renderedWith({ state: 'accepted', managerCoverage: optionalCoverage(),
+    managerTrainingRequirements: requirements(VERSION_A, { fulfilledPairs: [], missingPairs: [planningPair],
+      readiness: 'coach_reference_training_required', reason: 'manager_required_reference_training_missing' }),
+  });
+  try {
+    assert.match(missing.rendered.text(), /reference training not ready/);
+    assert.match(missing.rendered.text(), /still requires accepted visual-reference evidence/);
+  } finally { missing.rendered.cleanup(); }
 });
 
 test('web, missing bridge method and stale bridge versions all fail closed with an update path', async () => {
