@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { render, type Rendered } from '../../../../lib/test/render.ts';
 import { deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
+import { questionsPage, validAnswerBody, answerReceipt } from '../../../../lib/trainer-questions.ts';
 
 const VERSION_A = '11111111-1111-4111-8111-111111111111';
 const VERSION_B = '22222222-2222-4222-8222-222222222222';
@@ -169,6 +170,7 @@ function harness(options: {
         };
       }
       if (operation === 'decisionPreview') return { ok: true, image: PNG, recordId: RECORD, recordDigest: DIGEST };
+      if (operation === 'annotate') return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'draft' };
       if (operation === 'accept') { decisionState = 'accepted'; return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'accepted' }; }
       if (operation === 'retire' || operation === 'revoke') {
         decisionState = operation === 'retire' ? 'retired' : 'revoked';
@@ -201,6 +203,156 @@ async function setSelect(rendered: Rendered, input: Element, value: string) {
   const setter = Object.getOwnPropertyDescriptor(rendered.window.HTMLSelectElement.prototype, 'value')!.set!;
   await rendered.act(() => { setter.call(input, value); input.dispatchEvent(new rendered.window.Event('change', { bubbles: true })); });
 }
+
+const QUESTION = '77777777-7777-4777-8777-777777777777';
+function questionRow(patch: Record<string, unknown> = {}) {
+  return { id: QUESTION, receiptDigest: 'd'.repeat(64), createdAt: '2026-10-27T00:00:00.000Z',
+    questionId: 'visual-choice', question: 'Which visual treatment fits this comparison?', sceneElement: 'comparison-scene',
+    property: 'layout_variety', stage: 'planning', questionVersionId: VERSION_A,
+    runId: '88888888-8888-4888-8888-888888888888', runState: 'failed', runStatus: 'failed', outcome: 'no_match',
+    returnedReferenceIds: [], recordedEvidence: false, fallback: null, recurrenceCount: 1, teachings: [], ...patch };
+}
+function questionPage(items = [questionRow()], patch: Record<string, unknown> = {}) {
+  return { ok: true, contractVersion: 'trainer-questions.v1', agentFamilyId: SOURCE_ID, activeVersionId: VERSION_A,
+    items, nextCursor: null, ...patch };
+}
+type QuestionCall = { url: string; body?: Record<string, unknown>; key?: string | null };
+function questionTransport(rendered: Rendered, bridgeCalls: Call[], { firstFailure = false, page = questionPage() } = {}) {
+  const calls: QuestionCall[] = []; let linked = false; let attempts = 0;
+  rendered.window.fetch = (async (input: string, init?: RequestInit) => {
+    const call: QuestionCall = { url: String(input) }; calls.push(call);
+    if (init?.method === 'POST') {
+      const body = JSON.parse(String(init.body)); call.body = body; call.key = new Headers(init.headers).get('Idempotency-Key'); attempts++;
+      if (firstFailure && attempts === 1) return { ok: false, json: async () => ({ ok: false, reason: 'trainer_questions_unavailable' }) };
+      linked = true;
+      return { ok: true, json: async () => ({ ok: true, contractVersion: 'trainer-question-answer.v1', questionReceiptId: body.questionReceiptId,
+        recordId: body.recordId, recordDigest: body.expectedRecordDigest, targetVersionId: body.expectedActiveVersionId,
+        teachingState: 'prepared', reason: null, linkReceiptId: SOURCE_ID, idempotent: attempts > 1 }) };
+    }
+    return { ok: true, json: async () => ({ ...page, items: page.items.map(q => ({ ...q,
+      teachings: linked ? [{ sessionId: SESSION, recordId: RECORD, recordDigest: DIGEST,
+        state: bridgeCalls.some(c => c.operation === 'accept') ? 'taught' : 'prepared', reason: null, targetVersionId: VERSION_A }] : q.teachings })) }) };
+  }) as unknown as typeof rendered.window.fetch;
+  return calls;
+}
+async function prepareAnswer(rendered: Rendered) {
+  await rendered.click(rendered.getByText('Load recorded questions'));
+  await rendered.click(rendered.document.querySelector('input[aria-label="Select question visual-choice"]')!);
+  await setTextarea(rendered, rendered.getByText('Private answer').closest('label')!.querySelector('textarea')!, 'Use the visual example to explain the comparison clearly.');
+  await rendered.click(rendered.getByText('Answer and prepare teaching'));
+}
+
+test('question wire rejects hidden raw answers, malformed identities and invented evidence', () => {
+  assert.equal(questionsPage(questionPage()), true);
+  for (const q of [questionRow({ rawAnswer: 'must not leak' }), questionRow({ id: [QUESTION] }),
+    questionRow({ recordedEvidence: true }), questionRow({ fallback: 'invented' })]) assert.equal(questionsPage(questionPage([q])), false);
+  assert.equal(questionsPage(questionPage([questionRow({ teachings: [{ sessionId: SESSION, recordId: RECORD, recordDigest: DIGEST, state: 'taught', reason: null, targetVersionId: VERSION_B }] })])), false);
+  assert.equal(questionsPage(questionPage([questionRow({ outcome: 'matched', returnedReferenceIds: [] })])), true, 'owner-filtered IDs do not rewrite the historical outcome');
+  const body = { questionReceiptId: QUESTION, questionReceiptDigest: 'd'.repeat(64), recordId: RECORD,
+    expectedRecordDigest: DIGEST, rawAnswer: 'Private trainer answer.', expectedActiveVersionId: VERSION_A };
+  assert.equal(validAnswerBody(body), true); assert.equal(validAnswerBody({ ...body, recordId: [RECORD] }), false);
+  assert.equal(answerReceipt({ ok: true, contractVersion: 'trainer-question-answer.v1', questionReceiptId: QUESTION,
+    recordId: SOURCE_ID, recordDigest: DIGEST, targetVersionId: VERSION_A, teachingState: 'prepared', reason: null,
+    linkReceiptId: SOURCE_ID, idempotent: false }, body), false);
+});
+
+test('Training shows recorded matched and no-match consultations from failed and cancelled runs without inventing a gap', async () => {
+  const { rendered, calls } = await renderedWith();
+  try {
+    questionTransport(rendered, calls, { page: questionPage([questionRow(), questionRow({ id: SOURCE_ID,
+      questionId: 'second-choice', question: 'How should this other scene read?', outcome: 'matched', returnedReferenceIds: [RECORD],
+      questionVersionId: VERSION_B, runState: 'cancelled', runStatus: 'cancelled' })]) });
+    await rendered.click(rendered.getByText('Load recorded questions'));
+    assert.match(rendered.text(), /References returned; usefulness and application are unverified/);
+    assert.match(rendered.text(), /No selected guidance matched/);
+    assert.match(rendered.text(), /failed/); assert.match(rendered.text(), /cancelled/);
+    assert.match(rendered.text(), /question version 22222222/);
+    assert.match(rendered.text(), /Fallback and linked frame evidence were not recorded/);
+    assert.equal(calls.some(c => c.operation === 'preview' || c.operation === 'annotate'), false);
+  } finally { rendered.cleanup(); }
+});
+
+test('an answered question becomes an actual evidence draft link, not automatic admission or selected-learning proof', async () => {
+  const { rendered, calls } = await renderedWith();
+  try {
+    const requests = questionTransport(rendered, calls);
+    await prepareAnswer(rendered);
+    assert.match(rendered.text(), /Worker-visible draft guidance/);
+    assert.equal(calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
+    await rendered.click(rendered.getByText('Annotate source'));
+    await rendered.click(rendered.getByText('Preview this exact frame'));
+    await rendered.click(rendered.getByText('Save decision draft'));
+    const posted = requests.find(r => r.body)!;
+    assert.equal(posted.body!.recordId, RECORD); assert.equal(posted.body!.questionReceiptId, QUESTION);
+    assert.equal(posted.body!.rawAnswer, 'Use the visual example to explain the comparison clearly.');
+    assert.equal(posted.key, `question-answer:${QUESTION}:${RECORD}`);
+    assert.equal(calls.some(c => c.operation === 'accept'), false);
+    assert.match(rendered.text(), /Prepared — review and accept/);
+    await rendered.click(rendered.getByText('Review before accepting'));
+    await rendered.click(rendered.getByText(/I reviewed this exact frame and decision/).closest('label')!.querySelector('input')!);
+    await rendered.click(rendered.getByText('Accept this exact decision'));
+    assert.match(rendered.text(), /Taught — currently eligible, not proof of selection or application/);
+  } finally { rendered.cleanup(); }
+});
+
+test('failed answer linking retries the saved teaching identity without another evidence draft', async () => {
+  const { rendered, calls } = await renderedWith();
+  try {
+    const requests = questionTransport(rendered, calls, { firstFailure: true });
+    await prepareAnswer(rendered); await rendered.click(rendered.getByText('Annotate source'));
+    await rendered.click(rendered.getByText('Preview this exact frame')); await rendered.click(rendered.getByText('Save decision draft'));
+    assert.match(rendered.text(), /evidence draft is preserved/i);
+    await rendered.click(rendered.getByText('Retry answer links'));
+    const posts = requests.filter(r => r.body); assert.equal(posts.length, 2);
+    assert.deepEqual(posts[0].body, posts[1].body); assert.equal(posts[0].key, posts[1].key);
+    assert.equal(calls.filter(c => c.operation === 'annotate').length, 1);
+    assert.match(rendered.text(), /Prepared — review and accept/);
+  } finally { rendered.cleanup(); }
+});
+
+test('a fresh Training page can link the same existing draft to several recorded questions without reauthoring it', async () => {
+  const { rendered, calls } = await renderedWith();
+  try {
+    const requests = questionTransport(rendered, calls, { page: questionPage([questionRow(), questionRow({ id: SOURCE_ID,
+      questionId: 'related-choice', question: 'How should the related comparison be shown?', recurrenceCount: 2 })]) });
+    await prepareAnswer(rendered);
+    await rendered.click(rendered.document.querySelector('input[aria-label="Select question related-choice"]')!);
+    await rendered.click(rendered.getByText('Answer and prepare teaching'));
+    const select = rendered.getByText('Or link an existing teaching that already expresses this answer').closest('label')!.querySelector('select')!;
+    await setSelect(rendered, select, RECORD); await rendered.click(rendered.getByText('Link answer to selected teaching'));
+    assert.equal(calls.some(c => c.operation === 'annotate' || c.operation === 'accept' || c.operation === 'preview'), false);
+    const posts = requests.filter(r => r.body); assert.equal(posts.length, 2);
+    assert.deepEqual(posts.map(r => r.body!.recordId), [RECORD, RECORD]);
+    assert.deepEqual(posts.map(r => r.key), [`question-answer:${QUESTION}:${RECORD}`, `question-answer:${SOURCE_ID}:${RECORD}`]);
+  } finally { rendered.cleanup(); }
+});
+
+test('recorded questions use bounded keyset pagination and retain loaded rows when the next page is unavailable', async () => {
+  const { rendered } = await renderedWith(); const urls: string[] = []; let requests = 0;
+  const cursor = { createdAt: '2026-10-26T00:00:00.000Z', id: QUESTION };
+  try {
+    rendered.window.fetch = (async (input: string) => {
+      urls.push(String(input)); requests++;
+      if (requests === 3) return { ok: false, json: async () => ({ ok: false }) };
+      if (requests === 4) return { ok: true, json: async () => questionPage([questionRow({ question: 'New-version row must not mix into this page.' })], { activeVersionId: VERSION_B }) };
+      return { ok: true, json: async () => requests === 1 ? questionPage([questionRow()], { nextCursor: cursor })
+        : questionPage([questionRow({ id: SOURCE_ID, questionId: 'older-question', question: 'An earlier recorded question.' })], { nextCursor: cursor }) };
+    }) as unknown as typeof rendered.window.fetch;
+    await rendered.click(rendered.getByText('Load recorded questions'));
+    await rendered.click(rendered.getByText('Load more recorded questions'));
+    const second = new URL(urls[1], 'https://dashboard.test');
+    assert.equal(second.searchParams.get('limit'), '20');
+    assert.equal(second.searchParams.get('afterCreatedAt'), cursor.createdAt); assert.equal(second.searchParams.get('afterId'), cursor.id);
+    assert.match(rendered.text(), /Which visual treatment fits this comparison/); assert.match(rendered.text(), /An earlier recorded question/);
+    await rendered.click(rendered.getByText('Load more recorded questions'));
+    assert.match(rendered.text(), /This does not mean no questions were asked/);
+    assert.match(rendered.text(), /An earlier recorded question/);
+    await rendered.click(rendered.getByText('Load more recorded questions'));
+    assert.match(rendered.text(), /Refresh recorded questions before continuing/);
+    assert.doesNotMatch(rendered.text(), /New-version row must not mix/);
+    assert.match(rendered.text(), /An earlier recorded question/);
+  } finally { rendered.cleanup(); }
+});
 
 test('timecodes and preview authority are exact to the source token and millisecond', () => {
   assert.equal(TRAINING_LOCAL_CONTRACT_VERSION, '2');
@@ -710,7 +862,8 @@ test('server-owned Manager coverage exposes unclassified and fully covered agent
   const ready = await renderedWith({ state: 'accepted', managerCoverage: coverage() });
   try {
     assert.match(ready.rendered.text(), /classifies all 1 accepted stage-scoped evidence routes across all training sessions/);
-    assert.match(ready.rendered.text(), /Manager reference training ready: all 1 required visual-reference routes/);
+    assert.match(ready.rendered.text(), /Manager reference training ready: all 1 critical request-admission visual-reference routes/);
+    assert.match(ready.rendered.text(), /first launch verifies all declared references/);
     assert.doesNotMatch(ready.rendered.text(), /Agent update required/);
   } finally { ready.rendered.cleanup(); }
 });

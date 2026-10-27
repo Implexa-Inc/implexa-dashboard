@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
 import {
   deriveTrainingStages,
   formatTrainingTime,
@@ -136,6 +137,14 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [sessionKey] = useState(() => crypto.randomUUID());
   const [successorSessionKey] = useState(() => crypto.randomUUID());
   const [decisionKey, setDecisionKey] = useState(() => crypto.randomUUID());
+  const [questions, setQuestions] = useState<QuestionsPage | null>(null);
+  const [questionsBusy, setQuestionsBusy] = useState(false);
+  const [questionsError, setQuestionsError] = useState('');
+  const [questionIds, setQuestionIds] = useState<string[]>([]);
+  const [rawAnswer, setRawAnswer] = useState('');
+  const [questionAnswer, setQuestionAnswer] = useState<QuestionAnswer | null>(null);
+  const [linkRecordId, setLinkRecordId] = useState('');
+  const [pendingAnswerLinks, setPendingAnswerLinks] = useState<{ answer: QuestionAnswer; sessionId: string; recordId: string; recordDigest: string } | null>(null);
   const previewIsCurrent = useMemo(() => previewMatches(preview, selected?.token, time), [preview, selected, time]);
   const acceptedEvidenceCount = useMemo(() => sources.reduce((count, source) => count + source.decisions.filter((decision) => decision.state === 'accepted').length, 0), [sources]);
   const coverageIsCurrent = Boolean(isManagerTrainingCoverage(managerCoverage, sessionVersion)
@@ -190,6 +199,55 @@ export default function TrainingSource({ slug }: { slug: string }) {
     const result = await call('list', { sessionId: id });
     rememberList(result);
     return result;
+  }
+
+  async function loadQuestions(cursor: QuestionsPage['nextCursor'] = null) {
+    setQuestionsBusy(true); setQuestionsError('');
+    try {
+      const query = new URLSearchParams({ slug, limit: '20', ...(cursor ? { afterCreatedAt: cursor.createdAt, afterId: cursor.id } : {}) });
+      const response = await fetch(`/api/agent-training/questions?${query}`, { cache: 'no-store' });
+      const page: unknown = await response.json();
+      if (!response.ok || !questionsPage(page)) throw new Error('Recorded questions are unavailable. This does not mean no questions were asked.');
+      if (cursor && questions && (page.agentFamilyId !== questions.agentFamilyId || page.activeVersionId !== questions.activeVersionId)) throw new Error('The agent changed while loading questions. Refresh recorded questions before continuing.');
+      setQuestions({ ...page, items: cursor && questions ? [...new Map([...questions.items, ...page.items].map(q => [q.id, q])).values()] : page.items });
+    } catch (caught) { setQuestionsError(caught instanceof Error ? caught.message : 'Recorded questions are unavailable.'); }
+    finally { setQuestionsBusy(false); }
+  }
+
+  function prepareQuestionAnswer() {
+    const selectedQuestions = questions?.items.filter(q => questionIds.includes(q.id)) || [];
+    if (!selectedQuestions.length || !rawAnswer.trim() || !questions?.activeVersionId) return;
+    if (new Set(selectedQuestions.map(q => q.property)).size !== 1) { setQuestionsError('Choose questions about one visual property for one teaching.'); return; }
+    if (currentVersion !== questions.activeVersionId || (session && sessionVersion !== currentVersion)) { setQuestionsError('Start or select a training session for the active version, then prepare this answer.'); return; }
+    setQuestionAnswer({ questions: selectedQuestions, rawAnswer, expectedActiveVersionId: questions.activeVersionId });
+    setSelected(null); setPreview(null); setReviewed(null); setLinkRecordId('');
+    setProperty(selectedQuestions[0].property); setStages(normalizeTrainingStages(selectedQuestions.map(q => q.stage))); setRelation('accepted');
+    setChosen(rawAnswer.trim().slice(0, 400)); setWhy(`Trainer guidance for ${selectedQuestions[0].property.replaceAll('_', ' ')}.`);
+    setProcess('Use the selected example to guide this decision.'); setBehavior(rawAnswer.trim().slice(0, 400));
+    setDecisionKey(crypto.randomUUID()); setQuestionsError('');
+  }
+
+  async function linkAnswers(pending: NonNullable<typeof pendingAnswerLinks>) {
+    let remaining = pending.answer.questions;
+    setPendingAnswerLinks(pending);
+    for (const q of pending.answer.questions) {
+      const body = { questionReceiptId: q.id, questionReceiptDigest: q.receiptDigest, recordId: pending.recordId,
+        expectedRecordDigest: pending.recordDigest, rawAnswer: pending.answer.rawAnswer, expectedActiveVersionId: pending.answer.expectedActiveVersionId };
+      const response = await fetch(`/api/agent-training/questions?sessionId=${encodeURIComponent(pending.sessionId)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': `question-answer:${q.id}:${pending.recordId}` }, body: JSON.stringify(body), cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok || !answerReceipt(result, body)) throw new TrainingError('question_answer_link_unavailable', 'The evidence draft is preserved, but its answer link could not be verified. Retry linking; do not create the draft again.');
+      remaining = remaining.slice(1);
+      setPendingAnswerLinks(remaining.length ? { ...pending, answer: { ...pending.answer, questions: remaining } } : null);
+    }
+    setQuestionAnswer(null); setRawAnswer(''); setQuestionIds([]); await loadQuestions();
+  }
+
+  async function linkExistingTeaching() {
+    if (!questionAnswer || !linkRecordId || !session || sessionVersion !== questionAnswer.expectedActiveVersionId) return;
+    const record = sources.flatMap(source => source.decisions).find(d => d.recordId === linkRecordId && ['draft', 'accepted'].includes(d.state));
+    if (!record) return;
+    await work('Linking the answer to the existing teaching', () => linkAnswers({ answer: questionAnswer, sessionId: session, recordId: record.recordId, recordDigest: record.recordDigest }));
   }
 
   function acceptedCount(result: Result) {
@@ -374,9 +432,10 @@ export default function TrainingSource({ slug }: { slug: string }) {
     if (!selected?.token || !previewIsCurrent || !priorityIsValid) return;
     const source = selected; const requestedTime = time; const requestedPreview = preview;
     await work('Saving the visual decision draft', async () => {
-      await requireCurrentScope();
+      const scope = await requireCurrentScope();
       if (!requestedPreview || requestedPreview.token !== source.token || requestedPreview.timeMs !== requestedTime) throw new TrainingError('training_preview_stale', 'Preview this exact timestamp again before saving.');
-      await call('annotate', {
+      if (questionAnswer && questionAnswer.expectedActiveVersionId !== scope.agent.currentVersionId) throw new TrainingError('training_version_changed');
+      const drafted = await call('annotate', {
         token: source.token, timeMs: requestedTime, idempotencyKey: decisionKey,
         decision: { chosen, why, process, desiredBehavior: behavior },
         content: {
@@ -385,7 +444,14 @@ export default function TrainingSource({ slug }: { slug: string }) {
           governance: { rightsBasis: 'owner_created', rightsReceipt: 'Coach confirms ownership and grants bounded evidence use', disclosure: 'owner_private', retentionUntil: retention, deletionPolicy: 'revoke_then_delete_derivatives', consent: true, attribution: '' },
         },
       });
+      const answerLink = questionAnswer && drafted.recordId && drafted.recordDigest
+        ? { answer: questionAnswer, sessionId: session, recordId: drafted.recordId, recordDigest: drafted.recordDigest } : null;
+      if (answerLink) setPendingAnswerLinks(answerLink);
       setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setSelectionPriority('50'); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null); await load(session);
+      if (questionAnswer) {
+        if (!drafted.recordId || !drafted.recordDigest) throw new TrainingError('question_answer_link_unavailable', 'The draft was saved, but no verifiable teaching identity was returned. Select that existing draft to link the answer.');
+        await linkAnswers(answerLink!);
+      }
     });
   }
 
@@ -409,6 +475,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
       await requireCurrentScope();
       await call('accept', { token: reviewed.source.token, recordId: reviewed.decision.recordId, expectedDigest: reviewed.decision.recordDigest });
       await load(session); setReviewed(null);
+      if (questions) await loadQuestions();
     });
   }
 
@@ -425,7 +492,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
         decision.recordId === acknowledged.recordId && decision.recordDigest === acknowledged.recordDigest
           ? { ...decision, state } : decision) })));
       setReviewed(null);
-      try { await load(session); }
+      try { await load(session); if (questions) await loadQuestions(); }
       catch { setError('The change was applied, but the teaching list could not refresh. Reload Training to update the list.'); }
     });
   }
@@ -441,7 +508,44 @@ export default function TrainingSource({ slug }: { slug: string }) {
     <Link href="/training">← Training</Link>
     <header className="space-y-2"><h1 className="text-2xl font-semibold">Train {agentName}</h1><p className="text-sm text-ink-400">Active version: {shortId(currentVersion)}{sessionVersion ? ` · Session version: ${shortId(sessionVersion)}` : ''}</p></header>
     <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>
-    {versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded border p-4 space-y-3 ${activeVersionTrainingIsReady ? 'border-emerald-600' : 'border-amber-500'}`}><h2 className="font-semibold">{activeVersionTrainingIsReady ? 'Active-version Manager training is ready' : 'Move reviewed evidence to the active version explicitly'}</h2>{activeVersionTrainingIsReady ? <><p>This historical session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version {shortId(currentVersion)} can select the same evidence through explicit immutable adoption receipts; all {managerTrainingRequirements?.requiredPairs.length || 0} required visual-reference routes are fulfilled.</p><p>No new successor training session is required to run this Agent. Start one only when you want to change or add training evidence for the active version.</p></> : <><p>This session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version is {shortId(currentVersion)} and cannot select those records. Start a separate successor session, re-select the exact source, and review each new decision before accepting it.</p><label className="flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event) => setTransitionConfirmed(event.target.checked)} />I understand this creates new evidence records for the active version and does not change or automatically accept the existing records.</label><button disabled={!!busy || !transitionConfirmed || !currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></>}</section>}
+    <section className="rounded border border-ink-700 p-4 space-y-3" aria-labelledby="trainer-questions-heading">
+      <h2 id="trainer-questions-heading" className="font-semibold">Questions from runs</h2>
+      <p>Review actual recorded consultations, including failed or cancelled runs. A returned reference is not proof that it answered the question or was applied.</p>
+      <button disabled={questionsBusy || !!busy} onClick={() => loadQuestions()}>{questions ? 'Refresh recorded questions' : 'Load recorded questions'}</button>
+      {questionsBusy && <p role="status">Loading recorded questions…</p>}{questionsError && <p role="alert">{questionsError}</p>}
+      {questions && questions.items.length === 0 && <p>No recorded questions were returned for this agent.</p>}
+      {questions && questionGroups(questions.items).map(group => <section key={`${group[0].questionVersionId}:${group[0].stage}:${group[0].property}`} className="rounded border border-ink-800 p-3 space-y-2">
+        <h3>{trainingStageLabel(group[0].stage)} · {group[0].property.replaceAll('_', ' ')} · question version {shortId(group[0].questionVersionId)}</h3>
+        <p>{Math.max(...group.map(q => q.recurrenceCount))} recorded questions for this version, stage and property; {group.length} loaded here. These are not necessarily the same question.</p>
+        {group.map(q => <article key={q.id} className="border-t border-ink-800 pt-2 space-y-1">
+          <label className="flex gap-2"><input type="checkbox" aria-label={`Select question ${q.questionId}`} checked={questionIds.includes(q.id)} onChange={event => setQuestionIds(ids => event.target.checked ? [...ids, q.id] : ids.filter(id => id !== q.id))} />{q.question}</label>
+          <p><Link href={`/runs/${q.runId}`}>Run {shortId(q.runId)}</Link> · {q.runState || q.runStatus || 'State not recorded'} · {q.sceneElement}</p>
+          <p>{q.outcome === 'matched' ? 'References returned; usefulness and application are unverified.' : 'No selected guidance matched. This is not proof the trainer never taught it.'}</p>
+          <p>Returned reference IDs: {q.returnedReferenceIds.length ? q.returnedReferenceIds.map(shortId).join(', ') : 'none'}.</p>
+          <p>Fallback and linked frame evidence were not recorded. Choose your own authorized teaching frame below; no run frame is imported.</p>
+          {q.teachings.map(t => <p key={`${t.sessionId}:${t.recordId}`}>
+            {t.state === 'taught' ? 'Taught — currently eligible, not proof of selection or application' : t.state === 'prepared' ? 'Prepared — review and accept the evidence draft separately' : `Not currently eligible${t.reason ? `: ${reasonLabel(t.reason)}` : ''}`} · teaching {shortId(t.recordId)} · target {shortId(t.targetVersionId)}.
+          </p>)}
+        </article>)}
+      </section>)}
+      {questions?.nextCursor && <button disabled={questionsBusy || !!busy} onClick={() => loadQuestions(questions.nextCursor)}>Load more recorded questions</button>}
+      {questions && <>
+        <label className="block">Private answer<textarea className="block w-full rounded border bg-ink-900 p-2" maxLength={2000} value={rawAnswer} onChange={event => setRawAnswer(event.target.value)} /></label>
+        <p>The raw answer stays in private answer history once linked. It is not automatically delivered to workers. Prepare an editable teaching excerpt, then choose and review an owner-created example.</p>
+        <button disabled={!!busy || questionsBusy || !!pendingAnswerLinks || !questionIds.length || !rawAnswer.trim() || !questions.activeVersionId} onClick={prepareQuestionAnswer}>Answer and prepare teaching</button>
+        <p>Answers target active version {shortId(questions.activeVersionId)}; the original question versions remain shown above. Eligible teaching may still be shadowed by other examples or selection limits.</p>
+      </>}
+      {questionAnswer && <div className="rounded border border-brand-500 p-3 space-y-2">
+        <h3>Worker-visible draft guidance — edit before saving</h3>
+        <p>{chosen} {why} {process} {behavior}</p>
+        <p>This excerpt is derived from your private answer and may be delivered if admitted. Choose an owner-created source below and preview an exact frame. Nothing is accepted automatically.</p>
+        <label>Or link an existing teaching that already expresses this answer<select value={linkRecordId} onChange={event => setLinkRecordId(event.target.value)}><option value="">Choose a saved draft or teaching</option>{sources.flatMap(source => source.decisions.filter(d => ['draft', 'accepted'].includes(d.state)).map(d => <option key={d.recordId} value={d.recordId}>{shortId(d.recordId)} · {d.state} · {d.content.summary.slice(0, 80)}</option>))}</select></label>
+        <p>Linking preserves the existing teaching; it does not edit its text or evidence. This also resumes a draft saved before an interrupted answer link.</p>
+        <button disabled={!!busy || !linkRecordId || sessionVersion !== questionAnswer.expectedActiveVersionId} onClick={linkExistingTeaching}>Link answer to selected teaching</button>
+      </div>}
+      {pendingAnswerLinks && <div role="status"><p>The evidence draft is preserved. {pendingAnswerLinks.answer.questions.length} answer link(s) remain unverified.</p><button disabled={!!busy} onClick={() => work('Retrying the saved answer links', () => linkAnswers(pendingAnswerLinks))}>Retry answer links</button></div>}
+    </section>
+    {versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded border p-4 space-y-3 ${activeVersionTrainingIsReady ? 'border-emerald-600' : 'border-amber-500'}`}><h2 className="font-semibold">{activeVersionTrainingIsReady ? 'Active-version Manager training is ready' : 'Move reviewed evidence to the active version explicitly'}</h2>{activeVersionTrainingIsReady ? <><p>This historical session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version {shortId(currentVersion)} can select the same evidence through explicit immutable adoption receipts; all {managerTrainingRequirements?.requiredPairs.length || 0} critical request-admission visual-reference routes are fulfilled. First launch still verifies every declared reference.</p><p>No new successor training session is required to run this Agent. Start one only when you want to change or add training evidence for the active version.</p></> : <><p>This session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version is {shortId(currentVersion)} and cannot select those records. Start a separate successor session, re-select the exact source, and review each new decision before accepting it.</p><label className="flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event) => setTransitionConfirmed(event.target.checked)} />I understand this creates new evidence records for the active version and does not change or automatically accept the existing records.</label><button disabled={!!busy || !transitionConfirmed || !currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></>}</section>}
     <label className="flex gap-3"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection. The original stays on this computer. I can stop future selection or withdraw permission below.</label>
     <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={add}>Add training source</button>
     {busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{error && <p role="alert">{reasonLabel(error)}</p>}
@@ -452,7 +556,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
     {coverageNeedsUpdate && managerCoverage && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Agent update required before this evidence can guide runs</h2><p>{managerCoverage.reason === 'manager_quality_coverage_unclassified_training' ? 'This version has no Manager training-coverage policy.' : 'This version does not cover every accepted evidence property, relation, and stage.'} This is the version-wide result across all training sessions for this immutable agent version. Your accepted evidence remains immutable and preserved, but uncovered decisions cannot be selected at planning or any other uncovered stage.</p><p>Publish a new immutable agent version with Manager v3 coverage for the listed evidence. Existing accepted records will not be rewritten.</p>{managerCoverage.uncoveredPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.uncoveredPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul>}</section>}
     {coverageCanClaimReady && managerCoverage?.contractVersion === 'manager-training-coverage.v1' && <p role="status" className="rounded border border-emerald-600 p-3">This immutable agent version classifies all {managerCoverage.acceptedPairs.length} accepted stage-scoped evidence routes across all training sessions.</p>}
     {coverageCanClaimReady && managerCoverage?.contractVersion === 'manager-training-coverage.v2' && <section role="status" className="rounded border border-ink-700 p-3 space-y-2"><h2 className="font-semibold">Private training routing available</h2><p>{managerCoverage.coveredPairs.length} required-policy routes · {managerCoverage.optionalPairs.length} optional taste routes. Optional taste can guide supported decisions without editing this agent. Each run selects a bounded set; eligibility does not mean an example was selected or applied.</p>{managerCoverage.optionalPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.optionalPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)} · Optional taste</li>)}</ul>}{managerCoverage.unsupportedPairs.length > 0 && <div className="text-amber-400"><p>{managerCoverage.unsupportedPairs.length} accepted routes are not supported by this routing policy. They remain saved, are not selected through optional routing, and do not block other supported training.</p><ul className="list-disc pl-5">{managerCoverage.unsupportedPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)} · Unsupported</li>)}</ul></div>}</section>}
-    {coverageCanClaimReady && trainingIsReady && managerTrainingRequirements && <p role="status" className="rounded border border-emerald-600 p-3">Manager reference training ready: all {managerTrainingRequirements.requiredPairs.length} required visual-reference routes are explicitly fulfilled for this immutable version. Run prelaunch still verifies decisions, procedures, criteria, custody, and the exact selected evidence set.</p>}
+    {coverageCanClaimReady && trainingIsReady && managerTrainingRequirements && <p role="status" className="rounded border border-emerald-600 p-3">Manager reference training ready: all {managerTrainingRequirements.requiredPairs.length} critical request-admission visual-reference routes are explicitly fulfilled for this immutable version. This preflight does not cover every declared reference; first launch verifies all declared references, decisions, procedures, criteria, custody, and the exact selected evidence set.</p>}
 
     {versionTransition && <section className="rounded border border-brand-500 p-4 space-y-3" aria-labelledby="version-successor-heading"><h2 id="version-successor-heading" className="font-semibold">Recreate reviewed decisions for {shortId(sessionVersion)}</h2><p>The records below remain bound to {shortId(versionTransition.fromVersion)}. Re-add the exact source file; Implexa enables a successor only after its SHA-256 matches. The copied text and stages are only a draft. You must preview the exact frame, save it, review the new immutable digest, and accept it again before Manager readiness can include it.</p><ul className="space-y-3">{versionTransition.sources.flatMap((oldSource) => oldSource.decisions.filter((decision) => decision.state === 'accepted').map((decision) => { const matched = sources.find((candidate) => candidate.metadata.sha256 === oldSource.metadata.sha256); const alreadyCreated = matched?.decisions.some((candidate) => candidate.content.relation === decision.content.relation && candidate.content.anchor.startMs === decision.content.anchor.startMs && candidate.content.summary === decision.content.summary); return <li key={decision.recordId} className="rounded border border-ink-700 p-3 space-y-2"><p>{formatTrainingTime(decision.content.anchor.startMs)} · {decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')} · from digest {shortId(decision.recordDigest)}</p>{!matched && <p>Re-add source SHA-256 {shortId(oldSource.metadata.sha256)} to continue.</p>}{alreadyCreated ? <p role="status">A distinct successor draft or accepted record already exists in this session.</p> : <button disabled={!!busy || !matched} onClick={() => matched && prepareVersionSuccessor(matched, decision)}>Prepare new-version successor draft</button>}</li>; }))}</ul></section>}
 
