@@ -22,6 +22,10 @@ test('taste-fit packet is additive, strict and bound to the validated selected v
  }
  const unavailable={...assessment,status:'unavailable',reason:'reference_authority_unavailable',fit:null,gaps:[]};
  assert.ok(parseReviewPacketResponse({...withFit,tasteFit:{...withFit.tasteFit,assessment:unavailable}},'run'));
+ const selection={reason:'pairwise_preferred_revision',comparisonDigest:'c'.repeat(64),uncalibrated:true};
+ assert.equal(parseReviewPacketResponse({...withFit,tasteFit:{...withFit.tasteFit,selection}},'run')?.tasteFit?.selection?.reason,selection.reason);
+ for(const bad of [{...selection,comparisonDigest:'wrong'},{...selection,uncalibrated:false},{...selection,reason:'passed'},{...selection,privateExamples:[]}])
+   assert.equal(parseReviewPacketResponse({...withFit,tasteFit:{...withFit.tasteFit,selection:bad}},'run'),null);
 });
 
 test('actual owner card renders weak and unavailable opinions separately from technical acceptance',async()=>{
@@ -35,6 +39,10 @@ test('actual owner card renders weak and unavailable opinions separately from te
  const html=renderToStaticMarkup(React.createElement(Card,{review:{status:'ready',preparationId:'p',assessment:{...assessment,fit:'weak'}}}));
  assert.match(html,/Taste fit: weak/);assert.match(html,/Separate from technical checks/);assert.match(html,/Hierarchy is flat/);
  assert.match(html,/does not establish that training caused/);
+ const selected=renderToStaticMarkup(React.createElement(Card,{review:{status:'ready',preparationId:'p',assessment,
+   selection:{reason:'pairwise_preferred_revision',comparisonDigest:'c'.repeat(64),uncalibrated:true}}}));
+ assert.match(selected,/revised video was preferred in both comparison orders within the same grade band/);
+ assert.match(selected,/not a higher letter grade/);
  const missing=renderToStaticMarkup(React.createElement(Card,{review:{status:'unavailable',preparationId:null,assessment:null}}));
  assert.match(missing,/Taste fit: unavailable/);assert.equal(missing.includes('passed'),false);
 });

@@ -165,6 +165,7 @@ export type ReviewProduction = {
 
 export type TasteFitReview = {
   status: 'ready' | 'unavailable'; preparationId: string | null;
+  selection?: {reason:string;comparisonDigest:string|null;uncalibrated:true};
   assessment: null | { contractVersion: 'taste-fit-assessment.v1'; status: 'assessed' | 'unavailable';
     reason: string | null; fit: 'strong' | 'partial' | 'weak' | 'unassessed' | null;
     referenceSetDigest: string; artifactSha256: string | null; explanation: string;
@@ -174,8 +175,16 @@ function parseTasteFitReview(value: unknown, artifacts: ReviewArtifact[]): Taste
   const exact=(v:Record<string,unknown>,keys:string[])=>Object.keys(v).sort().join(',')===keys.sort().join(',');
   const text=(v:unknown,max:number)=>typeof v==='string' && v.trim().length>0 && v.length<=max;
   const sha=(v:unknown)=>typeof v==='string' && /^[a-f0-9]{64}$/.test(v);
-  if(!isObject(value)||!exact(value,['status','preparationId','assessment']))return null;
+  if(!isObject(value)||!exact(value,['status','preparationId','assessment',...(Object.hasOwn(value,'selection')?['selection']:[])]))return null;
   if(value.status==='unavailable')return value.preparationId===null&&value.assessment===null?value as TasteFitReview:null;
+  if(Object.hasOwn(value,'selection')) {
+    const s=value.selection;
+    if(!isObject(s)||!exact(s,['reason','comparisonDigest','uncalibrated'])||s.uncalibrated!==true
+      ||!(s.comparisonDigest===null||sha(s.comparisonDigest))
+      ||!['strictly_better_without_regression','no_strict_improvement','dimension_regression','unassessed','grade_unavailable','revision_unavailable','insufficient_time',
+        'pairwise_preferred_revision','pairwise_preferred_original','pairwise_tie','pairwise_uncertain','pairwise_reference_context_unavailable','pairwise_reference_set_empty',
+        'pairwise_reference_bytes_unavailable','pairwise_reference_authority_unavailable','pairwise_judge_unavailable','pairwise_invalid_response','pairwise_time_reserve'].includes(String(s.reason))) return null;
+  }
   const f=value.assessment;
   if(value.status!=='ready'||!isId(value.preparationId)||!isObject(f)
     ||!exact(f,['contractVersion','status','reason','fit','referenceSetDigest','artifactSha256','explanation','gaps'])
