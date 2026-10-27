@@ -183,7 +183,7 @@ function parseTasteFitReview(value: unknown, artifacts: ReviewArtifact[]): Taste
       ||!(s.comparisonDigest===null||sha(s.comparisonDigest))
       ||!['strictly_better_without_regression','no_strict_improvement','dimension_regression','unassessed','grade_unavailable','revision_unavailable','insufficient_time',
         'pairwise_preferred_revision','pairwise_preferred_original','pairwise_tie','pairwise_uncertain','pairwise_reference_context_unavailable','pairwise_reference_set_empty',
-        'pairwise_reference_bytes_unavailable','pairwise_reference_authority_unavailable','pairwise_judge_unavailable','pairwise_invalid_response','pairwise_time_reserve'].includes(String(s.reason))) return null;
+        'pairwise_candidate_bytes_unavailable','pairwise_reference_bytes_unavailable','pairwise_reference_authority_unavailable','pairwise_judge_unavailable','pairwise_invalid_response','pairwise_time_reserve'].includes(String(s.reason))) return null;
   }
   const f=value.assessment;
   if(value.status!=='ready'||!isId(value.preparationId)||!isObject(f)
