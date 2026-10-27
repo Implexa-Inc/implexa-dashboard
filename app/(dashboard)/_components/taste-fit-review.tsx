@@ -10,6 +10,10 @@ export default function TasteFitReviewCard({ review }: { review?: TasteFitReview
     {f?.status === 'unavailable' && <p className="text-xs text-amber-300">Not assessed: {f.reason?.replaceAll('_', ' ')}</p>}
     {!!f?.gaps.length && <ul className="list-disc pl-5 text-sm text-ink-300 space-y-1">{f.gaps.map((g, i) =>
       <li key={i}>{(g.timestampMs / 1000).toFixed(1)}s — {g.observation} {g.suggestion}</li>)}</ul>}
+    {review.selection && <p className="text-xs text-ink-300">Selection: {review.selection.reason === 'pairwise_preferred_revision'
+      ? 'The revised video was preferred in both comparison orders within the same grade band.'
+      : review.selection.reason === 'pairwise_preferred_original' ? 'The original video was preferred in both comparison orders within the same grade band.'
+      : review.selection.reason.replaceAll('_', ' ')} This is an uncalibrated model preference, not a higher letter grade.</p>}
     <p className="text-xs text-ink-500">This comparison does not establish that training caused the result.</p>
   </section>;
 }
