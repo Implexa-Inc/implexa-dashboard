@@ -16,7 +16,8 @@ const PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
 type Call = { operation: string; args: Record<string, unknown> };
 
-function decision(state: 'draft' | 'accepted' = 'draft', stages: string[] = ['preview', 'build', 'qa']) {
+type DecisionState = 'draft' | 'accepted' | 'retired' | 'revoked';
+function decision(state: DecisionState = 'draft', stages: string[] = ['preview', 'build', 'qa']) {
   return {
     recordId: RECORD,
     recordDigest: DIGEST,
@@ -32,7 +33,7 @@ function decision(state: 'draft' | 'accepted' = 'draft', stages: string[] = ['pr
   };
 }
 
-function source(state: 'draft' | 'accepted' = 'draft', stages?: string[]) {
+function source(state: DecisionState = 'draft', stages?: string[]) {
   return {
     sourceId: SOURCE_ID,
     sourceReferenceDigest: 'c'.repeat(64),
@@ -89,7 +90,10 @@ function requirements(workflowVersionId = VERSION_A, overrides: Record<string, u
 }
 
 function harness(options: {
-  state?: 'draft' | 'accepted';
+  state?: DecisionState;
+  localToken?: string | null;
+  authorityResponse?: Record<string, unknown>;
+  failRefreshAfterAuthority?: boolean;
   currentVersion?: string | null;
   failedDrafts?: Array<Record<string, unknown>>;
   pendingDecisions?: Array<Record<string, unknown>>;
@@ -109,6 +113,8 @@ function harness(options: {
   const calls: Call[] = [];
   let currentVersion = options.currentVersion === undefined ? VERSION_A : options.currentVersion;
   let decisionState = options.state || 'draft';
+  let sessionTerminal = options.predecessorTerminal === true;
+  let authorityAcknowledged = false;
   let successorSelected = false;
   let successorCreateAttempts = 0;
   const bridge = {
@@ -134,7 +140,7 @@ function harness(options: {
             : null,
         } };
       }
-      if (operation === 'scope') return { ok: true, scope: { agent: { name: 'Video craft', currentVersionId: currentVersion }, ...(args.sessionId ? { session: { sessionId: String(args.sessionId), baseVersionId: args.sessionId === NEW_SESSION ? (options.successorBaseVersion || currentVersion) : VERSION_A, parentSessionId: args.sessionId === NEW_SESSION ? (options.successorParentSessionId === undefined ? SESSION : options.successorParentSessionId) : null, terminal: args.sessionId === SESSION && options.predecessorTerminal === true } } : {}) } };
+      if (operation === 'scope') return { ok: true, scope: { agent: { name: 'Video craft', currentVersionId: currentVersion }, ...(args.sessionId ? { session: { sessionId: String(args.sessionId), baseVersionId: args.sessionId === NEW_SESSION ? (options.successorBaseVersion || currentVersion) : VERSION_A, parentSessionId: args.sessionId === NEW_SESSION ? (options.successorParentSessionId === undefined ? SESSION : options.successorParentSessionId) : null, terminal: args.sessionId === SESSION && sessionTerminal } } : {}) } };
       if (operation === 'create') {
         successorCreateAttempts += 1;
         if (options.loseFirstSuccessorResponse && successorCreateAttempts === 1) return { ok: false, reason: 'training_unavailable' };
@@ -147,12 +153,13 @@ function harness(options: {
       }
       if (operation === 'select' && args.sessionId === NEW_SESSION) successorSelected = true;
       if (operation === 'list') {
+        if (authorityAcknowledged && options.failRefreshAfterAuthority) return { ok: false, reason: 'training_local_unavailable' };
         const next = source('draft', options.stages);
         if (options.successorSha) next.metadata.sha256 = options.successorSha;
         const listedVersion = args.sessionId === NEW_SESSION ? currentVersion : VERSION_A;
         return {
           ok: true,
-          sources: args.sessionId === NEW_SESSION ? (successorSelected ? [{ ...next, decisions: [] }] : []) : [source(decisionState, options.stages)],
+          sources: args.sessionId === NEW_SESSION ? (successorSelected ? [{ ...next, decisions: [] }] : []) : [{...source(decisionState, options.stages), token: options.localToken === undefined ? TOKEN : options.localToken}],
           failedDrafts: options.failedDrafts || [],
           pendingDecisions: options.pendingDecisions || [],
           managerCoverage: options.managerCoverage,
@@ -163,11 +170,15 @@ function harness(options: {
       }
       if (operation === 'decisionPreview') return { ok: true, image: PNG, recordId: RECORD, recordDigest: DIGEST };
       if (operation === 'accept') { decisionState = 'accepted'; return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'accepted' }; }
-      if (operation === 'revoke') { decisionState = 'draft'; return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'revoked' }; }
+      if (operation === 'retire' || operation === 'revoke') {
+        decisionState = operation === 'retire' ? 'retired' : 'revoked';
+        authorityAcknowledged = true;
+        return options.authorityResponse || { ok: true, recordId: RECORD, recordDigest: DIGEST, state: decisionState };
+      }
       return { ok: true, image: PNG };
     },
   };
-  return { bridge, calls, setCurrentVersion: (value: string | null) => { currentVersion = value; } };
+  return { bridge, calls, setCurrentVersion: (value: string | null) => { currentVersion = value; }, setSessionTerminal: (value: boolean) => { sessionTerminal = value; } };
 }
 
 async function renderedWith(options: Parameters<typeof harness>[0] = {}) {
@@ -817,17 +828,82 @@ test('successor preserves prior stages and expands required routes only after ex
   } finally { rendered.cleanup(); }
 });
 
-test('accepted evidence has an explicit, confirmed revoke path', async () => {
+test('accepted teaching has separate confirmed retirement and immediate permission withdrawal', async () => {
   const { rendered, calls } = await renderedWith({ state: 'accepted' });
   try {
-    await rendered.click(rendered.getByText('Review accepted evidence'));
-    assert.equal((rendered.getByText('Revoke future selection') as HTMLButtonElement).disabled, true);
-    const checks = rendered.document.querySelectorAll('input[type="checkbox"]');
-    await rendered.click(checks[checks.length - 1]);
-    await rendered.click(rendered.getByText('Revoke future selection'));
+    await rendered.click(rendered.getByText('Manage teaching'));
+    assert.equal((rendered.getByText('Stop using in new runs') as HTMLButtonElement).disabled, true);
+    assert.equal((rendered.getByText('Withdraw permission now') as HTMLButtonElement).disabled, true);
+    assert.match(rendered.text(), /future run may need replacement training/);
+    assert.match(rendered.text(), /already disclosed material cannot be recalled/);
+    assert.equal(calls.some(item => item.operation === 'decisionPreview'), false);
+    await rendered.click(rendered.getByText(/Stop selecting this teaching for new runs/).closest('label')!.querySelector('input')!);
+    assert.equal((rendered.getByText('Withdraw permission now') as HTMLButtonElement).disabled, true, 'retirement confirmation never confirms privacy withdrawal');
+    await rendered.click(rendered.getByText('Stop using in new runs'));
+    const retired = calls.find(item => item.operation === 'retire')!;
+    assert.deepEqual(JSON.parse(JSON.stringify(retired.args)), { sessionId: SESSION, recordId: RECORD, expectedDigest: DIGEST });
+    await rendered.click(rendered.getByText('Manage teaching'));
+    assert.equal(rendered.queryByText('Stop using in new runs'), null, 'retirement cannot silently reactivate itself');
+    await rendered.click(rendered.getByText(/Withdraw permission for further use now/).closest('label')!.querySelector('input')!);
+    await rendered.click(rendered.getByText('Withdraw permission now'));
     const call = calls.find((item) => item.operation === 'revoke')!;
-    assert.deepEqual(JSON.parse(JSON.stringify(call.args)), { token: TOKEN, recordId: RECORD, expectedDigest: DIGEST });
+    assert.deepEqual(JSON.parse(JSON.stringify(call.args)), { sessionId: SESSION, recordId: RECORD, expectedDigest: DIGEST });
+    assert.equal(rendered.queryByText('Manage teaching'), null, 'revoked state takes precedence over retirement');
   } finally { rendered.cleanup(); }
+});
+
+test('authority reductions work without local evidence, preview, current version or an open session', async () => {
+  for (const operation of ['retire', 'revoke'] as const) {
+    const h = await renderedWith({ state: operation === 'retire' ? 'accepted' : 'retired', localToken: null });
+    try {
+      h.setCurrentVersion(VERSION_B); h.setSessionTerminal(true);
+      const before = h.calls.length;
+      await h.rendered.click(h.rendered.getByText('Manage teaching'));
+      assert.equal(h.calls.length, before, 'managing server-listed authority does not require source access');
+      const pattern = operation === 'retire' ? /Stop selecting this teaching for new runs/ : /Withdraw permission for further use now/;
+      await h.rendered.click(h.rendered.getByText(pattern).closest('label')!.querySelector('input')!);
+      await h.rendered.click(h.rendered.getByText(operation === 'retire' ? 'Stop using in new runs' : 'Withdraw permission now'));
+      assert.deepEqual(h.calls.slice(before).map(item => item.operation), [operation, 'list']);
+      assert.deepEqual(JSON.parse(JSON.stringify(h.calls[before].args)), { sessionId: SESSION, recordId: RECORD, expectedDigest: DIGEST });
+    } finally { h.rendered.cleanup(); }
+  }
+});
+
+test('authority response mismatches never show a successful retirement', async () => {
+  const { rendered, calls } = await renderedWith({ state: 'accepted', authorityResponse: {
+    ok: true, recordId: SOURCE_ID, recordDigest: DIGEST, state: 'retired',
+  } });
+  try {
+    await rendered.click(rendered.getByText('Manage teaching'));
+    await rendered.click(rendered.getByText(/Stop selecting this teaching for new runs/).closest('label')!.querySelector('input')!);
+    const before = calls.length;
+    await rendered.click(rendered.getByText('Stop using in new runs'));
+    assert.match(rendered.text(), /authority change could not be verified/);
+    assert.deepEqual(calls.slice(before).map(item => item.operation), ['retire']);
+  } finally { rendered.cleanup(); }
+});
+
+test('acknowledged authority changes stay visible when local list refresh fails', async () => {
+  for (const operation of ['retire', 'revoke'] as const) {
+    const { rendered, calls } = await renderedWith({ state: 'accepted', failRefreshAfterAuthority: true });
+    try {
+      await rendered.click(rendered.getByText('Manage teaching'));
+      const pattern = operation === 'retire' ? /Stop selecting this teaching for new runs/ : /Withdraw permission for further use now/;
+      await rendered.click(rendered.getByText(pattern).closest('label')!.querySelector('input')!);
+      await rendered.click(rendered.getByText(operation === 'retire' ? 'Stop using in new runs' : 'Withdraw permission now'));
+      assert.match(rendered.text(), /change was applied, but the teaching list could not refresh/);
+      assert.equal(rendered.queryByText('Review accepted evidence'), null);
+      assert.equal(rendered.queryByText('Stop using in new runs'), null, 'the acknowledged action panel closes');
+      assert.deepEqual(calls.slice(-2).map(item => item.operation), [operation, 'list']);
+      if (operation === 'revoke') assert.equal(rendered.queryByText('Manage teaching'), null, 'withdrawn authority never remains actionable');
+      else {
+        await rendered.click(rendered.getByText('Manage teaching'));
+        assert.match(rendered.text(), /teaching is stopped for new runs/);
+        assert.equal(rendered.queryByText('Stop using in new runs'), null);
+        assert.ok(rendered.getByText('Withdraw permission now'), 'retired teaching retains its privacy withdrawal path');
+      }
+    } finally { rendered.cleanup(); }
+  }
 });
 
 test('only typed transient drafts offer Retry; permanent drafts offer discard', async () => {
