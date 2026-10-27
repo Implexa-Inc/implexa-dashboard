@@ -46,3 +46,28 @@ test('actual owner card renders weak and unavailable opinions separately from te
  const missing=renderToStaticMarkup(React.createElement(Card,{review:{status:'unavailable',preparationId:null,assessment:null}}));
  assert.match(missing,/Taste fit: unavailable/);assert.equal(missing.includes('passed'),false);
 });
+
+test('final quality card shows an integer or not assessed while historical bands remain unchanged',async()=>{
+ const {readFileSync}=await import('node:fs'),ts=await import('typescript'),React=await import('react');
+ const {renderToStaticMarkup}=await import('react-dom/server'),{createRequire}=await import('node:module');
+ const require=createRequire(import.meta.url),mod={exports:{}};
+ const source=readFileSync('app/(dashboard)/_components/run-judgment-card.tsx','utf8');
+ const js=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS}}).outputText;
+ const localRequire=(id:string)=>id==='@/lib/judge-repair-state'?{judgeRepairState:()=>({phase:'none'})}
+  :id==='next/link'?{default:()=>null}:id==='./judge-feedback-controls'?{default:()=>null}
+  :id==='./manager-repair-checkpoint-retry'?{ManagerRepairCheckpointRetry:()=>null}:require(id);
+ new Function('require','module','exports',js)(localRequire,mod,mod.exports);
+ const Card=(mod.exports as {RunJudgmentCard:React.ComponentType<any>}).RunJudgmentCard;
+ const grade={contractVersion:'creative-grade.v2',overallScore:82,overallBand:'B',summary:'Clear visual explanation.',
+  relativePath:'out/video.mp4',artifactSha256:sha,rubricDigest:sha,calibration:'uncalibrated',
+  dimensions:[{id:'visual_explanation',score:82,band:'B',explanation:'A useful visual.',gaps:[]}],
+  coverage:{durationMs:1000,timestampsMs:[0,990],limitations:'Still images only.',continuousPlaybackVerified:false}};
+ const render=(g:any)=>renderToStaticMarkup(React.createElement(Card,{judgment:{verdict:'pass',summary:'Delivered.',creative_grade:g}}));
+ const html=render(grade);assert.match(html,/Quality 82\/100/);assert.match(html,/visual explanation.*82\/100/);
+ assert.match(html,/One model review, not calibrated/);assert.match(html,/Technical delivery reviewed/);
+ assert.doesNotMatch(html,/Creative grade: B|— B/);
+ const missing=render({...grade,overallScore:null,overallBand:'unassessed',dimensions:[{...grade.dimensions[0],score:null,band:'unassessed'}]});
+ assert.match(missing,/Quality not assessed/);assert.doesNotMatch(missing,/Quality 0\/100/);
+ assert.match(render({...grade,overallScore:0}),/Quality 0\/100/,'zero is a real score, not missing');
+ assert.match(render({...grade,contractVersion:'creative-grade.v1'}),/Creative grade: B/);
+});
