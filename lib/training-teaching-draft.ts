@@ -63,3 +63,23 @@ export function teachingFailure(value: unknown, status: number): string {
   const reference = typeof v.requestId === 'string' && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(v.requestId) ? ` · reference ${v.requestId}` : '';
   return `${code ? messages[code] : 'Suggestions are unavailable or did not match this frame.'} Your answer and manual draft are preserved. (HTTP ${status}${code ? ` · ${code}` : ''}${reference})`;
 }
+
+export type RecordingFrame = {timeMs:number;frameSha256:string;image:string};
+export type RecordingExcerpt = {sourceId:string;sourceSha256:string;targetVersionId:string;startIndex:number;endIndex:number;startMs:number;endMs:number;text:string;
+  segments:Array<{index:number;startMs:number;endMs:number;text:string}>};
+export type RecordingSuggestion = {ok:true;contractVersion:'training-teaching-suggestion.v4';requestId:string;model:string;status:'suggested';fields:TeachingFields;reason:'';
+  frameIndex:number;suggestionId:string;suggestionDigest:string;sources:Record<typeof TEACHING_FIELDS[number],string>;
+  binding:{sourceId:string;sourceSha256:string;targetVersionId:string;excerptId:string;excerptDigest:string;frames:Array<{timeMs:number;frameSha256:string}>}};
+const recordingUuid=(v:any)=>typeof v==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(v);
+const recordingSha=(v:any)=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
+export function recordingSuggestion(v:any,expected:RecordingSuggestion['binding']):v is RecordingSuggestion {
+  return exact(v,['ok','contractVersion','requestId','model','status','fields','reason','frameIndex','suggestionId','suggestionDigest','sources','binding'])
+    && v.ok===true && v.contractVersion==='training-teaching-suggestion.v4' && v.model===TEACHING_MODEL && recordingUuid(v.requestId)
+    && recordingUuid(v.suggestionId) && recordingSha(v.suggestionDigest) && v.status==='suggested' && v.reason===''
+    && Number.isInteger(v.frameIndex) && v.frameIndex>=0 && v.frameIndex<3 && exact(v.fields,[...TEACHING_FIELDS])
+    && TEACHING_FIELDS.every(k=>typeof v.fields[k]==='string'&&v.fields[k].trim()&&v.fields[k].length<=400)
+    && exact(v.sources,[...TEACHING_FIELDS]) && v.sources.chosen==='observed_frame' && v.sources.why==='inferred_from_recognized_narration'
+    && v.sources.process==='transferable_guidance' && v.sources.desiredBehavior==='transferable_guidance'
+    && exact(v.binding,Object.keys(expected)) && ['sourceId','sourceSha256','targetVersionId','excerptId','excerptDigest'].every(k=>v.binding[k]===expected[k as keyof typeof expected])
+    && Array.isArray(v.binding.frames)&&v.binding.frames.length===3 && v.binding.frames.every((f:any,i:number)=>exact(f,['timeMs','frameSha256'])&&f.timeMs===expected.frames[i].timeMs&&f.frameSha256===expected.frames[i].frameSha256);
+}
