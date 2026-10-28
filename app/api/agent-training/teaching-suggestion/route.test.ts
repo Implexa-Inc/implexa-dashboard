@@ -57,3 +57,11 @@ test('annotation proxy adds only the named owner-authenticated write and preserv
  const denied=proxy();assert.equal((await denied.POST(req('{"action":"save"}',`sessionId=${SESSION}&operation=annotation`))).status,400);assert.equal(denied.calls.length,0);
  const arbitrary=proxy();assert.equal((await arbitrary.POST(req('{}',`sessionId=${SESSION}&operation=export`))).status,400);assert.equal(arbitrary.calls.length,0);
 });
+
+test('recording proxy permits only named manifest/link writes with server auth and stable key',async()=>{
+ const p=proxy(),request=new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?sessionId=${SESSION}&operation=recording`,{
+  method:'POST',headers:{'Idempotency-Key':'recording-manifest-key'},body:'{"action":"manifest"}'});
+ assert.equal((await p.POST(request)).status,200);assert.equal(p.calls[0].url,`https://core.implexa.ai/api/v2/agent-training/sessions/${SESSION}/recording`);
+ assert.equal(p.calls[0].init.headers['Idempotency-Key'],'recording-manifest-key');
+ const denied=proxy();assert.equal((await denied.POST(req('{"action":"excerpt"}',`sessionId=${SESSION}&operation=recording`))).status,400);assert.equal(denied.calls.length,0);
+});

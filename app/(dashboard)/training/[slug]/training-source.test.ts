@@ -92,6 +92,7 @@ function requirements(workflowVersionId = VERSION_A, overrides: Record<string, u
 }
 
 function harness(options: {
+  recording?: boolean;
   state?: DecisionState;
   previewImage?: string;
   localToken?: string | null;
@@ -130,6 +131,7 @@ function harness(options: {
   let deliveryReceiptDigest: string | null = null;
   const bridge = {
     trainingLocalContractVersion: '2',
+    ...(options.recording?{trainingRecordingContractVersion:'1'}:{}),
     trainingLocal: async (operation: string, unknownArgs: unknown) => {
       const args = (unknownArgs || {}) as Record<string, unknown>;
       calls.push({ operation, args });
@@ -170,6 +172,7 @@ function harness(options: {
         if (options.successorSha) next.metadata.sha256 = options.successorSha;
         const listedVersion = args.sessionId === NEW_SESSION ? currentVersion : VERSION_A;
         const current: any = source(decisionState, options.stages);
+        if(options.recording)current.metadata.durationMs=5000;
         Object.assign(current.decisions[0], { deliveryMode, deliveryReceiptDigest });
         if (options.deliveryRelation) current.decisions[0].content.relation = options.deliveryRelation;
         if (lastAnnotated) { current.decisions[0].decision = lastAnnotated.decision;
@@ -1372,5 +1375,38 @@ test('changing a saved demo annotation prevents suggestion until the new text is
   await setTextarea(r,r.getByText('What should this demonstration teach?').closest('label')!.querySelector('textarea')!,'A changed preference');
   assert.equal((r.getByText('Suggest teaching from this frame') as HTMLButtonElement).disabled,true);
   assert.equal(h.requests.some(q=>q.body.mode==='demonstration'),false);
+ }finally{r.cleanup();}
+});
+
+test('recording intake is capability gated; call2 retries reuse the exact excerpt and never admit a teaching',async()=>{
+ const old=await renderedWith();try{await old.rendered.click(old.rendered.getByText('Annotate source'));assert.equal(old.rendered.queryByText('Find teaching in recording'),null);}finally{old.rendered.cleanup();}
+ const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
+ const segments=[{index:0,startMs:0,endMs:5000,text:'Use one meaningful visual rather than lots of text.'}];
+ h.bridge.trainingLocal=async(operation,args)=>operation==='recording'?{ok:true,manifest:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A},segments,storyboard:[],manifestId:QUESTION,manifestDigest:DIGEST}:original(operation,args);
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const requests:any[]=[];let drafts=0;
+ const prior=r.window.fetch;
+ r.window.fetch=(async(url:string,init:RequestInit)=>{
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  const b=JSON.parse(String(init.body));requests.push(b);
+  if(b.mode==='recording-locate')return {ok:true,status:200,json:async()=>({ok:true,status:'located',excerptId:QUESTION,excerptDigest:DIGEST,excerpt:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A,startIndex:0,endIndex:0,startMs:0,endMs:5000,text:segments[0].text,segments}})};
+  drafts++;if(drafts===1)return {ok:false,status:503,json:async()=>({ok:false,reason:'teaching_suggestion_provider_unavailable'})};
+  return {ok:true,status:200,json:async()=>({ok:true,contractVersion:'training-teaching-suggestion.v4',requestId:QUESTION,model:'claude-haiku-5-5',status:'suggested',fields:SUGGESTION_FIELDS,reason:'',frameIndex:1,
+   suggestionId:QUESTION,suggestionDigest:DIGEST,sources:{chosen:'observed_frame',why:'inferred_from_recognized_narration',process:'transferable_guidance',desiredBehavior:'transferable_guidance'},
+   binding:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A,excerptId:QUESTION,excerptDigest:DIGEST,frames:b.frames.map(({timeMs,frameSha256}:any)=>({timeMs,frameSha256}))}})};
+ }) as typeof r.window.fetch;
+ const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+ try {
+  await r.click(r.getByText('Annotate source'));
+  await r.click(r.getByText(/Recognize narration locally/).closest('label')!.querySelector('input')!);
+  await r.click(r.getByText('Find teaching in recording'));await flush();
+  assert.ok(r.queryByText('Request draft from this excerpt only'));assert.match(r.text(),/Use one meaningful visual/);
+  await r.click(r.getByText('Request draft from this excerpt only'));await flush();
+  assert.equal(requests.filter(b=>b.mode==='recording-locate').length,1);assert.equal(requests.filter(b=>b.mode==='recording-draft').length,2);
+  assert.equal(r.document.querySelectorAll('figure').length,3);assert.match(r.text(),/Model choice/);
+  assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
+  await r.click(r.getByText('Use recording suggestion in editable fields'));
+  assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value,SUGGESTION_FIELDS.chosen);
  }finally{r.cleanup();}
 });

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
-import { teachingDigest, teachingFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation } from '@/lib/training-teaching-draft';
+import { teachingDigest, teachingFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation, recordingSuggestion, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
 import {
   deriveTrainingStages,
   formatTrainingTime,
@@ -79,6 +79,7 @@ type Result = {
 };
 type Bridge = {
   trainingLocalContractVersion?: string;
+  trainingRecordingContractVersion?: string;
   trainingLocal: (operation: string, args: unknown) => Promise<Result>;
 };
 type Preview = { token: string; timeMs: number; image: string };
@@ -156,6 +157,12 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [demoAnnotation, setDemoAnnotation] = useState<{ value: DemoAnnotation; previewIdentity: string } | null>(null);
   const pendingDemoSave = useRef<{ fingerprint: string; key: string } | null>(null);
   const [pendingDemoLink, setPendingDemoLink] = useState<{ annotation: DemoAnnotation; sessionId: string; recordId: string; recordDigest: string } | null>(null);
+  const [recordingConsent,setRecordingConsent] = useState(false);
+  const [recordingSupported,setRecordingSupported] = useState(false);
+  useEffect(()=>{setRecordingSupported(bridge()?.trainingRecordingContractVersion==='1');},[]);
+  const [recording,setRecording] = useState<{excerptId:string;excerptDigest:string;excerpt:RecordingExcerpt;frames:RecordingFrame[];suggestion:RecordingSuggestion|null}|null>(null);
+  const [pendingRecordingLink,setPendingRecordingLink] = useState<{body:Record<string,unknown>;sessionId:string;key:string}|null>(null);
+  useEffect(()=>{setRecording(null);setRecordingConsent(false);},[selected?.sourceId,session,currentVersion]);
   const [draftConsent, setDraftConsent] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggested, setSuggested] = useState<{ value: TeachingSuggestion; snapshot: string } | null>(null);
@@ -454,6 +461,80 @@ export default function TrainingSource({ slug }: { slug: string }) {
     });
   }
 
+  async function requestRecordingDraft(prepared:NonNullable<typeof recording>,snapshot:string) {
+    const source=selected;
+    if(!source || !currentVersion || latestDraft.current!==snapshot) throw Error('The source or draft changed. No recording suggestion was requested.');
+    const binding={sourceId:source.sourceId,sourceSha256:source.metadata.sha256,targetVersionId:currentVersion,
+      excerptId:prepared.excerptId,excerptDigest:prepared.excerptDigest,frames:prepared.frames.map(({timeMs,frameSha256})=>({timeMs,frameSha256}))};
+    const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({mode:'recording-draft',sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:currentVersion,
+        excerptId:prepared.excerptId,excerptDigest:prepared.excerptDigest,frames:prepared.frames,consent:true})});
+    const value=await response.json();
+    if(latestDraft.current!==snapshot) throw Error('The source or draft changed. The previous recording suggestion was not applied.');
+    if(response.ok && value?.ok===true && value.status==='insufficient' && typeof value.reason==='string' && value.reason.length<=300) {
+      setSuggestionNote(value.reason);return;
+    }
+    if(!response.ok || !recordingSuggestion(value,binding))throw Error(teachingFailure(value,response.status));
+    const selectedFrame=prepared.frames[value.frameIndex];
+    setRecording({...prepared,suggestion:value});setTime(selectedFrame.timeMs);setPreview({token:source.token!,timeMs:selectedFrame.timeMs,image:selectedFrame.image});
+    setSuggested(null);appliedSuggestion.current=null;setDemoText('');setDemoAnnotation(null);setQuestionAnswer(null);
+    setSuggestionNote('Review the recognized narration and all three frames. The marked frame is the model’s choice. Nothing has been saved as a teaching or admitted.');
+  }
+  async function findRecordingTeaching() {
+    if(!selected?.token || !currentVersion || !recordingConsent || !recordingSupported)return;
+    const source=selected,version=currentVersion,snapshot=draftSnapshot;
+    await work('Transcribing recording and locating one taste example',async()=>{
+      await requireCurrentScope();
+      if(latestDraft.current!==snapshot)throw Error('The draft changed. Start again from the selected recording.');
+      const local=await resolveBridge().trainingLocal('recording',{token:source.token}) as Result & {manifest:any;segments:any[];storyboard:RecordingFrame[];manifestId:string;manifestDigest:string};
+      if(!local.ok)throw Error(local.reason||'Recording analysis unavailable.');
+      if(latestDraft.current!==snapshot)throw Error('The draft changed. No narration was sent to the model.');
+      if(local.manifest?.sourceId!==source.sourceId || local.manifest.sourceSha256!==source.metadata.sha256 || local.manifest.targetVersionId!==version)throw Error('The recording scope changed.');
+      const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'recording-locate',
+        sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:version,manifestId:local.manifestId,manifestDigest:local.manifestDigest,
+        segments:local.segments,storyboard:local.storyboard,consent:true})});
+      const value=await response.json();
+      if(latestDraft.current!==snapshot)throw Error('The draft changed. The located excerpt was not applied.');
+      if(response.ok && value?.ok===true && value.status==='insufficient' && typeof value.reason==='string' && value.reason.length<=300){setSuggestionNote(value.reason);return;}
+      if(!response.ok || value?.ok!==true || value.status!=='located' || typeof value.excerptId!=='string' || !/^[a-f0-9]{64}$/.test(value.excerptDigest||''))throw Error(teachingFailure(value,response.status));
+      const e=value.excerpt as RecordingExcerpt,segments=local.segments.slice(e.startIndex,e.endIndex+1);
+      if(e.sourceId!==source.sourceId || e.sourceSha256!==source.metadata.sha256 || e.targetVersionId!==version
+        || !Number.isInteger(e.startIndex)||!Number.isInteger(e.endIndex)||e.startIndex<0||e.endIndex<e.startIndex||!segments.length||segments.length>48
+        || !Array.isArray(e.segments) || e.segments.length!==segments.length || e.segments.some((s,i)=>['index','startMs','endMs','text'].some(k=>s[k as keyof typeof s]!==segments[i][k])) || e.text!==segments.map(s=>s.text).join(' ')
+        || e.startMs!==segments[0].startMs || e.endMs!==Math.max(...segments.map(s=>s.endMs)) || e.endMs-e.startMs>120000)throw Error('The located narration did not match this recording.');
+      const frames:RecordingFrame[]=[];let bytes=0;
+      for(const timeMs of [e.startMs,Math.floor((e.startMs+e.endMs)/2),e.endMs-1]) {
+        await requireCurrentScope();if(latestDraft.current!==snapshot)throw Error('The draft changed. Evidence extraction stopped.');
+        const frame=await call('preview',{token:source.token,timeMs});const image=frame.image||'',data=teachingFrame(image);
+        bytes+=data.length;if(bytes>2*1024*1024)throw Error('The three exact frames exceed the suggestion budget. No draft call was sent.');
+        frames.push({timeMs,image,frameSha256:await teachingDigest(data)});
+      }
+      const prepared={excerptId:value.excerptId,excerptDigest:value.excerptDigest,excerpt:e,frames,suggestion:null};setRecording(prepared);
+      await requestRecordingDraft(prepared,snapshot);
+    });
+  }
+  async function retryRecordingDraft() {
+    if(!recording || !recordingConsent)return;
+    await work('Drafting from the retained excerpt and frames',async()=>{await requireCurrentScope();await requestRecordingDraft(recording,draftSnapshot);});
+  }
+  async function useRecordingSuggestion() {
+    const suggestion=recording?.suggestion,frame=suggestion && recording.frames[suggestion.frameIndex];
+    if(!suggestion || !frame || !previewIsCurrent || time!==frame.timeMs || preview?.image!==frame.image)return;
+    await work('Using the reviewed recording suggestion',async()=>{
+      await requireCurrentScope();
+      setChosen(suggestion.fields.chosen);setWhy(suggestion.fields.why);setProcess(suggestion.fields.process);setBehavior(suggestion.fields.desiredBehavior);
+      setDecisionKey(crypto.randomUUID());setSuggestionNote('Copied into editable fields. Review and save, then accept separately.');
+    });
+  }
+  async function linkRecording(pending:NonNullable<typeof pendingRecordingLink>) {
+    setPendingRecordingLink(pending);
+    const response=await fetch(`/api/agent-training/teaching-suggestion?operation=recording&sessionId=${encodeURIComponent(pending.sessionId)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':pending.key},body:JSON.stringify(pending.body)});
+    const value=await response.json();
+    if(!response.ok || value?.ok!==true || value.event!=='recording_teaching_linked' || value.detail?.recordId!==pending.body.recordId || value.detail?.recordDigest!==pending.body.expectedRecordDigest
+      || value.detail?.parentId!==pending.body.suggestionId || value.detail?.parentDigest!==pending.body.suggestionDigest)throw Error('The teaching is saved. Retry its recording link instead of creating another teaching.');
+    setPendingRecordingLink(null);setRecording(null);setSuggestionNote('Teaching linked to the exact recognized excerpt and saved frame. Review it before accepting.');
+  }
+
   async function saveDemoAnnotation() {
     if (!selected || !previewIsCurrent || !preview || !demoText.trim() || questionAnswer || !currentVersion) return;
     const source = selected, frame = preview, annotationText = demoText, identity = previewIdentity, version = currentVersion;
@@ -533,7 +614,10 @@ export default function TrainingSource({ slug }: { slug: string }) {
     await work('Saving the visual decision draft', async () => {
       const scope = await requireCurrentScope();
       if (!questionAnswer && demoText.trim() && !demoAnnotationIsCurrent) throw Error('Save the annotation for this exact frame and active version before saving its teaching.');
+      if (pendingRecordingLink) throw Error('Finish linking the saved recording teaching before saving another.');
       if (pendingDemoLink) throw Error('Finish linking the preserved teaching draft before saving another.');
+      const recordingDraft=recording?.suggestion && recording.excerpt.sourceId===source.sourceId && recording.excerpt.targetVersionId===scope.agent.currentVersionId
+        && recording.frames.some(f=>f.timeMs===requestedTime && f.image===requestedPreview?.image) ? recording.suggestion : null;
       const demo = !questionAnswer && demoAnnotationIsCurrent ? demoAnnotation!.value : null;
       if (!requestedPreview || requestedPreview.token !== source.token || requestedPreview.timeMs !== requestedTime) throw new TrainingError('training_preview_stale', 'Preview this exact timestamp again before saving.');
       if (questionAnswer && questionAnswer.expectedActiveVersionId !== scope.agent.currentVersionId) throw new TrainingError('training_version_changed');
@@ -551,6 +635,10 @@ export default function TrainingSource({ slug }: { slug: string }) {
       if (answerLink) setPendingAnswerLinks(answerLink);
       const demoLink = demo && drafted.recordId && drafted.recordDigest ? {annotation:demo,sessionId:session,recordId:drafted.recordId,recordDigest:drafted.recordDigest} : null;
       if (demoLink) setPendingDemoLink(demoLink);
+      const recordingLink=recordingDraft && drafted.recordId && drafted.recordDigest ? {sessionId:session,key:`recording-link:${recordingDraft.suggestionId}:${drafted.recordId}`,body:{action:'link',
+        sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:scope.agent.currentVersionId,suggestionId:recordingDraft.suggestionId,
+        suggestionDigest:recordingDraft.suggestionDigest,recordId:drafted.recordId,expectedRecordDigest:drafted.recordDigest}} : null;
+      if(recordingLink)setPendingRecordingLink(recordingLink);
       setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setSelectionPriority('50'); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null);
       const saved = await load(session);
       if (appliedSuggestion.current) {
@@ -560,6 +648,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
           : 'The draft was saved, but its evidence could not be matched to the suggestion frame. Do not treat the suggestion as describing this saved evidence.');
         appliedSuggestion.current = null;
       }
+      if(recordingLink)await linkRecording(recordingLink);
       if (questionAnswer) {
         if (!drafted.recordId || !drafted.recordDigest) throw new TrainingError('question_answer_link_unavailable', 'The draft was saved, but no verifiable teaching identity was returned. Select that existing draft to link the answer.');
         await linkAnswers(answerLink!);
@@ -756,6 +845,27 @@ export default function TrainingSource({ slug }: { slug: string }) {
       <label className="block">Selection priority<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max="100" step="1" value={selectionPriority} aria-describedby="training-priority-help" aria-invalid={!priorityIsValid} onChange={(event) => { setSelectionPriority(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>
       <p id="training-priority-help" className="text-sm">50 is normal. Prefer this example by choosing a higher number, up to 100. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not widen eligible stages or properties, guarantee selection, or override checks, criteria or facts. Saved decisions stay immutable; changing a preference requires a new reviewed and accepted draft.</p>
       {!priorityIsValid && <p role="alert">Choose a whole-number priority from 0 to 100.</p>}
+      {recordingSupported && selected.metadata.mediaType==='video/mp4' && selected.metadata.durationMs<=600000 && <section className="rounded border border-ink-700 p-3 space-y-3">
+        <h3>Find a taste teaching in this recording</h3>
+        <label className="flex gap-2"><input type="checkbox" checked={recordingConsent} onChange={event=>setRecordingConsent(event.target.checked)} />Recognize narration locally, then send the whole transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5 to locate one visual preference; send its excerpt and three exact frames for an editable suggestion. The selected excerpt and lineage are kept in the private append-only Training history. Nothing is automatically admitted.</label>
+        <button disabled={!!busy || suggesting || !recordingConsent || !selected.token || versionChanged || !!pendingRecordingLink} onClick={findRecordingTeaching}>Find teaching in recording</button>
+        {recording && <>
+          <p>Recognized narration (Desktop-reported ASR, not a verified owner quote): {formatTrainingTime(recording.excerpt.startMs)}–{formatTrainingTime(recording.excerpt.endMs)}</p>
+          <blockquote className="whitespace-pre-wrap">{recording.excerpt.text}</blockquote>
+          <div className="grid gap-3 md:grid-cols-3">{recording.frames.map((frame,index)=><figure key={index}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={frame.image} alt={`Recording evidence ${index+1}`} />
+            <figcaption>{formatTrainingTime(frame.timeMs)}{recording.suggestion?.frameIndex===index?' · Model choice':''}</figcaption>
+            <button disabled={!!busy} onClick={()=>{setTime(frame.timeMs);setPreview({token:selected.token!,timeMs:frame.timeMs,image:frame.image});setDecisionKey(crypto.randomUUID());setSuggested(null);appliedSuggestion.current=null;
+              if(recording.suggestion?.frameIndex!==index){setChosen('');setWhy('');setProcess('');setBehavior('');setSuggestionNote('Different offered frame selected. Draft manually for this frame; the model fields have been cleared.');}}}>Use this frame</button>
+          </figure>)}</div>
+          {!recording.suggestion && <button disabled={!!busy||!recordingConsent} onClick={retryRecordingDraft}>Request draft from this excerpt only</button>}
+          {recording.suggestion && <><dl>{TEACHING_FIELDS.map(key=><div key={key}><dt>{key}</dt><dd>{recording.suggestion!.fields[key]}</dd></div>)}</dl>
+            <p>Preference inferred from recognized narration; review for ASR mistakes. Stills do not establish motion or a tool procedure.</p>
+            <button disabled={!!busy || !previewIsCurrent || preview?.image!==recording.frames[recording.suggestion.frameIndex].image} onClick={useRecordingSuggestion}>Use recording suggestion in editable fields</button></>}
+        </>}
+      </section>}
+      {pendingRecordingLink && <button disabled={!!busy} onClick={()=>work('Linking the saved recording teaching',()=>linkRecording(pendingRecordingLink))}>Retry recording link</button>}
       <fieldset className="rounded border border-ink-700 p-3 space-y-2"><legend className="font-semibold">When may the Manager use this decision?</legend><p className="text-sm">Suggested from the selected visual property. Narrow or expand it deliberately. Planning must be selected for this evidence to guide decisions before tools, generation, or paid actions.</p><div className="grid gap-2">{TRAINING_STAGE_OPTIONS.map((option) => <label key={option.value} className="flex gap-3"><input type="checkbox" checked={stages.includes(option.value)} onChange={() => toggleStage(option.value)} /><span><span className="block">{option.label}</span><span className="block text-sm text-ink-400">{option.help}</span></span></label>)}</div><p className="text-xs text-ink-500">Routing contract {TRAINING_STAGE_ROUTING_VERSION}</p></fieldset>
       <section className="rounded border border-brand-500 p-3 space-y-2" aria-labelledby="teaching-suggestion-heading">
         <h3 id="teaching-suggestion-heading">Optional teaching suggestion</h3>

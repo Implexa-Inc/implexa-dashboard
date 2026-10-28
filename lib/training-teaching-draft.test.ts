@@ -38,3 +38,12 @@ test('demo replies bind the saved annotation and cannot masquerade as recorded-q
  for(const key of Object.keys(expected))assert.equal(teachingSuggestion({...reply,binding:{...expected,[key]:'wrong'}},expected),false,key);
  assert.equal(teachingSuggestion({...reply,binding:{...expected,questionReceiptId}},expected),false);
 });
+
+test('recording v4 keeps inferred preference distinct and binds every offered frame and durable suggestion',async()=>{
+ const {recordingSuggestion}=await import('./training-teaching-draft.ts');
+ const id='11111111-1111-4111-8111-111111111111';
+ const binding={sourceId:id,sourceSha256:'a'.repeat(64),targetVersionId:id,excerptId:id,excerptDigest:'b'.repeat(64),frames:[0,500,999].map(timeMs=>({timeMs,frameSha256:'c'.repeat(64)}))};
+ const reply={...value,contractVersion:'training-teaching-suggestion.v4',binding,frameIndex:1,suggestionId:id,suggestionDigest:'d'.repeat(64),sources:{...value.sources,why:'inferred_from_recognized_narration'}};
+ assert.equal(recordingSuggestion(reply,binding),true);
+ for(const patch of [{frameIndex:3},{sources:value.sources},{suggestionId:'unbound'},{binding:{...binding,frames:[...binding.frames].reverse()}},{binding:{...binding,excerptDigest:'e'.repeat(64)}}])assert.equal(recordingSuggestion({...reply,...patch},binding),false);
+});
