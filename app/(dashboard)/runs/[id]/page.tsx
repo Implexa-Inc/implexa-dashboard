@@ -67,6 +67,7 @@ import { getReviewPacket } from '@/lib/review';
 import { loadReviewAmendmentTarget } from '@/lib/review-amendment-target';
 import { classifyHeldApprovalSurface, parsePaidActionApprovalRead, type PaidActionApprovalView } from '@/lib/paid-action-approval';
 import CheckpointedContinuationHistoryCard, { type CheckpointedContinuationHistory } from '../../_components/checkpointed-continuation-history';
+import { readHumanReview, humanReviewLabels, type HumanReview, type AttemptHumanReview } from './human-review-read';
 
 export const dynamic = 'force-dynamic';
 
@@ -384,7 +385,8 @@ export default async function RunDetailPage({
     context: { rules?: FrozenRule[]; trainingProvenance?: Record<string, string> } };
   let learningProof: LearningProof | null = null;
   let learningHandling: HandlingReceipt[] = [];
-  let associatedOutcome: 'accepted' | 'rejected' | 'pending' = 'pending';
+  let humanReview: HumanReview = 'unavailable';
+  let associatedHumanReview: AttemptHumanReview = 'unavailable';
   let learningProofUnavailable = false;
   try {
     const proofResult = await supabase.from('run_learning_attempt_contexts').select('*')
@@ -397,10 +399,7 @@ export default async function RunDetailPage({
         .eq('attempt_context_id', proofResult.data.id).order('created_at', { ascending: true });
       if (handlingResult.error) learningProofUnavailable = true;
       else learningHandling = (handlingResult.data || []) as HandlingReceipt[];
-      const outcomeResult = await supabase.from('run_acceptance_events').select('decision')
-        .eq('run_id', r.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (!outcomeResult.error && outcomeResult.data?.decision === 'accepted') associatedOutcome = 'accepted';
-      else if (!outcomeResult.error && outcomeResult.data?.decision === 'requested_changes') associatedOutcome = 'rejected';
+      ({ humanReview, associatedHumanReview } = await readHumanReview(supabase, session.user.id, r.id, learningProof.id));
     }
   } catch { learningProofUnavailable = true; }
 
@@ -964,7 +963,11 @@ export default async function RunDetailPage({
             <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">The attempt-bound learning proof is unavailable. No handling state is inferred.</p>
           ) : learningProof ? (
             <div className="mt-2">
-              <p className="text-[11px] text-ink-500">Frozen for attempt {learningProof.launch_attempt_id.slice(0, 12)} at fence {learningProof.fencing_epoch} · context {learningProof.context_digest.slice(0, 12)} · associated outcome {associatedOutcome}</p>
+              <p className="text-[11px] text-ink-500">Frozen for attempt {learningProof.launch_attempt_id.slice(0, 12)} at fence {learningProof.fencing_epoch} · context {learningProof.context_digest.slice(0, 12)}</p>
+              <p className="text-[11px] text-ink-500">Human review: {humanReviewLabels[humanReview]}. This is separate from delivery and the Judge’s review.</p>
+              <p className="text-[11px] text-ink-500">{associatedHumanReview === 'not_associated'
+                ? 'No human outcome associated with this attempt.' : associatedHumanReview === 'unavailable'
+                  ? 'Human outcome association unavailable.' : `Associated human review for this attempt: ${humanReviewLabels[associatedHumanReview]}.`}</p>
               <ul className="mt-2 space-y-2">
                 {(learningProof.context.rules || []).map((rule) => {
                   const receipt = learningHandling.find((item) => item.rule_version_id === rule.id);
