@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
-import { teachingDigest, teachingFrame, teachingSuggestion, TEACHING_FIELDS, type TeachingSuggestion } from '@/lib/training-teaching-draft';
+import { teachingDigest, teachingFrame, teachingSuggestion, teachingFailure, TEACHING_FIELDS, type TeachingSuggestion } from '@/lib/training-teaching-draft';
 import {
   deriveTrainingStages,
   formatTrainingTime,
@@ -455,7 +455,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
         body: JSON.stringify({ ...wire, image: frame.image, feedback: answer.rawAnswer, consent: true }) });
       const value: unknown = await response.json();
-      if (!response.ok || !teachingSuggestion(value, binding)) throw Error('Suggestions are unavailable or did not match this frame. Your answer and manual draft are preserved.');
+      if (!response.ok || !teachingSuggestion(value, binding)) throw Error(teachingFailure(value, response.status));
       setSuggested({ value, snapshot });
       setSuggestionNote(latestDraft.current !== snapshot ? 'Suggestion for a previous frame or edit — not applied. Keep your current draft or request a new suggestion.'
         : value.status === 'insufficient' ? value.reason : 'Review the suggestion before using it. Nothing was saved or admitted.');
@@ -653,7 +653,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
         <label className="flex gap-2"><input type="checkbox" checked={draftConsent} onChange={event => setDraftConsent(event.target.checked)} />Send this frame, the recorded question and my answer to Anthropic Claude Haiku 4.5 for this suggestion.</label>
         <button type="button" disabled={suggesting || !draftConsent || !previewIsCurrent || !preview?.image || !!busy} onClick={suggestTeaching}>{suggesting ? 'Drafting suggestion…' : 'Suggest teaching from this frame'}</button>
         <p>Nothing is automatically saved or admitted. Frame bytes are sent for this call; Implexa does not store them through this operation. The suggestion and its model attribution are not retained as a separate record.</p>
-        {suggested && <div className="space-y-2"><p>Drafted by {suggested.value.model}. Frame {shortId(suggested.value.binding.frameSha256)} · feedback {shortId(suggested.value.binding.feedbackSha256)}.</p>
+        {suggested && <div className="space-y-2"><p>Drafted by {suggested.value.model}. Frame {shortId(suggested.value.binding.frameSha256)} · feedback {shortId(suggested.value.binding.feedbackSha256)} · request {shortId(suggested.value.requestId)}.</p>
           {suggested.value.fields && TEACHING_FIELDS.map(key => <p key={key}><strong>{key === 'chosen' ? 'Observed frame' : key === 'why' ? 'Trainer preference' : 'Transferable guidance'}:</strong> {suggested.value.fields![key]}</p>)}
           {suggested.value.fields && <button type="button" disabled={suggested.snapshot !== draftSnapshot || !!busy || versionChanged} onClick={useSuggestion}>Use this suggestion in editable fields</button>}
           {suggested.snapshot !== draftSnapshot && <p>Suggestion for a previous frame or edit — not applied. Request a new suggestion for your current draft.</p>}
