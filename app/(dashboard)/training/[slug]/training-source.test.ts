@@ -112,6 +112,10 @@ function harness(options: {
   predecessorCount?: number;
   successorProjection?: unknown;
   loseFirstSuccessorResponse?: boolean;
+  deliveryRelation?: string;
+  loseFirstDeliveryResponse?: boolean;
+  deliveryResponse?: Record<string, unknown>;
+  failRefreshAfterDelivery?: boolean;
 } = {}) {
   const calls: Call[] = [];
   let currentVersion = options.currentVersion === undefined ? VERSION_A : options.currentVersion;
@@ -121,6 +125,9 @@ function harness(options: {
   let lastAnnotated: any = null;
   let successorSelected = false;
   let successorCreateAttempts = 0;
+  let deliveryAttempts = 0;
+  let deliveryMode = 'on_question';
+  let deliveryReceiptDigest: string | null = null;
   const bridge = {
     trainingLocalContractVersion: '2',
     trainingLocal: async (operation: string, unknownArgs: unknown) => {
@@ -158,10 +165,13 @@ function harness(options: {
       if (operation === 'select' && args.sessionId === NEW_SESSION) successorSelected = true;
       if (operation === 'list') {
         if (authorityAcknowledged && options.failRefreshAfterAuthority) return { ok: false, reason: 'training_local_unavailable' };
+        if (deliveryAttempts && options.failRefreshAfterDelivery) return { ok: false, reason: 'training_local_unavailable' };
         const next = source('draft', options.stages);
         if (options.successorSha) next.metadata.sha256 = options.successorSha;
         const listedVersion = args.sessionId === NEW_SESSION ? currentVersion : VERSION_A;
         const current: any = source(decisionState, options.stages);
+        Object.assign(current.decisions[0], { deliveryMode, deliveryReceiptDigest });
+        if (options.deliveryRelation) current.decisions[0].content.relation = options.deliveryRelation;
         if (lastAnnotated) { current.decisions[0].decision = lastAnnotated.decision;
           current.decisions[0].content.derivatives = [{ sha256: createHash('sha256').update(Buffer.from((options.previewImage || PNG).split(',')[1], 'base64')).digest('hex') }]; }
         return {
@@ -178,6 +188,13 @@ function harness(options: {
       if (operation === 'decisionPreview') return { ok: true, image: PNG, recordId: RECORD, recordDigest: DIGEST };
       if (operation === 'annotate') { lastAnnotated = args; return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'draft' }; }
       if (operation === 'accept') { decisionState = 'accepted'; return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'accepted' }; }
+      if (operation === 'delivery') {
+        deliveryAttempts++;
+        deliveryMode = String(args.mode); deliveryReceiptDigest = 'e'.repeat(64);
+        if (options.loseFirstDeliveryResponse && deliveryAttempts === 1) throw new Error('Connection lost before response');
+        return options.deliveryResponse || { ok: true, recordId: RECORD, recordDigest: DIGEST,
+          mode: deliveryMode, receiptDigest: deliveryReceiptDigest };
+      }
       if (operation === 'retire' || operation === 'revoke') {
         decisionState = operation === 'retire' ? 'retired' : 'revoked';
         authorityAcknowledged = true;
@@ -1016,6 +1033,104 @@ test('accepted teaching has separate confirmed retirement and immediate permissi
     const call = calls.find((item) => item.operation === 'revoke')!;
     assert.deepEqual(JSON.parse(JSON.stringify(call.args)), { sessionId: SESSION, recordId: RECORD, expectedDigest: DIGEST });
     assert.equal(rendered.queryByText('Manage teaching'), null, 'revoked state takes precedence over retirement');
+  } finally { rendered.cleanup(); }
+});
+
+test('standing delivery toggles apply to new runs with a fresh request identity per intent', async () => {
+  const { rendered, calls } = await renderedWith({ state: 'accepted', deliveryRelation: 'accepted', localToken: null });
+  try {
+    await rendered.click(rendered.getByText('Manage teaching'));
+    assert.match(rendered.text(), /Current delivery: On question/);
+    assert.match(rendered.text(), /Active runs keep their frozen setting/);
+    assert.match(rendered.text(), /Up to two selected teachings/);
+    for (const label of ['Use at stage start', 'Use only on question', 'Use at stage start']) {
+      await rendered.click(rendered.getByText(label));
+    }
+    const toggles = calls.filter(item => item.operation === 'delivery');
+    assert.equal(toggles.length, 3);
+    assert.deepEqual(toggles.map(item => item.args.mode), ['standing', 'on_question', 'standing']);
+    assert.equal(new Set(toggles.map(item => item.args.idempotencyKey)).size, 3);
+    for (const item of toggles) {
+      assert.equal(item.args.sessionId, SESSION); assert.equal(item.args.recordId, RECORD);
+      assert.equal(item.args.expectedDigest, DIGEST);
+      assert.match(String(item.args.idempotencyKey), /^[a-f0-9-]{36}$/);
+    }
+    assert.match(rendered.text(), /Current delivery: At stage start/);
+    assert.equal(calls.some(item => ['annotate', 'accept', 'retire', 'revoke', 'decisionPreview'].includes(item.operation)), false);
+  } finally { rendered.cleanup(); }
+});
+
+test('standing delivery retries an uncertain response with the same request identity', async () => {
+  const { rendered, calls } = await renderedWith({ state: 'accepted', deliveryRelation: 'accepted', loseFirstDeliveryResponse: true });
+  try {
+    await rendered.click(rendered.getByText('Manage teaching'));
+    await rendered.click(rendered.getByText('Use at stage start'));
+    assert.match(rendered.text(), /Training is unavailable/);
+    assert.match(rendered.text(), /Current delivery: On question/);
+    await rendered.click(rendered.getByText('Use at stage start'));
+    const toggles = calls.filter(item => item.operation === 'delivery');
+    assert.equal(toggles.length, 2);
+    assert.equal(toggles[0].args.idempotencyKey, toggles[1].args.idempotencyKey);
+    assert.match(rendered.text(), /Current delivery: At stage start/);
+  } finally { rendered.cleanup(); }
+});
+
+test('standing delivery refuses mismatched acknowledgments without changing the displayed setting', async () => {
+  for (const patch of [{ recordId: SOURCE_ID }, { recordDigest: SOURCE_DIGEST }, { mode: 'on_question' }, { receiptDigest: 'bad' }]) {
+    const { rendered } = await renderedWith({ state: 'accepted', deliveryRelation: 'accepted', deliveryResponse: {
+      ok: true, recordId: RECORD, recordDigest: DIGEST, mode: 'standing', receiptDigest: 'e'.repeat(64), ...patch,
+    } });
+    try {
+      await rendered.click(rendered.getByText('Manage teaching'));
+      await rendered.click(rendered.getByText('Use at stage start'));
+      assert.match(rendered.text(), /delivery change could not be verified/);
+      assert.match(rendered.text(), /Current delivery: On question/);
+    } finally { rendered.cleanup(); }
+  }
+});
+
+test('acknowledged standing delivery remains visible if the list cannot refresh', async () => {
+  const { rendered } = await renderedWith({ state: 'accepted', deliveryRelation: 'accepted', failRefreshAfterDelivery: true });
+  try {
+    await rendered.click(rendered.getByText('Manage teaching'));
+    await rendered.click(rendered.getByText('Use at stage start'));
+    assert.match(rendered.text(), /Delivery was updated for new runs/);
+    assert.match(rendered.text(), /Current delivery: At stage start/);
+    await rendered.click(rendered.getByText('Close evidence review'));
+    await rendered.click(rendered.getByText('Manage teaching'));
+    assert.match(rendered.text(), /Current delivery: At stage start/);
+  } finally { rendered.cleanup(); }
+});
+
+test('unsupported standing evidence gets a specific explanation and retains question delivery', async () => {
+  const { rendered } = await renderedWith({ state: 'accepted', deliveryRelation: 'accepted',
+    deliveryResponse: { ok: false, reason: 'competence_not_accepted' } });
+  try {
+    await rendered.click(rendered.getByText('Manage teaching'));
+    await rendered.click(rendered.getByText('Use at stage start'));
+    assert.match(rendered.text(), /full-frame PNG teaching, without a selected region/);
+    assert.match(rendered.text(), /Your existing teaching is unchanged/);
+    assert.match(rendered.text(), /Current delivery: On question/);
+  } finally { rendered.cleanup(); }
+});
+
+test('retired teachings cannot be reactivated by changing standing delivery', async () => {
+  const { rendered, calls } = await renderedWith({ state: 'retired' });
+  try {
+    await rendered.click(rendered.getByText('Manage teaching'));
+    assert.equal(rendered.queryByText('Use at stage start'), null);
+    assert.ok(rendered.getByText('Withdraw permission now'));
+    assert.equal(calls.some(item => item.operation === 'delivery'), false);
+  } finally { rendered.cleanup(); }
+});
+
+test('contrastive examples keep their existing delivery behavior', async () => {
+  const { rendered, calls } = await renderedWith({ state: 'accepted' });
+  try {
+    await rendered.click(rendered.getByText('Manage teaching'));
+    assert.equal((rendered.getByText('Use at stage start') as HTMLButtonElement).disabled, true);
+    assert.match(rendered.text(), /supports positive and negative full-frame image examples/);
+    assert.equal(calls.some(item => item.operation === 'delivery'), false);
   } finally { rendered.cleanup(); }
 });
 
