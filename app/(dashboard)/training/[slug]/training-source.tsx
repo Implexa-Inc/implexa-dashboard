@@ -28,10 +28,13 @@ import {
 } from '@/lib/training-local-ingress';
 
 type DecisionState = 'draft' | 'accepted' | 'retired' | 'unavailable' | 'revoked';
+type DeliveryMode = 'standing' | 'on_question';
 type Decision = {
   recordId: string;
   recordDigest: string;
   state: DecisionState;
+  deliveryMode?: DeliveryMode;
+  deliveryReceiptDigest?: string | null;
   content: { relation: TrainingRelation; properties: TrainingPropertyCode[]; summary: string; anchor: { startMs: number }; derivatives?: Array<{ sha256: string }>; applicability?: { stages?: string[]; priority?: number } };
   decision: { chosen: string; why: string; process: string; desiredBehavior: string };
 };
@@ -67,6 +70,8 @@ type Result = {
   recordId?: string;
   recordDigest?: string;
   state?: DecisionState;
+  mode?: DeliveryMode;
+  receiptDigest?: string;
   failedDrafts?: LocalDraft[];
   pendingDecisions?: LocalDraft[];
   managerCoverage?: ManagerTrainingCoverage;
@@ -120,6 +125,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [acceptConfirmed, setAcceptConfirmed] = useState(false);
   const [retireConfirmed, setRetireConfirmed] = useState(false);
   const [revokeConfirmed, setRevokeConfirmed] = useState(false);
+  const pendingDelivery = useRef<{ sessionId: string; recordId: string; digest: string; mode: DeliveryMode; key: string } | null>(null);
   const [time, setTime] = useState(0);
   const [relation, setRelation] = useState<TrainingRelation>('accepted');
   const [property, setProperty] = useState<TrainingPropertyCode>('motion_rhythm');
@@ -552,6 +558,35 @@ export default function TrainingSource({ slug }: { slug: string }) {
     });
   }
 
+  async function setReviewedDelivery(mode: DeliveryMode) {
+    if (!reviewed || reviewed.decision.state !== 'accepted' || versionChanged
+      || !['accepted', 'rejected'].includes(reviewed.decision.content.relation)
+      || (reviewed.decision.deliveryMode || 'on_question') === mode) return;
+    const decision = reviewed.decision;
+    const pending = pendingDelivery.current;
+    // Retain one request key after an uncertain response; a later toggle is a new event.
+    const key = pending?.sessionId === session && pending.recordId === decision.recordId
+      && pending.digest === decision.recordDigest && pending.mode === mode ? pending.key : crypto.randomUUID();
+    pendingDelivery.current = { sessionId: session, recordId: decision.recordId, digest: decision.recordDigest, mode, key };
+    await work('Updating teaching delivery for new runs', async () => {
+      await requireCurrentScope();
+      const result = await call('delivery', { sessionId: session, recordId: decision.recordId,
+        expectedDigest: decision.recordDigest, mode, idempotencyKey: key });
+      if (result.recordId !== decision.recordId || result.recordDigest !== decision.recordDigest
+        || result.mode !== mode || !/^[a-f0-9]{64}$/.test(result.receiptDigest || '')) {
+        throw new TrainingError('training_delivery_response_invalid', 'The delivery change could not be verified. Retry to check this same request.');
+      }
+      const acknowledged = { ...decision, deliveryMode: mode, deliveryReceiptDigest: result.receiptDigest! };
+      setSources(prior => prior.map(source => ({ ...source, decisions: source.decisions.map(item =>
+        item.recordId === decision.recordId && item.recordDigest === decision.recordDigest ? acknowledged : item) })));
+      setReviewed(prior => prior?.decision.recordId === decision.recordId && prior.decision.recordDigest === decision.recordDigest
+        ? { ...prior, decision: acknowledged } : prior);
+      pendingDelivery.current = null;
+      try { await load(session); }
+      catch { setError('Delivery was updated for new runs, but the teaching list could not refresh. The acknowledged setting is shown below.'); }
+    });
+  }
+
   async function discardDraft(draft: LocalDraft) {
     await work('Discarding the local draft', async () => {
       await call('discardDraft', { token: draft.token, ...(draft.key ? { decisionKey: draft.key } : {}) });
@@ -627,6 +662,17 @@ export default function TrainingSource({ slug }: { slug: string }) {
       <p><span className="font-semibold">Selection priority:</span> {reviewed.decision.content.applicability?.priority ?? 'Not recorded'}. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not guarantee selection or override checks, criteria or facts.</p>
       {reviewed.decision.state === 'draft' && <><label className="flex gap-3"><input type="checkbox" checked={acceptConfirmed} disabled={!!busy} onChange={(event) => setAcceptConfirmed(event.target.checked)} />I reviewed this exact frame and decision and want it eligible for future Manager selection.</label><button disabled={!!busy || !acceptConfirmed} onClick={acceptReviewed}>Accept this exact decision</button></>}
       {reviewed.decision.state === 'accepted' && <>
+        <section className="rounded border border-ink-700 p-3 space-y-2" aria-labelledby="teaching-delivery-heading">
+          <h3 id="teaching-delivery-heading" className="font-semibold">When to share this teaching</h3>
+          <p>Current delivery: {reviewed.decision.deliveryMode === 'standing' ? 'At stage start' : 'On question'}.</p>
+          <p className="text-sm">Applies to new runs when this teaching is selected for an eligible stage. Up to two selected teachings can be shared at stage start, within the existing image budget; others stay available on question. This does not change selection priority, stage eligibility or quality gates. Active runs keep their frozen setting.</p>
+          <div className="flex flex-wrap gap-3">
+            <button disabled={!!busy || versionChanged || !['accepted', 'rejected'].includes(reviewed.decision.content.relation) || reviewed.decision.deliveryMode === 'standing'} onClick={() => setReviewedDelivery('standing')}>Use at stage start</button>
+            <button disabled={!!busy || versionChanged || !['accepted', 'rejected'].includes(reviewed.decision.content.relation) || (reviewed.decision.deliveryMode || 'on_question') === 'on_question'} onClick={() => setReviewedDelivery('on_question')}>Use only on question</button>
+          </div>
+          {!['accepted', 'rejected'].includes(reviewed.decision.content.relation) && <p>Stage-start delivery currently supports positive and negative full-frame image examples. This teaching keeps its existing delivery behavior.</p>}
+          {reviewed.decision.deliveryReceiptDigest && <p className="text-xs text-ink-500">Delivery receipt {shortId(reviewed.decision.deliveryReceiptDigest)}</p>}
+        </section>
         <label className="flex gap-3"><input type="checkbox" checked={retireConfirmed} disabled={!!busy} onChange={(event) => setRetireConfirmed(event.target.checked)} />Stop selecting this teaching for new runs. Runs already using a frozen selection keep it.</label>
         <p className="text-sm text-ink-400">A future run may need replacement training if this teaching fulfils a required reference.</p>
         <button disabled={!!busy || !retireConfirmed} onClick={() => reduceReviewedAuthority('retire')}>Stop using in new runs</button>
