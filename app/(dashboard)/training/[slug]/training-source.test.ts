@@ -739,7 +739,7 @@ test('saving consumes the exact preview once and clears the form to prevent acci
   try {
     await rendered.click(rendered.getByText('Annotate source'));
     await rendered.click(rendered.getByText('Preview this exact frame'));
-    const textareas = rendered.document.querySelectorAll('textarea');
+    const textareas = rendered.document.querySelectorAll('textarea[maxlength="400"]');
     for (let index = 0; index < textareas.length; index += 1) await setTextarea(rendered, textareas[index], `answer ${index}`);
     const save = rendered.getByText('Save decision draft') as HTMLButtonElement;
     assert.equal(save.disabled, false);
@@ -751,7 +751,7 @@ test('saving consumes the exact preview once and clears the form to prevent acci
     assert.equal((annotation.args.content as { applicability: { priority: number } }).applicability.priority, 50);
     assert.deepEqual(JSON.parse(JSON.stringify((annotation.args.content as { applicability: { stages: string[] } }).applicability.stages)), ['planning', 'build', 'preview', 'qa', 'revision']);
     assert.equal((rendered.getByText('Save decision draft') as HTMLButtonElement).disabled, true);
-    assert.ok(Array.from(rendered.document.querySelectorAll('textarea')).every((textarea) => textarea.value === ''));
+    assert.ok(Array.from(rendered.document.querySelectorAll('textarea[maxlength="400"]')).every((textarea) => textarea.value === ''));
     assert.equal(rendered.document.querySelector('img[alt^="Training source frame"]'), null, 'consumed preview no longer authorizes another save');
   } finally { rendered.cleanup(); }
 });
@@ -762,7 +762,7 @@ test('explicit preference saves the exact bounded priority and resets for the ne
     try {
       await rendered.click(rendered.getByText('Annotate source'));
       await rendered.click(rendered.getByText('Preview this exact frame'));
-      for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
+      for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea[maxlength="400"]')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
       const input = rendered.getByText('Selection priority').querySelector('input')!;
       assert.equal((input as HTMLInputElement).value, '50');
       await setInput(rendered, input, value);
@@ -782,7 +782,7 @@ test('empty, fractional and out-of-range priorities cannot create a decision', a
   try {
     await rendered.click(rendered.getByText('Annotate source'));
     await rendered.click(rendered.getByText('Preview this exact frame'));
-    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
+    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea[maxlength="400"]')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
     const input = rendered.getByText('Selection priority').querySelector('input')!;
     for (const value of ['', '-1', '101', '1.5', '1e2']) {
       await setInput(rendered, input, value);
@@ -812,7 +812,7 @@ test('priority changes get a fresh draft key while saved review and acceptance k
     await rendered.click(rendered.getByText('Close evidence review'));
     await rendered.click(rendered.getByText('Annotate source'));
     await rendered.click(rendered.getByText('Preview this exact frame'));
-    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
+    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea[maxlength="400"]')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
     await rendered.click(rendered.getByText('Save decision draft'));
     await setInput(rendered, rendered.getByText('Selection priority').querySelector('input')!, '60');
     await rendered.click(rendered.getByText('Save decision draft'));
@@ -845,7 +845,7 @@ test('stage applicability is visible, derived from the property, and sent exactl
     assert.equal(assets.checked, false, 'unrelated stages are not silently broadened');
     await rendered.click(planning);
     await rendered.click(rendered.getByText('Preview this exact frame'));
-    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
+    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea[maxlength="400"]')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
     await rendered.click(rendered.getByText('Save decision draft'));
     const annotation = calls.find((item) => item.operation === 'annotate')!;
     assert.deepEqual(JSON.parse(JSON.stringify((annotation.args.content as { applicability: { stages: string[] } }).applicability.stages)), ['scene_contract', 'build', 'preview', 'qa', 'revision']);
@@ -857,7 +857,7 @@ test('a decision with no eligible Manager stage cannot be saved', async () => {
   try {
     await rendered.click(rendered.getByText('Annotate source'));
     await rendered.click(rendered.getByText('Preview this exact frame'));
-    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
+    for (const [index, textarea] of Array.from(rendered.document.querySelectorAll('textarea[maxlength="400"]')).entries()) await setTextarea(rendered, textarea, `answer ${index}`);
     for (const label of ['Plan the treatment', 'Build the composition', 'Review previews', 'Check final quality', 'Revise from feedback']) {
       await rendered.click(rendered.getByText(label).closest('label')!.querySelector('input')!);
     }
@@ -1320,4 +1320,57 @@ test('unavailable or malformed suggestion preserves the full answer and an exist
     assert.equal(r.queryByText('Use this suggestion in editable fields'),null);
     assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
   } finally { r.cleanup(); }
+});
+
+async function directDemoSetup({loseSave=false,failLink=false}={}) {
+ const h=await renderedWith({previewImage:VALID_FRAME}),r=h.rendered;
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ await r.click(r.getByText('Annotate source'));await r.click(r.getByText('Preview this exact frame'));
+ const raw='  Original trainer annotation: make an explanatory visual for this relationship.  ';
+ await setTextarea(r,r.getByText('What should this demonstration teach?').closest('label')!.querySelector('textarea')!,raw);
+ const requests:any[]=[];let saves=0,links=0;const prior=r.window.fetch;
+ r.window.fetch=(async(url:string,init:RequestInit)=>{
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  const b=JSON.parse(String(init.body));requests.push({body:b,key:(init.headers as Record<string,string>)['Idempotency-Key']});
+  if(b.action==='save'){
+   saves++;if(loseSave&&saves===1)throw Error('lost response');
+   const {action,...expected}=b;const {expectedActiveVersionId,...annotation}=expected;
+   return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:'e'.repeat(64),annotation:{contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId}})};
+  }
+  if(b.action==='link'){
+   links++;if(failLink&&links===1)return {ok:false,json:async()=>({ok:false})};
+   return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-link.v1',annotationId:b.annotationId,annotationDigest:b.annotationDigest,recordId:b.recordId,recordDigest:b.expectedRecordDigest,linkReceiptId:QUESTION})};
+  }
+  const {mode,image,consent,...binding}=b;
+  return {ok:true,json:async()=>({requestId:QUESTION,ok:true,contractVersion:'training-teaching-suggestion.v3',model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
+ }) as typeof r.window.fetch;
+ const flush=async()=>{await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,15));});};
+ const suggest=async()=>{await r.click(r.getByText(/Send this frame and my saved/).closest('label')!.querySelector('input')!);await r.click(r.getByText('Suggest teaching from this frame'));await flush();};
+ return {...h,raw,requests,flush,suggest};
+}
+test('a direct demonstration preserves raw feedback before the model and links an ordinary evidence draft without admission',async()=>{
+ const h=await directDemoSetup({loseSave:true,failLink:true}),r=h.rendered;
+ try{
+  assert.equal((r.getByText('Suggest teaching from this frame') as HTMLButtonElement).disabled,true);
+  await r.click(r.getByText('Save demonstration annotation'));await h.flush();
+  await r.click(r.getByText('Save demonstration annotation'));await h.flush();
+  assert.equal(h.requests[0].key,h.requests[1].key,'uncertain save retries the same event');assert.equal(h.requests[0].body.rawAnnotation,h.raw);
+  await h.suggest();const sent=h.requests.find(q=>q.body.mode==='demonstration').body;
+  assert.equal(sent.annotationId,QUESTION);assert.equal(sent.feedback,undefined);assert.equal(sent.questionReceiptId,undefined);assert.equal(sent.image,VALID_FRAME);
+  await r.click(r.getByText('Use this suggestion in editable fields'));await r.click(r.getByText('Save decision draft'));await h.flush();
+  assert.equal(h.calls.filter(c=>c.operation==='annotate').length,1);assert.ok(r.queryByText('Retry demonstration link'));
+  await r.click(r.getByText('Retry demonstration link'));await h.flush();
+  assert.equal(h.calls.filter(c=>c.operation==='annotate').length,1);assert.equal(h.calls.some(c=>c.operation==='accept'),false);
+  const links=h.requests.filter(q=>q.body.action==='link');assert.equal(links.length,2);assert.equal(links[0].key,links[1].key);
+  assert.match(r.text(),/linked to your original private annotation/);
+ }finally{r.cleanup();}
+});
+test('changing a saved demo annotation prevents suggestion until the new text is saved',async()=>{
+ const h=await directDemoSetup(),r=h.rendered;
+ try{
+  await r.click(r.getByText('Save demonstration annotation'));await h.flush();
+  await setTextarea(r,r.getByText('What should this demonstration teach?').closest('label')!.querySelector('textarea')!,'A changed preference');
+  assert.equal((r.getByText('Suggest teaching from this frame') as HTMLButtonElement).disabled,true);
+  assert.equal(h.requests.some(q=>q.body.mode==='demonstration'),false);
+ }finally{r.cleanup();}
 });
