@@ -1116,7 +1116,7 @@ async function suggestionSetup() {
     const b = JSON.parse(String(init.body)); requests.push(b);
     const feedbackSha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(b.feedback))), v => v.toString(16).padStart(2, '0')).join('');
     const { consent, feedback, image, ...binding } = b;
-    const value = { requestId: '11111111-1111-4111-8111-111111111111',ok: true, contractVersion: 'training-teaching-suggestion.v2', model: 'claude-haiku-4-5-20251001',
+    const value = { requestId: '11111111-1111-4111-8111-111111111111',ok: true, contractVersion: 'training-teaching-suggestion.v2', model: 'claude-haiku-5-5',
       binding: { ...binding, feedbackSha256 }, status: 'suggested', fields: SUGGESTION_FIELDS, reason: '',
       sources: { chosen: 'observed_frame', why: 'trainer_preference', process: 'transferable_guidance', desiredBehavior: 'transferable_guidance' } };
     return await new Promise(resolve => { complete = (override: unknown = value) => resolve({ ok: true, json: async () => override }); });

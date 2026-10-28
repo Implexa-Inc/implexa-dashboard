@@ -1,4 +1,4 @@
-export const TEACHING_MODEL = 'claude-haiku-4-5';
+export const TEACHING_MODEL = 'claude-haiku-5-5';
 export const MAX_TEACHING_FRAME_BYTES = 2 * 1024 * 1024;
 export const TEACHING_FIELDS = ['chosen', 'why', 'process', 'desiredBehavior'] as const;
 export type TeachingFields = Record<typeof TEACHING_FIELDS[number], string>;
@@ -22,7 +22,7 @@ export function teachingFrame(image: string): Uint8Array {
 export function teachingSuggestion(v: any, expected: SuggestionBinding): v is TeachingSuggestion {
   if (!exact(v, ['ok', 'contractVersion', 'model', 'requestId', 'binding', 'status', 'fields', 'reason', 'sources']) || v.ok !== true
     || typeof v.requestId !== 'string' || !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(v.requestId)
-    || v.contractVersion !== 'training-teaching-suggestion.v2' || typeof v.model !== 'string' || !v.model.startsWith(TEACHING_MODEL)
+    || v.contractVersion !== 'training-teaching-suggestion.v2' || typeof v.model !== 'string' || v.model !== TEACHING_MODEL
     || !exact(v.binding, Object.keys(expected)) || Object.entries(expected).some(([k, value]) => v.binding[k] !== value)
     || typeof v.reason !== 'string' || v.reason.length > 300 || !exact(v.sources, [...TEACHING_FIELDS])
     || v.sources.chosen !== 'observed_frame' || v.sources.why !== 'trainer_preference'
@@ -36,6 +36,7 @@ export function teachingFailure(value: unknown, status: number): string {
     scope_session: 'The training session could not be verified.', scope_version: 'The active agent version could not be verified.',
     scope_source: 'The selected source could not be verified.', scope_question: 'The recorded question could not be read through its authorized scope.',
     provider_not_configured: 'The drafting provider is not configured.', provider_auth: 'The drafting provider rejected its credentials.',
+    provider_refused: 'The drafting provider declined this request.',
     provider_model_unavailable: 'The configured drafting model is unavailable.', provider_rejected: 'The drafting provider rejected the request.',
     provider_rate_limited: 'The drafting provider is rate-limited.', provider_unavailable: 'The drafting provider is unavailable.',
     provider_timeout: 'The drafting request timed out.', cancelled: 'The drafting request was cancelled.',
