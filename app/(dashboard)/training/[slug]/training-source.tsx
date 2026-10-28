@@ -6,6 +6,8 @@ import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type
 import { teachingDigest, teachingFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation, recordingSuggestion, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
 import {
   deriveTrainingStages,
+  isTrainingEvidenceStorage,
+  type TrainingEvidenceStorage,
   formatTrainingTime,
   isManagerTrainingCoverage,
   isManagerTrainingRequirements,
@@ -72,6 +74,8 @@ type Result = {
   state?: DecisionState;
   mode?: DeliveryMode;
   receiptDigest?: string;
+  storage?: TrainingEvidenceStorage | null;
+  cleanup?: 'deleted' | 'pending';
   failedDrafts?: LocalDraft[];
   pendingDecisions?: LocalDraft[];
   managerCoverage?: ManagerTrainingCoverage;
@@ -80,6 +84,7 @@ type Result = {
 type Bridge = {
   trainingLocalContractVersion?: string;
   trainingRecordingContractVersion?: string;
+  trainingEvidenceStorageContractVersion?: string;
   trainingLocal: (operation: string, args: unknown) => Promise<Result>;
 };
 type Preview = { token: string; timeMs: number; image: string };
@@ -126,6 +131,13 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [acceptConfirmed, setAcceptConfirmed] = useState(false);
   const [retireConfirmed, setRetireConfirmed] = useState(false);
   const [revokeConfirmed, setRevokeConfirmed] = useState(false);
+  const [serverConsent, setServerConsent] = useState(false);
+  const [serverWithdrawal, setServerWithdrawal] = useState(false);
+  const [serverStorage, setServerStorage] = useState<TrainingEvidenceStorage | null | undefined>(undefined);
+  const [serverStorageNote, setServerStorageNote] = useState('');
+  const [serverStorageSupported, setServerStorageSupported] = useState(false);
+  useEffect(()=>{setServerStorageSupported(bridge()?.trainingEvidenceStorageContractVersion==='1');},[]);
+  useEffect(()=>{setServerConsent(false);setServerWithdrawal(false);setServerStorage(undefined);setServerStorageNote('');},[reviewed?.decision.recordId]);
   const pendingDelivery = useRef<{ sessionId: string; recordId: string; digest: string; mode: DeliveryMode; key: string } | null>(null);
   const [time, setTime] = useState(0);
   const [relation, setRelation] = useState<TrainingRelation>('accepted');
@@ -684,6 +696,24 @@ export default function TrainingSource({ slug }: { slug: string }) {
     });
   }
 
+  async function changeServerStorage(action: 'status' | 'store' | 'withdraw') {
+    if (!reviewed || !serverStorageSupported || (action==='store' && (!serverConsent || !reviewed.source.token))
+      || (action==='withdraw' && !serverWithdrawal)) return;
+    const target=reviewed;
+    await work(action==='store'?'Saving this teaching image privately':'Checking this teaching image',async()=>{
+      const args=action==='store' ? {action,token:target.source.token,recordId:target.decision.recordId,expectedDigest:target.decision.recordDigest,consent:true}
+        : {action,sessionId:session,recordId:target.decision.recordId,expectedDigest:target.decision.recordDigest};
+      const result=await call('serverStorage',args);
+      if (result.storage!==null && !isTrainingEvidenceStorage(result.storage,target.decision.recordId,target.decision.recordDigest))
+        throw new TrainingError('training_storage_response_invalid','The stored-image status could not be verified.');
+      if(action==='store' && (!result.storage?.storedAt || result.storage.withdrawnAt || result.storage.deletedAt))
+        throw new TrainingError('training_storage_response_invalid','The image has not been confirmed as stored.');
+      setServerStorage(result.storage);setServerConsent(false);setServerWithdrawal(false);
+      setServerStorageNote(action==='withdraw' ? result.cleanup==='deleted'?'Server copy removed. The original teaching and local source are unchanged.':'Further access is withdrawn. Server deletion is pending and will retry.'
+        : action==='store'?'This exact teaching image is stored privately for your own runs. It is not released to customers.':'');
+    });
+  }
+
   async function reduceReviewedAuthority(operation: 'retire' | 'revoke') {
     if (!reviewed || (operation === 'retire' ? !retireConfirmed || reviewed.decision.state !== 'accepted'
       : !revokeConfirmed || !['accepted', 'retired'].includes(reviewed.decision.state))) return;
@@ -833,6 +863,17 @@ export default function TrainingSource({ slug }: { slug: string }) {
       </>}
       {reviewed.decision.state === 'retired' && <p>This teaching is stopped for new runs. Existing run selections remain frozen; permission can still be withdrawn below.</p>}
       {(reviewed.decision.state === 'accepted' || reviewed.decision.state === 'retired') && <>
+        {serverStorageSupported && <section className="rounded border border-ink-700 p-3 space-y-3">
+          <h3 className="font-semibold">Use this teaching image on your other devices</h3>
+          <p>Only this selected image is stored privately in Implexa. Your original recording stays on this Mac. The image keeps this teaching’s existing expiry and is removed after permission withdrawal or expiry. Copies already delivered to a run cannot be recalled. This does not release the teaching to other customers.</p>
+          <button disabled={!!busy} onClick={()=>changeServerStorage('status')}>Check stored image</button>
+          {serverStorage!==undefined && <p>{serverStorage===null?'No server copy recorded.':serverStorage.deletedAt?'Server copy removed.':serverStorage.withdrawnAt?'Further server access withdrawn. Deletion is pending.':serverStorage.storedAt?'Exact image verified and stored.':'Upload not yet confirmed.'}</p>}
+          {reviewed.decision.state==='accepted' && <><label className="flex gap-3"><input type="checkbox" checked={serverConsent} disabled={!!busy} onChange={event=>setServerConsent(event.target.checked)} />Store this teaching image privately for my own future runs on other devices.</label>
+          <button disabled={!!busy || !serverConsent || !reviewed.source.token || versionChanged} onClick={()=>changeServerStorage('store')}>Save teaching image to Implexa</button></>}
+          <label className="flex gap-3"><input type="checkbox" checked={serverWithdrawal} disabled={!!busy} onChange={event=>setServerWithdrawal(event.target.checked)} />Stop server access and remove this server copy. Keep the original teaching and local source.</label>
+          <button disabled={!!busy || !serverWithdrawal} onClick={()=>changeServerStorage('withdraw')}>Remove server copy</button>
+          {serverStorageNote && <p role="status">{serverStorageNote}</p>}
+        </section>}
         {!reviewed.image && <button disabled={!!busy || !reviewed.source.token || versionChanged} onClick={() => reviewDecision(reviewed.source, reviewed.decision)}>Preview exact saved frame</button>}
         <label className="flex gap-3"><input type="checkbox" checked={revokeConfirmed} disabled={!!busy} onChange={(event) => setRevokeConfirmed(event.target.checked)} />Withdraw permission for further use now, including active runs. This may interrupt them; already disclosed material cannot be recalled.</label>
         <button disabled={!!busy || !revokeConfirmed} onClick={() => reduceReviewedAuthority('revoke')}>Withdraw permission now</button>

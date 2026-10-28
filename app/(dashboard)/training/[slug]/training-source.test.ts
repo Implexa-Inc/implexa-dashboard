@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { render, type Rendered } from '../../../../lib/test/render.ts';
-import { deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
+import { isTrainingEvidenceStorage, deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
 import { questionsPage, validAnswerBody, answerReceipt } from '../../../../lib/trainer-questions.ts';
 
 const VERSION_A = '11111111-1111-4111-8111-111111111111';
@@ -1408,5 +1408,41 @@ test('recording intake is capability gated; call2 retries reuse the exact excerp
   assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
   await r.click(r.getByText('Use recording suggestion in editable fields'));
   assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value,SUGGESTION_FIELDS.chosen);
+ }finally{r.cleanup();}
+});
+
+
+test('server image status is record-bound and never accepts malformed storage metadata',()=>{
+ const stored={storageId:TOKEN,recordId:RECORD,recordDigest:DIGEST,evidenceId:SOURCE_ID,sha256:SOURCE_DIGEST,sizeBytes:68,width:1,height:1,
+  consentReceiptDigest:'c'.repeat(64),retentionUntil:'2026-12-01T00:00:00Z',storedAt:'2026-10-28T00:00:00Z',uploadExpiresAt:null,withdrawnAt:null,deletedAt:null};
+ assert.equal(isTrainingEvidenceStorage(stored,RECORD,DIGEST),true);
+ for(const patch of [{recordId:TOKEN},{recordDigest:SOURCE_DIGEST},{sizeBytes:8388609},{width:0},{retentionUntil:'invalid'},
+  {consentReceiptDigest:null},{uploadExpiresAt:'invalid'},{deletedAt:'2026-10-28T01:00:00Z'}])
+  assert.equal(isTrainingEvidenceStorage({...stored,...patch},RECORD,DIGEST),false,JSON.stringify(patch));
+ assert.equal(isTrainingEvidenceStorage({...stored,withdrawnAt:'2026-10-28T01:00:00Z'},RECORD,DIGEST),true);
+});
+
+test('server image custody uses an explicit separate consent and shows withdrawal pending without deleting the teaching',async()=>{
+ const h=harness({state:'accepted'}),base=h.bridge.trainingLocal;
+ Object.assign(h.bridge,{trainingEvidenceStorageContractVersion:'1'});
+ let storage:any={storageId:TOKEN,recordId:RECORD,recordDigest:DIGEST,evidenceId:SOURCE_ID,sha256:SOURCE_DIGEST,sizeBytes:68,width:1,height:1,
+  consentReceiptDigest:'c'.repeat(64),retentionUntil:'2026-12-01T00:00:00Z',storedAt:'2026-10-28T00:00:00Z',uploadExpiresAt:'2026-10-28T02:00:00Z',withdrawnAt:null,deletedAt:null};
+ h.bridge.trainingLocal=async(operation,args)=>{
+  if(operation!=='serverStorage')return base(operation,args);
+  h.calls.push({operation,args:(args||{}) as Record<string,unknown>});
+  if((args as any).action==='withdraw')storage={...storage,withdrawnAt:'2026-10-28T01:00:00Z'};
+  return {ok:true,storage,cleanup:storage.withdrawnAt?'pending':undefined};
+ };
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+ try {
+  await r.click(r.getByText('Manage teaching'));
+  const save=r.getByText('Save teaching image to Implexa') as HTMLButtonElement;assert.equal(save.disabled,true);
+  await r.click(r.getByText('Store this teaching image privately for my own future runs on other devices.').closest('label')!.querySelector('input')!);
+  await r.click(save);
+  const saved=h.calls.find(c=>c.operation==='serverStorage');assert.equal(saved?.args.action,'store');assert.equal(saved?.args.consent,true);
+  assert.match(r.text(),/not released to customers/);
+  await r.click(r.getByText('Stop server access and remove this server copy. Keep the original teaching and local source.').closest('label')!.querySelector('input')!);
+  await r.click(r.getByText('Remove server copy'));
+  assert.match(r.text(),/Deletion is pending/);assert.equal(h.calls.some(c=>c.operation==='revoke'),false);
  }finally{r.cleanup();}
 });

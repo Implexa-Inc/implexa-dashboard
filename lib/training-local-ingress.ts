@@ -1,4 +1,24 @@
 export const TRAINING_LOCAL_CONTRACT_VERSION = '2';
+export type TrainingEvidenceStorage = {
+  storageId: string; recordId: string; recordDigest: string; evidenceId: string;
+  sha256: string; sizeBytes: number; width: number; height: number;
+  consentReceiptDigest: string; retentionUntil: string;
+  storedAt: string | null; uploadExpiresAt: string | null; withdrawnAt: string | null; deletedAt: string | null;
+};
+export function isTrainingEvidenceStorage(value: unknown, recordId: string, recordDigest: string): value is TrainingEvidenceStorage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const id = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
+  const sha = /^[a-f0-9]{64}$/;
+  return v.recordId === recordId && v.recordDigest === recordDigest
+    && ['storageId','recordId','evidenceId'].every(k=>typeof v[k]==='string' && id.test(v[k] as string))
+    && ['recordDigest','sha256','consentReceiptDigest'].every(k=>typeof v[k]==='string' && sha.test(v[k] as string))
+    && Number.isSafeInteger(v.sizeBytes) && (v.sizeBytes as number)>0 && (v.sizeBytes as number)<=8388608
+    && ['width','height'].every(k=>Number.isInteger(v[k]) && (v[k] as number)>0 && (v[k] as number)<=2560)
+    && typeof v.retentionUntil==='string' && Number.isFinite(Date.parse(v.retentionUntil))
+    && ['storedAt','uploadExpiresAt','withdrawnAt','deletedAt'].every(k=>v[k]===null || (typeof v[k]==='string' && Number.isFinite(Date.parse(v[k] as string))))
+    && (v.deletedAt===null || v.withdrawnAt!==null);
+}
 export const TRAINING_STAGE_ROUTING_VERSION = 'manager-training-applicability.v1';
 
 export type TrainingEligiblePredecessor = {
