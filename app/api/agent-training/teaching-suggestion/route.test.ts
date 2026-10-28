@@ -7,13 +7,15 @@ const SESSION = '11111111-1111-4111-8111-111111111111';
 const code = buildSync({ entryPoints: [fileURLToPath(new URL('./route.ts', import.meta.url))], bundle: true,
   platform: 'node', format: 'cjs', write: false, external: ['next/server', '@/lib/supabase/server'],
   alias: { '@/lib/trainer-questions': fileURLToPath(new URL('../../../../lib/trainer-questions.ts', import.meta.url)) } }).outputFiles[0].text;
-function proxy({ signedIn = true, status = 200, offline = false } = {}) {
+function proxy({ signedIn = true, status = 200, offline = false, timedOut = false, invalidReply = false } = {}) {
   const calls: any[] = [], module = { exports: {} as any };
   runInNewContext(code, { module, exports: module.exports, process: { env: {} }, URL, AbortSignal, TextDecoder, Uint8Array,
     require: (name: string) => name === 'next/server' ? { NextResponse: { json: (value: unknown, init: any = {}) => ({ value, status: init.status || 200, headers: init.headers }) } }
       : name === '@/lib/supabase/server' ? { createClient: () => ({ auth: { getSession: async () => ({ data: { session: signedIn ? { access_token: 'server-session' } : null } }) } }) }
         : assert.fail(`Unexpected import ${name}`),
-    fetch: async (url: string, init: any) => { calls.push({ url, init }); if (offline) throw Error('private-provider-detail'); return { status, json: async () => ({ ok: status === 200 }) }; } });
+    fetch: async (url: string, init: any) => { calls.push({ url, init }); if (offline) throw Error('private-provider-detail');
+      if(timedOut)throw Object.assign(Error('private'),{name:'TimeoutError'});
+      return { status, json: async () => {if(invalidReply)throw SyntaxError('private upstream body');return { ok: status === 200 };} }; } });
   return { calls, POST: module.exports.POST, maxDuration: module.exports.maxDuration };
 }
 function req(body = '{}', query = `sessionId=${SESSION}`) { return new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?${query}`, {
@@ -34,7 +36,10 @@ test('proxy rejects unauthenticated requests, forged target and oversized stream
 test('proxy preserves unavailable and quota outcomes without retry or private error details', async () => {
   const quota=proxy({status:429}); assert.equal((await quota.POST(req())).status,429); assert.equal(quota.calls.length,1);
   const offline=proxy({offline:true}); const r=await offline.POST(req()); assert.equal(r.status,503); assert.equal(offline.calls.length,1);
+  assert.equal(r.value.reason,'teaching_suggestion_backend_unreachable');
   assert.doesNotMatch(JSON.stringify(r),/private-provider-detail/);
+  const timeout=proxy({timedOut:true});assert.equal((await timeout.POST(req())).value.reason,'teaching_suggestion_proxy_timeout');
+  const invalid=proxy({invalidReply:true});assert.equal((await invalid.POST(req())).value.reason,'teaching_suggestion_proxy_response_invalid');
 });
 test('proxy propagates the browser request abort signal to the backend call', async () => {
   const p = proxy(), controller = new AbortController();

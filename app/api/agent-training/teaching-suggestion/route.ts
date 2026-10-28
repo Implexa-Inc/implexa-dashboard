@@ -6,6 +6,7 @@ const BACKEND = (process.env.NEXT_PUBLIC_IMPLEXA_API_URL || 'https://core.implex
 export async function POST(request: Request) {
   const { data: { session } } = await createClient().auth.getSession();
   if (!session?.access_token) return NextResponse.json({ ok: false, reason: 'unauthorized' }, { status: 401 });
+  let phase: 'body' | 'backend' | 'response' = 'body';
   try {
     const url = new URL(request.url), sessionId = url.searchParams.get('sessionId');
     if ([...url.searchParams.keys()].some(k => k !== 'sessionId') || !UUID.test(sessionId || '')) return NextResponse.json({ ok: false, reason: 'invalid_request' }, { status: 400 });
@@ -18,9 +19,17 @@ export async function POST(request: Request) {
       parts.push(item.value); }
     const bytes = new Uint8Array(length); let offset = 0; for (const part of parts) { bytes.set(part, offset); offset += part.length; }
     const body = JSON.parse(new TextDecoder().decode(bytes));
+    phase = 'backend';
     const response = await fetch(`${BACKEND}/api/v2/agent-training/sessions/${sessionId}/teaching-suggestion`, {
       method: 'POST', headers: { authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
       body: JSON.stringify(body), cache: 'no-store', signal: AbortSignal.any([request.signal, AbortSignal.timeout(35000)]) });
+    phase = 'response';
     return NextResponse.json(await response.json(), { status: response.status, headers: { 'Cache-Control': 'no-store' } });
-  } catch { return NextResponse.json({ ok: false, reason: 'teaching_suggestion_unavailable' }, { status: 503 }); }
+  } catch (error) {
+    const timedOut = error && typeof error === 'object' && 'name' in error && error.name === 'TimeoutError';
+    const reason = request.signal.aborted ? 'teaching_suggestion_cancelled'
+      : timedOut ? 'teaching_suggestion_proxy_timeout' : phase === 'body' ? 'teaching_suggestion_invalid'
+        : phase === 'response' ? 'teaching_suggestion_proxy_response_invalid' : 'teaching_suggestion_backend_unreachable';
+    return NextResponse.json({ ok: false, reason }, { status: phase === 'body' ? 400 : 503 });
+  }
 }
