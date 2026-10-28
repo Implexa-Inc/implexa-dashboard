@@ -151,8 +151,9 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [suggested, setSuggested] = useState<{ value: TeachingSuggestion; snapshot: string } | null>(null);
   const [suggestionNote, setSuggestionNote] = useState('');
   const appliedSuggestion = useRef<TeachingSuggestion | null>(null);
+  const previewIdentity = useMemo(() => crypto.randomUUID(), [preview]);
   const draftSnapshot = JSON.stringify({ session, sessionVersion, currentVersion, versionChanged, token: selected?.token, sourceId: selected?.sourceId,
-    time, image: preview?.image, property, stages, relation, chosen, why, process, behavior, answer: questionAnswer });
+    time, previewIdentity, property, stages, relation, chosen, why, process, behavior, answer: questionAnswer });
   const latestDraft = useRef(draftSnapshot); latestDraft.current = draftSnapshot;
   useEffect(() => { setDraftConsent(false); }, [preview?.image, selected?.sourceId, time, questionAnswer, session, currentVersion]);
   const previewIsCurrent = useMemo(() => previewMatches(preview, selected?.token, time), [preview, selected, time]);

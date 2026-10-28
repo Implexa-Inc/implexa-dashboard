@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const body = JSON.parse(new TextDecoder().decode(bytes));
     const response = await fetch(`${BACKEND}/api/v2/agent-training/sessions/${sessionId}/teaching-suggestion`, {
       method: 'POST', headers: { authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
-      body: JSON.stringify(body), cache: 'no-store', signal: AbortSignal.timeout(35000) });
+      body: JSON.stringify(body), cache: 'no-store', signal: AbortSignal.any([request.signal, AbortSignal.timeout(35000)]) });
     return NextResponse.json(await response.json(), { status: response.status, headers: { 'Cache-Control': 'no-store' } });
   } catch { return NextResponse.json({ ok: false, reason: 'teaching_suggestion_unavailable' }, { status: 503 }); }
 }

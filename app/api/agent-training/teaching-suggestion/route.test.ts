@@ -36,3 +36,10 @@ test('proxy preserves unavailable and quota outcomes without retry or private er
   const offline=proxy({offline:true}); const r=await offline.POST(req()); assert.equal(r.status,503); assert.equal(offline.calls.length,1);
   assert.doesNotMatch(JSON.stringify(r),/private-provider-detail/);
 });
+test('proxy propagates the browser request abort signal to the backend call', async () => {
+  const p = proxy(), controller = new AbortController();
+  const request = new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?sessionId=${SESSION}`, {
+    method: 'POST', body: '{}', signal: controller.signal });
+  await p.POST(request); assert.equal(p.calls[0].init.signal.aborted, false);
+  controller.abort(); assert.equal(p.calls[0].init.signal.aborted, true);
+});
