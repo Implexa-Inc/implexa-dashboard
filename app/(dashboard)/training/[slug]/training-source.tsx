@@ -650,7 +650,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
       {questionAnswer && <section className="rounded border border-brand-500 p-3 space-y-2" aria-labelledby="teaching-suggestion-heading">
         <h3 id="teaching-suggestion-heading">Optional teaching suggestion</h3>
         <p>Use this exact frame and your complete answer to draft editable guidance. A still cannot demonstrate motion, narration timing or a tool procedure. Manual drafting remains available.</p>
-        <label className="flex gap-2"><input type="checkbox" checked={draftConsent} onChange={event => setDraftConsent(event.target.checked)} />Send this frame, the recorded question and my answer to Anthropic Claude Haiku 4.5 for this suggestion.</label>
+        <label className="flex gap-2"><input type="checkbox" checked={draftConsent} onChange={event => setDraftConsent(event.target.checked)} />Send this frame, the recorded question and my answer to Anthropic Claude Haiku 5.5 for this suggestion.</label>
         <button type="button" disabled={suggesting || !draftConsent || !previewIsCurrent || !preview?.image || !!busy} onClick={suggestTeaching}>{suggesting ? 'Drafting suggestion…' : 'Suggest teaching from this frame'}</button>
         <p>Nothing is automatically saved or admitted. Frame bytes are sent for this call; Implexa does not store them through this operation. The suggestion and its model attribution are not retained as a separate record.</p>
         {suggested && <div className="space-y-2"><p>Drafted by {suggested.value.model}. Frame {shortId(suggested.value.binding.frameSha256)} · feedback {shortId(suggested.value.binding.feedbackSha256)} · request {shortId(suggested.value.requestId)}.</p>
