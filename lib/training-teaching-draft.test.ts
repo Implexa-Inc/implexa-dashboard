@@ -29,3 +29,12 @@ test('only allowlisted failure codes and validated correlation ids reach the UI'
   assert.doesNotMatch(message,/private raw text|secret-value|sensitive raw provider failure|undefined/);
  }
 });
+
+
+test('demo replies bind the saved annotation and cannot masquerade as recorded-question replies',()=>{
+ const {questionReceiptId,questionReceiptDigest,...base}=binding; const expected={...base,annotationId:'annotation',annotationDigest:'e'.repeat(64)};
+ const reply={...value,contractVersion:'training-teaching-suggestion.v3',binding:expected};
+ assert.equal(teachingSuggestion(reply,expected),true);assert.equal(teachingSuggestion({...reply,contractVersion:'training-teaching-suggestion.v2'},expected),false);
+ for(const key of Object.keys(expected))assert.equal(teachingSuggestion({...reply,binding:{...expected,[key]:'wrong'}},expected),false,key);
+ assert.equal(teachingSuggestion({...reply,binding:{...expected,questionReceiptId}},expected),false);
+});

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
-import { teachingDigest, teachingFrame, teachingSuggestion, teachingFailure, TEACHING_FIELDS, type TeachingSuggestion } from '@/lib/training-teaching-draft';
+import { teachingDigest, teachingFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation } from '@/lib/training-teaching-draft';
 import {
   deriveTrainingStages,
   formatTrainingTime,
@@ -152,6 +152,10 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [questionAnswer, setQuestionAnswer] = useState<QuestionAnswer | null>(null);
   const [linkRecordId, setLinkRecordId] = useState('');
   const [pendingAnswerLinks, setPendingAnswerLinks] = useState<{ answer: QuestionAnswer; sessionId: string; recordId: string; recordDigest: string } | null>(null);
+  const [demoText, setDemoText] = useState('');
+  const [demoAnnotation, setDemoAnnotation] = useState<{ value: DemoAnnotation; previewIdentity: string } | null>(null);
+  const pendingDemoSave = useRef<{ fingerprint: string; key: string } | null>(null);
+  const [pendingDemoLink, setPendingDemoLink] = useState<{ annotation: DemoAnnotation; sessionId: string; recordId: string; recordDigest: string } | null>(null);
   const [draftConsent, setDraftConsent] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggested, setSuggested] = useState<{ value: TeachingSuggestion; snapshot: string } | null>(null);
@@ -159,10 +163,14 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const appliedSuggestion = useRef<TeachingSuggestion | null>(null);
   const previewIdentity = useMemo(() => crypto.randomUUID(), [preview]);
   const draftSnapshot = JSON.stringify({ session, sessionVersion, currentVersion, versionChanged, token: selected?.token, sourceId: selected?.sourceId,
-    time, previewIdentity, property, stages, relation, chosen, why, process, behavior, answer: questionAnswer });
+    time, previewIdentity, property, stages, relation, chosen, why, process, behavior, answer: questionAnswer, demoText, demoAnnotation });
   const latestDraft = useRef(draftSnapshot); latestDraft.current = draftSnapshot;
-  useEffect(() => { setDraftConsent(false); }, [preview?.image, selected?.sourceId, time, questionAnswer, session, currentVersion]);
+  useEffect(() => { setDraftConsent(false); }, [preview?.image, selected?.sourceId, time, questionAnswer, demoText, demoAnnotation, session, currentVersion]);
   const previewIsCurrent = useMemo(() => previewMatches(preview, selected?.token, time), [preview, selected, time]);
+  const demoAnnotationIsCurrent = Boolean(demoAnnotation && demoAnnotation.previewIdentity === previewIdentity && previewIsCurrent
+    && demoAnnotation.value.sourceId === selected?.sourceId && demoAnnotation.value.sourceSha256 === selected?.metadata.sha256
+    && demoAnnotation.value.timeMs === time && demoAnnotation.value.expectedActiveVersionId === currentVersion
+    && demoAnnotation.value.rawAnnotation === demoText);
   const acceptedEvidenceCount = useMemo(() => sources.reduce((count, source) => count + source.decisions.filter((decision) => decision.state === 'accepted').length, 0), [sources]);
   const coverageIsCurrent = Boolean(isManagerTrainingCoverage(managerCoverage, sessionVersion)
     && managerCoverage
@@ -241,6 +249,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
     setProperty(selectedQuestions[0].property); setStages(normalizeTrainingStages(selectedQuestions.map(q => q.stage))); setRelation('accepted');
     setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setSuggested(null); appliedSuggestion.current = null;
     setDraftConsent(false); setSuggestionNote('Your full answer is preserved below. Choose a frame, then draft the four fields manually or request an optional suggestion.');
+    setDemoText(''); setDemoAnnotation(null);
     setDecisionKey(crypto.randomUUID()); setQuestionsError('');
   }
 
@@ -445,21 +454,58 @@ export default function TrainingSource({ slug }: { slug: string }) {
     });
   }
 
+  async function saveDemoAnnotation() {
+    if (!selected || !previewIsCurrent || !preview || !demoText.trim() || questionAnswer || !currentVersion) return;
+    const source = selected, frame = preview, annotationText = demoText, identity = previewIdentity, version = currentVersion;
+    await work('Saving your demonstration annotation', async () => {
+      await requireCurrentScope();
+      const frameSha256 = await teachingDigest(teachingFrame(frame.image));
+      const expected = {sourceId:source.sourceId,sourceSha256:source.metadata.sha256,timeMs:frame.timeMs,frameSha256,
+        rawAnnotation:annotationText,expectedActiveVersionId:version};
+      const fingerprint = JSON.stringify({session,...expected});
+      if (pendingDemoSave.current?.fingerprint !== fingerprint) pendingDemoSave.current = {fingerprint,key:crypto.randomUUID()};
+      const response = await fetch(`/api/agent-training/teaching-suggestion?operation=annotation&sessionId=${encodeURIComponent(session)}`, {
+        method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':pendingDemoSave.current.key},cache:'no-store',
+        body:JSON.stringify({action:'save',...expected})});
+      const value = await response.json();
+      if (!response.ok || !demoAnnotationReceipt(value,expected)) throw Error('The annotation could not be verified. Your text is preserved; retry saving the same annotation.');
+      setDemoAnnotation({value:{...expected,annotationId:value.annotationId,annotationDigest:value.annotationDigest},previewIdentity:identity});
+      setSuggestionNote('Your complete annotation is saved privately. You can now request a teaching suggestion for this frame. Nothing has been admitted.');
+    });
+  }
+
+  async function linkDemoAnnotation(pending: NonNullable<typeof pendingDemoLink>) {
+    setPendingDemoLink(pending);
+    const {annotation,recordId,recordDigest} = pending;
+    const response = await fetch(`/api/agent-training/teaching-suggestion?operation=annotation&sessionId=${encodeURIComponent(pending.sessionId)}`, {
+      method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':`demo-link:${annotation.annotationId}:${recordId}`},cache:'no-store',
+      body:JSON.stringify({action:'link',annotationId:annotation.annotationId,annotationDigest:annotation.annotationDigest,
+        recordId,expectedRecordDigest:recordDigest,expectedActiveVersionId:annotation.expectedActiveVersionId})});
+    const value = await response.json();
+    if (!response.ok || value?.ok !== true || value.contractVersion !== 'training-demo-link.v1'
+      || value.annotationId !== annotation.annotationId || value.annotationDigest !== annotation.annotationDigest
+      || value.recordId !== recordId || value.recordDigest !== recordDigest || typeof value.linkReceiptId !== 'string')
+      throw Error('Your teaching draft and raw annotation are preserved. Retry the annotation link; do not save another draft.');
+    setPendingDemoLink(null); setDemoAnnotation(null); setDemoText('');
+    setSuggestionNote('The saved teaching is linked to your original private annotation. Review its exact evidence and wording before accepting it.');
+  }
+
   async function suggestTeaching() {
-    if (!selected?.token || !previewIsCurrent || !preview || !questionAnswer || !draftConsent || suggesting) return;
-    const source = selected, frame = preview, answer = questionAnswer, snapshot = draftSnapshot;
+    if (!selected?.token || !previewIsCurrent || !preview || (!questionAnswer && !demoAnnotationIsCurrent) || !draftConsent || suggesting) return;
+    const source = selected, frame = preview, answer = questionAnswer, demo = demoAnnotation?.value, snapshot = draftSnapshot;
     setSuggesting(true); setSuggestionNote(''); setSuggested(null);
     try {
       await requireCurrentScope();
       if (latestDraft.current !== snapshot) throw Error('The frame or draft changed. No suggestion was requested.');
-      const [frameSha256, feedbackSha256] = await Promise.all([teachingDigest(teachingFrame(frame.image)), teachingDigest(new TextEncoder().encode(answer.rawAnswer))]);
+      const [frameSha256, feedbackSha256] = await Promise.all([teachingDigest(teachingFrame(frame.image)), teachingDigest(new TextEncoder().encode(answer?.rawAnswer ?? demo!.rawAnnotation))]);
       if (latestDraft.current !== snapshot) throw Error('The frame or draft changed. No suggestion was requested.');
       const binding = { sourceId: source.sourceId, sourceSha256: source.metadata.sha256, timeMs: frame.timeMs, frameSha256, feedbackSha256,
-        questionReceiptId: answer.questions[0].id, questionReceiptDigest: answer.questions[0].receiptDigest, expectedActiveVersionId: answer.expectedActiveVersionId };
+        ...(answer ? {questionReceiptId:answer.questions[0].id,questionReceiptDigest:answer.questions[0].receiptDigest}
+          : {annotationId:demo!.annotationId,annotationDigest:demo!.annotationDigest}),expectedActiveVersionId:answer?.expectedActiveVersionId ?? demo!.expectedActiveVersionId };
       const { feedbackSha256: _localHash, ...wire } = binding;
       const response = await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
-        body: JSON.stringify({ ...wire, image: frame.image, feedback: answer.rawAnswer, consent: true }) });
+        body: JSON.stringify({ ...wire, image: frame.image, ...(answer ? {feedback:answer.rawAnswer} : {mode:'demonstration'}), consent: true }) });
       const value: unknown = await response.json();
       if (!response.ok || !teachingSuggestion(value, binding)) throw Error(teachingFailure(value, response.status));
       setSuggested({ value, snapshot });
@@ -486,6 +532,9 @@ export default function TrainingSource({ slug }: { slug: string }) {
     const source = selected; const requestedTime = time; const requestedPreview = preview;
     await work('Saving the visual decision draft', async () => {
       const scope = await requireCurrentScope();
+      if (!questionAnswer && demoText.trim() && !demoAnnotationIsCurrent) throw Error('Save the annotation for this exact frame and active version before saving its teaching.');
+      if (pendingDemoLink) throw Error('Finish linking the preserved teaching draft before saving another.');
+      const demo = !questionAnswer && demoAnnotationIsCurrent ? demoAnnotation!.value : null;
       if (!requestedPreview || requestedPreview.token !== source.token || requestedPreview.timeMs !== requestedTime) throw new TrainingError('training_preview_stale', 'Preview this exact timestamp again before saving.');
       if (questionAnswer && questionAnswer.expectedActiveVersionId !== scope.agent.currentVersionId) throw new TrainingError('training_version_changed');
       const drafted = await call('annotate', {
@@ -500,6 +549,8 @@ export default function TrainingSource({ slug }: { slug: string }) {
       const answerLink = questionAnswer && drafted.recordId && drafted.recordDigest
         ? { answer: questionAnswer, sessionId: session, recordId: drafted.recordId, recordDigest: drafted.recordDigest } : null;
       if (answerLink) setPendingAnswerLinks(answerLink);
+      const demoLink = demo && drafted.recordId && drafted.recordDigest ? {annotation:demo,sessionId:session,recordId:drafted.recordId,recordDigest:drafted.recordDigest} : null;
+      if (demoLink) setPendingDemoLink(demoLink);
       setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setSelectionPriority('50'); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null);
       const saved = await load(session);
       if (appliedSuggestion.current) {
@@ -512,6 +563,10 @@ export default function TrainingSource({ slug }: { slug: string }) {
       if (questionAnswer) {
         if (!drafted.recordId || !drafted.recordDigest) throw new TrainingError('question_answer_link_unavailable', 'The draft was saved, but no verifiable teaching identity was returned. Select that existing draft to link the answer.');
         await linkAnswers(answerLink!);
+      }
+      if (demo) {
+        if (!demoLink) throw Error('The teaching draft was saved without a verifiable identity; the raw annotation is preserved.');
+        await linkDemoAnnotation(demoLink);
       }
     });
   }
@@ -643,6 +698,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
         <button disabled={!!busy || !linkRecordId || sessionVersion !== questionAnswer.expectedActiveVersionId} onClick={linkExistingTeaching}>Link answer to selected teaching</button>
       </div>}
       {pendingAnswerLinks && <div role="status"><p>The evidence draft is preserved. {pendingAnswerLinks.answer.questions.length} answer link(s) remain unverified.</p><button disabled={!!busy} onClick={() => work('Retrying the saved answer links', () => linkAnswers(pendingAnswerLinks))}>Retry answer links</button></div>}
+      {pendingDemoLink && <div role="status"><p>The teaching draft and original demonstration annotation are preserved. Their link remains unverified.</p><button disabled={!!busy} onClick={() => work('Retrying the saved demonstration link', () => linkDemoAnnotation(pendingDemoLink))}>Retry demonstration link</button></div>}
     </section>
     {versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded border p-4 space-y-3 ${activeVersionTrainingIsReady ? 'border-emerald-600' : 'border-amber-500'}`}><h2 className="font-semibold">{activeVersionTrainingIsReady ? 'Active-version Manager training is ready' : 'Move reviewed evidence to the active version explicitly'}</h2>{activeVersionTrainingIsReady ? <><p>This historical session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version {shortId(currentVersion)} can select the same evidence through explicit immutable adoption receipts; all {managerTrainingRequirements?.requiredPairs.length || 0} critical request-admission visual-reference routes are fulfilled. First launch still verifies every declared reference.</p><p>No new successor training session is required to run this Agent. Start one only when you want to change or add training evidence for the active version.</p></> : <><p>This session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version is {shortId(currentVersion)} and cannot select those records. Start a separate successor session, re-select the exact source, and review each new decision before accepting it.</p><label className="flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event) => setTransitionConfirmed(event.target.checked)} />I understand this creates new evidence records for the active version and does not change or automatically accept the existing records.</label><button disabled={!!busy || !transitionConfirmed || !currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></>}</section>}
     <label className="flex gap-3"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection. The original stays on this computer. I can stop future selection or withdraw permission below.</label>
@@ -701,18 +757,24 @@ export default function TrainingSource({ slug }: { slug: string }) {
       <p id="training-priority-help" className="text-sm">50 is normal. Prefer this example by choosing a higher number, up to 100. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not widen eligible stages or properties, guarantee selection, or override checks, criteria or facts. Saved decisions stay immutable; changing a preference requires a new reviewed and accepted draft.</p>
       {!priorityIsValid && <p role="alert">Choose a whole-number priority from 0 to 100.</p>}
       <fieldset className="rounded border border-ink-700 p-3 space-y-2"><legend className="font-semibold">When may the Manager use this decision?</legend><p className="text-sm">Suggested from the selected visual property. Narrow or expand it deliberately. Planning must be selected for this evidence to guide decisions before tools, generation, or paid actions.</p><div className="grid gap-2">{TRAINING_STAGE_OPTIONS.map((option) => <label key={option.value} className="flex gap-3"><input type="checkbox" checked={stages.includes(option.value)} onChange={() => toggleStage(option.value)} /><span><span className="block">{option.label}</span><span className="block text-sm text-ink-400">{option.help}</span></span></label>)}</div><p className="text-xs text-ink-500">Routing contract {TRAINING_STAGE_ROUTING_VERSION}</p></fieldset>
-      {questionAnswer && <section className="rounded border border-brand-500 p-3 space-y-2" aria-labelledby="teaching-suggestion-heading">
+      <section className="rounded border border-brand-500 p-3 space-y-2" aria-labelledby="teaching-suggestion-heading">
         <h3 id="teaching-suggestion-heading">Optional teaching suggestion</h3>
-        <p>Use this exact frame and your complete answer to draft editable guidance. A still cannot demonstrate motion, narration timing or a tool procedure. Manual drafting remains available.</p>
-        <label className="flex gap-2"><input type="checkbox" checked={draftConsent} onChange={event => setDraftConsent(event.target.checked)} />Send this frame, the recorded question and my answer to Anthropic Claude Haiku 5.5 for this suggestion.</label>
-        <button type="button" disabled={suggesting || !draftConsent || !previewIsCurrent || !preview?.image || !!busy} onClick={suggestTeaching}>{suggesting ? 'Drafting suggestion…' : 'Suggest teaching from this frame'}</button>
+        <p>Use this exact frame and your annotation to draft editable visual guidance. A still cannot demonstrate motion, narration timing or a tool procedure. Manual drafting remains available.</p>
+        {!questionAnswer && <div className="space-y-2">
+          <label className="block">What should this demonstration teach?<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={2000} value={demoText} onChange={event => setDemoText(event.target.value)} /></label>
+          <p>Your complete annotation is saved privately before drafting. Only reviewed, admitted guidance can later reach a worker. This analyzes a selected frame, not the recording's audio or full sequence.</p>
+          <button type="button" disabled={!!busy || suggesting || !!pendingDemoLink || !previewIsCurrent || !demoText.trim() || demoAnnotationIsCurrent} onClick={saveDemoAnnotation}>Save demonstration annotation</button>
+          {demoAnnotationIsCurrent && <p>Saved annotation {shortId(demoAnnotation?.value.annotationId)} · {shortId(demoAnnotation?.value.annotationDigest)}.</p>}
+        </div>}
+        <label className="flex gap-2"><input type="checkbox" checked={draftConsent} onChange={event => setDraftConsent(event.target.checked)} />{questionAnswer ? 'Send this frame, the recorded question and my answer' : 'Send this frame and my saved demonstration annotation'} to Anthropic Claude Haiku 5.5 for this suggestion.</label>
+        <button type="button" disabled={suggesting || !draftConsent || (!questionAnswer && !demoAnnotationIsCurrent) || !previewIsCurrent || !preview?.image || !!busy} onClick={suggestTeaching}>{suggesting ? 'Drafting suggestion…' : 'Suggest teaching from this frame'}</button>
         <p>Nothing is automatically saved or admitted. Frame bytes are sent for this call; Implexa does not store them through this operation. The suggestion and its model attribution are not retained as a separate record.</p>
         {suggested && <div className="space-y-2"><p>Drafted by {suggested.value.model}. Frame {shortId(suggested.value.binding.frameSha256)} · feedback {shortId(suggested.value.binding.feedbackSha256)} · request {shortId(suggested.value.requestId)}.</p>
           {suggested.value.fields && TEACHING_FIELDS.map(key => <p key={key}><strong>{key === 'chosen' ? 'Observed frame' : key === 'why' ? 'Trainer preference' : 'Transferable guidance'}:</strong> {suggested.value.fields![key]}</p>)}
           {suggested.value.fields && <button type="button" disabled={suggested.snapshot !== draftSnapshot || !!busy || versionChanged} onClick={useSuggestion}>Use this suggestion in editable fields</button>}
           {suggested.snapshot !== draftSnapshot && <p>Suggestion for a previous frame or edit — not applied. Request a new suggestion for your current draft.</p>}
         </div>}
-      </section>}
+      </section>
       {([['What was chosen', chosen, setChosen], ['Why this choice', why, setWhy], ['Tool or process used', process, setProcess], ['Desired visual, motion or layout behavior', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || !priorityIsValid || stages.length === 0 || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={annotate}>Save decision draft</button></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
   </main>;
 }

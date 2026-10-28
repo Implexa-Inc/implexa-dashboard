@@ -48,3 +48,12 @@ test('proxy propagates the browser request abort signal to the backend call', as
   await p.POST(request); assert.equal(p.calls[0].init.signal.aborted, false);
   controller.abort(); assert.equal(p.calls[0].init.signal.aborted, true);
 });
+
+test('annotation proxy adds only the named owner-authenticated write and preserves its idempotency key',async()=>{
+ const p=proxy();const request=new Request(`https://dashboard.test/api/agent-training/teaching-suggestion?sessionId=${SESSION}&operation=annotation`,{
+  method:'POST',headers:{'Idempotency-Key':'same-annotation-key'},body:'{"action":"save"}'});
+ assert.equal((await p.POST(request)).status,200);assert.equal(p.calls[0].url,`https://core.implexa.ai/api/v2/agent-training/sessions/${SESSION}/demo-annotation`);
+ assert.equal(p.calls[0].init.headers.authorization,'Bearer server-session');assert.equal(p.calls[0].init.headers['Idempotency-Key'],'same-annotation-key');
+ const denied=proxy();assert.equal((await denied.POST(req('{"action":"save"}',`sessionId=${SESSION}&operation=annotation`))).status,400);assert.equal(denied.calls.length,0);
+ const arbitrary=proxy();assert.equal((await arbitrary.POST(req('{}',`sessionId=${SESSION}&operation=export`))).status,400);assert.equal(arbitrary.calls.length,0);
+});
