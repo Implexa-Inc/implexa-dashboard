@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
+import { teachingDigest, teachingFrame, teachingSuggestion, TEACHING_FIELDS, type TeachingSuggestion } from '@/lib/training-teaching-draft';
 import {
   deriveTrainingStages,
   formatTrainingTime,
@@ -31,7 +32,7 @@ type Decision = {
   recordId: string;
   recordDigest: string;
   state: DecisionState;
-  content: { relation: TrainingRelation; properties: TrainingPropertyCode[]; summary: string; anchor: { startMs: number }; applicability?: { stages?: string[]; priority?: number } };
+  content: { relation: TrainingRelation; properties: TrainingPropertyCode[]; summary: string; anchor: { startMs: number }; derivatives?: Array<{ sha256: string }>; applicability?: { stages?: string[]; priority?: number } };
   decision: { chosen: string; why: string; process: string; desiredBehavior: string };
 };
 type Source = {
@@ -145,6 +146,15 @@ export default function TrainingSource({ slug }: { slug: string }) {
   const [questionAnswer, setQuestionAnswer] = useState<QuestionAnswer | null>(null);
   const [linkRecordId, setLinkRecordId] = useState('');
   const [pendingAnswerLinks, setPendingAnswerLinks] = useState<{ answer: QuestionAnswer; sessionId: string; recordId: string; recordDigest: string } | null>(null);
+  const [draftConsent, setDraftConsent] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggested, setSuggested] = useState<{ value: TeachingSuggestion; snapshot: string } | null>(null);
+  const [suggestionNote, setSuggestionNote] = useState('');
+  const appliedSuggestion = useRef<TeachingSuggestion | null>(null);
+  const draftSnapshot = JSON.stringify({ session, sessionVersion, currentVersion, versionChanged, token: selected?.token, sourceId: selected?.sourceId,
+    time, image: preview?.image, property, stages, relation, chosen, why, process, behavior, answer: questionAnswer });
+  const latestDraft = useRef(draftSnapshot); latestDraft.current = draftSnapshot;
+  useEffect(() => { setDraftConsent(false); }, [preview?.image, selected?.sourceId, time, questionAnswer, session, currentVersion]);
   const previewIsCurrent = useMemo(() => previewMatches(preview, selected?.token, time), [preview, selected, time]);
   const acceptedEvidenceCount = useMemo(() => sources.reduce((count, source) => count + source.decisions.filter((decision) => decision.state === 'accepted').length, 0), [sources]);
   const coverageIsCurrent = Boolean(isManagerTrainingCoverage(managerCoverage, sessionVersion)
@@ -222,8 +232,8 @@ export default function TrainingSource({ slug }: { slug: string }) {
     setQuestionAnswer({ questions: selectedQuestions, rawAnswer, expectedActiveVersionId: questions.activeVersionId });
     setSelected(null); setPreview(null); setReviewed(null); setLinkRecordId('');
     setProperty(selectedQuestions[0].property); setStages(normalizeTrainingStages(selectedQuestions.map(q => q.stage))); setRelation('accepted');
-    setChosen(rawAnswer.trim().slice(0, 400)); setWhy(`Trainer guidance for ${selectedQuestions[0].property.replaceAll('_', ' ')}.`);
-    setProcess('Use the selected example to guide this decision.'); setBehavior(rawAnswer.trim().slice(0, 400));
+    setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setSuggested(null); appliedSuggestion.current = null;
+    setDraftConsent(false); setSuggestionNote('Your full answer is preserved below. Choose a frame, then draft the four fields manually or request an optional suggestion.');
     setDecisionKey(crypto.randomUUID()); setQuestionsError('');
   }
 
@@ -428,6 +438,42 @@ export default function TrainingSource({ slug }: { slug: string }) {
     });
   }
 
+  async function suggestTeaching() {
+    if (!selected?.token || !previewIsCurrent || !preview || !questionAnswer || !draftConsent || suggesting) return;
+    const source = selected, frame = preview, answer = questionAnswer, snapshot = draftSnapshot;
+    setSuggesting(true); setSuggestionNote(''); setSuggested(null);
+    try {
+      await requireCurrentScope();
+      if (latestDraft.current !== snapshot) throw Error('The frame or draft changed. No suggestion was requested.');
+      const [frameSha256, feedbackSha256] = await Promise.all([teachingDigest(teachingFrame(frame.image)), teachingDigest(new TextEncoder().encode(answer.rawAnswer))]);
+      if (latestDraft.current !== snapshot) throw Error('The frame or draft changed. No suggestion was requested.');
+      const binding = { sourceId: source.sourceId, sourceSha256: source.metadata.sha256, timeMs: frame.timeMs, frameSha256, feedbackSha256,
+        questionReceiptId: answer.questions[0].id, questionReceiptDigest: answer.questions[0].receiptDigest, expectedActiveVersionId: answer.expectedActiveVersionId };
+      const { feedbackSha256: _localHash, ...wire } = binding;
+      const response = await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
+        body: JSON.stringify({ ...wire, image: frame.image, feedback: answer.rawAnswer, consent: true }) });
+      const value: unknown = await response.json();
+      if (!response.ok || !teachingSuggestion(value, binding)) throw Error('Suggestions are unavailable or did not match this frame. Your answer and manual draft are preserved.');
+      setSuggested({ value, snapshot });
+      setSuggestionNote(latestDraft.current !== snapshot ? 'Suggestion for a previous frame or edit — not applied. Keep your current draft or request a new suggestion.'
+        : value.status === 'insufficient' ? value.reason : 'Review the suggestion before using it. Nothing was saved or admitted.');
+    } catch (caught) { setSuggestionNote(caught instanceof Error ? caught.message : 'Suggestion unavailable. Your draft is preserved.'); }
+    finally { setSuggesting(false); setDraftConsent(false); }
+  }
+
+  async function useSuggestion() {
+    if (!suggested?.value.fields || suggested.snapshot !== latestDraft.current) return;
+    try {
+      await requireCurrentScope();
+      if (suggested.snapshot !== latestDraft.current) throw Error('The frame or draft changed. Request a new suggestion.');
+      const fields = suggested.value.fields;
+      setChosen(fields.chosen); setWhy(fields.why); setProcess(fields.process); setBehavior(fields.desiredBehavior);
+      appliedSuggestion.current = suggested.value; setSuggested(null); setDecisionKey(crypto.randomUUID());
+      setSuggestionNote('Suggestion copied into the editable fields. Review your wording, save the draft, then accept it separately.');
+    } catch (caught) { setSuggestionNote(caught instanceof Error ? caught.message : 'The suggestion was not applied.'); }
+  }
+
   async function annotate() {
     if (!selected?.token || !previewIsCurrent || !priorityIsValid) return;
     const source = selected; const requestedTime = time; const requestedPreview = preview;
@@ -447,7 +493,15 @@ export default function TrainingSource({ slug }: { slug: string }) {
       const answerLink = questionAnswer && drafted.recordId && drafted.recordDigest
         ? { answer: questionAnswer, sessionId: session, recordId: drafted.recordId, recordDigest: drafted.recordDigest } : null;
       if (answerLink) setPendingAnswerLinks(answerLink);
-      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setSelectionPriority('50'); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null); await load(session);
+      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setSelectionPriority('50'); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null);
+      const saved = await load(session);
+      if (appliedSuggestion.current) {
+        const record = saved.sources?.flatMap(s => s.decisions).find(d => d.recordId === drafted.recordId);
+        setSuggestionNote(record?.content.derivatives?.[0]?.sha256 === appliedSuggestion.current.binding.frameSha256
+          ? 'Saved teaching evidence matches the suggestion frame. The saved text remains your reviewed draft; model authorship is not durably recorded.'
+          : 'The draft was saved, but its evidence could not be matched to the suggestion frame. Do not treat the suggestion as describing this saved evidence.');
+        appliedSuggestion.current = null;
+      }
       if (questionAnswer) {
         if (!drafted.recordId || !drafted.recordDigest) throw new TrainingError('question_answer_link_unavailable', 'The draft was saved, but no verifiable teaching identity was returned. Select that existing draft to link the answer.');
         await linkAnswers(answerLink!);
@@ -508,6 +562,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
     <Link href="/training">← Training</Link>
     <header className="space-y-2"><h1 className="text-2xl font-semibold">Train {agentName}</h1><p className="text-sm text-ink-400">Active version: {shortId(currentVersion)}{sessionVersion ? ` · Session version: ${shortId(sessionVersion)}` : ''}</p></header>
     <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>
+    {suggestionNote && <p role="status">{suggestionNote}</p>}
     <section className="rounded border border-ink-700 p-4 space-y-3" aria-labelledby="trainer-questions-heading">
       <h2 id="trainer-questions-heading" className="font-semibold">Questions from runs</h2>
       <p>Review actual recorded consultations, including failed or cancelled runs. A returned reference is not proof that it answered the question or was applied.</p>
@@ -537,8 +592,8 @@ export default function TrainingSource({ slug }: { slug: string }) {
       </>}
       {questionAnswer && <div className="rounded border border-brand-500 p-3 space-y-2">
         <h3>Worker-visible draft guidance — edit before saving</h3>
-        <p>{chosen} {why} {process} {behavior}</p>
-        <p>This excerpt is derived from your private answer and may be delivered if admitted. Choose an owner-created source below and preview an exact frame. Nothing is accepted automatically.</p>
+        <blockquote className="whitespace-pre-wrap">{questionAnswer.rawAnswer}</blockquote>
+        <p>Your complete answer is preserved here and saved privately when linked to a teaching. Write an editable excerpt below, or request a suggestion after previewing your chosen frame. Only the reviewed teaching may be delivered if admitted.</p>
         <label>Or link an existing teaching that already expresses this answer<select value={linkRecordId} onChange={event => setLinkRecordId(event.target.value)}><option value="">Choose a saved draft or teaching</option>{sources.flatMap(source => source.decisions.filter(d => ['draft', 'accepted'].includes(d.state)).map(d => <option key={d.recordId} value={d.recordId}>{shortId(d.recordId)} · {d.state} · {d.content.summary.slice(0, 80)}</option>))}</select></label>
         <p>Linking preserves the existing teaching; it does not edit its text or evidence. This also resumes a draft saved before an interrupted answer link.</p>
         <button disabled={!!busy || !linkRecordId || sessionVersion !== questionAnswer.expectedActiveVersionId} onClick={linkExistingTeaching}>Link answer to selected teaching</button>
@@ -591,6 +646,18 @@ export default function TrainingSource({ slug }: { slug: string }) {
       <p id="training-priority-help" className="text-sm">50 is normal. Prefer this example by choosing a higher number, up to 100. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not widen eligible stages or properties, guarantee selection, or override checks, criteria or facts. Saved decisions stay immutable; changing a preference requires a new reviewed and accepted draft.</p>
       {!priorityIsValid && <p role="alert">Choose a whole-number priority from 0 to 100.</p>}
       <fieldset className="rounded border border-ink-700 p-3 space-y-2"><legend className="font-semibold">When may the Manager use this decision?</legend><p className="text-sm">Suggested from the selected visual property. Narrow or expand it deliberately. Planning must be selected for this evidence to guide decisions before tools, generation, or paid actions.</p><div className="grid gap-2">{TRAINING_STAGE_OPTIONS.map((option) => <label key={option.value} className="flex gap-3"><input type="checkbox" checked={stages.includes(option.value)} onChange={() => toggleStage(option.value)} /><span><span className="block">{option.label}</span><span className="block text-sm text-ink-400">{option.help}</span></span></label>)}</div><p className="text-xs text-ink-500">Routing contract {TRAINING_STAGE_ROUTING_VERSION}</p></fieldset>
+      {questionAnswer && <section className="rounded border border-brand-500 p-3 space-y-2" aria-labelledby="teaching-suggestion-heading">
+        <h3 id="teaching-suggestion-heading">Optional teaching suggestion</h3>
+        <p>Use this exact frame and your complete answer to draft editable guidance. A still cannot demonstrate motion, narration timing or a tool procedure. Manual drafting remains available.</p>
+        <label className="flex gap-2"><input type="checkbox" checked={draftConsent} onChange={event => setDraftConsent(event.target.checked)} />Send this frame, the recorded question and my answer to Anthropic Claude Haiku 4.5 for this suggestion.</label>
+        <button type="button" disabled={suggesting || !draftConsent || !previewIsCurrent || !preview?.image || !!busy} onClick={suggestTeaching}>{suggesting ? 'Drafting suggestion…' : 'Suggest teaching from this frame'}</button>
+        <p>Nothing is automatically saved or admitted. Frame bytes are sent for this call; Implexa does not store them through this operation. The suggestion and its model attribution are not retained as a separate record.</p>
+        {suggested && <div className="space-y-2"><p>Drafted by {suggested.value.model}. Frame {shortId(suggested.value.binding.frameSha256)} · feedback {shortId(suggested.value.binding.feedbackSha256)}.</p>
+          {suggested.value.fields && TEACHING_FIELDS.map(key => <p key={key}><strong>{key === 'chosen' ? 'Observed frame' : key === 'why' ? 'Trainer preference' : 'Transferable guidance'}:</strong> {suggested.value.fields![key]}</p>)}
+          {suggested.value.fields && <button type="button" disabled={suggested.snapshot !== draftSnapshot || !!busy || versionChanged} onClick={useSuggestion}>Use this suggestion in editable fields</button>}
+          {suggested.snapshot !== draftSnapshot && <p>Suggestion for a previous frame or edit — not applied. Request a new suggestion for your current draft.</p>}
+        </div>}
+      </section>}
       {([['What was chosen', chosen, setChosen], ['Why this choice', why, setWhy], ['Tool or process used', process, setProcess], ['Desired visual, motion or layout behavior', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || !priorityIsValid || stages.length === 0 || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={annotate}>Save decision draft</button></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
   </main>;
 }

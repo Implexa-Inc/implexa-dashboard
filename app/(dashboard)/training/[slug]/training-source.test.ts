@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { render, type Rendered } from '../../../../lib/test/render.ts';
 import { deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
 import { questionsPage, validAnswerBody, answerReceipt } from '../../../../lib/trainer-questions.ts';
@@ -92,6 +93,7 @@ function requirements(workflowVersionId = VERSION_A, overrides: Record<string, u
 
 function harness(options: {
   state?: DecisionState;
+  previewImage?: string;
   localToken?: string | null;
   authorityResponse?: Record<string, unknown>;
   failRefreshAfterAuthority?: boolean;
@@ -116,6 +118,7 @@ function harness(options: {
   let decisionState = options.state || 'draft';
   let sessionTerminal = options.predecessorTerminal === true;
   let authorityAcknowledged = false;
+  let lastAnnotated: any = null;
   let successorSelected = false;
   let successorCreateAttempts = 0;
   const bridge = {
@@ -158,9 +161,12 @@ function harness(options: {
         const next = source('draft', options.stages);
         if (options.successorSha) next.metadata.sha256 = options.successorSha;
         const listedVersion = args.sessionId === NEW_SESSION ? currentVersion : VERSION_A;
+        const current: any = source(decisionState, options.stages);
+        if (lastAnnotated) { current.decisions[0].decision = lastAnnotated.decision;
+          current.decisions[0].content.derivatives = [{ sha256: createHash('sha256').update(Buffer.from((options.previewImage || PNG).split(',')[1], 'base64')).digest('hex') }]; }
         return {
           ok: true,
-          sources: args.sessionId === NEW_SESSION ? (successorSelected ? [{ ...next, decisions: [] }] : []) : [{...source(decisionState, options.stages), token: options.localToken === undefined ? TOKEN : options.localToken}],
+          sources: args.sessionId === NEW_SESSION ? (successorSelected ? [{ ...next, decisions: [] }] : []) : [{...current, token: options.localToken === undefined ? TOKEN : options.localToken}],
           failedDrafts: options.failedDrafts || [],
           pendingDecisions: options.pendingDecisions || [],
           managerCoverage: options.managerCoverage,
@@ -170,14 +176,14 @@ function harness(options: {
         };
       }
       if (operation === 'decisionPreview') return { ok: true, image: PNG, recordId: RECORD, recordDigest: DIGEST };
-      if (operation === 'annotate') return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'draft' };
+      if (operation === 'annotate') { lastAnnotated = args; return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'draft' }; }
       if (operation === 'accept') { decisionState = 'accepted'; return { ok: true, recordId: RECORD, recordDigest: DIGEST, state: 'accepted' }; }
       if (operation === 'retire' || operation === 'revoke') {
         decisionState = operation === 'retire' ? 'retired' : 'revoked';
         authorityAcknowledged = true;
         return options.authorityResponse || { ok: true, recordId: RECORD, recordDigest: DIGEST, state: decisionState };
       }
-      return { ok: true, image: PNG };
+      return { ok: true, image: options.previewImage || PNG };
     },
   };
   return { bridge, calls, setCurrentVersion: (value: string | null) => { currentVersion = value; }, setSessionTerminal: (value: boolean) => { sessionTerminal = value; } };
@@ -242,6 +248,13 @@ async function prepareAnswer(rendered: Rendered) {
   await rendered.click(rendered.getByText('Answer and prepare teaching'));
 }
 
+async function fillManualTeaching(rendered: Rendered) {
+  for (const [label, text] of [['What was chosen', 'Spatial illustration'], ['Why this choice', 'The trainer prefers clear relationships'],
+    ['Tool or process used', 'Arrange meaningful landmarks and connectors'], ['Desired visual, motion or layout behavior', 'Adapt the relationship to the new material']]) {
+    await setTextarea(rendered, rendered.getByText(label).closest('label')!.querySelector('textarea')!, text);
+  }
+}
+
 test('question wire rejects hidden raw answers, malformed identities and invented evidence', () => {
   assert.equal(questionsPage(questionPage()), true);
   for (const q of [questionRow({ rawAnswer: 'must not leak' }), questionRow({ id: [QUESTION] }),
@@ -281,6 +294,7 @@ test('an answered question becomes an actual evidence draft link, not automatic 
     assert.equal(calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
     await rendered.click(rendered.getByText('Annotate source'));
     await rendered.click(rendered.getByText('Preview this exact frame'));
+    await fillManualTeaching(rendered);
     await rendered.click(rendered.getByText('Save decision draft'));
     const posted = requests.find(r => r.body)!;
     assert.equal(posted.body!.recordId, RECORD); assert.equal(posted.body!.questionReceiptId, QUESTION);
@@ -300,7 +314,7 @@ test('failed answer linking retries the saved teaching identity without another 
   try {
     const requests = questionTransport(rendered, calls, { firstFailure: true });
     await prepareAnswer(rendered); await rendered.click(rendered.getByText('Annotate source'));
-    await rendered.click(rendered.getByText('Preview this exact frame')); await rendered.click(rendered.getByText('Save decision draft'));
+    await rendered.click(rendered.getByText('Preview this exact frame')); await fillManualTeaching(rendered); await rendered.click(rendered.getByText('Save decision draft'));
     assert.match(rendered.text(), /evidence draft is preserved/i);
     await rendered.click(rendered.getByText('Retry answer links'));
     const posts = requests.filter(r => r.body); assert.equal(posts.length, 2);
@@ -1083,4 +1097,112 @@ test('an agent without an immutable active version cannot add evidence', async (
     assert.match(rendered.text(), /Active version: none/);
     assert.equal((rendered.getByText('Add training source') as HTMLButtonElement).disabled, true);
   } finally { rendered.cleanup(); }
+});
+
+const VALID_FRAME = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg==';
+const SUGGESTION_FIELDS = { chosen: 'A central home links surrounding places.', why: 'The trainer prefers a spatial explanation.',
+  process: 'Connect relevant places around a shared anchor.', desiredBehavior: 'Adapt the spatial relationship to the new input.' };
+async function suggestionSetup() {
+  const h = await renderedWith({ previewImage: VALID_FRAME });
+  Object.defineProperty(h.rendered.window, 'crypto', { value: globalThis.crypto, configurable: true });
+  Object.assign(h.rendered.window, { TextEncoder });
+  questionTransport(h.rendered, h.calls);
+  await prepareAnswer(h.rendered); await h.rendered.click(h.rendered.getByText('Annotate source'));
+  await h.rendered.click(h.rendered.getByText('Preview this exact frame'));
+  const fetchPrior = h.rendered.window.fetch;
+  const requests: any[] = []; let complete: ((value: unknown) => void) | undefined;
+  h.rendered.window.fetch = (async (url: string, init: RequestInit) => {
+    if (!String(url).includes('/teaching-suggestion?')) return fetchPrior(url, init);
+    const b = JSON.parse(String(init.body)); requests.push(b);
+    const feedbackSha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(b.feedback))), v => v.toString(16).padStart(2, '0')).join('');
+    const { consent, feedback, image, ...binding } = b;
+    const value = { ok: true, contractVersion: 'training-teaching-suggestion.v1', model: 'claude-haiku-4-5-20251001',
+      binding: { ...binding, feedbackSha256 }, status: 'suggested', fields: SUGGESTION_FIELDS, reason: '',
+      sources: { chosen: 'observed_frame', why: 'trainer_preference', process: 'transferable_guidance', desiredBehavior: 'transferable_guidance' } };
+    return await new Promise(resolve => { complete = (override: unknown = value) => resolve({ ok: true, json: async () => override }); });
+  }) as typeof h.rendered.window.fetch;
+  const flush = async () => { await h.rendered.act(async () => { await new Promise(resolve => setTimeout(resolve, 15)); }); };
+  const start = async () => {
+    await h.rendered.click(h.rendered.getByText(/Send this frame, the recorded question/).closest('label')!.querySelector('input')!);
+    await h.rendered.click(h.rendered.getByText('Suggest teaching from this frame')); await flush();
+  };
+  return { ...h, requests, start, flush, finish: async (override?: unknown) => { await h.rendered.act(() => complete!(override)); await flush(); } };
+}
+
+test('suggestion is per-request opt-in, uses the exact frame and answer, and only fills fields after explicit use', async () => {
+  const h = await suggestionSetup(); const r = h.rendered;
+  try {
+    assert.equal((r.getByText('Suggest teaching from this frame') as HTMLButtonElement).disabled, true);
+    assert.equal(h.requests.length, 0); assert.equal(r.document.querySelector<HTMLTextAreaElement>('textarea[maxlength="400"]')!.value, '');
+    await h.start(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].image, VALID_FRAME);
+    assert.equal(h.requests[0].feedback, 'Use the visual example to explain the comparison clearly.'); assert.equal(h.requests[0].questionReceiptId, QUESTION);
+    await h.finish(); assert.match(r.text(), /Observed frame/); assert.match(r.text(), /Trainer preference/); assert.match(r.text(), /Transferable guidance/);
+    assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value, '');
+    assert.equal(h.calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
+    await r.click(r.getByText('Use this suggestion in editable fields'));
+    assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value, SUGGESTION_FIELDS.chosen);
+    assert.equal(h.calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
+    assert.equal((r.getByText(/Send this frame, the recorded question/).closest('label')!.querySelector('input') as HTMLInputElement).checked, false);
+  } finally { r.cleanup(); }
+});
+
+test('a late suggestion never overwrites a trainer edit or becomes applicable to a different frame', async () => {
+  for (const change of ['text', 'frame', 'version']) {
+    const h = await suggestionSetup(); const r = h.rendered;
+    try {
+      await h.start();
+      if (change === 'text') await setTextarea(r, r.getByText('What was chosen').closest('label')!.querySelector('textarea')!, 'My own edited teaching');
+      if (change === 'frame') await setInput(r, r.getByText('Exact timestamp in milliseconds').closest('label')!.querySelector('input')!, '100');
+      if (change === 'version') h.setCurrentVersion(VERSION_B);
+      await h.finish();
+      if (change === 'version') await r.click(r.getByText('Use this suggestion in editable fields'));
+      assert.equal((r.getByText('Use this suggestion in editable fields') as HTMLButtonElement).disabled, true);
+      assert.match(r.text(), change === 'version' ? /version/i : /previous frame or edit/);
+      if (change === 'text') assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value, 'My own edited teaching');
+      assert.equal(h.calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
+    } finally { r.cleanup(); }
+  }
+});
+
+test('long raw answers are shown in full and are never copied with silent 400-character truncation', async () => {
+  const { rendered: r, calls } = await renderedWith();
+  try {
+    questionTransport(r, calls); await r.click(r.getByText('Load recorded questions'));
+    await r.click(r.document.querySelector('input[aria-label="Select question visual-choice"]')!);
+    const text = 'A'.repeat(450) + ' preserve this exact ending.';
+    await setTextarea(r, r.getByText('Private answer').closest('label')!.querySelector('textarea')!, text);
+    await r.click(r.getByText('Answer and prepare teaching')); assert.ok(r.text().includes(text));
+    await r.click(r.getByText('Annotate source'));
+    for (const field of Array.from(r.document.querySelectorAll<HTMLTextAreaElement>('textarea[maxlength="400"]'))) assert.equal(field.value, '');
+    assert.equal((r.getByText('Save decision draft') as HTMLButtonElement).disabled, true);
+  } finally { r.cleanup(); }
+});
+
+
+test('edited suggestion saves through ordinary annotate and answer link, verifies its frame, and never auto-admits', async () => {
+  const h = await suggestionSetup(); const r = h.rendered;
+  try {
+    await h.start(); await h.finish(); await r.click(r.getByText('Use this suggestion in editable fields'));
+    await setTextarea(r, r.getByText('Why this choice').closest('label')!.querySelector('textarea')!, 'My reviewed reason, not an automatic rule.');
+    await r.click(r.getByText('Save decision draft'));
+    const saved = h.calls.filter(c => c.operation === 'annotate'); assert.equal(saved.length,1);
+    assert.equal((saved[0].args.decision as any).chosen,SUGGESTION_FIELDS.chosen);
+    assert.equal((saved[0].args.decision as any).why,'My reviewed reason, not an automatic rule.');
+    assert.equal(h.calls.some(c=>c.operation==='accept'),false);
+    assert.match(r.text(),/Saved teaching evidence matches the suggestion frame/);
+    assert.match(r.text(),/model authorship is not durably recorded/);
+  } finally { r.cleanup(); }
+});
+
+test('unavailable or malformed suggestion preserves the full answer and an existing manual draft', async () => {
+  const h = await suggestionSetup(); const r = h.rendered;
+  try {
+    await setTextarea(r,r.getByText('What was chosen').closest('label')!.querySelector('textarea')!,'Keep my manual choice.');
+    await h.start(); await h.finish({ok:false,reason:'unavailable'});
+    assert.match(r.text(),/Your answer and manual draft are preserved/);
+    assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value,'Keep my manual choice.');
+    assert.match(r.text(),/Use the visual example to explain the comparison clearly/);
+    assert.equal(r.queryByText('Use this suggestion in editable fields'),null);
+    assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
+  } finally { r.cleanup(); }
 });
