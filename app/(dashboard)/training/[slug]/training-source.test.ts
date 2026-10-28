@@ -1102,6 +1102,18 @@ test('acknowledged standing delivery remains visible if the list cannot refresh'
   } finally { rendered.cleanup(); }
 });
 
+test('unsupported standing evidence gets a specific explanation and retains question delivery', async () => {
+  const { rendered } = await renderedWith({ state: 'accepted', deliveryRelation: 'accepted',
+    deliveryResponse: { ok: false, reason: 'competence_not_accepted' } });
+  try {
+    await rendered.click(rendered.getByText('Manage teaching'));
+    await rendered.click(rendered.getByText('Use at stage start'));
+    assert.match(rendered.text(), /full-frame PNG teaching, without a selected region/);
+    assert.match(rendered.text(), /Your existing teaching is unchanged/);
+    assert.match(rendered.text(), /Current delivery: On question/);
+  } finally { rendered.cleanup(); }
+});
+
 test('retired teachings cannot be reactivated by changing standing delivery', async () => {
   const { rendered, calls } = await renderedWith({ state: 'retired' });
   try {

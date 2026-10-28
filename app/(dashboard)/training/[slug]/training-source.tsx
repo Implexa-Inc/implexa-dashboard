@@ -570,8 +570,16 @@ export default function TrainingSource({ slug }: { slug: string }) {
     pendingDelivery.current = { sessionId: session, recordId: decision.recordId, digest: decision.recordDigest, mode, key };
     await work('Updating teaching delivery for new runs', async () => {
       await requireCurrentScope();
-      const result = await call('delivery', { sessionId: session, recordId: decision.recordId,
-        expectedDigest: decision.recordDigest, mode, idempotencyKey: key });
+      let result: Result;
+      try {
+        result = await call('delivery', { sessionId: session, recordId: decision.recordId,
+          expectedDigest: decision.recordDigest, mode, idempotencyKey: key });
+      } catch (caught) {
+        if (caught instanceof TrainingError && caught.reason === 'competence_not_accepted') {
+          throw new TrainingError(caught.reason, 'Stage-start delivery requires a current accepted positive or negative full-frame PNG teaching, without a selected region. Reload Training to check its status. Your existing teaching is unchanged.');
+        }
+        throw caught;
+      }
       if (result.recordId !== decision.recordId || result.recordDigest !== decision.recordDigest
         || result.mode !== mode || !/^[a-f0-9]{64}$/.test(result.receiptDigest || '')) {
         throw new TrainingError('training_delivery_response_invalid', 'The delivery change could not be verified. Retry to check this same request.');
