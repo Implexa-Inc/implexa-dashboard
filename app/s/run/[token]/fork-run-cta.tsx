@@ -1,84 +1,30 @@
 'use client';
-
-/**
- * <ForkRunCta /> — the public Run Card's "fork & run" CTA, session-aware.
- *
- *   - LOGGED IN  → one tap forks the agent into the user's own library (POST
- *     /api/v2/me/fork-agent, autoRun) — a new generated copy they own, Tier-2 perms
- *     default-granted, activated on-demand, and a run enqueued (the always-on
- *     drainer executes it on their own Claude). Then lands them on their new agent.
- *   - LOGGED OUT → /signup carrying the agent, so post-auth they land on that agent
- *     page (signup routes intent=adopt&agent=<slug> → next=/workflows/<slug>).
- *
- * While the session check is in flight we show the signup path (safe default for a
- * cold share viewer); it flips to the in-app fork button once resolved.
- */
-
-import { useEffect, useState } from 'react';
+// A fork is a private definition, not an automatic run or inherited permission.
+import { useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 
-export default function ForkRunCta({ skillSlug }: { skillSlug: string }) {
-  const [authed, setAuthed] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState('');
-  const router = useRouter();
-  const supabase = createClient();
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setAuthed(!!data.session)).catch(() => setAuthed(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function fork() {
-    if (busy) return;
-    setBusy(true);
-    setMsg('');
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await callBackend('/api/v2/me/fork-agent', {
-        jwt: session?.access_token,
-        method: 'POST',
-        body: { slug: skillSlug, autoRun: true },
-      });
-      if (res?.ok && res.forkedSlug) {
-        // It's now in Your Agents and a run is queued (the drainer runs it on your
-        // own Claude). Land on the new agent so the user watches it run.
-        router.push(`/workflows/${encodeURIComponent(res.forkedSlug)}`);
-        return;
-      }
-      setMsg(res?.error || 'Could not fork this agent. Try again.');
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'Could not fork this agent.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!authed) {
-    return (
-      <Link
-        href={`/signup?intent=adopt&agent=${encodeURIComponent(skillSlug)}`}
-        className="btn-success inline-block mt-3 px-5 py-2 text-sm"
-      >
-        Run this agent in your subscription →
-      </Link>
-    );
-  }
-
-  return (
-    <div className="mt-3">
-      <button
-        type="button"
-        onClick={fork}
-        disabled={busy}
-        className="btn-success inline-block px-5 py-2 text-sm disabled:opacity-60"
-      >
-        {busy ? 'Forking…' : 'Fork & run on your Claude →'}
-      </button>
-      {msg ? <p className="mt-2 text-xs text-amber-300">{msg}</p> : null}
-    </div>
-  );
+export default function ForkRunCta({skillSlug,versionId,source}:{skillSlug:string;versionId?:string|null;source?:string}) {
+ const [authed,setAuthed]=useState<boolean|null>(null),[busy,setBusy]=useState(false),[msg,setMsg]=useState('');
+ const [created,setCreated]=useState<{slug:string;lineageId:string}|null>(null);
+ const mutation=useRef<string|null>(null),pending=useRef(false),supabase=createClient();
+ useEffect(()=>{supabase.auth.getSession().then(({data})=>setAuthed(!!data.session)).catch(()=>setAuthed(false));},[]);
+ async function fork(){if(pending.current)return;pending.current=true;setBusy(true);setMsg('');
+  try {mutation.current ||= crypto.randomUUID();const {data:{session}}=await supabase.auth.getSession();
+   const res=await callBackend('/api/v2/me/fork-agent',{jwt:session?.access_token,method:'POST',
+    body:{slug:skillSlug,source:source||null,expectedVersionId:versionId||null,mutationId:mutation.current}});
+   if(!res?.ok||!res.forkedSlug||!res.lineageId)throw Error(res?.error||'Could not create a private fork. Install the parent first.');
+   setCreated({slug:res.forkedSlug,lineageId:res.lineageId});
+  }catch(e){setMsg(e instanceof Error?e.message:'Could not fork this agent.');}finally{pending.current=false;setBusy(false);}
+ }
+ if(!authed)return <Link href={`/signup?intent=adopt&agent=${encodeURIComponent(skillSlug)}`} className="btn-success inline-block px-4 py-2 text-sm">Use this agent →</Link>;
+ if(created)return <div className="rounded border border-ink-700 p-3 text-sm space-y-2" role="status">
+  <p>Private fork created. The parent is unchanged. Review setup before running; no permissions or private customer preferences were copied.</p>
+  <Link href={`/workflows/${encodeURIComponent(created.slug)}?source=generated`}>Open private fork</Link>
+  <p>Inherited teachings need the trainer’s permission for this fork:</p>
+  <Link href={`/training/${encodeURIComponent(skillSlug)}?forkId=${created.lineageId}`}>Trainer permission review link</Link>
+ </div>;
+ return <div><button type="button" disabled={busy} onClick={fork} className="rounded border border-ink-600 px-3 py-2 text-sm disabled:opacity-60">{busy?'Creating private fork…':'Make a private fork'}</button>
+  {msg&&<p role="alert" className="text-sm text-amber-500">{msg}</p>}</div>;
 }

@@ -59,6 +59,7 @@ import GradeBadge from '../../_components/grade-badge';
 import { isPausableRoutine } from '@/lib/schedule-trigger';
 import { getAgentResume } from '@/lib/agent-discovery';
 import AgentResume from '../../_components/agent-resume';
+import ForkRunCta from '@/app/s/run/[token]/fork-run-cta';
 
 export const dynamic = 'force-dynamic';
 
@@ -708,6 +709,7 @@ export default async function WorkflowDetailPage({
                     old Link "doesn't do anything" visible at the click itself).
                     The Setup tab no longer carries its own copy of this form. */}
                 <AgentEditButton slug={workflow.slug} statusUnavailable={lifecycleUnavailable} revisePending={revisePending} />
+                {workflow.run_input_version_source === 'installed' && <ForkRunCta skillSlug={workflow.slug} source={workflow.source} versionId={workflow.workflow_version_id} />}
                 <AgentDefinitionReview definition={workflow.revision_contract ?? null} versionSource={workflow.definition_version_source ?? null} updateAvailable={!!workflow.update_available} revisePending={revisePending} statusUnavailable={lifecycleUnavailable} slug={workflow.slug} />
               </div>
               <code className="text-xs text-ink-500 font-mono block mt-2">{workflow.slug}</code>

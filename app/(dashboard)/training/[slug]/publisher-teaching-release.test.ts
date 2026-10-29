@@ -50,3 +50,28 @@ test('stale version, foreign candidates and mismatched frame never reach release
   assert.equal(r.queryByText('Prepare exact release preview'),null,mode);assert.equal(calls.some(c=>c.body?.action==='preview'||c.body?.action==='release'),false,mode);
  }finally{r.cleanup();}}
 });
+
+test('a fork permission previews one exact release, requires consent and withdraws independently',async()=>{
+ const calls:any[]=[],lineage=U(20),releaseId=U(21);let granted:any=null;
+ const r=await render('../training/[slug]/publisher-teaching-release.tsx',{slug:'video-agent',versionId:VERSION});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});
+ r.window.fetch=(async(_url:any,opts:any={})=>{const b=opts.body?JSON.parse(opts.body):null;calls.push(b);
+  if(!b)return {ok:true,json:async()=>({ok:true,contractVersion:'publisher-teaching-candidates.v1',workflowVersionId:VERSION,candidates:[{...item,release:{releaseId,releaseDigest:DIGEST,withdrawnAt:null,current:true}}]})};
+  if(b.action==='fork_list')return {ok:true,json:async()=>({ok:true,lineageId:lineage,grants:granted?[granted]:[]})};
+  if(b.action==='fork_withdraw'){granted={...granted,withdrawn_at:'2030-01-01T00:00:00Z'};return {ok:true,json:async()=>({ok:true,grantId:b.grantId,withdrawnAt:granted.withdrawn_at})};}
+  if(b.action==='fork_grant')granted={id:b.grantId,lineage_id:lineage,release_id:releaseId,release_digest:DIGEST,grant_digest:'e'.repeat(64),withdrawn_at:null};
+  return {ok:true,json:async()=>({ok:true,granted:b.action==='fork_grant',grantId:b.grantId,grantDigest:'e'.repeat(64),childVersionId:lineage,parentVersionId:VERSION,childName:'Private video fork',recipientId:U(22),receipt:{lineageId:lineage,releaseId,releaseDigest:DIGEST}})};
+ }) as typeof r.window.fetch;
+ try{
+  const input=r.document.querySelector('[aria-label="Fork reference"]')!;
+  await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLInputElement.prototype,'value')!.set!.call(input,lineage);input.dispatchEvent(new r.window.Event('input',{bubbles:true}));});
+  await r.click(r.getByText('Load compatible teaching candidates'));await r.click(r.getByText(`Review fork permission ${DIGEST.slice(0,8)}`));
+  assert.equal((r.getByText('Allow example in this fork') as HTMLButtonElement).disabled,true);assert.equal(calls.some(b=>b?.action==='fork_grant'),false);
+  await r.click(r.getByText('Allow this exact released example in this private child.').closest('label')!.querySelector('input')!);
+  await r.click(r.getByText('Allow example in this fork'));
+  const request=calls.find(b=>b?.action==='fork_grant');assert.equal(request.lineageId,lineage);assert.equal(request.releaseId,releaseId);assert.equal(request.previewDigest,'e'.repeat(64));assert.equal(Object.hasOwn(request,'ownerId'),false);
+  await r.click(r.getByText(`Withdraw fork permission ${releaseId.slice(0,8)}`));assert.match(r.text(),/original customer release is unchanged/);
+  assert.equal(calls.some(b=>b?.action==='withdraw'),false,'fork withdrawal never withdraws original customer distribution');
+  assert.equal((r.getByText(`Review fork permission ${DIGEST.slice(0,8)}`) as HTMLButtonElement).disabled,true,'a replacement permission cannot revive old frozen contexts');
+ }finally{r.cleanup();}
+});
