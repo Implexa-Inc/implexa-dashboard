@@ -112,7 +112,7 @@ function resolveBridge() {
   return candidate;
 }
 
-export default function TrainingSource({ slug, installationId }: { slug: string; installationId?: string }) {
+export default function TrainingSource({ slug, installationId, forkPermission }: { slug: string; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
   const [retention] = useState(() => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCMilliseconds(0); return d.toISOString(); });
   const [session, setSession] = useState('');
   const [sessionVersion, setSessionVersion] = useState('');
@@ -836,7 +836,7 @@ export default function TrainingSource({ slug, installationId }: { slug: string;
     </section>}
     {installationId && <p>Only your installation can select these preferences. The trainer’s agent and teachings stay unchanged. Images remain on this Mac. Review suggested wording before admitting it; keep your exact feedback separately and label any agent-written options.</p>}
     {suggestionNote && <p role="status">{suggestionNote}</p>}
-    {!installationId && <PublisherTeachingRelease slug={slug} versionId={currentVersion}/>}
+    {!installationId && <PublisherTeachingRelease slug={slug} versionId={currentVersion} forkPermission={forkPermission}/>}
     {!installationId && <section className="rounded border border-ink-700 p-4 space-y-3" aria-labelledby="trainer-questions-heading">
       <h2 id="trainer-questions-heading" className="font-semibold">Questions from runs</h2>
       <p>Review actual recorded consultations, including failed or cancelled runs. A returned reference is not proof that it answered the question or was applied.</p>

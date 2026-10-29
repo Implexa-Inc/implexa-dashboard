@@ -30,12 +30,15 @@ async function verifyImage(image:string,p:Projection){
   ||new DataView(bytes.buffer).getUint32(16)!==d.width||new DataView(bytes.buffer).getUint32(20)!==d.height
   ||await teachingDigest(bytes)!==d.sha256)throw Error('The teaching image does not match its admitted bytes.');
 }
-export default function PublisherTeachingRelease({slug,versionId}:{slug:string;versionId:string|null}){
+export default function PublisherTeachingRelease({slug,versionId:activeVersionId,forkPermission}:{slug:string;versionId:string|null;forkPermission?:{lineageId:string;parentVersionId:string}}){
+ const versionId=activeVersionId||(forkPermission?.parentVersionId&&uuid(forkPermission.parentVersionId)&&uuid(forkPermission.lineageId)?forkPermission.parentVersionId:null);
  const [items,setItems]=useState<Candidate[]>([]),[listVersion,setListVersion]=useState<string|null>(null);
  const [selected,setSelected]=useState<{item:Candidate;token:string;image:string}|null>(null),[preview,setPreview]=useState<Preview|null>(null);
  const [storeConsent,setStoreConsent]=useState(false),[releaseConsent,setReleaseConsent]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState('');
+ const [forkId,setForkId]=useState(forkPermission?.lineageId||''),[forkGrants,setForkGrants]=useState<any[]>([]),[forkConsent,setForkConsent]=useState(false);
+ const [forkPreview,setForkPreview]=useState<{item:Candidate;data:any}|null>(null);
  const current=useRef(versionId);current.current=versionId;const pending=useRef(false);
- useEffect(()=>{setItems([]);setListVersion(null);setSelected(null);setPreview(null);setStoreConsent(false);setReleaseConsent(false);},[slug,versionId]);
+ useEffect(()=>{setItems([]);setListVersion(null);setSelected(null);setPreview(null);setStoreConsent(false);setReleaseConsent(false);setForkPreview(null);setForkGrants([]);setForkConsent(false);},[slug,versionId]);
  const bridge=()=>{const b=(window as unknown as {implexaDesktop?:Bridge}).implexaDesktop;
   if(!b?.trainingLocal||b.trainingEvidenceStorageContractVersion!=='1')throw Error('Open updated Implexa Desktop on the source machine to prepare this teaching.');return b;};
  const work=async(fn:()=>Promise<void>)=>{if(pending.current)return;pending.current=true;setBusy(true);setError('');setNote('');try{await fn();}catch(e){setError(e instanceof Error?e.message:'Teaching release is unavailable.');}finally{pending.current=false;setBusy(false);}};
@@ -77,14 +80,57 @@ export default function PublisherTeachingRelease({slug,versionId}:{slug:string;v
   const data=await request({action:'withdraw',releaseId:item.release.releaseId,releaseDigest:item.release.releaseDigest});ensureVersion(v);
   if(data.releaseId!==item.release.releaseId||data.releaseDigest!==item.release.releaseDigest||!data.withdrawnAt)throw Error('Release withdrawal could not be verified.');
   await load();setSelected(null);setPreview(null);setReleaseConsent(false);setNote('Further customer disclosure is withdrawn. Original teaching and private storage are preserved.');}
+ async function loadFork(){
+  if(!uuid(forkId)||!versionId)throw Error('Open the permission link from the private fork, or enter its fork reference.');
+  const v=versionId,id=forkId,data=await request({action:'fork_list',versionId:v,lineageId:id});ensureVersion(v);
+  if(data.lineageId!==id||!Array.isArray(data.grants)||data.grants.length>50||data.grants.some((g:any)=>!uuid(g.id)||g.lineage_id!==id||!uuid(g.release_id)||!sha(g.grant_digest)))throw Error('Fork permissions could not be verified.');
+  setForkGrants(data.grants);return data.grants as any[];
+ }
+ async function prepareFork(item:Candidate){
+  if(!item.release?.current||listVersion!==versionId||!uuid(forkId))throw Error('Load a current release and an exact fork reference first.');
+  const v=versionId,id=forkId;setForkPreview(null);setForkConsent(false);
+  const data=await request({action:'fork_preview',versionId:v,lineageId:id,releaseId:item.release.releaseId,grantId:crypto.randomUUID()});ensureVersion(v);
+  if(!uuid(data.grantId)||!sha(data.grantDigest)||data.granted!==false||data.childVersionId!==id||data.parentVersionId!==v
+    ||data.receipt?.lineageId!==id||data.receipt?.releaseId!==item.release.releaseId||data.receipt?.releaseDigest!==item.release.releaseDigest||!uuid(data.recipientId)||typeof data.childName!=='string')throw Error('The proposed fork permission changed.');
+  setForkPreview({item,data});
+ }
+ async function grantFork(){
+  if(!forkPreview||!forkConsent)return;const {item,data:p}=forkPreview,v=versionId;
+  if(p.childVersionId!==forkId||p.parentVersionId!==v||!item.release)throw Error('The fork target changed. Review it again.');
+  const data=await request({action:'fork_grant',versionId:v,lineageId:forkId,releaseId:item.release.releaseId,grantId:p.grantId,previewDigest:p.grantDigest});ensureVersion(v);
+  if(data.granted!==true||data.grantId!==p.grantId||data.grantDigest!==p.grantDigest||data.childVersionId!==forkId)throw Error('The fork grant was not confirmed. Recheck its permissions before retrying.');
+  await loadFork();setForkPreview(null);setForkConsent(false);setNote('This released example may guide this private fork only. No library or redistribution access was granted.');
+ }
+ async function withdrawFork(g:any){const v=versionId;
+  const data=await request({action:'fork_withdraw',versionId:v,lineageId:forkId,releaseId:g.release_id,grantId:g.id,previewDigest:g.grant_digest});ensureVersion(v);
+  if(data.grantId!==g.id||!data.withdrawnAt)throw Error('The withdrawal was not confirmed.');
+  await loadFork();setNote('Further disclosure to this fork is withdrawn. The original customer release is unchanged.');
+ }
  return <section className="rounded border border-ink-700 p-4 space-y-3" aria-label="Selected teachings for customers">
   <h2 className="font-semibold">Selected teachings for customers</h2><p>Only teachings you explicitly release here can guide customers of this exact public agent version. Your full library, recordings and private feedback remain private. Customers can inspect the selected image and guidance they receive; already delivered copies cannot be recalled.</p>
+  {!activeVersionId&&forkPermission&&<p>Permission review for pinned parent version {versionId?.slice(0,8)}. Local training and source access remain unavailable in this browser. The server verifies publisher ownership and the exact fork.</p>}
   <button disabled={busy||!versionId} onClick={()=>work(async()=>{await load();})}>Load compatible teaching candidates</button>
   {listVersion&&<p>Showing up to 50 compatible owned records. Eligibility is not a promise of selection or application.</p>}
+  <div className="rounded border border-ink-700 p-3 space-y-2"><h3>Permissions for one private fork</h3>
+   <p>A customer release does not automatically permit forks. Each permission below applies only to the linked private child, while its release and privacy consent remain current.</p>
+   <label>Fork reference<input aria-label="Fork reference" value={forkId} disabled={busy} onChange={e=>{setForkId(e.target.value);setForkGrants([]);setForkPreview(null);setForkConsent(false);}} className="block w-full"/></label>
+   <button disabled={busy||!uuid(forkId)} onClick={()=>work(async()=>{await loadFork();})}>Load fork permissions</button>
+   {forkGrants.map(g=><div key={g.id}><span>Release {g.release_id.slice(0,8)}: {g.withdrawn_at?'withdrawn':'permitted for this fork'}</span>
+    {!g.withdrawn_at&&<button disabled={busy} onClick={()=>work(()=>withdrawFork(g))}>Withdraw fork permission {g.release_id.slice(0,8)}</button>}</div>)}
+  </div>
   {items.map(item=><div key={item.recordId} className="rounded border border-ink-700 p-3 space-y-2"><p>{item.projection.properties.join(', ')} · {item.projection.relation} · {item.recordDigest.slice(0,8)}</p>
    <p>Source machine: {item.sourceMachineId}. Original version: {item.baseVersionId.slice(0,8)}.</p><p>{item.release?.current?'Released for this version.':item.release&&!item.release.withdrawnAt?'Release currently unavailable.':'Not released.'}</p>
    <button disabled={busy||!item.eligible||listVersion!==versionId||!!item.release&&!item.release.withdrawnAt} onClick={()=>work(()=>review(item))}>Review teaching {item.recordDigest.slice(0,8)}</button>
+   {item.release?.current&&<button disabled={busy||!uuid(forkId)||listVersion!==versionId||forkGrants.some(g=>g.release_id===item.release?.releaseId)} onClick={()=>work(()=>prepareFork(item))}>Review fork permission {item.recordDigest.slice(0,8)}</button>}
    {item.release&&!item.release.withdrawnAt&&<button disabled={busy} onClick={()=>work(()=>withdraw(item))}>Withdraw release {item.recordDigest.slice(0,8)}</button>}</div>)}
+  {forkPreview&&<dialog open aria-modal="true" aria-label="Review exact fork permission" className="fixed inset-0 z-50 max-w-xl rounded border border-ink-600 p-5 shadow-xl space-y-3">
+   <h3>Permit this released example in one private fork</h3><p>Child: {forkPreview.data.childName}. Parent version: {forkPreview.data.parentVersionId.slice(0,8)}.</p><p>Recipient account: {forkPreview.data.recipientId}. Fork reference: {forkPreview.data.childVersionId}.</p>
+   <p>{forkPreview.item.projection.summary}</p><p>Exact image: {forkPreview.item.projection.derivative.sha256}. Release: {forkPreview.item.release?.releaseDigest}.</p>
+   <p>This grants retrieval only to this child version. Withdrawal is final for this child version and this release; a replacement permission cannot revive an old run. The full library and customer-private preferences stay private. Release, storage or privacy withdrawal still blocks further access; delivered copies cannot be recalled.</p>
+   <label><input type="checkbox" checked={forkConsent} disabled={busy} onChange={e=>setForkConsent(e.target.checked)}/>Allow this exact released example in this private child.</label>
+   <button disabled={busy||!forkConsent} onClick={()=>work(grantFork)}>Allow example in this fork</button>
+   <button disabled={busy} onClick={()=>{setForkPreview(null);setForkConsent(false);}}>Cancel</button>
+  </dialog>}
   {selected&&<div className="rounded border border-brand-500 p-3 space-y-3"><h3>Exact teaching proposed for customer release</h3><img src={selected.image} alt="Exact admitted teaching proposed for release" className="w-full"/>
    <dl>{Object.entries(selected.item.decision).map(([key,value])=><div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}</dl>
    <pre className="whitespace-pre-wrap break-all text-sm">{JSON.stringify(preview?.projection||selected.item.projection,null,2)}</pre>
