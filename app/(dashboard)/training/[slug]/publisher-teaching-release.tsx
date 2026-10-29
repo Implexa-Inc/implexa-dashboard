@@ -37,8 +37,9 @@ export default function PublisherTeachingRelease({slug,versionId:activeVersionId
  const [storeConsent,setStoreConsent]=useState(false),[releaseConsent,setReleaseConsent]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState('');
  const [forkId,setForkId]=useState(forkPermission?.lineageId||''),[forkGrants,setForkGrants]=useState<any[]>([]),[forkConsent,setForkConsent]=useState(false);
  const [forkPreview,setForkPreview]=useState<{item:Candidate;data:any}|null>(null);
+ const [scopePreview,setScopePreview]=useState<{grant:any;data:any}|null>(null),[scopeConsent,setScopeConsent]=useState(false);
  const current=useRef(versionId);current.current=versionId;const pending=useRef(false);
- useEffect(()=>{setItems([]);setListVersion(null);setSelected(null);setPreview(null);setStoreConsent(false);setReleaseConsent(false);setForkPreview(null);setForkGrants([]);setForkConsent(false);},[slug,versionId]);
+ useEffect(()=>{setItems([]);setListVersion(null);setSelected(null);setPreview(null);setStoreConsent(false);setReleaseConsent(false);setForkPreview(null);setForkGrants([]);setForkConsent(false);setScopePreview(null);setScopeConsent(false);},[slug,versionId]);
  const bridge=()=>{const b=(window as unknown as {implexaDesktop?:Bridge}).implexaDesktop;
   if(!b?.trainingLocal||b.trainingEvidenceStorageContractVersion!=='1')throw Error('Open updated Implexa Desktop on the source machine to prepare this teaching.');return b;};
  const work=async(fn:()=>Promise<void>)=>{if(pending.current)return;pending.current=true;setBusy(true);setError('');setNote('');try{await fn();}catch(e){setError(e instanceof Error?e.message:'Teaching release is unavailable.');}finally{pending.current=false;setBusy(false);}};
@@ -83,7 +84,9 @@ export default function PublisherTeachingRelease({slug,versionId:activeVersionId
  async function loadFork(){
   if(!uuid(forkId)||!versionId)throw Error('Open the permission link from the private fork, or enter its fork reference.');
   const v=versionId,id=forkId,data=await request({action:'fork_list',versionId:v,lineageId:id});ensureVersion(v);
-  if(data.lineageId!==id||!Array.isArray(data.grants)||data.grants.length>50||data.grants.some((g:any)=>!uuid(g.id)||g.lineage_id!==id||!uuid(g.release_id)||!sha(g.grant_digest)))throw Error('Fork permissions could not be verified.');
+  if(data.lineageId!==id||!Array.isArray(data.grants)||data.grants.length>50||data.grants.some((g:any)=>!uuid(g.id)||g.lineage_id!==id||!uuid(g.release_id)||!sha(g.grant_digest)
+    ||g.successor_scope_digest!=null&&(!sha(g.successor_scope_digest)||typeof g.successor_scope_confirmed_at!=='string'||!Number.isFinite(Date.parse(g.successor_scope_confirmed_at)))
+    ||g.successor_scope_digest==null&&g.successor_scope_confirmed_at!=null))throw Error('Fork permissions could not be verified.');
   setForkGrants(data.grants);return data.grants as any[];
  }
  async function prepareFork(item:Candidate){
@@ -104,7 +107,26 @@ export default function PublisherTeachingRelease({slug,versionId:activeVersionId
  async function withdrawFork(g:any){const v=versionId;
   const data=await request({action:'fork_withdraw',versionId:v,lineageId:forkId,releaseId:g.release_id,grantId:g.id,previewDigest:g.grant_digest});ensureVersion(v);
   if(data.grantId!==g.id||!data.withdrawnAt)throw Error('The withdrawal was not confirmed.');
-  await loadFork();setNote('Further disclosure to this fork is withdrawn. The original customer release is unchanged.');
+  await loadFork();setScopePreview(null);setScopeConsent(false);setNote('Further disclosure to this fork is withdrawn. The original customer release is unchanged.');
+ }
+ async function prepareScope(g:any){
+  const v=versionId,id=forkId;setScopePreview(null);setScopeConsent(false);
+  const data=await request({action:'fork_scope_preview',versionId:v,lineageId:id,releaseId:g.release_id,grantId:g.id});ensureVersion(v);
+  if(data.grantId!==g.id||data.childVersionId!==id||data.parentVersionId!==v||data.scope!=='compatible_successors'
+    ||!sha(data.scopeDigest)||typeof data.scopeConfirmed!=='boolean'||!uuid(data.recipientId)||typeof data.childName!=='string'
+    ||data.receipt?.contractVersion!=='agent-fork-successor-scope.v1'||data.receipt?.scope!=='compatible_successors'
+    ||data.receipt?.grantDigest!==g.grant_digest||data.receipt?.lineageId!==id||data.receipt?.releaseId!==g.release_id
+    ||data.receipt?.releaseDigest!==g.release_digest)throw Error('The proposed compatible-version permission changed.');
+  if(data.scopeConfirmed){await loadFork();setNote('Compatible versions are already permitted for this example.');return;}
+  setScopePreview({grant:g,data});
+ }
+ async function confirmScope(){
+  if(!scopePreview||!scopeConsent)return;const {grant:g,data:p}=scopePreview,v=versionId;
+  if(p.childVersionId!==forkId||p.parentVersionId!==v)throw Error('The fork target changed. Review it again.');
+  const data=await request({action:'fork_scope_confirm',versionId:v,lineageId:forkId,releaseId:g.release_id,grantId:g.id,previewDigest:p.scopeDigest});ensureVersion(v);
+  if(data.scopeConfirmed!==true||data.scopeDigest!==p.scopeDigest||data.grantId!==g.id||data.childVersionId!==forkId)
+    throw Error('Compatible-version permission was not confirmed. Recheck it before retrying.');
+  await loadFork();setScopePreview(null);setScopeConsent(false);setNote('This example may guide this private fork and its compatible versions. Withdrawal still ends all further disclosure.');
  }
  return <section className="rounded border border-ink-700 p-4 space-y-3" aria-label="Selected teachings for customers">
   <h2 className="font-semibold">Selected teachings for customers</h2><p>Only teachings you explicitly release here can guide customers of this exact public agent version. Your full library, recordings and private feedback remain private. Customers can inspect the selected image and guidance they receive; already delivered copies cannot be recalled.</p>
@@ -113,11 +135,21 @@ export default function PublisherTeachingRelease({slug,versionId:activeVersionId
   {listVersion&&<p>Showing up to 50 compatible owned records. Eligibility is not a promise of selection or application.</p>}
   <div className="rounded border border-ink-700 p-3 space-y-2"><h3>Permissions for one private fork</h3>
    <p>A customer release does not automatically permit forks. Each permission below applies only to the linked private child, while its release and privacy consent remain current.</p>
-   <label>Fork reference<input aria-label="Fork reference" value={forkId} disabled={busy} onChange={e=>{setForkId(e.target.value);setForkGrants([]);setForkPreview(null);setForkConsent(false);}} className="block w-full"/></label>
+   <label>Fork reference<input aria-label="Fork reference" value={forkId} disabled={busy} onChange={e=>{setForkId(e.target.value);setForkGrants([]);setForkPreview(null);setForkConsent(false);setScopePreview(null);setScopeConsent(false);}} className="block w-full"/></label>
    <button disabled={busy||!uuid(forkId)} onClick={()=>work(async()=>{await loadFork();})}>Load fork permissions</button>
-   {forkGrants.map(g=><div key={g.id}><span>Release {g.release_id.slice(0,8)}: {g.withdrawn_at?'withdrawn':'permitted for this fork'}</span>
+   {forkGrants.map(g=><div key={g.id}><span>Release {g.release_id.slice(0,8)}: {g.withdrawn_at?'withdrawn':g.successor_scope_digest?'permitted for this fork and compatible versions':'permitted for this fork version'}</span>
+    {!g.withdrawn_at&&!g.successor_scope_digest&&<button disabled={busy} onClick={()=>work(()=>prepareScope(g))}>Review compatible versions {g.release_id.slice(0,8)}</button>}
     {!g.withdrawn_at&&<button disabled={busy} onClick={()=>work(()=>withdrawFork(g))}>Withdraw fork permission {g.release_id.slice(0,8)}</button>}</div>)}
   </div>
+  {scopePreview&&<dialog open aria-label="Compatible fork versions permission" className="relative rounded border border-brand-500 bg-ink-950 p-4 space-y-3">
+   <h3>Allow this example in compatible versions</h3>
+   <p>Private child: {scopePreview.data.childName}. Recipient: {scopePreview.data.recipientId}. Release: {scopePreview.grant.release_id}.</p>
+   <p>Compatible means the same task identity and Manager stage and property policies. The child’s instructions may change. This permits this exact example in those future versions; it does not share your library or customer-private preferences.</p>
+   <p>This scope cannot be withdrawn separately. Withdrawing the original fork permission ends further disclosure to this version and all successors. Release, storage and privacy withdrawal remain immediate; delivered copies cannot be recalled.</p>
+   <label><input type="checkbox" checked={scopeConsent} disabled={busy} onChange={e=>setScopeConsent(e.target.checked)}/>Allow this example in this private fork and its compatible future versions.</label>
+   <button disabled={busy||!scopeConsent} onClick={()=>work(confirmScope)}>Allow compatible versions</button>
+   <button disabled={busy} onClick={()=>{setScopePreview(null);setScopeConsent(false);}}>Cancel</button>
+  </dialog>}
   {items.map(item=><div key={item.recordId} className="rounded border border-ink-700 p-3 space-y-2"><p>{item.projection.properties.join(', ')} · {item.projection.relation} · {item.recordDigest.slice(0,8)}</p>
    <p>Source machine: {item.sourceMachineId}. Original version: {item.baseVersionId.slice(0,8)}.</p><p>{item.release?.current?'Released for this version.':item.release&&!item.release.withdrawnAt?'Release currently unavailable.':'Not released.'}</p>
    <button disabled={busy||!item.eligible||listVersion!==versionId||!!item.release&&!item.release.withdrawnAt} onClick={()=>work(()=>review(item))}>Review teaching {item.recordDigest.slice(0,8)}</button>
