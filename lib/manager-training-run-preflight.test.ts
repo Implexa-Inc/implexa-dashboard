@@ -35,6 +35,25 @@ test('accepts only exact active-version readiness and exposes explicit predecess
   });
 });
 
+test('installed customers use only the exact aggregate and cannot inherit owner training actions', () => {
+  const response = { ok: true, contractVersion: 'installed-agent-training-preflight.v1',
+    agentFamilyId: '11111111-1111-4111-8111-111111111111', workflowVersionId: TARGET,
+    managerTrainingRequirements: home('reference_training_ready').home.managerTrainingRequirements };
+  assert.equal(managerTrainingRunPreflight(response, TARGET).state, 'ready');
+  const absent = { ...response, managerTrainingRequirements: home().home.managerTrainingRequirements };
+  assert.deepEqual(managerTrainingRunPreflight(absent, TARGET), { state: 'training_required',
+    requirements: absent.managerTrainingRequirements, installedCustomer: true,
+    hasEligiblePredecessor: false, successorAdoption: null });
+  const optional = { ...response, managerTrainingRequirements: { ...response.managerTrainingRequirements,
+    requiredPairs: [], fulfilledPairs: [], missingPairs: [], readiness: 'not_applicable', reason: null } };
+  assert.equal(managerTrainingRunPreflight(optional, TARGET).state, 'ready');
+  for (const bad of [{ ...response, workflowVersionId: SOURCE }, { ...response, home: home().home },
+    { ...response, agentFamilyId: 'invalid' }, { ...response, contractVersion: 'unknown' },
+    { ...response, managerTrainingRequirements: { ...response.managerTrainingRequirements, workflowVersionId: SOURCE } }]) {
+    assert.equal(managerTrainingRunPreflight(bad, TARGET).state, 'unavailable');
+  }
+});
+
 test('adoption preview is exact, version-bound, and exposes only newly adoptable records', () => {
   const preview = {
     contractVersion: 'manager-training-successor-adoption-preview.v1', targetWorkflowVersionId: TARGET,

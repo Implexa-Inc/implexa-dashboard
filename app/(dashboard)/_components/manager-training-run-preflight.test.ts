@@ -86,6 +86,34 @@ test('exact ready projection permits the ordinary Run form', async () => {
   } finally { r.cleanup(); }
 });
 
+test('installed customer readiness opens normal inputs or holds without exposing trainer actions', async () => {
+  for (const readiness of ['reference_training_ready', 'coach_reference_training_required'] as const) {
+    const paths: string[] = [];
+    const r = await render('agent-actions.tsx', props, { backend: (path: string) => {
+      paths.push(path);
+      if (path.startsWith('/api/v2/agent-training/agents/')) return {
+        ok: true, contractVersion: 'installed-agent-training-preflight.v1',
+        agentFamilyId: '11111111-1111-4111-8111-111111111111', workflowVersionId: VERSION,
+        managerTrainingRequirements: trainingHome(readiness).home.managerTrainingRequirements,
+      };
+      if (path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
+      throw Error('No other pre-run operation expected');
+    } });
+    try {
+      await r.click(r.getByText('▶ Run now'));
+      assert.ok(paths.includes(`/api/v2/agent-training/agents/visual-compositor?scope=run&versionId=${VERSION}`));
+      if (readiness === 'reference_training_ready') assert.ok(r.queryByText('Run inputs'));
+      else {
+        assert.match(r.text(), /Ask the trainer for help/);
+        assert.equal(r.queryByText('Open successor training'), null);
+        assert.equal(r.queryByText('Open training for this version'), null);
+        assert.equal(paths.some(path => path.includes('/setup')), false);
+      }
+      assert.equal(paths.some(path => path.includes('adopt-successor') || path.includes('/sessions')), false);
+    } finally { r.cleanup(); }
+  }
+});
+
 test('unverifiable readiness fails closed before the Run form', async () => {
   const r = await render('agent-actions.tsx', props, {
     backend: (path: string) => path.startsWith('/api/v2/agent-training/agents/') ? { ok: true } : { ok: true },
