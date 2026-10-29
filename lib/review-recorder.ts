@@ -98,7 +98,26 @@ export type RecordingDetail = RecordingSummary & { pointerTrack: PointerTrack | 
 export type ActiveRecording = { recordingId: string; state: ActiveState };
 export type LibraryUsage = { usedBytes: number; limitBytes: number };
 export type RecordingPreview = { url: string; mime: 'video/mp4'; token: string };
-export type RecorderChange = { ownerId:string; recordingId: string; state: string };
+const START_FAILURE_PHASES = ['display', 'recorder_construct', 'recorder_start', 'started_ack', 'countdown_deadline', 'other'] as const;
+const START_ERROR_NAMES = ['NotAllowedError', 'NotFoundError', 'NotReadableError', 'AbortError', 'NotSupportedError',
+  'InvalidStateError', 'SecurityError', 'OverconstrainedError', 'TypeError', 'other'] as const;
+const DISPLAY_FAILURE_REASONS = ['not_armed', 'frame_mismatch', 'phase', 'source_missing', 'sources_failed', 'source_binding_missing',
+  'permission_media_types', 'permission_frame', 'permission_url', 'permission_consumed', 'permission_check', 'not_reported'] as const;
+export type RecorderStartFailure = {
+  phase: typeof START_FAILURE_PHASES[number];
+  errorName: typeof START_ERROR_NAMES[number];
+  reason: typeof DISPLAY_FAILURE_REASONS[number];
+};
+export type RecorderChange = { ownerId:string; recordingId: string; state: string; failure?: RecorderStartFailure };
+
+export function recorderStartFailureMessage(failure: RecorderStartFailure): string {
+  if (failure.reason === 'source_missing') return 'The selected screen or window disappeared before recording started. No recording was saved.';
+  if (failure.reason === 'source_binding_missing') return 'Implexa could not verify the selected capture source. No recording was saved.';
+  if (failure.phase === 'countdown_deadline') return 'Capture did not start in time. No recording was saved.';
+  return failure.phase === 'display'
+    ? 'Implexa could not capture the selected screen or window. No recording was saved.'
+    : 'Video recording could not start. No recording was saved.';
+}
 
 // ── reasons ──────────────────────────────────────────────────────────────────
 
@@ -305,8 +324,14 @@ export function isActiveRecording(v: unknown): v is ActiveRecording {
 }
 
 export function isRecorderChange(v: unknown): v is RecorderChange {
-  return exact(v, ['ownerId','recordingId', 'state']) && typeof v.ownerId==='string' && /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v.ownerId) && isRecordingId(v.recordingId)
-    && typeof v.state === 'string' && v.state.length > 0 && v.state.length <= 64;
+  if (!isObj(v) || !exact(v, v.state === 'start_failed' ? ['ownerId', 'recordingId', 'state', 'failure'] : ['ownerId', 'recordingId', 'state'])
+    || typeof v.ownerId !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v.ownerId)
+    || !isRecordingId(v.recordingId) || typeof v.state !== 'string' || v.state.length === 0 || v.state.length > 64) return false;
+  if (v.state !== 'start_failed') return true;
+  return exact(v.failure, ['phase', 'errorName', 'reason'])
+    && (START_FAILURE_PHASES as readonly unknown[]).includes(v.failure.phase)
+    && (START_ERROR_NAMES as readonly unknown[]).includes(v.failure.errorName)
+    && (DISPLAY_FAILURE_REASONS as readonly unknown[]).includes(v.failure.reason);
 }
 
 // ── per-operation response parsers (pure; exported for tests) ────────────────

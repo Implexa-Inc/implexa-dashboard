@@ -204,6 +204,35 @@ test('New review lists the library, explains failures in plain English, and star
   } finally { page.cleanup(); }
 });
 
+test('a failed capture opens a diagnostic modal after cleanup without retrying', async () => {
+  const b = bridge((op) => {
+    if (op === 'list') return { ok: true, recordings: [], library };
+    if (op === 'status') return { ok: true, active: null };
+    return { ok: true };
+  });
+  const page = await render(NEW_REVIEW, { ownerId: ID }, { bridge: b.value });
+  const event = { ownerId: ID, recordingId: NEW, state: 'start_failed',
+    failure: { phase: 'display', errorName: 'NotAllowedError', reason: 'source_missing' } };
+  try {
+    await page.act(() => {});
+    await page.act(() => b.emit({ ...event, ownerId: OTHER }));
+    assert.equal(page.document.querySelector('[role="dialog"]'), null);
+    await page.act(() => b.emit({ ...event, failure: { ...event.failure, message: 'PRIVATE' } }));
+    assert.equal(page.document.querySelector('[role="dialog"]'), null);
+    await page.act(() => b.emit(event));
+    const modal = page.document.querySelector('[role="dialog"]');
+    assert.ok(modal);
+    assert.match(modal.textContent!, /selected screen or window disappeared/);
+    assert.match(modal.textContent!, /No recording was saved/);
+    assert.match(modal.textContent!, /NotAllowedError/);
+    assert.doesNotMatch(page.text(), /PRIVATE/);
+    assert.equal(ops(b).includes('start'), false, 'failure notification never launches a retry');
+    await page.click(modal.querySelector('button[aria-label="Close"]')!);
+    assert.equal(page.document.querySelector('[role="dialog"]'), null);
+    assert.ok(button(page, 'Record'), 'the user can deliberately start another recording');
+  } finally { page.cleanup(); }
+});
+
 test('a cancelled upload is silent; a refusal is shown in plain English', async () => {
   let reason = 'selection_cancelled';
   const b = bridge((op) => {

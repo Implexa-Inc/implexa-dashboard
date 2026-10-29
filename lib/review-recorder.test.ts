@@ -12,7 +12,7 @@ import {
   REASON_MESSAGES, REVIEW_RECORDER_CONTRACT_VERSION, RecorderError, SILENT_REASONS,
   addMoment, cardWarnings, clampMomentRange, createReviewRecorderClient, defaultRegionFromPointer, emptyCard,
   failureMessage, formatBytes, formatRecordingDuration, isMomentList, isPointerTrack, isRecordingDetail,
-  isRecordingSummary, momentsDirty, parse, pointerTrailAt, rangeFromDrag, reasonMessage, recorderAvailability,
+  isRecordingSummary, isRecorderChange, momentsDirty, parse, pointerTrailAt, rangeFromDrag, reasonMessage, recorderAvailability,
   recorderErrorMessage, recoverAction, regionFromSpatial, regionOverlayStyle, suggestMoments,
   type Moment, type PointerSample,
 } from './review-recorder.ts';
@@ -304,6 +304,29 @@ test('change events are validated and unsubscribe works', () => {
   off();
   assert.equal(listeners.length, 0);
   assert.equal(typeof createReviewRecorderClient({}).subscribe(() => {}), 'function', 'no bridge: a no-op unsubscribe');
+});
+
+test('start-failure events accept only bounded diagnostics and remain owner-scoped', () => {
+  const event = { ownerId: ID, recordingId: ID, state: 'start_failed',
+    failure: { phase: 'display', errorName: 'NotAllowedError', reason: 'not_reported' } };
+  assert.equal(isRecorderChange(event), true);
+  for (const reason of ['permission_media_types', 'permission_frame', 'permission_url', 'permission_consumed', 'permission_check']) {
+    assert.equal(isRecorderChange({ ...event, failure: { ...event.failure, reason } }), true);
+  }
+  for (const bad of [
+    { ...event, failure: undefined }, { ...event, failure: { ...event.failure, phase: 'PRIVATE' } },
+    { ...event, failure: { ...event.failure, errorName: 'PRIVATE' } },
+    { ...event, failure: { ...event.failure, reason: 'PRIVATE' } },
+    { ...event, failure: { ...event.failure, message: 'PRIVATE source or path' } },
+    { ...event, state: 'ready' }, { ...event, path: '/private' },
+  ]) assert.equal(isRecorderChange(bad), false);
+  const { win, listeners } = fakeWindow(() => ({ ok: true }));
+  const seen: unknown[] = [];
+  const off = createReviewRecorderClient(win, ID).subscribe((e) => seen.push(e));
+  listeners[0]({ ...event, ownerId: M1 });
+  listeners[0](event);
+  assert.deepEqual(seen, [event]);
+  off();
 });
 
 // ── ranges ──────────────────────────────────────────────────────────────────
