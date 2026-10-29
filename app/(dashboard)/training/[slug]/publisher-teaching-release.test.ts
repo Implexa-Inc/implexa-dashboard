@@ -75,3 +75,27 @@ test('a fork permission previews one exact release, requires consent and withdra
   assert.equal((r.getByText(`Review fork permission ${DIGEST.slice(0,8)}`) as HTMLButtonElement).disabled,true,'a replacement permission cannot revive old frozen contexts');
  }finally{r.cleanup();}
 });
+
+test('compatible-version scope requires its own exact preview and publisher confirmation',async()=>{
+ const calls:any[]=[],lineage=U(30),releaseId=U(31),grantId=U(32),scopeDigest='f'.repeat(64);
+ let grant:any={id:grantId,lineage_id:lineage,release_id:releaseId,release_digest:DIGEST,grant_digest:'e'.repeat(64),withdrawn_at:null,successor_scope_digest:null};
+ const r=await render('../training/[slug]/publisher-teaching-release.tsx',{slug:'video-agent',versionId:VERSION,forkPermission:{lineageId:lineage,parentVersionId:VERSION}});
+ const scope=(confirmed:boolean)=>({ok:true,scopeConfirmed:confirmed,scopeDigest,scope:'compatible_successors',grantId,childVersionId:lineage,parentVersionId:VERSION,recipientId:U(33),childName:'Private fork',
+  receipt:{contractVersion:'agent-fork-successor-scope.v1',scope:'compatible_successors',grantDigest:grant.grant_digest,lineageId:lineage,releaseId,releaseDigest:DIGEST}});
+ r.window.fetch=(async(_url:any,opts:any)=>{const b=JSON.parse(opts.body);calls.push(b);
+  if(b.action==='fork_list')return {ok:true,json:async()=>({ok:true,lineageId:lineage,grants:[grant]})};
+  if(b.action==='fork_scope_confirm'){grant={...grant,successor_scope_digest:scopeDigest,successor_scope_confirmed_at:'2026-10-29T20:00:00Z'};return {ok:true,json:async()=>scope(true)};}
+  return {ok:true,json:async()=>scope(false)};
+ }) as typeof r.window.fetch;
+ try{
+  await r.click(r.getByText('Load fork permissions'));
+  await r.click(r.getByText(`Review compatible versions ${releaseId.slice(0,8)}`));
+  assert.equal((r.getByText('Allow compatible versions') as HTMLButtonElement).disabled,true);
+  assert.equal(calls.some(b=>b.action==='fork_scope_confirm'),false,'preview is not approval');
+  await r.click(r.getByText('Allow this example in this private fork and its compatible future versions.').closest('label')!.querySelector('input')!);
+  await r.click(r.getByText('Allow compatible versions'));
+  const sent=calls.find(b=>b.action==='fork_scope_confirm');assert.equal(sent.previewDigest,scopeDigest);assert.equal(sent.grantId,grantId);assert.equal(sent.lineageId,lineage);assert.equal(Object.hasOwn(sent,'ownerId'),false);
+  assert.match(r.text(),/permitted for this fork and compatible versions/);
+  assert.equal(r.queryByText(`Review compatible versions ${releaseId.slice(0,8)}`),null);
+ }finally{r.cleanup();}
+});
