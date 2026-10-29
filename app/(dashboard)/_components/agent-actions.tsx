@@ -581,7 +581,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     setTrainingChecking(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const response = await callBackend(`/api/v2/agent-training/agents/${encodeURIComponent(slug)}`, {
+      const runScope = workflowVersionId ? `?scope=run&versionId=${encodeURIComponent(workflowVersionId)}` : '';
+      const response = await callBackend(`/api/v2/agent-training/agents/${encodeURIComponent(slug)}${runScope}`, {
         jwt: session?.access_token,
       });
       const preflight = managerTrainingRunPreflight(response, workflowVersionId);
@@ -1319,7 +1320,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             <p>
               {trainingGate.hasEligiblePredecessor
                 ? 'Accepted evidence on the earlier version stays immutable. Training will create an explicit successor draft for this version; review and accept each new digest separately.'
-                : 'Add and accept the exact missing evidence for this immutable version before running it.'}
+                : trainingGate.installedCustomer
+                  ? 'The required examples are unavailable for your installed version. Ask the trainer for help, then check again. No run has started.'
+                  : 'Add and accept the exact missing evidence for this immutable version before running it.'}
             </p>
             </>}
             {trainingSuccessorAdoptionActionAvailable(trainingGate.successorAdoption) && trainingGate.successorAdoption && (
@@ -1347,11 +1350,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 onClick={() => { setTrainingGate(null); void openPreRun(preRunMode, true); }}>
                 Continue without carrying
               </button>}
-              <Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={() => setTrainingGate(null)}>
+              {trainingGate.installedCustomer ? <button type="button" className="btn-primary"
+                onClick={() => { setTrainingGate(null); void openPreRun(preRunMode); }}>Check again</button> : <Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={() => setTrainingGate(null)}>
                 {trainingGate.hasEligiblePredecessor
                   ? (trainingSuccessorAdoptionActionAvailable(trainingGate.successorAdoption) ? 'Use full successor training' : 'Open successor training')
                   : 'Open training for this version'}
-              </Link>
+              </Link>}
             </div>
           </div>
         ) : (

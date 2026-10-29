@@ -12,6 +12,7 @@ export type ManagerTrainingRunPreflight =
     hasEligiblePredecessor: boolean;
     successorAdoption: TrainingSuccessorAdoptionPreview | null;
     optional?: true;
+    installedCustomer?: true;
   }
   | { state: 'unavailable' };
 
@@ -187,6 +188,18 @@ export function managerTrainingRunPreflight(
     return { state: 'unavailable' };
   }
   const root = response as Record<string, unknown>;
+  if (root.contractVersion === 'installed-agent-training-preflight.v1') {
+    if (!exact(root, ['ok', 'contractVersion', 'agentFamilyId', 'workflowVersionId', 'managerTrainingRequirements'])
+      || root.ok !== true || typeof root.agentFamilyId !== 'string' || !UUID.test(root.agentFamilyId)
+      || root.workflowVersionId !== workflowVersionId
+      || !isManagerTrainingRequirements(root.managerTrainingRequirements, workflowVersionId)) return { state: 'unavailable' };
+    const requirements = root.managerTrainingRequirements;
+    return requirements.readiness === 'coach_reference_training_required'
+      ? { state: 'training_required', requirements, installedCustomer: true,
+        hasEligiblePredecessor: false, successorAdoption: null }
+      : { state: 'ready', requirements };
+  }
+  if (Object.hasOwn(root, 'contractVersion')) return { state: 'unavailable' };
   if (root.ok !== true || !root.home || typeof root.home !== 'object' || Array.isArray(root.home)) {
     return { state: 'unavailable' };
   }
