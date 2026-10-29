@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import PublisherTeachingRelease from './publisher-teaching-release';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
 import { teachingDigest, teachingFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation, recordingSuggestion, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
@@ -814,6 +815,7 @@ export default function TrainingSource({ slug }: { slug: string }) {
       </>}
     </section>
     {suggestionNote && <p role="status">{suggestionNote}</p>}
+    <PublisherTeachingRelease slug={slug} versionId={currentVersion}/>
     <section className="rounded border border-ink-700 p-4 space-y-3" aria-labelledby="trainer-questions-heading">
       <h2 id="trainer-questions-heading" className="font-semibold">Questions from runs</h2>
       <p>Review actual recorded consultations, including failed or cancelled runs. A returned reference is not proof that it answered the question or was applied.</p>
