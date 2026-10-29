@@ -53,7 +53,7 @@ test('stale version, foreign candidates and mismatched frame never reach release
 
 test('a fork permission previews one exact release, requires consent and withdraws independently',async()=>{
  const calls:any[]=[],lineage=U(20),releaseId=U(21);let granted:any=null;
- const r=await render('../training/[slug]/publisher-teaching-release.tsx',{slug:'video-agent',versionId:VERSION});
+ const r=await render('../training/[slug]/publisher-teaching-release.tsx',{slug:'video-agent',versionId:null,forkPermission:{lineageId:lineage,parentVersionId:VERSION}});
  Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});
  r.window.fetch=(async(_url:any,opts:any={})=>{const b=opts.body?JSON.parse(opts.body):null;calls.push(b);
   if(!b)return {ok:true,json:async()=>({ok:true,contractVersion:'publisher-teaching-candidates.v1',workflowVersionId:VERSION,candidates:[{...item,release:{releaseId,releaseDigest:DIGEST,withdrawnAt:null,current:true}}]})};

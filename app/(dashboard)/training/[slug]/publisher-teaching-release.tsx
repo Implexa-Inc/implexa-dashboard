@@ -30,13 +30,13 @@ async function verifyImage(image:string,p:Projection){
   ||new DataView(bytes.buffer).getUint32(16)!==d.width||new DataView(bytes.buffer).getUint32(20)!==d.height
   ||await teachingDigest(bytes)!==d.sha256)throw Error('The teaching image does not match its admitted bytes.');
 }
-export default function PublisherTeachingRelease({slug,versionId}:{slug:string;versionId:string|null}){
+export default function PublisherTeachingRelease({slug,versionId:activeVersionId,forkPermission}:{slug:string;versionId:string|null;forkPermission?:{lineageId:string;parentVersionId:string}}){
+ const versionId=activeVersionId||(forkPermission?.parentVersionId&&uuid(forkPermission.parentVersionId)&&uuid(forkPermission.lineageId)?forkPermission.parentVersionId:null);
  const [items,setItems]=useState<Candidate[]>([]),[listVersion,setListVersion]=useState<string|null>(null);
  const [selected,setSelected]=useState<{item:Candidate;token:string;image:string}|null>(null),[preview,setPreview]=useState<Preview|null>(null);
  const [storeConsent,setStoreConsent]=useState(false),[releaseConsent,setReleaseConsent]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[note,setNote]=useState('');
- const [forkId,setForkId]=useState(''),[forkGrants,setForkGrants]=useState<any[]>([]),[forkConsent,setForkConsent]=useState(false);
+ const [forkId,setForkId]=useState(forkPermission?.lineageId||''),[forkGrants,setForkGrants]=useState<any[]>([]),[forkConsent,setForkConsent]=useState(false);
  const [forkPreview,setForkPreview]=useState<{item:Candidate;data:any}|null>(null);
- useEffect(()=>{const id=new URL(window.location.href).searchParams.get('forkId');if(uuid(id))setForkId(id);},[]);
  const current=useRef(versionId);current.current=versionId;const pending=useRef(false);
  useEffect(()=>{setItems([]);setListVersion(null);setSelected(null);setPreview(null);setStoreConsent(false);setReleaseConsent(false);setForkPreview(null);setForkGrants([]);setForkConsent(false);},[slug,versionId]);
  const bridge=()=>{const b=(window as unknown as {implexaDesktop?:Bridge}).implexaDesktop;
@@ -108,6 +108,7 @@ export default function PublisherTeachingRelease({slug,versionId}:{slug:string;v
  }
  return <section className="rounded border border-ink-700 p-4 space-y-3" aria-label="Selected teachings for customers">
   <h2 className="font-semibold">Selected teachings for customers</h2><p>Only teachings you explicitly release here can guide customers of this exact public agent version. Your full library, recordings and private feedback remain private. Customers can inspect the selected image and guidance they receive; already delivered copies cannot be recalled.</p>
+  {!activeVersionId&&forkPermission&&<p>Permission review for pinned parent version {versionId?.slice(0,8)}. Local training and source access remain unavailable in this browser. The server verifies publisher ownership and the exact fork.</p>}
   <button disabled={busy||!versionId} onClick={()=>work(async()=>{await load();})}>Load compatible teaching candidates</button>
   {listVersion&&<p>Showing up to 50 compatible owned records. Eligibility is not a promise of selection or application.</p>}
   <div className="rounded border border-ink-700 p-3 space-y-2"><h3>Permissions for one private fork</h3>
