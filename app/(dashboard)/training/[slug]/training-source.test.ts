@@ -215,6 +215,47 @@ async function renderedWith(options: Parameters<typeof harness>[0] = {}) {
   return { ...h, rendered };
 }
 
+test('customer private mode loads only its installation, reuses the local editor and hides trainer authority',async()=>{
+ const h=harness({stages:['planning','build'],deliveryRelation:'rejected'}),calls:Array<{url:string;init:any}>=[];
+ const installation='29000000-0000-4000-8000-000000000001';
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',installationId:installation},{bridge:{...h.bridge,trainingEvidenceStorageContractVersion:'1',trainingRecordingContractVersion:'1'},
+  fetch:(async(url:any,init:any={})=>{calls.push({url,init});return {ok:true,json:async()=>({ok:true,scope:{installationId:installation,
+   agent:{name:'Video craft',slug:'video-craft',currentVersionId:VERSION_A},session:{sessionId:SESSION,baseVersionId:VERSION_A,terminal:false}}})};}) as typeof fetch});
+ try{
+  assert.match(r.text(),/Private preferences for Video craft/);assert.equal(calls.length,1);assert.match(calls[0].url,/installation-preferences\?installationId=/);
+  assert.equal(h.calls.some(c=>['home','scope','create'].includes(c.operation)),false,'no creator Home or Desktop scope fallback');
+  for(const forbidden of ['Check public visibility','Questions from runs','Use at stage start','Store this teaching image privately for my own future runs on other devices.','Find a teaching in this recording'])assert.equal(r.queryByText(forbidden),null);
+  assert.equal(r.queryByText('Accept this exact decision'),null,'no automatic admission');
+  await r.click(r.getByText(/I have permission to use this output/).closest('label')!.querySelector('input')!);
+  await r.click(r.getByText('Add training source'));
+  assert.equal(h.calls.filter(c=>c.operation==='select').length,1);assert.equal(h.calls.find(c=>c.operation==='select')?.args.sessionId,SESSION);
+  assert.equal(h.calls.some(c=>['accept','serverStorage','delivery','recording'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
+test('private source creation pins the installed version and delegates only media work to Desktop',async()=>{
+ const h=harness({stages:['planning','build']}),requests:any[]=[];let opened=false;
+ const installation='29000000-0000-4000-8000-000000000001';
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',installationId:installation},{bridge:h.bridge,
+  fetch:(async(url:any,init:any={})=>{requests.push({url,init});if(init.method==='POST')opened=true;
+   return {ok:true,json:async()=>({ok:true,...(opened?{sessionId:NEW_SESSION}:{}),scope:{installationId:installation,
+    agent:{name:'Video craft',slug:'video-craft',currentVersionId:VERSION_A},...(opened?{session:{sessionId:NEW_SESSION,baseVersionId:VERSION_A,terminal:false}}:{})}})};}) as typeof fetch});
+ try{
+  await r.click(r.getByText(/I have permission to use this output/).closest('label')!.querySelector('input')!);
+  await r.click(r.getByText('Add training source'));
+  const post=requests.find(x=>x.init.method==='POST');assert.deepEqual(JSON.parse(post.init.body),{expectedVersionId:VERSION_A});
+  assert.ok(post.init.headers['Idempotency-Key']);assert.equal(h.calls.some(c=>['home','scope','create'].includes(c.operation)),false);
+  assert.equal(h.calls.find(c=>c.operation==='select')?.args.sessionId,NEW_SESSION);
+ }finally{r.cleanup();}
+});
+
+test('unavailable private installation never falls back to publisher training or mutates',async()=>{
+ const h=harness(),r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',installationId:SOURCE_ID},{bridge:h.bridge,
+  fetch:(async()=>({ok:false,json:async()=>({ok:false,reason:'installation_preference_unavailable'})})) as typeof fetch});
+ try{assert.match(r.text(),/installed agent is unavailable/);assert.equal(h.calls.length,0);assert.equal(r.queryByText('Check public visibility'),null);}
+ finally{r.cleanup();}
+});
+
 test('public definition needs current-version review and confirmation without publishing teaching evidence',async()=>{
  for(const mode of ['valid','stale','not-owned']) {
   const h=await renderedWith(),r=h.rendered,requests:Array<{method:string;body:any}>=[];

@@ -95,6 +95,7 @@ async function bundle(entry: string): Promise<string> {
 export async function render(component: string, props: Record<string, unknown>, options: {
   bridge?: Record<string, unknown> | null;
   backend?: (path: string, init: unknown) => unknown;
+  fetch?: typeof globalThis.fetch;
 } = {}): Promise<Rendered> {
   // React's browser scheduler creates long-lived MessagePorts. jsdom.close()
   // does not own ports created by code evaluated in its window, so remember the
@@ -168,7 +169,8 @@ export async function render(component: string, props: Record<string, unknown>, 
   if (!window.crypto?.randomUUID) {
     Object.defineProperty(window, 'crypto', { value: globalThis.crypto, configurable: true });
   }
-  if (!(window as unknown as Record<string, unknown>).fetch) {
+  if(options.fetch)(window as unknown as Record<string,unknown>).fetch=options.fetch;
+  else if (!(window as unknown as Record<string, unknown>).fetch) {
     (window as unknown as Record<string, unknown>).fetch = async () => ({ ok: true, json: async () => ({}) });
   }
   window.matchMedia = window.matchMedia || (() => ({
