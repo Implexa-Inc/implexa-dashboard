@@ -44,9 +44,9 @@ const pct = (n: number) => `${Math.round(n / (COORD_MAX / 100))}%`;
 const regionLabel = (r: Region) => `${pct(r.width)} × ${pct(r.height)} at (${pct(r.x)}, ${pct(r.y)})`;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 
-export default function RecordingPlayer({ recordingId }: { recordingId: string }) {
+export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { recordingId: string; ownerId:string;trainingSlug?:string }) {
   const router = useRouter();
-  const client = useMemo(() => createReviewRecorderClient(), []);
+  const client = useMemo(() => createReviewRecorderClient(undefined,ownerId), [ownerId]);
   const [availability, setAvailability] = useState<RecorderAvailability | null>(null);
   const [detail, setDetail] = useState<RecordingDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -594,6 +594,15 @@ export default function RecordingPlayer({ recordingId }: { recordingId: string }
             );
           })}
         </ol>
+      </section>
+
+      <section className="my-4 rounded border border-ink-700 p-4">
+        <p>Your recording stays on this Mac. Training requires separate source consent, an exact frame and human admission.</p>
+        {trainingSlug ? <button type="button" disabled={dirty || busy !== null}
+          onClick={()=>router.push(`/training/${encodeURIComponent(trainingSlug)}?recordingId=${encodeURIComponent(recordingId)}${selectedId?`&momentId=${encodeURIComponent(selectedId)}`:''}`)}>
+          Use in Training
+        </button> : <Link href="/training">Choose an Agent for Training</Link>}
+        {dirty && <p>Save your moments before using them in Training.</p>}
       </section>
 
       <Modal open={leaveHref !== null} onClose={() => setLeaveHref(null)} title="Leave without saving?">

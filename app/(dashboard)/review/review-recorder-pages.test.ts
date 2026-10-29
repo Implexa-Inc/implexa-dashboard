@@ -122,7 +122,7 @@ function bridge(reply: (op: string, args: unknown) => unknown, extra: Record<str
     calls, revoked,
     emit: (e: unknown) => listeners.forEach((l) => l(e)),
     value: {
-      reviewRecorderContractVersion: '1',
+      reviewRecorderContractVersion: '2',
       reviewRecorder: async (operation: string, args?: unknown) => { calls.push({ operation, args: plain(args) }); return reply(operation, args); },
       onReviewRecorderChanged: (cb: (e: unknown) => void) => { listeners.push(cb); return () => { listeners.splice(listeners.indexOf(cb), 1); }; },
       revokeArtifactPreview: async (token: string) => { revoked.push(token); return { ok: true }; },
@@ -156,7 +156,7 @@ const NEW_REVIEW = '../review/new/new-review.tsx';
 const PLAYER = '../review/recordings/[recordingId]/recording-player.tsx';
 
 test('New review without the Desktop: the result path works, recording says why it cannot', async () => {
-  const page = await render(NEW_REVIEW, {});
+  const page = await render(NEW_REVIEW, {ownerId:ID});
   try {
     assert.match(page.text(), new RegExp(REASON_MESSAGES.desktop_required.slice(0, 40)));
     assert.ok(page.document.querySelector('a[href="/work?view=review"]'), 'Review a result still links to the queue');
@@ -167,7 +167,7 @@ test('New review without the Desktop: the result path works, recording says why 
 
 test('New review with an older recorder contract asks for an update', async () => {
   const b = bridge(() => ({ ok: true }), { reviewRecorderContractVersion: '0' });
-  const page = await render(NEW_REVIEW, {}, { bridge: b.value });
+  const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
     assert.match(page.text(), /Update Implexa Desktop/);
     assert.equal(b.calls.length, 0, 'an unknown contract is never called');
@@ -185,7 +185,7 @@ test('New review lists the library, explains failures in plain English, and star
     if (op === 'start') return { ok: true, recordingId: '3c4d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f' };
     return { ok: true };
   });
-  const page = await render(NEW_REVIEW, {}, { bridge: b.value });
+  const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
     await page.act(() => {});
     assert.match(page.text(), /Checkout flow/);
@@ -200,7 +200,7 @@ test('New review lists the library, explains failures in plain English, and star
     assert.equal(mic.checked, true, 'microphone defaults ON');
     await page.click(mic);
     await page.click(button(page, 'Record')!);
-    assert.deepEqual(b.calls.find((c) => c.operation === 'start')?.args, { microphone: false });
+    assert.deepEqual(b.calls.find((c) => c.operation === 'start')?.args, { microphone: false,expectedOwnerId:ID });
   } finally { page.cleanup(); }
 });
 
@@ -212,7 +212,7 @@ test('a cancelled upload is silent; a refusal is shown in plain English', async 
     if (op === 'import') return { ok: false, reason };
     return { ok: true };
   });
-  const page = await render(NEW_REVIEW, {}, { bridge: b.value });
+  const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
     await page.act(() => {});
     await page.click(button(page, 'Choose a video')!);
@@ -230,7 +230,7 @@ test('a malformed library row is dropped and counted; the rest still render', as
     if (op === 'status') return { ok: true, active: null };
     return { ok: true };
   });
-  const page = await render(NEW_REVIEW, {}, { bridge: b.value });
+  const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
     await page.act(() => {});
     assert.match(page.text(), /Checkout flow/);
@@ -241,7 +241,7 @@ test('a malformed library row is dropped and counted; the rest still render', as
 
 test('a malformed library envelope still fails closed', async () => {
   const b = bridge((op) => (op === 'list' ? { ok: true, recordings: [summary()] } : { ok: true, active: null }));
-  const page = await render(NEW_REVIEW, {}, { bridge: b.value });
+  const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
     await page.act(() => {});
     assert.doesNotMatch(page.text(), /Checkout flow/);
@@ -258,7 +258,7 @@ test('Delete: a cancelled native confirm is silent; a confirmed delete refreshes
     if (op === 'delete') { if (!confirm) return { ok: false, reason: 'delete_cancelled' }; rows = []; return { ok: true }; }
     return { ok: true };
   });
-  const page = await render(NEW_REVIEW, {}, { bridge: b.value });
+  const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
     await page.act(() => {});
     await page.click(button(page, 'Delete')!);
@@ -269,7 +269,7 @@ test('Delete: a cancelled native confirm is silent; a confirmed delete refreshes
     await page.click(button(page, 'Delete')!);
     assert.ok(ops(b).filter((o) => o === 'list').length > listsBefore, 'refreshed after delete');
     assert.doesNotMatch(page.text(), /Checkout flow/);
-    assert.deepEqual(b.calls.filter((c) => c.operation === 'delete').map((c) => c.args), [{ recordingId: ID }, { recordingId: ID }]);
+    assert.deepEqual(b.calls.filter((c) => c.operation === 'delete').map((c) => c.args), [{ recordingId: ID,expectedOwnerId:ID }, { recordingId: ID,expectedOwnerId:ID }]);
   } finally { page.cleanup(); }
 });
 
@@ -279,11 +279,11 @@ test('Recover on an interrupted row calls recover with its id and refreshes', as
     if (op === 'status') return { ok: true, active: null };
     return { ok: true };
   });
-  const page = await render(NEW_REVIEW, {}, { bridge: b.value });
+  const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
     await page.act(() => {});
     await page.click(button(page, 'Recover')!);
-    assert.deepEqual(b.calls.find((c) => c.operation === 'recover')?.args, { recordingId: ID });
+    assert.deepEqual(b.calls.find((c) => c.operation === 'recover')?.args, { recordingId: ID,expectedOwnerId:ID });
     assert.equal(ops(b).at(-1), 'status', 'a list + status refresh followed');
   } finally { page.cleanup(); }
 });
@@ -296,7 +296,7 @@ test('a long import shows a placeholder row and locks nothing else', async () =>
     if (op === 'import') return held.promise;
     return { ok: true };
   });
-  const page = await render(NEW_REVIEW, {}, { bridge: b.value });
+  const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
     await page.act(() => {});
     await page.click(button(page, 'Choose a video')!);
@@ -319,14 +319,14 @@ test('a recording started here opens in the player once the Desktop says it is r
     if (op === 'start') { started = true; return { ok: true, recordingId: NEW }; }
     return { ok: true };
   });
-  const page = await render(NEW_REVIEW, {}, { bridge: b.value });
+  const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
     await page.act(() => {});
     await page.click(button(page, 'Record')!);
     assert.deepEqual(page.calls.push, []);
     assert.match(page.text(), /Saving your recording/);
     ready = true;
-    await page.act(() => b.emit({ recordingId: NEW, state: 'ready' }));
+    await page.act(() => b.emit({ ownerId:ID,recordingId: NEW, state: 'ready' }));
     assert.deepEqual(page.calls.push, [`/review/recordings/${NEW}`]);
   } finally { page.cleanup(); }
 });
@@ -343,7 +343,7 @@ test('an older list answer never overwrites a newer one', async () => {
     }
     return { ok: true };
   });
-  const page = await render(NEW_REVIEW, {}, { bridge: b.value });
+  const page = await render(NEW_REVIEW, {ownerId:ID}, { bridge: b.value });
   try {
     await page.act(() => { page.window.dispatchEvent(new page.window.Event('focus')); });
     assert.match(page.text(), /Newer/);
@@ -362,7 +362,7 @@ test('the player loads a ready recording, previews it, saves moments, and revoke
     if (op === 'saveMoments') return { ok: true, moments: (args as { moments: unknown }).moments };
     return { ok: true };
   });
-  const page = await render(PLAYER, { recordingId: ID }, { bridge: b.value });
+  const page = await render(PLAYER, { recordingId: ID,ownerId:ID }, { bridge: b.value });
   try {
     await page.act(() => {});
     assert.equal(page.document.querySelector('video')!.getAttribute('src'), `implexa-artifact://preview/${TOKEN}`);
@@ -374,7 +374,7 @@ test('the player loads a ready recording, previews it, saves moments, and revoke
     await page.click(button(page, 'Delete')!);
     assert.equal(save().hasAttribute('disabled'), false);
     await page.click(save());
-    assert.deepEqual(b.calls.find((c) => c.operation === 'saveMoments')?.args, { recordingId: ID, moments: [] });
+    assert.deepEqual(b.calls.find((c) => c.operation === 'saveMoments')?.args, { recordingId: ID, moments: [],expectedOwnerId:ID });
     assert.match(page.text(), /Moments saved on this Mac/);
     assert.deepEqual(ops(b), ['get', 'preview', 'saveMoments']);
   } finally { page.cleanup(); }
@@ -391,7 +391,7 @@ test('edits made while a save is in flight survive it and stay unsaved', async (
     if (op === 'saveMoments') return held.promise;
     return { ok: true };
   });
-  const page = await render(PLAYER, { recordingId: ID }, { bridge: b.value });
+  const page = await render(PLAYER, { recordingId: ID,ownerId:ID }, { bridge: b.value });
   try {
     await page.act(() => {});
     const what = () => page.document.querySelector('textarea') as HTMLTextAreaElement;
@@ -413,7 +413,7 @@ test('M marks at the playhead, refuses an empty mark, and is ignored while typin
     if (op === 'preview') return previewOk;
     return { ok: true };
   });
-  const page = await render(PLAYER, { recordingId: ID }, { bridge: b.value });
+  const page = await render(PLAYER, { recordingId: ID,ownerId:ID }, { bridge: b.value });
   try {
     await page.act(() => {});
     const video = page.document.querySelector('video')!;
@@ -441,7 +441,7 @@ test('the player guards unsaved moments with a modal, and never with beforeunloa
     if (op === 'preview') return previewOk;
     return { ok: true };
   });
-  const page = await render(PLAYER, { recordingId: ID }, { bridge: b.value });
+  const page = await render(PLAYER, { recordingId: ID,ownerId:ID }, { bridge: b.value });
   const registered: string[] = [];
   const original = page.window.addEventListener.bind(page.window);
   page.window.addEventListener = ((type: string, ...rest: unknown[]) => { registered.push(type); return (original as (...a: unknown[]) => void)(type, ...rest); }) as typeof page.window.addEventListener;
@@ -470,7 +470,7 @@ test('Draw region uses the Review Room overlay; keyboard Enter sets a box at the
     if (op === 'preview') return previewOk;
     return { ok: true };
   });
-  const page = await render(PLAYER, { recordingId: ID }, { bridge: b.value });
+  const page = await render(PLAYER, { recordingId: ID,ownerId:ID }, { bridge: b.value });
   try {
     await page.act(() => {});
     const video = page.document.querySelector('video')!;
@@ -500,7 +500,7 @@ test('card fields warn about text the learning rules will refuse, without blocki
     if (op === 'preview') return previewOk;
     return { ok: true };
   });
-  const page = await render(PLAYER, { recordingId: ID }, { bridge: b.value });
+  const page = await render(PLAYER, { recordingId: ID,ownerId:ID }, { bridge: b.value });
   try {
     await page.act(() => {});
     assert.equal(page.document.querySelectorAll('[data-testid="card-warning"]').length, 0);
@@ -516,18 +516,18 @@ test('card fields warn about text the learning rules will refuse, without blocki
 
 test('the player offers Recover for an interrupted recording and never asks for a preview', async () => {
   const b = bridge((op) => (op === 'get' ? { ok: true, recording: detail({ state: 'interrupted', durationMs: null }) } : { ok: true }));
-  const page = await render(PLAYER, { recordingId: ID }, { bridge: b.value });
+  const page = await render(PLAYER, { recordingId: ID,ownerId:ID }, { bridge: b.value });
   try {
     await page.act(() => {});
     await page.click(button(page, 'Recover')!);
     assert.deepEqual(ops(b), ['get', 'recover', 'get']);
-    assert.deepEqual(b.calls[1].args, { recordingId: ID });
+    assert.deepEqual(b.calls[1].args, { recordingId: ID,expectedOwnerId:ID });
   } finally { page.cleanup(); }
 });
 
 test('a failed recording explains itself in plain English and offers Try again; a failed upload does not', async () => {
   const b = bridge((op) => (op === 'get' ? { ok: true, recording: detail({ state: 'failed', failureReason: 'finalize_failed', durationMs: null }) } : { ok: true }));
-  const page = await render(PLAYER, { recordingId: ID }, { bridge: b.value });
+  const page = await render(PLAYER, { recordingId: ID,ownerId:ID }, { bridge: b.value });
   try {
     await page.act(() => {});
     assert.match(page.text(), new RegExp(FAILURE_REASON_MESSAGES.finalize_failed));
@@ -536,10 +536,22 @@ test('a failed recording explains itself in plain English and offers Try again; 
     assert.deepEqual(ops(b), ['get', 'recover', 'get']);
   } finally { page.cleanup(); }
   const up = bridge((op) => (op === 'get' ? { ok: true, recording: detail({ state: 'failed', origin: 'imported', failureReason: 'too_long', durationMs: null }) } : { ok: true }));
-  const page2 = await render(PLAYER, { recordingId: ID }, { bridge: up.value });
+  const page2 = await render(PLAYER, { recordingId: ID,ownerId:ID }, { bridge: up.value });
   try {
     await page2.act(() => {});
     assert.match(page2.text(), new RegExp(FAILURE_REASON_MESSAGES.too_long));
     assert.equal(button(page2, 'Try again'), undefined);
   } finally { page2.cleanup(); }
+});
+
+test('Use in Training carries only saved recording/moment IDs and the existing Agent context',async()=>{
+ const b=bridge(op=>op==='get'?{ok:true,recording:detail()}:op==='preview'?previewOk:{ok:true});
+ const page=await render(PLAYER,{recordingId:ID,ownerId:ID,trainingSlug:'trained-video'},{bridge:b.value});
+ try{
+  await page.act(()=>{});
+  const use=button(page,'Use in Training');assert.ok(use);await page.click(use!);
+  assert.equal(page.calls.push.length,1);assert.match(page.calls.push[0],new RegExp(`^/training/trained-video\\?recordingId=${ID}`));
+  assert.equal(b.calls.some(c=>['accept','annotate','selectRecording'].includes(c.operation)),false,'navigation grants no training authority');
+  assert.equal(JSON.stringify(page.calls.push).includes('/Users/'),false);
+ }finally{page.cleanup();}
 });

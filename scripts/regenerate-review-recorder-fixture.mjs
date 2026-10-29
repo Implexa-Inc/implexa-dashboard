@@ -27,8 +27,8 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-fixture-'));
 const owner = crypto.randomUUID();
 const store = createRecordingStore({ root, media: {} });
 const recorder = { store, controller: { activeIds: () => new Set(), status: () => null }, mediaToolsReady: () => true };
-const ctx = { ownerId: owner, notify: () => {}, confirmDelete: async () => false, revokePreviews: () => {}, pickVideoFile: async () => null };
-const op = (operation, args) => handleDashboardOperation(recorder, { operation, args }, ctx);
+const ctx = { ownerId: owner, current:()=>true, notify: () => {}, confirmDelete: async () => false, revokePreviews: () => {}, pickVideoFile: async () => null };
+const op = (operation, args) => handleDashboardOperation(recorder, { operation, args:{...args,expectedOwnerId:owner} }, ctx);
 function packet(id, state, extra = {}) {
   fs.mkdirSync(path.join(root, id));
   fs.writeFileSync(path.join(root, id, 'packet.json'), JSON.stringify({

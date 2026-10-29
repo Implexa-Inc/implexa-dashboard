@@ -20,13 +20,13 @@
  * all refused — and a malformed answer becomes a typed `RecorderError('response_invalid')`
  * rather than partially rendered state.
  *
- * Bridge contract version '1' (window.implexaDesktop.reviewRecorderContractVersion).
+ * Bridge contract version '2' (window.implexaDesktop.reviewRecorderContractVersion).
  */
 
 import { overlayStyleForGeometry } from './review-spatial-geometry.ts';
 import { desktopBridge, inDesktopApp, parsePreviewUrl } from './review-preview.ts';
 
-export const REVIEW_RECORDER_CONTRACT_VERSION = '1';
+export const REVIEW_RECORDER_CONTRACT_VERSION = '2';
 
 /** Integer space shared with Review Room anchors (`normalized_visual_content_v1` × 1e6). */
 export const COORD_MAX = 1_000_000;
@@ -98,7 +98,7 @@ export type RecordingDetail = RecordingSummary & { pointerTrack: PointerTrack | 
 export type ActiveRecording = { recordingId: string; state: ActiveState };
 export type LibraryUsage = { usedBytes: number; limitBytes: number };
 export type RecordingPreview = { url: string; mime: 'video/mp4'; token: string };
-export type RecorderChange = { recordingId: string; state: string };
+export type RecorderChange = { ownerId:string; recordingId: string; state: string };
 
 // ── reasons ──────────────────────────────────────────────────────────────────
 
@@ -305,7 +305,7 @@ export function isActiveRecording(v: unknown): v is ActiveRecording {
 }
 
 export function isRecorderChange(v: unknown): v is RecorderChange {
-  return exact(v, ['recordingId', 'state']) && isRecordingId(v.recordingId)
+  return exact(v, ['ownerId','recordingId', 'state']) && typeof v.ownerId==='string' && /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v.ownerId) && isRecordingId(v.recordingId)
     && typeof v.state === 'string' && v.state.length > 0 && v.state.length <= 64;
 }
 
@@ -418,7 +418,7 @@ export type ReviewRecorderClient = ReturnType<typeof createReviewRecorderClient>
  * The only module that talks to `reviewRecorder`. Pages call these methods and never
  * the bridge, so the "ids only" rule is enforced in one place (and tested there).
  */
-export function createReviewRecorderClient(win?: unknown) {
+export function createReviewRecorderClient(win?: unknown, expectedOwnerId?: string) {
   function invoker(): InvokeFn {
     const availability = recorderAvailability(win);
     if (availability.state !== 'ready') throw new RecorderError(availability.state);
@@ -427,8 +427,9 @@ export function createReviewRecorderClient(win?: unknown) {
   }
   async function call(operation: string, args?: object): Promise<unknown> {
     const invoke = invoker();
+    if (typeof expectedOwnerId !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(expectedOwnerId)) throw new RecorderError('not_linked');
     try {
-      return await (args === undefined ? invoke(operation) : invoke(operation, args));
+      return await invoke(operation, {...args, expectedOwnerId});
     } catch {
       // A throw across the bridge is not a contract answer.
       throw new RecorderError('recorder_failed');
@@ -472,7 +473,7 @@ export function createReviewRecorderClient(win?: unknown) {
       if (recorderAvailability(win).state !== 'ready' || typeof b?.onReviewRecorderChanged !== 'function') return () => {};
       let off: unknown;
       try {
-        off = (b.onReviewRecorderChanged as (fn: (e: unknown) => void) => unknown)((e) => { if (isRecorderChange(e)) cb(e); });
+        off = (b.onReviewRecorderChanged as (fn: (e: unknown) => void) => unknown)((e) => { if (isRecorderChange(e) && e.ownerId===expectedOwnerId) cb(e); });
       } catch { return () => {}; }
       return () => { if (typeof off === 'function') { try { off(); } catch { /* already gone */ } } };
     },
@@ -708,7 +709,7 @@ export function formatBytes(bytes: number | null): string {
 
 /** Spec §3.5 — the exact, whole notice under the Record button. */
 export const RECORD_NOTICE = 'Recordings stay on this Mac. Only the moments and screenshots you choose are saved to your Agent, where the AI that runs and checks it can see them.';
-export const MOMENTS_NEXT_NOTE = 'Turning moments into feedback and learnings is coming next.';
+export const MOMENTS_NEXT_NOTE = 'Saved moments remain drafts. Use in Training preserves their notes as annotation; review and accept any teaching separately.';
 
 /** The player route for a recording. Ids are opaque and URL-safe by contract. */
 export const recordingPlayerHref = (recordingId: string) => `/review/recordings/${encodeURIComponent(recordingId)}`;

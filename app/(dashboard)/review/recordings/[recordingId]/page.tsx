@@ -1,3 +1,5 @@
+import {createClient} from '@/lib/supabase/server';
+import {redirect} from 'next/navigation';
 import RecordingPlayer from './recording-player';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +13,10 @@ export const dynamic = 'force-dynamic';
  * stay drafts in the library: turning them into review issues or learnings is a later
  * slice (L2/L3), not this page.
  */
-export default function RecordingPlayerPage({ params }: { params: { recordingId: string } }) {
-  return <RecordingPlayer recordingId={params.recordingId} />;
+export default async function RecordingPlayerPage({ params,searchParams }: { params: { recordingId: string }; searchParams?:{trainingSlug?:string} }) {
+  const {data:{user}}=await createClient().auth.getUser();
+  if(!user)redirect('/login');
+  const trainingSlug=searchParams?.trainingSlug;
+  if(trainingSlug!==undefined&&!/^[a-zA-Z0-9_-]{1,200}$/.test(trainingSlug))return <main>Training context unavailable.</main>;
+  return <RecordingPlayer recordingId={params.recordingId} ownerId={user.id} trainingSlug={trainingSlug}/>;
 }

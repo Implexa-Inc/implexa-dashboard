@@ -120,3 +120,27 @@ No live authenticated Dashboard/Electron interaction or production acceptance wa
 3. Ship Dashboard after the compatible Desktop/backend are available. Web-only or old Desktop clients show an explicit update/Desktop requirement. Enable AGENT_TRAINING_LOCAL_ENABLED only after coordinated compatibility verification.
 4. Repeat the owner's Mac Mini acceptance with the exact immutable agent/version and accepted video SHA stated in the task. Review/accept at least two visual decisions, then explicitly authorize a later run. Confirm actual selection and handling receipts; accepted evidence is not guaranteed to match every run's coverage policy.
 5. Roll back ingress by turning its flag off. Do not delete immutable sources/evidence or roll back schema under accepted records. Keep compatible Desktop readers wherever accepted local evidence can be selected.
+
+
+### Recorder selection into Training (source candidate, 2026-10-29)
+
+The existing recorder/library/player foundation uses account-bound bridge v2.
+Server-authenticated pages supply the expected owner ID; a different Desktop
+account refuses library operations before capture, preview or native dialogs.
+Notifications include an owner ID and the client drops foreign-owner events.
+An Agent Training page can open the existing library with only its Agent slug.
+Use in Training navigates back with saved recording/moment IDs; it does not
+register a source, call a model or accept a teaching.
+
+Source consent then invokes the existing training-local bridge's selectRecording
+adapter. The ready owned file is resolved only in Main and reverified against its
+saved digest through existing source custody. Complete saved moment notes are
+prefilled verbatim as JSON raw annotation, not as admitted four-field teaching.
+Over-limit notes refuse before registration and remain complete in the library.
+An exact-frame preview, explicit annotation save/draft and human admission are
+still required. Existing ASR limits and model consent remain unchanged.
+
+No clean-Mac media readiness or native capture proof is claimed by these source
+tests. Bundled binary provenance/qualification and the normal signed release
+remain separate gates. Existing upload/annotation/admission/retrieval authorities
+are extended, not replaced or duplicated.

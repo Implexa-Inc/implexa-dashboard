@@ -1,3 +1,5 @@
+import {createClient} from '@/lib/supabase/server';
+import {redirect} from 'next/navigation';
 import NewReview from './new-review';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +16,10 @@ export const dynamic = 'force-dynamic';
  * is unaffected: this static segment takes precedence over the dynamic one, and run ids
  * are UUIDs, never "new".
  */
-export default function NewReviewPage() {
-  return <NewReview />;
+export default async function NewReviewPage({searchParams}:{searchParams?:{trainingSlug?:string}}) {
+  const {data:{user}}=await createClient().auth.getUser();
+  if(!user)redirect('/login');
+  const trainingSlug=searchParams?.trainingSlug;
+  if(trainingSlug!==undefined&&!/^[a-zA-Z0-9_-]{1,200}$/.test(trainingSlug))return <main>Training context unavailable.</main>;
+  return <NewReview ownerId={user.id} trainingSlug={trainingSlug}/>;
 }

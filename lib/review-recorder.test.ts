@@ -137,7 +137,7 @@ test('per-operation parsers accept the contract and fail closed on anything else
   invalid(() => parse.start({ ok: true, recordingId: ID, path: '/tmp/x.mp4' }));
   invalid(() => parse.start({ ok: 'true', recordingId: ID }));
   invalid(() => parse.start(null));
-  invalid(() => parse.status({ ok: true, active: { recordingId: ID, state: 'ready' } }));
+  invalid(() => parse.status({ ok: true, active: { ownerId:ID,recordingId: ID, state: 'ready' } }));
   invalid(() => parse.list({ ok: true, recordings: [summary()], library: { usedBytes: -1, limitBytes: 2 } }));
   invalid(() => parse.list({ ok: true, recordings: [summary()] }));
   invalid(() => parse.list({ ok: true, recordings: {}, library: { usedBytes: 1, limitBytes: 2 } }));
@@ -241,7 +241,7 @@ function fakeWindow(reply: (op: string, args: unknown) => unknown, over: Record<
 test('availability mirrors the training gate: no bridge, old bridge, wrong version', () => {
   assert.equal(recorderAvailability({}).state, 'desktop_required');
   assert.equal(recorderAvailability({ implexaDesktop: { trainingLocal: () => {} } }).state, 'desktop_update_required');
-  assert.equal(recorderAvailability(fakeWindow(() => ({}), { reviewRecorderContractVersion: '2' }).win).state, 'desktop_update_required');
+  assert.equal(recorderAvailability(fakeWindow(() => ({}), { reviewRecorderContractVersion: '999' }).win).state, 'desktop_update_required');
   assert.equal(recorderAvailability(fakeWindow(() => ({}), { reviewRecorderContractVersion: undefined }).win).state, 'desktop_update_required');
   assert.equal(recorderAvailability(fakeWindow(() => ({})).win).state, 'ready');
 });
@@ -258,23 +258,23 @@ test('the client sends ids, the microphone flag and moments, and nothing else', 
       default: return { ok: true };
     }
   });
-  const c = createReviewRecorderClient(win);
+  const c = createReviewRecorderClient(win, ID);
   await c.start(false); await c.status(); await c.list(); await c.get(ID); await c.preview(ID);
   await c.saveMoments(ID, [moment()], 120_000); await c.importVideo(); await c.recover(ID); await c.remove(ID);
   assert.deepEqual(calls.map((x) => x.operation), ['start', 'status', 'list', 'get', 'preview', 'saveMoments', 'import', 'recover', 'delete']);
-  const allowed = new Set(['recordingId', 'microphone', 'moments']);
+  const allowed = new Set(['recordingId', 'microphone', 'moments', 'expectedOwnerId']);
   for (const call of calls) {
     if (call.args === undefined) { assert.equal(call.argc, 1, `${call.operation} sends no args object`); continue; }
     for (const key of Object.keys(call.args as object)) assert.ok(allowed.has(key), `${call.operation} sent ${key}`);
     const id = (call.args as { recordingId?: unknown }).recordingId;
     if (id !== undefined) assert.equal(id, ID);
   }
-  assert.deepEqual(calls[0].args, { microphone: false });
+  assert.deepEqual(calls[0].args, { microphone: false,expectedOwnerId:ID });
 });
 
 test('the client refuses path-like ids and invalid drafts before calling the bridge', async () => {
   const { win, calls } = fakeWindow(() => ({ ok: true }));
-  const c = createReviewRecorderClient(win);
+  const c = createReviewRecorderClient(win, ID);
   for (const id of ['../x', '/Users/me/a.mp4', 'a/b', 'a.mp4', 'C:\\x', '%2e%2e', '', 'x'.repeat(129), 'rec_0001', `${ID}/..`]) {
     await assert.rejects(c.get(id), (e: unknown) => e instanceof RecorderError && e.reason === 'request_invalid', id);
     await assert.rejects(c.remove(id), (e: unknown) => e instanceof RecorderError && e.reason === 'request_invalid', id);
@@ -285,9 +285,9 @@ test('the client refuses path-like ids and invalid drafts before calling the bri
 });
 
 test('bridge throws, refusals and missing bridges become typed errors', async () => {
-  const thrower = createReviewRecorderClient(fakeWindow(() => { throw new Error('ipc gone'); }).win);
+  const thrower = createReviewRecorderClient(fakeWindow(() => { throw new Error('ipc gone'); }).win, ID);
   await assert.rejects(thrower.list(), (e: unknown) => e instanceof RecorderError && e.reason === 'recorder_failed');
-  const refuser = createReviewRecorderClient(fakeWindow(() => ({ ok: false, reason: 'selection_cancelled' })).win);
+  const refuser = createReviewRecorderClient(fakeWindow(() => ({ ok: false, reason: 'selection_cancelled' })).win, ID);
   await assert.rejects(refuser.importVideo(), (e: unknown) => e instanceof RecorderError && e.silent);
   await assert.rejects(createReviewRecorderClient({}).list(), (e: unknown) => e instanceof RecorderError && e.reason === 'desktop_required');
 });
@@ -295,12 +295,12 @@ test('bridge throws, refusals and missing bridges become typed errors', async ()
 test('change events are validated and unsubscribe works', () => {
   const { win, listeners } = fakeWindow(() => ({ ok: true }));
   const seen: unknown[] = [];
-  const off = createReviewRecorderClient(win).subscribe((e) => seen.push(e));
-  listeners[0]({ recordingId: ID, state: 'ready' });
+  const off = createReviewRecorderClient(win, ID).subscribe((e) => seen.push(e));
+  listeners[0]({ ownerId:ID,recordingId: ID, state: 'ready' });
   listeners[0]({ recordingId: '../x', state: 'ready' });
   listeners[0]({ recordingId: 'rec_0001', state: 'ready' });
-  listeners[0]({ recordingId: ID, state: 'ready', path: '/x' });
-  assert.deepEqual(seen, [{ recordingId: ID, state: 'ready' }]);
+  listeners[0]({ ownerId:ID,recordingId: ID, state: 'ready', path: '/x' });
+  assert.deepEqual(seen, [{ ownerId:ID,recordingId: ID, state: 'ready' }]);
   off();
   assert.equal(listeners.length, 0);
   assert.equal(typeof createReviewRecorderClient({}).subscribe(() => {}), 'function', 'no bridge: a no-op unsubscribe');
@@ -474,4 +474,15 @@ test('card rules: What to do length and the learning text rules warn, field by f
   const both = cardWarnings({ ...emptyCard(), whatToDo: 'Go to x.com', whenNot: 'ping @sam' });
   assert.equal(both.whatToDo!.length, 2, 'length and text rule are separate warnings');
   assert.match(both.whenNot![0], /@handle/);
+});
+
+test('account-bound bridge refuses missing identity and never publishes foreign-owner notifications',async()=>{
+ const {win,calls}=fakeWindow(()=>({ok:true,active:null}));
+ await assert.rejects(createReviewRecorderClient(win).status(),(error:any)=>error.reason==='not_linked');
+ assert.equal(calls.length,0);
+ const foreign='11111111-2222-4333-8444-555555555555';let listener:any;
+ const w=fakeWindow(()=>({ok:true,active:null}),{onReviewRecorderChanged:(cb:any)=>{listener=cb;return()=>{};}}).win;
+ const seen:any[]=[];createReviewRecorderClient(w,ID).subscribe(value=>seen.push(value));
+ listener({ownerId:foreign,recordingId:ID,state:'ready'});listener({recordingId:ID,state:'ready'});
+ assert.equal(seen.length,0);listener({ownerId:ID,recordingId:ID,state:'ready'});assert.equal(seen.length,1);
 });

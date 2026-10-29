@@ -29,13 +29,14 @@ const STATE_BADGE: Record<RecordingSummary['state'], string> = {
   failed: 'bg-rose-500/15 text-rose-300',
 };
 
-export default function NewReview() {
+export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainingSlug?:string}) {
   const router = useRouter();
+  const recordingHref=(id:string)=>playerHref(id)+(trainingSlug?`?trainingSlug=${encodeURIComponent(trainingSlug)}`:'');
   // Through a ref, so the refresh callback (and the subscription keyed on it) stays
   // stable even where the router object is not.
   const routerRef = useRef(router);
   routerRef.current = router;
-  const client = useMemo(() => createReviewRecorderClient(), []);
+  const client = useMemo(() => createReviewRecorderClient(undefined,ownerId), [ownerId]);
   // Read after mount: the bridge exists only in the Desktop window, never during SSR.
   const [availability, setAvailability] = useState<RecorderAvailability | null>(null);
   const [recordings, setRecordings] = useState<RecordingSummary[] | null>(null);
@@ -67,13 +68,13 @@ export default function NewReview() {
       const started = startedRef.current;
       if (started && listed.recordings.some((r) => r.recordingId === started && r.state === 'ready')) {
         startedRef.current = null;
-        routerRef.current.push(playerHref(started));
+        routerRef.current.push(recordingHref(started));
       }
     } catch (caught) {
       if (seq !== refreshSeq.current) return;
       setLoadError(recorderErrorMessage(caught) ?? 'Your recordings library could not be read just now.');
     }
-  }, [client]);
+  }, [client,trainingSlug]);
 
   useEffect(() => {
     const a = recorderAvailability();
@@ -104,7 +105,7 @@ export default function NewReview() {
   const upload = () => work('upload', async () => {
     try {
       const { recordingId } = await client.importVideo();
-      router.push(playerHref(recordingId));
+      router.push(recordingHref(recordingId));
     } finally {
       // A failed copy stays in the library (listed as failed), so show it.
       void refresh();
@@ -242,7 +243,7 @@ export default function NewReview() {
                     </div>
                     <div className="flex shrink-0 gap-2">
                       {r.state === 'ready' && (
-                        <Link href={playerHref(r.recordingId)} className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 hover:bg-white">Open</Link>
+                        <Link href={recordingHref(r.recordingId)} className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 hover:bg-white">Open</Link>
                       )}
                       {recovery && (
                         <button type="button" disabled={rowBusy} onClick={() => void recover(r.recordingId)}
