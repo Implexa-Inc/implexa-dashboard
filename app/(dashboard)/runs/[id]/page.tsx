@@ -728,6 +728,18 @@ export default async function RunDetailPage({
   const agentHref = wf
     ? `/workflows/${encodeURIComponent(r.skill_slug)}?source=${encodeURIComponent(wf.source)}`
     : `/workflows/${encodeURIComponent(r.skill_slug)}`;
+  let preferenceInstallationId:string|null=null;
+  if(runWorkflowVersionId&&r.output_markdown&&!held){
+    try{
+      const {data:installation}=await supabase.from('installed_agent_versions').select('id,workflow_id')
+        .eq('user_id',session.user.id).eq('organization_id',profile.organization_id)
+        .eq('active_version_id',runWorkflowVersionId).eq('lifecycle_status','installed').maybeSingle();
+      if(installation){
+        const {data:family}=await supabase.from('aggregated_skills').select('metadata').eq('id',installation.workflow_id).maybeSingle();
+        if(family?.metadata?.generated_by&&family.metadata.generated_by!==session.user.id)preferenceInstallationId=installation.id;
+      }
+    }catch{ /* The delivered output remains available when private preferences are unavailable. */ }
+  }
 
   // The routine's Claude task id (when this agent has a live schedule) powers the
   // "Open the routine in Claude" deep link + the "Continue in Claude" handoff that
@@ -1415,6 +1427,9 @@ export default async function RunDetailPage({
             Only when there's a deliverable to rate (matches the overlay). */}
         {r.output_markdown && (
           <div className="mt-5 rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+            {preferenceInstallationId&&<p className="mb-3 text-sm"><Link className="text-brand-400 hover:underline"
+              href={`/training/${encodeURIComponent(r.skill_slug)}?installationId=${preferenceInstallationId}`}>Remember preferences just for me</Link>
+              <span className="block text-xs text-ink-400">Review and save private examples for your future runs. The trainer’s agent stays unchanged.</span></p>}
             <RunFeedback
               runId={r.id}
               feedbackQuestions={feedbackQuestions}
