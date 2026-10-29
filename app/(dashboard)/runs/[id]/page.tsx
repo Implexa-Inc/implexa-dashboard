@@ -731,17 +731,10 @@ export default async function RunDetailPage({
   let preferenceInstallationId:string|null=null;
   if(runWorkflowVersionId&&r.output_markdown&&!held){
     try{
-      const {data:installation}=await supabase.from('installed_agent_versions').select('id,workflow_id')
-        .eq('user_id',session.user.id).eq('organization_id',profile.organization_id)
-        .eq('active_version_id',runWorkflowVersionId).eq('lifecycle_status','installed').maybeSingle();
-      if(installation){
-        // Public generated agents are exposed through the backend visibility
-        // authority, not by broadening the customer's direct metadata read.
-        const context=await callBackend(`/api/v2/agent-training/installations/${installation.id}/preferences`,{jwt:session.access_token});
-        if(context?.ok===true&&context.scope?.installationId===installation.id
-          &&context.scope?.agent?.slug===r.skill_slug&&context.scope?.agent?.currentVersionId===runWorkflowVersionId)
-          preferenceInstallationId=installation.id;
-      }
+      const context=await callBackend(`/api/v2/agent-training/versions/${runWorkflowVersionId}/installation-preferences`,{jwt:session.access_token});
+      if(context?.ok===true&&typeof context.scope?.installationId==='string'
+        &&context.scope?.agent?.slug===r.skill_slug&&context.scope?.agent?.currentVersionId===runWorkflowVersionId)
+        preferenceInstallationId=context.scope.installationId;
     }catch{ /* The delivered output remains available when private preferences are unavailable. */ }
   }
 
