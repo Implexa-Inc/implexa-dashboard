@@ -232,15 +232,17 @@ export default function TrainingSource({ slug }: { slug: string }) {
     } finally { busyRef.current = false; setBusy(''); }
   }
 
-  async function changePublication(publish=false) {
+  async function changePublication(publish=false,makePrivate=false) {
     if(publish&&(!publishConfirmed||!publication||publication.versionId!==currentVersion))return;
-    await work(publish?'Publishing the agent definition':'Checking public visibility',async()=>{
+    if(makePrivate&&(!publication||publication.versionId!==currentVersion))return;
+    const write=publish||makePrivate;
+    await work(publish?'Publishing the agent definition':makePrivate?'Making the agent private':'Checking public visibility',async()=>{
       const response=await fetch(`/api/agent-training/publication?slug=${encodeURIComponent(slug)}`,{
-        method:publish?'POST':'GET',cache:'no-store',...(publish?{headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({expectedVersionId:publication!.versionId,definitionOnlyConfirmed:true})}:{})});
+        method:write?'POST':'GET',cache:'no-store',...(write?{headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(makePrivate?{expectedVersionId:publication!.versionId,makePrivate:true}:{expectedVersionId:publication!.versionId,definitionOnlyConfirmed:true})}:{})});
       const result=await response.json();
       if(!response.ok||result.ok!==true)throw new Error(result.error||reasonLabel(result.reason||'agent_publication_unavailable'));
-      if(publish){setPublication(prior=>prior?{...prior,shared:true}:prior);setPublishConfirmed(false);return;}
+      if(write){setPublication(prior=>prior?{...prior,shared:publish}:prior);setPublishConfirmed(false);return;}
       const p=result.publication;
       if(!p||p.versionId!==currentVersion||typeof p.shared!=='boolean'||typeof p.publicUrl!=='string'
         ||!p.publicUrl.startsWith('https://'))throw new Error('Publication status does not match the current agent version.');
@@ -801,10 +803,11 @@ export default function TrainingSource({ slug }: { slug: string }) {
     <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>
     <section className="rounded border border-ink-700 p-4 space-y-3" aria-label="Public agent definition">
       <h2 className="font-semibold">Public agent definition</h2>
-      <p>Let other people use this agent’s steps and input requirements. Your recordings, run outputs, feedback and private teachings are not published by this action. Sharing selected teachings requires a separate release.</p>
+      <p>Let other people use this agent’s steps and input requirements. It will appear on Implexa’s public site and in community search. Your recordings, run outputs, feedback and private teachings are not published by this action. Sharing selected teachings requires a separate release.</p>
       <button disabled={!!busy||!currentVersion} onClick={()=>changePublication()}>Check public visibility</button>
       {publication&&<><p>{publication.shared?'This agent definition is public.':'This agent definition is private.'}</p>
-        {publication.shared?<a href={publication.publicUrl} target="_blank" rel="noreferrer">Open public agent</a>:<>
+        {publication.shared?<><a href={publication.publicUrl} target="_blank" rel="noreferrer">Open public agent</a>
+          <button disabled={!!busy||publication.versionId!==currentVersion} onClick={()=>changePublication(false,true)}>Make agent private</button></>:<>
           <label className="flex gap-3"><input type="checkbox" checked={publishConfirmed} disabled={!!busy} onChange={event=>setPublishConfirmed(event.target.checked)}/>Publish this agent definition for other people to use. I have reviewed its steps and inputs for private information.</label>
           <button disabled={!!busy||!publishConfirmed||publication.versionId!==currentVersion} onClick={()=>changePublication(true)}>Make agent public</button>
         </>}

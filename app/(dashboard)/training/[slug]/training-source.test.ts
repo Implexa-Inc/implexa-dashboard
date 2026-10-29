@@ -232,6 +232,10 @@ test('public definition needs current-version review and confirmation without pu
    await r.click(r.getByText('Make agent public'));
    assert.deepEqual(requests[1],{method:'POST',body:{expectedVersionId:VERSION_A,definitionOnlyConfirmed:true}});
    assert.match(r.text(),/This agent definition is public/);assert.ok(r.queryByText('Open public agent'));
+   assert.match(r.text(),/public site and in community search/);
+   await r.click(r.getByText('Make agent private'));
+   assert.deepEqual(requests[2],{method:'POST',body:{expectedVersionId:VERSION_A,makePrivate:true}});
+   assert.match(r.text(),/This agent definition is private/);assert.equal(r.queryByText('Open public agent'),null);
    assert.equal(h.calls.some(c=>['accept','serverStorage','annotate'].includes(c.operation)),false);
   }finally{r.cleanup();}
  }
