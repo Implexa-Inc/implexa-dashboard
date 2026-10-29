@@ -11,3 +11,9 @@ test('private fork uses a stable request identity and never requests an automati
   assert.equal(r.getByText('Open private fork').getAttribute('href'),'/workflows/private-child?source=generated');
  }finally{r.cleanup();}
 });
+
+
+test('public run cards lead to parent setup rather than an impossible fork request',async()=>{
+ const r=await render('../../s/run/[token]/fork-run-cta.tsx',{skillSlug:'parent-agent'});
+ try{await r.act(()=>Promise.resolve());assert.equal(r.getByText('Use this agent →').getAttribute('href'),'/workflows/parent-agent');assert.equal(r.calls.backend.length,0);assert.equal(r.queryByText('Make a private fork'),null);}finally{r.cleanup();}
+});

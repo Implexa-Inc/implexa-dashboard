@@ -19,12 +19,14 @@ export default function ForkRunCta({skillSlug,versionId,source}:{skillSlug:strin
   }catch(e){setMsg(e instanceof Error?e.message:'Could not fork this agent.');}finally{pending.current=false;setBusy(false);}
  }
  if(!authed)return <Link href={`/signup?intent=adopt&agent=${encodeURIComponent(skillSlug)}`} className="btn-success inline-block px-4 py-2 text-sm">Use this agent →</Link>;
+ if(!versionId)return <Link href={`/workflows/${encodeURIComponent(skillSlug)}${source?`?source=${encodeURIComponent(source)}`:''}`} className="btn-success inline-block px-4 py-2 text-sm">Use this agent →</Link>;
  if(created)return <div className="rounded border border-ink-700 p-3 text-sm space-y-2" role="status">
   <p>Private fork created. The parent is unchanged. Review setup before running; no permissions or private customer preferences were copied.</p>
   <Link href={`/workflows/${encodeURIComponent(created.slug)}?source=generated`}>Open private fork</Link>
-  <p>Inherited teachings need the trainer’s permission for this fork:</p>
+  <p>Inherited teachings need the trainer’s permission for this fork. The trainer can see your account ID and this fork’s name when reviewing the link:</p>
   <Link href={`/training/${encodeURIComponent(skillSlug)}?forkId=${created.lineageId}&forkParentVersionId=${created.parentVersionId}`}>Trainer permission review link</Link>
  </div>;
  return <div><button type="button" disabled={busy} onClick={fork} className="rounded border border-ink-600 px-3 py-2 text-sm disabled:opacity-60">{busy?'Creating private fork…':'Make a private fork'}</button>
+  <p className="text-xs text-ink-400">A trainer reviewing the permission link can see your account ID and this fork’s name.</p>
   {msg&&<p role="alert" className="text-sm text-amber-500">{msg}</p>}</div>;
 }
