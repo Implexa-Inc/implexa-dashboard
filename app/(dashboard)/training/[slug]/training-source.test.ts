@@ -215,6 +215,32 @@ async function renderedWith(options: Parameters<typeof harness>[0] = {}) {
   return { ...h, rendered };
 }
 
+test('public definition needs current-version review and confirmation without publishing teaching evidence',async()=>{
+ for(const mode of ['valid','stale','not-owned']) {
+  const h=await renderedWith(),r=h.rendered,requests:Array<{method:string;body:any}>=[];
+  r.window.fetch=(async(_url:any,options:any={})=>{
+   requests.push({method:options.method||'GET',body:options.body?JSON.parse(options.body):null});
+   return {ok:mode!=='not-owned',json:async()=>options.method==='POST'?{ok:true,shared:true}:{ok:mode!=='not-owned',error:'Agent not found.',
+    publication:{versionId:mode==='stale'?VERSION_B:VERSION_A,shared:false,publicUrl:'https://implexa.ai/workflows/video-craft'}}};
+  }) as typeof r.window.fetch;
+  try {
+   assert.equal(r.queryByText('Make agent public'),null);
+   await r.click(r.getByText('Check public visibility'));
+   if(mode!=='valid'){assert.equal(r.queryByText('Make agent public'),null);assert.equal(requests.length,1);continue;}
+   assert.equal((r.getByText('Make agent public') as HTMLButtonElement).disabled,true);
+   await r.click(r.getByText(/Publish this agent definition for other people/).closest('label')!.querySelector('input')!);
+   await r.click(r.getByText('Make agent public'));
+   assert.deepEqual(requests[1],{method:'POST',body:{expectedVersionId:VERSION_A,definitionOnlyConfirmed:true}});
+   assert.match(r.text(),/This agent definition is public/);assert.ok(r.queryByText('Open public agent'));
+   assert.match(r.text(),/public site and in community search/);
+   await r.click(r.getByText('Make agent private'));
+   assert.deepEqual(requests[2],{method:'POST',body:{expectedVersionId:VERSION_A,makePrivate:true}});
+   assert.match(r.text(),/This agent definition is private/);assert.equal(r.queryByText('Open public agent'),null);
+   assert.equal(h.calls.some(c=>['accept','serverStorage','annotate'].includes(c.operation)),false);
+  }finally{r.cleanup();}
+ }
+});
+
 async function setInput(rendered: Rendered, input: Element, value: string) {
   const setter = Object.getOwnPropertyDescriptor(rendered.window.HTMLInputElement.prototype, 'value')!.set!;
   await rendered.act(() => { setter.call(input, value); input.dispatchEvent(new rendered.window.Event('input', { bubbles: true })); });
