@@ -12,11 +12,12 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Modal from '../../_components/modal';
 import {
   ACTIVE_STATE_LABELS, RECORD_NOTICE, RECORDING_STATE_LABELS, createReviewRecorderClient, failureMessage,
   formatBytes, formatRecordingDuration, recordingPlayerHref as playerHref, recorderAvailability, recorderErrorMessage,
-  recoverAction,
-  type ActiveRecording, type LibraryUsage, type RecorderAvailability, type RecordingSummary,
+  recoverAction, recorderStartFailureMessage,
+  type ActiveRecording, type LibraryUsage, type RecorderAvailability, type RecordingSummary, type RecorderStartFailure,
 } from '@/lib/review-recorder';
 
 
@@ -50,6 +51,7 @@ export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainin
   const [unreadable, setUnreadable] = useState(0);
   const refreshSeq = useRef(0);
   const [error, setError] = useState<string | null>(null);
+  const [startFailure, setStartFailure] = useState<RecorderStartFailure | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   // The recording this page started: when it becomes ready, open it (spec §3.2 step 4).
   const startedRef = useRef<string | null>(null);
@@ -81,7 +83,13 @@ export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainin
     setAvailability(a);
     if (a.state !== 'ready') return;
     void refresh();
-    const off = client.subscribe(() => { void refresh(); });
+    const off = client.subscribe((change) => {
+      if (change.state === 'start_failed' && change.failure) {
+        startedRef.current = null;
+        setStartFailure(change.failure);
+      }
+      void refresh();
+    });
     const onFocus = () => { void refresh(); };
     window.addEventListener('focus', onFocus);
     return () => { off(); window.removeEventListener('focus', onFocus); };
@@ -119,6 +127,15 @@ export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainin
 
   return (
     <div className="min-h-screen px-6 py-14 lg:px-12">
+      <Modal open={startFailure !== null} onClose={() => setStartFailure(null)} title="Recording did not start">
+        {startFailure && <>
+          <p>{recorderStartFailureMessage(startFailure)}</p>
+          <details className="mt-3 text-xs text-ink-400">
+            <summary>Diagnostic details</summary>
+            <p>{startFailure.phase} / {startFailure.errorName} / {startFailure.reason}</p>
+          </details>
+        </>}
+      </Modal>
       <div className="mx-auto max-w-3xl">
         <header className="mb-6">
           <h1 className="text-3xl font-semibold tracking-tight text-ink-50">New review</h1>
