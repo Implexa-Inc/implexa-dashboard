@@ -86,6 +86,7 @@ type Result = {
 type Bridge = {
   trainingLocalContractVersion?: string;
   trainingRecordingContractVersion?: string;
+  trainingRecordingLibraryContractVersion?: string;
   trainingEvidenceStorageContractVersion?: string;
   trainingLocal: (operation: string, args: unknown) => Promise<Result>;
 };
@@ -112,7 +113,7 @@ function resolveBridge() {
   return candidate;
 }
 
-export default function TrainingSource({ slug, installationId, forkPermission }: { slug: string; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
+export default function TrainingSource({ slug, installationId, forkPermission,ownerId,recordingSelection }: { slug: string; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
   const [retention] = useState(() => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCMilliseconds(0); return d.toISOString(); });
   const [session, setSession] = useState('');
   const [sessionVersion, setSessionVersion] = useState('');
@@ -232,7 +233,7 @@ export default function TrainingSource({ slug, installationId, forkPermission }:
       return result as Result;
     }
     const result = await resolveBridge().trainingLocal(operation, args);
-    if (!result.ok) throw new TrainingError(result.reason || 'training_unavailable', result.reason || 'Training is unavailable. Your draft is preserved.');
+    if (!result.ok) throw new TrainingError(result.reason || 'training_unavailable', result.reason==='recording_annotation_too_large'?'These saved notes exceed the existing annotation limit. Shorten or split the moment deliberately; all original notes remain in your recording.':result.reason || 'Training is unavailable. Your draft is preserved.');
     return result;
   }
 
@@ -435,8 +436,23 @@ export default function TrainingSource({ slug, installationId, forkPermission }:
         const after = await requireCurrentScope(id);
         if (after.agent.currentVersionId !== before.agent.currentVersionId) throw new TrainingError('training_version_changed');
       } else await requireCurrentScope(id);
-      await call('select', { sessionId: id, consent: { localCustody: true, boundedEvidence: true, futureSelection: true } });
-      await requireCurrentScope(id); await load(id);
+      const consents={localCustody:true,boundedEvidence:true,futureSelection:true};
+      if(recordingSelection){
+        if(bridge()?.trainingRecordingLibraryContractVersion!=='1'||!ownerId)throw new TrainingError('training_desktop_update_required','Update Desktop to use this saved recording.');
+        const result=await call('selectRecording',{sessionId:id,...recordingSelection,expectedOwnerId:ownerId,consent:consents}) as Result & {sourceId:string;token:string;recordingDraft:{recordingId:string;momentId:string|null;timeMs:number;rawAnnotation:string}};
+        const note=result.recordingDraft;
+        if(!note||note.recordingId!==recordingSelection.recordingId||note.momentId!==recordingSelection.momentId
+          || !Number.isSafeInteger(note.timeMs)||note.timeMs<0||typeof note.rawAnnotation!=='string'||note.rawAnnotation.length>2000)
+          throw new TrainingError('training_source_scope_mismatch','The saved recording handoff could not be verified.');
+        await requireCurrentScope(id);const listed=await load(id);
+        const source=listed.sources?.find(value=>value.sourceId===result.sourceId&&value.token===result.token);
+        if(!source)throw new TrainingError('training_source_scope_mismatch');
+        chooseSource(source);setTime(note.timeMs);setDemoText(note.rawAnnotation);
+        setSuggestionNote('Saved moment notes are preserved verbatim as draft annotation. Preview this exact frame, save its annotation, then review and accept any teaching separately.');
+      }else{
+        await call('select',{sessionId:id,consent:consents});
+        await requireCurrentScope(id);await load(id);
+      }
     });
   }
 
@@ -879,7 +895,9 @@ export default function TrainingSource({ slug, installationId, forkPermission }:
     {installationId && pendingDemoLink && <button disabled={!!busy} onClick={() => work("Linking the preserved preference feedback", () => linkDemoAnnotation(pendingDemoLink))}>Retry feedback link</button>}
     {!installationId && versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded border p-4 space-y-3 ${activeVersionTrainingIsReady ? 'border-emerald-600' : 'border-amber-500'}`}><h2 className="font-semibold">{activeVersionTrainingIsReady ? 'Active-version Manager training is ready' : 'Move reviewed evidence to the active version explicitly'}</h2>{activeVersionTrainingIsReady ? <><p>This historical session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version {shortId(currentVersion)} can select the same evidence through explicit immutable adoption receipts; all {managerTrainingRequirements?.requiredPairs.length || 0} critical request-admission visual-reference routes are fulfilled. First launch still verifies every declared reference.</p><p>No new successor training session is required to run this Agent. Start one only when you want to change or add training evidence for the active version.</p></> : <><p>This session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version is {shortId(currentVersion)} and cannot select those records. Start a separate successor session, re-select the exact source, and review each new decision before accepting it.</p><label className="flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event) => setTransitionConfirmed(event.target.checked)} />I understand this creates new evidence records for the active version and does not change or automatically accept the existing records.</label><button disabled={!!busy || !transitionConfirmed || !currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></>}</section>}
     <label className="flex gap-3"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />{installationId?"I have permission to use this output and save bounded private preference evidence for one year":"I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection."} The original stays on this computer. I can stop future selection or withdraw permission below.</label>
-    <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={add}>Add training source</button>
+    {!installationId && <a href={`/review/new?trainingSlug=${encodeURIComponent(slug)}`}>Choose or record a demonstration</a>}
+    {recordingSelection && <p>Use the selected saved recording and moment notes. Notes over the existing annotation limit must be shortened or split deliberately; the full saved moment remains on this Mac.</p>}
+    <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={add}>{recordingSelection?"Use selected recording":"Add training source"}</button>
     {busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{error && <p role="alert">{reasonLabel(error)}</p>}
     {acceptedEvidenceCount > 0 && <p role="status" className="rounded border border-emerald-600 p-3">Evidence accepted: {acceptedEvidenceCount} immutable decision{acceptedEvidenceCount === 1 ? '' : 's'} in this session. Acceptance preserves the teaching; Agent readiness is verified separately below.</p>}
     {currentVersion && !requirementsAreCurrent && !activeVersionTrainingIsReady && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager reference training readiness unavailable</h2><p>Implexa cannot verify the required stage and quality-reference pairs for this exact active version. Accepted evidence remains preserved. Decision, procedure, criterion, and machine-custody requirements are verified separately at run prelaunch.</p></section>}

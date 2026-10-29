@@ -86,16 +86,25 @@ export function previewKind(relativePath: string | null | undefined): PreviewKin
   return KIND_BY_EXT[ext] ?? 'unsupported';
 }
 
+/**
+ * The Desktop preload's bridge object, or undefined outside the app (and during SSR).
+ * The one accessor: `inDesktopApp`, `desktopPreviewSupported` and the recorder client
+ * (lib/review-recorder.ts) all read the bridge through it.
+ */
+export function desktopBridge<T = DesktopBridge>(win?: unknown): T | undefined {
+  const w = (win ?? (typeof window !== 'undefined' ? window : undefined)) as { implexaDesktop?: unknown } | undefined;
+  const b = w?.implexaDesktop;
+  return b ? (b as T) : undefined;
+}
+
 /** Does THIS build of the desktop app expose the preview bridge? */
 export function desktopPreviewSupported(win?: unknown): boolean {
-  const w = (win ?? (typeof window !== 'undefined' ? window : undefined)) as WindowWithBridge | undefined;
-  return typeof w?.implexaDesktop?.createArtifactPreview === 'function';
+  return typeof desktopBridge(win)?.createArtifactPreview === 'function';
 }
 
 /** Are we inside the desktop app at all (any build)? */
 export function inDesktopApp(win?: unknown): boolean {
-  const w = (win ?? (typeof window !== 'undefined' ? window : undefined)) as WindowWithBridge | undefined;
-  return !!w?.implexaDesktop;
+  return !!desktopBridge(win);
 }
 
 export type PreviewDecision = {

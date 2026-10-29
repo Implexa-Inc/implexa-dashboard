@@ -1513,3 +1513,22 @@ test('server image custody uses an explicit separate consent and shows withdrawa
   assert.match(r.text(),/Deletion is pending/);assert.equal(h.calls.some(c=>c.operation==='revoke'),false);
  }finally{r.cleanup();}
 });
+
+test('saved recording handoff preserves raw moment notes, previews explicitly and never auto-admits',async()=>{
+ const h=harness();const notes=JSON.stringify({recordingId:RECORD,moment:{card:{whatToDo:' Keep\nthis ',why:'why',insteadOf:'instead',howToCheck:'check',whenNot:'never'}}});
+ const calls:Call[]=[];
+ const b={...h.bridge,trainingRecordingLibraryContractVersion:'1',trainingLocal:async(operation:string,args:unknown)=>{
+  if(operation==='selectRecording'){calls.push({operation,args:args as Record<string,unknown>});return {ok:true,sourceId:SOURCE_ID,token:TOKEN,recordingDraft:{recordingId:RECORD,momentId:RECORD,timeMs:100,rawAnnotation:notes}};}
+  return h.bridge.trainingLocal(operation,args);
+ }};
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:VERSION_A,recordingSelection:{recordingId:RECORD,momentId:RECORD}},{bridge:b});
+ try{
+  await r.act(()=>{});await r.click(r.getByText(/I created this source and consent/).closest('label')!.querySelector('input')!);
+  await r.click(r.getByText('Use selected recording'));
+  assert.equal(calls.length,1);assert.equal(calls[0].args.expectedOwnerId,VERSION_A);
+  assert.equal(calls[0].args.recordingId,RECORD);assert.equal(Object.hasOwn(calls[0].args,'selectedPath'),false);
+  const annotation=[...r.document.querySelectorAll('textarea')].find(value=>value.value===notes);assert.ok(annotation,'all original fields and whitespace survive as raw annotation');
+  assert.equal(h.calls.some(c=>['preview','annotate','accept','recording'].includes(c.operation)),false,'select does not extract, infer or admit');
+  assert.match(r.text(),/Preview this exact frame/);
+ }finally{r.cleanup();}
+});
