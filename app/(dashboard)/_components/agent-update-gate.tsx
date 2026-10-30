@@ -34,7 +34,10 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
   const [message, setMessage] = useState('');
   const [uncertain, setUncertain] = useState(false);
   const operation = useRef<{ digest: string; key: string } | null>(null);
-  const canActivate = !!receipt || (preview?.readiness === 'already_adopted'
+  const freshPurpose = preview?.taskIdentityRepurpose;
+  const purposeChanged = preview?.reason === 'task_identity_changed';
+  const canActivate = (freshPurpose && (preview.managerTrainingRequirements?.readiness === 'reference_training_ready'
+    || preview.managerTrainingRequirements?.readiness === 'not_applicable')) || !!receipt || (preview?.readiness === 'already_adopted'
     && (preview.eligibleRouteCount > 0 || preview.managerTrainingRequirements?.readiness === 'not_applicable'));
   const supabase = createClient();
   async function call(path: string, body?: unknown, idempotencyKey?: string) {
@@ -62,12 +65,17 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
       const checked = trainingProposedAdoptionPreview(result, baseVersionId, target);
       if (!checked) throw new Error(result?.reason || 'Reference preview could not be verified.');
       setPreview(checked);
-      if (checked.readiness !== 'adoption_available') setMessage(checked.reason || 'References are already carried forward.');
+      if (checked.taskIdentityRepurpose) {
+        if (checked.managerTrainingRequirements?.readiness === 'coach_reference_training_required')
+          setMessage('This proposal cannot be activated because required training is missing.');
+      } else if (checked.reason === 'task_identity_changed') {
+        setMessage('This proposal changes the agent’s job and cannot be activated right now.');
+      } else if (checked.readiness !== 'adoption_available') setMessage(checked.reason || 'References are already carried forward.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Proposal review unavailable.'); }
     finally { busyRef.current = false; setBusy(false); }
   }
   async function adopt() {
-    if (busyRef.current || !confirmed || !preview || !trainingSuccessorAdoptionActionAvailable(preview)) return;
+    if (busyRef.current || !confirmed || !preview || preview.taskIdentityRepurpose || !trainingSuccessorAdoptionActionAvailable(preview)) return;
     busyRef.current = true; setBusy(true); setMessage('');
     try {
       const storageKey = `proposed-adoption:${slug}:${baseVersionId}:${targetId}`;
@@ -96,7 +104,8 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
     try {
       const result = await call(`/api/v2/agents/${encodeURIComponent(slug)}/revisions/${encodeURIComponent(targetId)}/apply`,
         { expectedBaseVersionId: baseVersionId,
-          ...(preview?.managerPolicyRemap ? { managerPolicyRemapAcknowledgement: preview.managerPolicyRemap.acknowledgement } : {}) });
+          ...(freshPurpose ? { taskIdentityRepurposeAcknowledgement: freshPurpose.acknowledgement }
+            : preview?.managerPolicyRemap ? { managerPolicyRemapAcknowledgement: preview.managerPolicyRemap.acknowledgement } : {}) });
       if (result?.ok !== true || result.version_id !== targetId || result.status !== 'applied')
         throw new Error(result?.reason || result?.error || 'Activation was not confirmed.');
       setApplied(true); setConfirmed(false);
@@ -108,10 +117,24 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
   return <>
     <button type="button" className="btn-outline text-xs" disabled={busy} onClick={review}>Review proposed update</button>
     <Modal open={open} onClose={() => !busy && setOpen(false)} title="Review proposed agent update">
-      <p className="text-sm">This carries already accepted references to a reviewed proposal. It creates no new training and starts no run.</p>
+      <p className="text-sm">{freshPurpose
+        ? 'This proposal changes the agent to a new job. It needs fresh training; no existing teaching, releases or private preferences carry forward. Applying it starts no run.'
+        : purposeChanged ? 'This proposal changes the agent’s job. Reference carry-forward and activation are unavailable.'
+        : 'This carries already accepted references to a reviewed proposal. It creates no new training and starts no run.'}</p>
       <p className="mt-2 text-xs break-all">Current definition: {baseVersionId}</p>
       {targetId && <p className="text-xs break-all">Proposed definition: {targetId}</p>}
-      {preview && <p className="mt-3">{preview.eligibleRecordCount} accepted records cover {preview.eligibleRouteCount} reference routes.</p>}
+      {preview && !freshPurpose && !purposeChanged && <p className="mt-3">{preview.eligibleRecordCount} accepted records cover {preview.eligibleRouteCount} reference routes.</p>}
+      {freshPurpose && <section className="mt-3 text-xs">
+        <p>No training is carried from the current job. Existing customer installations stay on their current version until each customer explicitly reactivates.</p>
+        <p>Once applied, this update is available for customers to reactivate immediately, even before fresh training is released. Admit and release fresh training for this new job.</p>
+        <p className="break-all">Source learning identity: {freshPurpose.acknowledgement.sourceLearningIdentityDigest}</p>
+        <p className="break-all">Target learning identity: {freshPurpose.acknowledgement.targetLearningIdentityDigest}</p>
+        <p className="break-all">Source policies: {freshPurpose.acknowledgement.sourcePolicySetDigest}</p>
+        <p className="break-all">Target policies: {freshPurpose.acknowledgement.targetPolicySetDigest}</p>
+        <p className="break-all">New-purpose declaration: {freshPurpose.acknowledgement.repurposeDigest}</p>
+        <p className="break-all">Acknowledgement receipt: {freshPurpose.activationReceiptDigest}</p>
+        <p>Required reference training: {preview.managerTrainingRequirements?.readiness}. Missing routes: {preview.managerTrainingRequirements?.missingPairs.length ?? 'unknown'}.</p>
+      </section>}
       {preview?.managerPolicyRemap && <section className="mt-3 text-xs">
         <p>This proposal moves or consolidates Manager responsibilities. Only surviving same-label references may carry forward.</p>
         <ul>{preview.managerPolicyRemap.entries.map(entry => <li key={entry.from.order}>
@@ -127,7 +150,8 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
       {preview && !applied && (canActivate || trainingSuccessorAdoptionActionAvailable(preview)) && <>
         <label className="mt-3 block text-sm"><input type="checkbox" checked={confirmed} disabled={busy}
           onChange={e => setConfirmed(e.target.checked)} /> {canActivate
-            ? preview?.managerPolicyRemap ? 'I reviewed this exact policy remap and version pair and approve activating it.' : 'I reviewed this exact proposal and approve activating it.'
+            ? freshPurpose ? 'I approve changing this exact version to a new job, with fresh training and no teaching or private preferences carried forward.'
+              : preview?.managerPolicyRemap ? 'I reviewed this exact policy remap and version pair and approve activating it.' : 'I reviewed this exact proposal and approve activating it.'
             : 'Carry these existing accepted same-label references to this exact proposal.'}</label>
         <button type="button" className="btn-primary mt-3" disabled={busy || !confirmed}
           onClick={() => void (canActivate ? apply() : adopt())}>{busy ? 'Working…' : canActivate ? 'Activate reviewed proposal' : uncertain ? 'Confirm same carry-forward' : 'Carry accepted references'}</button>

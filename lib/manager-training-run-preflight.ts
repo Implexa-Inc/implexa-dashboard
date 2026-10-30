@@ -94,11 +94,11 @@ export function trainingSuccessorAdoptionActionAvailable(
     && value.newlyAdoptableRecordCount > 0 && value.eligibleRouteCount > 0;
 }
 
-/** Proposed adoption uses the same reference projection, with an exact snapshot. */
+/** Proposed updates retain the reference projection; a new purpose cannot adopt it. */
 export function trainingProposedAdoptionPreview(value: unknown, sourceId: string, targetId: string) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
-  const { ok, expectedAdoptionDigest, managerPolicyRemap, managerTrainingRequirements, ...projection } = raw;
+  const { ok, expectedAdoptionDigest, managerPolicyRemap, managerTrainingRequirements, taskIdentityRepurpose, ...projection } = raw;
   const details = Object.hasOwn(raw, 'managerPolicyRemap') || Object.hasOwn(raw, 'managerTrainingRequirements');
   if (details && (!Object.hasOwn(raw, 'managerPolicyRemap') || !Object.hasOwn(raw, 'managerTrainingRequirements')
     || !isManagerTrainingRequirements(managerTrainingRequirements, targetId))) return null;
@@ -109,10 +109,38 @@ export function trainingProposedAdoptionPreview(value: unknown, sourceId: string
   const remap = managerPolicyRemap === null || managerPolicyRemap === undefined ? null
     : managerPolicyRemapReview(managerPolicyRemap, sourceId, targetId);
   if (details && managerPolicyRemap !== null && !remap) return null;
+  const freshPurpose = Object.hasOwn(raw, 'taskIdentityRepurpose');
+  const repurpose = freshPurpose ? taskIdentityRepurposeReview(taskIdentityRepurpose, sourceId, targetId) : null;
+  // A new purpose is never reference adoption, including the zero-reference
+  // "already adopted" case. Only the exact server projection can offer Apply.
+  if (freshPurpose && (!details || !repurpose || remap || !preview
+    || preview.readiness !== 'not_compatible' || preview.reason !== 'task_identity_changed'
+    || !['eligibleRecordCount', 'alreadyAdoptedRecordCount', 'newlyAdoptableRecordCount', 'eligibleRouteCount']
+      .every(key => projection[key] === 0))) return null;
   return ok === true && preview && preview.sourceWorkflowVersionId === sourceId
     && typeof expectedAdoptionDigest === 'string' && /^[a-f0-9]{64}$/.test(expectedAdoptionDigest)
     ? { ...preview,
-      expectedAdoptionDigest, managerPolicyRemap: remap, managerTrainingRequirements: requirements } : null;
+      expectedAdoptionDigest, managerPolicyRemap: remap, managerTrainingRequirements: requirements,
+      ...(repurpose ? { taskIdentityRepurpose: repurpose } : {}) } : null;
+}
+
+export type TaskIdentityRepurposeAcknowledgement = {
+  kind: 'task_identity_repurpose'; fromVersionId: string; targetVersionId: string;
+  sourceLearningIdentityDigest: string; targetLearningIdentityDigest: string;
+  sourcePolicySetDigest: string; targetPolicySetDigest: string; repurposeDigest: string;
+};
+function taskIdentityRepurposeReview(value: unknown, source: string, target: string) {
+  if (!exact(value, ['acknowledgement', 'activationReceiptDigest'])
+    || typeof value.activationReceiptDigest !== 'string' || !/^[a-f0-9]{64}$/.test(value.activationReceiptDigest)) return null;
+  const ack = value.acknowledgement;
+  if (!exact(ack, ['kind', 'fromVersionId', 'targetVersionId', 'sourceLearningIdentityDigest',
+    'targetLearningIdentityDigest', 'sourcePolicySetDigest', 'targetPolicySetDigest', 'repurposeDigest'])
+    || ack.kind !== 'task_identity_repurpose' || !UUID.test(source) || !UUID.test(target) || source === target
+    || ack.fromVersionId !== source || ack.targetVersionId !== target
+    || !['sourceLearningIdentityDigest', 'targetLearningIdentityDigest', 'sourcePolicySetDigest',
+      'targetPolicySetDigest', 'repurposeDigest'].every(key => typeof ack[key] === 'string' && /^[a-f0-9]{64}$/.test(ack[key] as string))
+    || ack.sourceLearningIdentityDigest === ack.targetLearningIdentityDigest) return null;
+  return { acknowledgement: ack as TaskIdentityRepurposeAcknowledgement, activationReceiptDigest: value.activationReceiptDigest };
 }
 
 export type ManagerPolicyRemapAcknowledgement = { fromVersionId: string; targetVersionId: string;

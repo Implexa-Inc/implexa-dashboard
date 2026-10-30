@@ -1,0 +1,173 @@
+{
+  "preview": {
+    "ok": true,
+    "reason": "task_identity_changed",
+    "readiness": "not_compatible",
+    "contractVersion": "manager-training-successor-adoption-preview.v1",
+    "eligibleRouteCount": 0,
+    "managerPolicyRemap": null,
+    "eligibleRecordCount": 0,
+    "taskIdentityRepurpose": {
+      "acknowledgement": {
+        "kind": "task_identity_repurpose",
+        "fromVersionId": "43000000-0000-4000-8000-000000000604",
+        "repurposeDigest": "13d64fad4ca81c20a3aabee0ac92f1eb571c277d500b0b25107a09e3c800fb77",
+        "targetVersionId": "43000000-0000-4000-8000-000000000605",
+        "sourcePolicySetDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "targetPolicySetDigest": "c0d191c459545d0aa5f6fd7b071f5251856f26cbdbd93751acf1888cfc3d010e",
+        "sourceLearningIdentityDigest": "d7427b3b3968b3c7c0009d7f1e2225c34adaff355cbbc13fd0825836a9a3b0de",
+        "targetLearningIdentityDigest": "3f1824c8c53c1fd196b59f7d919dad93fa55c47f29f841b81121c1a7e1b6f99d"
+      },
+      "activationReceiptDigest": "06e4e3d6d805a03445ddd7325765fc322983a66653912a3334047d63aede2276"
+    },
+    "expectedAdoptionDigest": "d395cb7edf40ce5af2f4e5ce9c11cabd65cb676cd956ee891094a02503d09aa5",
+    "sourceWorkflowVersionId": "43000000-0000-4000-8000-000000000604",
+    "targetWorkflowVersionId": "43000000-0000-4000-8000-000000000605",
+    "alreadyAdoptedRecordCount": 0,
+    "newlyAdoptableRecordCount": 0,
+    "managerTrainingRequirements": {
+      "scope": "workflow_version_quality_references",
+      "reason": null,
+      "readiness": "not_applicable",
+      "classified": true,
+      "missingPairs": [],
+      "requiredPairs": [],
+      "fulfilledPairs": [],
+      "contractVersion": "manager-reference-training-readiness.v1",
+      "workflowVersionId": "43000000-0000-4000-8000-000000000605"
+    }
+  },
+  "hardening": {
+    "ok": true,
+    "contract": "agent-hardening-projection.v1",
+    "executionReviewMap": {
+      "contractVersion": "agent-execution-review-map.v1",
+      "stages": [
+        {
+          "order": 1,
+          "learning": null,
+          "executionPolicyStatus": "inherited",
+          "outputs": [
+            {
+              "name": "source_manifest",
+              "relativePath": "out/source.json",
+              "review": {
+                "kind": "none",
+                "availability": "not_declared"
+              }
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "learning": null,
+          "executionPolicyStatus": "inherited",
+          "outputs": [
+            {
+              "name": "draft",
+              "relativePath": "out/draft.json",
+              "review": {
+                "kind": "none",
+                "availability": "not_declared"
+              }
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "learning": null,
+          "executionPolicyStatus": "inherited",
+          "outputs": [
+            {
+              "name": "result",
+              "relativePath": "out/result.json",
+              "review": {
+                "kind": "none",
+                "availability": "not_declared"
+              }
+            }
+          ]
+        },
+        {
+          "order": 4,
+          "learning": null,
+          "executionPolicyStatus": "inherited",
+          "outputs": []
+        }
+      ]
+    },
+    "reviewReadiness": {
+      "ok": true,
+      "required": false
+    },
+    "workflowId": "43000000-0000-4000-8000-000000000603",
+    "slug": "synthetic-task-repurpose",
+    "maturity": "experimental",
+    "certification": {
+      "status": "none",
+      "verified": false
+    },
+    "activeVersion": {
+      "id": "43000000-0000-4000-8000-000000000604",
+      "number": 1
+    },
+    "hardening": {
+      "state": "passed",
+      "result": "hardening_passed",
+      "recordId": "d9ab2e94-cb7e-4a17-8926-566f2b560835",
+      "workflowVersionId": "43000000-0000-4000-8000-000000000604",
+      "versionNumber": 1,
+      "versionStatus": "applied",
+      "compilerContract": "agent-hardening-manifest.v1",
+      "compilerVersion": "agent-compiler.v3",
+      "manifestDigest": "a88d75c689c3cc465ffa1cb17c0b34231181b02cc9d305eb6924c09892dadb55",
+      "diagnosticsDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "diagnostics": [],
+      "activationEligible": true,
+      "activated": true,
+      "compiledAt": "2026-10-30T14:36:48.367Z"
+    },
+    "latestCandidate": {
+      "state": "passed",
+      "result": "hardening_passed",
+      "recordId": "8f41b67b-c227-42bd-9cbd-01b0c4575325",
+      "workflowVersionId": "43000000-0000-4000-8000-000000000605",
+      "versionNumber": null,
+      "versionStatus": "proposed",
+      "compilerContract": "agent-hardening-manifest.v1",
+      "compilerVersion": "agent-compiler.v3",
+      "manifestDigest": "af8e53542988c73ccb45337106e0e21b193ca7d2d6dc050584508a59373661ee",
+      "diagnosticsDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "diagnostics": [],
+      "activationEligible": true,
+      "activated": false,
+      "compiledAt": "2026-10-30T14:36:48.405Z"
+    },
+    "compiler": {
+      "contract": "agent-hardening-manifest.v1",
+      "version": "agent-compiler.v3"
+    }
+  },
+  "apply": {
+    "ok": true,
+    "version_id": "43000000-0000-4000-8000-000000000605",
+    "version_number": 2,
+    "status": "applied",
+    "hardening": {
+      "contract": "agent-hardening-manifest.v1",
+      "compilerVersion": "agent-compiler.v3",
+      "result": "hardening_passed",
+      "state": "passed",
+      "recordId": "8f41b67b-c227-42bd-9cbd-01b0c4575325",
+      "workflowVersionId": "43000000-0000-4000-8000-000000000605",
+      "versionNumber": null,
+      "manifestDigest": "af8e53542988c73ccb45337106e0e21b193ca7d2d6dc050584508a59373661ee",
+      "diagnosticsDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "activationEligible": true,
+      "activated": false,
+      "activationPending": false,
+      "activationReadiness": null,
+      "diagnostics": []
+    }
+  }
+}
