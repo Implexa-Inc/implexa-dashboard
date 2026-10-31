@@ -15,6 +15,7 @@ test('Training chat enters the existing recording flow only after its separate c
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
  Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
  r.window.Element.prototype.scrollIntoView=()=>{};
+ r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);
  const prior=r.window.fetch,ctx={agent:{id:RECORD,name:'Video craft',slug:'video-craft',versionId:VERSION_A},researchMethodPresent:true,
   source:{sourceId:SOURCE_ID,sha256:SOURCE_DIGEST},boundMethods:[{stageIndex:2,source:'community',slug:'reference-research-assessment',contentDigest:DIGEST}],availableActions:['none','analyse_tool_method']};
  r.window.fetch=(async(url:string,init:RequestInit={})=>{
@@ -28,7 +29,7 @@ test('Training chat enters the existing recording flow only after its separate c
  }) as typeof r.window.fetch;
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
  try{
-  await r.click(r.getByText('Annotate source'));await r.click(r.getByText('Open conversation'));
+  await r.click(r.getByText('Annotate source')); // Conversation is now embedded and already open.
   const area=r.getByText('Message Implexa').closest('label')!.querySelector('textarea')!;await setTextarea(r,area,'Please analyze this tool method.');
   await r.click(Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Send')!);await flush();
   const action=()=>Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Analyze the recording’s tool method')!;
@@ -594,7 +595,7 @@ test('malformed or stale active-version training requirements fail closed before
 test('source and session identities, exact time input and accessible range value are visible', async () => {
   const { rendered } = await renderedWith();
   try {
-    assert.match(rendered.text(), /Train Video craft/);
+    assert.match(rendered.text(), /Trainer workspaceVideo craft/);
     assert.match(rendered.text(), /Active version: 11111111 · Session version: 11111111/);
     assert.match(rendered.text(), /approved-edit.mp4 · 1920×1080 · 11:50.667 · SHA-256 bbbbbbbb/);
     await rendered.click(rendered.getByText('Annotate source'));
@@ -1605,5 +1606,41 @@ test('saved recording handoff preserves raw moment notes, previews explicitly an
   const annotation=[...r.document.querySelectorAll('textarea')].find(value=>value.value===notes);assert.ok(annotation,'all original fields and whitespace survive as raw annotation');
   assert.equal(h.calls.some(c=>['preview','annotate','accept','recording'].includes(c.operation)),false,'select does not extract, infer or admit');
   assert.match(r.text(),/Preview this exact frame/);
+ }finally{r.cleanup();}
+});
+
+// Behavior change: owner Training starts with a progressive workspace; the
+// original save/admission tests above still exercise the existing handlers.
+test('owner workspace starts with three choices and one chat, without running or admitting anything',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ const visible=(el:Element)=>!el.closest('[hidden]');
+ try{
+  for(const label of ['Improve a result','Show how you do it','Explain a change'])assert.equal(visible(r.getByText(label)),true);
+  assert.equal(visible(r.getByText('Check public visibility')),false);
+  assert.equal(visible(r.getByText('Load recorded questions')),false);
+  assert.equal(visible(r.getByText('Add training source')),false);
+  assert.equal(r.document.querySelectorAll('#training-chat-message').length,1,'one conversation, including mobile');
+  assert.equal(r.queryByText('Open conversation'),null,'embedded chat is already open');
+  await r.click(r.getByText('Show how you do it'));
+  assert.equal(visible(r.getByText('Add training source')),true);
+  assert.equal((r.getByText('Add training source') as HTMLButtonElement).disabled,true,'original source consent stays unchecked');
+  await r.click(r.getByText('Learnings & history'));
+  assert.equal(visible(r.getByText('Load recorded questions')),true);
+  assert.equal(visible(r.getByText('Add training source')),false);
+  await r.click(r.getByText('Sharing & details'));
+  assert.equal(visible(r.getByText('Check public visibility')),true);
+  assert.equal(r.document.querySelectorAll('#training-chat-message').length,1);
+  assert.equal(h.calls.some(c=>['select','recording','annotate','accept','delivery'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
+test('choosing a source from history returns to teaching without changing the saved source or granting consent',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{
+  await r.click(r.getByText('Learnings & history'));
+  await r.click(r.getByText('Annotate source'));
+  assert.equal(r.document.getElementById('recording-analysis')!.closest('[hidden]'),null);
+  assert.equal(r.getByText('Check public visibility').closest('[hidden]')!==null,true);
+  assert.equal(h.calls.some(c=>['annotate','accept','recording'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import PublisherTeachingRelease from './publisher-teaching-release';
 import TrainingChat from './training-chat';
+import {TrainingEntry,TrainingNavigation,TrainingDetails,revealTrainingElement,type TrainingView} from './training-workspace';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
 import { teachingDigest, teachingFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation, recordingSuggestion, recordingAgentSuggestion, type RecordingAgentSuggestion, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
@@ -114,8 +115,13 @@ function resolveBridge() {
   return candidate;
 }
 
-export default function TrainingSource({ slug, installationId, forkPermission,ownerId,recordingSelection }: { slug: string; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
+export default function TrainingSource({ slug, installationId, forkPermission,ownerId,recordingSelection,lastRunId }: { slug: string;lastRunId?:string|null; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
   const [retention] = useState(() => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCMilliseconds(0); return d.toISOString(); });
+  const [view,setView]=useState<TrainingView>(recordingSelection?'teach':'start');
+  const [chatExpanded,setChatExpanded]=useState(false);
+  const showTeaching=()=>setView('teach');
+  const focusChat=()=>{setChatExpanded(true);requestAnimationFrame(()=>document.getElementById('training-chat-message')?.focus());};
+  const reveal=(id:string)=>{setView('teach');requestAnimationFrame(()=>revealTrainingElement(id));};
   const [session, setSession] = useState('');
   const [sessionVersion, setSessionVersion] = useState('');
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
@@ -464,6 +470,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
 
   function chooseSource(source: Source) {
+    showTeaching();
     setSelected(source); setTime(0); setPreview(null); setReviewed(null); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID());
     setSelectionPriority('50');
   }
@@ -477,6 +484,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setDecisionKey(crypto.randomUUID());
   }
   function createPlanningSuccessor(source: Source, decision: Decision) {
+    showTeaching();
     const nextProperty = decision.content.properties[0] || 'motion_rhythm';
     setSelected(source); setTime(decision.content.anchor.startMs); setPreview(null); setReviewed(null);
     setRelation(decision.content.relation); setProperty(nextProperty);
@@ -505,6 +513,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     });
   }
   function prepareVersionSuccessor(source: Source, decision: Decision) {
+    showTeaching();
     const nextProperty = decision.content.properties[0] || 'motion_rhythm';
     setSelected(source); setTime(decision.content.anchor.startMs); setPreview(null); setReviewed(null);
     setRelation(decision.content.relation); setProperty(nextProperty);
@@ -779,12 +788,12 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       await requireCurrentScope();
       const result = await call('decisionPreview', { token: source.token, recordId: decision.recordId });
       if (result.recordId !== decision.recordId || result.recordDigest !== decision.recordDigest || !result.image) throw new TrainingError('training_decision_preview_mismatch', 'The saved evidence identity could not be verified.');
-      setReviewed({ source, decision, image: result.image }); setAcceptConfirmed(false); setRetireConfirmed(false); setRevokeConfirmed(false);
+      showTeaching();setReviewed({ source, decision, image: result.image }); setAcceptConfirmed(false); setRetireConfirmed(false); setRevokeConfirmed(false);
     });
   }
 
   function manageDecision(source: Source, decision: Decision) {
-    setReviewed({ source, decision, image: null }); setAcceptConfirmed(false); setRetireConfirmed(false); setRevokeConfirmed(false);
+    showTeaching();setReviewed({ source, decision, image: null }); setAcceptConfirmed(false); setRetireConfirmed(false); setRevokeConfirmed(false);
   }
 
   async function acceptReviewed() {
@@ -885,7 +894,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       const agent=action==='analyse_tool_method';
       if(!(agent?agentAnalysisConsent:recordingConsent)){
         setSuggestionNote('Review the recording-analysis consent below, then choose its analysis action. Chat has not sent the recording or started analysis.');
-        document.getElementById('recording-analysis')?.scrollIntoView({block:'center'});return;
+        reveal('recording-analysis');return;
       }
       await findRecordingTeaching(agent);return;
     }
@@ -894,17 +903,20 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       if(d){await reviewDecision(selected,d);return;}
     }
     const id=action==='review_method'?'training-chat-methods':'recording-analysis';
-    document.getElementById(id)?.scrollIntoView({block:'center'});
+    if(action==='review_method')revealTrainingElement(id);else reveal(id);
     if(action==='review_agent_update')setSuggestionNote('Review the recording proposal, exact method and agent-change confirmation below. Nothing has been queued by chat.');
   }
 
-  return <main id="main-content" tabIndex={-1} className="mx-auto max-w-3xl px-6 py-12 space-y-6">
-    <Link href={installationId?`/workflows/${encodeURIComponent(slug)}`:"/training"}>{installationId?"← Agent":"← Training"}</Link>
-    <header className="space-y-2"><h1 className="text-2xl font-semibold">{installationId?"Private preferences for":"Train"} {agentName}</h1><p className="text-sm text-ink-400">Active version: {shortId(currentVersion)}{sessionVersion ? ` · Session version: ${shortId(sessionVersion)}` : ''}</p></header>
-    {!installationId&&session&&<TrainingChat sessionId={session} versionId={currentVersion} slug={slug} sources={sources}
-      selectedSourceId={selected?.sourceId||null} disabled={!!busy||versionChanged} busy={!!busy}
-      onSelectSource={id=>{const s=sources.find(s=>s.sourceId===id);if(s)chooseSource(s);else{setSelected(null);setPreview(null);setReviewed(null);}}}
-      onAction={chatAction}/>}
+  return <main id="main-content" tabIndex={-1} className={`mx-auto px-6 py-10 space-y-6 ${installationId?'max-w-3xl':'max-w-7xl lg:px-10'}`}>
+    <Link className="text-xs text-ink-400 hover:text-ink-100" href={installationId?`/workflows/${encodeURIComponent(slug)}`:"/training"}>{installationId?"← Agent":"← Your agents"}</Link>
+    <header className="flex flex-wrap items-start justify-between gap-4"><div className="space-y-2"><p className="text-[10px] uppercase tracking-[.18em] text-ink-500">{installationId?'Your private preferences':'Trainer workspace'}</p><h1 className="text-2xl font-medium tracking-tight">{installationId?'Private preferences for ':''}{agentName}</h1><p className="text-xs text-ink-500">Active version: {shortId(currentVersion)}{sessionVersion ? ` · Session version: ${shortId(sessionVersion)}` : ''}</p></div>
+      {!installationId&&<div className="flex items-center gap-4"><button type="button" className="text-sm text-ink-300 lg:hidden" aria-expanded={chatExpanded} aria-controls="training-companion" onClick={()=>setChatExpanded(v=>!v)}>Chat with Implexa</button><Link className="rounded-lg border border-ink-700 px-4 py-2 text-sm hover:border-ink-500" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>Open agent to test →</Link></div>}
+    </header>
+    {!installationId&&<TrainingNavigation view={view} onChange={setView}/>}
+    <div className={installationId?'':'grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]'}>
+    <div className="min-w-0 space-y-6 [&_button]:rounded-md [&_button]:border [&_button]:border-ink-700 [&_button]:px-3 [&_button]:py-1.5 [&_button]:text-xs [&_button:disabled]:opacity-40">
+    {!installationId&&view==='start'&&<TrainingEntry slug={slug} lastRunId={lastRunId} onShow={showTeaching} onChat={focusChat}/>}
+    <div hidden={!installationId&&view!=='settings'} className="space-y-6">
     <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>
     {!installationId && <section className="rounded border border-ink-700 p-4 space-y-3" aria-label="Public agent definition">
       <h2 className="font-semibold">Public agent definition</h2>
@@ -921,6 +933,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {installationId && <p>Only your installation can select these preferences. The trainer’s agent and teachings stay unchanged. Images remain on this Mac. Review suggested wording before admitting it; keep your exact feedback separately and label any agent-written options.</p>}
     {suggestionNote && <p role="status">{suggestionNote}</p>}
     {!installationId && <PublisherTeachingRelease slug={slug} versionId={currentVersion} forkPermission={forkPermission}/>}
+    </div>
+    {suggestionNote&& !installationId&&view!=='settings'&&<p role="status" className="rounded-lg border border-ink-700 p-3 text-sm">{suggestionNote}</p>}
+    <div hidden={!installationId&&view!=='history'} className="space-y-5">
     {!installationId && <section className="rounded border border-ink-700 p-4 space-y-3" aria-labelledby="trainer-questions-heading">
       <h2 id="trainer-questions-heading" className="font-semibold">Questions from runs</h2>
       <p>Review actual recorded consultations, including failed or cancelled runs. A returned reference is not proof that it answered the question or was applied.</p>
@@ -959,14 +974,19 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       {pendingAnswerLinks && <div role="status"><p>The evidence draft is preserved. {pendingAnswerLinks.answer.questions.length} answer link(s) remain unverified.</p><button disabled={!!busy} onClick={() => work('Retrying the saved answer links', () => linkAnswers(pendingAnswerLinks))}>Retry answer links</button></div>}
       {pendingDemoLink && <div role="status"><p>The teaching draft and original demonstration annotation are preserved. Their link remains unverified.</p><button disabled={!!busy} onClick={() => work('Retrying the saved demonstration link', () => linkDemoAnnotation(pendingDemoLink))}>Retry demonstration link</button></div>}
     </section>}
+    </div>
     {installationId && versionChanged && <p role="alert">This preference session belongs to another installed version. Reopen your agent’s private preferences; no teaching is moved automatically.</p>}
     {installationId && pendingDemoLink && <button disabled={!!busy} onClick={() => work("Linking the preserved preference feedback", () => linkDemoAnnotation(pendingDemoLink))}>Retry feedback link</button>}
     {!installationId && versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded border p-4 space-y-3 ${activeVersionTrainingIsReady ? 'border-emerald-600' : 'border-amber-500'}`}><h2 className="font-semibold">{activeVersionTrainingIsReady ? 'Active-version Manager training is ready' : 'Move reviewed evidence to the active version explicitly'}</h2>{activeVersionTrainingIsReady ? <><p>This historical session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version {shortId(currentVersion)} can select the same evidence through explicit immutable adoption receipts; all {managerTrainingRequirements?.requiredPairs.length || 0} critical request-admission visual-reference routes are fulfilled. First launch still verifies every declared reference.</p><p>No new successor training session is required to run this Agent. Start one only when you want to change or add training evidence for the active version.</p></> : <><p>This session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version is {shortId(currentVersion)} and cannot select those records. Start a separate successor session, re-select the exact source, and review each new decision before accepting it.</p><label className="flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event) => setTransitionConfirmed(event.target.checked)} />I understand this creates new evidence records for the active version and does not change or automatically accept the existing records.</label><button disabled={!!busy || !transitionConfirmed || !currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></>}</section>}
-    <label className="flex gap-3"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />{installationId?"I have permission to use this output and save bounded private preference evidence for one year":"I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection."} The original stays on this computer. I can stop future selection or withdraw permission below.</label>
+    <div hidden={!installationId&&view!=='teach'} className="space-y-4 rounded-xl border border-ink-800 p-5">
+    {!installationId&&<div><h2 className="text-lg font-medium">Your demonstration</h2><p className="mt-2 text-sm text-ink-400">Choose a recording or image, then select the moment you want to teach.</p></div>}
+    <label className="flex gap-3 text-sm leading-6"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />{installationId?"I have permission to use this output and save bounded private preference evidence for one year":"I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection."} The original stays on this computer. I can stop future selection or withdraw permission below.</label>
     {!installationId && <a href={`/review/new?trainingSlug=${encodeURIComponent(slug)}`}>Choose or record a demonstration</a>}
     {recordingSelection && <p>Use the selected saved recording and moment notes. Notes over the existing annotation limit must be shortened or split deliberately; the full saved moment remains on this Mac.</p>}
     <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={add}>{recordingSelection?"Use selected recording":"Add training source"}</button>
+    </div>
     {busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{error && <p role="alert">{reasonLabel(error)}</p>}
+    <div hidden={!installationId&&view==='start'}><TrainingDetails title="Training readiness & version details">
     {acceptedEvidenceCount > 0 && <p role="status" className="rounded border border-emerald-600 p-3">Evidence accepted: {acceptedEvidenceCount} immutable decision{acceptedEvidenceCount === 1 ? '' : 's'} in this session. Acceptance preserves the teaching; Agent readiness is verified separately below.</p>}
     {currentVersion && !requirementsAreCurrent && !activeVersionTrainingIsReady && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager reference training readiness unavailable</h2><p>Implexa cannot verify the required stage and quality-reference pairs for this exact active version. Accepted evidence remains preserved. Decision, procedure, criterion, and machine-custody requirements are verified separately at run prelaunch.</p></section>}
     {!installationId && trainingNeedsCoach && managerTrainingRequirements && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Evidence accepted — reference training not ready</h2><p>The immutable Agent policy still requires accepted visual-reference evidence at the stage/property routes below. Create or explicitly expand successor drafts, review their exact evidence, and accept each new digest. Implexa does not silently widen an accepted record. Other Manager families are verified separately before a run starts.</p><ul className="list-disc pl-5">{managerTrainingRequirements.missingPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul></section>}
@@ -976,6 +996,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {coverageCanClaimReady && managerCoverage?.contractVersion === 'manager-training-coverage.v2' && <section role="status" className="rounded border border-ink-700 p-3 space-y-2"><h2 className="font-semibold">Private training routing available</h2><p>{managerCoverage.coveredPairs.length} required-policy routes · {managerCoverage.optionalPairs.length} optional taste routes. Optional taste can guide supported decisions without editing this agent. Each run selects a bounded set; eligibility does not mean an example was selected or applied.</p>{managerCoverage.optionalPairs.length > 0 && <ul className="list-disc pl-5">{managerCoverage.optionalPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)} · Optional taste</li>)}</ul>}{managerCoverage.unsupportedPairs.length > 0 && <div className="text-amber-400"><p>{managerCoverage.unsupportedPairs.length} accepted routes are not supported by this routing policy. They remain saved, are not selected through optional routing, and do not block other supported training.</p><ul className="list-disc pl-5">{managerCoverage.unsupportedPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)} · Unsupported</li>)}</ul></div>}</section>}
     {coverageCanClaimReady && trainingIsReady && managerTrainingRequirements && <p role="status" className="rounded border border-emerald-600 p-3">Manager reference training ready: all {managerTrainingRequirements.requiredPairs.length} critical request-admission visual-reference routes are explicitly fulfilled for this immutable version. This preflight does not cover every declared reference; first launch verifies all declared references, decisions, procedures, criteria, custody, and the exact selected evidence set.</p>}
 
+    </TrainingDetails></div>
+    <div hidden={!installationId&&view!=='teach'&&view!=='history'} className="space-y-5">
     {!installationId && versionTransition && <section className="rounded border border-brand-500 p-4 space-y-3" aria-labelledby="version-successor-heading"><h2 id="version-successor-heading" className="font-semibold">Recreate reviewed decisions for {shortId(sessionVersion)}</h2><p>The records below remain bound to {shortId(versionTransition.fromVersion)}. Re-add the exact source file; Implexa enables a successor only after its SHA-256 matches. The copied text and stages are only a draft. You must preview the exact frame, save it, review the new immutable digest, and accept it again before Manager readiness can include it.</p><ul className="space-y-3">{versionTransition.sources.flatMap((oldSource) => oldSource.decisions.filter((decision) => decision.state === 'accepted').map((decision) => { const matched = sources.find((candidate) => candidate.metadata.sha256 === oldSource.metadata.sha256); const alreadyCreated = matched?.decisions.some((candidate) => candidate.content.relation === decision.content.relation && candidate.content.anchor.startMs === decision.content.anchor.startMs && candidate.content.summary === decision.content.summary); return <li key={decision.recordId} className="rounded border border-ink-700 p-3 space-y-2"><p>{formatTrainingTime(decision.content.anchor.startMs)} · {decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')} · from digest {shortId(decision.recordDigest)}</p>{!matched && <p>Re-add source SHA-256 {shortId(oldSource.metadata.sha256)} to continue.</p>}{alreadyCreated ? <p role="status">A distinct successor draft or accepted record already exists in this session.</p> : <button disabled={!!busy || !matched} onClick={() => matched && prepareVersionSuccessor(matched, decision)}>Prepare new-version successor draft</button>}</li>; }))}</ul></section>}
 
     {failed.map((draft) => <section key={draft.token} className="rounded border border-ink-700 p-3" aria-label="Preserved source draft"><p>Preserved source draft: {reasonLabel(draft.reason)}</p>{draft.retryable ? <button disabled={!!busy} onClick={() => work('Retrying registration', async () => { await requireCurrentScope(); await call('register', { token: draft.token }); await load(session); })}>Retry registration</button> : <p>This refusal cannot be fixed by retrying the same file. Choose a different source or discard this local draft.</p>}{!draft.retryable && <button disabled={!!busy} onClick={() => discardDraft(draft)}>Discard local draft</button>}</section>)}
@@ -985,6 +1007,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <ul className="divide-y divide-ink-800">{source.decisions.map((decision) => { const decisionStages = normalizeTrainingStages(decision.content.applicability?.stages); return <li key={decision.recordId} className="py-3 space-y-2"><p>{formatTrainingTime(decision.content.anchor.startMs)} · {decision.state} · {relationLabel(decision.content.relation)}</p><p>{decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</p><p><span className="font-semibold">Eligible stages:</span> {decisionStages.length ? decisionStages.map(trainingStageLabel).join(', ') : 'Not recorded'}</p>{decision.state === 'accepted' && !decisionStages.includes('planning') && <p className="text-amber-400">This accepted record cannot guide planning before tools or paid actions. Create a new planning-scoped decision to preserve the original record.</p>}<p>{decision.content.summary}</p><p className="text-xs text-ink-500">Evidence digest {shortId(decision.recordDigest)}</p>{(decision.state === 'draft' || decision.state === 'accepted') && <button disabled={!!busy || !source.token || versionChanged} onClick={() => reviewDecision(source, decision)}>{decision.state === 'draft' ? 'Review before accepting' : 'Review accepted evidence'}</button>}{(decision.state === 'accepted' || decision.state === 'retired') && <button disabled={!!busy} onClick={() => manageDecision(source, decision)}>Manage teaching</button>}</li>; })}</ul>
     </section>)}
 
+    </div>
     {reviewed && <section className="rounded border border-brand-500 p-4 space-y-4" aria-labelledby="decision-review-heading"><h2 ref={reviewHeadingRef} id="decision-review-heading" tabIndex={-1}>{reviewed.image ? 'Exact saved evidence' : 'Saved teaching'}</h2>{reviewed.image && <img src={reviewed.image} alt={`Saved evidence at ${formatTrainingTime(reviewed.decision.content.anchor.startMs)}`} className="w-full" />}<dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Source</dt><dd>{reviewed.source.localName || `SHA-256 ${shortId(reviewed.source.metadata.sha256)}`}</dd></div><div><dt className="font-semibold">Timestamp</dt><dd>{formatTrainingTime(reviewed.decision.content.anchor.startMs)}</dd></div><div><dt className="font-semibold">Relation</dt><dd>{relationLabel(reviewed.decision.content.relation)}</dd></div><div><dt className="font-semibold">Visual properties</dt><dd>{reviewed.decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</dd></div><div><dt className="font-semibold">Eligible stages</dt><dd>{normalizeTrainingStages(reviewed.decision.content.applicability?.stages).length ? normalizeTrainingStages(reviewed.decision.content.applicability?.stages).map(trainingStageLabel).join(', ') : 'Not recorded'}</dd></div><div><dt className="font-semibold">Decision</dt><dd>{reviewed.decision.content.summary}</dd></div><div><dt className="font-semibold">Immutable digest</dt><dd className="break-all">{reviewed.decision.recordDigest}</dd></div></dl>
       <p><span className="font-semibold">Selection priority:</span> {reviewed.decision.content.applicability?.priority ?? 'Not recorded'}. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not guarantee selection or override checks, criteria or facts.</p>
       {reviewed.decision.state === 'draft' && <><label className="flex gap-3"><input type="checkbox" checked={acceptConfirmed} disabled={!!busy} onChange={(event) => setAcceptConfirmed(event.target.checked)} />{installationId?"I reviewed this exact frame and confirm this preference wording, including any agent-suggested wording, for my future runs only.":"I reviewed this exact frame and decision and want it eligible for future Manager selection."}</label><button disabled={!!busy || !acceptConfirmed} onClick={acceptReviewed}>Accept this exact decision</button></>}
@@ -1025,6 +1048,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <button disabled={!!busy} onClick={() => setReviewed(null)}>Close evidence review</button>
     </section>}
 
+    <div hidden={!installationId&&view!=='teach'}>
     {selected && <section id="recording-analysis" className="rounded border border-ink-700 p-4 space-y-4"><h2>Timestamped visual decision</h2>{successorStageExpansion && <section role="status" className="rounded border border-brand-500 p-3 space-y-2"><h3 className="font-semibold">Successor stage diff</h3><p>The predecessor stages were preserved exactly. This active Agent requires this decision at: {successorStageExpansion.required.length ? successorStageExpansion.required.map(trainingStageLabel).join(', ') : 'no additional stages'}.</p>{successorStageExpansion.missing.length > 0 ? <><p>Still missing: {successorStageExpansion.missing.map(trainingStageLabel).join(', ')}. They have not been added automatically.</p><button type="button" disabled={!!busy} onClick={addRequiredSuccessorStages}>Add required stages to this successor draft</button></> : <p>All required stages are now explicitly selected. Preview and accept the new digest separately.</p>}</section>}<fieldset disabled={!!busy || versionChanged} className="space-y-4"><legend className="sr-only">Choose and explain an exact visual decision</legend><label className="block">Frame timestamp<input className="block w-full" type="range" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} step="1" value={time} aria-valuetext={formatTrainingTime(time)} onChange={(event) => changeTime(Number(event.target.value))} /></label><div className="flex flex-wrap items-end gap-2"><label>Exact timestamp in milliseconds<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} value={time} onChange={(event) => changeTime(Number(event.target.value))} /></label>{[-1000, -100, 100, 1000].map((delta) => <button type="button" key={delta} onClick={() => changeTime(time + delta)}>{delta > 0 ? '+' : '−'}{Math.abs(delta)} ms</button>)}</div><p aria-live="polite">Selected time {formatTrainingTime(time)} of {formatTrainingTime(selected.metadata.durationMs)}</p><button type="button" onClick={showPreview}>Preview this exact frame</button>{previewIsCurrent && preview?.image && <img src={preview.image} alt={`Training source frame at ${formatTrainingTime(preview.timeMs)}`} className="w-full" />}
       <label className="block">Evidence relation<select value={relation} onChange={(event) => { setRelation(event.target.value as TrainingRelation); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}>{TRAINING_RELATIONS.filter(item=>!installationId||['accepted','rejected'].includes(item)).map((item) => <option key={item} value={item}>{relationLabel(item)}</option>)}</select></label><label className="block">Visual property<select value={property} onChange={(event) => { const next = event.target.value as TrainingPropertyCode; setProperty(next); setStages(deriveTrainingStages(next).filter(stage=>!installationId||['planning','build'].includes(stage))); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}>{TRAINING_PROPERTY_CODES.map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</select></label>
       <label className="block">Selection priority<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max="100" step="1" value={selectionPriority} aria-describedby="training-priority-help" aria-invalid={!priorityIsValid} onChange={(event) => { setSelectionPriority(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>
@@ -1094,5 +1118,13 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       </section>
       {installationId&&<h3>Preference wording — confirm or edit</h3>}
       {([['What was chosen', chosen, setChosen], ['Why this choice', why, setWhy], ['Tool or process used', process, setProcess], ['Desired visual, motion or layout behavior', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || !priorityIsValid || stages.length === 0 || (Boolean(installationId)&&!demoAnnotationIsCurrent) || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={annotate}>Save decision draft</button></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
+    </div></div>
+    {!installationId&&<aside id="training-companion" className={`min-w-0 lg:sticky lg:top-6 ${chatExpanded?'block':'hidden'} lg:block`}>
+      {session?<TrainingChat embedded sessionId={session} versionId={currentVersion} slug={slug} sources={sources}
+        selectedSourceId={selected?.sourceId||null} disabled={!!busy||versionChanged} busy={!!busy} onAttach={showTeaching}
+        onSelectSource={id=>{const source=sources.find(s=>s.sourceId===id);if(source)chooseSource(source);else{setSelected(null);setPreview(null);setReviewed(null);}}}
+        onAction={chatAction}/>:<div className="rounded-xl border border-ink-800 p-5 text-sm text-ink-400">Chat becomes available when this agent’s private Training session is ready.</div>}
+    </aside>}
+    </div>
   </main>;
 }

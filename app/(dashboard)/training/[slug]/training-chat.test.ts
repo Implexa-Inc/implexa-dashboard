@@ -8,9 +8,9 @@ const context=()=>({agent:{id:id(4),name:'Video agent',slug:'video-agent',versio
  source:{sourceId:SOURCE,sha256:H},availableActions:['none','analyse_taste','review_method','test_agent']});
 const turn=(patch={})=>({turnId:id(5),versionId:VERSION,sourceId:SOURCE,sourceSha256:H,message:'Please review this recording.',createdAt:'2026-10-31T12:00:00Z',
  status:'answered',answer:'The research method is already attached. We can review taste.',action:'analyse_taste',reason:null,...patch});
-async function setup(t:any,options:{turns?:any[];offlineOnce?:boolean;wrongContext?:boolean;historical?:boolean}={}){
+async function setup(t:any,options:{turns?:any[];offlineOnce?:boolean;wrongContext?:boolean;historical?:boolean;embedded?:boolean}={}){
  const calls:any[]=[],actions:any[]=[];let saved=options.turns||[],posts=0;
- const props={sessionId:SESSION,versionId:VERSION,slug:'video-agent',sources:[source],selectedSourceId:SOURCE,disabled:options.historical===true,
+ const props={embedded:options.embedded,sessionId:SESSION,versionId:VERSION,slug:'video-agent',sources:[source],selectedSourceId:SOURCE,disabled:options.historical===true,
   onSelectSource:()=>{},onAction:async(...args:any[])=>{actions.push(args);}};
  const r=await render('../training/[slug]/training-chat.tsx',props,{fetch:(async(url:string,init:any={})=>{
   calls.push({url,init});let c=context();if(options.wrongContext)c.agent.versionId=id(99);
@@ -66,5 +66,18 @@ test('historical conversation can open and restore messages while Send and actio
  await r.click(r.getByText('Open conversation'));assert.match(r.text(),/Please review this recording/);
  assert.equal((r.getByText('Send') as HTMLButtonElement).disabled,true);
  assert.equal((r.getByText('Analyze the recording’s taste') as HTMLButtonElement).disabled,true);
+ assert.equal(calls.length,1);assert.equal(actions.length,0);
+});
+
+
+test('embedded Training companion restores privately with GET only and stays the same conversation across layout changes',async t=>{
+ const {r,calls,actions,props}=await setup(t,{embedded:true,turns:[turn()]});
+ assert.equal(r.queryByText('Open conversation'),null);
+ assert.match(r.text(),/Please review this recording/);
+ assert.equal(r.document.querySelectorAll('textarea').length,1);
+ assert.equal(calls.length,1);assert.equal(calls[0].init.method,undefined);
+ await type(r,'Keep this unsent feedback while I review the example.');
+ await r.rerender({...props,busy:true});
+ assert.equal(r.document.querySelector('textarea')!.value,'Keep this unsent feedback while I review the example.');
  assert.equal(calls.length,1);assert.equal(actions.length,0);
 });
