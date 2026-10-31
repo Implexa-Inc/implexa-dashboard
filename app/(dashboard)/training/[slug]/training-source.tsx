@@ -902,7 +902,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     <Link href={installationId?`/workflows/${encodeURIComponent(slug)}`:"/training"}>{installationId?"← Agent":"← Training"}</Link>
     <header className="space-y-2"><h1 className="text-2xl font-semibold">{installationId?"Private preferences for":"Train"} {agentName}</h1><p className="text-sm text-ink-400">Active version: {shortId(currentVersion)}{sessionVersion ? ` · Session version: ${shortId(sessionVersion)}` : ''}</p></header>
     {!installationId&&session&&<TrainingChat sessionId={session} versionId={currentVersion} slug={slug} sources={sources}
-      selectedSourceId={selected?.sourceId||null} disabled={!!busy||versionChanged}
+      selectedSourceId={selected?.sourceId||null} disabled={!!busy||versionChanged} busy={!!busy}
       onSelectSource={id=>{const s=sources.find(s=>s.sourceId===id);if(s)chooseSource(s);else{setSelected(null);setPreview(null);setReviewed(null);}}}
       onAction={chatAction}/>}
     <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>

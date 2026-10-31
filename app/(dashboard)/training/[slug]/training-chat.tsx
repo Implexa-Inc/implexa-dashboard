@@ -17,8 +17,8 @@ const contextMatches=(v:Context|null|undefined,versionId:string|null,sourceId:st
  &&typeof v.researchMethodPresent==='boolean'&&Array.isArray(v.boundMethods)
  &&v.boundMethods.every(m=>typeof m.slug==='string'&&/^[a-f0-9]{64}$/.test(m.contentDigest))
  &&Array.isArray(v.availableActions)&&v.availableActions.every(a=>Object.hasOwn(names,a));
-export default function TrainingChat({sessionId,versionId,slug,sources,selectedSourceId,disabled,onSelectSource,onAction}:{
- sessionId:string;versionId:string|null;slug:string;sources:Source[];selectedSourceId:string|null;disabled:boolean;
+export default function TrainingChat({sessionId,versionId,slug,sources,selectedSourceId,disabled,busy=false,onSelectSource,onAction}:{
+ sessionId:string;versionId:string|null;slug:string;sources:Source[];selectedSourceId:string|null;disabled:boolean;busy?:boolean;
  onSelectSource:(id:string)=>void;onAction:(action:Action,binding:{versionId:string;sourceId:string|null;sourceSha256:string|null})=>Promise<void>;
 }){
  const [turns,setTurns]=useState<Turn[]>([]),[context,setContext]=useState<Context|null>(null),[total,setTotal]=useState(0);
@@ -60,7 +60,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
  if(!opened)return <section aria-labelledby="training-chat-heading" className="rounded border border-brand-500 p-4 space-y-3">
   <h2 id="training-chat-heading" className="text-lg font-semibold">Chat with Implexa</h2>
   <p>Discuss this agent and turn a recording or feedback into reviewed improvements.</p>
-  <button type="button" disabled={!sessionId||disabled} onClick={()=>setOpened(true)}>Open conversation</button>
+  <button type="button" disabled={!sessionId||busy} onClick={()=>setOpened(true)}>Open conversation</button>
  </section>;
  return <section aria-labelledby="training-chat-heading" className="rounded border border-brand-500 p-4 space-y-4">
   <h2 id="training-chat-heading" className="text-lg font-semibold">Chat with Implexa</h2>
