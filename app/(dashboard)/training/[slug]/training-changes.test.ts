@@ -3,12 +3,22 @@ import assert from 'node:assert/strict';
 import {render} from '../../../../lib/test/render.ts';
 import {guidedTrainingChanges,type GuidedTrainingChanges} from '../../../../lib/guided-training-changes.ts';
 import {readFileSync} from 'node:fs';
+import {managerTrainingRunPreflight} from '../../../../lib/manager-training-run-preflight.ts';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,H='a'.repeat(64);
 const value=():GuidedTrainingChanges=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:id(1),agentFamilyId:id(2),workflowVersionId:id(3),snapshotDigest:H},
  policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[{eventId:id(4),eventDigest:H,text:'Let the location image explain the contrast. What about the music?',analysisStatus:'answered',outcome:'partly',reason:'The visual preference is saved; the music question needs an answer.',uncoveredText:['What about the music?'],recordIds:[id(5)]}],
  records:[{recordId:id(5),recordDigest:H,summary:'Use imagery to explain the relationship.',state:'candidate',included:true,admissionOrigin:'standing_policy',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:id(8),policyReceiptDigest:H,sourceEventId:id(4),sourceEventDigest:H,model:'claude-haiku-5-5'}],
  test:{snapshotDigest:null,scope:null,status:'not_run',runId:null,qualityScore:null,gaps:[],canTest:true},publication:{canPublish:false,reason:'Test the exact update first.',servedSnapshotDigest:null}});
 const expected={sessionId:id(1),workflowVersionId:id(3)};
+test('actual snapshot SQL DTOs pass the Dashboard unchanged, while a removed candidate stays stale and unqualified',()=>{
+ const v=JSON.parse(readFileSync(new URL('../../../../lib/__fixtures__/training-snapshot-sql.v1.json',import.meta.url),'utf8'));
+ assert.equal(v.synthetic,true);assert.equal(v.gate,'training-snapshot-actual-read');
+ assert.equal(guidedTrainingChanges(v.read,{sessionId:v.read.binding.sessionId,workflowVersionId:v.read.binding.workflowVersionId}),true);
+ assert.equal(v.read.test.status,'stale');assert.equal(v.read.activation.canActivate,false);assert.equal(v.read.publication.canPublish,false);
+ const binding={testPreparationId:v.preparation.testPreparationId,preparationDigest:v.preparation.preparationDigest};
+ assert.equal(managerTrainingRunPreflight(v.preflight,v.preparation.workflowVersionId,binding).state,'ready');
+ assert.notEqual(managerTrainingRunPreflight(v.preflight,v.preparation.workflowVersionId,{...binding,preparationDigest:'f'.repeat(64)}).state,'ready');
+});
 test('the actual SQL read projection passes unchanged, including unavailable history and non-admitted conversions',()=>{
  const fixture=JSON.parse(readFileSync(new URL('../../../../lib/__fixtures__/guided-training-changes-sql.v1.json',import.meta.url),'utf8'));
  assert.equal(fixture.provenance.capturedWithoutTranslation,true);const v=fixture.result;
