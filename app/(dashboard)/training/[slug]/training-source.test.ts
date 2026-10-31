@@ -1680,6 +1680,7 @@ test('choosing a source from history returns to teaching without changing the sa
   await r.click(r.getByText('Learnings & history'));
   await r.click(r.getByText('Annotate source'));
   assert.equal(r.document.getElementById('recording-analysis')!.closest('[hidden]'),null);
+  const wording=r.getByText('Advanced manual teaching').closest('details')!;assert.equal(wording.open,false,'empty structured wording is not imposed on the normal annotation path');
   assert.equal(r.getByText('Check public visibility').closest('[hidden]')!==null,true);
   assert.equal(h.calls.some(c=>['annotate','accept','recording'].includes(c.operation)),false);
  }finally{r.cleanup();}
