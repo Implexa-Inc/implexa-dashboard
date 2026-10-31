@@ -8,6 +8,7 @@ type Turn={turnId:string;versionId:string;sourceId:string|null;sourceSha256:stri
 type Context={agent:{id:string;name:string;slug:string;versionId:string};boundMethods:Array<{stageIndex:number;source:string;slug:string;contentDigest:string}>;
  researchMethodPresent:boolean;source:{sourceId:string;sha256:string}|null;availableActions:Action[]};
 type Reply={ok:boolean;reason?:string;contractVersion?:string;canSend?:boolean;turns?:Turn[];turn?:Turn;context?:Context|null;totalTurns?:number};
+export type TrainingChatRequest={key:string;target:{kind:'feedback'|'record';id:string;digest:string};prompt:string};
 const names:Record<Action,string>={none:'',analyse_tool_method:'Analyze the recording’s tool method',analyse_taste:'Analyze the recording’s taste',
  review_method:'Review the operating method',review_agent_update:'Review the agent update',review_teaching:'Review the teaching',test_agent:'Open the agent to test'};
 const validTurn=(v:Turn)=>v&&typeof v.turnId==='string'&&typeof v.versionId==='string'&&typeof v.message==='string'
@@ -17,16 +18,18 @@ const contextMatches=(v:Context|null|undefined,versionId:string|null,sourceId:st
  &&typeof v.researchMethodPresent==='boolean'&&Array.isArray(v.boundMethods)
  &&v.boundMethods.every(m=>typeof m.slug==='string'&&/^[a-f0-9]{64}$/.test(m.contentDigest))
  &&Array.isArray(v.availableActions)&&v.availableActions.every(a=>Object.hasOwn(names,a));
-export default function TrainingChat({sessionId,versionId,slug,sources,selectedSourceId,disabled,busy=false,embedded=false,onAttach,onSelectSource,onAction}:{
+export default function TrainingChat({sessionId,versionId,slug,sources,selectedSourceId,disabled,busy=false,embedded=false,onAttach,onSelectSource,onAction,guided=false,request,onSaved}:{
  sessionId:string;versionId:string|null;slug:string;sources:Source[];selectedSourceId:string|null;disabled:boolean;busy?:boolean;
  embedded?:boolean;onAttach?:()=>void;
+ guided?:boolean;request?:TrainingChatRequest|null;onSaved?:()=>void;
  onSelectSource:(id:string)=>void;onAction:(action:Action,binding:{versionId:string;sourceId:string|null;sourceSha256:string|null})=>Promise<void>;
 }){
  const [turns,setTurns]=useState<Turn[]>([]),[context,setContext]=useState<Context|null>(null),[total,setTotal]=useState(0);
  const [opened,setOpened]=useState(embedded);
  const [text,setText]=useState(''),[error,setError]=useState(''),[sending,setSending]=useState(false),[loading,setLoading]=useState(false),[canSend,setCanSend]=useState(false);
+ const [target,setTarget]=useState<TrainingChatRequest['target']|null>(null);
  const identity=`${sessionId}:${versionId}:${selectedSourceId}`,latest=useRef(identity);latest.current=identity;
- const pending=useRef<{identity:string;message:string;turnId:string}|null>(null);
+ const pending=useRef<{identity:string;message:string;turnId:string;targetKey:string}|null>(null);
  const load=async(signal?:AbortSignal)=>{
   if(!sessionId)return;const captured=identity;setLoading(true);setError('');
   try{
@@ -39,22 +42,24 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
   }catch(e){if(!signal?.aborted&&latest.current===captured)setError(e instanceof Error?e.message:'training_chat_unavailable');}
   finally{if(latest.current===captured)setLoading(false);}
  };
- useEffect(()=>{setTurns([]);setContext(null);setCanSend(false);setText('');pending.current=null;const c=new AbortController();if(opened)void load(c.signal);return()=>c.abort();},[identity,opened]);
+ useEffect(()=>{setTurns([]);setContext(null);setCanSend(false);setText('');setTarget(null);pending.current=null;const c=new AbortController();if(opened)void load(c.signal);return()=>c.abort();},[identity,opened]);
+ useEffect(()=>{if(guided&&request){setOpened(true);setTarget(request.target);setText(request.prompt);pending.current=null;}},[request?.key,guided]);
  const source=sources.find(s=>s.sourceId===selectedSourceId);
  const send=async()=>{
   if(sending||disabled||!canSend||!versionId||!text.trim())return;
   const captured=identity,message=text;
-  const reserved=pending.current?.identity===captured&&pending.current.message===message?pending.current:{identity:captured,message,turnId:crypto.randomUUID()};
+  const targetKey=JSON.stringify(target);
+  const reserved=pending.current?.identity===captured&&pending.current.message===message&&pending.current.targetKey===targetKey?pending.current:{identity:captured,message,turnId:crypto.randomUUID(),targetKey};
   pending.current=reserved;setSending(true);setError('');
   try{
    const r=await fetch(`/api/agent-training/chat?sessionId=${encodeURIComponent(sessionId)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({turnId:reserved.turnId,expectedActiveVersionId:versionId,sourceId:selectedSourceId,message,consent:true})});
+    body:JSON.stringify({turnId:reserved.turnId,expectedActiveVersionId:versionId,sourceId:selectedSourceId,message,consent:true,...(guided?{changesContract:'guided-training-changes.v1',target}:{})})});
    const v:Reply=await r.json();if(latest.current!==captured)return;
    if(!r.ok||!v.ok||v.contractVersion!=='training-chat.v1'||!v.turn||!validTurn(v.turn)||v.turn.turnId!==reserved.turnId
     ||(v.context&&!contextMatches(v.context,versionId,selectedSourceId,source?.metadata.sha256||null,slug))
     ||v.turn.versionId!==versionId||v.turn.sourceId!==selectedSourceId||v.turn.sourceSha256!==(source?.metadata.sha256||null))throw Error(v.reason||'training_chat_response_unconfirmed');
    setTurns(old=>[...old.filter(t=>t.turnId!==v.turn!.turnId),v.turn!]);setCanSend(v.canSend===true);
-   if(v.context)setContext(v.context);setText('');pending.current=null;
+   if(v.context)setContext(v.context);setText('');setTarget(null);pending.current=null;onSaved?.();
   }catch(e){if(latest.current===captured)setError(`${e instanceof Error?e.message:'training_chat_response_unconfirmed'}. Refresh saved messages before sending again; a saved turn is not automatically called again.`);}
   finally{setSending(false);}
  };
@@ -75,7 +80,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
   {context&&<div id="training-chat-methods" className="text-sm space-y-1"><p>Operating methods in this version: {context.boundMethods.length||'none'}</p>
    {context.boundMethods.map(m=><p key={`${m.stageIndex}:${m.slug}`}>{m.slug.replaceAll('-',' ')} · step {m.stageIndex} · <span title={m.contentDigest}>{m.contentDigest.slice(0,12)}</span></p>)}
    {context.researchMethodPresent&&<p>Reference research assessment is already attached. It does not need a duplicate agent edit.</p>}</div>}
-  <p className="mt-2">Send shares your message, displayed agent setup, selected source’s saved teaching/analysis notes and recent relevant exchanges with Anthropic Claude Haiku 5.5. Text and replies stay in private Training history. No recording frames or transcript are sent by this chat. Recording analysis asks for its own consent. Chat does not admit teachings or start runs.</p>
+  <p className="mt-2">Send shares your message, displayed agent setup, selected source’s saved teaching/analysis notes and recent relevant exchanges with Anthropic Claude Haiku 5.5. Text and replies stay in private Training history. No recording frames or transcript are sent by this chat. Recording analysis asks for its own consent. {guided?'Clear preferences may become private candidates under your inclusion policy. They do not change served training, publish or start a run. A selected feedback or teaching target is also sent for that request.':'Chat does not admit teachings or start runs.'}</p>
   <button type="button" disabled={!sessionId||loading||sending} onClick={()=>load()}>Refresh saved messages</button>
   </details>
   {loading&&<p role="status">Loading this conversation…</p>}
@@ -94,6 +99,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
    </li>;
   })}</ol>
   {!canSend&&sessionId&&!loading&&<p>Sending is unavailable until this session matches the active agent version.</p>}
+  {target&&<div className="rounded-lg border border-ink-700 p-3 text-xs">{target.kind==='feedback'?'Preparing a learning from the selected original feedback.':'Editing the selected teaching as a new private version.'} Nothing is sent until Send.<button type="button" disabled={sending} onClick={()=>{setTarget(null);pending.current=null;}}>Cancel selected target</button></div>}
   <label className="block">Message Implexa<textarea id="training-chat-message" className="mt-2 block w-full min-h-24 rounded-lg bg-ink-950 border border-ink-700 p-3" maxLength={2000} value={text} disabled={disabled||sending||!canSend} onChange={e=>setText(e.target.value)} placeholder="What would you like this agent to do better?"/></label>
   <p className="text-xs leading-5 text-ink-400">Send shares your message, this agent’s setup, selected source’s saved notes and recent chat with Claude Haiku 5.5. No recording frames or audio.</p>
   <button type="button" className="btn-primary" disabled={disabled||sending||!canSend||!text.trim()} onClick={send}>{sending?'Implexa is responding…':'Send'}</button>

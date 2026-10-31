@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import PublisherTeachingRelease from './publisher-teaching-release';
-import TrainingChat from './training-chat';
+import TrainingChat,{type TrainingChatRequest} from './training-chat';
+import TrainingChanges from './training-changes';
+import {guidedTrainingChanges,type GuidedTrainingChanges,type TrainingChangeRecord} from '@/lib/guided-training-changes';
 import {TrainingEntry,TrainingNavigation,TrainingDetails,revealTrainingElement,type TrainingView} from './training-workspace';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
@@ -135,6 +137,35 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [sources, setSources] = useState<Source[]>([]);
   const [selected, setSelected] = useState<Source | null>(null);
   const [busy, setBusy] = useState('');
+  const [changes,setChanges]=useState<GuidedTrainingChanges|null>(null),[changesError,setChangesError]=useState('');
+  const [changesBusy,setChangesBusy]=useState(false),[chatRequest,setChatRequest]=useState<TrainingChatRequest|null>(null);
+  const changesIdentity=useRef('');changesIdentity.current=`${session}:${currentVersion}`;
+  async function loadChanges(signal?:AbortSignal){
+    if(!session||!currentVersion||installationId)return;
+    const captured=changesIdentity.current;
+    try{const response=await fetch(`/api/agent-training/changes?sessionId=${encodeURIComponent(session)}`,{cache:'no-store',signal});
+      const value=await response.json();if(signal?.aborted||changesIdentity.current!==captured)return;
+      if(!response.ok||!guidedTrainingChanges(value,{sessionId:session,workflowVersionId:currentVersion}))throw Error(value.reason||'training_changes_unavailable');
+      setChanges(value);setChangesError('');
+    }catch(e){if(!signal?.aborted&&changesIdentity.current===captured){setChanges(null);setChangesError(e instanceof Error?e.message:'training_changes_unavailable');}}
+  }
+  useEffect(()=>{setChanges(null);setChangesError('');setChatRequest(null);const controller=new AbortController();void loadChanges(controller.signal);return()=>controller.abort();},[session,currentVersion,installationId]);
+  async function mutateChanges(operation:'policy'|'records',body:unknown){
+    if(changesBusy||!session||!changes)return;const captured=changesIdentity.current;setChangesBusy(true);setChangesError('');
+    try{const response=await fetch(`/api/agent-training/changes?sessionId=${encodeURIComponent(session)}&operation=${operation}`,{
+      method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify(body)});
+      const value=await response.json();if(changesIdentity.current!==captured)return;
+      if(!response.ok||value.ok!==true)throw Error(value.reason||'training_change_unconfirmed');
+      await loadChanges();
+    }catch(e){if(changesIdentity.current===captured)setChangesError(e instanceof Error?e.message:'training_change_unconfirmed');}
+    finally{setChangesBusy(false);}
+  }
+  function requestLearning(target:TrainingChatRequest['target'],prompt:string){
+    setChatRequest({key:crypto.randomUUID(),target,prompt});focusChat();
+  }
+  function editCandidate(record:TrainingChangeRecord){
+    requestLearning({kind:'record',id:record.recordId,digest:record.recordDigest},`Please revise this teaching: ${record.summary}\n\nI would like to change: `);
+  }
   const busyRef = useRef(false);
   const [error, setError] = useState('');
   const [consent, setConsent] = useState(false);
@@ -928,6 +959,16 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       {pendingRecordingLink&&<button type="button" onClick={()=>reveal('recording-analysis')}>Review recording link</button>}
     </section>}
     {!installationId&&view==='start'&&<TrainingEntry slug={slug} lastRunId={lastRunId} onShow={showTeaching} onChat={focusChat}/>}
+    {!installationId&&session&&['start','teach'].includes(view)&&<>
+      {changes?<TrainingChanges value={changes} busy={!!busy||changesBusy||versionChanged}
+        onPolicy={(enabled,policy)=>mutateChanges('policy',{expectedActiveVersionId:currentVersion,expectedPolicyDigest:policy.policyDigest,enabled})}
+        onForce={target=>requestLearning({kind:'feedback',id:target.eventId,digest:target.eventDigest},'Please prepare a private learning from this selected feedback, preserving my meaning. If my preference is unclear, ask instead of inventing it.')}
+        onEdit={editCandidate}
+        onRecord={(record,action)=>mutateChanges('records',{expectedActiveVersionId:currentVersion,recordId:record.recordId,expectedRecordDigest:record.recordDigest,expectedSnapshotDigest:changes.binding.snapshotDigest,action})}
+        onTest={()=>setChangesError('training_test_not_ready')}
+        onPublish={()=>setView('settings')}/>:<p className="text-sm text-ink-500">{changesError?'Saved training changes are unavailable; existing evidence is preserved.':'Loading saved training changes…'}</p>}
+      {changesError&&<p role="status" className="text-xs text-ink-400">{changesError.replaceAll('_',' ')} <button type="button" disabled={changesBusy} onClick={()=>loadChanges()}>Refresh saved changes</button></p>}
+    </>}
     <div hidden={!installationId&&view!=='settings'} className="space-y-6">
     <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>
     {!installationId && <section className="rounded border border-ink-700 p-4 space-y-3" aria-label="Public agent definition">
@@ -1133,7 +1174,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </div></div>
     {!installationId&&<aside id="training-companion" className={`min-w-0 lg:sticky lg:top-6 ${chatExpanded?'block':'hidden'} lg:block`}>
       {session?<TrainingChat embedded sessionId={session} versionId={currentVersion} slug={slug} sources={sources}
-        selectedSourceId={selected?.sourceId||null} disabled={!!busy||versionChanged} busy={!!busy} onAttach={showTeaching}
+        selectedSourceId={selected?.sourceId||null} disabled={!!busy||changesBusy||versionChanged} busy={!!busy} onAttach={showTeaching}
+        guided={!!changes} request={chatRequest} onSaved={()=>loadChanges()}
         onSelectSource={id=>{const source=sources.find(s=>s.sourceId===id);if(source)chooseSource(source);else{setSelected(null);setPreview(null);setReviewed(null);}}}
         onAction={chatAction}/>:<div className="rounded-xl border border-ink-800 p-5 text-sm text-ink-400">Chat becomes available when this agent’s private Training session is ready.</div>}
     </aside>}
