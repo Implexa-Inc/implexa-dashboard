@@ -63,23 +63,24 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
   <p>Discuss this agent and turn a recording or feedback into reviewed improvements.</p>
   <button type="button" disabled={!sessionId||busy} onClick={()=>setOpened(true)}>Open conversation</button>
  </section>;
- return <section aria-labelledby="training-chat-heading" className={`rounded-xl border border-ink-800 bg-ink-900/30 p-5 space-y-4 ${embedded?'text-sm [&_button]:rounded-md [&_button]:border [&_button]:border-ink-700 [&_button]:px-3 [&_button]:py-1.5 [&_button:disabled]:opacity-40':''}`}>
+ return <section aria-labelledby="training-chat-heading" className={`rounded-xl border border-ink-800 bg-ink-900/30 p-5 ${embedded?'flex h-[calc(100dvh-5rem)] min-h-[460px] max-h-[680px] flex-col gap-3 overflow-y-auto text-sm lg:h-[calc(100dvh-19rem)] [&>div]:shrink-0 [&>label]:shrink-0 [&>details]:shrink-0 [&>button]:shrink-0 [&>p]:shrink-0 [&_button]:rounded-md [&_button]:border [&_button]:border-ink-700 [&_button]:px-3 [&_button]:py-1.5 [&_button:disabled]:opacity-40':'space-y-4'}`}>
   <div><p className="mb-2 text-[10px] uppercase tracking-[.16em] text-ink-500">Your training companion</p><h2 id="training-chat-heading" className="text-lg font-medium">Chat with Implexa</h2></div>
-  <p className="text-sm leading-6 text-ink-400">Ask about this agent, explain a change, or discuss your examples. You review any proposed update before it takes effect.</p>
+  {!embedded&&<p className="text-sm leading-6 text-ink-400">Ask about this agent, explain a change, or discuss your examples. You review any proposed update before it takes effect.</p>}
   {onAttach&&<button type="button" disabled={disabled||sending} onClick={onAttach}>Attach or record an example</button>}
+  <details className="text-xs text-ink-400"><summary className="cursor-pointer">Context & privacy · {source?.localName||'Agent setup'}</summary>
   <label className="block">Recording or image for this conversation<select className="block w-full rounded bg-ink-900 border p-2" value={selectedSourceId||''} disabled={sending||disabled} onChange={e=>onSelectSource(e.target.value)}>
    <option value="">Agent setup only</option>{sources.map((s,i)=><option key={s.sourceId} value={s.sourceId}>{s.localName||`Source ${i+1}`} · {s.metadata.mediaType}</option>)}
   </select></label>
-  <details className="text-xs text-ink-400"><summary className="cursor-pointer">Conversation context & privacy</summary>
   <p className="mt-2">Context: current agent setup · version {versionId?.slice(0,8)||'unavailable'}{source?' · selected source’s saved teaching and analysis notes':' · no source selected'} · up to three recent exchanges about that source.</p>
   {context&&<div id="training-chat-methods" className="text-sm space-y-1"><p>Operating methods in this version: {context.boundMethods.length||'none'}</p>
    {context.boundMethods.map(m=><p key={`${m.stageIndex}:${m.slug}`}>{m.slug.replaceAll('-',' ')} · step {m.stageIndex} · <span title={m.contentDigest}>{m.contentDigest.slice(0,12)}</span></p>)}
    {context.researchMethodPresent&&<p>Reference research assessment is already attached. It does not need a duplicate agent edit.</p>}</div>}
-  <p className="mt-2">Send shares your message, displayed agent setup, selected source’s saved teaching/analysis notes and recent relevant exchanges with Anthropic Claude Haiku 5.5. Text and replies stay in private Training history. No recording frames or transcript are sent by this chat. Recording analysis asks for its own consent. Chat does not admit teachings or start runs.</p></details>
+  <p className="mt-2">Send shares your message, displayed agent setup, selected source’s saved teaching/analysis notes and recent relevant exchanges with Anthropic Claude Haiku 5.5. Text and replies stay in private Training history. No recording frames or transcript are sent by this chat. Recording analysis asks for its own consent. Chat does not admit teachings or start runs.</p>
   <button type="button" disabled={!sessionId||loading||sending} onClick={()=>load()}>Refresh saved messages</button>
+  </details>
   {loading&&<p role="status">Loading this conversation…</p>}
   {total>turns.length&&<p className="text-sm">Showing recent messages. Earlier exchanges remain in this private Training session’s history.</p>}
-  <ol aria-label="Training conversation" className={`space-y-4 ${embedded?'max-h-[45vh] overflow-y-auto overscroll-contain pr-1':''}`}>{turns.map(t=>{
+  <ol aria-label="Training conversation" className={`space-y-4 ${embedded?'min-h-20 flex-1 overflow-y-auto overscroll-contain pr-1':''}`}>{turns.map(t=>{
    const matches=t.versionId===versionId&&t.sourceId===selectedSourceId&&t.sourceSha256===(source?.metadata.sha256||null);
    const actionable=matches&&t.status==='answered'&&context?.agent.versionId===versionId&&context.availableActions.includes(t.action)&&!disabled&&canSend;
    return <li key={t.turnId} className="border-t border-ink-700 pt-3 space-y-2"><p className="text-sm text-ink-400">Version {t.versionId.slice(0,8)} · {t.sourceId?`Source ${t.sourceId.slice(0,8)}`:'Agent setup'}</p>
