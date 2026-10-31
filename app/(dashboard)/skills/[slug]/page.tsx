@@ -252,6 +252,8 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
             isOwnedByMe={actualSkill.created_by?.userId === session.user.id}
             usageCount={actualSkill.usage_count || 0}
             activeShares={activeShares}
+            currentContent={actualSkill.content}
+            currentScope={actualSkill.scope}
           />
         </header>
 
