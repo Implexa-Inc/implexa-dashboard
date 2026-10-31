@@ -4,7 +4,7 @@ import Link from 'next/link';
 import PublisherTeachingRelease from './publisher-teaching-release';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
-import { teachingDigest, teachingFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation, recordingSuggestion, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
+import { teachingDigest, teachingFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation, recordingSuggestion, recordingAgentSuggestion, type RecordingAgentSuggestion, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
 import {
   deriveTrainingStages,
   isTrainingEvidenceStorage,
@@ -177,11 +177,17 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const pendingDemoSave = useRef<{ fingerprint: string; key: string } | null>(null);
   const [pendingDemoLink, setPendingDemoLink] = useState<{ annotation: DemoAnnotation; sessionId: string; recordId: string; recordDigest: string } | null>(null);
   const [recordingConsent,setRecordingConsent] = useState(false);
+  const [agentAnalysisConsent,setAgentAnalysisConsent] = useState(false);
+  const [agentProposal,setAgentProposal] = useState<RecordingAgentSuggestion|null>(null);
+  const [agentChangeConfirmed,setAgentChangeConfirmed] = useState(false);
+  const [agentChange,setAgentChange] = useState<{requestId:string;status:string;sourceLinkRecorded?:boolean;warning?:string}|null>(null);
+  const [method,setMethod] = useState<{id:string;slug:string;name:string;content:string;contentDigest:string;status:string;scope:string;model:string|null}|null>(null);
   const [recordingSupported,setRecordingSupported] = useState(false);
   useEffect(()=>{setRecordingSupported(bridge()?.trainingRecordingContractVersion==='1');},[]);
-  const [recording,setRecording] = useState<{excerptId:string;excerptDigest:string;excerpt:RecordingExcerpt;frames:RecordingFrame[];suggestion:RecordingSuggestion|null}|null>(null);
+  const [recording,setRecording] = useState<{excerptId:string;excerptDigest:string;excerpt:RecordingExcerpt;frames:RecordingFrame[];suggestion:RecordingSuggestion|null;purpose?:'taste'|'agent'}|null>(null);
   const [pendingRecordingLink,setPendingRecordingLink] = useState<{body:Record<string,unknown>;sessionId:string;key:string}|null>(null);
   useEffect(()=>{setRecording(null);setRecordingConsent(false);},[selected?.sourceId,session,currentVersion]);
+  useEffect(()=>{setAgentProposal(null);setAgentChangeConfirmed(false);setAgentAnalysisConsent(false);setAgentChange(null);setMethod(null);},[selected?.sourceId,session,currentVersion]);
   const [draftConsent, setDraftConsent] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggested, setSuggested] = useState<{ value: TeachingSuggestion; snapshot: string } | null>(null);
@@ -531,18 +537,23 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     });
   }
 
-  async function requestRecordingDraft(prepared:NonNullable<typeof recording>,snapshot:string) {
+  async function requestRecordingDraft(prepared:NonNullable<typeof recording>,snapshot:string,agent=prepared.purpose==='agent') {
     const source=selected;
     if(!source || !currentVersion || latestDraft.current!==snapshot) throw Error('The source or draft changed. No recording suggestion was requested.');
     const binding={sourceId:source.sourceId,sourceSha256:source.metadata.sha256,targetVersionId:currentVersion,
       excerptId:prepared.excerptId,excerptDigest:prepared.excerptDigest,frames:prepared.frames.map(({timeMs,frameSha256})=>({timeMs,frameSha256}))};
     const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({mode:'recording-draft',sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:currentVersion,
+      body:JSON.stringify({mode:agent?'recording-agent-draft':'recording-draft',sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:currentVersion,
         excerptId:prepared.excerptId,excerptDigest:prepared.excerptDigest,frames:prepared.frames,consent:true})});
     const value=await response.json();
     if(latestDraft.current!==snapshot) throw Error('The source or draft changed. The previous recording suggestion was not applied.');
     if(response.ok && value?.ok===true && value.status==='insufficient' && typeof value.reason==='string' && value.reason.length<=300) {
       setSuggestionNote(value.reason);return;
+    }
+    if(agent){
+      if(!response.ok||!recordingAgentSuggestion(value,binding))throw Error(teachingFailure(value,response.status));
+      setRecording(prepared);setAgentProposal(value);setAgentChangeConfirmed(false);setAgentChange(null);
+      setSuggestionNote('Capability suggestion only. Review it separately from private taste training. No agent version or operating method has been changed.');return;
     }
     if(!response.ok || !recordingSuggestion(value,binding))throw Error(teachingFailure(value,response.status));
     const selectedFrame=prepared.frames[value.frameIndex];
@@ -550,17 +561,17 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setSuggested(null);appliedSuggestion.current=null;setDemoText('');setDemoAnnotation(null);setQuestionAnswer(null);
     setSuggestionNote('Review the recognized narration and all three frames. The marked frame is the model’s choice. Nothing has been saved as a teaching or admitted.');
   }
-  async function findRecordingTeaching() {
-    if(!selected?.token || !currentVersion || !recordingConsent || !recordingSupported)return;
+  async function findRecordingTeaching(agent=false) {
+    if(!selected?.token || !currentVersion || !(agent?agentAnalysisConsent:recordingConsent) || !recordingSupported)return;
     const source=selected,version=currentVersion,snapshot=draftSnapshot;
-    await work('Transcribing recording and locating one taste example',async()=>{
+    await work(agent?'Finding a demonstrated tool or method':'Transcribing recording and locating one taste example',async()=>{
       await requireCurrentScope();
       if(latestDraft.current!==snapshot)throw Error('The draft changed. Start again from the selected recording.');
       const local=await resolveBridge().trainingLocal('recording',{token:source.token}) as Result & {manifest:any;segments:any[];storyboard:RecordingFrame[];manifestId:string;manifestDigest:string};
       if(!local.ok)throw Error(local.reason||'Recording analysis unavailable.');
       if(latestDraft.current!==snapshot)throw Error('The draft changed. No narration was sent to the model.');
       if(local.manifest?.sourceId!==source.sourceId || local.manifest.sourceSha256!==source.metadata.sha256 || local.manifest.targetVersionId!==version)throw Error('The recording scope changed.');
-      const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'recording-locate',
+      const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:agent?'recording-agent-locate':'recording-locate',
         sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:version,manifestId:local.manifestId,manifestDigest:local.manifestDigest,
         segments:local.segments,storyboard:local.storyboard,consent:true})});
       const value=await response.json();
@@ -579,13 +590,44 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         bytes+=data.length;if(bytes>2*1024*1024)throw Error('The three exact frames exceed the suggestion budget. No draft call was sent.');
         frames.push({timeMs,image,frameSha256:await teachingDigest(data)});
       }
-      const prepared={excerptId:value.excerptId,excerptDigest:value.excerptDigest,excerpt:e,frames,suggestion:null};setRecording(prepared);
+      const prepared={excerptId:value.excerptId,excerptDigest:value.excerptDigest,excerpt:e,frames,suggestion:null,purpose:agent?'agent' as const:'taste' as const};setRecording(prepared);
       await requestRecordingDraft(prepared,snapshot);
     });
   }
   async function retryRecordingDraft() {
-    if(!recording || !recordingConsent)return;
+    if(!recording || !(recording.purpose==='agent'?agentAnalysisConsent:recordingConsent))return;
     await work('Drafting from the retained excerpt and frames',async()=>{await requireCurrentScope();await requestRecordingDraft(recording,draftSnapshot);});
+  }
+  async function queueAgentChange() {
+    if(!agentProposal||!method||method.status!=='active'||!agentChangeConfirmed||agentChange||versionChanged||agentProposal.binding.targetVersionId!==currentVersion)return;
+    const proposal=agentProposal;
+    await work('Queuing the reviewed agent update',async()=>{
+      await requireCurrentScope();
+      const response=await fetch(`/api/agent-training/teaching-suggestion?operation=agent-change&sessionId=${encodeURIComponent(session)}`,{
+        method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({suggestionId:proposal.suggestionId,
+          suggestionDigest:proposal.suggestionDigest,expectedActiveVersionId:proposal.binding.targetVersionId,consent:true,methodId:method.id,methodDigest:method.contentDigest})});
+      const value=await response.json();
+      if(!response.ok||value?.ok!==true||!/^[-a-f0-9]{36}$/.test(value.requestId||'')||typeof value.status!=='string')
+        throw Error(value?.reason==='recording_method_public_compatibility_required'
+          ?'This public agent needs a publicly available generic operating method. Use the existing method sharing action, then refresh its exact body here. Private trainer teachings stay separate.'
+          :'The edit response was not confirmed. Retry this same proposal; do not start another edit.');
+      setAgentChange(value);setAgentChangeConfirmed(false);
+    });
+  }
+  async function draftMethod() {
+    if(!agentProposal||agentChange)return;
+    const proposal=agentProposal;
+    await work('Preparing the baseline operating method',async()=>{
+      await requireCurrentScope();
+      const response=await fetch(`/api/agent-training/teaching-suggestion?operation=method-draft&sessionId=${encodeURIComponent(session)}`,{
+        method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({suggestionId:proposal.suggestionId,
+          suggestionDigest:proposal.suggestionDigest,expectedActiveVersionId:proposal.binding.targetVersionId,consent:true})});
+      const value=await response.json(),m=value?.method;
+      if(!response.ok||value?.ok!==true||!m||!/^[-a-f0-9]{36}$/.test(m.id||'')||!/^[-a-z0-9]+$/.test(m.slug||'')
+        ||typeof m.content!=='string'||m.content.length>30000||!/^[a-f0-9]{64}$/.test(m.contentDigest||'')||!['draft','active'].includes(m.status))
+        throw Error('The method draft was not confirmed. Check the existing method library before requesting another candidate.');
+      setMethod(m);setAgentChangeConfirmed(false);
+    });
   }
   async function useRecordingSuggestion() {
     const suggestion=recording?.suggestion,frame=suggestion && recording.frames[suggestion.frameIndex];
@@ -963,9 +1005,30 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <p id="training-priority-help" className="text-sm">50 is normal. Prefer this example by choosing a higher number, up to 100. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not widen eligible stages or properties, guarantee selection, or override checks, criteria or facts. Saved decisions stay immutable; changing a preference requires a new reviewed and accepted draft.</p>
       {!priorityIsValid && <p role="alert">Choose a whole-number priority from 0 to 100.</p>}
       {!installationId && recordingSupported && selected.metadata.mediaType==='video/mp4' && selected.metadata.durationMs<=600000 && <section className="rounded border border-ink-700 p-3 space-y-3">
-        <h3>Find a taste teaching in this recording</h3>
+        <h3>Learn from this recording</h3>
         <label className="flex gap-2"><input type="checkbox" checked={recordingConsent} onChange={event=>setRecordingConsent(event.target.checked)} />Recognize narration locally, then send the whole transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5 to locate one visual preference; send its excerpt and three exact frames for an editable suggestion. The selected excerpt and lineage are kept in the private append-only Training history. Nothing is automatically admitted.</label>
-        <button disabled={!!busy || suggesting || !recordingConsent || !selected.token || versionChanged || !!pendingRecordingLink} onClick={findRecordingTeaching}>Find teaching in recording</button>
+        <button disabled={!!busy || suggesting || !recordingConsent || !selected.token || versionChanged || !!pendingRecordingLink} onClick={()=>findRecordingTeaching()}>Find teaching in recording</button>
+        <label className="flex gap-2"><input type="checkbox" checked={agentAnalysisConsent} onChange={event=>setAgentAnalysisConsent(event.target.checked)} />Separately analyze tool use: send this recording’s recognized transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5, then the selected excerpt and three frames, to suggest a capability change. Keep the suggestion and private source link in Training. This does not grant tool access, apply an agent change, or admit a teaching.</label>
+        <button disabled={!!busy||suggesting||!agentAnalysisConsent||!selected.token||versionChanged||!!pendingRecordingLink||!!agentChange} onClick={()=>findRecordingTeaching(true)}>Suggest tool and method update</button>
+        {agentProposal && <section className="rounded border border-brand-500 p-3 space-y-3">
+          <h4>Proposed agent update — not applied</h4>
+          <p>Capability: web reference research. Tool use is conditional; assessing relevance and reporting the decision is required. The existing builder must select and verify a complete operating method before it can be used.</p>
+          <p className="whitespace-pre-wrap">{agentProposal.proposedChange}</p>
+          {agentProposal.limitations.length>0&&<ul>{agentProposal.limitations.map((item,index)=><li key={index}>{item}</li>)}</ul>}
+          <p>Private taste is saved and accepted separately above. If you want that teaching on this version, finish its admission before requesting the edit. After the edit lands, use the existing compatible-training adoption action; merely opening a successor session does not activate old teaching.</p>
+          <p>Only the generic capability instruction goes to Edit Agent. Your recording, transcript, example identities and taste wording stay out of that request. Normal Edit Agent automatically applies the generated revision after you approve this instruction; it does not show a separate generated-diff approval screen. Review the resulting definition before testing. A queued request is not a new version or proof that the tool was used.</p>
+          <p>If no suitable existing method is selected, prepare a generic baseline through the existing authoring service. Only platform-written research-assessment instructions go to the model; your recording and taste are excluded. The result is a private draft, never automatically activated or shared. This is an explicit baseline choice, not a top-ranking claim.</p>
+          {!agentChange&&<button disabled={!!busy||versionChanged} onClick={draftMethod}>{method?'Refresh reviewed operating method':'Draft baseline operating method'}</button>}
+          {method&&<section className="space-y-2"><h4>{method.name} · {method.status} · {method.scope}</h4>
+            <p>Original draft model: {method.model||'not recorded'} · exact current body {shortId(method.contentDigest)}. Later edits may have changed the draft.</p>
+            <details><summary>Review the exact operating method</summary><pre className="whitespace-pre-wrap break-words text-sm">{method.content}</pre></details>
+            <Link href={`/skills/${method.slug}`}>Review and activate this operating method</Link>
+            <p>After using the existing activation action, refresh here. A public agent also requires the generic method to be publicly available; its private teachings are never included.</p></section>}
+          {!agentChange&&<><label className="flex gap-2"><input type="checkbox" checked={agentChangeConfirmed} onChange={event=>setAgentChangeConfirmed(event.target.checked)} />Request this capability and operating-method update through normal Edit Agent. Preserve the remaining contracts and permissions.</label>
+            <button disabled={!!busy||versionChanged||!agentChangeConfirmed||method?.status!=='active'} onClick={queueAgentChange}>Request this agent update</button></>}
+          {agentChange&&<div role="status"><p>Edit request {shortId(agentChange.requestId)} · {agentChange.status}. The agent update is not yet verified.</p>
+            {agentChange.warning&&<p>{agentChange.warning}</p>}<Link href={`/workflows/${slug}?source=generated`}>Review the agent’s edit status</Link></div>}
+        </section>}
         {recording && <>
           <p>Recognized narration (Desktop-reported ASR, not a verified owner quote): {formatTrainingTime(recording.excerpt.startMs)}–{formatTrainingTime(recording.excerpt.endMs)}</p>
           <blockquote className="whitespace-pre-wrap">{recording.excerpt.text}</blockquote>
@@ -976,7 +1039,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
             <button disabled={!!busy} onClick={()=>{setTime(frame.timeMs);setPreview({token:selected.token!,timeMs:frame.timeMs,image:frame.image});setDecisionKey(crypto.randomUUID());setSuggested(null);appliedSuggestion.current=null;
               if(recording.suggestion?.frameIndex!==index){setChosen('');setWhy('');setProcess('');setBehavior('');setSuggestionNote('Different offered frame selected. Draft manually for this frame; the model fields have been cleared.');}}}>Use this frame</button>
           </figure>)}</div>
-          {!recording.suggestion && <button disabled={!!busy||!recordingConsent} onClick={retryRecordingDraft}>Request draft from this excerpt only</button>}
+          {!recording.suggestion && !(recording.purpose==='agent'&&agentProposal) && <button disabled={!!busy||!(recording.purpose==='agent'?agentAnalysisConsent:recordingConsent)} onClick={retryRecordingDraft}>Request draft from this excerpt only</button>}
+          {recording.purpose==='agent'&&!recording.suggestion&&<button disabled={!!busy||!recordingConsent} onClick={()=>work('Drafting private taste separately',()=>requestRecordingDraft(recording,draftSnapshot,false))}>Draft a separate taste teaching from this excerpt</button>}
           {recording.suggestion && <><dl>{TEACHING_FIELDS.map(key=><div key={key}><dt>{key}</dt><dd>{recording.suggestion!.fields[key]}</dd></div>)}</dl>
             <p>Preference inferred from recognized narration; review for ASR mistakes. Stills do not establish motion or a tool procedure.</p>
             <button disabled={!!busy || !previewIsCurrent || preview?.image!==recording.frames[recording.suggestion.frameIndex].image} onClick={useRecordingSuggestion}>Use recording suggestion in editable fields</button></>}

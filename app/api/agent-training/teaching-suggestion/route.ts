@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   try {
     const url = new URL(request.url), sessionId = url.searchParams.get('sessionId'), operation = url.searchParams.get('operation') || 'suggest';
     if ([...url.searchParams.keys()].some(k => !['sessionId','operation'].includes(k)) || !UUID.test(sessionId || '')
-      || !['suggest','annotation','recording'].includes(operation)) return NextResponse.json({ ok: false, reason: 'invalid_request' }, { status: 400 });
+      || !['suggest','annotation','recording','agent-change','method-draft'].includes(operation)) return NextResponse.json({ ok: false, reason: 'invalid_request' }, { status: 400 });
     // Bounded before parsing; no image upload store, URL forwarding or browser credentials.
     const reader = request.body?.getReader();
     if (!reader) return NextResponse.json({ ok: false, reason: 'invalid_request' }, { status: 400 });
@@ -21,13 +21,13 @@ export async function POST(request: Request) {
     const bytes = new Uint8Array(length); let offset = 0; for (const part of parts) { bytes.set(part, offset); offset += part.length; }
     const body = JSON.parse(new TextDecoder().decode(bytes));
     const key = request.headers.get('Idempotency-Key');
-    if (operation !== 'suggest' && (!(operation === 'annotation' ? ['save','link'] : ['manifest','link']).includes(body?.action) || !key || key.length<8 || key.length>180))
+    if (!['suggest','agent-change','method-draft'].includes(operation) && (!(operation === 'annotation' ? ['save','link'] : ['manifest','link']).includes(body?.action) || !key || key.length<8 || key.length>180))
       return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
     phase = 'backend';
-    const response = await fetch(`${BACKEND}/api/v2/agent-training/sessions/${sessionId}/${operation === 'annotation' ? 'demo-annotation' : operation === 'recording' ? 'recording' : 'teaching-suggestion'}`, {
+    const response = await fetch(`${BACKEND}/api/v2/agent-training/sessions/${sessionId}/${operation === 'annotation' ? 'demo-annotation' : operation === 'recording' ? 'recording' : operation==='agent-change'?'recording-agent-change':operation==='method-draft'?'recording-method-draft':'teaching-suggestion'}`, {
       method: 'POST', headers: { authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json',
         ...(operation !== 'suggest' ? {'Idempotency-Key':key!} : {}) },
-      body: JSON.stringify(body), cache: 'no-store', signal: AbortSignal.any([request.signal, AbortSignal.timeout(operation !== 'suggest' ? 8000 : 35000)]) });
+      body: JSON.stringify(body), cache: 'no-store', signal: AbortSignal.any([request.signal, AbortSignal.timeout(['suggest','method-draft'].includes(operation) ? 35000 : 8000)]) });
     phase = 'response';
     return NextResponse.json(await response.json(), { status: response.status, headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {

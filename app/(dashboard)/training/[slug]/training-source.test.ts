@@ -1478,6 +1478,44 @@ test('recording intake is capability gated; call2 retries reuse the exact excerp
  }finally{r.cleanup();}
 });
 
+test('tool analysis has its own opt-in, keeps taste separate and queues one reviewed proposal',async()=>{
+ const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
+ const segments=[{index:0,startMs:0,endMs:5000,text:'I search for a relevant location image and check its original source.'}];
+ h.bridge.trainingLocal=async(operation,args)=>operation==='recording'?{ok:true,manifest:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A},segments,storyboard:[],manifestId:QUESTION,manifestDigest:DIGEST}:original(operation,args);
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const prior=r.window.fetch,requests:any[]=[];
+ r.window.fetch=(async(url:string,init:RequestInit)=>{
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  const b=JSON.parse(String(init.body));requests.push({url,b});
+  if(b.mode==='recording-agent-locate')return {ok:true,status:200,json:async()=>({ok:true,status:'located',excerptId:QUESTION,excerptDigest:DIGEST,
+   excerpt:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A,startIndex:0,endIndex:0,startMs:0,endMs:5000,text:segments[0].text,segments}})};
+  if(b.mode==='recording-agent-draft')return {ok:true,status:200,json:async()=>({ok:true,contractVersion:'training-recording-agent-suggestion.v1',requestId:QUESTION,
+   model:'claude-haiku-5-5',status:'suggested',capability:'web_reference_research',frameIndex:1,reason:'',limitations:['Image generation is unverified.'],
+   suggestionId:QUESTION,suggestionDigest:DIGEST,proposedChange:'Assess reference relevance and use existing research when needed.',application:'not_applied',methodSelection:'pending_existing_binder',
+   binding:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A,excerptId:QUESTION,excerptDigest:DIGEST,frames:b.frames.map(({timeMs,frameSha256}:any)=>({timeMs,frameSha256}))}})};
+  if(String(url).includes('operation=method-draft'))return {ok:true,status:200,json:async()=>({ok:true,method:{id:RECORD,slug:'generic-method',name:'Generic method',content:'Assess need, then research if needed.',contentDigest:DIGEST,status:'active',scope:'universal',model:'claude-haiku-5-5'}})};
+  assert.ok(String(url).includes('operation=agent-change'));
+  return {ok:true,status:200,json:async()=>({ok:true,requestId:QUESTION,status:'pending',application:'edit_queued',sourceLinkRecorded:true})};
+ }) as typeof r.window.fetch;
+ try{
+  await r.click(r.getByText('Annotate source'));
+  assert.equal((r.getByText('Suggest tool and method update') as HTMLButtonElement).disabled,true);
+  await r.click(r.getByText(/Recognize narration locally/).closest('label')!.querySelector('input')!);
+  assert.equal((r.getByText('Suggest tool and method update') as HTMLButtonElement).disabled,true,'taste consent cannot authorize tool analysis');
+  await r.click(r.getByText(/Separately analyze tool use/).closest('label')!.querySelector('input')!);
+  await r.click(r.getByText('Suggest tool and method update'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+  assert.match(r.text(),/Proposed agent update — not applied/);assert.equal(requests.length,2);
+  assert.equal(h.calls.some(c=>['annotate','accept'].includes(c.operation)),false);
+  assert.equal((r.getByText('Request this agent update') as HTMLButtonElement).disabled,true);
+  await r.click(r.getByText('Draft baseline operating method'));
+  await r.click(r.getByText(/Request this capability and operating-method update/).closest('label')!.querySelector('input')!);
+  await r.click(r.getByText('Request this agent update'));
+  assert.equal(requests.length,4);assert.deepEqual(requests[3].b,{suggestionId:QUESTION,suggestionDigest:DIGEST,expectedActiveVersionId:VERSION_A,consent:true,methodId:RECORD,methodDigest:DIGEST});
+  assert.match(r.text(),/agent update is not yet verified/);assert.equal(r.queryByText('Request this agent update'),null);
+ }finally{r.cleanup();}
+});
+
 
 test('server image status is record-bound and never accepts malformed storage metadata',()=>{
  const stored={storageId:TOKEN,recordId:RECORD,recordDigest:DIGEST,evidenceId:SOURCE_ID,sha256:SOURCE_DIGEST,sizeBytes:68,width:1,height:1,

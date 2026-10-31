@@ -1,11 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { teachingSuggestion, teachingDigest, teachingFrame, teachingFailure } from './training-teaching-draft.ts';
+import { teachingSuggestion, teachingDigest, teachingFrame, teachingFailure, recordingAgentSuggestion } from './training-teaching-draft.ts';
 const binding = { sourceId:'source',sourceSha256:'a'.repeat(64),timeMs:0,frameSha256:'b'.repeat(64),questionReceiptId:'question',
   questionReceiptDigest:'c'.repeat(64),expectedActiveVersionId:'version',feedbackSha256:'d'.repeat(64) };
 const value = { requestId:'11111111-1111-4111-8111-111111111111',ok:true,contractVersion:'training-teaching-suggestion.v2',model:'claude-haiku-5-5',binding,
   status:'suggested',fields:{chosen:'Observed visual',why:'Trainer preference',process:'Adapt the visual principle',desiredBehavior:'A transferable explanation'},reason:'',
   sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'} };
+test('recording capability suggestion stays separate from teaching and requires exact source/version evidence',()=>{
+ const id='11111111-1111-4111-8111-111111111111';
+ const expected={sourceId:id,sourceSha256:'a'.repeat(64),targetVersionId:id,excerptId:id,excerptDigest:'b'.repeat(64),
+  frames:[0,500,999].map(timeMs=>({timeMs,frameSha256:'c'.repeat(64)}))};
+ const proposal={ok:true,contractVersion:'training-recording-agent-suggestion.v1',requestId:id,model:'claude-haiku-5-5',status:'suggested',
+  capability:'web_reference_research',frameIndex:0,reason:'',limitations:['Image generation unverified.'],suggestionId:id,suggestionDigest:'d'.repeat(64),
+  proposedChange:'Generic capability instruction',application:'not_applied',methodSelection:'pending_existing_binder',binding:expected};
+ assert.equal(recordingAgentSuggestion(proposal,expected),true);
+ for(const patch of [{capability:'higgsfield'},{application:'applied'},{methodSelection:'ranked_top'},{fields:value.fields},
+  {model:'other'},{frameIndex:3},{binding:{...expected,targetVersionId:'other'}},{limitations:['x'.repeat(201)]}])
+  assert.equal(recordingAgentSuggestion({...proposal,...patch},expected),false);
+});
 test('every suggestion identity and field limit is checked without inventing evidence or clipping text',async()=>{
   assert.equal(teachingSuggestion(value,binding),true);
   for(const key of Object.keys(binding)) assert.equal(teachingSuggestion({...value,binding:{...binding,[key]:'different'}},binding),false,key);
