@@ -1364,6 +1364,9 @@ test('suggestion is per-request opt-in, uses the exact frame and answer, and onl
     assert.equal(h.calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
     await r.click(r.getByText('Use this suggestion in editable fields'));
     assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value, SUGGESTION_FIELDS.chosen);
+    assert.equal(r.getByText('Review prepared teaching').closest('details')!.open,true);
+    await setTextarea(r,r.getByText('Why this choice').closest('label')!.querySelector('textarea')!,'');
+    assert.equal(r.getByText('Review prepared teaching').closest('details')!.open,true,'clearing a field to edit it must not collapse the active form');
     assert.equal(h.calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
     assert.equal((r.getByText(/Send this frame, the recorded question/).closest('label')!.querySelector('input') as HTMLInputElement).checked, false);
   } finally { r.cleanup(); }

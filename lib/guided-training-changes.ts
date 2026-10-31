@@ -81,6 +81,10 @@ export function trainingPublicationPreview(v:any,expected:{sessionId:string;work
 
 export function trainingSnapshotReason(reason:string|null):string{
  const copy:Record<string,string>={publication_test_required:'Test this exact public selection before publishing it.',training_test_not_ready:'The runtime cannot test this update yet. Nothing has started.',
+ publication_base_changed:'The published version changed after this preview. Review the current additions and removals again.',publication_selection_required:'Prepare the exact public selection before testing it.',
+ training_candidate_snapshot_changed:'Your private update changed after this test was prepared. Prepare the current update again.',training_delivered_test_required:'This exact update needs a delivered test before activation.',
+ training_test_preparation_changed:'This prepared test no longer matches the current update. Return to Training to prepare it again.',training_test_preparation_spent:'This preparation already has a run request. Open that test result rather than starting it again.',
+ training_material_unavailable:'The exact definition or teaching material is unavailable. Refresh Training before preparing a test.',agent_active_version_changed:'The agent changed while this action was being prepared. Reload its current Training workspace.',
  training_snapshot_changed:'Your training changed after this snapshot was prepared. Prepare the current update again.',training_test_material_mismatch:'The test does not match this exact definition and teaching set.',
  training_test_not_delivered:'This exact update has not delivered yet. Open its test result before proceeding.',training_publication_preparation_changed:'This public selection changed. Review and prepare the exact selection again.',
  training_feedback_unavailable:'Source feedback is withdrawn or unavailable; it cannot be used in a new update.',public_evidence_storage_required:'Save the exact selected example privately before preparing its public release.'};

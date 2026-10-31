@@ -258,6 +258,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [why, setWhy] = useState('');
   const [process, setProcess] = useState('');
   const [behavior, setBehavior] = useState('');
+  const [wordingOpened,setWordingOpened]=useState(false);
+  useEffect(()=>setWordingOpened(false),[selected?.sourceId]);
+  useEffect(()=>{if([chosen,why,process,behavior].every(value=>value.trim()))setWordingOpened(true);},[selected?.sourceId,chosen,why,process,behavior]);
   const [selectionPriority, setSelectionPriority] = useState('50');
   const priorityIsValid = /^\d{1,3}$/.test(selectionPriority) && Number(selectionPriority) <= 100;
   const [pending, setPending] = useState<LocalDraft[]>([]);
@@ -875,7 +878,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:scope.agent.currentVersionId,suggestionId:recordingDraft.suggestionId,
         suggestionDigest:recordingDraft.suggestionDigest,recordId:drafted.recordId,expectedRecordDigest:drafted.recordDigest}} : null;
       if(recordingLink)setPendingRecordingLink(recordingLink);
-      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setSelectionPriority('50'); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null);
+      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setWordingOpened(false); setSelectionPriority('50'); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null);
       const saved = await load(session);
       if (appliedSuggestion.current) {
         const record = saved.sources?.flatMap(s => s.decisions).find(d => d.recordId === drafted.recordId);
@@ -1251,7 +1254,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         </div>}</>}
       </section>
       {installationId&&<h3>Preference wording — confirm or edit</h3>}
-      <TrainingDetails title={[chosen,why,process,behavior].every(value=>value.trim())?'Review prepared teaching':'Advanced manual teaching'} open={Boolean(installationId)||[chosen,why,process,behavior].every(value=>value.trim())}>
+      <TrainingDetails title={wordingOpened?'Review prepared teaching':'Advanced manual teaching'} open={Boolean(installationId)||wordingOpened}>
       {!installationId&&![chosen,why,process,behavior].every(value=>value.trim())&&<p>Use your annotation and the suggestion above to prepare the teaching wording. These detailed fields are available if you prefer to draft it manually.</p>}
       {([['What was chosen', chosen, setChosen], ['Why this choice', why, setWhy], ['Tool or process used', process, setProcess], ['Desired visual, motion or layout behavior', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || !priorityIsValid || stages.length === 0 || (Boolean(installationId)&&!demoAnnotationIsCurrent) || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={annotate}>Save decision draft</button></TrainingDetails></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
     </div></div>

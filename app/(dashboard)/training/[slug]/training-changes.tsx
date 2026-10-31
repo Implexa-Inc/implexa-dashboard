@@ -1,11 +1,11 @@
 'use client';
 import {useState} from 'react';
-import type {GuidedTrainingChanges,TrainingChangeRecord} from '@/lib/guided-training-changes';
+import {trainingSnapshotReason,type GuidedTrainingChanges,type TrainingChangeRecord} from '@/lib/guided-training-changes';
 import Modal from '../../_components/modal';
 
 type Target={eventId:string;eventDigest:string};
 const reasonCopy:Record<string,string>={question:'This was a question; a clear preference has not been supplied.',tentative:'This was a tentative idea, not a settled instruction.',agent_change:'This needs an agent setup change, not a taste teaching.',authority_request:'This needs a separate permission or spending decision.',insufficient:'There was not enough information to prepare a teaching.',not_converted:'This part has not been converted into a saved teaching.',not_guidance:'This proposal did not express a settled preference.',proposal_refused_content:'A proposed teaching could not be safely delivered. Your original feedback is preserved.',proposal_excerpt_unmatched:'The proposal could not be linked to an exact excerpt of your feedback.',proposal_excerpt_ambiguous:'The quoted excerpt was repeated, so its source was ambiguous.',proposal_excerpt_overlap:'This proposed excerpt overlapped another teaching.',proposed_guidance:'Linked to a saved teaching.'};
-const explain=(reason:string)=>reasonCopy[reason]||reason.replaceAll('_',' ');
+const explain=(reason:string)=>reasonCopy[reason]||(/^(training_|publication_)/.test(reason)?trainingSnapshotReason(reason):reason.replaceAll('_',' '));
 export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdit,onRecord,onTest,onPublish,onImport,onWithdraw,onActivate}:{
  value:GuidedTrainingChanges;busy?:boolean;onPolicy:(enabled:boolean,expected:GuidedTrainingChanges['policy'])=>void;onForce:(target:Target)=>void;
  onEdit:(record:TrainingChangeRecord)=>void;onRecord:(record:TrainingChangeRecord,action:'admit'|'remove'|'undo')=>void;onTest:(snapshotDigest:string)=>void;onPublish:(snapshotDigest:string)=>void;
@@ -49,7 +49,7 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
   <section className="rounded-xl border border-ink-800 p-4 text-sm" aria-label="Test this update"><h3 className="font-medium">Try it on a real task</h3>
    <p className="mt-2 text-ink-400">{value.test.status==='prepared'?'This update is frozen for a test. Choose its inputs in the run form before starting.':value.test.status==='queued'?'The test is queued.':value.test.status==='running'?'This exact update is being tested.':value.test.status==='stale'?'The update changed after its last test. Test the current snapshot before publishing.':value.test.status==='delivered'?'A matching test delivered. Its grade describes quality; it does not prove every learning caused a change.':['failed','cancelled','blocked'].includes(value.test.status)?'The last test did not deliver. Its evidence is preserved.':'Run this private update before publishing it for other people.'}</p>
    {value.test.qualityScore!==null&&<p className="mt-3 font-medium">Quality: {value.test.qualityScore}/100</p>}
-   {value.test.gaps.length>0&&<ul className="mt-3 list-disc space-y-1 pl-5 text-ink-400">{value.test.gaps.map((gap,i)=><li key={i}>{gap}</li>)}</ul>}
+   {value.test.gaps.length>0&&<ul className="mt-3 list-disc space-y-1 pl-5 text-ink-400">{value.test.gaps.map((gap,i)=><li key={i}>{explain(gap)}</li>)}</ul>}
    <div className="mt-4 flex gap-5"><button type="button" className="btn-primary" disabled={busy||!value.test.canTest||value.test.status==='running'} onClick={()=>onTest(value.binding.snapshotDigest)}>Run with updates</button>
     <button type="button" className={button} disabled={busy||!value.publication.canPrepare} onClick={()=>onPublish(value.publication.proposedSnapshotDigest||value.binding.snapshotDigest)}>Review publication</button></div>
    {value.activation&&<div className="mt-4 space-y-2 text-xs text-ink-400"><p>{value.activation.servedSnapshotDigest?'Runs keep using the served training until you activate a tested update.':'Existing accepted training stays live until your first tested activation.'}</p>
