@@ -6,8 +6,8 @@
 // window boundary, drives the actual annotation overlay with pointer and keyboard
 // events, and intercepts the actual `fetch`. What these tests settle beyond argument:
 // the click pauses and freezes the EXACT frame; the anchor that leaves the browser is
-// byte-for-byte the backend's v2 shape; the letterbox is dead space; native controls
-// stay native; a saved issue immediately requests its evidence; and the send action
+// byte-for-byte the backend's v2 shape; the letterbox is dead space; transport stays
+// outside the picture; a saved issue immediately requests its evidence; and the send action
 // stays locked until every capture is validated.
 
 import { test, before, beforeEach, afterEach, after } from 'node:test';
@@ -245,13 +245,38 @@ async function mountVideo(over: Record<string, unknown> = {}) {
 
 // ── discoverability ─────────────────────────────────────────────────────────
 
-test('the overlay and the outside (i) hint render over a validated video, leaving the controls strip native', async () => {
+test('video transport is outside the whole annotatable picture; the outside (i) hint remains', async () => {
   await mountVideo();
   assert.ok(overlay(), 'the annotation overlay must exist over the player');
   assert.match(text(), new RegExp(SPATIAL_HINT_COPY.slice(0, 30)));
-  assert.equal(overlay().style.bottom, '48px', 'the native transport strip stays uncovered');
-  assert.equal(video().hasAttribute('controls'), true, 'native controls survive the overlay');
+  assert.equal(overlay().style.bottom, '0px', 'external transport leaves no image strip excluded');
+  assert.equal(video().hasAttribute('controls'), false, 'native controls cannot cover feedback');
+  const transport = container.querySelector('[data-testid="playback-controls"]')!;
+  assert.equal(video().parentElement!.contains(transport), false, 'controls are outside the picture/overlay wrapper');
+  assert.ok(transport.querySelector('input[aria-label="Seek video"]'));
   root.unmount();
+});
+
+test('audio keeps its native controls and gets no picture overlay or video transport', async () => {
+  await mount({ artifacts: [{ ...artifacts[0], relativePath: 'out/audio.mp3' }] });
+  assert.ok(container.querySelector('audio[controls]'));
+  assert.equal(overlay(), null);
+  assert.equal(container.querySelector('[data-testid="playback-controls"]'), null);
+});
+
+test('feedback near the bottom of the full video freezes the same source-normalized geometry', async () => {
+  const state = await mountVideo();
+  video().getBoundingClientRect = () => ({ left: 10, top: 20, width: 800, height: 450, right: 810, bottom: 470, x: 10, y: 20, toJSON: () => ({}) } as DOMRect);
+  await media(video(), 'loadedmetadata');
+  await fire(overlay(), 'pointerdown', { clientX: 410, clientY: 465 });
+  assert.equal(state.pauses, 1);
+  state.currentTime = 8;
+  await fire(overlay(), 'pointerup', { clientX: 410, clientY: 465 });
+  await typeBody('bottom-edge note'); await clickButton(/^Save issue$/);
+  const anchor = calls.find((c) => c.body.action === 'create_issue')!.body.anchor as typeof storedSpatialAnchor;
+  assert.equal(anchor.temporal.startMs, 1656);
+  assert.equal(anchor.observedArtifactId, VID); assert.equal(anchor.observedArtifactSha256, SHA_V);
+  assert.equal(anchor.geometry.x, 0.5); assert.ok(Math.abs(anchor.geometry.y - 445 / 450) < 0.000001);
 });
 
 // ── the primary path: click → pause → freeze → exact anchor → evidence ──────

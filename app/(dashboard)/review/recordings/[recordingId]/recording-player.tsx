@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import Modal from '../../../_components/modal';
 import ReviewSpatialOverlay from '../../../_components/review-spatial-overlay';
+import ReviewPlaybackControls from '../../../_components/review-playback-controls';
 import { formatMs } from '@/lib/review-anchor';
 import { inDesktopApp, revokePreview } from '@/lib/review-preview';
 import { visualContentRect } from '@/lib/review-spatial-geometry';
@@ -301,9 +302,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
 
   // ── region drawing on the picture ─────────────────────────────────────────
   // The Review Room's own <ReviewSpatialOverlay /> does the gesture: drag threshold,
-  // letterbox rejection, the native-controls exclusion band, pointer capture, keyboard
-  // Enter/Escape. It is mounted only while drawing, so the video stays fully clickable
-  // otherwise.
+  // letterbox rejection, pointer capture, keyboard Enter/Escape. With external
+  // controls the entire picture is available; drawing never toggles playback.
 
   const freezeForRegion = () => {
     const v = videoRef.current;
@@ -422,11 +422,11 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
         {previewError && <p role="status" className="rounded border border-ink-800 bg-ink-950 p-6 text-center text-sm text-ink-200">{previewError}</p>}
         {!preview && !previewError && <div className="h-64 animate-pulse rounded bg-ink-800/50" aria-label="Loading video" />}
         {preview && (
+          <ReviewPlaybackControls key={recordingId} mediaKey={recordingId} mediaRef={videoRef} onSeek={seek}>
           <div className="relative">
             <video
               ref={videoRef}
               src={preview.url}
-              controls
               className="max-h-[60vh] w-full rounded bg-black object-contain"
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget;
@@ -447,6 +447,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
             {drawing && (
               <ReviewSpatialOverlay
                 mediaKind="video"
+                controlsMode="external"
                 mediaEl={() => videoRef.current}
                 enabled
                 pins={[]}
@@ -459,6 +460,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
               />
             )}
           </div>
+          </ReviewPlaybackControls>
         )}
       </div>
 

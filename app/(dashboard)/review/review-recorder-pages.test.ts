@@ -512,7 +512,11 @@ test('Draw region uses the Review Room overlay; keyboard Enter sets a box at the
     await page.click(button(page, 'Draw region')!);
     const overlay = page.document.querySelector('[data-testid="spatial-overlay"]') as HTMLElement;
     assert.ok(overlay, 'the shared overlay is mounted');
-    assert.equal(overlay.style.bottom, '48px', 'the native controls keep their strip');
+    assert.equal(overlay.style.bottom, '0px', 'external transport leaves the whole picture available');
+    assert.equal(video.hasAttribute('controls'), false);
+    const transport = page.document.querySelector('[data-testid="playback-controls"]')!;
+    assert.ok(transport.querySelector('button[aria-label="Play"]'));
+    assert.equal(video.parentElement!.contains(transport), false, 'drawing cannot hit transport');
     await key(page, overlay, 'Enter');
     assert.match(page.text(), /Region: 20% × 20% at \(40%, 40%\)/);
     assert.equal(page.document.querySelector('[data-testid="spatial-overlay"]'), null, 'drawing ends');

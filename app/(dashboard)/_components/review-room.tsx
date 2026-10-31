@@ -39,6 +39,7 @@ import {
   anchorLabel, formatMs, sortIssues, isAnchorStale, isSpatialAnchorV2, type ReviewAnchor,
 } from '@/lib/review-anchor';
 import ReviewSpatialOverlay, { SPATIAL_HINT_COPY, type OverlayPin } from '@/app/(dashboard)/_components/review-spatial-overlay';
+import ReviewPlaybackControls from './review-playback-controls';
 import ReviewContinuationRecovery from '@/app/(dashboard)/_components/review-continuation-recovery';
 import { evidenceGate, evidenceChip, type SessionEvidenceStatus } from '@/lib/review-evidence-status';
 import {
@@ -2326,10 +2327,8 @@ function ArtifactSurface({
 
   if (decision.kind === 'video' || decision.kind === 'audio') {
     const Tag = (decision.kind === 'video' ? 'video' : 'audio') as 'video' | 'audio';
-    return (
-      <div>
-        {/* RELATIVE WRAPPER so the annotation overlay can sit exactly over the player.
-            Audio gets no overlay — there is no picture to point at. */}
+    // Relative picture wrapper only: the annotation overlay never covers transport.
+    const picture = (
         <div className={decision.kind === 'video' ? 'relative' : undefined}>
         <Tag
           // KEYED BY ARTIFACT. Without this React reuses the element across a switch and
@@ -2337,7 +2336,7 @@ function ArtifactSurface({
           key={mediaKey}
           ref={mediaRef as never}
           src={previewUrl}
-          controls
+          controls={decision.kind === 'audio'}
           className={decision.kind === 'video'
             ? 'max-h-[60vh] w-full rounded bg-black object-contain'
             : 'w-full'}
@@ -2357,6 +2356,7 @@ function ArtifactSurface({
         {decision.kind === 'video' && (
           <ReviewSpatialOverlay
             mediaKind="video"
+            controlsMode="external"
             mediaEl={() => (mediaRef.current instanceof HTMLVideoElement ? mediaRef.current : null)}
             enabled={spatial.enabled}
             pins={spatial.pins}
@@ -2369,6 +2369,14 @@ function ArtifactSurface({
           />
         )}
         </div>
+    );
+    return (
+      <div>
+        {decision.kind === 'video' ? (
+          <ReviewPlaybackControls key={mediaKey} mediaKey={mediaKey} mediaRef={mediaRef} onSeek={onSeek}>
+            {picture}
+          </ReviewPlaybackControls>
+        ) : picture}
         {/* The OUTSIDE-the-player information affordance (Wave 2 discoverability):
             always visible next to the player, never floating over content. */}
         {decision.kind === 'video' && (
