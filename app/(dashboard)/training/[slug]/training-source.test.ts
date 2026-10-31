@@ -1644,3 +1644,15 @@ test('choosing a source from history returns to teaching without changing the sa
   assert.equal(h.calls.some(c=>['annotate','accept','recording'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
+
+test('ineffective training stays visible on the starting view and its full warning is open',async()=>{
+ const h=await renderedWith({state:'accepted',managerCoverage:coverage({readiness:'agent_update_required',reason:'manager_quality_coverage_unclassified_training',classified:false,coveredPairs:[],uncoveredPairs:[planningPair]})}),r=h.rendered;
+ try{
+  const notice=r.document.querySelector('[aria-label="Training needs attention"]')!;
+  assert.ok(notice);assert.equal(notice.closest('[hidden]'),null);
+  const warning=r.getByText('Agent update required before this evidence can guide runs');
+  assert.equal(warning.closest('[hidden]'),null);
+  assert.equal(warning.closest('details')!.open,true);
+  assert.equal(h.calls.some(c=>['annotate','accept','delivery'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});

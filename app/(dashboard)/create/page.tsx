@@ -53,7 +53,7 @@ export default async function CreatePage({searchParams}:{searchParams?:{from?:st
           <Link href={fromTraining?'/training':'/workflows'} className="text-xs text-ink-400 hover:text-ink-200 hover:underline">{fromTraining?'← Training':'← Your agents'}</Link>
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50 mt-2">Create an agent</h1>
           <p className="text-sm text-ink-400 mt-1">
-            {fromTraining?'Start with what this agent should do. Add a demonstration or example, and describe any required tools and the input and output you expect.':'Describe what you want and your connected engine builds it — or start from one the community already runs.'}
+            {fromTraining?'Describe what this agent should do, any required tools, and the input and output you expect. Once it is built, train it with your demonstrations and feedback.':'Describe what you want and your connected engine builds it — or start from one the community already runs.'}
           </p>
         </div>
 

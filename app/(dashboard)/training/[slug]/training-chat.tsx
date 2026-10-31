@@ -94,6 +94,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
   })}</ol>
   {!canSend&&sessionId&&!loading&&<p>Sending is unavailable until this session matches the active agent version.</p>}
   <label className="block">Message Implexa<textarea id="training-chat-message" className="mt-2 block w-full min-h-24 rounded-lg bg-ink-950 border border-ink-700 p-3" maxLength={2000} value={text} disabled={disabled||sending||!canSend} onChange={e=>setText(e.target.value)} placeholder="What would you like this agent to do better?"/></label>
+  <p className="text-xs leading-5 text-ink-400">Send shares your message, this agent’s setup, selected source’s saved notes and recent chat with Claude Haiku 5.5. No recording frames or audio.</p>
   <button type="button" className="btn-primary" disabled={disabled||sending||!canSend||!text.trim()} onClick={send}>{sending?'Implexa is responding…':'Send'}</button>
   {error&&<p role="alert">{error.replaceAll('_',' ')}</p>}
  </section>;

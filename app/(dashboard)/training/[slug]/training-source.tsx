@@ -232,6 +232,12 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const trainingIsReady = Boolean(!versionChanged && requirementsAreCurrent && managerTrainingRequirements
     && (managerTrainingRequirements.readiness === 'reference_training_ready' || managerTrainingRequirements.readiness === 'not_applicable'));
   const trainingNeedsCoach = Boolean(!versionChanged && requirementsAreCurrent && managerTrainingRequirements?.readiness === 'coach_reference_training_required');
+  // Progressive disclosure must never hide a warning that training is ineffective
+  // or a preserved operation still needs the owner. These use the original facts.
+  const readinessNeedsAttention=Boolean((currentVersion&&!requirementsAreCurrent&&!activeVersionTrainingIsReady)||trainingNeedsCoach||coverageNeedsUpdate
+    ||((acceptedEvidenceCount>0||(managerCoverage?.acceptedLocalRecordCount||0)>0)&&!coverageCanClaimReady&&!coverageNeedsUpdate));
+  const preservedWorkCount=failed.length+pending.length+Number(!!pendingAnswerLinks)+Number(!!pendingDemoLink)+Number(!!pendingRecordingLink);
+  const trainingNeedsAttention=readinessNeedsAttention||preservedWorkCount>0;
 
   async function call(operation: string, args: unknown) {
     if(installationId&&['scope','create'].includes(operation)){
@@ -910,11 +916,17 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   return <main id="main-content" tabIndex={-1} className={`mx-auto px-6 py-10 space-y-6 ${installationId?'max-w-3xl':'max-w-7xl lg:px-10'}`}>
     <Link className="text-xs text-ink-400 hover:text-ink-100" href={installationId?`/workflows/${encodeURIComponent(slug)}`:"/training"}>{installationId?"← Agent":"← Your agents"}</Link>
     <header className="flex flex-wrap items-start justify-between gap-4"><div className="space-y-2"><p className="text-[10px] uppercase tracking-[.18em] text-ink-500">{installationId?'Your private preferences':'Trainer workspace'}</p><h1 className="text-2xl font-medium tracking-tight">{installationId?'Private preferences for ':''}{agentName}</h1><p className="text-xs text-ink-500">Active version: {shortId(currentVersion)}{sessionVersion ? ` · Session version: ${shortId(sessionVersion)}` : ''}</p></div>
-      {!installationId&&<div className="flex items-center gap-4"><button type="button" className="text-sm text-ink-300 lg:hidden" aria-expanded={chatExpanded} aria-controls="training-companion" onClick={()=>setChatExpanded(v=>!v)}>Chat with Implexa</button><Link className="rounded-lg border border-ink-700 px-4 py-2 text-sm hover:border-ink-500" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>Open agent to test →</Link></div>}
+      {!installationId&&<div className="flex items-center gap-4"><button type="button" className="text-sm text-ink-300 lg:hidden" aria-expanded={chatExpanded} aria-controls="training-companion" onClick={()=>chatExpanded?setChatExpanded(false):focusChat()}>Chat with Implexa</button><Link className="rounded-lg border border-ink-700 px-4 py-2 text-sm hover:border-ink-500" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>Open agent to test →</Link></div>}
     </header>
     {!installationId&&<TrainingNavigation view={view} onChange={setView}/>}
     <div className={installationId?'':'grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]'}>
     <div className="min-w-0 space-y-6 [&_button]:rounded-md [&_button]:border [&_button]:border-ink-700 [&_button]:px-3 [&_button]:py-1.5 [&_button]:text-xs [&_button:disabled]:opacity-40">
+    {!installationId&&trainingNeedsAttention&&<section role="status" className="rounded-xl border border-amber-700/60 bg-amber-950/20 p-4 text-sm space-y-2" aria-label="Training needs attention">
+      <p className="font-medium text-amber-200">Training needs attention</p>
+      {readinessNeedsAttention&&<><p className="text-ink-300">Some saved evidence may not yet guide this agent’s runs. Review its current training status.</p><button type="button" onClick={()=>reveal('training-readiness')}>Review training status</button></>}
+      {preservedWorkCount>0&&<><p>{preservedWorkCount} preserved operation{preservedWorkCount===1?' needs':'s need'} attention. Nothing has been discarded.</p><button type="button" onClick={()=>setView('history')}>Review preserved work</button></>}
+      {pendingRecordingLink&&<button type="button" onClick={()=>reveal('recording-analysis')}>Review recording link</button>}
+    </section>}
     {!installationId&&view==='start'&&<TrainingEntry slug={slug} lastRunId={lastRunId} onShow={showTeaching} onChat={focusChat}/>}
     <div hidden={!installationId&&view!=='settings'} className="space-y-6">
     <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>
@@ -986,7 +998,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={add}>{recordingSelection?"Use selected recording":"Add training source"}</button>
     </div>
     {busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{error && <p role="alert">{reasonLabel(error)}</p>}
-    <div hidden={!installationId&&view==='start'}><TrainingDetails title="Training readiness & version details">
+    <div id="training-readiness" hidden={!installationId&&view==='start'&&!trainingNeedsAttention}><TrainingDetails title="Training readiness & version details" open={readinessNeedsAttention}>
     {acceptedEvidenceCount > 0 && <p role="status" className="rounded border border-emerald-600 p-3">Evidence accepted: {acceptedEvidenceCount} immutable decision{acceptedEvidenceCount === 1 ? '' : 's'} in this session. Acceptance preserves the teaching; Agent readiness is verified separately below.</p>}
     {currentVersion && !requirementsAreCurrent && !activeVersionTrainingIsReady && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager reference training readiness unavailable</h2><p>Implexa cannot verify the required stage and quality-reference pairs for this exact active version. Accepted evidence remains preserved. Decision, procedure, criterion, and machine-custody requirements are verified separately at run prelaunch.</p></section>}
     {!installationId && trainingNeedsCoach && managerTrainingRequirements && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Evidence accepted — reference training not ready</h2><p>The immutable Agent policy still requires accepted visual-reference evidence at the stage/property routes below. Create or explicitly expand successor drafts, review their exact evidence, and accept each new digest. Implexa does not silently widen an accepted record. Other Manager families are verified separately before a run starts.</p><ul className="list-disc pl-5">{managerTrainingRequirements.missingPairs.map((pair) => <li key={coveragePairKey(pair)}>{trainingStageLabel(pair.stage)} · {pair.property.replaceAll('_', ' ')} · {relationLabel(pair.relation)}</li>)}</ul></section>}
