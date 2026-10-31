@@ -65,3 +65,10 @@ test('recording proxy permits only named manifest/link writes with server auth a
  assert.equal(p.calls[0].init.headers['Idempotency-Key'],'recording-manifest-key');
  const denied=proxy();assert.equal((await denied.POST(req('{"action":"excerpt"}',`sessionId=${SESSION}&operation=recording`))).status,400);assert.equal(denied.calls.length,0);
 });
+test('recording edit proxy forwards only to the existing authenticated Training operation',async()=>{
+ const p=proxy(),body={suggestionId:SESSION,suggestionDigest:'a'.repeat(64),expectedActiveVersionId:SESSION,consent:true};
+ assert.equal((await p.POST(req(JSON.stringify(body),`sessionId=${SESSION}&operation=agent-change`))).status,200);
+ assert.equal(p.calls[0].url,`https://core.implexa.ai/api/v2/agent-training/sessions/${SESSION}/recording-agent-change`);
+ assert.equal(p.calls[0].init.headers.authorization,'Bearer server-session');
+ assert.deepEqual(JSON.parse(p.calls[0].init.body),body);
+});
