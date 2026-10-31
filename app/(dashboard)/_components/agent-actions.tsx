@@ -597,13 +597,14 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         return;
       }
       setTrainingGate(null);
-    } catch {
+    } catch (error) {
       // Unavailable is not equivalent to eligible. Request creation still owns
       // the authoritative database gate, but input custody starts only after a
       // successful early read so late refusal cannot waste a large local hash.
       setAdoptionConfirmed(false);
       setAdoptionError('');
-      setTrainingGate({ state: 'unavailable' });
+      setTrainingGate({ state: 'unavailable',...(error instanceof BackendError&&error.body?.reason==='training_served_snapshot_version_mismatch'
+        ?{reason:'training_served_snapshot_version_mismatch' as const}:{}) });
       return;
     } finally {
       trainingCheckingRef.current = false;
@@ -1307,7 +1308,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         onClose={() => setTrainingGate(null)}
         title={trainingGate?.state === 'training_required'
           ? (trainingGate.optional ? 'Carry your accepted training forward?' : 'Reference training needed before this run')
-          : 'Training readiness unavailable'}
+          : trainingGate?.state==='unavailable'&&trainingGate.reason==='training_served_snapshot_version_mismatch'?'Test your working update':'Training readiness unavailable'}
       >
         {trainingGate?.state === 'training_required' ? (
           <div className="space-y-4 text-sm text-ink-300">
@@ -1366,8 +1367,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           </div>
         ) : (
           <div className="space-y-4 text-sm text-ink-300">
-            <p>Implexa could not verify Manager reference-training readiness for this exact active version. No run inputs were selected, verified, or prepared.</p>
+            {trainingGate?.state==='unavailable'&&trainingGate.reason==='training_served_snapshot_version_mismatch'?<>
+              <p>This working definition differs from the version with your served training. Test the current private update in Training, then activate it when it delivers.</p>
+              <Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={()=>setTrainingGate(null)}>Test this working update in Training</Link>
+            </>:<><p>Implexa could not verify Manager reference-training readiness for this exact active version. No run inputs were selected, verified, or prepared.</p>
             <p>Reload and try again after Dashboard and the backend are updated. Run creation remains blocked on an unverifiable basis.</p>
+            {trainingTest&&<Link href={`/training/${encodeURIComponent(slug)}`} className="btn-primary" onClick={()=>setTrainingGate(null)}>Return to Training to prepare the current test</Link>}</>}
             <div className="flex justify-end gap-3">
               <button type="button" className="btn-outline" onClick={() => setTrainingGate(null)}>Close</button>
               <button type="button" className="btn-primary" onClick={() => { setTrainingGate(null); void openPreRun(preRunMode); }}>Check again</button>

@@ -28,8 +28,9 @@ test('coverage requires actual source-bound saved records; unavailable analysis 
 test('delivered alone and a private-only test cannot make a different public snapshot publishable',()=>{
  const v=value();v.publication.canPublish=true;assert.equal(guidedTrainingChanges(v,expected),false);
  v.test={...v.test,status:'delivered',scope:'private_candidate',runId:id(9),snapshotDigest:H};assert.equal(guidedTrainingChanges(v,expected),false);
- v.publication.proposedSnapshotDigest=H;assert.equal(guidedTrainingChanges(v,expected),true,'identical effective public material may reuse a private test');
- v.test.snapshotDigest='b'.repeat(64);assert.equal(guidedTrainingChanges(v,expected),false);
+ v.publication.proposedSnapshotDigest=H;v.publication.qualifyingSnapshotDigest=H;v.publication.qualifyingTestRequestId=id(9);v.publication.qualifyingRunId=id(10);assert.equal(guidedTrainingChanges(v,expected),true,'identical effective public material may reuse a private test');
+ v.test.snapshotDigest='b'.repeat(64);assert.equal(guidedTrainingChanges(v,expected),true,'public proof is independent from the displayed private test');
+ v.publication.qualifyingSnapshotDigest='b'.repeat(64);assert.equal(guidedTrainingChanges(v,expected),false);
 });
 async function setup(t:any,v=value()){
  const calls:any[]=[],props={value:v,onPolicy:(...a:any[])=>calls.push(['policy',...a]),onForce:(a:any)=>calls.push(['force',a]),onEdit:(a:any)=>calls.push(['edit',a]),onRecord:(...a:any[])=>calls.push(['record',...a]),onTest:(a:any)=>calls.push(['test',a]),onPublish:(a:any)=>calls.push(['publish',a])};
@@ -50,6 +51,11 @@ test('record editing, retirement and test target exact displayed identities; qua
  const v=value(),{r,calls}=await setup(t,v);await r.click(r.getByText('Change in chat'));await r.click(r.getByText('Remove from this candidate'));await r.click(r.getByText('Run with updates'));
  assert.equal(calls[0][1].recordDigest,H);assert.equal(calls[1][2],'remove');assert.deepEqual(calls[2],['test',H]);assert.doesNotMatch(r.text(),/Quality: /);
 });
+test('an existing image teaching opens its original evidence instead of sending an unsupported text edit',async t=>{
+ const v=value();v.records[0].sourceKind='legacy_evidence';v.records[0].sourceEventId=null;v.records[0].sourceEventDigest=null;
+ const {r,calls}=await setup(t,v);assert.equal(r.queryByText('Change in chat'),null);
+ await r.click(r.getByText('Review original example'));assert.equal(calls[0][0],'edit');assert.equal(calls[0][1].recordId,id(5));
+});
 
 test('creation-note import shows exact saved private text and requires an explicit source-only action',async t=>{
  const v=value();v.creationImports=[{buildRequestId:id(11),replyId:id(12),replyDigest:H,noteCount:2,notes:['Prefer quieter captions.','Give the main point emphasis.'],importedNoteIndices:[0]}];
@@ -67,4 +73,14 @@ test('privacy withdrawal is separate from candidate removal and opens a confirma
  await r.click(r.getByText('Original feedback'));await r.click(r.getByText('Withdraw this feedback from future use'));
  assert.equal(calls.length,0);assert.match(r.text(),/not removal from one candidate/);assert.match(r.text(),/does not erase/);
  await r.click(r.getByText('Withdraw feedback'));assert.deepEqual(JSON.parse(JSON.stringify(calls)),[{eventId:id(4),eventDigest:H}]);
+});
+
+test('activation uses a real matching request and explicit click, without imposing a new quality threshold',async t=>{
+ const v=value();v.test={...v.test,status:'delivered',scope:'private_candidate',snapshotDigest:H,requestId:id(20),runId:id(21),qualityScore:60};
+ v.activation={canActivate:true,reason:null,servedSnapshotDigest:'b'.repeat(64),withdrawnSinceTest:1,testRequestId:id(20)};
+ assert.equal(guidedTrainingChanges(v,expected),true,'a fresh matching test may replace old served training with withdrawn items');
+ const calls:any[]=[],r=await render('../training/[slug]/training-changes.tsx',{value:v,onPolicy:()=>{},onForce:()=>{},onEdit:()=>{},onRecord:()=>{},onTest:()=>{},onPublish:()=>{},onActivate:(...args:any[])=>calls.push(args)});t.after(()=>r.cleanup());
+ assert.equal(calls.length,0);assert.match(r.text(),/Quality: 60\/100/);await r.click(r.getByText('Use this tested update'));assert.deepEqual(calls,[[H,id(20)]]);
+ v.activation.testRequestId=id(22);assert.equal(guidedTrainingChanges(v,expected),false);
+ v.activation.testRequestId=id(20);v.test.status='running';assert.equal(guidedTrainingChanges(v,expected),false);
 });

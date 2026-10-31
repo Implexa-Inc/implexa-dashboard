@@ -8,8 +8,10 @@ export type GuidedTrainingChanges={ok:true;contractVersion:'guided-training-chan
  feedback:Array<{eventId:string;eventDigest:string;text:string|null;sourceKind?:'creation_notes'|'trainer_feedback';analysisStatus:'not_requested'|'pending'|'answered'|'failed'|'unavailable';outcome:FeedbackOutcome;reason:string;uncoveredText:string[];recordIds:string[];proposalOutcomes?:Array<{candidateKey:string;status:'mapped'|'refused';reason:string}>}>;
  records:TrainingChangeRecord[];
  creationImports?:Array<{buildRequestId:string;replyId:string;replyDigest:string;noteCount:number;notes:string[];importedNoteIndices:number[]}>;
- test:{snapshotDigest:string|null;scope:'private_candidate'|'public_projection'|null;status:'not_run'|'running'|'delivered'|'stale'|'failed';runId:string|null;qualityScore:number|null;gaps:string[];canTest:boolean};
- publication:{canPublish:boolean;reason:string;servedSnapshotDigest:string|null;proposedSnapshotDigest?:string|null}};
+ test:{snapshotDigest:string|null;scope:'private_candidate'|'public_projection'|null;status:'not_run'|'prepared'|'queued'|'running'|'delivered'|'stale'|'failed'|'cancelled'|'blocked';runId:string|null;requestId?:string|null;qualityScore:number|null;gaps:string[];canTest:boolean};
+ activation?:{canActivate:boolean;reason:string|null;servedSnapshotDigest:string|null;withdrawnSinceTest:number;testRequestId:string|null};
+ publication:{canPublish:boolean;reason:string|null;servedSnapshotDigest:string|null;proposedSnapshotDigest?:string|null;canPrepare?:boolean;
+ qualifyingTestRequestId?:string|null;qualifyingRunId?:string|null;qualifyingSnapshotDigest?:string|null}};
 const id=(v:any)=>typeof v==='string'&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(v);
 const sha=(v:any)=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 const text=(v:any,max:number)=>typeof v==='string'&&v.length<=max;
@@ -35,10 +37,37 @@ export function guidedTrainingChanges(v:any,expected:{sessionId:string;workflowV
  if(v.creationImports!==undefined&&(!Array.isArray(v.creationImports)||v.creationImports.length>20||v.creationImports.some((i:any)=>!id(i.buildRequestId)||!id(i.replyId)||!sha(i.replyDigest)
   ||!Number.isInteger(i.noteCount)||i.noteCount<1||i.noteCount>8||!strings(i.notes,400,8)||i.notes.length!==i.noteCount||!Array.isArray(i.importedNoteIndices)||new Set(i.importedNoteIndices).size!==i.importedNoteIndices.length
   ||i.importedNoteIndices.some((n:any)=>!Number.isInteger(n)||n<0||n>=i.noteCount))))return false;
- const t=v.test,p=v.publication;
- return !!t&&['not_run','running','delivered','stale','failed'].includes(t.status)&&[null,'private_candidate','public_projection'].includes(t.scope)&&(t.snapshotDigest===null||sha(t.snapshotDigest))&&(t.runId===null||id(t.runId))
+ const t=v.test,p=v.publication,a=v.activation;
+ if(a!==undefined&&(!a||typeof a.canActivate!=='boolean'||!(a.reason===null||text(a.reason,2000))||!(a.servedSnapshotDigest===null||sha(a.servedSnapshotDigest))
+  ||!Number.isInteger(a.withdrawnSinceTest)||a.withdrawnSinceTest<0||!(a.testRequestId===null||id(a.testRequestId))
+  ||a.canActivate&&(!id(a.testRequestId)||t?.status!=='delivered'||!id(t?.runId)||t?.requestId!==a.testRequestId)))return false;
+ return !!t&&['not_run','prepared','queued','running','delivered','stale','failed','cancelled','blocked'].includes(t.status)&&[null,'private_candidate','public_projection'].includes(t.scope)&&(t.snapshotDigest===null||sha(t.snapshotDigest))&&(t.runId===null||id(t.runId))
+  &&(t.requestId===undefined||t.requestId===null||id(t.requestId))
   &&(t.status!=='delivered'||id(t.runId)&&sha(t.snapshotDigest)&&t.scope!==null)
   &&(t.qualityScore===null||Number.isFinite(t.qualityScore)&&t.qualityScore>=0&&t.qualityScore<=100)&&strings(t.gaps,2000,30)&&typeof t.canTest==='boolean'
-  &&!!p&&typeof p.canPublish==='boolean'&&text(p.reason,2000)&&(p.servedSnapshotDigest===null||sha(p.servedSnapshotDigest))
-  &&(!p.canPublish||(t.status==='delivered'&&id(t.runId)&&sha(p.proposedSnapshotDigest)&&t.snapshotDigest===p.proposedSnapshotDigest));
+  &&!!p&&typeof p.canPublish==='boolean'&&(p.canPrepare===undefined||typeof p.canPrepare==='boolean')&&(p.reason===null||text(p.reason,2000))&&(p.servedSnapshotDigest===null||sha(p.servedSnapshotDigest))
+  &&(!p.canPublish||(id(p.qualifyingTestRequestId)&&id(p.qualifyingRunId)&&sha(p.proposedSnapshotDigest)&&p.qualifyingSnapshotDigest===p.proposedSnapshotDigest));
+}
+
+export type TrainingPublicationPreview={ok:true;contractVersion:'training-publication-preview.v1';publicationPreparationId:string;preparationDigest:string;
+ sessionId:string;workflowVersionId:string;candidateSnapshotDigest:string;snapshotDigest:string;definition:{name:string;description:string};
+ records:Array<{recordId:string;recordDigest:string;relation:string;properties:string[];summary:string;mustNotCopy:string[];attribution:string|null;deliveryMode:'standing'|'on_question';
+  derivative:{kind:string;sha256:string;sizeBytes:number;mediaType:string;width?:number;height?:number}}>;
+ qualifyingTestRequestId:string|null;qualifyingRunId:string|null;qualifyingSnapshotDigest:string|null;canPublish:boolean;reason:string|null};
+export function trainingPublicationPreview(v:any,expected:{sessionId:string;workflowVersionId:string;snapshotDigest:string;records:TrainingChangeRecord[]}):v is TrainingPublicationPreview{
+ if(v?.ok!==true||v.contractVersion!=='training-publication-preview.v1'||!id(v.publicationPreparationId)||!sha(v.preparationDigest)
+  ||v.sessionId!==expected.sessionId||v.workflowVersionId!==expected.workflowVersionId||v.candidateSnapshotDigest!==expected.snapshotDigest||!sha(v.snapshotDigest)
+  ||!text(v.definition?.name,200)||!v.definition.name.trim()||!text(v.definition?.description,4000)
+  ||!Array.isArray(v.records)||v.records.length!==expected.records.length||v.records.length>32||new Set(v.records.map((r:any)=>r?.recordId)).size!==v.records.length
+  ||typeof v.canPublish!=='boolean'||!(v.qualifyingTestRequestId===null||id(v.qualifyingTestRequestId))
+  ||!(v.qualifyingRunId===null||id(v.qualifyingRunId))||!(v.qualifyingSnapshotDigest===null||sha(v.qualifyingSnapshotDigest))
+  ||v.canPublish&&(!id(v.qualifyingTestRequestId)||!id(v.qualifyingRunId)||v.qualifyingSnapshotDigest!==v.snapshotDigest)
+  ||!(v.reason===null||text(v.reason,2000)))return false;
+ return v.records.every((r:any)=>expected.records.some(e=>e.recordId===r.recordId&&e.recordDigest===r.recordDigest&&e.summary===r.summary)
+  &&['accepted','rejected','contrast','exception'].includes(r.relation)&&strings(r.properties,500,15)&&text(r.summary,4000)&&strings(r.mustNotCopy,500,32)
+  &&(r.attribution===null||text(r.attribution,4000))&&['standing','on_question'].includes(r.deliveryMode)&&sha(r.derivative?.sha256)
+  &&Number.isInteger(r.derivative.sizeBytes)&&r.derivative.sizeBytes>0&&r.derivative.sizeBytes<=8388608
+  &&(r.derivative.kind==='text_guidance'?r.derivative.mediaType==='application/json'&&r.derivative.width===undefined&&r.derivative.height===undefined
+   :['review_png','training_png','released_training_png'].includes(r.derivative.kind)&&r.derivative.mediaType==='image/png'
+    &&[r.derivative.width,r.derivative.height].every((n:any)=>Number.isInteger(n)&&n>0&&n<=2560)));
 }

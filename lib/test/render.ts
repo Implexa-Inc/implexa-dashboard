@@ -93,6 +93,7 @@ async function bundle(entry: string): Promise<string> {
  * several of these tests: what renders when there is no Desktop at all.
  */
 export async function render(component: string, props: Record<string, unknown>, options: {
+  exportName?:string;
   bridge?: Record<string, unknown> | null;
   backend?: (path: string, init: unknown) => unknown;
   fetch?: typeof globalThis.fetch;
@@ -110,7 +111,8 @@ export async function render(component: string, props: Record<string, unknown>, 
     import * as React from 'react';
     import { createRoot } from 'react-dom/client';
     import * as TestUtils from 'react-dom/test-utils';
-    import Component from ${JSON.stringify(`./${component}`)};
+    import * as ComponentModule from ${JSON.stringify(`./${component}`)};
+    const Component = ComponentModule[${JSON.stringify(options.exportName||'default')}];
     // React 18.3 exposes act on React itself; react-dom/test-utils is the
     // fallback. Using the BUNDLED React's act matters — a second copy would
     // flush a different renderer's queue and silently do nothing.

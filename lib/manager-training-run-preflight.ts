@@ -14,7 +14,7 @@ export type ManagerTrainingRunPreflight =
     optional?: true;
     installedCustomer?: true;
   }
-  | { state: 'unavailable' };
+  | { state: 'unavailable';reason?:'training_served_snapshot_version_mismatch' };
 
 export type TrainingSuccessorAdoptionPreview = {
   contractVersion: 'manager-training-successor-adoption-preview.v1';
@@ -228,6 +228,7 @@ export function managerTrainingRunPreflight(
     return { state: 'unavailable' };
   }
   const root = response as Record<string, unknown>;
+  if(root.ok===false&&root.reason==='training_served_snapshot_version_mismatch')return {state:'unavailable',reason:'training_served_snapshot_version_mismatch'};
   if(expectedTrainingTest){
     if(!exact(root,['ok','contractVersion','agentFamilyId','workflowVersionId','managerTrainingRequirements','trainingTest'])
       ||root.ok!==true||root.contractVersion!=='prepared-agent-training-preflight.v1'||!preparedTrainingTestMatches(root,expectedTrainingTest)

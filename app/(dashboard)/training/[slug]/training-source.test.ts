@@ -1611,6 +1611,22 @@ test('saved recording handoff preserves raw moment notes, previews explicitly an
 
 // Behavior change: owner Training starts with a progressive workspace; the
 // original save/admission tests above still exercise the existing handlers.
+test('a newly created agent can explicitly open private chat without adding a source or calling analysis',async()=>{
+ const h=harness({successorParentSessionId:null}),base=h.bridge.trainingLocal;
+ h.bridge.trainingLocal=async(operation,args)=>{
+  const value=await base(operation,args);
+  if(operation==='home')value.home.recentSessions=[];
+  return value;
+ };
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+ try{
+  assert.equal(h.calls.some(c=>c.operation==='create'),false);
+  await r.click(r.getByText('Start private training'));
+  assert.equal(h.calls.filter(c=>c.operation==='create').length,1);
+  assert.equal(r.document.querySelectorAll('#training-chat-message').length,1);
+  assert.equal(h.calls.some(c=>['select','preview','recording','annotate','accept','delivery'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
 test('owner workspace starts with three choices and one chat, without running or admitting anything',async()=>{
  const h=await renderedWith(),r=h.rendered;
  const visible=(el:Element)=>!el.closest('[hidden]');

@@ -8,7 +8,7 @@ async function forward(request:Request,write:boolean){
  try{
   const q=new URL(request.url).searchParams,id=q.get('sessionId'),operation=q.get('operation');
   if(!UUID.test(id||'')||[...q.keys()].some(k=>k!=='sessionId'&&(!write||k!=='operation'))
-   ||write&&!['policy','records','withdraw','creation-import','tests/prepare'].includes(operation||''))return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
+   ||write&&!['policy','records','withdraw','creation-import','tests/prepare','activate','publication/prepare','publication/publish'].includes(operation||''))return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
   const headers:Record<string,string>={authorization:`Bearer ${session.access_token}`,'content-type':'application/json'};
   let body;
   if(write){const key=request.headers.get('Idempotency-Key');
