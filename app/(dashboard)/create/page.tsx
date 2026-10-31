@@ -27,7 +27,8 @@ import OutcomeEntry from '../_components/outcome-entry';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CreatePage() {
+export default async function CreatePage({searchParams}:{searchParams?:{from?:string}}) {
+  const fromTraining=searchParams?.from==='training';
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
@@ -36,7 +37,7 @@ export default async function CreatePage() {
   if (!profile?.organization_id) redirect('/onboarding');
 
   const [discovery, suggested, proficiency] = await Promise.all([
-    listAgentDiscovery(session.access_token),
+    fromTraining?Promise.resolve({status:'ready' as const,agents:[]}):listAgentDiscovery(session.access_token),
     listSuggestedAgents(6),
     getProficiency(supabase, session.user.id),
   ]);
@@ -49,37 +50,37 @@ export default async function CreatePage() {
     <main className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-3xl mx-auto">
         <div className="mb-6">
-          <Link href="/workflows" className="text-xs text-ink-400 hover:text-ink-200 hover:underline">← Your agents</Link>
+          <Link href={fromTraining?'/training':'/workflows'} className="text-xs text-ink-400 hover:text-ink-200 hover:underline">{fromTraining?'← Training':'← Your agents'}</Link>
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50 mt-2">Create an agent</h1>
           <p className="text-sm text-ink-400 mt-1">
-            Describe what you want and your own Claude builds it — or start from one the community already runs.
+            {fromTraining?'Describe what this agent should do, any required tools, and the input and output you expect. Once it is built, train it with your demonstrations and feedback.':'Describe what you want and your connected engine builds it — or start from one the community already runs.'}
           </p>
         </div>
 
         {/* 0) Outcome-first: state the result, the control plane picks the agent */}
-        <OutcomeEntry />
+        {!fromTraining&&<OutcomeEntry />}
 
         {/* divider */}
-        <div className="relative my-10 text-center">
+        {!fromTraining&&<div className="relative my-10 text-center">
           <span className="bg-ink-950 px-3 relative z-10 text-xs uppercase tracking-wide text-ink-500">or build an agent yourself</span>
           <div className="absolute top-1/2 left-0 right-0 h-px bg-ink-800" />
-        </div>
+        </div>}
 
         {/* 1) Describe it */}
-        <TalkToImplexa hasAgents guided={guided} suggestions={suggested} connected={connected} />
+        <TalkToImplexa hasAgents guided={guided} suggestions={fromTraining?[]:suggested} connected={connected} />
         <BuildingAgents />
 
         {/* divider */}
-        <div className="relative my-10 text-center">
+        {!fromTraining&&<div className="relative my-10 text-center">
           <span className="bg-ink-950 px-3 relative z-10 text-xs uppercase tracking-wide text-ink-500">or pick a proven one</span>
           <div className="absolute top-1/2 left-0 right-0 h-px bg-ink-800" />
-        </div>
+        </div>}
 
         {/* 2) Pick a proven one */}
-        <AgentDiscoveryCatalog
+        {!fromTraining&&<AgentDiscoveryCatalog
           agents={discovery.agents}
           unavailable={discovery.status === 'unavailable' ? discovery.reason : null}
-        />
+        />}
       </div>
     </main>
   );
