@@ -31,18 +31,40 @@ type Props = {
    * understand what they're permanently destroying. */
   usageCount:    number;
   activeShares:  ActiveShare[];
+  currentContent?: string;
+  currentScope?: string;
+  currentVersion?: number;
 };
 
-export default function SkillActions({ jwt, id, name, currentStatus, isSystem, isOwnedByMe, usageCount, activeShares }: Props) {
+export default function SkillActions({ jwt, id, name, currentStatus, isSystem, isOwnedByMe, usageCount, activeShares, currentContent, currentScope, currentVersion }: Props) {
   const router = useRouter();
-  const [busy, setBusy] = useState<null | 'activate' | 'archive' | 'delete' | 'fork' | `share-${'team' | 'public'}` | `revoke-${string}`>(null);
+  const [busy, setBusy] = useState<null | 'edit' | 'activate' | 'archive' | 'delete' | 'fork' | `share-${'team' | 'public'}` | `revoke-${string}`>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draftContent, setDraftContent] = useState(currentContent || '');
+  const [editNotice, setEditNotice] = useState('');
 
   // Local-state shares (start from SSR-passed list, mutate on create/revoke)
   const [shares, setShares] = useState<ActiveShare[]>(activeShares);
   const teamShare   = shares.find((s) => s.shareMode === 'team')   || null;
   const publicShare = shares.find((s) => s.shareMode === 'public') || null;
+  // A review affordance, not a new authorization boundary: the existing
+  // authenticated edit API still enforces its normal ownership/scope rules.
+  const canEditDraft = !isSystem && isOwnedByMe && currentStatus === 'draft'
+    && currentScope === 'private' && shares.length === 0 && typeof currentContent === 'string' && Number.isInteger(currentVersion);
+
+  async function saveDraftWording() {
+    if (!canEditDraft || !draftContent.trim() || draftContent.length > 30000) return;
+    setBusy('edit'); setError(null); setEditNotice('');
+    try {
+      await callBackend(`/api/v2/skills/${id}/edit`, { jwt, method: 'POST', body: {
+        content: draftContent.trim(), changeNote: 'Reviewed draft wording before activation', expectedDraftVersion: currentVersion,
+      } });
+      setEditing(false); setEditNotice('Draft wording saved. Activation and sharing are separate actions.');
+      router.refresh();
+    } catch (err: any) { setError(err.message); } finally { setBusy(null); }
+  }
 
   async function activate() {
     setBusy('activate'); setError(null);
@@ -155,6 +177,9 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
           </button>
         ) : (
           <>
+            {canEditDraft && <button disabled={!!busy} className="btn-secondary whitespace-nowrap" onClick={() => {
+              setDraftContent(currentContent || ''); setEditing(true); setEditNotice('');
+            }}>Edit draft wording</button>}
             {currentStatus === 'draft' && (
               <button onClick={activate} disabled={!!busy} className="btn-primary whitespace-nowrap">
                 {busy === 'activate' ? 'Activating…' : 'Activate'}
@@ -191,6 +216,15 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
           </>
         )}
       </div>
+
+      {editing && canEditDraft && <section className="w-full space-y-2 rounded border border-ink-700 p-3">
+        <p>Editing private draft version {currentVersion}. If it changes before saving, reload and review it again.</p>
+        <label className="block">Draft operating method<textarea aria-label="Draft operating method" className="block w-full min-h-64 rounded bg-ink-900 p-2 font-mono text-sm" value={draftContent} maxLength={30000} disabled={!!busy} onChange={event => setDraftContent(event.target.value)} /></label>
+        <p className="text-xs">Correct wording in this existing method. New tool procedures belong in a new demonstration. Saving uses the existing version history; it does not activate or share the draft.</p>
+        <button disabled={!!busy || !draftContent.trim() || draftContent === currentContent} onClick={saveDraftWording}>Save draft wording</button>
+        <button disabled={!!busy} onClick={() => setEditing(false)}>Cancel wording edit</button>
+      </section>}
+      {editNotice && <p role="status" className="text-xs">{editNotice}</p>}
 
       {error && <p className="text-xs text-red-600 text-right">{error}</p>}
 
