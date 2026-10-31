@@ -108,3 +108,9 @@ test('guided test suggestion reviews the snapshot gate rather than bypassing it 
  await r.click(b);assert.equal(actions[0][0],'test_agent');assert.equal(calls.some(c=>c.init.method==='POST'),false);
  assert.equal(r.document.querySelector('a[href*="/workflows/"]'),null);
 });
+
+test('an imported AI creation note is never labelled as trainer speech or an unfinished provider call',async t=>{
+ const {r,calls}=await setup(t,{guided:true,embedded:true,turns:[turn({sourceKind:'creation_notes',status:'pending',answer:null,action:'none'})]});
+ assert.match(r.text(),/Implexa creation note:/);assert.match(r.text(),/No chat reply was requested/);
+ assert.doesNotMatch(r.text(),/You:|Reply not yet confirmed/);assert.equal(calls.some(c=>c.init.method==='POST'),false);
+});

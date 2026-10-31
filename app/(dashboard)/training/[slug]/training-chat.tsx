@@ -4,6 +4,7 @@ import {useEffect,useRef,useState} from 'react';
 type Source={sourceId:string;localName?:string;metadata:{sha256:string;mediaType:string;durationMs:number}};
 type Action='none'|'analyse_tool_method'|'analyse_taste'|'review_method'|'review_agent_update'|'review_teaching'|'test_agent';
 type Turn={turnId:string;versionId:string;sourceId:string|null;sourceSha256:string|null;message:string;createdAt:string;
+ sourceKind?:'creation_notes'|'trainer_feedback';
  status:'pending'|'answered'|'failed'|'stale';answer:string|null;action:Action;reason:string|null};
 type Context={agent:{id:string;name:string;slug:string;versionId:string};boundMethods:Array<{stageIndex:number;source:string;slug:string;contentDigest:string}>;
  researchMethodPresent:boolean;source:{sourceId:string;sha256:string}|null;availableActions:Action[]};
@@ -89,9 +90,9 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
    const matches=t.versionId===versionId&&t.sourceId===selectedSourceId&&t.sourceSha256===(source?.metadata.sha256||null);
    const actionable=matches&&t.status==='answered'&&context?.agent.versionId===versionId&&context.availableActions.includes(t.action)&&!disabled&&canSend;
    return <li key={t.turnId} className="border-t border-ink-700 pt-3 space-y-2"><p className="text-sm text-ink-400">Version {t.versionId.slice(0,8)} · {t.sourceId?`Source ${t.sourceId.slice(0,8)}`:'Agent setup'}</p>
-    <p className="whitespace-pre-wrap"><strong>You:</strong> {t.message}</p>
+    <p className="whitespace-pre-wrap"><strong>{t.sourceKind==='creation_notes'?'Implexa creation note:':'You:'}</strong> {t.message}</p>
     {t.answer&&<p className="whitespace-pre-wrap"><strong>Implexa:</strong> {t.answer}</p>}
-    {t.status==='pending'&&<p>Reply not yet confirmed. Refresh reads the saved turn without calling Claude again.</p>}
+    {t.status==='pending'&&<p>{t.sourceKind==='creation_notes'?'Private note imported from the AI-prepared creation draft. No chat reply was requested.':'Reply not yet confirmed. Refresh reads the saved turn without calling Claude again.'}</p>}
     {t.status==='failed'&&<p role="status">This reply could not be completed: {t.reason?.replaceAll('_',' ')}. Your message is preserved; no automatic retry was made.</p>}
     {t.status==='stale'&&<p>This reply belongs to an earlier agent version. Its proposed action is unavailable.</p>}
     {t.action!=='none'&&(t.action==='test_agent'?actionable?guided?<button type="button" disabled={sending} onClick={()=>onAction(t.action,{versionId:t.versionId,sourceId:t.sourceId,sourceSha256:t.sourceSha256})}>Review the private update’s test</button>:<a href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>{names[t.action]}</a>:<span>Test entry unavailable for this earlier context.</span>:

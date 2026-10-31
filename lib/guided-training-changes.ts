@@ -5,7 +5,7 @@ export type TrainingChangeRecord={recordId:string;recordDigest:string;summary:st
 export type GuidedTrainingChanges={ok:true;contractVersion:'guided-training-changes.v1';
  binding:{sessionId:string;agentFamilyId:string;workflowVersionId:string;snapshotDigest:string};
  policy:{policyId:string|null;policyDigest:string|null;revision:number;enabled:boolean};
- feedback:Array<{eventId:string;eventDigest:string;text:string|null;analysisStatus:'not_requested'|'pending'|'answered'|'failed'|'unavailable';outcome:FeedbackOutcome;reason:string;uncoveredText:string[];recordIds:string[];proposalOutcomes?:Array<{candidateKey:string;status:'mapped'|'refused';reason:string}>}>;
+ feedback:Array<{eventId:string;eventDigest:string;text:string|null;sourceKind?:'creation_notes'|'trainer_feedback';analysisStatus:'not_requested'|'pending'|'answered'|'failed'|'unavailable';outcome:FeedbackOutcome;reason:string;uncoveredText:string[];recordIds:string[];proposalOutcomes?:Array<{candidateKey:string;status:'mapped'|'refused';reason:string}>}>;
  records:TrainingChangeRecord[];
  creationImports?:Array<{buildRequestId:string;replyId:string;replyDigest:string;noteCount:number;notes:string[];importedNoteIndices:number[]}>;
  test:{snapshotDigest:string|null;scope:'private_candidate'|'public_projection'|null;status:'not_run'|'running'|'delivered'|'stale'|'failed';runId:string|null;qualityScore:number|null;gaps:string[];canTest:boolean};
@@ -28,6 +28,7 @@ export function guidedTrainingChanges(v:any,expected:{sessionId:string;workflowV
  const feedbackSeen=new Set();for(const f of v.feedback){if(!id(f.eventId)||feedbackSeen.has(f.eventId)||!sha(f.eventDigest)||!(f.text===null&&f.analysisStatus==='unavailable'||text(f.text,20000))
   ||!['not_requested','pending','answered','failed','unavailable'].includes(f.analysisStatus)||!['not_analysed','not_converted','partly','added'].includes(f.outcome)||!text(f.reason,2000)||!strings(f.uncoveredText,20000,20)||!Array.isArray(f.recordIds)||f.recordIds.length>20
   ||new Set(f.recordIds).size!==f.recordIds.length||f.recordIds.some((rid:any)=>!v.records.some((r:any)=>r.recordId===rid&&r.sourceEventId===f.eventId&&r.sourceEventDigest===f.eventDigest))
+  ||f.sourceKind!==undefined&&!['creation_notes','trainer_feedback'].includes(f.sourceKind)
   ||f.analysisStatus==='unavailable'&&(f.text!==null||f.recordIds.some((id:any)=>v.records.some((r:any)=>r.recordId===id&&r.included)))
   ||['partly','added'].includes(f.outcome)&&!f.recordIds.length||f.outcome!=='not_analysed'&&f.analysisStatus!=='answered'&&!(f.analysisStatus==='unavailable'&&['added','partly'].includes(f.outcome)&&f.recordIds.length)
   ||f.proposalOutcomes!==undefined&&(!Array.isArray(f.proposalOutcomes)||f.proposalOutcomes.length>3||f.proposalOutcomes.some((o:any)=>!/^teaching-[123]$/.test(o?.candidateKey||'')||!['mapped','refused'].includes(o.status)||!text(o.reason,2000))))return false;feedbackSeen.add(f.eventId);}
