@@ -217,6 +217,28 @@ const key = async (el: HTMLElement, k: string, opts: Record<string, unknown> = {
 const media = async (el: HTMLElement, type: string) => {
   await act(async () => { el.dispatchEvent(new dom.window.Event(type, { bubbles: true })); });
 };
+
+function fullscreenFixture() {
+  const proto = dom.window.HTMLElement.prototype;
+  const requestDescriptor = Object.getOwnPropertyDescriptor(proto, 'requestFullscreen');
+  const exitDescriptor = Object.getOwnPropertyDescriptor(dom.window.document, 'exitFullscreen');
+  const elementDescriptor = Object.getOwnPropertyDescriptor(dom.window.document, 'fullscreenElement');
+  let element: Element | null = null;
+  const state = { exits: 0, exit: async () => { change(null); } };
+  function change(next: Element | null) {
+    element = next;
+    dom.window.document.dispatchEvent(new dom.window.Event('fullscreenchange'));
+  }
+  Object.defineProperty(dom.window.document, 'fullscreenElement', { configurable: true, get: () => element });
+  proto.requestFullscreen = async function () { change(this); };
+  dom.window.document.exitFullscreen = async () => { state.exits++; await state.exit(); };
+  return { state, change, restore: () => {
+    for (const [target, name, descriptor] of [[proto, 'requestFullscreen', requestDescriptor], [dom.window.document, 'exitFullscreen', exitDescriptor], [dom.window.document, 'fullscreenElement', elementDescriptor]] as const) {
+      if (descriptor) Object.defineProperty(target, name, descriptor);
+      else Reflect.deleteProperty(target, name);
+    }
+  } };
+}
 // THE COMPOSER'S OWN BOX — never a bare textarea query: once a draft is saved the
 // footer's revision-note textarea exists too, and existence assertions against
 // "any textarea" answer the wrong question. Booleans only in assertions: a failed
@@ -277,6 +299,56 @@ test('feedback near the bottom of the full video freezes the same source-normali
   assert.equal(anchor.temporal.startMs, 1656);
   assert.equal(anchor.observedArtifactId, VID); assert.equal(anchor.observedArtifactSha256, SHA_V);
   assert.equal(anchor.geometry.x, 0.5); assert.ok(Math.abs(anchor.geometry.y - 445 / 450) < 0.000001);
+});
+
+test('fullscreen annotation waits for this player to exit before showing the composer, preserving the down-frame', async () => {
+  const full = fullscreenFixture();
+  try {
+    const state = await mountVideo();
+    await fire(container.querySelector('button[aria-label="Enter fullscreen"]')! as HTMLElement, 'click');
+    const player = container.querySelector('[data-testid="review-playback"]')!;
+    assert.equal(document.fullscreenElement, player);
+    let completeExit!: () => void;
+    full.state.exit = () => new Promise<void>((resolve) => { completeExit = () => { full.change(null); resolve(); }; });
+    await fire(overlay(), 'pointerdown', { clientX: 410, clientY: 320 });
+    state.currentTime = 8;
+    await fire(overlay(), 'pointerup', { clientX: 410, clientY: 320 });
+    assert.equal(full.state.exits, 1); assert.equal(composerBox(), null, 'the outside composer waits for exit');
+    await act(async () => { completeExit(); });
+    assert.equal(document.fullscreenElement, null); assert.ok(composerBox());
+    assert.equal(player.contains(composerBox()), false, 'composer is now outside fullscreen and visible');
+    assert.match(text(), /Pin · 00:01\.656/);
+  } finally { full.restore(); }
+});
+
+test('refused fullscreen exit keeps the gesture and a visible notice; later Escape reveals it exactly once', async () => {
+  const full = fullscreenFixture();
+  try {
+    await mountVideo();
+    await fire(container.querySelector('button[aria-label="Enter fullscreen"]')! as HTMLElement, 'click');
+    full.state.exit = async () => { throw new Error('inert exit refusal'); };
+    await fire(overlay(), 'pointerdown', { clientX: 410, clientY: 320 });
+    await fire(overlay(), 'pointerup', { clientX: 410, clientY: 320 });
+    assert.equal(composerBox(), null);
+    const player = document.fullscreenElement!;
+    assert.match(player.querySelector('[role="alert"]')!.textContent!, /feedback is preserved.*Exit fullscreen/);
+    await act(async () => { full.change(null); });
+    assert.ok(composerBox()); assert.match(text(), /Pin · 00:01\.656/);
+    await typeBody('preserved fullscreen note'); await clickButton(/^Save issue$/);
+    assert.equal(calls.filter((c) => c.body.action === 'create_issue').length, 1);
+  } finally { full.restore(); }
+});
+
+test('annotation never exits a different component’s fullscreen', async () => {
+  const full = fullscreenFixture();
+  try {
+    await mountVideo();
+    const other = document.createElement('div');
+    await act(async () => { full.change(other); });
+    await fire(overlay(), 'pointerdown', { clientX: 410, clientY: 320 });
+    await fire(overlay(), 'pointerup', { clientX: 410, clientY: 320 });
+    assert.equal(full.state.exits, 0); assert.equal(document.fullscreenElement, other);
+  } finally { full.restore(); }
 });
 
 // ── the primary path: click → pause → freeze → exact anchor → evidence ──────

@@ -11,13 +11,41 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
   mediaRef: RefObject<HTMLMediaElement>;
   mediaKey: string;
   onSeek: (ms: number) => void;
-  children: ReactNode;
+  children: ReactNode | ((revealOutside: (action: () => void) => void) => ReactNode);
 }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState({ paused: true, time: 0, duration: 0, volume: 1, muted: false, seeking: false });
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [canFullscreen, setCanFullscreen] = useState(false);
+  const pendingOutsideAction = useRef<(() => void) | null>(null);
+
+  function finishOutsideAction() {
+    const action = pendingOutsideAction.current;
+    pendingOutsideAction.current = null;
+    action?.();
+  }
+
+  async function exitForOutsideAction() {
+    const expectedAction = pendingOutsideAction.current;
+    // Never exit another component's fullscreen. The frozen gesture waits here
+    // until OUR fullscreen has actually ended, including a later user Escape.
+    if (document.fullscreenElement !== playerRef.current) { finishOutsideAction(); return; }
+    try {
+      await document.exitFullscreen();
+      if (pendingOutsideAction.current !== expectedAction) return;
+      if (document.fullscreenElement !== playerRef.current) finishOutsideAction();
+      else setError('Your feedback is preserved. Exit fullscreen to write it.');
+    } catch { setError('Your feedback is preserved. Exit fullscreen to write it.'); }
+  }
+
+  function revealOutside(action: () => void) {
+    if (pendingOutsideAction.current) return; // Keep the first frozen gesture.
+    if (document.fullscreenElement !== playerRef.current) { action(); return; }
+    pendingOutsideAction.current = action;
+    setError(null);
+    void exitForOutsideAction();
+  }
 
   useEffect(() => {
     const media = mediaRef.current;
@@ -30,13 +58,18 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
     });
     const events = ['loadedmetadata', 'durationchange', 'timeupdate', 'play', 'pause', 'ended', 'volumechange', 'seeking', 'seeked', 'emptied'];
     for (const event of events) media.addEventListener(event, sync);
-    const onFullscreen = () => setFullscreen(document.fullscreenElement === playerRef.current);
+    const onFullscreen = () => {
+      const ours = document.fullscreenElement === playerRef.current;
+      setFullscreen(ours);
+      if (!ours && pendingOutsideAction.current) { setError(null); finishOutsideAction(); }
+    };
     document.addEventListener('fullscreenchange', onFullscreen);
     setCanFullscreen(typeof playerRef.current?.requestFullscreen === 'function' && document.fullscreenEnabled !== false);
     sync();
     return () => {
       for (const event of events) media.removeEventListener(event, sync);
       document.removeEventListener('fullscreenchange', onFullscreen);
+      pendingOutsideAction.current = null;
     };
   }, [mediaRef, mediaKey]);
 
@@ -66,6 +99,7 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
 
   async function toggleFullscreen() {
     setError(null);
+    if (pendingOutsideAction.current) { await exitForOutsideAction(); return; }
     try {
       if (document.fullscreenElement === playerRef.current) await document.exitFullscreen();
       else await playerRef.current?.requestFullscreen();
@@ -88,7 +122,7 @@ export default function ReviewPlaybackControls({ mediaRef, mediaKey, onSeek, chi
         if (event.key === ' ') { event.preventDefault(); void togglePlayback(); }
       }}
     >
-      {children}
+      {typeof children === 'function' ? children(revealOutside) : children}
       <div data-testid="playback-controls" role="group" aria-label="Playback controls" className="space-y-2 rounded-b border border-ink-800 bg-ink-950 p-3">
         <input
           type="range" aria-label="Seek video" min={0} max={state.duration || 0} step="any"

@@ -2328,7 +2328,7 @@ function ArtifactSurface({
   if (decision.kind === 'video' || decision.kind === 'audio') {
     const Tag = (decision.kind === 'video' ? 'video' : 'audio') as 'video' | 'audio';
     // Relative picture wrapper only: the annotation overlay never covers transport.
-    const picture = (
+    const picture = (revealOutside?: (action: () => void) => void) => (
         <div className={decision.kind === 'video' ? 'relative' : undefined}>
         <Tag
           // KEYED BY ARTIFACT. Without this React reuses the element across a switch and
@@ -2362,7 +2362,7 @@ function ArtifactSurface({
             pins={spatial.pins}
             draftSpatial={spatial.draftSpatial}
             freezeMedia={spatial.freezeMedia}
-            onAnnotate={spatial.onAnnotate}
+            onAnnotate={(args) => revealOutside ? revealOutside(() => spatial.onAnnotate(args)) : spatial.onAnnotate(args)}
             onNudgeDraft={spatial.onNudgeDraft}
             onCancelDraft={spatial.onCancelDraft}
             onOpenIssue={spatial.onOpenIssue}
@@ -2374,9 +2374,9 @@ function ArtifactSurface({
       <div>
         {decision.kind === 'video' ? (
           <ReviewPlaybackControls key={mediaKey} mediaKey={mediaKey} mediaRef={mediaRef} onSeek={onSeek}>
-            {picture}
+            {(revealOutside) => picture(revealOutside)}
           </ReviewPlaybackControls>
-        ) : picture}
+        ) : picture()}
         {/* The OUTSIDE-the-player information affordance (Wave 2 discoverability):
             always visible next to the player, never floating over content. */}
         {decision.kind === 'video' && (

@@ -59,6 +59,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
   const [markStartMs, setMarkStartMs] = useState<number | null>(null);
   const [barDraft, setBarDraft] = useState<Range | null>(null);
   const [drawing, setDrawing] = useState(false);
+  const [regionError, setRegionError] = useState<string | null>(null);
   const [showTrail, setShowTrail] = useState(true);
   const [videoDims, setVideoDims] = useState<{ w: number; h: number } | null>(null);
   const [elementSize, setElementSize] = useState<{ w: number; h: number } | null>(null);
@@ -309,13 +310,19 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
     const v = videoRef.current;
     if (!v) return null;
     v.pause();
+    if (v.seeking) return null;
     return Math.round(v.currentTime * 1000);
   };
-  const onRegionAnnotate = ({ spatial }: { spatial: { geometry: { kind: 'point' | 'rect'; x: number; y: number; width: number | null; height: number | null } } }) => {
-    if (!selectedId) return;
+  const onRegionAnnotate = ({ spatial, frozenTimestampMs }: { frozenTimestampMs: number | null; spatial: { geometry: { kind: 'point' | 'rect'; x: number; y: number; width: number | null; height: number | null } } }) => {
+    if (!selected) return;
+    if (frozenTimestampMs !== selected.startMs) {
+      setRegionError('The picture moved from this moment’s start. Choose Draw region again, wait for seeking to finish, then mark the picture. Your moment and notes are unchanged.');
+      return;
+    }
     const region = regionFromSpatial(spatial.geometry);
     if (!region) return;
-    setRegion(selectedId, region);
+    setRegion(selected.momentId, region);
+    setRegionError(null);
     setDrawing(false);
   };
 
@@ -423,6 +430,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
         {!preview && !previewError && <div className="h-64 animate-pulse rounded bg-ink-800/50" aria-label="Loading video" />}
         {preview && (
           <ReviewPlaybackControls key={recordingId} mediaKey={recordingId} mediaRef={videoRef} onSeek={seek}>
+          <>
           <div className="relative">
             <video
               ref={videoRef}
@@ -460,6 +468,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
               />
             )}
           </div>
+          {regionError && <p role="alert" className="p-3 text-xs text-amber-300">{regionError}</p>}
+          </>
           </ReviewPlaybackControls>
         )}
       </div>
@@ -562,7 +572,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-400">
                   <span>Region: {m.region ? regionLabel(m.region) : 'none'}</span>
-                  <button type="button" onClick={() => { selectMoment(m); setDrawing(true); }} className="text-sky-300 hover:underline">Draw region</button>
+                  <button type="button" onClick={() => { videoRef.current?.pause(); selectMoment(m); setRegionError(null); setDrawing(true); }} className="text-sky-300 hover:underline">Draw region</button>
                   {pointerBox && <button type="button" onClick={() => setRegion(m.momentId, pointerBox)} className="text-sky-300 hover:underline">Use pointer box</button>}
                   {m.region && <button type="button" onClick={() => setRegion(m.momentId, null)} className="text-ink-400 hover:underline">Clear region</button>}
                 </div>
