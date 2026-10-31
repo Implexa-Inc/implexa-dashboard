@@ -4,17 +4,17 @@
   "preparation": {
     "ok": true,
     "scope": "private_candidate",
-    "sessionId": "cc70cde2-b284-4a14-8a83-4ce927d403a6",
-    "snapshotDigest": "72cd21415fe8e18ff9e02214205b234b30a1b169b6770790f4b65e314ce2c660",
-    "preparationDigest": "0aedc9a6c64a20c371034faa524afe66048a49c4a6558cd3655d2b6d5a496249",
-    "testPreparationId": "ae90a52c-f201-4e34-8180-a8b1c990bc97",
+    "sessionId": "fc23f58d-513a-4345-9e16-302548593122",
+    "snapshotDigest": "b6e4b53d0e122227bc8df365625f9486d7fd1421e304718675e62bdf8674fedd",
+    "preparationDigest": "d86cc3bf6ee61d8b03aa724915ea7f16f0839330bd35ff33db8ba4ef367b13c3",
+    "testPreparationId": "1e6f5454-2c7e-495e-825a-f873a22789e7",
     "workflowVersionId": "ec120000-0000-4000-8000-000000006004"
   },
   "preflight": {
     "ok": true,
     "trainingTest": {
-      "preparationDigest": "0aedc9a6c64a20c371034faa524afe66048a49c4a6558cd3655d2b6d5a496249",
-      "testPreparationId": "ae90a52c-f201-4e34-8180-a8b1c990bc97"
+      "preparationDigest": "d86cc3bf6ee61d8b03aa724915ea7f16f0839330bd35ff33db8ba4ef367b13c3",
+      "testPreparationId": "1e6f5454-2c7e-495e-825a-f873a22789e7"
     },
     "agentFamilyId": "ec120000-0000-4000-8000-000000006003",
     "contractVersion": "prepared-agent-training-preflight.v1",
@@ -37,13 +37,13 @@
       "gaps": [
         "training_candidate_snapshot_changed"
       ],
-      "runId": null,
+      "runId": "5224506c-0c7d-4b80-8d2f-1b98e50c78dd",
       "scope": "private_candidate",
       "status": "stale",
       "canTest": true,
       "requestId": "00000000-0000-4000-8000-000000020003",
       "qualityScore": null,
-      "snapshotDigest": "72cd21415fe8e18ff9e02214205b234b30a1b169b6770790f4b65e314ce2c660"
+      "snapshotDigest": "b6e4b53d0e122227bc8df365625f9486d7fd1421e304718675e62bdf8674fedd"
     },
     "policy": {
       "enabled": false,
@@ -53,7 +53,7 @@
       "policyDigest": null
     },
     "binding": {
-      "sessionId": "cc70cde2-b284-4a14-8a83-4ce927d403a6",
+      "sessionId": "fc23f58d-513a-4345-9e16-302548593122",
       "agentFamilyId": "ec120000-0000-4000-8000-000000006003",
       "snapshotDigest": "354aadd243d52b89ee1797d9ae27de1d31bf55f5edbeb738f71b7950747b1628",
       "workflowVersionId": "ec120000-0000-4000-8000-000000006004"
@@ -62,13 +62,13 @@
       {
         "model": "claude-haiku-5-5",
         "state": "removed",
-        "summary": "Keep the main point prominent.",
+        "summary": "Use quieter labels.",
         "category": "taste",
         "included": false,
-        "recordId": "5ee83cd5-1945-43df-99b6-5b22af88b569",
+        "recordId": "0e051ba9-f07f-46d6-98ea-3536e6fb9df6",
         "sourceKind": "trainer_feedback",
-        "recordDigest": "82e8609da4b163ac27bd91a2e62a104c601c1cc7651393ea9cd1595b011be170",
-        "sourceEventId": "f3e11b54-a885-4c8e-8acf-c47e755e6a92",
+        "recordDigest": "e022777557a460fc703592c74c3dfc91026134ff43f54c3175d2833a218c8fb3",
+        "sourceEventId": "84de987c-92e4-4692-9a1e-d9479c6dc9e4",
         "admissionOrigin": "owner_candidate",
         "policyReceiptId": null,
         "sourceEventDigest": "971756de01137935f85d391ae3a4b6c83941d91af8e6caa69db0e0dec6336060",
@@ -79,13 +79,13 @@
       {
         "model": "claude-haiku-5-5",
         "state": "suggested",
-        "summary": "Use quieter labels.",
+        "summary": "Keep the main point prominent.",
         "category": "taste",
         "included": false,
-        "recordId": "e07594ff-f08e-4370-8e20-66dd32cd8421",
+        "recordId": "3f02f321-41a5-4a51-b5ea-7d0fb50c08ad",
         "sourceKind": "trainer_feedback",
-        "recordDigest": "5f6669fddfc14122953987089ce132955639c76cbab5da3eb7511af64cd53474",
-        "sourceEventId": "f3e11b54-a885-4c8e-8acf-c47e755e6a92",
+        "recordDigest": "f88b7aedea7e8ce0bbf834d0bf6ceb260c96d0da1b27f971b2c95f903df417f8",
+        "sourceEventId": "84de987c-92e4-4692-9a1e-d9479c6dc9e4",
         "admissionOrigin": "none",
         "policyReceiptId": null,
         "sourceEventDigest": "971756de01137935f85d391ae3a4b6c83941d91af8e6caa69db0e0dec6336060",
@@ -98,11 +98,11 @@
       {
         "text": "  Prefer quieter labels. Keep the main point prominent.  ",
         "reason": "suggested_not_admitted",
-        "eventId": "f3e11b54-a885-4c8e-8acf-c47e755e6a92",
+        "eventId": "84de987c-92e4-4692-9a1e-d9479c6dc9e4",
         "outcome": "added",
         "recordIds": [
-          "e07594ff-f08e-4370-8e20-66dd32cd8421",
-          "5ee83cd5-1945-43df-99b6-5b22af88b569"
+          "0e051ba9-f07f-46d6-98ea-3536e6fb9df6",
+          "3f02f321-41a5-4a51-b5ea-7d0fb50c08ad"
         ],
         "sourceKind": "trainer_feedback",
         "eventDigest": "971756de01137935f85d391ae3a4b6c83941d91af8e6caa69db0e0dec6336060",
@@ -127,8 +127,9 @@
       "reason": "training_delivered_test_required",
       "canActivate": false,
       "testRequestId": null,
+      "stoppedSinceTest": 0,
       "withdrawnSinceTest": 0,
-      "servedSnapshotDigest": null
+      "servedSnapshotDigest": "b6e4b53d0e122227bc8df365625f9486d7fd1421e304718675e62bdf8674fedd"
     },
     "publication": {
       "reason": "publication_test_required",
@@ -141,7 +142,11 @@
       "qualifyingSnapshotDigest": null
     },
     "contractVersion": "guided-training-changes.v1",
-    "creationImports": []
+    "creationImports": [],
+    "selectionCoverage": {
+      "eligibleTextByStage": [],
+      "maxStandingReferences": 2
+    }
   },
   "definition": {
     "ok": true,
@@ -280,7 +285,7 @@
       },
       "hardeningManifestDigest": "dccea9d4b20806f1c2f09faac84268b8868826e630792d53402f097ad122df14"
     },
-    "snapshotDigest": "72cd21415fe8e18ff9e02214205b234b30a1b169b6770790f4b65e314ce2c660",
+    "snapshotDigest": "b6e4b53d0e122227bc8df365625f9486d7fd1421e304718675e62bdf8674fedd",
     "contractVersion": "run-training-definition.v1",
     "workflowVersionId": "ec120000-0000-4000-8000-000000006004"
   }

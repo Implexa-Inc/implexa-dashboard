@@ -56,7 +56,7 @@ export function guidedTrainingChanges(v:any,expected:{sessionId:string;workflowV
 }
 
 export type TrainingPublicationPreview={ok:true;contractVersion:'training-publication-preview.v1';publicationPreparationId:string;preparationDigest:string;
- sessionId:string;workflowVersionId:string;candidateSnapshotDigest:string;snapshotDigest:string;definition:{name:string;description:string};
+ sessionId:string;workflowVersionId:string;candidateSnapshotDigest:string;snapshotDigest:string;definition:{name:string;description:string|null};
  records:Array<{recordId:string;recordDigest:string;relation:string;properties:string[];summary:string;mustNotCopy:string[];attribution:string|null;deliveryMode:'standing'|'on_question';
   derivative:{kind:string;sha256:string;sizeBytes:number;mediaType:string;width?:number;height?:number}}>;
  publicationDelta:{publishedSnapshotDigest:string|null;definitionChanged:boolean;changes:Array<{recordId:string;change:'added'|'removed'|'changed'|'unchanged'}>};
@@ -64,7 +64,7 @@ export type TrainingPublicationPreview={ok:true;contractVersion:'training-public
 export function trainingPublicationPreview(v:any,expected:{sessionId:string;workflowVersionId:string;snapshotDigest:string;records:TrainingChangeRecord[]}):v is TrainingPublicationPreview{
  if(v?.ok!==true||v.contractVersion!=='training-publication-preview.v1'||!id(v.publicationPreparationId)||!sha(v.preparationDigest)
   ||v.sessionId!==expected.sessionId||v.workflowVersionId!==expected.workflowVersionId||v.candidateSnapshotDigest!==expected.snapshotDigest||!sha(v.snapshotDigest)
-  ||!text(v.definition?.name,200)||!v.definition.name.trim()||!text(v.definition?.description,4000)
+  ||!text(v.definition?.name,200)||!v.definition.name.trim()||!(v.definition?.description===null||text(v.definition?.description,4000))
   ||!Array.isArray(v.records)||v.records.length!==expected.records.length||v.records.length>32||new Set(v.records.map((r:any)=>r?.recordId)).size!==v.records.length
   ||typeof v.canPublish!=='boolean'||!(v.qualifyingTestRequestId===null||id(v.qualifyingTestRequestId))
   ||!(v.qualifyingRunId===null||id(v.qualifyingRunId))||!(v.qualifyingSnapshotDigest===null||sha(v.qualifyingSnapshotDigest))

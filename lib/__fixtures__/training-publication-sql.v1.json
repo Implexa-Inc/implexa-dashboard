@@ -1,0 +1,565 @@
+{
+  "gate": "training-publication-actual-delivery",
+  "synthetic": true,
+  "preview": {
+    "ok": true,
+    "reason": null,
+    "records": [
+      {
+        "summary": "Keep the main point prominent.",
+        "recordId": "5eb359b3-f309-49ae-a204-2b86a07f9b1a",
+        "relation": "accepted",
+        "derivative": {
+          "kind": "text_guidance",
+          "sha256": "cf1d4397a382ec84e0cc29240b74b08110415587a4794bdc4dc208251b8e6f57",
+          "content": {
+            "category": "taste",
+            "recordId": "5eb359b3-f309-49ae-a204-2b86a07f9b1a",
+            "sourceKind": "trainer_feedback",
+            "instruction": "Keep the main point prominent.",
+            "recordDigest": "7bc4da01f7ee52a5734a1229f6737d8035af5a4ba193e7d364ef171c380d27a5",
+            "contractVersion": "trainer-text-guidance.v1"
+          },
+          "mediaType": "application/json",
+          "sizeBytes": 276
+        },
+        "properties": [
+          "information_hierarchy"
+        ],
+        "attribution": null,
+        "mustNotCopy": [
+          "Do not disclose private trainer feedback or history."
+        ],
+        "deliveryMode": "standing",
+        "recordDigest": "7bc4da01f7ee52a5734a1229f6737d8035af5a4ba193e7d364ef171c380d27a5",
+        "applicability": {
+          "stages": [
+            "build"
+          ],
+          "priority": 50,
+          "taskFacts": [],
+          "exceptions": []
+        }
+      }
+    ],
+    "sessionId": "02334e26-608d-4939-b33f-a48541ec506e",
+    "canPublish": true,
+    "definition": {
+      "name": "Source fixture",
+      "description": null
+    },
+    "snapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10",
+    "contractVersion": "training-publication-preview.v1",
+    "qualifyingRunId": "3ec0d892-3a75-4361-a8d2-eeee25326242",
+    "publicationDelta": {
+      "changes": [
+        {
+          "change": "added",
+          "recordId": "5eb359b3-f309-49ae-a204-2b86a07f9b1a"
+        }
+      ],
+      "definitionChanged": true,
+      "publishedSnapshotDigest": "c8fb6b968c69e7b3c9bb151c3df6dd469d081f7c9adc4bd08bc6b2546d43a4a4"
+    },
+    "preparationDigest": "2e3c0ecbf2dc935ece2743ac6bd225251e291b1dbdc1db6f54d7f09943514465",
+    "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
+    "candidateSnapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10",
+    "qualifyingTestRequestId": "00000000-0000-4000-8000-000000020003",
+    "publicationPreparationId": "a1745b11-2e20-4528-b419-2a67e83ab286",
+    "qualifyingSnapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10"
+  },
+  "published": {
+    "ok": true,
+    "replay": false,
+    "published": true,
+    "snapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10",
+    "contractVersion": "training-snapshot-publication.v1",
+    "preparationDigest": "2e3c0ecbf2dc935ece2743ac6bd225251e291b1dbdc1db6f54d7f09943514465",
+    "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
+    "publishedSnapshotDigest": "77fa9ce8846b14655c684bddd9bed7ec571374353d814fef759b0563a51014d4",
+    "qualifyingTestRequestId": "00000000-0000-4000-8000-000000020003",
+    "publicationPreparationId": "a1745b11-2e20-4528-b419-2a67e83ab286"
+  },
+  "family": {
+    "id": "ec120000-0000-4000-8000-000000006003",
+    "source": "generated",
+    "source_url": "https://example.invalid/source-fixture",
+    "source_id": null,
+    "name": "Source fixture",
+    "slug": "lifecycle-source-fixture",
+    "description": null,
+    "content": "# Synthetic fixture",
+    "frontmatter": null,
+    "author": null,
+    "install_count": null,
+    "star_count": null,
+    "last_seen_at": "2026-10-31T23:41:27.814Z",
+    "first_seen_at": "2026-10-31T23:41:27.813Z",
+    "embedding": null,
+    "fingerprint": null,
+    "is_active": true,
+    "metadata": {
+      "shared": true,
+      "visibility": "community",
+      "generated_by": "ec120000-0000-4000-8000-000000006000",
+      "bind_coverage": 100,
+      "build_evidence": {
+        "summary": "New agent \u2014 no proven run history yet.",
+        "version": 1,
+        "boundSteps": 0,
+        "provenSteps": 0,
+        "patternSteps": 0,
+        "bindableSteps": 0,
+        "verifiedSteps": 0,
+        "unprovenBoundSteps": 0
+      },
+      "hardening_required": true
+    },
+    "embedding_status": "pending",
+    "content_status": "ok",
+    "remix_of": null,
+    "artifact_type": "workflow",
+    "steps": [
+      {
+        "kind": "decision",
+        "label": "Inspect input.",
+        "order": 1,
+        "inputs": [
+          {
+            "from": "run.topic",
+            "name": "topic",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "source_manifest",
+            "type": "json",
+            "relativePath": "out/source.json"
+          }
+        ],
+        "managerGuidance": {
+          "stage": "build",
+          "decisionId": "creative-choice",
+          "disclosure": "on_question",
+          "properties": [
+            "typography_treatment"
+          ],
+          "contractVersion": "manager-guidance-decision.v1"
+        },
+        "managerQualityCoverage": {
+          "stage": "build",
+          "critical": false,
+          "taskFacts": [],
+          "contractVersion": "manager-quality-coverage.v1",
+          "requiredReferences": [],
+          "requiredCriterionIds": [],
+          "requiredDecisionKeys": [],
+          "requiredProcedureTools": []
+        }
+      },
+      {
+        "kind": "decision",
+        "label": "Author the candidate.",
+        "order": 2,
+        "inputs": [
+          {
+            "from": "step.1.source_manifest",
+            "name": "source_manifest",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "draft",
+            "type": "json",
+            "relativePath": "out/draft.json"
+          }
+        ]
+      },
+      {
+        "kind": "decision",
+        "label": "Check and package the result.",
+        "order": 3,
+        "inputs": [
+          {
+            "from": "step.2.draft",
+            "name": "draft",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "result",
+            "type": "file",
+            "relativePath": "out/result.json"
+          }
+        ]
+      },
+      {
+        "kind": "decision",
+        "label": "Independently inspect the result.",
+        "order": 4,
+        "enrichment": "critique_gate"
+      }
+    ],
+    "outcome_schema": {
+      "primary": "An independently checked isolated result."
+    },
+    "target_queries": null,
+    "permission_manifest": {
+      "rules": [],
+      "tools": [],
+      "domains": [],
+      "version": 1,
+      "requires_browser": false
+    },
+    "run_context": null,
+    "forked_from_id": null,
+    "forked_from_version_id": null,
+    "publication_state": null,
+    "publication_state_reason": null,
+    "search_query": null,
+    "search_intent_key": null,
+    "editorial_summary": null,
+    "limitations": null,
+    "example_result": null,
+    "privacy_reviewed_at": null,
+    "editorial_reviewed_at": null,
+    "last_content_reviewed_at": null,
+    "audience": null,
+    "prerequisites": null,
+    "required_inputs": null,
+    "active_workflow_version_id": "ec120000-0000-4000-8000-000000006004",
+    "active_input_contract_digest": "809b6deab9625ea618855c8b6214af5c84ce05dcd965f4be937cc1f6e0880bcc",
+    "marketplace_publisher_id": null,
+    "marketplace_publisher_name": null,
+    "marketplace_listing_state": "unlisted",
+    "marketplace_admission_state": "not_reviewed",
+    "published_workflow_version_id": "ec120000-0000-4000-8000-000000006004",
+    "published_agent_snapshot": {
+      "definition": {
+        "name": "Source fixture",
+        "steps": [
+          {
+            "kind": "decision",
+            "label": "Inspect input.",
+            "order": 1,
+            "inputs": [
+              {
+                "from": "run.topic",
+                "name": "topic",
+                "required": true
+              }
+            ],
+            "outputs": [
+              {
+                "name": "source_manifest",
+                "type": "json",
+                "relativePath": "out/source.json"
+              }
+            ],
+            "managerGuidance": {
+              "stage": "build",
+              "decisionId": "creative-choice",
+              "disclosure": "on_question",
+              "properties": [
+                "typography_treatment"
+              ],
+              "contractVersion": "manager-guidance-decision.v1"
+            },
+            "managerQualityCoverage": {
+              "stage": "build",
+              "critical": false,
+              "taskFacts": [],
+              "contractVersion": "manager-quality-coverage.v1",
+              "requiredReferences": [],
+              "requiredCriterionIds": [],
+              "requiredDecisionKeys": [],
+              "requiredProcedureTools": []
+            }
+          },
+          {
+            "kind": "decision",
+            "label": "Author the candidate.",
+            "order": 2,
+            "inputs": [
+              {
+                "from": "step.1.source_manifest",
+                "name": "source_manifest",
+                "required": true
+              }
+            ],
+            "outputs": [
+              {
+                "name": "draft",
+                "type": "json",
+                "relativePath": "out/draft.json"
+              }
+            ]
+          },
+          {
+            "kind": "decision",
+            "label": "Check and package the result.",
+            "order": 3,
+            "inputs": [
+              {
+                "from": "step.2.draft",
+                "name": "draft",
+                "required": true
+              }
+            ],
+            "outputs": [
+              {
+                "name": "result",
+                "type": "file",
+                "relativePath": "out/result.json"
+              }
+            ]
+          },
+          {
+            "kind": "decision",
+            "label": "Independently inspect the result.",
+            "order": 4,
+            "enrichment": "critique_gate"
+          }
+        ],
+        "content": "# Synthetic fixture",
+        "audience": null,
+        "metadata": {
+          "generated": null,
+          "generated_by": "ec120000-0000-4000-8000-000000006000",
+          "capability_setup": null
+        },
+        "source_url": "https://example.invalid/source-fixture",
+        "description": null,
+        "frontmatter": null,
+        "limitations": null,
+        "run_context": null,
+        "search_query": null,
+        "prerequisites": null,
+        "example_result": null,
+        "outcome_schema": {
+          "primary": "An independently checked isolated result.",
+          "input_contract": {
+            "fields": [
+              {
+                "key": "topic",
+                "kind": "text",
+                "label": "Topic",
+                "order": 1,
+                "required": true,
+                "cardinality": "one",
+                "description": "An isolated test topic."
+              }
+            ],
+            "version": 1
+          },
+          "input_contract_digest": "809b6deab9625ea618855c8b6214af5c84ce05dcd965f4be937cc1f6e0880bcc"
+        },
+        "required_inputs": null,
+        "editorial_summary": null,
+        "publication_state": null,
+        "permission_manifest": {
+          "rules": [],
+          "tools": [],
+          "domains": [],
+          "version": 1,
+          "requires_browser": false
+        },
+        "active_input_contract_digest": "809b6deab9625ea618855c8b6214af5c84ce05dcd965f4be937cc1f6e0880bcc"
+      },
+      "workflowId": "ec120000-0000-4000-8000-000000006003",
+      "qualification": "tested_delivery",
+      "contractVersion": "published-agent-snapshot.v1",
+      "teachingReleases": [
+        {
+          "releaseId": "d05af0fa-3b13-4283-9b53-ec5a4531fed8",
+          "releaseDigest": "5c29c6b8350da15a7b3f75d6bc947a41cf60c622b3fc23f28258679df19c2bcd"
+        }
+      ],
+      "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
+      "qualificationReceipt": {
+        "publicationId": "3ada6602-5e51-41a3-a1eb-8c227cb3fb78",
+        "snapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10"
+      }
+    },
+    "published_agent_snapshot_digest": "77fa9ce8846b14655c684bddd9bed7ec571374353d814fef759b0563a51014d4",
+    "training_candidate_policy_event_id": null,
+    "training_serving_snapshot_event_id": "4b2ed06e-992c-4b2e-9e81-3a4b05381384"
+  },
+  "customerBirth": {
+    "training_serving_snapshot_event_id": "3ada6602-5e51-41a3-a1eb-8c227cb3fb78"
+  },
+  "publicRead": {
+    "ok": true,
+    "scope": "served",
+    "material": {
+      "definition": {
+        "name": "Source fixture",
+        "steps": [
+          {
+            "kind": "decision",
+            "label": "Inspect input.",
+            "order": 1,
+            "inputs": [
+              {
+                "from": "run.topic",
+                "name": "topic",
+                "required": true
+              }
+            ],
+            "outputs": [
+              {
+                "name": "source_manifest",
+                "type": "json",
+                "relativePath": "out/source.json"
+              }
+            ],
+            "managerGuidance": {
+              "stage": "build",
+              "decisionId": "creative-choice",
+              "disclosure": "on_question",
+              "properties": [
+                "typography_treatment"
+              ],
+              "contractVersion": "manager-guidance-decision.v1"
+            },
+            "managerQualityCoverage": {
+              "stage": "build",
+              "critical": false,
+              "taskFacts": [],
+              "contractVersion": "manager-quality-coverage.v1",
+              "requiredReferences": [],
+              "requiredCriterionIds": [],
+              "requiredDecisionKeys": [],
+              "requiredProcedureTools": []
+            }
+          },
+          {
+            "kind": "decision",
+            "label": "Author the candidate.",
+            "order": 2,
+            "inputs": [
+              {
+                "from": "step.1.source_manifest",
+                "name": "source_manifest",
+                "required": true
+              }
+            ],
+            "outputs": [
+              {
+                "name": "draft",
+                "type": "json",
+                "relativePath": "out/draft.json"
+              }
+            ]
+          },
+          {
+            "kind": "decision",
+            "label": "Check and package the result.",
+            "order": 3,
+            "inputs": [
+              {
+                "from": "step.2.draft",
+                "name": "draft",
+                "required": true
+              }
+            ],
+            "outputs": [
+              {
+                "name": "result",
+                "type": "file",
+                "relativePath": "out/result.json"
+              }
+            ]
+          },
+          {
+            "kind": "decision",
+            "label": "Independently inspect the result.",
+            "order": 4,
+            "enrichment": "critique_gate"
+          }
+        ],
+        "content": "# Synthetic fixture",
+        "audience": null,
+        "metadata": {
+          "generated": null,
+          "generated_by": "ec120000-0000-4000-8000-000000006000",
+          "capability_setup": null
+        },
+        "source_url": "https://example.invalid/source-fixture",
+        "description": null,
+        "frontmatter": null,
+        "limitations": null,
+        "run_context": null,
+        "search_query": null,
+        "prerequisites": null,
+        "example_result": null,
+        "outcome_schema": {
+          "primary": "An independently checked isolated result.",
+          "input_contract": {
+            "fields": [
+              {
+                "key": "topic",
+                "kind": "text",
+                "label": "Topic",
+                "order": 1,
+                "required": true,
+                "cardinality": "one",
+                "description": "An isolated test topic."
+              }
+            ],
+            "version": 1
+          },
+          "input_contract_digest": "809b6deab9625ea618855c8b6214af5c84ce05dcd965f4be937cc1f6e0880bcc"
+        },
+        "required_inputs": null,
+        "editorial_summary": null,
+        "publication_state": null,
+        "permission_manifest": {
+          "rules": [],
+          "tools": [],
+          "domains": [],
+          "version": 1,
+          "requires_browser": false
+        },
+        "active_input_contract_digest": "809b6deab9625ea618855c8b6214af5c84ce05dcd965f4be937cc1f6e0880bcc"
+      },
+      "hardeningManifestDigest": "dccea9d4b20806f1c2f09faac84268b8868826e630792d53402f097ad122df14"
+    },
+    "snapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10",
+    "contractVersion": "run-training-definition.v1",
+    "workflowVersionId": "ec120000-0000-4000-8000-000000006004"
+  },
+  "empty": {
+    "ok": true,
+    "reason": "publication_test_required",
+    "records": [],
+    "sessionId": "02334e26-608d-4939-b33f-a48541ec506e",
+    "canPublish": false,
+    "definition": {
+      "name": "Source fixture",
+      "description": null
+    },
+    "snapshotDigest": "354aadd243d52b89ee1797d9ae27de1d31bf55f5edbeb738f71b7950747b1628",
+    "contractVersion": "training-publication-preview.v1",
+    "qualifyingRunId": null,
+    "publicationDelta": {
+      "changes": [
+        {
+          "change": "removed",
+          "recordId": "5eb359b3-f309-49ae-a204-2b86a07f9b1a"
+        }
+      ],
+      "definitionChanged": false,
+      "publishedSnapshotDigest": "3c0246bebcbec32f87537d02e28026953728e0ac2a64510c3a2ade16e8a6e6b4"
+    },
+    "preparationDigest": "4002491eaf864fdd579fe57c7ea9cedbc91d66ad20f3726618118efeb7775fbb",
+    "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
+    "candidateSnapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10",
+    "qualifyingTestRequestId": null,
+    "publicationPreparationId": "5332ef9f-9234-49b7-9cdf-100b34d9108d",
+    "qualifyingSnapshotDigest": null
+  }
+}

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 import {render} from '../../../../lib/test/render.ts';
 import {trainingPublicationPreview,type GuidedTrainingChanges,type TrainingPublicationPreview} from '../../../../lib/guided-training-changes.ts';
 const U=(n:number)=>`24000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
@@ -23,6 +24,15 @@ const publicationPreview=(canPublish=false):TrainingPublicationPreview=>({ok:tru
  records:[{recordId:RECORD,recordDigest:DIGEST,relation:'accepted',properties:['layout_variety'],summary:'Explain the relationship visually.',mustNotCopy:['source marks'],attribution:null,deliveryMode:'standing',
  derivative:{kind:'text_guidance',sha256:'d'.repeat(64),sizeBytes:220,mediaType:'application/json'}}],
  qualifyingTestRequestId:canPublish?U(21):null,qualifyingRunId:canPublish?U(22):null,qualifyingSnapshotDigest:canPublish?'c'.repeat(64):null,canPublish,reason:canPublish?null:'publication_test_required'});
+test('actual PostgreSQL publication preview passes unchanged after genuine synthetic delivery, while a different subset remains unqualified',()=>{
+ const v=JSON.parse(readFileSync(new URL('../../../../lib/__fixtures__/training-publication-sql.v1.json',import.meta.url),'utf8'));
+ assert.equal(v.synthetic,true);assert.equal(v.gate,'training-publication-actual-delivery');
+ const expected={sessionId:v.preview.sessionId,workflowVersionId:v.preview.workflowVersionId,snapshotDigest:v.preview.candidateSnapshotDigest,
+  records:v.preview.records.map((r:any)=>({recordId:r.recordId,recordDigest:r.recordDigest,summary:r.summary,included:true}))} as any;
+ assert.equal(trainingPublicationPreview(v.preview,expected),true);
+ assert.equal(v.preview.canPublish,true);assert.equal(v.published.published,true);assert.equal(v.empty.canPublish,false);
+ assert.equal(trainingPublicationPreview(v.empty,{...expected,records:[]}),true);
+});
 test('public preview guard binds the explicit selection and qualifying material, independently from a private test label',()=>{
  const v=publicationPreview(true),state=candidateState(),expected={sessionId:U(5),workflowVersionId:VERSION,snapshotDigest:DIGEST,records:state.records};
  assert.equal(trainingPublicationPreview(v,expected),true);
