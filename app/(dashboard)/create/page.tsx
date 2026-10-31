@@ -24,6 +24,7 @@ import TalkToImplexa from '../_components/talk-to-implexa';
 import BuildingAgents from '../_components/building-agents';
 import AgentDiscoveryCatalog from '../_components/agent-discovery-catalog';
 import OutcomeEntry from '../_components/outcome-entry';
+import GuidedAgentCreation from '../_components/guided-agent-creation';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +49,7 @@ export default async function CreatePage({searchParams}:{searchParams?:{from?:st
 
   return (
     <main className="min-h-screen px-6 lg:px-12 py-14">
-      <div className="max-w-3xl mx-auto">
+      <div className={`${fromTraining?'max-w-6xl':'max-w-3xl'} mx-auto`}>
         <div className="mb-6">
           <Link href={fromTraining?'/training':'/workflows'} className="text-xs text-ink-400 hover:text-ink-200 hover:underline">{fromTraining?'← Training':'← Your agents'}</Link>
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50 mt-2">Create an agent</h1>
@@ -67,7 +68,7 @@ export default async function CreatePage({searchParams}:{searchParams?:{from?:st
         </div>}
 
         {/* 1) Describe it */}
-        <TalkToImplexa hasAgents guided={guided} suggestions={fromTraining?[]:suggested} connected={connected} />
+        {fromTraining?<GuidedAgentCreation key={session.user.id} ownerId={session.user.id}/>:<TalkToImplexa hasAgents guided={guided} suggestions={suggested} connected={connected} />}
         <BuildingAgents />
 
         {/* divider */}
