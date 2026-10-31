@@ -1016,12 +1016,12 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
           <p className="whitespace-pre-wrap">{agentProposal.proposedChange}</p>
           {agentProposal.limitations.length>0&&<ul>{agentProposal.limitations.map((item,index)=><li key={index}>{item}</li>)}</ul>}
           <p>Private taste is saved and accepted separately above. If you want that teaching on this version, finish its admission before requesting the edit. After the edit lands, use the existing compatible-training adoption action; merely opening a successor session does not activate old teaching.</p>
-          <p>Only the generic capability instruction goes to Edit Agent. Your recording, transcript, example identities and taste wording stay out of that request. An edit request is not a new version or proof that the tool was used.</p>
+          <p>Only the generic capability instruction goes to Edit Agent. Your recording, transcript, example identities and taste wording stay out of that request. Normal Edit Agent automatically applies the generated revision after you approve this instruction; it does not show a separate generated-diff approval screen. Review the resulting definition before testing. A queued request is not a new version or proof that the tool was used.</p>
           <p>If no suitable existing method is selected, prepare a generic baseline through the existing authoring service. Only platform-written research-assessment instructions go to the model; your recording and taste are excluded. The result is a private draft, never automatically activated or shared. This is an explicit baseline choice, not a top-ranking claim.</p>
           {!agentChange&&<button disabled={!!busy||versionChanged} onClick={draftMethod}>{method?'Refresh reviewed operating method':'Draft baseline operating method'}</button>}
           {method&&<section className="space-y-2"><h4>{method.name} · {method.status} · {method.scope}</h4>
-            <p>Model: {method.model||'not recorded'} · exact body {shortId(method.contentDigest)}</p>
-            <pre className="whitespace-pre-wrap break-words text-sm">{method.content}</pre>
+            <p>Original draft model: {method.model||'not recorded'} · exact current body {shortId(method.contentDigest)}. Later edits may have changed the draft.</p>
+            <details><summary>Review the exact operating method</summary><pre className="whitespace-pre-wrap break-words text-sm">{method.content}</pre></details>
             <Link href={`/skills/${method.slug}`}>Review and activate this operating method</Link>
             <p>After using the existing activation action, refresh here. A public agent also requires the generic method to be publicly available; its private teachings are never included.</p></section>}
           {!agentChange&&<><label className="flex gap-2"><input type="checkbox" checked={agentChangeConfirmed} onChange={event=>setAgentChangeConfirmed(event.target.checked)} />Request this capability and operating-method update through normal Edit Agent. Preserve the remaining contracts and permissions.</label>
