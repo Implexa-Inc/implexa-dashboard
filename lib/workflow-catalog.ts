@@ -193,6 +193,7 @@ export type WorkflowDetail = {
   run_input_version_source?: 'installed' | 'live';
   update_available?: {
     workflow_version_id: string;
+    published_snapshot_digest?:string;
     version: number;
     input_contract: WorkflowInputContract | null;
     input_contract_digest: string | null;
@@ -669,6 +670,8 @@ export function mapWorkflowDetail(w: any, slug: string, source: string): Workflo
       && typeof w.update_available.input_contract_digest === 'string'
       ? {
           workflow_version_id: w.update_available.workflow_version_id,
+          ...(typeof w.update_available.published_snapshot_digest==='string'&&/^[a-f0-9]{64}$/.test(w.update_available.published_snapshot_digest)
+            ?{published_snapshot_digest:w.update_available.published_snapshot_digest}:{}),
           version: Number(w.update_available.version) || 0,
           input_contract: w.update_available.input_contract?.version === 1
             && Array.isArray(w.update_available.input_contract.fields)
