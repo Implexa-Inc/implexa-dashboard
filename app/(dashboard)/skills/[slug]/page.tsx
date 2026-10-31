@@ -254,6 +254,7 @@ export default async function SkillDetailPage({ params }: { params: { slug: stri
             activeShares={activeShares}
             currentContent={actualSkill.content}
             currentScope={actualSkill.scope}
+            currentVersion={actualSkill.version}
           />
         </header>
 

@@ -33,9 +33,10 @@ type Props = {
   activeShares:  ActiveShare[];
   currentContent?: string;
   currentScope?: string;
+  currentVersion?: number;
 };
 
-export default function SkillActions({ jwt, id, name, currentStatus, isSystem, isOwnedByMe, usageCount, activeShares, currentContent, currentScope }: Props) {
+export default function SkillActions({ jwt, id, name, currentStatus, isSystem, isOwnedByMe, usageCount, activeShares, currentContent, currentScope, currentVersion }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<null | 'edit' | 'activate' | 'archive' | 'delete' | 'fork' | `share-${'team' | 'public'}` | `revoke-${string}`>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,14 +52,14 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
   // A review affordance, not a new authorization boundary: the existing
   // authenticated edit API still enforces its normal ownership/scope rules.
   const canEditDraft = !isSystem && isOwnedByMe && currentStatus === 'draft'
-    && currentScope === 'private' && shares.length === 0 && typeof currentContent === 'string';
+    && currentScope === 'private' && shares.length === 0 && typeof currentContent === 'string' && Number.isInteger(currentVersion);
 
   async function saveDraftWording() {
     if (!canEditDraft || !draftContent.trim() || draftContent.length > 30000) return;
     setBusy('edit'); setError(null); setEditNotice('');
     try {
       await callBackend(`/api/v2/skills/${id}/edit`, { jwt, method: 'POST', body: {
-        content: draftContent, changeNote: 'Reviewed draft wording before activation',
+        content: draftContent.trim(), changeNote: 'Reviewed draft wording before activation', expectedDraftVersion: currentVersion,
       } });
       setEditing(false); setEditNotice('Draft wording saved. Activation and sharing are separate actions.');
       router.refresh();
@@ -217,6 +218,7 @@ export default function SkillActions({ jwt, id, name, currentStatus, isSystem, i
       </div>
 
       {editing && canEditDraft && <section className="w-full space-y-2 rounded border border-ink-700 p-3">
+        <p>Editing private draft version {currentVersion}. If it changes before saving, reload and review it again.</p>
         <label className="block">Draft operating method<textarea aria-label="Draft operating method" className="block w-full min-h-64 rounded bg-ink-900 p-2 font-mono text-sm" value={draftContent} maxLength={30000} disabled={!!busy} onChange={event => setDraftContent(event.target.value)} /></label>
         <p className="text-xs">Correct wording in this existing method. New tool procedures belong in a new demonstration. Saving uses the existing version history; it does not activate or share the draft.</p>
         <button disabled={!!busy || !draftContent.trim() || draftContent === currentContent} onClick={saveDraftWording}>Save draft wording</button>
