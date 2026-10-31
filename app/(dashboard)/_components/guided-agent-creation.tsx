@@ -77,8 +77,8 @@ export default function GuidedAgentCreation({ownerId}:{ownerId:string}){
   <div className="min-w-0 space-y-5">
    <div className="flex items-center justify-between gap-4"><p className="text-[10px] uppercase tracking-[.18em] text-ink-500">Your agent, prepared with you</p>
     <button type="button" className="text-xs text-ink-400 underline" disabled={busy} onClick={startNew}>{selected?'Copy to a new draft':'New draft'}</button></div>
-   {!selected&&<div className="rounded-xl border border-ink-800 p-6"><h2 className="text-xl font-medium">Start with the job you want done.</h2>
-    <p className="mt-3 text-sm leading-6 text-ink-400">Explain it in chat. Implexa will prepare the goal, tools, input and output for you. Nothing is built until you choose Build.</p></div>}
+   {!selected&&<div className="rounded-xl border border-ink-800 p-6"><h2 className="text-xl font-medium">{data?.withdrawn?'This draft is withdrawn.':'Start with the job you want done.'}</h2>
+    <p className="mt-3 text-sm leading-6 text-ink-400">{data?.withdrawn?'Choose New draft to start again. This draft can no longer prepare replies or queue a build.':'Explain it in chat. Implexa will prepare the goal, tools, input and output for you. Nothing is built until you choose Build.'}</p></div>}
    {selected?.brief&&<>
     {([['The goal','goal',<><h2 className="text-lg font-medium">{selected.brief.name}</h2><p className="mt-3">{selected.brief.goal}</p></>],
      ['What it receives','inputs',<ul className="list-disc pl-4 space-y-2">{selected.brief.inputs.map((s,i)=><li key={i}>{s}</li>)}</ul>],
@@ -103,7 +103,7 @@ export default function GuidedAgentCreation({ownerId}:{ownerId:string}){
    {!!data?.recentDrafts?.length&&<label className="text-xs text-ink-500">Private draft history<select aria-label="Private draft history" className="mt-1 w-full rounded border border-ink-700 bg-ink-950 p-2" disabled={busy} value={draftId} onChange={e=>{active.current=e.target.value;setDraftId(e.target.value);setData(null);setSelectedId(null);setQueued(false);setText('');pending.current=null;seed.current=null;resetFiles();try{sessionStorage.setItem(storageKey,e.target.value);}catch{}}}>
     {!data.recentDrafts.some(d=>d.draft_id===draftId)&&<option value={draftId}>Current draft</option>}{data.recentDrafts.map(d=><option key={d.draft_id} value={d.draft_id}>{new Date(d.updated_at).toLocaleString()}{d.withdrawn?' · Withdrawn':''}</option>)}
    </select></label>}
-   {data&&data.totalTurns>data.turns.length&&<p className="text-xs text-ink-500">Showing recent exchanges. All earlier messages remain in this private draft’s history.</p>}
+   {data&&!data.withdrawn&&data.totalTurns>data.turns.length&&<p className="text-xs text-ink-500">Showing recent exchanges. All earlier messages remain in this private draft’s history.</p>}
    <ol aria-label="Agent creation conversation" className="min-h-20 flex-1 space-y-4 overflow-y-auto text-sm leading-6">{data?.turns.map(t=><li key={t.turnId} className="border-t border-ink-800 pt-3">
     <p className="whitespace-pre-wrap"><strong>You:</strong> {t.message}</p>{t.reply&&<p className="mt-2 whitespace-pre-wrap"><strong>Implexa:</strong> {t.reply}</p>}
     {t.status==='pending'&&<p className="mt-2 text-amber-300">Reply not confirmed. Refresh only reads saved state. If it stays pending, copy the selected cards to a new draft, or choose New draft; the original message stays preserved.</p>}
@@ -115,7 +115,7 @@ export default function GuidedAgentCreation({ownerId}:{ownerId:string}){
    <label className="block text-sm">Message Implexa<textarea ref={composer} className="mt-2 block w-full min-h-24 rounded-lg border border-ink-700 bg-ink-950 p-3" maxLength={2000} value={text}
     disabled={busy||isBuilt||isPending} onChange={e=>setText(e.target.value)} placeholder="What should this agent do?"/></label>
    <p className="text-xs leading-5 text-ink-500">Send shares this chat and prepared draft with Claude Haiku 5.5 and saves them privately. Attached files stay local; Build passes their paths to your own engine.</p>
-   <button type="button" className="btn-primary" disabled={!draftId||busy||isBuilt||isPending||!text.trim()} onClick={send}>{busy?'Preparing…':'Send'}</button>
+   <button type="button" className="btn-primary" disabled={!draftId||busy||isBuilt||isPending||!text.trim()} onClick={send}>{busy?'Working…':'Send'}</button>
    <details className="text-xs text-ink-500"><summary>Private draft retention</summary><p className="mt-2">Messages and replies stay in your private history with no automatic expiry. Withdrawal stops future model preparation and builds from this draft; it retains the original evidence and does not cancel an existing build.</p><button type="button" className="mt-2 underline" disabled={busy||data?.withdrawn||!data?.turns.length} onClick={withdraw}>Withdraw this draft from further use</button></details>
   </div></aside>
  </section>;

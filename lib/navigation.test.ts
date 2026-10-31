@@ -204,11 +204,11 @@ test('countNewerThan ignores unparseable stamps and is timezone-format agnostic'
   assert.equal(countNewerThan(['2026-08-11T08:00:00Z'], seen), 0, 'older than the marker is not new');
 });
 
-test('the global Create button is suppressed on Work and review surfaces only', () => {
-  for (const p of ['/work', '/work?view=review', '/review', '/review/run-1', '/runs/abc']) {
+test('the global Create button stays out of review and contextual Training/creation surfaces', () => {
+  for (const p of ['/work', '/work?view=review', '/review', '/review/run-1', '/runs/abc','/training','/training/video-agent','/create']) {
     assert.equal(isCreateFabSuppressed(p.split('?')[0]), true, `${p} should suppress Create`);
   }
-  for (const p of ['/workflows', '/workflows/x', '/training', '/settings', '/overview']) {
+  for (const p of ['/workflows', '/workflows/x', '/settings', '/overview']) {
     assert.equal(isCreateFabSuppressed(p), false, `${p} should keep Create`);
   }
 });
