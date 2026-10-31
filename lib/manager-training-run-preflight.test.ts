@@ -1,11 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managerTrainingRunPreflight, trainingSuccessorAdoptionActionAvailable, trainingSuccessorAdoptionPreview,
-  trainingSuccessorAdoptionReceipt } from './manager-training-run-preflight.ts';
+  trainingSuccessorAdoptionReceipt,preparedTrainingTestQuery } from './manager-training-run-preflight.ts';
 
 const TARGET = '33333333-3333-4333-8333-333333333333';
 const SOURCE = '22222222-2222-4222-8222-222222222222';
 const PAIR = { stage: 'planning', property: 'layout_variety', relation: 'accepted' };
+test('prepared Training links and preflight cannot silently degrade into an ordinary run',()=>{
+ assert.deepEqual(preparedTrainingTestQuery(undefined,undefined),{state:'none'});
+ for(const [id,hash]of [[TARGET,undefined],[undefined,'a'.repeat(64)],['bad','a'.repeat(64)],[TARGET,['a'.repeat(64)]]])assert.deepEqual(preparedTrainingTestQuery(id,hash),{state:'invalid'});
+ const binding={testPreparationId:SOURCE,preparationDigest:'a'.repeat(64)};
+ assert.equal(preparedTrainingTestQuery(SOURCE,binding.preparationDigest).state,'prepared');
+ assert.equal(managerTrainingRunPreflight(home('reference_training_ready'),TARGET,binding).state,'unavailable');
+ const response={ok:true,contractVersion:'prepared-agent-training-preflight.v1',agentFamilyId:SOURCE,workflowVersionId:TARGET,
+  managerTrainingRequirements:home('reference_training_ready').home.managerTrainingRequirements,trainingTest:binding};
+ assert.equal(managerTrainingRunPreflight(response,TARGET,binding).state,'ready');
+ assert.equal(managerTrainingRunPreflight(response,TARGET).state,'unavailable','the new contract is for an explicit prepared test only');
+ assert.equal(managerTrainingRunPreflight({...response,trainingTest:{...binding,preparationDigest:'b'.repeat(64)}},TARGET,binding).state,'unavailable');
+});
 
 function home(readiness: 'reference_training_ready' | 'coach_reference_training_required' = 'coach_reference_training_required') {
   return {

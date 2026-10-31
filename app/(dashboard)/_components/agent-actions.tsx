@@ -50,6 +50,7 @@ import {
   trainingSuccessorAdoptionActionAvailable,
   trainingSuccessorAdoptionReceipt,
   type ManagerTrainingRunPreflight,
+  type PreparedTrainingTest,
 } from '@/lib/manager-training-run-preflight';
 import { trainingStageLabel } from '@/lib/training-local-ingress';
 
@@ -104,7 +105,7 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, activeVersionNumber = null, inputContract = null, inputContractDigest = null, pendingUpdate = null }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, activeVersionNumber = null, inputContract = null, inputContractDigest = null, pendingUpdate = null,trainingTest=null }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -143,6 +144,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   inputContract?: WorkflowInputContract | null;
   inputContractDigest?: string | null;
   pendingUpdate?: { version: number; state: string } | null;
+  trainingTest?:PreparedTrainingTest|null;
 }) {
   // ONE gate expression. Optional preferences never stop a run.
   const blocking = blockingQuestions ?? pendingQuestions;
@@ -570,6 +572,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const blankRequired = setupFields.filter((f) => !isOptionalField(f) && (setupValues[f.key] ?? '').toString().trim() === '');
 
   async function openPreRun(mode: 'queue' | 'watch', skipOptionalCarry = false) {
+    if(trainingTest&&mode==='watch'){setMsg('This prepared Training test must use Run now so its snapshot and result are recorded.');return;}
     if (runActionBusy || (mode === 'watch' && observingOpenRun) || trainingCheckingRef.current) return;
     // Preserve which Run path the user chose even when readiness is temporarily
     // unavailable and they use Check again from the refusal dialog.
@@ -581,11 +584,11 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     setTrainingChecking(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const runScope = workflowVersionId ? `?scope=run&versionId=${encodeURIComponent(workflowVersionId)}` : '';
+      const runScope = workflowVersionId ? `?scope=run&versionId=${encodeURIComponent(workflowVersionId)}${trainingTest?`&testPreparationId=${encodeURIComponent(trainingTest.testPreparationId)}&preparationDigest=${encodeURIComponent(trainingTest.preparationDigest)}`:''}` : '';
       const response = await callBackend(`/api/v2/agent-training/agents/${encodeURIComponent(slug)}${runScope}`, {
         jwt: session?.access_token,
       });
-      const preflight = managerTrainingRunPreflight(response, workflowVersionId);
+      const preflight = managerTrainingRunPreflight(response, workflowVersionId,trainingTest);
       if (preflight.state !== 'ready'
         && !(preflight.state === 'training_required' && preflight.optional && skipOptionalCarry)) {
         setAdoptionConfirmed(false);
@@ -902,6 +905,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // replay below sends this exact object — never live/mutated form state.
       const requestBody = {
         workflowSlug: slug, source: 'dashboard', kind: 'run',
+        ...(trainingTest?{trainingTest}:{}),
         ...(note ? { note } : {}),
         // Stamp what these inputs hash to, so the NEXT identical ask is recognised.
         ...(fingerprint ? { inputFingerprint: fingerprint } : {}),
@@ -1105,6 +1109,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   }
 
   async function doWatch(note?: string) {
+    if(trainingTest){setMsg('Use Run now for the prepared Training test.');return;}
     setMsg('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1151,6 +1156,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   return (
     <>
     <div className={`flex flex-col gap-1.5 ${align === 'end' ? 'items-end' : 'items-start'}`}>
+      {trainingTest&&<p className="max-w-xs text-xs leading-5 text-ink-400">Private Training test of a frozen update. Choose inputs, then Run now. This does not activate or publish the update.</p>}
       {statusUnavailable ? (
         // A section the action depends on could not be READ (setup/readiness,
         // connection health, or run/edit lifecycle). Its failure looks identical
@@ -1212,7 +1218,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       {/* Secondary: supervise the run live instead of hands-off. Goes through the
           same pop-up (so the note rides into the watched session). Shown only
           before queuing so the paths stay mutually exclusive (no double-run). */}
-      {isActive && !statusUnavailable && !revisePending && !pendingUpdate && blocking === 0 && (state === 'idle' || state === 'error') && (
+      {isActive && !statusUnavailable && !revisePending && !pendingUpdate && blocking === 0 && !trainingTest && (state === 'idle' || state === 'error') && (
         <button
           type="button"
           onClick={openWatch}

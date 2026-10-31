@@ -2,12 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {render} from '../../../../lib/test/render.ts';
 import {guidedTrainingChanges,type GuidedTrainingChanges} from '../../../../lib/guided-training-changes.ts';
+import {readFileSync} from 'node:fs';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,H='a'.repeat(64);
 const value=():GuidedTrainingChanges=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:id(1),agentFamilyId:id(2),workflowVersionId:id(3),snapshotDigest:H},
  policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[{eventId:id(4),eventDigest:H,text:'Let the location image explain the contrast. What about the music?',analysisStatus:'answered',outcome:'partly',reason:'The visual preference is saved; the music question needs an answer.',uncoveredText:['What about the music?'],recordIds:[id(5)]}],
  records:[{recordId:id(5),recordDigest:H,summary:'Use imagery to explain the relationship.',state:'candidate',included:true,admissionOrigin:'standing_policy',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:id(8),policyReceiptDigest:H,sourceEventId:id(4),sourceEventDigest:H,model:'claude-haiku-5-5'}],
  test:{snapshotDigest:null,scope:null,status:'not_run',runId:null,qualityScore:null,gaps:[],canTest:true},publication:{canPublish:false,reason:'Test the exact update first.',servedSnapshotDigest:null}});
 const expected={sessionId:id(1),workflowVersionId:id(3)};
+test('the actual SQL read projection passes unchanged, including unavailable history and non-admitted conversions',()=>{
+ const fixture=JSON.parse(readFileSync(new URL('../../../../lib/__fixtures__/guided-training-changes-sql.v1.json',import.meta.url),'utf8'));
+ assert.equal(fixture.provenance.capturedWithoutTranslation,true);const v=fixture.result;
+ assert.equal(guidedTrainingChanges(v,{sessionId:v.binding.sessionId,workflowVersionId:v.binding.workflowVersionId}),true);
+ assert.ok(v.feedback.some((f:any)=>f.analysisStatus==='unavailable'&&f.text===null&&f.outcome==='added'));
+ assert.ok(v.records.some((r:any)=>r.state==='suggested'&&!r.included));
+ assert.equal(v.test.canTest,false,'inert B1 cannot claim a test capability');
+ assert.equal(v.publication.canPublish,false);
+});
 test('coverage requires actual source-bound saved records; unavailable analysis is not a successful no-match',()=>{
  assert.equal(guidedTrainingChanges(value(),expected),true);
  for(const mutate of [(v:any)=>v.feedback[0].recordIds=[],(v:any)=>v.records[0].sourceEventDigest='b'.repeat(64),(v:any)=>v.feedback[0].analysisStatus='unavailable']){
@@ -39,4 +49,22 @@ test('policy opt-in requires an unchecked explicit action and carries the exact 
 test('record editing, retirement and test target exact displayed identities; quality remains unknown without a grade',async t=>{
  const v=value(),{r,calls}=await setup(t,v);await r.click(r.getByText('Change in chat'));await r.click(r.getByText('Remove from this candidate'));await r.click(r.getByText('Run with updates'));
  assert.equal(calls[0][1].recordDigest,H);assert.equal(calls[1][2],'remove');assert.deepEqual(calls[2],['test',H]);assert.doesNotMatch(r.text(),/Quality: /);
+});
+
+test('creation-note import shows exact saved private text and requires an explicit source-only action',async t=>{
+ const v=value();v.creationImports=[{buildRequestId:id(11),replyId:id(12),replyDigest:H,noteCount:2,notes:['Prefer quieter captions.','Give the main point emphasis.'],importedNoteIndices:[0]}];
+ assert.equal(guidedTrainingChanges(v,expected),true);
+ const calls:any[]=[],r=await render('../training/[slug]/training-changes.tsx',{value:v,onPolicy:()=>{},onForce:()=>{},onEdit:()=>{},onRecord:()=>{},onTest:()=>{},onPublish:()=>{},onImport:(...args:any[])=>calls.push(args)});t.after(()=>r.cleanup());
+ assert.match(r.text(),/Give the main point emphasis/);assert.doesNotMatch(r.text(),/Prefer quieter captions/);assert.equal(calls.length,0);
+ await r.click(r.getByText('Import this private note'));assert.equal(calls[0][0].buildRequestId,id(11));assert.equal(calls[0][1],1);
+ assert.match(r.text(),/does not accept a learning/);
+ v.creationImports[0].importedNoteIndices=[8];assert.equal(guidedTrainingChanges(v,expected),false);
+});
+
+test('privacy withdrawal is separate from candidate removal and opens a confirmation without changing anything',async t=>{
+ const calls:any[]=[],r=await render('../training/[slug]/training-changes.tsx',{value:value(),onPolicy:()=>{},onForce:()=>{},onEdit:()=>{},onRecord:()=>{},onTest:()=>{},onPublish:()=>{},onWithdraw:(target:any)=>calls.push(target)});t.after(()=>r.cleanup());
+ assert.match(r.text(),/Added by your standing policy/);assert.match(r.text(),/policy receipt/);
+ await r.click(r.getByText('Original feedback'));await r.click(r.getByText('Withdraw this feedback from future use'));
+ assert.equal(calls.length,0);assert.match(r.text(),/not removal from one candidate/);assert.match(r.text(),/does not erase/);
+ await r.click(r.getByText('Withdraw feedback'));assert.deepEqual(JSON.parse(JSON.stringify(calls)),[{eventId:id(4),eventDigest:H}]);
 });

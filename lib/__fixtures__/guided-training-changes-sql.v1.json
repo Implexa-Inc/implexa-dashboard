@@ -1,0 +1,368 @@
+{
+  "provenance": {
+    "producer": "public.read_guided_training_changes(uuid,uuid)",
+    "migration": "0542_inert_training_text_candidates.sql",
+    "environment": "synthetic complete-schema disposable PostgreSQL",
+    "capturedWithoutTranslation": true
+  },
+  "result": {
+    "ok": true,
+    "test": {
+      "gaps": [
+        "training_test_not_ready"
+      ],
+      "runId": null,
+      "scope": null,
+      "status": "not_run",
+      "canTest": false,
+      "qualityScore": null,
+      "snapshotDigest": null
+    },
+    "policy": {
+      "enabled": false,
+      "policyId": "831b2e0b-9291-44ab-9f75-18eec14a8877",
+      "revision": 2,
+      "receiptId": "e5bbb6ab-1643-4729-9845-2da0328ac624",
+      "policyDigest": "83320fa72bec8aad03bec290523c1b0434a697ef730834e7757e2a753adc20da"
+    },
+    "binding": {
+      "sessionId": "00000000-0000-4000-8000-000000000104",
+      "agentFamilyId": "00000000-0000-4000-8000-000000000102",
+      "snapshotDigest": "d0b0b61ed6e9c10f3e11f535c831cd4f7a451b7b5c5d460dfa12e0d2240200a2",
+      "workflowVersionId": "00000000-0000-4000-8000-000000000103"
+    },
+    "records": [
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "taste",
+        "included": false,
+        "recordId": "7abfab6e-fac3-4f60-9f19-cccb293dde3b",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "5535c243a309b0eb28963b5f59ba370d6f538b06caf7f0f990b328ee5b68258b",
+        "sourceEventId": "d7910ecc-86a6-496c-9ed7-ddd695bcfd73",
+        "admissionOrigin": "owner_candidate",
+        "policyReceiptId": null,
+        "sourceEventDigest": "e2a5ee8c1c19bff80b7d9593bbd42687a451bff4899dd11a8e88dfc2346180b6",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "taste",
+        "included": false,
+        "recordId": "f51515b1-3122-4754-9bb3-0a5232848124",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "7a84f71758a98e19468119769afe12e381723390150d31ed9564522d3a5ee2a6",
+        "sourceEventId": "d7910ecc-86a6-496c-9ed7-ddd695bcfd73",
+        "admissionOrigin": "owner_candidate",
+        "policyReceiptId": null,
+        "sourceEventDigest": "e2a5ee8c1c19bff80b7d9593bbd42687a451bff4899dd11a8e88dfc2346180b6",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "taste",
+        "included": false,
+        "recordId": "82d7f4b1-49f5-4842-8eca-f79b4135d313",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "3677d43152ca6b82e7d22922a6534c96729542b2d9f0b914e21f933c1fd4af54",
+        "sourceEventId": "d5a2c1bf-3ce3-46e0-8ba0-39efc3e02b3a",
+        "admissionOrigin": "standing_policy",
+        "policyReceiptId": "8cbfd42f-d8da-4713-932a-fa79e4a1837b",
+        "sourceEventDigest": "24b1029a1f7a7bf9ecdffa05845b04ba5efd5cda3a845cfdb32276dc68d19237",
+        "policyReceiptDigest": "9755ed3dc405db9ad0d01358c6d158d75a1f6354a39fadc24d39fa2ce146435a",
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "taste",
+        "included": false,
+        "recordId": "c89865c4-1204-4c31-8748-0964c9206d3c",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "a69fd40bf5d54dff5075bd6e81f9ae9df1959e25fe4b382d0330bc87333e476e",
+        "sourceEventId": "d5a2c1bf-3ce3-46e0-8ba0-39efc3e02b3a",
+        "admissionOrigin": "standing_policy",
+        "policyReceiptId": "8cbfd42f-d8da-4713-932a-fa79e4a1837b",
+        "sourceEventDigest": "24b1029a1f7a7bf9ecdffa05845b04ba5efd5cda3a845cfdb32276dc68d19237",
+        "policyReceiptDigest": "9755ed3dc405db9ad0d01358c6d158d75a1f6354a39fadc24d39fa2ce146435a",
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "suggested",
+        "summary": "Use quieter labels.",
+        "category": "method_preference",
+        "included": false,
+        "recordId": "d386de4d-ce46-4139-b9ae-52fcc796ef6d",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "69918c064f5d9643a077cbb9c5df63a8e10297501b02b30619a32a15ce405b82",
+        "sourceEventId": "af16a61f-3d95-457b-a4b0-6ff173dfcf3a",
+        "admissionOrigin": "none",
+        "policyReceiptId": null,
+        "sourceEventDigest": "2eddddef2bc176ec865425421cac895a492d4cc8cbf0ccfb077ce94f4d94c97f",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "suggested",
+        "summary": "Keep the main point prominent.",
+        "category": "taste",
+        "included": false,
+        "recordId": "7fbab327-53e4-4c63-b088-9731dd428abd",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "77cfa610b8de6f1bf363b1554f6a0fc0938c01970438acd52d50852e921ee5b2",
+        "sourceEventId": "539553e8-907d-4791-8240-c4f0b7228bda",
+        "admissionOrigin": "none",
+        "policyReceiptId": null,
+        "sourceEventDigest": "70134722df6588ccbedadf1015930317e411e9261dc224ff36d2ea451e14c072",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "suggested",
+        "summary": "Use quieter labels.",
+        "category": "taste",
+        "included": false,
+        "recordId": "e8a4be7d-82fb-44d6-b832-4bd10eff6291",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "a40ee248eed3f38e5eea39aa1e4a0e43865fd75ac28f47e00942bd64cb4374be",
+        "sourceEventId": "539553e8-907d-4791-8240-c4f0b7228bda",
+        "admissionOrigin": "none",
+        "policyReceiptId": null,
+        "sourceEventDigest": "70134722df6588ccbedadf1015930317e411e9261dc224ff36d2ea451e14c072",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "taste",
+        "included": false,
+        "recordId": "25958422-d41e-4ec8-900d-3353bc4ed304",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "9f7cc03d944d3f2c93bb4bc01825e52942a40c761b563ed4351a9c213477501c",
+        "sourceEventId": "da875ccc-a1b3-4f57-867b-14b5c4e4530f",
+        "admissionOrigin": "owner_candidate",
+        "policyReceiptId": null,
+        "sourceEventDigest": "91fb51d76bc2e5327134e804d4727d5dbf499ea8346c95f7c9cc752600159ec1",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": "82d7f4b1-49f5-4842-8eca-f79b4135d313",
+        "predecessorRecordDigest": "3677d43152ca6b82e7d22922a6534c96729542b2d9f0b914e21f933c1fd4af54"
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "taste",
+        "included": false,
+        "recordId": "a9393094-e39b-44f5-b84a-065a959fba84",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "50d9df9708583b91058ab377b040ef5a28016d1fbf857cc5e7eb1175e9b4482d",
+        "sourceEventId": "da875ccc-a1b3-4f57-867b-14b5c4e4530f",
+        "admissionOrigin": "owner_candidate",
+        "policyReceiptId": null,
+        "sourceEventDigest": "91fb51d76bc2e5327134e804d4727d5dbf499ea8346c95f7c9cc752600159ec1",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": "82d7f4b1-49f5-4842-8eca-f79b4135d313",
+        "predecessorRecordDigest": "3677d43152ca6b82e7d22922a6534c96729542b2d9f0b914e21f933c1fd4af54"
+      }
+    ],
+    "feedback": [
+      {
+        "text": null,
+        "reason": "training_feedback_withdrawn",
+        "eventId": "d7910ecc-86a6-496c-9ed7-ddd695bcfd73",
+        "outcome": "added",
+        "recordIds": [
+          "f51515b1-3122-4754-9bb3-0a5232848124",
+          "7abfab6e-fac3-4f60-9f19-cccb293dde3b"
+        ],
+        "eventDigest": "e2a5ee8c1c19bff80b7d9593bbd42687a451bff4899dd11a8e88dfc2346180b6",
+        "uncoveredText": [],
+        "analysisStatus": "unavailable",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      },
+      {
+        "text": null,
+        "reason": "training_feedback_withdrawn",
+        "eventId": "d5a2c1bf-3ce3-46e0-8ba0-39efc3e02b3a",
+        "outcome": "added",
+        "recordIds": [
+          "c89865c4-1204-4c31-8748-0964c9206d3c",
+          "82d7f4b1-49f5-4842-8eca-f79b4135d313"
+        ],
+        "eventDigest": "24b1029a1f7a7bf9ecdffa05845b04ba5efd5cda3a845cfdb32276dc68d19237",
+        "uncoveredText": [],
+        "analysisStatus": "unavailable",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "suggested_not_admitted",
+        "eventId": "af16a61f-3d95-457b-a4b0-6ff173dfcf3a",
+        "outcome": "partly",
+        "recordIds": [
+          "d386de4d-ce46-4139-b9ae-52fcc796ef6d"
+        ],
+        "eventDigest": "2eddddef2bc176ec865425421cac895a492d4cc8cbf0ccfb077ce94f4d94c97f",
+        "uncoveredText": [
+          " Keep the main point prominent.  "
+        ],
+        "analysisStatus": "answered",
+        "proposalOutcomes": [
+          {
+            "reason": "proposed_guidance",
+            "status": "mapped",
+            "candidateKey": "teaching-1"
+          }
+        ],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "not_requested",
+        "eventId": "1b22704f-bb8e-4acc-9161-324b7bda971c",
+        "outcome": "not_analysed",
+        "recordIds": [],
+        "eventDigest": "b731c6cbdf746c6c51e9aa9141b13115654fdf70c3c4c24e18a7ba26aefce482",
+        "uncoveredText": [],
+        "analysisStatus": "not_requested",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "suggested_not_admitted",
+        "eventId": "539553e8-907d-4791-8240-c4f0b7228bda",
+        "outcome": "added",
+        "recordIds": [
+          "e8a4be7d-82fb-44d6-b832-4bd10eff6291",
+          "7fbab327-53e4-4c63-b088-9731dd428abd"
+        ],
+        "eventDigest": "70134722df6588ccbedadf1015930317e411e9261dc224ff36d2ea451e14c072",
+        "uncoveredText": [],
+        "analysisStatus": "answered",
+        "proposalOutcomes": [
+          {
+            "reason": "proposed_guidance",
+            "status": "mapped",
+            "candidateKey": "teaching-1"
+          },
+          {
+            "reason": "proposed_guidance",
+            "status": "mapped",
+            "candidateKey": "teaching-2"
+          }
+        ],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "question",
+        "eventId": "2d5607ea-217a-42d2-ac5b-8c6c6be9be96",
+        "outcome": "not_converted",
+        "recordIds": [],
+        "eventDigest": "f100565f010d2a6f9afd7b82dc11c633c1b89625f04a514ff4f5388352808b53",
+        "uncoveredText": [
+          "  Prefer quieter labels. Keep the main point prominent.  "
+        ],
+        "analysisStatus": "answered",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "suggested_not_admitted",
+        "eventId": "da875ccc-a1b3-4f57-867b-14b5c4e4530f",
+        "outcome": "added",
+        "recordIds": [
+          "a9393094-e39b-44f5-b84a-065a959fba84",
+          "25958422-d41e-4ec8-900d-3353bc4ed304"
+        ],
+        "eventDigest": "91fb51d76bc2e5327134e804d4727d5dbf499ea8346c95f7c9cc752600159ec1",
+        "uncoveredText": [],
+        "analysisStatus": "answered",
+        "proposalOutcomes": [
+          {
+            "reason": "proposed_guidance",
+            "status": "mapped",
+            "candidateKey": "teaching-1"
+          },
+          {
+            "reason": "proposed_guidance",
+            "status": "mapped",
+            "candidateKey": "teaching-2"
+          }
+        ],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "not_requested",
+        "eventId": "599997da-c288-4aef-a55c-f3970c546bd4",
+        "outcome": "not_analysed",
+        "recordIds": [],
+        "eventDigest": "143fc2704f4820e14f03a918af643a4c64bcef7931645e6e835580b1e4984f2a",
+        "uncoveredText": [],
+        "analysisStatus": "not_requested",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "Unanalysed creation note.",
+        "reason": "not_requested",
+        "eventId": "05f6bf51-e451-4f33-ab6b-1f37ec5389a7",
+        "outcome": "not_analysed",
+        "recordIds": [],
+        "eventDigest": "72377558f850fd5f7d6853770321c61ccec7614beb448534d5c3a79bc94b6323",
+        "uncoveredText": [],
+        "analysisStatus": "not_requested",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      }
+    ],
+    "publication": {
+      "reason": "publication_test_required",
+      "canPublish": false,
+      "servedSnapshotDigest": null
+    },
+    "contractVersion": "guided-training-changes.v1",
+    "creationImports": [
+      {
+        "notes": [
+          "  Prefer quieter labels. Keep the main point prominent.  ",
+          "Unanalysed creation note."
+        ],
+        "replyId": "06404c3b-7de8-4cd8-945d-c1f47e710816",
+        "noteCount": 2,
+        "replyDigest": "73ea1ee97f9539a76eb000c484d2d89c253c5c500ceb232b476917c00483c268",
+        "buildRequestId": "00000000-0000-4000-8000-000000000152",
+        "importedNoteIndices": [
+          0,
+          1
+        ]
+      }
+    ]
+  }
+}

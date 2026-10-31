@@ -18,10 +18,10 @@ const contextMatches=(v:Context|null|undefined,versionId:string|null,sourceId:st
  &&typeof v.researchMethodPresent==='boolean'&&Array.isArray(v.boundMethods)
  &&v.boundMethods.every(m=>typeof m.slug==='string'&&/^[a-f0-9]{64}$/.test(m.contentDigest))
  &&Array.isArray(v.availableActions)&&v.availableActions.every(a=>Object.hasOwn(names,a));
-export default function TrainingChat({sessionId,versionId,slug,sources,selectedSourceId,disabled,busy=false,embedded=false,onAttach,onSelectSource,onAction,guided=false,request,onSaved}:{
+export default function TrainingChat({sessionId,versionId,slug,sources,selectedSourceId,disabled,busy=false,embedded=false,onAttach,onSelectSource,onAction,guided=false,automaticInclusion=false,request,onSaved}:{
  sessionId:string;versionId:string|null;slug:string;sources:Source[];selectedSourceId:string|null;disabled:boolean;busy?:boolean;
  embedded?:boolean;onAttach?:()=>void;
- guided?:boolean;request?:TrainingChatRequest|null;onSaved?:()=>void;
+ guided?:boolean;automaticInclusion?:boolean;request?:TrainingChatRequest|null;onSaved?:()=>void;
  onSelectSource:(id:string)=>void;onAction:(action:Action,binding:{versionId:string;sourceId:string|null;sourceSha256:string|null})=>Promise<void>;
 }){
  const [turns,setTurns]=useState<Turn[]>([]),[context,setContext]=useState<Context|null>(null),[total,setTotal]=useState(0);
@@ -94,7 +94,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
     {t.status==='pending'&&<p>Reply not yet confirmed. Refresh reads the saved turn without calling Claude again.</p>}
     {t.status==='failed'&&<p role="status">This reply could not be completed: {t.reason?.replaceAll('_',' ')}. Your message is preserved; no automatic retry was made.</p>}
     {t.status==='stale'&&<p>This reply belongs to an earlier agent version. Its proposed action is unavailable.</p>}
-    {t.action!=='none'&&(t.action==='test_agent'?actionable?<a href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>{names[t.action]}</a>:<span>Test entry unavailable for this earlier context.</span>:
+    {t.action!=='none'&&(t.action==='test_agent'?actionable?guided?<button type="button" disabled={sending} onClick={()=>onAction(t.action,{versionId:t.versionId,sourceId:t.sourceId,sourceSha256:t.sourceSha256})}>Review the private update’s test</button>:<a href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>{names[t.action]}</a>:<span>Test entry unavailable for this earlier context.</span>:
      <button type="button" disabled={!actionable||sending} onClick={()=>onAction(t.action,{versionId:t.versionId,sourceId:t.sourceId,sourceSha256:t.sourceSha256})}>{names[t.action]}</button>)}
    </li>;
   })}</ol>
@@ -102,6 +102,7 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
   {target&&<div className="rounded-lg border border-ink-700 p-3 text-xs">{target.kind==='feedback'?'Preparing a learning from the selected original feedback.':'Editing the selected teaching as a new private version.'} Nothing is sent until Send.<button type="button" disabled={sending} onClick={()=>{setTarget(null);pending.current=null;}}>Cancel selected target</button></div>}
   <label className="block">Message Implexa<textarea id="training-chat-message" className="mt-2 block w-full min-h-24 rounded-lg bg-ink-950 border border-ink-700 p-3" maxLength={2000} value={text} disabled={disabled||sending||!canSend} onChange={e=>setText(e.target.value)} placeholder="What would you like this agent to do better?"/></label>
   <p className="text-xs leading-5 text-ink-400">Send shares your message, this agent’s setup, selected source’s saved notes and recent chat with Claude Haiku 5.5. No recording frames or audio.</p>
+  {guided&&<p className="text-xs leading-5 text-ink-400">{automaticInclusion?'Your standing policy adds clear taste suggestions to the private candidate.':'Automatic inclusion is off; clear preferences remain suggestions unless you explicitly include them.'} Tool-method preferences need explicit inclusion. No run, public release or served update happens on Send.</p>}
   <button type="button" className="btn-primary" disabled={disabled||sending||!canSend||!text.trim()} onClick={send}>{sending?'Implexa is responding…':'Send'}</button>
   {error&&<p role="alert">{error.replaceAll('_',' ')}</p>}
  </section>;

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import {useRouter} from 'next/navigation';
 import PublisherTeachingRelease from './publisher-teaching-release';
 import TrainingChat,{type TrainingChatRequest} from './training-chat';
 import TrainingChanges from './training-changes';
@@ -118,6 +119,7 @@ function resolveBridge() {
 }
 
 export default function TrainingSource({ slug, installationId, forkPermission,ownerId,recordingSelection,lastRunId }: { slug: string;lastRunId?:string|null; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
+  const router=useRouter();
   const [retention] = useState(() => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCMilliseconds(0); return d.toISOString(); });
   const [view,setView]=useState<TrainingView>(recordingSelection?'teach':'start');
   const [chatExpanded,setChatExpanded]=useState(false);
@@ -139,6 +141,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [busy, setBusy] = useState('');
   const [changes,setChanges]=useState<GuidedTrainingChanges|null>(null),[changesError,setChangesError]=useState('');
   const [changesBusy,setChangesBusy]=useState(false),[chatRequest,setChatRequest]=useState<TrainingChatRequest|null>(null);
+  const changesInFlight=useRef(false),changeIntent=useRef<{fingerprint:string;key:string}|null>(null);
   const changesIdentity=useRef('');changesIdentity.current=`${session}:${currentVersion}`;
   async function loadChanges(signal?:AbortSignal){
     if(!session||!currentVersion||installationId)return;
@@ -149,22 +152,37 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       setChanges(value);setChangesError('');
     }catch(e){if(!signal?.aborted&&changesIdentity.current===captured){setChanges(null);setChangesError(e instanceof Error?e.message:'training_changes_unavailable');}}
   }
-  useEffect(()=>{setChanges(null);setChangesError('');setChatRequest(null);const controller=new AbortController();void loadChanges(controller.signal);return()=>controller.abort();},[session,currentVersion,installationId]);
-  async function mutateChanges(operation:'policy'|'records',body:unknown){
-    if(changesBusy||!session||!changes)return;const captured=changesIdentity.current;setChangesBusy(true);setChangesError('');
+  useEffect(()=>{setChanges(null);setChangesError('');setChatRequest(null);changeIntent.current=null;const controller=new AbortController();void loadChanges(controller.signal);return()=>controller.abort();},[session,currentVersion,installationId]);
+  async function mutateChanges(operation:'policy'|'records'|'creation-import'|'withdraw'|'tests/prepare',body:unknown){
+    if(changesInFlight.current||!session||!changes)return;const captured=changesIdentity.current;
+    const fingerprint=JSON.stringify({identity:captured,operation,body});
+    if(changeIntent.current?.fingerprint!==fingerprint)changeIntent.current={fingerprint,key:crypto.randomUUID()};
+    changesInFlight.current=true;setChangesBusy(true);setChangesError('');
     try{const response=await fetch(`/api/agent-training/changes?sessionId=${encodeURIComponent(session)}&operation=${operation}`,{
-      method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify(body)});
+      method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':changeIntent.current.key},body:JSON.stringify(body)});
       const value=await response.json();if(changesIdentity.current!==captured)return;
       if(!response.ok||value.ok!==true)throw Error(value.reason||'training_change_unconfirmed');
-      await loadChanges();
+      changeIntent.current=null;await loadChanges();return value;
     }catch(e){if(changesIdentity.current===captured)setChangesError(e instanceof Error?e.message:'training_change_unconfirmed');}
-    finally{setChangesBusy(false);}
+    finally{changesInFlight.current=false;setChangesBusy(false);}
   }
   function requestLearning(target:TrainingChatRequest['target'],prompt:string){
     setChatRequest({key:crypto.randomUUID(),target,prompt});focusChat();
   }
   function editCandidate(record:TrainingChangeRecord){
+    if(!record.summary)return;
     requestLearning({kind:'record',id:record.recordId,digest:record.recordDigest},`Please revise this teaching: ${record.summary}\n\nI would like to change: `);
+  }
+  async function prepareCandidateTest(snapshotDigest:string){
+    if(!changes||snapshotDigest!==changes.binding.snapshotDigest||!currentVersion)return;
+    const prepared=await mutateChanges('tests/prepare',{expectedActiveVersionId:currentVersion,expectedSnapshotDigest:snapshotDigest,scope:'private_candidate'});
+    if(!prepared)return;
+    if(prepared.sessionId!==session||prepared.workflowVersionId!==currentVersion||prepared.snapshotDigest!==snapshotDigest
+      ||prepared.scope!=='private_candidate'||typeof prepared.testPreparationId!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(prepared.testPreparationId)
+      ||typeof prepared.preparationDigest!=='string'||!/^[a-f0-9]{64}$/.test(prepared.preparationDigest)){
+      setChangesError('training_test_preparation_unconfirmed');return;
+    }
+    router.push(`/workflows/${encodeURIComponent(slug)}?source=generated&trainingPreparationId=${prepared.testPreparationId}&trainingPreparationDigest=${prepared.preparationDigest}`);
   }
   const busyRef = useRef(false);
   const [error, setError] = useState('');
@@ -927,6 +945,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(versionChanged||binding.versionId!==currentVersion||binding.sourceId!==(selected?.sourceId||null)
       ||binding.sourceSha256!==(selected?.metadata.sha256||null)||busyRef.current)return;
     try {await requireCurrentScope();}catch(e){setError(e instanceof Error?e.message:'The current agent could not be verified.');return;}
+    if(action==='test_agent'&&changes){setView('start');requestAnimationFrame(()=>document.querySelector('[aria-label="Test this update"]')?.scrollIntoView({block:'center',behavior:'smooth'}));return;}
     if(action==='analyse_tool_method'||action==='analyse_taste'){
       const agent=action==='analyse_tool_method';
       if(!(agent?agentAnalysisConsent:recordingConsent)){
@@ -947,7 +966,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   return <main id="main-content" tabIndex={-1} className={`mx-auto px-6 py-10 space-y-6 ${installationId?'max-w-3xl':'max-w-7xl lg:px-10'}`}>
     <Link className="text-xs text-ink-400 hover:text-ink-100" href={installationId?`/workflows/${encodeURIComponent(slug)}`:"/training"}>{installationId?"← Agent":"← Your agents"}</Link>
     <header className="flex flex-wrap items-start justify-between gap-4"><div className="space-y-2"><p className="text-[10px] uppercase tracking-[.18em] text-ink-500">{installationId?'Your private preferences':'Trainer workspace'}</p><h1 className="text-2xl font-medium tracking-tight">{installationId?'Private preferences for ':''}{agentName}</h1><p className="text-xs text-ink-500">Active version: {shortId(currentVersion)}{sessionVersion ? ` · Session version: ${shortId(sessionVersion)}` : ''}</p></div>
-      {!installationId&&<div className="flex items-center gap-4"><button type="button" className="text-sm text-ink-300 lg:hidden" aria-expanded={chatExpanded} aria-controls="training-companion" onClick={()=>chatExpanded?setChatExpanded(false):focusChat()}>Chat with Implexa</button><Link className="rounded-lg border border-ink-700 px-4 py-2 text-sm hover:border-ink-500" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>Open agent to test →</Link></div>}
+      {!installationId&&<div className="flex items-center gap-4"><button type="button" className="text-sm text-ink-300 lg:hidden" aria-expanded={chatExpanded} aria-controls="training-companion" onClick={()=>chatExpanded?setChatExpanded(false):focusChat()}>Chat with Implexa</button><Link className="rounded-lg border border-ink-700 px-4 py-2 text-sm hover:border-ink-500" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>Open agent →</Link></div>}
     </header>
     {!installationId&&<TrainingNavigation view={view} onChange={setView}/>}
     <div className={installationId?'':'grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]'}>
@@ -961,11 +980,13 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&view==='start'&&<TrainingEntry slug={slug} lastRunId={lastRunId} onShow={showTeaching} onChat={focusChat}/>}
     {!installationId&&session&&['start','teach'].includes(view)&&<>
       {changes?<TrainingChanges value={changes} busy={!!busy||changesBusy||versionChanged}
+        onWithdraw={target=>mutateChanges('withdraw',{sourceEventId:target.eventId,expectedEventDigest:target.eventDigest})}
+        onImport={(build,noteIndex)=>mutateChanges('creation-import',{buildRequestId:build.buildRequestId,replyId:build.replyId,replyDigest:build.replyDigest,noteIndex})}
         onPolicy={(enabled,policy)=>mutateChanges('policy',{expectedActiveVersionId:currentVersion,expectedPolicyDigest:policy.policyDigest,enabled})}
         onForce={target=>requestLearning({kind:'feedback',id:target.eventId,digest:target.eventDigest},'Please prepare a private learning from this selected feedback, preserving my meaning. If my preference is unclear, ask instead of inventing it.')}
         onEdit={editCandidate}
         onRecord={(record,action)=>mutateChanges('records',{expectedActiveVersionId:currentVersion,recordId:record.recordId,expectedRecordDigest:record.recordDigest,expectedSnapshotDigest:changes.binding.snapshotDigest,action})}
-        onTest={()=>setChangesError('training_test_not_ready')}
+        onTest={prepareCandidateTest}
         onPublish={()=>setView('settings')}/>:<p className="text-sm text-ink-500">{changesError?'Saved training changes are unavailable; existing evidence is preserved.':'Loading saved training changes…'}</p>}
       {changesError&&<p role="status" className="text-xs text-ink-400">{changesError.replaceAll('_',' ')} <button type="button" disabled={changesBusy} onClick={()=>loadChanges()}>Refresh saved changes</button></p>}
     </>}
@@ -1175,7 +1196,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&<aside id="training-companion" className={`min-w-0 lg:sticky lg:top-6 ${chatExpanded?'block':'hidden'} lg:block`}>
       {session?<TrainingChat embedded sessionId={session} versionId={currentVersion} slug={slug} sources={sources}
         selectedSourceId={selected?.sourceId||null} disabled={!!busy||changesBusy||versionChanged} busy={!!busy} onAttach={showTeaching}
-        guided={!!changes} request={chatRequest} onSaved={()=>loadChanges()}
+        guided={!!changes} automaticInclusion={changes?.policy.enabled===true} request={chatRequest} onSaved={()=>loadChanges()}
         onSelectSource={id=>{const source=sources.find(s=>s.sourceId===id);if(source)chooseSource(source);else{setSelected(null);setPreview(null);setReviewed(null);}}}
         onAction={chatAction}/>:<div className="rounded-xl border border-ink-800 p-5 text-sm text-ink-400">Chat becomes available when this agent’s private Training session is ready.</div>}
     </aside>}

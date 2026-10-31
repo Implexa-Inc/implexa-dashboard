@@ -101,3 +101,10 @@ test('switching selected targets changes idempotency identity and a version swit
  await r.click(r.getByText('Send'));assert.equal(JSON.parse(calls.find(c=>c.init.method==='POST').init.body).target.id,id(41));
  await r.rerender({...props,versionId:id(90),disabled:true});assert.equal(r.queryByText('Cancel selected target'),null);
 });
+
+test('guided test suggestion reviews the snapshot gate rather than bypassing it through the normal run page',async t=>{
+ const {r,calls,actions}=await setup(t,{guided:true,embedded:true,turns:[turn({action:'test_agent'})]});
+ const b=r.getByText('Review the private update’s test');assert.equal(b.tagName,'BUTTON');
+ await r.click(b);assert.equal(actions[0][0],'test_agent');assert.equal(calls.some(c=>c.init.method==='POST'),false);
+ assert.equal(r.document.querySelector('a[href*="/workflows/"]'),null);
+});
