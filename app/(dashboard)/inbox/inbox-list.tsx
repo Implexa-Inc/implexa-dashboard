@@ -518,6 +518,9 @@ export default function InboxList({
             <a href={`/runs/${openItem.id}`} className="text-[11px] text-ink-500 hover:text-ink-300 underline mt-2 inline-block">
               Open full run
             </a>
+            <a href={`/review/${encodeURIComponent(openItem.id)}`} className="ml-4 text-[11px] text-brand-500 hover:underline mt-2 inline-block">
+              Review and annotate
+            </a>
 
             {/* Per-run feedback , the same focused-popout form, inline here too
                 so you can rate without leaving the output. */}
