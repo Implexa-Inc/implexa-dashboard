@@ -1627,6 +1627,30 @@ test('a newly created agent can explicitly open private chat without adding a so
   assert.equal(h.calls.some(c=>['select','preview','recording','annotate','accept','delivery'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
+test('the existing Training controller sends the exact reviewed public preparation into test creation',async()=>{
+ const h=harness(),requests:any[]=[],H='a'.repeat(64),publicH='b'.repeat(64),preparation='c'.repeat(64);
+ const changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:H},
+  policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:true},
+  publication:{canPrepare:true,canPublish:false,reason:null,servedSnapshotDigest:null}};
+ const preview={ok:true,contractVersion:'training-publication-preview.v1',publicationPreparationId:QUESTION,preparationDigest:preparation,sessionId:SESSION,workflowVersionId:VERSION_A,
+  candidateSnapshotDigest:H,snapshotDigest:publicH,definition:{name:'Video craft',description:'A playable video.'},records:[],publicationDelta:{publishedSnapshotDigest:H,definitionChanged:false,changes:[{recordId:RECORD,change:'removed'}]},
+  qualifyingTestRequestId:null,qualifyingRunId:null,qualifyingSnapshotDigest:null,canPublish:false,reason:'publication_test_required'};
+ const fetcher=(async(url:any,init:any={})=>{
+  const path=String(url),body=init.body?JSON.parse(init.body):null;if(init.method==='POST')requests.push({path,body});
+  const result=path.includes('operation=publication/prepare')?preview:path.includes('operation=tests/prepare')?
+   {ok:true,testPreparationId:SOURCE_ID,preparationDigest:preparation,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:publicH,scope:'public_projection'}:
+   path.includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0};
+  return {ok:true,json:async()=>result};
+ }) as typeof globalThis.fetch;
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,fetch:fetcher});
+ try{
+  await r.click(r.getByText('Review publication'));await r.click(r.getByText('Prepare exact public preview'));
+  assert.match(r.text(),/0 added · 1 removed/);await r.click(r.getByText('Test this public version'));
+  assert.deepEqual(JSON.parse(JSON.stringify(requests.at(-1).body)),{expectedActiveVersionId:VERSION_A,expectedSnapshotDigest:H,scope:'public_projection',publicationPreparationId:QUESTION,preparationDigest:preparation});
+  assert.equal(r.calls.push.length,1);assert.match(r.calls.push[0],/trainingPreparationId=/);
+  assert.equal(h.calls.some(c=>['accept','delivery'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
 test('owner workspace starts with three choices and one chat, without running or admitting anything',async()=>{
  const h=await renderedWith(),r=h.rendered;
  const visible=(el:Element)=>!el.closest('[hidden]');
