@@ -59,7 +59,8 @@ export default function GuidedAgentCreation({ownerId}:{ownerId:string}){
   const r=await fetch('/api/agents/creation-draft',{method:'POST',headers:{'content-type':'application/json'},cache:'no-store',body:JSON.stringify({draftId,turnId:crypto.randomUUID(),action:'withdraw'})});const v=await r.json();
    if(active.current!==identity)return;if(!r.ok||!isCreationDraftRead(v,identity))throw Error(v.reason||'Withdrawal unconfirmed');apply(v);setText('');setNotice('Draft withdrawn from future model preparation and builds. Its raw history remains privately retained. This does not erase it, cancel a queued build or remove cards from an agent already built.');
  }catch(e){if(active.current===identity)setError(e instanceof Error?e.message:'Withdrawal unconfirmed');}finally{if(active.current===identity)setBusy(false);}};
- const undo=()=>{const index=prepared.findIndex(t=>t.replyId===selectedId);if(index>0){choose(prepared[index-1]);setNotice('Previous saved draft restored. No AI call was made.');}};
+ const previousPrepared=prepared.find(t=>t.replyId===selected?.baseReplyId);
+ const undo=()=>{if(previousPrepared){choose(previousPrepared);setNotice('Previous saved draft restored. No AI call was made.');}};
  const startNew=()=>{if(busy)return;seed.current=selected?.replyId?{draftId,replyId:selected.replyId}:null;const id=crypto.randomUUID();active.current=id;setDraftId(id);setData(null);setSelectedId(null);setText(seed.current?'Create another agent using the selected saved draft.':'');setQueued(false);resetFiles();setError('');setNotice(seed.current?'The selected cards will seed the new draft when you Send. Their private training notes stay separate. The earlier draft and build remain preserved.':'New private draft.');pending.current=null;
   try{sessionStorage.setItem(storageKey,id);}catch{};};
  const buildAgent=async()=>{
@@ -89,7 +90,7 @@ export default function GuidedAgentCreation({ownerId}:{ownerId:string}){
     <p className="text-xs leading-5 text-ink-400">These cards become the agent’s definition. Private notes are kept separately and are not yet applied. Input and output descriptions reach your builder as instructions; Setup verifies the resulting contracts and permissions.</p>
     <details className="text-xs text-ink-400"><summary className="cursor-pointer">Exact build request</summary><pre className="mt-3 whitespace-pre-wrap break-words rounded-lg border border-ink-800 p-4">{composeNoteWithFiles(selected.buildIntent||'',files,ATTACH_BUILD_MARKER)}</pre></details>
     {!isBuilt&&<div className="flex flex-wrap items-center gap-4"><button type="button" className="btn-primary" disabled={busy||isPending} onClick={buildAgent}>Build this agent</button>
-     <button type="button" className="text-sm text-ink-400 underline disabled:opacity-40" disabled={busy||prepared.findIndex(t=>t.replyId===selectedId)<1} onClick={undo}>Undo last change</button>
+     <button type="button" className="text-sm text-ink-400 underline disabled:opacity-40" disabled={busy||!previousPrepared} onClick={undo}>Undo last change</button>
      <p className="text-xs text-ink-500">No run, permission grant or media purchase.</p></div>}
    </>}
    {isBuilt&&!data?.withdrawn&&<div role="status" className="rounded-xl border border-emerald-800 p-5 text-sm"><p>Build queued through your connected engine. This is not yet a built or tested agent. If it fails, copy these cards to a new draft.</p><Link className="mt-3 inline-block underline" href="/workflows">View your agents →</Link></div>}
@@ -105,7 +106,7 @@ export default function GuidedAgentCreation({ownerId}:{ownerId:string}){
    {data&&data.totalTurns>data.turns.length&&<p className="text-xs text-ink-500">Showing recent exchanges. All earlier messages remain in this private draft’s history.</p>}
    <ol aria-label="Agent creation conversation" className="min-h-20 flex-1 space-y-4 overflow-y-auto text-sm leading-6">{data?.turns.map(t=><li key={t.turnId} className="border-t border-ink-800 pt-3">
     <p className="whitespace-pre-wrap"><strong>You:</strong> {t.message}</p>{t.reply&&<p className="mt-2 whitespace-pre-wrap"><strong>Implexa:</strong> {t.reply}</p>}
-    {t.status==='pending'&&<p className="mt-2 text-amber-300">Reply not confirmed. Refresh reads the saved draft without another model call.</p>}
+    {t.status==='pending'&&<p className="mt-2 text-amber-300">Reply not confirmed. Refresh only reads saved state. If it stays pending, copy the selected cards to a new draft, or choose New draft; the original message stays preserved.</p>}
     {t.status==='failed'&&<p className="mt-2 text-amber-300">Your message is preserved. This draft reply could not be prepared: {t.reason?.replaceAll('_',' ')}.</p>}
     {t.questions.length>0&&<ul className="mt-2 list-disc pl-4">{t.questions.map((q,i)=><li key={i}>{q}</li>)}</ul>}
     {t.brief&&t.replyId!==selectedId&&<button type="button" className="mt-2 text-xs text-ink-400 underline" disabled={busy||isBuilt} onClick={()=>choose(t)}>Use this saved draft</button>}

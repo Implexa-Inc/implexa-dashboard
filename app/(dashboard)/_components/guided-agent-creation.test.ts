@@ -43,3 +43,8 @@ test('a pending durable reply prevents duplicate Send and Build, but can still b
  assert.equal((r.getByText('Build this agent') as HTMLButtonElement).disabled,true);assert.equal(r.document.querySelector('textarea')!.disabled,true);
  await r.click(r.getByText('Refresh saved draft'));assert.equal(calls.length,2);assert.equal(calls.some(c=>c.init.method==='POST'),false);
 });
+test('Undo from a new branch selects its actual base, not the abandoned preceding list item',async t=>{
+ const {r,calls}=await setup(t,[turn(2),turn(3,{baseReplyId:id(102),message:'Abandoned branch'}),turn(4,{baseReplyId:id(102),message:'Current branch'})]);
+ await r.click(r.getByText('Undo last change'));await type(r,'Revise the restored draft.');await r.click(r.getByText('Send'));
+ const post=calls.find(c=>c.url==='/api/agents/creation-draft'&&c.init.method==='POST');assert.equal(JSON.parse(post.init.body).baseReplyId,id(102));
+});
