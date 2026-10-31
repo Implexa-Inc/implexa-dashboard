@@ -94,3 +94,12 @@ test('activation uses a real matching request and explicit click, without imposi
  v.activation.testRequestId=id(22);assert.equal(guidedTrainingChanges(v,expected),false);
  v.activation.testRequestId=id(20);v.test.status='running';assert.equal(guidedTrainingChanges(v,expected),false);
 });
+test('pre-test guidance shows executor and real budget limits without claiming all eligible text was delivered',async t=>{
+ const v=value();v.selectionCoverage={maxStandingReferences:2,eligibleTextByStage:[{stage:'build',count:5}]};
+ v.activation={canActivate:false,reason:'training_delivered_test_required',servedSnapshotDigest:H,withdrawnSinceTest:0,stoppedSinceTest:1,testRequestId:null};
+ assert.equal(guidedTrainingChanges(v,expected),true);const {r}=await setup(t,v);
+ assert.match(r.text(),/requires the Codex executor/);assert.match(r.text(),/At most 2 stage-start references, across text and images/);
+ assert.match(r.text(),/build: 5 eligible text teachings/);assert.match(r.text(),/Earlier-running tasks keep their frozen taste/);
+ assert.doesNotMatch(r.text(),/5 (?:text )?teachings (?:were )?delivered/);
+ (v.selectionCoverage as any).maxStandingReferences=3;assert.equal(guidedTrainingChanges(v,expected),false);
+});

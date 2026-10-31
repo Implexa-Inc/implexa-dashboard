@@ -123,6 +123,7 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
         : purposeChanged ? 'This proposal changes the agent’s job. Reference carry-forward and activation are unavailable.'
         : 'This carries already accepted references to a reviewed proposal. It creates no new training and starts no run.'}</p>
       <p className="mt-2 text-xs break-all">Current definition: {baseVersionId}</p>
+      <p className="mt-2 text-xs text-ink-400">If this agent serves a tested training snapshot, applying a definition change pauses future scheduled runs until you test and activate training for that definition. Already-running tasks keep their frozen material.</p>
       {targetId && <p className="text-xs break-all">Proposed definition: {targetId}</p>}
       {preview && !freshPurpose && !purposeChanged && <p className="mt-3">{preview.eligibleRecordCount} accepted records cover {preview.eligibleRouteCount} reference routes.</p>}
       {freshPurpose && <section className="mt-3 text-xs">

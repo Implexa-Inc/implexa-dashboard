@@ -8,8 +8,9 @@ export type GuidedTrainingChanges={ok:true;contractVersion:'guided-training-chan
  feedback:Array<{eventId:string;eventDigest:string;text:string|null;sourceKind?:'creation_notes'|'trainer_feedback';analysisStatus:'not_requested'|'pending'|'answered'|'failed'|'unavailable';outcome:FeedbackOutcome;reason:string;uncoveredText:string[];recordIds:string[];proposalOutcomes?:Array<{candidateKey:string;status:'mapped'|'refused';reason:string}>}>;
  records:TrainingChangeRecord[];
  creationImports?:Array<{buildRequestId:string;replyId:string;replyDigest:string;noteCount:number;notes:string[];importedNoteIndices:number[]}>;
+ selectionCoverage?:{maxStandingReferences:2;eligibleTextByStage:Array<{stage:string;count:number}>};
  test:{snapshotDigest:string|null;scope:'private_candidate'|'public_projection'|null;status:'not_run'|'prepared'|'queued'|'running'|'delivered'|'stale'|'failed'|'cancelled'|'blocked';runId:string|null;requestId?:string|null;qualityScore:number|null;gaps:string[];canTest:boolean};
- activation?:{canActivate:boolean;reason:string|null;servedSnapshotDigest:string|null;withdrawnSinceTest:number;testRequestId:string|null};
+ activation?:{canActivate:boolean;reason:string|null;servedSnapshotDigest:string|null;withdrawnSinceTest:number;stoppedSinceTest?:number;testRequestId:string|null};
  publication:{canPublish:boolean;reason:string|null;servedSnapshotDigest:string|null;proposedSnapshotDigest?:string|null;canPrepare?:boolean;
  qualifyingTestRequestId?:string|null;qualifyingRunId?:string|null;qualifyingSnapshotDigest?:string|null}};
 const id=(v:any)=>typeof v==='string'&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(v);
@@ -38,8 +39,13 @@ export function guidedTrainingChanges(v:any,expected:{sessionId:string;workflowV
   ||!Number.isInteger(i.noteCount)||i.noteCount<1||i.noteCount>8||!strings(i.notes,400,8)||i.notes.length!==i.noteCount||!Array.isArray(i.importedNoteIndices)||new Set(i.importedNoteIndices).size!==i.importedNoteIndices.length
   ||i.importedNoteIndices.some((n:any)=>!Number.isInteger(n)||n<0||n>=i.noteCount))))return false;
  const t=v.test,p=v.publication,a=v.activation;
+ if(v.selectionCoverage!==undefined&&(!v.selectionCoverage||v.selectionCoverage.maxStandingReferences!==2
+  ||!Array.isArray(v.selectionCoverage.eligibleTextByStage)||v.selectionCoverage.eligibleTextByStage.length>10
+  ||new Set(v.selectionCoverage.eligibleTextByStage.map((s:any)=>s?.stage)).size!==v.selectionCoverage.eligibleTextByStage.length
+  ||v.selectionCoverage.eligibleTextByStage.some((s:any)=>!text(s?.stage,80)||!/^[a-z][a-z_]*$/.test(s.stage)||!Number.isInteger(s.count)||s.count<0||s.count>100)))return false;
  if(a!==undefined&&(!a||typeof a.canActivate!=='boolean'||!(a.reason===null||text(a.reason,2000))||!(a.servedSnapshotDigest===null||sha(a.servedSnapshotDigest))
   ||!Number.isInteger(a.withdrawnSinceTest)||a.withdrawnSinceTest<0||!(a.testRequestId===null||id(a.testRequestId))
+  ||a.stoppedSinceTest!==undefined&&(!Number.isInteger(a.stoppedSinceTest)||a.stoppedSinceTest<0)
   ||a.canActivate&&(!id(a.testRequestId)||t?.status!=='delivered'||!id(t?.runId)||t?.requestId!==a.testRequestId)))return false;
  return !!t&&['not_run','prepared','queued','running','delivered','stale','failed','cancelled','blocked'].includes(t.status)&&[null,'private_candidate','public_projection'].includes(t.scope)&&(t.snapshotDigest===null||sha(t.snapshotDigest))&&(t.runId===null||id(t.runId))
   &&(t.requestId===undefined||t.requestId===null||id(t.requestId))
@@ -83,6 +89,8 @@ export function trainingSnapshotReason(reason:string|null):string{
  const copy:Record<string,string>={publication_test_required:'Test this exact public selection before publishing it.',training_test_not_ready:'The runtime cannot test this update yet. Nothing has started.',
  publication_base_changed:'The published version changed after this preview. Review the current additions and removals again.',publication_selection_required:'Prepare the exact public selection before testing it.',
  training_candidate_snapshot_changed:'Your private update changed after this test was prepared. Prepare the current update again.',training_delivered_test_required:'This exact update needs a delivered test before activation.',
+ manager_text_guidance_codex_required:'This text-guidance test currently requires the Codex executor. Updating a Claude executor will not enable it.',manager_text_guidance_update_required:'Use the updated Implexa Desktop with Manager text-guidance support before testing this update.',
+ training_test_lifecycle_contract_missing:'This run did not carry the managed lifecycle contract, so its delivery cannot qualify this training snapshot. Use the prepared Run now path.',training_delivered_test_unverified:'Delivery was recorded, but the verification receipts do not qualify this exact snapshot. Review the test details.',
  training_test_preparation_changed:'This prepared test no longer matches the current update. Return to Training to prepare it again.',training_test_preparation_spent:'This preparation already has a run request. Open that test result rather than starting it again.',
  training_material_unavailable:'The exact definition or teaching material is unavailable. Refresh Training before preparing a test.',agent_active_version_changed:'The agent changed while this action was being prepared. Reload its current Training workspace.',
  training_snapshot_changed:'Your training changed after this snapshot was prepared. Prepare the current update again.',training_test_material_mismatch:'The test does not match this exact definition and teaching set.',

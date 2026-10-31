@@ -70,6 +70,7 @@ export function GuidedPublicationReview({open,value,busy=false,error='',onClose,
     {!preview.canPublish&&<><p className="text-ink-400">{trainingSnapshotReason(preview.reason)}</p>
      <button type="button" className="btn-outline" disabled={unavailable} onClick={()=>work(()=>onTest(preview))}>Test this public version</button></>}
     {preview.canPublish&&<p className="text-emerald-300">A delivered test matches this exact public material.</p>}
+    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-xs text-ink-400">Testing this text guidance currently requires Codex and Implexa Desktop 0.4.160 or newer, through the prepared Run now path.</p>}
     <label className="flex items-start gap-3"><input type="checkbox" className="mt-1" checked={consent} disabled={unavailable} onChange={e=>setConsent(e.target.checked)}/>
      <span>I reviewed this definition, the selected guidance and examples, and the additions, changes and removals listed above. I release this exact public version for customers. Raw feedback and recordings stay private.</span></label>
     <button type="button" className="btn-primary" disabled={unavailable||!preview.canPublish||!consent} onClick={()=>work(async()=>{const captured=identity;if(await onPublish(preview)&&current.current===captured){setNote('This exact tested public version is published.');setConsent(false);}})}>Publish tested public version</button>

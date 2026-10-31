@@ -47,6 +47,8 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
     <button type="button" className={`${button} mt-3`} disabled={busy||!policyConsent} onClick={()=>onPolicy(true,value.policy)}>Enable private automatic inclusion</button></>}
   </details>
   <section className="rounded-xl border border-ink-800 p-4 text-sm" aria-label="Test this update"><h3 className="font-medium">Try it on a real task</h3>
+   {value.records.some(r=>r.included&&r.sourceKind!=='legacy_evidence')&&<p className="mt-2 text-ink-400">Text guidance currently requires the Codex executor and Implexa Desktop 0.4.160 or newer. Use the prepared Run now path; a delivery without its managed verification receipts cannot qualify this update.</p>}
+   {value.selectionCoverage&&value.selectionCoverage.eligibleTextByStage.length>0&&<div className="mt-3 space-y-2 text-xs text-ink-400"><p>At most {value.selectionCoverage.maxStandingReferences} stage-start references, across text and images, fit each stage. Eligibility does not mean delivery: exact run receipts show what was selected; remaining guidance may be deferred.</p><ul>{value.selectionCoverage.eligibleTextByStage.map(s=><li key={s.stage}>{s.stage.replaceAll('_',' ')}: {s.count} eligible text teachings.</li>)}</ul></div>}
    <p className="mt-2 text-ink-400">{value.test.status==='prepared'?'This update is frozen for a test. Choose its inputs in the run form before starting.':value.test.status==='queued'?'The test is queued.':value.test.status==='running'?'This exact update is being tested.':value.test.status==='stale'?'The update changed after its last test. Test the current snapshot before publishing.':value.test.status==='delivered'?'A matching test delivered. Its grade describes quality; it does not prove every learning caused a change.':['failed','cancelled','blocked'].includes(value.test.status)?'The last test did not deliver. Its evidence is preserved.':'Run this private update before publishing it for other people.'}</p>
    {value.test.qualityScore!==null&&<p className="mt-3 font-medium">Quality: {value.test.qualityScore}/100</p>}
    {value.test.gaps.length>0&&<ul className="mt-3 list-disc space-y-1 pl-5 text-ink-400">{value.test.gaps.map((gap,i)=><li key={i}>{explain(gap)}</li>)}</ul>}
@@ -54,10 +56,11 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
     <button type="button" className={button} disabled={busy||!value.publication.canPrepare} onClick={()=>onPublish(value.publication.proposedSnapshotDigest||value.binding.snapshotDigest)}>Review publication</button></div>
    {value.activation&&<div className="mt-4 space-y-2 text-xs text-ink-400"><p>{value.activation.servedSnapshotDigest?'Runs keep using the served training until you activate a tested update.':'Existing accepted training stays live until your first tested activation.'}</p>
     {value.activation.withdrawnSinceTest>0&&<p>{value.activation.withdrawnSinceTest} teaching{value.activation.withdrawnSinceTest===1?' is':'s are'} withdrawn since the served test; those teachings are excluded.</p>}
+    {(value.activation.stoppedSinceTest||0)>0&&<p>{value.activation.stoppedSinceTest} teaching{value.activation.stoppedSinceTest===1?'':'s'} stopped for new runs since the served test. Earlier-running tasks keep their frozen taste; privacy withdrawal still stops further access immediately.</p>}
     <button type="button" className={button} disabled={busy||!onActivate||!value.activation.canActivate||!value.activation.testRequestId} onClick={()=>{if(value.activation?.testRequestId)onActivate?.(value.binding.snapshotDigest,value.activation.testRequestId);}}>Use this tested update</button>
     {value.activation.reason&&<p>{explain(value.activation.reason)}</p>}
    </div>}
-   {value.publication.reason&&<p className="mt-3 text-xs text-ink-500">{value.publication.reason}</p>}
+   {value.publication.reason&&<p className="mt-3 text-xs text-ink-500">{explain(value.publication.reason)}</p>}
   </section>
   <Modal open={!!withdrawing} onClose={()=>setWithdrawing(null)} title="Withdraw this feedback?">
    <p className="text-sm leading-6 text-ink-300">This stops further use of this feedback and derived teachings, including releases. It is a privacy withdrawal, not removal from one candidate. Original history remains retained; this does not erase it.</p>
