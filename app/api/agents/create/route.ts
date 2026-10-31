@@ -32,6 +32,8 @@ export async function POST(request: Request) {
   // (backend persists them on the build request → drainer's generate_workflow).
   let toolPreferences: string[] | undefined;
   let toolUnavailable: string[] | undefined;
+  let creationDraftBinding: unknown;
+  let creationDraftFiles: unknown;
   const cleanList = (v: unknown): string[] | undefined => (
     Array.isArray(v)
       ? v.filter((s): s is string => typeof s === 'string' && !!s.trim()).slice(0, 6)
@@ -45,10 +47,12 @@ export async function POST(request: Request) {
     if (body?.timezone) timezone = String(body.timezone);
     toolPreferences = cleanList(body?.toolPreferences);
     toolUnavailable = cleanList(body?.toolUnavailable);
+    creationDraftBinding=body?.creationDraftBinding;
+    creationDraftFiles=body?.creationDraftFiles;
   } catch {
     /* empty body handled below */
   }
-  if (!intent) {
+  if (!intent && !creationDraftBinding) {
     return NextResponse.json({ ok: false, error: 'intent required' }, { status: 400 });
   }
 
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
         'content-type': 'application/json',
         authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ kind: 'build', intent, source: 'dashboard', mode, cron, timezone, toolPreferences, toolUnavailable }),
+      body: JSON.stringify({ kind: 'build', intent, source: 'dashboard', mode, cron, timezone, toolPreferences, toolUnavailable, creationDraftBinding, creationDraftFiles }),
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });

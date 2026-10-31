@@ -89,6 +89,8 @@ export async function createAgentBuild(input: {
   mode?: string;
   cron?: string;
   timezone?: string;
+  creationDraftBinding?: import('./agent-creation-brief').CreationDraftBinding;
+  creationDraftFiles?: string[];
 }): Promise<{ ok: boolean; error?: string; request?: unknown }> {
   const res = await fetch('/api/agents/create', {
     method: 'POST',
