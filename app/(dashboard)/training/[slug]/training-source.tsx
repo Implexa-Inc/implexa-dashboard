@@ -181,9 +181,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     }
     requestLearning({kind:'record',id:record.recordId,digest:record.recordDigest},'Please revise the selected teaching. I would like to change: ');
   }
-  async function prepareCandidateTest(snapshotDigest:string,scope:'private_candidate'|'public_projection'='private_candidate',resultSnapshotDigest=snapshotDigest){
+  async function prepareCandidateTest(snapshotDigest:string,scope:'private_candidate'|'public_projection'='private_candidate',resultSnapshotDigest=snapshotDigest,publicationPreview?:TrainingPublicationPreview){
     if(!changes||snapshotDigest!==changes.binding.snapshotDigest||!currentVersion)return;
-    const prepared=await mutateChanges('tests/prepare',{expectedActiveVersionId:currentVersion,expectedSnapshotDigest:snapshotDigest,scope});
+    if(scope==='public_projection'&&(!publicationPreview||publicationPreview.snapshotDigest!==resultSnapshotDigest||publicationPreview.candidateSnapshotDigest!==snapshotDigest))return;
+    const prepared=await mutateChanges('tests/prepare',{expectedActiveVersionId:currentVersion,expectedSnapshotDigest:snapshotDigest,scope,
+      ...(scope==='public_projection'?{publicationPreparationId:publicationPreview!.publicationPreparationId,preparationDigest:publicationPreview!.preparationDigest}:{})});
     if(!prepared)return;
     if(prepared.sessionId!==session||prepared.workflowVersionId!==currentVersion||prepared.snapshotDigest!==resultSnapshotDigest
       ||prepared.scope!==scope||typeof prepared.testPreparationId!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(prepared.testPreparationId)
@@ -197,7 +199,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     const activated=await mutateChanges('activate',{expectedActiveVersionId:currentVersion,expectedSnapshotDigest:snapshotDigest,testRequestId});
     if(activated&&(activated.contractVersion!=='training-snapshot-activation.v1'||typeof activated.activationId!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(activated.activationId)
       ||typeof activated.activationDigest!=='string'||!/^[a-f0-9]{64}$/.test(activated.activationDigest)||activated.sessionId!==session||activated.workflowVersionId!==currentVersion
-      ||activated.snapshotDigest!==snapshotDigest||activated.testRequestId!==testRequestId))setChangesError('training_activation_unconfirmed');
+      ||activated.snapshotDigest!==snapshotDigest||activated.testRequestId!==testRequestId)){
+      await loadChanges();setChangesError('This update may have applied, but the receipt could not be confirmed. Refresh to check the served training before trying again.');
+    }
   }
   async function preparePublication(recordIds:string[]):Promise<TrainingPublicationPreview|null>{
     if(!changes||!currentVersion)return null;
@@ -1259,6 +1263,6 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </div>
     {!installationId&&changes&&<GuidedPublicationReview open={publicationReviewOpen} value={changes} busy={!!busy||changesBusy||versionChanged} error={changesError}
       onClose={()=>setPublicationReviewOpen(false)} onPrepare={preparePublication} onPublish={publishPreparedSnapshot} onReviewExample={reviewPublicationExample}
-      onTest={preview=>prepareCandidateTest(preview.candidateSnapshotDigest,'public_projection',preview.snapshotDigest)}/>}
+      onTest={preview=>prepareCandidateTest(preview.candidateSnapshotDigest,'public_projection',preview.snapshotDigest,preview)}/>}
   </main>;
 }

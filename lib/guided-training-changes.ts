@@ -53,6 +53,7 @@ export type TrainingPublicationPreview={ok:true;contractVersion:'training-public
  sessionId:string;workflowVersionId:string;candidateSnapshotDigest:string;snapshotDigest:string;definition:{name:string;description:string};
  records:Array<{recordId:string;recordDigest:string;relation:string;properties:string[];summary:string;mustNotCopy:string[];attribution:string|null;deliveryMode:'standing'|'on_question';
   derivative:{kind:string;sha256:string;sizeBytes:number;mediaType:string;width?:number;height?:number}}>;
+ publicationDelta:{publishedSnapshotDigest:string|null;definitionChanged:boolean;changes:Array<{recordId:string;change:'added'|'removed'|'changed'|'unchanged'}>};
  qualifyingTestRequestId:string|null;qualifyingRunId:string|null;qualifyingSnapshotDigest:string|null;canPublish:boolean;reason:string|null};
 export function trainingPublicationPreview(v:any,expected:{sessionId:string;workflowVersionId:string;snapshotDigest:string;records:TrainingChangeRecord[]}):v is TrainingPublicationPreview{
  if(v?.ok!==true||v.contractVersion!=='training-publication-preview.v1'||!id(v.publicationPreparationId)||!sha(v.preparationDigest)
@@ -63,6 +64,12 @@ export function trainingPublicationPreview(v:any,expected:{sessionId:string;work
   ||!(v.qualifyingRunId===null||id(v.qualifyingRunId))||!(v.qualifyingSnapshotDigest===null||sha(v.qualifyingSnapshotDigest))
   ||v.canPublish&&(!id(v.qualifyingTestRequestId)||!id(v.qualifyingRunId)||v.qualifyingSnapshotDigest!==v.snapshotDigest)
   ||!(v.reason===null||text(v.reason,2000)))return false;
+ const delta=v.publicationDelta;
+ if(!delta||!(delta.publishedSnapshotDigest===null||sha(delta.publishedSnapshotDigest))||typeof delta.definitionChanged!=='boolean'
+  ||!Array.isArray(delta.changes)||delta.changes.length>64||new Set(delta.changes.map((c:any)=>c?.recordId)).size!==delta.changes.length
+  ||delta.changes.some((c:any)=>!id(c?.recordId)||!['added','removed','changed','unchanged'].includes(c.change)
+   ||(c.change==='removed'?v.records.some((r:any)=>r.recordId===c.recordId):!v.records.some((r:any)=>r.recordId===c.recordId)))
+  ||v.records.some((r:any)=>!delta.changes.some((c:any)=>c.recordId===r.recordId&&c.change!=='removed')))return false;
  return v.records.every((r:any)=>expected.records.some(e=>e.recordId===r.recordId&&e.recordDigest===r.recordDigest&&e.summary===r.summary)
   &&['accepted','rejected','contrast','exception'].includes(r.relation)&&strings(r.properties,500,15)&&text(r.summary,4000)&&strings(r.mustNotCopy,500,32)
   &&(r.attribution===null||text(r.attribution,4000))&&['standing','on_question'].includes(r.deliveryMode)&&sha(r.derivative?.sha256)
@@ -70,4 +77,12 @@ export function trainingPublicationPreview(v:any,expected:{sessionId:string;work
   &&(r.derivative.kind==='text_guidance'?r.derivative.mediaType==='application/json'&&r.derivative.width===undefined&&r.derivative.height===undefined
    :['review_png','training_png','released_training_png'].includes(r.derivative.kind)&&r.derivative.mediaType==='image/png'
     &&[r.derivative.width,r.derivative.height].every((n:any)=>Number.isInteger(n)&&n>0&&n<=2560)));
+}
+
+export function trainingSnapshotReason(reason:string|null):string{
+ const copy:Record<string,string>={publication_test_required:'Test this exact public selection before publishing it.',training_test_not_ready:'The runtime cannot test this update yet. Nothing has started.',
+ training_snapshot_changed:'Your training changed after this snapshot was prepared. Prepare the current update again.',training_test_material_mismatch:'The test does not match this exact definition and teaching set.',
+ training_test_not_delivered:'This exact update has not delivered yet. Open its test result before proceeding.',training_publication_preparation_changed:'This public selection changed. Review and prepare the exact selection again.',
+ training_feedback_unavailable:'Source feedback is withdrawn or unavailable; it cannot be used in a new update.',public_evidence_storage_required:'Save the exact selected example privately before preparing its public release.'};
+ return reason?(copy[reason]||'This snapshot is not ready for that action. Refresh its saved state to see what remains.'):'No delivered test currently qualifies this exact public material.';
 }

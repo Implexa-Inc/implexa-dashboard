@@ -4,6 +4,7 @@ import {isTrainingEvidenceStorage,type TrainingEvidenceStorage} from '@/lib/trai
 import {teachingDigest} from '@/lib/training-teaching-draft';
 import Modal from '../../_components/modal';
 import type {GuidedTrainingChanges,TrainingPublicationPreview} from '@/lib/guided-training-changes';
+import {trainingSnapshotReason} from '@/lib/guided-training-changes';
 
 type Projection={recordId:string;recordDigest:string;relation:string;properties:string[];summary:string;mustNotCopy:string[];attribution:string|null;
  derivative:{evidenceId:string;sha256:string;anchorDigest:string;mediaType:string;sizeBytes:number;width:number;height:number}};
@@ -53,6 +54,12 @@ export function GuidedPublicationReview({open,value,busy=false,error='',onClose,
    <button type="button" className="btn-outline" disabled={unavailable||!value.publication.canPrepare} onClick={()=>work(prepare)}>Prepare exact public preview</button>
    {preview&&<section className="space-y-4 rounded-xl border border-ink-700 p-4" aria-label="Exact public snapshot">
     <div><h3 className="font-medium">{preview.definition.name}</h3><p className="mt-2 text-ink-400">{preview.definition.description}</p></div>
+    <div className="space-y-2" aria-label="Changes for customers"><h4 className="font-medium">What changes for customers</h4>
+     <p>{preview.publicationDelta.definitionChanged?'The public definition changes.':'The public definition stays the same.'}</p>
+     <p>{preview.publicationDelta.changes.filter(c=>c.change==='added').length} added · {preview.publicationDelta.changes.filter(c=>c.change==='removed').length} removed · {preview.publicationDelta.changes.filter(c=>c.change==='changed').length} changed · {preview.publicationDelta.changes.filter(c=>c.change==='unchanged').length} unchanged teachings.</p>
+     {preview.publicationDelta.changes.some(c=>c.change==='removed')&&<p className="text-amber-300">The removed teachings will be absent from new installs and from existing customers who accept this update. Existing pins and running tasks stay unchanged.</p>}
+     <ul className="text-xs text-ink-400">{preview.publicationDelta.changes.map(c=><li key={c.recordId}>{c.change[0].toUpperCase()+c.change.slice(1)}: {preview.records.find(r=>r.recordId===c.recordId)?.summary||`Teaching ${c.recordId.slice(0,8)}`}</li>)}</ul>
+    </div>
     {preview.records.map(r=><article className="border-t border-ink-800 pt-3" key={r.recordId}><p>{r.summary}</p>
      <p className="mt-1 text-xs text-ink-500">{r.relation} · {r.deliveryMode==='standing'?'Stage-start guidance':'Retrieved for relevant questions'} · {r.derivative.mediaType==='image/png'?'Image and guidance':'Text guidance'}</p>
      {r.mustNotCopy.length>0&&<p className="mt-1 text-xs text-ink-400">Preserved restrictions: {r.mustNotCopy.map(s=>s.replaceAll('_',' ')).join(', ')}</p>}
@@ -60,11 +67,11 @@ export function GuidedPublicationReview({open,value,busy=false,error='',onClose,
      {r.derivative.mediaType==='image/png'&&onReviewExample&&<button type="button" className="mt-2 text-xs underline" disabled={unavailable} onClick={()=>onReviewExample(r.recordId)}>Review exact image</button>}
     </article>)}
     <p className="text-xs text-ink-500">Material snapshot {preview.snapshotDigest.slice(0,12)}. Selected example copies may be inspected by customers who receive them; withdrawal stops future access.</p>
-    {!preview.canPublish&&<><p className="text-ink-400">This exact public material needs a matching delivered test before publication.{preview.reason?` ${preview.reason.replaceAll('_',' ')}.`:''}</p>
+    {!preview.canPublish&&<><p className="text-ink-400">{trainingSnapshotReason(preview.reason)}</p>
      <button type="button" className="btn-outline" disabled={unavailable} onClick={()=>work(()=>onTest(preview))}>Test this public version</button></>}
     {preview.canPublish&&<p className="text-emerald-300">A delivered test matches this exact public material.</p>}
     <label className="flex items-start gap-3"><input type="checkbox" className="mt-1" checked={consent} disabled={unavailable} onChange={e=>setConsent(e.target.checked)}/>
-     <span>I reviewed this definition and the selected guidance and examples, and release this exact public version for customers. Raw feedback and recordings stay private.</span></label>
+     <span>I reviewed this definition, the selected guidance and examples, and the additions, changes and removals listed above. I release this exact public version for customers. Raw feedback and recordings stay private.</span></label>
     <button type="button" className="btn-primary" disabled={unavailable||!preview.canPublish||!consent} onClick={()=>work(async()=>{const captured=identity;if(await onPublish(preview)&&current.current===captured){setNote('This exact tested public version is published.');setConsent(false);}})}>Publish tested public version</button>
    </section>}
    {working&&<p role="status">Checking the exact snapshot…</p>}{(error||note)&&<p role="status">{error?error.replaceAll('_',' '):note}</p>}

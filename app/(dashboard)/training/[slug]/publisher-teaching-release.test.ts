@@ -19,6 +19,7 @@ const candidateState=():GuidedTrainingChanges=>({ok:true,contractVersion:'guided
  test:{scope:null,snapshotDigest:null,status:'not_run',runId:null,qualityScore:null,gaps:[],canTest:true},publication:{canPrepare:true,canPublish:false,reason:null,servedSnapshotDigest:null}});
 const publicationPreview=(canPublish=false):TrainingPublicationPreview=>({ok:true,contractVersion:'training-publication-preview.v1',publicationPreparationId:U(20),preparationDigest:'b'.repeat(64),sessionId:U(5),workflowVersionId:VERSION,
  candidateSnapshotDigest:DIGEST,snapshotDigest:'c'.repeat(64),definition:{name:'Video agent',description:'A playable video and editable project.'},
+ publicationDelta:{publishedSnapshotDigest:'e'.repeat(64),definitionChanged:false,changes:[{recordId:RECORD,change:'added'},{recordId:U(29),change:'removed'}]},
  records:[{recordId:RECORD,recordDigest:DIGEST,relation:'accepted',properties:['layout_variety'],summary:'Explain the relationship visually.',mustNotCopy:['source marks'],attribution:null,deliveryMode:'standing',
  derivative:{kind:'text_guidance',sha256:'d'.repeat(64),sizeBytes:220,mediaType:'application/json'}}],
  qualifyingTestRequestId:canPublish?U(21):null,qualifyingRunId:canPublish?U(22):null,qualifyingSnapshotDigest:canPublish?'c'.repeat(64):null,canPublish,reason:canPublish?null:'publication_test_required'});
@@ -26,7 +27,8 @@ test('public preview guard binds the explicit selection and qualifying material,
  const v=publicationPreview(true),state=candidateState(),expected={sessionId:U(5),workflowVersionId:VERSION,snapshotDigest:DIGEST,records:state.records};
  assert.equal(trainingPublicationPreview(v,expected),true);
  for(const change of [(x:any)=>x.records[0].recordDigest='f'.repeat(64),(x:any)=>x.records[0].summary='Different guidance',
-  (x:any)=>x.qualifyingSnapshotDigest='f'.repeat(64),(x:any)=>x.qualifyingRunId=null,(x:any)=>x.records[0].derivative.kind='unknown']){
+  (x:any)=>x.qualifyingSnapshotDigest='f'.repeat(64),(x:any)=>x.qualifyingRunId=null,(x:any)=>x.records[0].derivative.kind='unknown',
+  (x:any)=>delete x.publicationDelta,(x:any)=>x.publicationDelta.changes=[],(x:any)=>x.publicationDelta.changes[0].change='removed']){
   const bad=structuredClone(v);change(bad);assert.equal(trainingPublicationPreview(bad,expected),false);
  }
 });
@@ -39,6 +41,7 @@ test('public snapshot review is passive, starts with no selected private teachin
  const {r,calls}=await snapshotReview(t);assert.equal(calls.length,0);assert.equal(r.document.querySelectorAll('textarea,input[type=text]').length,0);
  assert.equal((r.document.querySelector('input[type=checkbox]') as HTMLInputElement).checked,false);
  await r.click(r.document.querySelector('input[type=checkbox]')!);await r.click(r.getByText('Prepare exact public preview'));
+ assert.match(r.text(),/1 added · 1 removed/);assert.match(r.text(),/removed teachings will be absent/);assert.match(r.text(),/public definition stays the same/);
  assert.deepEqual(JSON.parse(JSON.stringify(calls[0])),['prepare',[RECORD]]);
  assert.equal((r.getByText('Publish tested public version') as HTMLButtonElement).disabled,true);
  await r.click(r.getByText('Test this public version'));assert.equal(calls[1][0],'test');assert.equal(calls[1][1].snapshotDigest,'c'.repeat(64));
