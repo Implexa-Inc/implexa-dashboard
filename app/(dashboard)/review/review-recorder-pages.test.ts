@@ -512,7 +512,11 @@ test('Draw region uses the Review Room overlay; keyboard Enter sets a box at the
     await page.click(button(page, 'Draw region')!);
     const overlay = page.document.querySelector('[data-testid="spatial-overlay"]') as HTMLElement;
     assert.ok(overlay, 'the shared overlay is mounted');
-    assert.equal(overlay.style.bottom, '48px', 'the native controls keep their strip');
+    assert.equal(overlay.style.bottom, '0px', 'external transport leaves the whole picture available');
+    assert.equal(video.hasAttribute('controls'), false);
+    const transport = page.document.querySelector('[data-testid="playback-controls"]')!;
+    assert.ok(transport.querySelector('button[aria-label="Play"]'));
+    assert.equal(video.parentElement!.contains(transport), false, 'drawing cannot hit transport');
     await key(page, overlay, 'Enter');
     assert.match(page.text(), /Region: 20% × 20% at \(40%, 40%\)/);
     assert.equal(page.document.querySelector('[data-testid="spatial-overlay"]'), null, 'drawing ends');
@@ -520,6 +524,42 @@ test('Draw region uses the Review Room overlay; keyboard Enter sets a box at the
     await page.click(button(page, 'Draw region')!);
     await key(page, page.document.querySelector('[data-testid="spatial-overlay"]')!, 'Escape');
     assert.equal(page.document.querySelector('[data-testid="spatial-overlay"]'), null, 'Escape cancels');
+  } finally { page.cleanup(); }
+});
+
+test('drawing rejects a scrubbed or still-seeking frame without retiming the moment or changing its notes', async () => {
+  const card = { ...emptyCard(), whatToDo: 'Preserve these exact notes', why: 'Keep this explanation' };
+  const start = [{ momentId: M1, startMs: 1_000, endMs: 4_000, region: null, card, createdAt: NOW }];
+  const b = bridge((op, args) => {
+    if (op === 'get') return { ok: true, recording: detail({}, start) };
+    if (op === 'preview') return previewOk;
+    if (op === 'saveMoments') return { ok: true, moments: args.moments };
+    return { ok: true };
+  });
+  const page = await render(PLAYER, { recordingId: ID, ownerId: ID }, { bridge: b.value });
+  try {
+    await page.act(() => {});
+    const video = page.document.querySelector('video')!;
+    let seeking = false;
+    Object.assign(video, { getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 450, right: 800, bottom: 450, x: 0, y: 0 }), pause: () => {} });
+    Object.defineProperties(video, { videoWidth: { value: 1600 }, videoHeight: { value: 900 }, seeking: { get: () => seeking } });
+    await page.click(button(page, 'Draw region')!);
+    assert.equal(video.currentTime, 1);
+    video.currentTime = 8; // A user scrubs after choosing the moment.
+    await key(page, page.document.querySelector('[data-testid="spatial-overlay"]')!, 'Enter');
+    assert.match(page.text(), /picture moved from this moment’s start/); assert.match(page.text(), /Region: none/);
+    assert.equal((page.document.querySelector('textarea') as HTMLTextAreaElement).value, card.whatToDo);
+    await page.click(button(page, 'Draw region')!);
+    seeking = true;
+    await key(page, page.document.querySelector('[data-testid="spatial-overlay"]')!, 'Enter');
+    assert.match(page.text(), /Region: none/);
+    seeking = false;
+    await key(page, page.document.querySelector('[data-testid="spatial-overlay"]')!, 'Enter');
+    assert.match(page.text(), /Region: 20%/);
+    await page.click(button(page, 'Save moments')!);
+    const saved = b.calls.find((c) => c.operation === 'saveMoments')!.args.moments as typeof start;
+    assert.equal(saved[0].startMs, 1000); assert.equal(saved[0].endMs, 4000);
+    assert.deepEqual(saved[0].card, card); assert.ok(saved[0].region);
   } finally { page.cleanup(); }
 });
 

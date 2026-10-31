@@ -153,10 +153,10 @@ const mutations = [
     "                  || (submitView.mode !== 'accept_result' && gate.blocked)",
     '                  || false'],
 
-  // ── discoverability / native controls ─────────────────────────────────────
-  ['controls', 'the overlay covers the native video transport', OVERLAY,
-    "      style={{ bottom: mediaKind === 'video' ? CONTROLS_EXCLUSION_PX : 0, touchAction: 'none' }}",
-    "      style={{ bottom: 0, touchAction: 'none' }}"],
+  // ── external transport: the full picture must remain annotatable ───────────
+  ['controls', 'external-control players incorrectly retain the old excluded image strip', OVERLAY,
+    "      style={{ bottom: mediaKind === 'video' && controlsMode === 'native' ? CONTROLS_EXCLUSION_PX : 0, touchAction: 'none' }}",
+    "      style={{ bottom: mediaKind === 'video' ? CONTROLS_EXCLUSION_PX : 0, touchAction: 'none' }}"],
 ];
 
 const label = 'review-spatial-annotation';

@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import Modal from '../../../_components/modal';
 import ReviewSpatialOverlay from '../../../_components/review-spatial-overlay';
+import ReviewPlaybackControls from '../../../_components/review-playback-controls';
 import { formatMs } from '@/lib/review-anchor';
 import { inDesktopApp, revokePreview } from '@/lib/review-preview';
 import { visualContentRect } from '@/lib/review-spatial-geometry';
@@ -58,6 +59,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
   const [markStartMs, setMarkStartMs] = useState<number | null>(null);
   const [barDraft, setBarDraft] = useState<Range | null>(null);
   const [drawing, setDrawing] = useState(false);
+  const [regionError, setRegionError] = useState<string | null>(null);
   const [showTrail, setShowTrail] = useState(true);
   const [videoDims, setVideoDims] = useState<{ w: number; h: number } | null>(null);
   const [elementSize, setElementSize] = useState<{ w: number; h: number } | null>(null);
@@ -301,21 +303,26 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
 
   // ── region drawing on the picture ─────────────────────────────────────────
   // The Review Room's own <ReviewSpatialOverlay /> does the gesture: drag threshold,
-  // letterbox rejection, the native-controls exclusion band, pointer capture, keyboard
-  // Enter/Escape. It is mounted only while drawing, so the video stays fully clickable
-  // otherwise.
+  // letterbox rejection, pointer capture, keyboard Enter/Escape. With external
+  // controls the entire picture is available; drawing never toggles playback.
 
   const freezeForRegion = () => {
     const v = videoRef.current;
     if (!v) return null;
     v.pause();
+    if (v.seeking) return null;
     return Math.round(v.currentTime * 1000);
   };
-  const onRegionAnnotate = ({ spatial }: { spatial: { geometry: { kind: 'point' | 'rect'; x: number; y: number; width: number | null; height: number | null } } }) => {
-    if (!selectedId) return;
+  const onRegionAnnotate = ({ spatial, frozenTimestampMs }: { frozenTimestampMs: number | null; spatial: { geometry: { kind: 'point' | 'rect'; x: number; y: number; width: number | null; height: number | null } } }) => {
+    if (!selected) return;
+    if (frozenTimestampMs !== selected.startMs) {
+      setRegionError('The picture moved from this moment’s start. Choose Draw region again, wait for seeking to finish, then mark the picture. Your moment and notes are unchanged.');
+      return;
+    }
     const region = regionFromSpatial(spatial.geometry);
     if (!region) return;
-    setRegion(selectedId, region);
+    setRegion(selected.momentId, region);
+    setRegionError(null);
     setDrawing(false);
   };
 
@@ -422,11 +429,12 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
         {previewError && <p role="status" className="rounded border border-ink-800 bg-ink-950 p-6 text-center text-sm text-ink-200">{previewError}</p>}
         {!preview && !previewError && <div className="h-64 animate-pulse rounded bg-ink-800/50" aria-label="Loading video" />}
         {preview && (
+          <ReviewPlaybackControls key={recordingId} mediaKey={recordingId} mediaRef={videoRef} onSeek={seek}>
+          <>
           <div className="relative">
             <video
               ref={videoRef}
               src={preview.url}
-              controls
               className="max-h-[60vh] w-full rounded bg-black object-contain"
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget;
@@ -447,6 +455,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
             {drawing && (
               <ReviewSpatialOverlay
                 mediaKind="video"
+                controlsMode="external"
                 mediaEl={() => videoRef.current}
                 enabled
                 pins={[]}
@@ -459,6 +468,9 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
               />
             )}
           </div>
+          {regionError && <p role="alert" className="p-3 text-xs text-amber-300">{regionError}</p>}
+          </>
+          </ReviewPlaybackControls>
         )}
       </div>
 
@@ -560,7 +572,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-400">
                   <span>Region: {m.region ? regionLabel(m.region) : 'none'}</span>
-                  <button type="button" onClick={() => { selectMoment(m); setDrawing(true); }} className="text-sky-300 hover:underline">Draw region</button>
+                  <button type="button" onClick={() => { videoRef.current?.pause(); selectMoment(m); setRegionError(null); setDrawing(true); }} className="text-sky-300 hover:underline">Draw region</button>
                   {pointerBox && <button type="button" onClick={() => setRegion(m.momentId, pointerBox)} className="text-sky-300 hover:underline">Use pointer box</button>}
                   {m.region && <button type="button" onClick={() => setRegion(m.momentId, null)} className="text-ink-400 hover:underline">Clear region</button>}
                 </div>

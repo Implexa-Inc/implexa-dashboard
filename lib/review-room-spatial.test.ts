@@ -6,8 +6,8 @@
 // window boundary, drives the actual annotation overlay with pointer and keyboard
 // events, and intercepts the actual `fetch`. What these tests settle beyond argument:
 // the click pauses and freezes the EXACT frame; the anchor that leaves the browser is
-// byte-for-byte the backend's v2 shape; the letterbox is dead space; native controls
-// stay native; a saved issue immediately requests its evidence; and the send action
+// byte-for-byte the backend's v2 shape; the letterbox is dead space; transport stays
+// outside the picture; a saved issue immediately requests its evidence; and the send action
 // stays locked until every capture is validated.
 
 import { test, before, beforeEach, afterEach, after } from 'node:test';
@@ -217,6 +217,28 @@ const key = async (el: HTMLElement, k: string, opts: Record<string, unknown> = {
 const media = async (el: HTMLElement, type: string) => {
   await act(async () => { el.dispatchEvent(new dom.window.Event(type, { bubbles: true })); });
 };
+
+function fullscreenFixture() {
+  const proto = dom.window.HTMLElement.prototype;
+  const requestDescriptor = Object.getOwnPropertyDescriptor(proto, 'requestFullscreen');
+  const exitDescriptor = Object.getOwnPropertyDescriptor(dom.window.document, 'exitFullscreen');
+  const elementDescriptor = Object.getOwnPropertyDescriptor(dom.window.document, 'fullscreenElement');
+  let element: Element | null = null;
+  const state = { exits: 0, exit: async () => { change(null); } };
+  function change(next: Element | null) {
+    element = next;
+    dom.window.document.dispatchEvent(new dom.window.Event('fullscreenchange'));
+  }
+  Object.defineProperty(dom.window.document, 'fullscreenElement', { configurable: true, get: () => element });
+  proto.requestFullscreen = async function () { change(this); };
+  dom.window.document.exitFullscreen = async () => { state.exits++; await state.exit(); };
+  return { state, change, restore: () => {
+    for (const [target, name, descriptor] of [[proto, 'requestFullscreen', requestDescriptor], [dom.window.document, 'exitFullscreen', exitDescriptor], [dom.window.document, 'fullscreenElement', elementDescriptor]] as const) {
+      if (descriptor) Object.defineProperty(target, name, descriptor);
+      else Reflect.deleteProperty(target, name);
+    }
+  } };
+}
 // THE COMPOSER'S OWN BOX — never a bare textarea query: once a draft is saved the
 // footer's revision-note textarea exists too, and existence assertions against
 // "any textarea" answer the wrong question. Booleans only in assertions: a failed
@@ -245,13 +267,88 @@ async function mountVideo(over: Record<string, unknown> = {}) {
 
 // ── discoverability ─────────────────────────────────────────────────────────
 
-test('the overlay and the outside (i) hint render over a validated video, leaving the controls strip native', async () => {
+test('video transport is outside the whole annotatable picture; the outside (i) hint remains', async () => {
   await mountVideo();
   assert.ok(overlay(), 'the annotation overlay must exist over the player');
   assert.match(text(), new RegExp(SPATIAL_HINT_COPY.slice(0, 30)));
-  assert.equal(overlay().style.bottom, '48px', 'the native transport strip stays uncovered');
-  assert.equal(video().hasAttribute('controls'), true, 'native controls survive the overlay');
+  assert.equal(overlay().style.bottom, '0px', 'external transport leaves no image strip excluded');
+  assert.equal(video().hasAttribute('controls'), false, 'native controls cannot cover feedback');
+  const transport = container.querySelector('[data-testid="playback-controls"]')!;
+  assert.equal(video().parentElement!.contains(transport), false, 'controls are outside the picture/overlay wrapper');
+  assert.ok(transport.querySelector('input[aria-label="Seek video"]'));
   root.unmount();
+});
+
+test('audio keeps its native controls and gets no picture overlay or video transport', async () => {
+  await mount({ artifacts: [{ ...artifacts[0], relativePath: 'out/audio.mp3' }] });
+  assert.ok(container.querySelector('audio[controls]'));
+  assert.equal(overlay(), null);
+  assert.equal(container.querySelector('[data-testid="playback-controls"]'), null);
+});
+
+test('feedback near the bottom of the full video freezes the same source-normalized geometry', async () => {
+  const state = await mountVideo();
+  video().getBoundingClientRect = () => ({ left: 10, top: 20, width: 800, height: 450, right: 810, bottom: 470, x: 10, y: 20, toJSON: () => ({}) } as DOMRect);
+  await media(video(), 'loadedmetadata');
+  await fire(overlay(), 'pointerdown', { clientX: 410, clientY: 465 });
+  assert.equal(state.pauses, 1);
+  state.currentTime = 8;
+  await fire(overlay(), 'pointerup', { clientX: 410, clientY: 465 });
+  await typeBody('bottom-edge note'); await clickButton(/^Save issue$/);
+  const anchor = calls.find((c) => c.body.action === 'create_issue')!.body.anchor as typeof storedSpatialAnchor;
+  assert.equal(anchor.temporal.startMs, 1656);
+  assert.equal(anchor.observedArtifactId, VID); assert.equal(anchor.observedArtifactSha256, SHA_V);
+  assert.equal(anchor.geometry.x, 0.5); assert.ok(Math.abs(anchor.geometry.y - 445 / 450) < 0.000001);
+});
+
+test('fullscreen annotation waits for this player to exit before showing the composer, preserving the down-frame', async () => {
+  const full = fullscreenFixture();
+  try {
+    const state = await mountVideo();
+    await fire(container.querySelector('button[aria-label="Enter fullscreen"]')! as HTMLElement, 'click');
+    const player = container.querySelector('[data-testid="review-playback"]')!;
+    assert.equal(document.fullscreenElement, player);
+    let completeExit!: () => void;
+    full.state.exit = () => new Promise<void>((resolve) => { completeExit = () => { full.change(null); resolve(); }; });
+    await fire(overlay(), 'pointerdown', { clientX: 410, clientY: 320 });
+    state.currentTime = 8;
+    await fire(overlay(), 'pointerup', { clientX: 410, clientY: 320 });
+    assert.equal(full.state.exits, 1); assert.equal(composerBox(), null, 'the outside composer waits for exit');
+    await act(async () => { completeExit(); });
+    assert.equal(document.fullscreenElement, null); assert.ok(composerBox());
+    assert.equal(player.contains(composerBox()), false, 'composer is now outside fullscreen and visible');
+    assert.match(text(), /Pin · 00:01\.656/);
+  } finally { full.restore(); }
+});
+
+test('refused fullscreen exit keeps the gesture and a visible notice; later Escape reveals it exactly once', async () => {
+  const full = fullscreenFixture();
+  try {
+    await mountVideo();
+    await fire(container.querySelector('button[aria-label="Enter fullscreen"]')! as HTMLElement, 'click');
+    full.state.exit = async () => { throw new Error('inert exit refusal'); };
+    await fire(overlay(), 'pointerdown', { clientX: 410, clientY: 320 });
+    await fire(overlay(), 'pointerup', { clientX: 410, clientY: 320 });
+    assert.equal(composerBox(), null);
+    const player = document.fullscreenElement!;
+    assert.match(player.querySelector('[role="alert"]')!.textContent!, /feedback is preserved.*Exit fullscreen/);
+    await act(async () => { full.change(null); });
+    assert.ok(composerBox()); assert.match(text(), /Pin · 00:01\.656/);
+    await typeBody('preserved fullscreen note'); await clickButton(/^Save issue$/);
+    assert.equal(calls.filter((c) => c.body.action === 'create_issue').length, 1);
+  } finally { full.restore(); }
+});
+
+test('annotation never exits a different component’s fullscreen', async () => {
+  const full = fullscreenFixture();
+  try {
+    await mountVideo();
+    const other = document.createElement('div');
+    await act(async () => { full.change(other); });
+    await fire(overlay(), 'pointerdown', { clientX: 410, clientY: 320 });
+    await fire(overlay(), 'pointerup', { clientX: 410, clientY: 320 });
+    assert.equal(full.state.exits, 0); assert.equal(document.fullscreenElement, other);
+  } finally { full.restore(); }
 });
 
 // ── the primary path: click → pause → freeze → exact anchor → evidence ──────

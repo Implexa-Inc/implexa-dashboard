@@ -15,10 +15,9 @@
  *  * A press-and-release under the drag threshold is a POINT; travel beyond it is a
  *    RECT. The threshold is documented in lib/review-spatial-geometry
  *    (DRAG_THRESHOLD_PX) and tested there, not re-derived here.
- *  * NATIVE CONTROLS STAY NATIVE. For video the overlay leaves a bottom band
- *    (CONTROLS_EXCLUSION_PX) uncovered, so the transport, the timeline and the
- *    fullscreen button receive their clicks untouched — and the hover cue can never
- *    appear over them.
+ *  * TRANSPORT STAYS OUTSIDE ANNOTATION. Legacy native video controls keep their
+ *    bottom band. External-control callers cover the whole picture; they place
+ *    transport outside this surface. Neither mode changes normalized coordinates.
  *  * KEYBOARD ACCESS IS A REAL PATH, not a fallback: the overlay is focusable; Enter
  *    places a point at the center of the content; arrow keys nudge an unsaved point
  *    by 1% (10% with Shift); Escape cancels the unsaved annotation.
@@ -59,6 +58,8 @@ type MediaState = { elementRect: DOMRect; naturalWidth: number; naturalHeight: n
 
 export default function ReviewSpatialOverlay(props: {
   mediaKind: 'video' | 'image';
+  /** Defaults to native for existing callers. External controls are outside the image. */
+  controlsMode?: 'native' | 'external';
   /** The live media element — measured at event time, never cached across renders. */
   mediaEl: () => HTMLVideoElement | HTMLImageElement | null;
   enabled: boolean;
@@ -79,7 +80,7 @@ export default function ReviewSpatialOverlay(props: {
   onOpenIssue: (issueId: string) => void;
 }) {
   const {
-    mediaKind, mediaEl, enabled, pins, draftSpatial,
+    mediaKind, controlsMode = 'native', mediaEl, enabled, pins, draftSpatial,
     freezeMedia, onAnnotate, onNudgeDraft, onCancelDraft, onOpenIssue,
   } = props;
 
@@ -302,8 +303,8 @@ export default function ReviewSpatialOverlay(props: {
       tabIndex={enabled ? 0 : -1}
       aria-label={OVERLAY_ARIA_LABEL}
       className="absolute left-0 right-0 top-0 cursor-crosshair select-none focus:outline focus:outline-2 focus:outline-sky-400"
-      // The video transport keeps its strip; an image is coverable edge to edge.
-      style={{ bottom: mediaKind === 'video' ? CONTROLS_EXCLUSION_PX : 0, touchAction: 'none' }}
+      // Only legacy native transport needs a strip. External controls follow the image.
+      style={{ bottom: mediaKind === 'video' && controlsMode === 'native' ? CONTROLS_EXCLUSION_PX : 0, touchAction: 'none' }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
