@@ -340,9 +340,10 @@ export const MAIN_CONTENT_ID = 'main-content';
  * (DESIGN.md §15 Phase A.5 — "Stop using the global Create button on Work and
  * review surfaces"). Creating an agent is not a plausible next action while
  * you are judging a delivered artifact, and the control overlaps the review
- * action area.
+ * action area. Training and Create also own their contextual conversation;
+ * a second floating creator covers the chat/retention controls there.
  */
-export const CREATE_FAB_SUPPRESSED_PREFIXES: readonly string[] = ['/work', '/review', '/runs'];
+export const CREATE_FAB_SUPPRESSED_PREFIXES: readonly string[] = ['/work', '/review', '/runs', '/training', '/create'];
 
 export function isCreateFabSuppressed(pathname: string): boolean {
   return CREATE_FAB_SUPPRESSED_PREFIXES.some((p) => ownsPath(p, pathname));
