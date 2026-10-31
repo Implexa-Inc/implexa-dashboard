@@ -5,6 +5,43 @@ import { render, type Rendered } from '../../../../lib/test/render.ts';
 import { isTrainingEvidenceStorage, deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
 import { questionsPage, validAnswerBody, answerReceipt } from '../../../../lib/trainer-questions.ts';
 
+test('Training chat enters the existing recording flow only after its separate consent, never auto-edits or admits',async()=>{
+ const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal,requests:any[]=[];
+ const segments=[{index:0,startMs:0,endMs:5000,text:'I search for a relevant location image.'}];
+ let recordings=0;
+ h.bridge.trainingLocal=async(operation,args)=>{if(operation==='recording'){recordings++;return {ok:true,
+  manifest:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A},segments,storyboard:[],manifestId:QUESTION,manifestDigest:DIGEST};}
+  return original(operation,args);};
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ r.window.Element.prototype.scrollIntoView=()=>{};
+ const prior=r.window.fetch,ctx={agent:{id:RECORD,name:'Video craft',slug:'video-craft',versionId:VERSION_A},researchMethodPresent:true,
+  source:{sourceId:SOURCE_ID,sha256:SOURCE_DIGEST},boundMethods:[{stageIndex:2,source:'community',slug:'reference-research-assessment',contentDigest:DIGEST}],availableActions:['none','analyse_tool_method']};
+ r.window.fetch=(async(url:string,init:RequestInit={})=>{
+  if(String(url).includes('/agent-training/chat?')){
+   if(init.method==='POST'){const b=JSON.parse(String(init.body));requests.push({url,b});return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:true,context:ctx,
+    turn:{turnId:b.turnId,versionId:VERSION_A,sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,message:b.message,createdAt:'2026-10-31T12:00:00Z',status:'answered',answer:'Analyze this recording with the existing tool-method flow.',action:'analyse_tool_method',reason:null}})};}
+   return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:true,context:ctx,turns:[],totalTurns:0})};
+  }
+  if(String(url).includes('/teaching-suggestion?')){const b=JSON.parse(String(init.body));requests.push({url,b});return {ok:true,status:200,json:async()=>({ok:true,status:'insufficient',reason:'A fuller demonstration is needed.'})};}
+  return prior(url,init);
+ }) as typeof r.window.fetch;
+ const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+ try{
+  await r.click(r.getByText('Annotate source'));await r.click(r.getByText('Open conversation'));
+  const area=r.getByText('Message Implexa').closest('label')!.querySelector('textarea')!;await setTextarea(r,area,'Please analyze this tool method.');
+  await r.click(Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Send')!);await flush();
+  const action=()=>Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Analyze the recording’s tool method')!;
+  await r.click(action());await flush();assert.equal(recordings,0);assert.equal(requests.length,1);
+  assert.match(r.text(),/Chat has not sent the recording or started analysis/);
+  await r.click(r.getByText(/Separately analyze tool use/).closest('label')!.querySelector('input')!);
+  await r.click(action());await flush();assert.equal(recordings,1);
+  assert.equal(requests.filter(x=>x.b.mode==='recording-agent-locate').length,1);
+  assert.equal(requests.some(x=>String(x.url).includes('operation=agent-change')),false);
+  assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
+ }finally{r.cleanup();}
+});
+
 const VERSION_A = '11111111-1111-4111-8111-111111111111';
 const VERSION_B = '22222222-2222-4222-8222-222222222222';
 const SESSION = '33333333-3333-4333-8333-333333333333';
