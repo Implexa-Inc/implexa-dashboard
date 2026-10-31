@@ -659,6 +659,8 @@ export default async function WorkflowDetailPage({
           <BackLink fallback="/workflows" label="Back" />
         </nav>
 
+        {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-sm text-amber-700 dark:text-amber-300">The latest released training requires Codex and Implexa Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
+
         {/* Header */}
         <header className="mb-6">
           <div className="flex items-center gap-2 mb-2 flex-wrap">

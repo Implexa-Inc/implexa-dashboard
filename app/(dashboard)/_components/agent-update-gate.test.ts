@@ -163,11 +163,11 @@ test('an incompatible update is blocked with a migration explanation, not an inp
 
 test('same-version teaching adoption requires explicit review and confirms the exact published snapshot',async()=>{
  for(const returnedDigest of ['a'.repeat(64),'b'.repeat(64)]){
-  const r=await render('agent-update-gate.tsx',{workflowId:'workflow-1',update:update({state:'training_update_available',published_snapshot_digest:'a'.repeat(64)})},{
+  const r=await render('agent-update-gate.tsx',{workflowId:'workflow-1',update:update({state:'training_update_available',published_snapshot_digest:'a'.repeat(64),manager_text_guidance_required:true})},{
    backend:()=>({ok:true,activeVersionId:VERSION_ID,activePublishedSnapshotDigest:returnedDigest}),
   });
   try{
-   assert.equal(r.calls.backend.length,0);assert.match(r.text(),/Tested training update needs review/);
+   assert.equal(r.calls.backend.length,0);assert.match(r.text(),/Tested training update needs review/);assert.match(r.text(),/requires Codex and Implexa Desktop 0.4.160/);
    await r.click(r.getByText('Review & activate update'));
    assert.match(r.text(),/Running tasks keep their frozen training/);
    await r.click(r.getByText('Activate update'));

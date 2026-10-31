@@ -7,17 +7,17 @@
     "records": [
       {
         "summary": "Keep the main point prominent.",
-        "recordId": "5eb359b3-f309-49ae-a204-2b86a07f9b1a",
+        "recordId": "6d360c74-2e5f-4e67-a06b-703abd685924",
         "relation": "accepted",
         "derivative": {
           "kind": "text_guidance",
-          "sha256": "cf1d4397a382ec84e0cc29240b74b08110415587a4794bdc4dc208251b8e6f57",
+          "sha256": "11c6606980bbc54955bdca7d21e26a88c14fe2dd67c063e5fab4ced3550baf4f",
           "content": {
             "category": "taste",
-            "recordId": "5eb359b3-f309-49ae-a204-2b86a07f9b1a",
+            "recordId": "6d360c74-2e5f-4e67-a06b-703abd685924",
             "sourceKind": "trainer_feedback",
             "instruction": "Keep the main point prominent.",
-            "recordDigest": "7bc4da01f7ee52a5734a1229f6737d8035af5a4ba193e7d364ef171c380d27a5",
+            "recordDigest": "9fc3e3b495fcebd628d1b7126ca9150ac323a573edeac0d134c9b093ff6b1e15",
             "contractVersion": "trainer-text-guidance.v1"
           },
           "mediaType": "application/json",
@@ -31,7 +31,7 @@
           "Do not disclose private trainer feedback or history."
         ],
         "deliveryMode": "standing",
-        "recordDigest": "7bc4da01f7ee52a5734a1229f6737d8035af5a4ba193e7d364ef171c380d27a5",
+        "recordDigest": "9fc3e3b495fcebd628d1b7126ca9150ac323a573edeac0d134c9b093ff6b1e15",
         "applicability": {
           "stages": [
             "build"
@@ -42,43 +42,43 @@
         }
       }
     ],
-    "sessionId": "02334e26-608d-4939-b33f-a48541ec506e",
+    "sessionId": "3868dbc9-1eae-4f5b-a37c-9a9f8a00116a",
     "canPublish": true,
     "definition": {
       "name": "Source fixture",
       "description": null
     },
-    "snapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10",
+    "snapshotDigest": "0cab75d1927a96b58be5f13eeb2048546d962604bb8e3e2658fcfea63d97a3a7",
     "contractVersion": "training-publication-preview.v1",
-    "qualifyingRunId": "3ec0d892-3a75-4361-a8d2-eeee25326242",
+    "qualifyingRunId": "726cdfaa-9772-4324-b0b4-7082ec77ef4b",
     "publicationDelta": {
       "changes": [
         {
           "change": "added",
-          "recordId": "5eb359b3-f309-49ae-a204-2b86a07f9b1a"
+          "recordId": "6d360c74-2e5f-4e67-a06b-703abd685924"
         }
       ],
       "definitionChanged": true,
       "publishedSnapshotDigest": "c8fb6b968c69e7b3c9bb151c3df6dd469d081f7c9adc4bd08bc6b2546d43a4a4"
     },
-    "preparationDigest": "2e3c0ecbf2dc935ece2743ac6bd225251e291b1dbdc1db6f54d7f09943514465",
+    "preparationDigest": "60b7a2a8eb57e39b3f593e7a21924718acc17c7e18cbe3f81d23f4d5d48a2992",
     "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
-    "candidateSnapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10",
+    "candidateSnapshotDigest": "0cab75d1927a96b58be5f13eeb2048546d962604bb8e3e2658fcfea63d97a3a7",
     "qualifyingTestRequestId": "00000000-0000-4000-8000-000000020003",
-    "publicationPreparationId": "a1745b11-2e20-4528-b419-2a67e83ab286",
-    "qualifyingSnapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10"
+    "publicationPreparationId": "e4348e53-f16d-4795-81b4-9f7c27e803d9",
+    "qualifyingSnapshotDigest": "0cab75d1927a96b58be5f13eeb2048546d962604bb8e3e2658fcfea63d97a3a7"
   },
   "published": {
     "ok": true,
     "replay": false,
     "published": true,
-    "snapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10",
+    "snapshotDigest": "0cab75d1927a96b58be5f13eeb2048546d962604bb8e3e2658fcfea63d97a3a7",
     "contractVersion": "training-snapshot-publication.v1",
-    "preparationDigest": "2e3c0ecbf2dc935ece2743ac6bd225251e291b1dbdc1db6f54d7f09943514465",
+    "preparationDigest": "60b7a2a8eb57e39b3f593e7a21924718acc17c7e18cbe3f81d23f4d5d48a2992",
     "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
-    "publishedSnapshotDigest": "77fa9ce8846b14655c684bddd9bed7ec571374353d814fef759b0563a51014d4",
+    "publishedSnapshotDigest": "61048725b07d22973ca18ce64fde15459ba50b40334cc33ece42482a8b5c07d4",
     "qualifyingTestRequestId": "00000000-0000-4000-8000-000000020003",
-    "publicationPreparationId": "a1745b11-2e20-4528-b419-2a67e83ab286"
+    "publicationPreparationId": "e4348e53-f16d-4795-81b4-9f7c27e803d9"
   },
   "family": {
     "id": "ec120000-0000-4000-8000-000000006003",
@@ -93,8 +93,8 @@
     "author": null,
     "install_count": null,
     "star_count": null,
-    "last_seen_at": "2026-10-31T23:41:27.814Z",
-    "first_seen_at": "2026-10-31T23:41:27.813Z",
+    "last_seen_at": "2026-10-31T23:51:43.102Z",
+    "first_seen_at": "2026-10-31T23:51:43.101Z",
     "embedding": null,
     "fingerprint": null,
     "is_active": true,
@@ -374,22 +374,27 @@
       "contractVersion": "published-agent-snapshot.v1",
       "teachingReleases": [
         {
-          "releaseId": "d05af0fa-3b13-4283-9b53-ec5a4531fed8",
-          "releaseDigest": "5c29c6b8350da15a7b3f75d6bc947a41cf60c622b3fc23f28258679df19c2bcd"
+          "releaseId": "3ac26e84-2656-418c-bd5a-436fcdee46fa",
+          "releaseDigest": "ab78ce5a8fca7792a2134865ff1a712c11d73dc310c770e34fa5bb434d2e2f8b"
         }
       ],
       "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
+      "runtimeRequirements": {
+        "executor": "codex",
+        "minimumDesktopVersion": "0.4.160",
+        "managerGuidanceProtocol": 5
+      },
       "qualificationReceipt": {
-        "publicationId": "3ada6602-5e51-41a3-a1eb-8c227cb3fb78",
-        "snapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10"
+        "publicationId": "9461b8cf-2c89-485c-b190-26b456914cf9",
+        "snapshotDigest": "0cab75d1927a96b58be5f13eeb2048546d962604bb8e3e2658fcfea63d97a3a7"
       }
     },
-    "published_agent_snapshot_digest": "77fa9ce8846b14655c684bddd9bed7ec571374353d814fef759b0563a51014d4",
+    "published_agent_snapshot_digest": "61048725b07d22973ca18ce64fde15459ba50b40334cc33ece42482a8b5c07d4",
     "training_candidate_policy_event_id": null,
-    "training_serving_snapshot_event_id": "4b2ed06e-992c-4b2e-9e81-3a4b05381384"
+    "training_serving_snapshot_event_id": "be90a729-7978-4d00-8a99-415273c49750"
   },
   "customerBirth": {
-    "training_serving_snapshot_event_id": "3ada6602-5e51-41a3-a1eb-8c227cb3fb78"
+    "training_serving_snapshot_event_id": "9461b8cf-2c89-485c-b190-26b456914cf9"
   },
   "publicRead": {
     "ok": true,
@@ -528,7 +533,7 @@
       },
       "hardeningManifestDigest": "dccea9d4b20806f1c2f09faac84268b8868826e630792d53402f097ad122df14"
     },
-    "snapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10",
+    "snapshotDigest": "0cab75d1927a96b58be5f13eeb2048546d962604bb8e3e2658fcfea63d97a3a7",
     "contractVersion": "run-training-definition.v1",
     "workflowVersionId": "ec120000-0000-4000-8000-000000006004"
   },
@@ -536,7 +541,7 @@
     "ok": true,
     "reason": "publication_test_required",
     "records": [],
-    "sessionId": "02334e26-608d-4939-b33f-a48541ec506e",
+    "sessionId": "3868dbc9-1eae-4f5b-a37c-9a9f8a00116a",
     "canPublish": false,
     "definition": {
       "name": "Source fixture",
@@ -549,17 +554,17 @@
       "changes": [
         {
           "change": "removed",
-          "recordId": "5eb359b3-f309-49ae-a204-2b86a07f9b1a"
+          "recordId": "6d360c74-2e5f-4e67-a06b-703abd685924"
         }
       ],
       "definitionChanged": false,
-      "publishedSnapshotDigest": "3c0246bebcbec32f87537d02e28026953728e0ac2a64510c3a2ade16e8a6e6b4"
+      "publishedSnapshotDigest": "b63f7a93757adc42de73445ebb4925bb86a69c55d479a4b25a73818b2fe6c95e"
     },
-    "preparationDigest": "4002491eaf864fdd579fe57c7ea9cedbc91d66ad20f3726618118efeb7775fbb",
+    "preparationDigest": "e4e53ad53ca1060acd3550502a17f04cc4c8be45197b8b1b4e8f27eea55ac65c",
     "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
-    "candidateSnapshotDigest": "4a3a394be8a42747d2894c8a86008950fa7005bbc72ce0e8d8e95d6e07e35a10",
+    "candidateSnapshotDigest": "0cab75d1927a96b58be5f13eeb2048546d962604bb8e3e2658fcfea63d97a3a7",
     "qualifyingTestRequestId": null,
-    "publicationPreparationId": "5332ef9f-9234-49b7-9cdf-100b34d9108d",
+    "publicationPreparationId": "74729637-51b4-456b-a0c8-3e2e0c79b8ed",
     "qualifyingSnapshotDigest": null
   }
 }

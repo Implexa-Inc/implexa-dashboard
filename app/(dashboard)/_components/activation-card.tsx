@@ -637,7 +637,9 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
 
   // Resolve the CTA target/behavior per step.
   let cta: React.ReactNode = null;
-  if (step.id === 'schedule') {
+  if (step.id === 'schedule' && step.data?.reason === 'training_served_snapshot_version_mismatch') {
+    cta = <a href={`/training/${encodeURIComponent(slug)}`} className="btn-outline text-xs px-2.5 py-1">Review Training</a>;
+  } else if (step.id === 'schedule') {
     // Inline picker (the fix): toggle a panel, never navigate away. Available
     // when todo ("Set schedule") and when done ("Change").
     const label = effectiveStatus === 'done' ? 'Change' : (step.cta || 'Set schedule');

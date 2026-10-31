@@ -13,6 +13,7 @@ import { trainingProposedAdoptionPreview, trainingProposedAdoptionReceipt,
 export type AvailableAgentUpdate = {
   workflow_version_id: string;
   published_snapshot_digest?:string;
+  manager_text_guidance_required?:boolean;
   version: number;
   input_contract: WorkflowInputContract | null;
   input_contract_digest: string;
@@ -243,6 +244,7 @@ export default function AgentUpdateGate({ workflowId, update }: {
         <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
           {trainingOnly?'Tested training update needs review':<>Agent update v{update.version} needs review</>}
         </p>
+        {update.manager_text_guidance_required&&<p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">This training requires Codex and Implexa Desktop 0.4.160 or newer. Claude execution is not supported for its text guidance yet.</p>}
         <p className="text-[11px] text-ink-400 mt-1">
           {snapshotUnavailable?'The published training identity is unavailable. Reload before updating.':trainingOnly?'The agent’s steps are unchanged. Future runs keep using your installed training until you explicitly activate this tested teaching set.':incompatible
             ? 'This update cannot be applied to your installed version. It needs a migration, not an activation.'

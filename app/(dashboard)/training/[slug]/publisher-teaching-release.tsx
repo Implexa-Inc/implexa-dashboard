@@ -54,6 +54,7 @@ export function GuidedPublicationReview({open,value,busy=false,error='',onClose,
    <button type="button" className="btn-outline" disabled={unavailable||!value.publication.canPrepare} onClick={()=>work(prepare)}>Prepare exact public preview</button>
    {preview&&<section className="space-y-4 rounded-xl border border-ink-700 p-4" aria-label="Exact public snapshot">
     <div><h3 className="font-medium">{preview.definition.name}</h3><p className="mt-2 text-ink-400">{preview.definition.description}</p></div>
+    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-sm text-amber-300">This selection includes text guidance. Customers need Codex and Implexa Desktop 0.4.160 or newer to run it; Claude execution is not supported for this teaching format yet.</p>}
     <div className="space-y-2" aria-label="Changes for customers"><h4 className="font-medium">What changes for customers</h4>
      <p>{preview.publicationDelta.definitionChanged?'The public definition changes.':'The public definition stays the same.'}</p>
      <p>{preview.publicationDelta.changes.filter(c=>c.change==='added').length} added · {preview.publicationDelta.changes.filter(c=>c.change==='removed').length} removed · {preview.publicationDelta.changes.filter(c=>c.change==='changed').length} changed · {preview.publicationDelta.changes.filter(c=>c.change==='unchanged').length} unchanged teachings.</p>

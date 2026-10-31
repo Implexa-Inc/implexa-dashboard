@@ -58,7 +58,7 @@ test('public snapshot review is passive, starts with no selected private teachin
 });
 test('publishing an exactly matched public snapshot still needs explicit unchecked batch consent',async t=>{
  const {r,calls,preview}=await snapshotReview(t,true);await r.click(r.document.querySelector('input[type=checkbox]')!);await r.click(r.getByText('Prepare exact public preview'));
- const publish=r.getByText('Publish tested public version') as HTMLButtonElement;assert.equal(publish.disabled,true);
+ const publish=r.getByText('Publish tested public version') as HTMLButtonElement;assert.equal(publish.disabled,true);assert.match(r.text(),/Customers need Codex and Implexa Desktop 0.4.160/);
  const boxes=r.document.querySelectorAll('input[type=checkbox]');assert.equal((boxes[1] as HTMLInputElement).checked,false);
  await r.click(boxes[1]);await r.click(publish);assert.equal(calls[1][0],'publish');assert.equal(calls[1][1].preparationDigest,preview.preparationDigest);
  assert.equal(calls[1][1].qualifyingTestRequestId,U(21));assert.match(r.text(),/exact tested public version is published/);
