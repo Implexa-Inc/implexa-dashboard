@@ -1,41 +1,86 @@
 'use client';
 
 import Link from 'next/link';
-import type {ReactNode} from 'react';
+import {useEffect,useId,useRef,useState,type ReactNode} from 'react';
+import {parsePreviewUrl,requestPreview,revokePreview,previewKind} from '@/lib/review-preview';
+import {teachingFrame,teachingDigest} from '@/lib/training-teaching-draft';
+import type {ReviewArtifact} from '@/lib/review';
 
 export type TrainingView='start'|'teach'|'history'|'settings';
+export type TrainingRun={id:string;date:string;status:string;artifact:ReviewArtifact|null};
 
-function Symbol({kind}:{kind:'result'|'show'|'chat'}){
- return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-  {kind==='result'?<><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3Z"/></>:kind==='show'?<><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M9 21h6m-3-4v4m-2-13h4v5h-4Z"/></>:<path d="M4 4h16v12H9l-5 4V4Z"/>}
- </svg>;
+/** Explanations are available to hover, keyboard and touch without filling the page. */
+export function TrainingInfo({label,children}:{label:string;children:ReactNode}){
+ const id=useId(),[pinned,setPinned]=useState(false),[hover,setHover]=useState(false);
+ const open=pinned||hover;
+ return <span className="relative inline-flex align-middle" onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} onKeyDown={e=>{if(e.key==='Escape'){setPinned(false);setHover(false);}}}>
+  <button type="button" aria-label={label} aria-expanded={open} aria-controls={id} onClick={()=>setPinned(!pinned)} onBlur={e=>{if(!e.currentTarget.parentElement?.contains(e.relatedTarget as Node))setPinned(false);}} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs text-ink-500 hover:text-ink-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">ⓘ</button>
+  <span id={id} role="tooltip" hidden={!open} className="absolute right-0 top-full z-30 mt-2 w-64 max-w-[75vw] rounded-xl border border-ink-700 bg-ink-900 p-4 text-left text-xs font-normal leading-5 text-ink-300 shadow-xl">{children}</span>
+ </span>;
 }
 
-/** Presentation only: the existing Training, recorder and Review Room own actions. */
-export function TrainingEntry({slug,lastRunId,onShow,onChat}:{slug:string;lastRunId?:string|null;onShow:()=>void;onChat:()=>void}){
- const card='flex w-full items-center gap-4 rounded-xl border border-ink-800 bg-ink-900/30 p-5 text-left transition hover:border-ink-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500';
- const mark='flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-950/40 text-emerald-200/80';
- return <section className="py-5" aria-labelledby="training-start-heading">
-  <p className="text-[10px] font-medium uppercase tracking-[.18em] text-ink-500">A result, a conversation, a demonstration</p>
-  <h2 id="training-start-heading" className="mt-3 text-2xl font-medium tracking-tight">How would you like to teach it?</h2>
-  <p className="mt-3 max-w-lg text-sm leading-6 text-ink-400">Show a choice, explain a preference, or review work it has already done. Your original feedback and evidence stay available.</p>
-  <div className="mt-7 space-y-3">
-   <Link className={card} href={lastRunId?`/review/${encodeURIComponent(lastRunId)}`:`/workflows/${encodeURIComponent(slug)}?source=generated&tab=runs`}>
-    <span className={mark}><Symbol kind="result"/></span><span className="flex-1"><strong className="block text-sm font-medium">Improve a result</strong><span className="mt-1 block text-xs leading-5 text-ink-400">{lastRunId?'Open the latest run in Review Room and annotate its output.':'Choose a run and annotate what you would change.'}</span></span><span aria-hidden="true" className="text-ink-500">→</span>
-   </Link>
-   <button type="button" className={card} onClick={onShow}><span className={mark}><Symbol kind="show"/></span><span className="flex-1"><strong className="block text-sm font-medium">Show how you do it</strong><span className="mt-1 block text-xs leading-5 text-ink-400">Record your screen, upload a demonstration, or choose a saved example.</span></span><span aria-hidden="true" className="text-ink-500">→</span></button>
-   <button type="button" className={card} onClick={onChat}><span className={mark}><Symbol kind="chat"/></span><span className="flex-1"><strong className="block text-sm font-medium">Explain a change</strong><span className="mt-1 block text-xs leading-5 text-ink-400">Discuss this agent and its training with Implexa.</span></span><span aria-hidden="true" className="text-ink-500">→</span></button>
+/** Uses the Review Room's existing short-lived, revocable local-file preview. */
+function RunImage({artifact}:{artifact:ReviewArtifact}){
+ const [image,setImage]=useState<{identity:string;url:string}|null>(null),[failed,setFailed]=useState(false);
+ const identity=`${artifact.runId}:${artifact.id}:${artifact.sha256}`;
+ useEffect(()=>{
+  let live=true,token:string|null=null;setImage(null);setFailed(false);
+  if(artifact.status==='validated'&&artifact.sha256&&['image','video'].includes(previewKind(artifact.relativePath)))void (async()=>{
+   const result=await requestPreview(artifact.runId,artifact.id) as {ok?:boolean;url?:string};
+   const parsed=result.ok&&parsePreviewUrl(result.url);if(!parsed)return;
+   token=parsed.token;if(!live){await revokePreview(token);return;}setImage({identity,url:result.url!});
+  })();
+  return()=>{live=false;void revokePreview(token);};
+ },[identity,artifact.status]);
+ if(!image||image.identity!==identity||failed)return null;
+ return previewKind(artifact.relativePath)==='video'?<video aria-label="Result preview" src={`${image.url}#t=1`} muted playsInline preload="metadata" onError={()=>setFailed(true)} className="aspect-video w-full rounded-xl bg-ink-900 object-cover"/>:<img src={image.url} alt="Result preview" onError={()=>setFailed(true)} className="aspect-video w-full rounded-xl object-cover"/>;
+}
+
+let frameQueue:Promise<void>=Promise.resolve();
+
+/** Only a digest-verified saved frame, never a new capture of a teaching's source. */
+export function TrainingImage({token,recordId,recordDigest,frameSha256,alt,enabled=true,context=''}:{token:string;recordId:string;recordDigest:string;frameSha256:string;alt:string;enabled?:boolean;context?:string}){
+ const [frame,setFrame]=useState<{identity:string;image:string}|null>(null);
+ const identity=`${context}:${token}:${recordId}:${recordDigest}:${frameSha256}`;
+ const marker=useRef<HTMLSpanElement>(null),[visible,setVisible]=useState(false);
+ useEffect(()=>{
+  if(!marker.current||typeof IntersectionObserver==='undefined')return;
+  const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){setVisible(true);observer.disconnect();}},{rootMargin:'100px'});
+  observer.observe(marker.current);return()=>observer.disconnect();
+ },[identity]);
+ useEffect(()=>{
+  let live=true;
+  const local=(window as unknown as {implexaDesktop?:{trainingLocal?:(op:string,args:unknown)=>Promise<any>}}).implexaDesktop?.trainingLocal;
+  if(local&&visible&&enabled&&frame?.identity!==identity)frameQueue=frameQueue.then(async()=>{if(!live)return;try{
+   const value=await local('decisionPreview',{token,recordId});
+   if(!live||!value.ok||value.recordId!==recordId||value.recordDigest!==recordDigest||typeof value.image!=='string')return;
+   const bytes=teachingFrame(value.image);if(await teachingDigest(bytes)!==frameSha256||!live)return;
+   setFrame({identity,image:value.image});
+  }catch{/* Unavailable evidence remains a text row; the original review can explain it. */}});
+  return()=>{live=false;};
+ },[identity,visible,enabled,frame?.identity]);
+ return <span ref={marker} className="inline-flex min-h-px min-w-px shrink-0">{frame&&frame.identity===identity&&enabled&&<img src={frame.image} alt={alt} loading="lazy" className="aspect-video w-28 shrink-0 rounded-lg object-cover sm:w-36"/>}</span>;
+}
+
+/** Presentation only: existing Training, recorder and Review Room own all actions. */
+export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,onShow}:{slug:string;lastRunId?:string|null;runs?:TrainingRun[];runsUnavailable?:boolean;onShow:()=>void}){
+ return <section className="space-y-8 py-3" aria-label="Teach this agent">
+  <div>
+   <div className="mb-4 flex items-baseline justify-between gap-4"><h2 className="text-lg font-medium">Improve from recent runs</h2><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/workflows/${encodeURIComponent(slug)}?source=generated&tab=runs`}>All runs →</Link></div>
+   {runs.length?<div className="flex snap-x gap-5 overflow-x-auto pb-2">{runs.map((run,index)=><Link key={run.id} href={`/review/${encodeURIComponent(run.id)}`} className="w-52 shrink-0 snap-start space-y-3 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 sm:w-60">
+    {run.artifact&&<RunImage artifact={run.artifact}/>}
+    <span className="flex items-baseline justify-between gap-2 text-sm"><span>{index===0?'Latest result':`Result ${index+1}`}</span><span className="text-xs text-ink-500">{run.status}</span></span>
+    <time dateTime={run.date} className="block text-xs text-ink-500">{new Date(run.date).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}</time>
+   </Link>)}</div>:<p className="text-sm text-ink-500">{runsUnavailable?'Recent results couldn’t load. ':lastRunId?'Open your latest result to give feedback. ':'Teach with an example, or run your agent to review its work. '}{lastRunId&&<Link href={`/review/${encodeURIComponent(lastRunId)}`} className="text-ink-300 underline underline-offset-4">Latest result →</Link>}</p>}
+  </div>
+  <div className="flex flex-wrap items-center gap-3 border-y border-ink-800 py-6">
+   <button type="button" onClick={onShow} className="rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500">↑ Upload a video or image</button>
+   <Link href={`/review/new?trainingSlug=${encodeURIComponent(slug)}`} className="rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500">◉ Record training</Link>
+   <TrainingInfo label="About training examples">Upload an example or record a demonstration. You can annotate the moments you want Implexa to learn from.</TrainingInfo>
   </div>
  </section>;
 }
 
-export function TrainingNavigation({view,onChange}:{view:TrainingView;onChange:(view:TrainingView)=>void}){
- return <nav className="flex gap-6 border-b border-ink-800 text-xs" aria-label="Training workspace">
-  {([['start','Teach'],['history','Learnings & history'],['settings','Sharing & details']] as const).map(([id,label])=><button key={id} type="button" aria-current={view===id||(view==='teach'&&id==='start')?'page':undefined} onClick={()=>onChange(id)} className={`border-b-2 pb-3 transition ${view===id||(view==='teach'&&id==='start')?'border-brand-500 text-ink-50':'border-transparent text-ink-500 hover:text-ink-200'}`}>{label}</button>)}
- </nav>;
-}
-
-/** Native details keep the same controls and state; no second implementation. */
 export function TrainingDetails({title,children,open=false}:{title:string;children:ReactNode;open?:boolean}){
  return <details open={open} className="rounded-xl border border-ink-800 bg-ink-900/20"><summary className="cursor-pointer px-4 py-3 text-sm font-medium text-ink-200">{title}</summary><div className="space-y-5 border-t border-ink-800 p-4 text-sm leading-6 [&_button]:rounded-md [&_button]:border [&_button]:border-ink-700 [&_button]:px-3 [&_button]:py-1.5 [&_button]:text-xs [&_button:disabled]:opacity-40">{children}</div></details>;
 }
