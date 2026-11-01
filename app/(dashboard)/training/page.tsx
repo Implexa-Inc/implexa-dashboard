@@ -49,6 +49,11 @@ function FeedUnavailable({ reason }: { reason: Extract<MyWorkflowsRead, {status:
 function OwnedAgents({ owned }: { owned: MyWorkflowCard[] }) {
   // Ownership is the whole gate here: a renter sees the empty state, an owner
   // sees their agents. There is no mode toggle (DESIGN.md §4.2).
+  const bySlug = new Map<string, MyWorkflowCard>();
+  for (const agent of owned) {
+    const current = bySlug.get(agent.slug);
+    if (!current || (agent.source === 'generated' && current.source !== 'generated')) bySlug.set(agent.slug, agent);
+  }
 
   if (owned.length === 0) {
     return (
@@ -87,8 +92,3 @@ function OwnedAgents({ owned }: { owned: MyWorkflowCard[] }) {
     </>
   );
 }
-  const bySlug = new Map<string, MyWorkflowCard>();
-  for (const agent of owned) {
-    const current = bySlug.get(agent.slug);
-    if (!current || (agent.source === 'generated' && current.source !== 'generated')) bySlug.set(agent.slug, agent);
-  }
