@@ -62,7 +62,7 @@ function readAsDataUrl(file: File): Promise<string | null> {
   });
 }
 
-export default function TalkToImplexa({ hasAgents = false, guided = false, suggestions = [], connected = false }: { hasAgents?: boolean; guided?: boolean; suggestions?: SuggestedAgent[]; connected?: boolean }) {
+export default function TalkToImplexa({ hasAgents = false, guided = false, suggestions = [], connected = false, compact = false }: { compact?: boolean; hasAgents?: boolean; guided?: boolean; suggestions?: SuggestedAgent[]; connected?: boolean }) {
   const [intent, setIntent] = useState('');
   const [showConnect, setShowConnect] = useState(false);
   const [state, setState] = useState<State>('idle');
@@ -208,6 +208,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
   };
 
   const busy = state === 'sending' || state === 'opening';
+  const Heading = compact ? 'h2' : 'h1';
   const label = state === 'sending' ? 'Queuing' : state === 'opening' ? 'Opening' : 'Build it';
 
   return (
@@ -219,21 +220,22 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
           onCreated={onPlanCreated}
         />
       )}
-      <div className="card p-6 sm:p-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+      <div className={compact ? "card p-5" : "card p-6 sm:p-8"}>
+        <Heading className="text-2xl font-semibold tracking-tight text-ink-50">
           {hasAgents ? 'Build an agent' : 'Build your first agent'}
-        </h1>
+        </Heading>
         <p className="text-sm text-ink-400 mt-1.5 mb-2">
-          {guided
+          {compact ? 'Tell Implexa what you want it to do.' : guided
             ? 'Just tell us a job you do over and over, in plain words. We build the agent and walk you through turning it on. No setup knowledge needed.'
             : 'Describe a recurring job in a sentence. Implexa builds the agent; it runs in your Claude or Codex, on a schedule, as you.'}
         </p>
-        <p className="text-xs text-ink-500 mb-5">
+        {!compact && <p className="text-xs text-ink-500 mb-5">
           Claude Code runs in the background, so you don&apos;t work there. Build, run, and approve every agent right here in Implexa.
-        </p>
-        <div className="flex gap-2.5">
-          <input
+        </p>}
+        <div className={compact ? "mt-5 flex flex-col gap-3" : "flex gap-2.5"}>
+          {compact ? <textarea id="talk" aria-label="Describe your agent" rows={6} value={intent} onChange={e=>setIntent(e.target.value)} onPaste={onPaste} onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();submit();}}} placeholder="What would you like your agent to do?" disabled={busy} className="w-full resize-y rounded-lg border border-ink-700 bg-ink-950 px-4 py-3 text-sm text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-brand-500"/> : <input
             id="talk"
+            aria-label="Describe your agent"
             value={intent}
             onChange={(e) => setIntent(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
@@ -241,7 +243,7 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
             placeholder="e.g. every morning, send me my key numbers"
             disabled={busy}
             className="flex-1 rounded-lg bg-ink-900 border border-ink-700 px-4 py-3 text-[15px] text-ink-50 placeholder:text-ink-500 focus:outline-none focus:border-ink-500 disabled:opacity-60"
-          />
+          />}
           {/* Legacy inline image picker — only when pickFile is absent (no any-file
               bridge). When pickFile exists, the shared <AttachFiles> below handles
               any file type and this is hidden. */}

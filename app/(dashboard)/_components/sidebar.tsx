@@ -28,11 +28,12 @@ import { usePathname } from 'next/navigation';
 import { LogoMark } from '@/components/logo';
 import { STATUS_PRESENTATION, relativeFromNow, type SetupStatus } from '@/lib/setup-status';
 import {
-  PRIMARY_NAV, SECONDARY_NAV, isNavItemActive, countNewerThan, mergeTimestamps, workSeenKey,
+  primaryNavigation, SECONDARY_NAV, isNavItemActive, countNewerThan, mergeTimestamps, workSeenKey,
   type NavItem,
 } from '@/lib/navigation';
 
 type UserCtx = {
+  marketplacePilot?: boolean;
   /** Account id — scopes the per-device "last opened Work" marker. */
   id?:         string | null;
   displayName: string | null;
@@ -128,7 +129,7 @@ export default function Sidebar({ user, resultRunsAt = [], needsItemsAt = [] }: 
 
       <nav className="px-2 flex-1" aria-label="Primary">
         <ul className="space-y-0.5">
-          {PRIMARY_NAV.map((item) => (
+          {primaryNavigation(user.marketplacePilot).map((item) => (
             <li key={item.id}>
               <NavLink item={item} active={isNavItemActive(item, pathname)} badge={badgeFor(item)} />
             </li>
@@ -330,7 +331,7 @@ export function MobileTopBar({ user, resultRunsAt = [], needsItemsAt = [] }: { u
       </div>
       <nav aria-label="Primary" className="px-2 pb-2 overflow-x-auto">
         <ul className="flex items-center gap-1 min-w-max">
-          {[...PRIMARY_NAV, ...SECONDARY_NAV].map((item) => {
+          {[...primaryNavigation(user.marketplacePilot), ...SECONDARY_NAV].map((item) => {
             const active = isNavItemActive(item, pathname);
             const badge = badgeFor(item);
             return (

@@ -16,9 +16,10 @@ export async function readMarketplaceSamples(load:()=>PromiseLike<{data:unknown;
  try{const {data,error}=await load();if(error||!Array.isArray(data))return {status:'unavailable',listings:[]};const listings=data.map(parseMarketplaceSample);return listings.some(x=>!x)?{status:'unavailable',listings:[]}:{status:'ready',listings:listings as MarketplaceSample[]};}
  catch{return {status:'unavailable',listings:[]};}
 }
-export type AgentHomeTab='rent'|'running'|'training';
-export function agentHomeTab(tab?:string):AgentHomeTab{return tab==='running'||tab==='training'?tab:'rent';}
-
 export const marketplacePilotEnabled=(read:SampleRead)=>read.status==='ready'&&read.listings.length>0;
 
-export function agentHomeView(read:SampleRead,tab?:string):'ordinary'|AgentHomeTab{return marketplacePilotEnabled(read)?agentHomeTab(tab):'ordinary';}
+// Preserve old pilot bookmarks, with activity and Training in their real domains.
+export function agentHomeView(read:SampleRead,tab?:string):'ordinary'|'rent'|'manage'|'running'|'training'{
+ if(!marketplacePilotEnabled(read))return 'ordinary';
+ return tab==='running'||tab==='training'||tab==='manage'?tab:'rent';
+}

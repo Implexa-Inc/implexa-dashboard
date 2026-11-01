@@ -218,3 +218,25 @@ test('the Work badge does not render in server markup (hydration-safe)', () => {
   assert.ok(work);
   assert.equal(work.label, 'Work', 'no count is rendered server-side');
 });
+
+// Owner-requested beta behavior: same routes, labels moved to the actual shell.
+test('pilot desktop and narrow shells expose Rent, Running and Training with one selected domain',()=>{
+ for(const which of ['desktop','narrow'] as const){
+  for(const [pathname,label] of [['/workflows','Rent Agent'],['/runs/a','Running Agents'],['/training/a','Training Agents']]){
+   const html=renderShell(which,pathname,{user:{...USER,marketplacePilot:true}});
+   const nav=navByLabel(html,'Primary')!;
+   const links=anchors(nav.inner).filter(a=>['/workflows','/work','/training'].includes(a.href));
+   assert.deepEqual(links.map(a=>a.label),['Rent Agent','Running Agents','Training Agents']);
+   assert.equal(links.filter(a=>a.attrs['aria-current']==='page').length,1);
+   assert.equal(links.find(a=>a.attrs['aria-current']==='page')?.label,label);
+  }
+ }
+});
+
+test('pilot home suppresses the duplicate floating builder; other accounts retain it',async()=>{
+ const {default:CreateFab}=await import('@/app/(dashboard)/_components/create-fab.tsx');
+ routerStub.__setPathname('/workflows');
+ const pilot=renderToStaticMarkup(React.createElement(CreateFab as never,{marketplacePilot:true}));
+ const ordinary=renderToStaticMarkup(React.createElement(CreateFab as never,{}));
+ assert.equal(pilot,'');assert.match(textOf(ordinary),/Create/);
+});

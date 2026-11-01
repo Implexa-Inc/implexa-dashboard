@@ -472,6 +472,8 @@ function isMissingColumn(error: { code?: string; message?: string } | null): boo
 }
 
 export type SelectRunsOpts = {
+  /** Opt-in for a surface that distinguishes an unavailable history from empty. */
+  throwOnError?: boolean;
   limit?: number;
   /** Only rows that produced a deliverable (output_markdown IS NOT NULL). */
   onlyWithOutput?: boolean;
@@ -518,10 +520,12 @@ export async function selectRuns(
   const richRes = await build(rich);
   if (!richRes.error) return withoutManagerScaffolds((richRes.data as unknown as RunRow[]) || []);
   if (!isMissingColumn(richRes.error)) {
+    if (opts.throwOnError) throw new Error('run_history_unavailable');
     // A real error (auth, RLS, network): surface nothing rather than throwing,
     // matching the rest of the dashboard's degrade-to-empty server reads.
     return [];
   }
   const baseRes = await build(base);
+  if (baseRes.error && opts.throwOnError) throw new Error('run_history_unavailable');
   return baseRes.error ? [] : withoutManagerScaffolds((baseRes.data as unknown as RunRow[]) || []);
 }

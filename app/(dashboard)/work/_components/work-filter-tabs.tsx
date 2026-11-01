@@ -17,22 +17,23 @@ import { WORK_VIEWS, WORK_VIEW_LABELS, workViewHref, type WorkView } from '@/lib
  * we cannot prove.
  */
 export default function WorkFilterTabs({
-  current, reviewCount,
+  current, reviewCount, activity = false,
 }: {
   current: WorkView;
+  activity?: boolean;
   /** null = we could not read the queue completely. Render no number. */
   reviewCount: number | null;
 }) {
   return (
     <nav aria-label="Work filters" className="mb-6 overflow-x-auto">
       <ul className="flex items-center gap-1 min-w-max border-b border-ink-800">
-        {WORK_VIEWS.map((view) => {
+        {(activity ? ['activity', ...WORK_VIEWS] as WorkView[] : WORK_VIEWS).map((view) => {
           const active = view === current;
           const showCount = view === 'review' && reviewCount !== null && reviewCount > 0;
           return (
             <li key={view}>
               <Link
-                href={workViewHref(view)}
+                href={activity && view==='needs' ? '/work?view=needs' : workViewHref(view)}
                 aria-current={active ? 'page' : undefined}
                 className={`-mb-px flex items-center gap-2 whitespace-nowrap rounded-t-md px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900 ${
                   active

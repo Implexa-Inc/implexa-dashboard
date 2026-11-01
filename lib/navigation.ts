@@ -17,6 +17,9 @@
  * Marketplace discovery lives INSIDE Agents and Review lives INSIDE Work, so
  * `Marketplace`, `Discover`, `Home` and `Review` must never appear as primary
  * entries (IMMEDIATE_MARKETPLACE_EXECUTION_ROADMAP_2026-08-11 §1, Lane D).
+ * The owner-approved two-account rental pilot relabels these same three domains
+ * through primaryNavigation; it does not add a marketplace domain. Remove that
+ * pilot exception when the sample projection is replaced (ARCHITECTURE.md).
  *
  * WHY THIS IS A MODULE AND NOT A CONST IN sidebar.tsx. Three surfaces have to
  * agree about the same facts — the desktop sidebar, the narrow-viewport top bar,
@@ -74,6 +77,13 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     owns: ['/training'],
   },
 ];
+
+/** The two-account marketplace pilot changes labels, never route ownership. */
+export function primaryNavigation(marketplacePilot = false): readonly NavItem[] {
+  if (!marketplacePilot) return PRIMARY_NAV;
+  const labels = { agents: 'Rent Agent', work: 'Running Agents', training: 'Training Agents' };
+  return PRIMARY_NAV.map(item => ({ ...item, label: labels[item.id as keyof typeof labels] || item.label }));
+}
 
 export const SECONDARY_NAV: readonly NavItem[] = [
   {
@@ -138,11 +148,12 @@ export function activeNavItem(pathname: string): NavItem | null {
 // context, never destination ownership (§8.5).
 
 export const WORK_VIEWS = ['needs', 'review', 'delivered'] as const;
-export type WorkView = typeof WORK_VIEWS[number];
+export type WorkView = typeof WORK_VIEWS[number] | 'activity';
 
 export const DEFAULT_WORK_VIEW: WorkView = 'needs';
 
 export const WORK_VIEW_LABELS: Record<WorkView, string> = {
+  activity: 'All runs',
   needs:     'Needs you',
   review:    'Ready for review',
   delivered: 'Delivered',
@@ -351,3 +362,4 @@ export function isCreateFabSuppressed(pathname: string): boolean {
 
 /** Stable return after an agent action; the default Agents page may be the rental gallery. */
 export const AGENTS_RUNNING_HREF='/workflows?tab=running';
+export const AGENTS_MANAGE_HREF='/workflows?tab=manage';

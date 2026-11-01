@@ -28,6 +28,8 @@ import AutoUpdateToast from './_components/auto-update-toast';
 import PersistIntent from './_components/persist-intent';
 import CreateFab from './_components/create-fab';
 import SkipLink from './_components/skip-link';
+import {getMarketplaceSamples} from '@/lib/agent-marketplace-samples-server';
+import {marketplacePilotEnabled} from '@/lib/agent-marketplace-samples';
 import { MAIN_CONTENT_ID } from '@/lib/navigation';
 
 export const dynamic = 'force-dynamic';
@@ -126,6 +128,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     setupStatus:       setup.status,
     lastSeenAt:        setup.lastSeenAt,
     isAdmin,
+    marketplacePilot: marketplacePilotEnabled(await getMarketplaceSamples()),
   };
 
   return (
@@ -146,7 +149,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </main>
       </div>
       {/* Omnipresent "create an agent from anywhere" floating button + build box. */}
-      <CreateFab />
+      <CreateFab marketplacePilot={userCtx.marketplacePilot} />
       {/* Desktop-app auto-update toast (bottom-left, "Restart to update"). Renders
           nothing on plain web — the capability lives on window.implexaDesktop. */}
       <AutoUpdateToast />
