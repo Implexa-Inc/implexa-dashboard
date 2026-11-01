@@ -414,14 +414,14 @@ test('the player loads a ready recording, previews it, saves moments, and revoke
     assert.equal(page.document.querySelector('video')!.getAttribute('src'), `implexa-artifact://preview/${TOKEN}`);
     assert.match(page.text(), new RegExp(MOMENTS_NEXT_NOTE));
     assert.equal((page.document.querySelector('textarea') as HTMLTextAreaElement).value, 'Use the brand colour');
-    assert.match(page.text(), /20\/600/);
-    const save = () => button(page, /Save moments|^Saved$/)!;
+    assert.equal(page.document.querySelector('textarea')!.maxLength,600);
+    const save = () => button(page, /Save feedback|^Saved$/)!;
     assert.equal(save().hasAttribute('disabled'), true, 'nothing to save yet');
     await page.click(button(page, 'Delete')!);
     assert.equal(save().hasAttribute('disabled'), false);
     await page.click(save());
     assert.deepEqual(b.calls.find((c) => c.operation === 'saveMoments')?.args, { recordingId: ID, moments: [],expectedOwnerId:ID });
-    assert.match(page.text(), /Moments saved on this Mac/);
+    assert.match(page.text(), /Feedback saved on this Mac/);
     assert.deepEqual(ops(b), ['get', 'preview', 'saveMoments']);
   } finally { page.cleanup(); }
   await new Promise((r) => setTimeout(r, 0));
@@ -442,13 +442,13 @@ test('edits made while a save is in flight survive it and stay unsaved', async (
     await page.act(() => {});
     const what = () => page.document.querySelector('textarea') as HTMLTextAreaElement;
     await typeInto(page, what(), 'Keep the price on screen');
-    await page.click(button(page, 'Save moments')!);
+    await page.click(button(page, 'Save feedback')!);
     await typeInto(page, what(), 'Keep the price on screen always');
     const sent = (b.calls.find((c) => c.operation === 'saveMoments')!.args as { moments: Array<{ card: { whatToDo: string } }> }).moments;
     assert.equal(sent[0].card.whatToDo, 'Keep the price on screen');
     await page.act(async () => { held.resolve({ ok: true, moments: sent }); });
     assert.equal(what().value, 'Keep the price on screen always', 'the newer edit is kept');
-    assert.equal(button(page, 'Save moments')!.hasAttribute('disabled'), false, 'and is still unsaved');
+    assert.equal(button(page, 'Save feedback')!.hasAttribute('disabled'), false, 'and is still unsaved');
     assert.match(page.text(), /save again/);
   } finally { page.cleanup(); }
 });
@@ -472,7 +472,7 @@ test('M marks at the playhead, refuses an empty mark, and is ignored while typin
     assert.match(page.text(), /needs a start and an end/);
     at(5);
     await key(page, page.window, 'm');
-    assert.equal(page.document.querySelectorAll('textarea').length, 5, 'one moment with five card fields');
+    assert.equal(page.document.querySelectorAll('textarea').length, 1, 'one moment with five card fields');
     assert.match(page.text(), /00:02\.000–00:05\.000/);
 
     const field = page.document.querySelector('textarea')!;
@@ -498,7 +498,7 @@ test('the player guards unsaved moments with a modal, and never with beforeunloa
     await key(page, page.window, 'm');
     Object.defineProperty(video, 'currentTime', { value: 3, configurable: true, writable: true });
     await key(page, page.window, 'm');
-    assert.equal(page.document.querySelectorAll('textarea').length, 5);
+    assert.equal(page.document.querySelectorAll('textarea').length, 1);
     assert.equal(registered.includes('beforeunload'), false, 'Electron would silently block quit and reload');
 
     await page.click(page.document.querySelector('a[href="/review/new"]')!);
@@ -524,7 +524,7 @@ test('Draw region uses the Review Room overlay; keyboard Enter sets a box at the
     Object.assign(video, { getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 450, right: 800, bottom: 450, x: 0, y: 0 }), pause: () => {} });
     Object.defineProperty(video, 'videoWidth', { value: 1600, configurable: true });
     Object.defineProperty(video, 'videoHeight', { value: 900, configurable: true });
-    assert.equal(page.document.querySelector('[data-testid="spatial-overlay"]'), null, 'not mounted until drawing');
+    assert.ok(page.document.querySelector('[data-testid="spatial-overlay"]'), 'picture is immediately annotatable');
     assert.match(page.text(), /Region: none/);
     await page.click(button(page, 'Draw region')!);
     const overlay = page.document.querySelector('[data-testid="spatial-overlay"]') as HTMLElement;
@@ -536,11 +536,11 @@ test('Draw region uses the Review Room overlay; keyboard Enter sets a box at the
     assert.equal(video.parentElement!.contains(transport), false, 'drawing cannot hit transport');
     await key(page, overlay, 'Enter');
     assert.match(page.text(), /Region: 20% × 20% at \(40%, 40%\)/);
-    assert.equal(page.document.querySelector('[data-testid="spatial-overlay"]'), null, 'drawing ends');
+    assert.ok(page.document.querySelector('[data-testid="spatial-overlay"]'), 'picture remains annotatable');
 
     await page.click(button(page, 'Draw region')!);
     await key(page, page.document.querySelector('[data-testid="spatial-overlay"]')!, 'Escape');
-    assert.equal(page.document.querySelector('[data-testid="spatial-overlay"]'), null, 'Escape cancels');
+    assert.ok(page.document.querySelector('[data-testid="spatial-overlay"]'), 'Escape ends redraw without disabling annotation');
   } finally { page.cleanup(); }
 });
 
@@ -573,7 +573,7 @@ test('drawing rejects a scrubbed or still-seeking frame without retiming the mom
     seeking = false;
     await key(page, page.document.querySelector('[data-testid="spatial-overlay"]')!, 'Enter');
     assert.match(page.text(), /Region: 20%/);
-    await page.click(button(page, 'Save moments')!);
+    await page.click(button(page, 'Save feedback')!);
     const saved = b.calls.find((c) => c.operation === 'saveMoments')!.args.moments as typeof start;
     assert.equal(saved[0].startMs, 1000); assert.equal(saved[0].endMs, 4000);
     assert.deepEqual(saved[0].card, card); assert.ok(saved[0].region);
@@ -590,13 +590,12 @@ test('card fields warn about text the learning rules will refuse, without blocki
   try {
     await page.act(() => {});
     assert.equal(page.document.querySelectorAll('[data-testid="card-warning"]').length, 0);
-    const [what, why] = [...page.document.querySelectorAll('textarea')] as HTMLTextAreaElement[];
-    await typeInto(page, what, 'Short');
-    await typeInto(page, why, 'see https://example.com');
+    const what=page.document.querySelector('textarea')!;
+    await typeInto(page,what,'see https://example.com');
     const warnings = [...page.document.querySelectorAll('[data-testid="card-warning"]')].map((w) => w.textContent);
-    assert.equal(warnings.length, 2);
+    assert.equal(warnings.length, 1);
     assert.ok(warnings.every((w) => w!.startsWith('This will be refused when it becomes a learning')));
-    assert.equal(button(page, 'Save moments')!.hasAttribute('disabled'), false, 'a warning, not a block');
+    assert.equal(button(page, 'Save feedback')!.hasAttribute('disabled'), false, 'a warning, not a block');
   } finally { page.cleanup(); }
 });
 
@@ -643,17 +642,17 @@ test('Use in Training carries only saved recording/moment IDs and the existing A
 });
 
 
-test('Training toolbar calls record directly and offers the finished annotator without automatic navigation',async()=>{
- let started=false,uploads=0;
+test('Training toolbar calls record directly and opens the inline annotator without route navigation',async()=>{
+ let started=false,uploads=0;const ready:string[]=[];
  const b=bridge(op=>op==='list'?{ok:true,library,recordings:started?[summary({recordingId:NEW})]:[]}:op==='status'?{ok:true,active:null}:op==='start'?(started=true,{ok:true,recordingId:NEW}):{ok:true});
- const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training',onTrainingUpload:()=>uploads++},{bridge:b.value});
+ const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training',onTrainingUpload:()=>uploads++,onRecordingReady:(id:string)=>ready.push(id)},{bridge:b.value});
  try{
   assert.match(page.text(),/Multimodal Training/);assert.equal(page.queryByText('Review a result'),null);assert.equal(ops(b).includes('start'),false);
   await page.click(button(page,'Upload and annotate Video/Image')!);assert.equal(uploads,1);assert.equal(ops(b).includes('import'),false);assert.equal(page.calls.push.length,0);
   await page.click(button(page,'Record your training')!);
   assert.deepEqual(b.calls.find(c=>c.operation==='start')?.args,{microphone:true,expectedOwnerId:ID});
   assert.equal(page.calls.push.length,0,'completion does not discard Training or an uncertain chat Send');
-  assert.equal(page.document.querySelector('a[href="/review/recordings/'+NEW+'?trainingSlug=trained-video"]')?.textContent,'Annotate recording');
+  assert.deepEqual(ready,[NEW]);assert.equal(page.document.querySelector('a[href="/review/recordings/'+NEW+'?trainingSlug=trained-video"]'),null);
  }finally{page.cleanup();}
 });
 test('Training recording failures remain visible with a recovery destination',async()=>{
@@ -663,4 +662,24 @@ test('Training recording failures remain visible with a recovery destination',as
  const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training'},{bridge:b.value});
  try{await page.click(button(page,'Record your training')!);assert.match(page.text(),state==='failed'?new RegExp(FAILURE_REASON_MESSAGES.finalize_failed):/Recording interrupted/);assert.equal(page.calls.push.length,0);assert.equal(page.document.querySelector('a[href="/review/recordings/'+NEW+'?trainingSlug=trained-video"]')?.textContent,'Open recording');}finally{page.cleanup();}
  }
+});
+
+test('a ready picture creates a timestamped point mark directly, with one feedback field and preserved older notes',async()=>{
+ const card={...emptyCard(),whatToDo:'Keep this',why:'Historical explanation'};
+ const old={momentId:M1,startMs:1000,endMs:4000,region:null,card,createdAt:NOW};
+ const b=bridge((op,args)=>op==='get'?{ok:true,recording:detail({},[old])}:op==='preview'?previewOk:op==='saveMoments'?{ok:true,moments:args.moments}:{ok:true});
+ const page=await render(PLAYER,{recordingId:ID,ownerId:ID,embedded:true},{bridge:b.value});
+ try{
+  const video=page.document.querySelector('video')!;
+  Object.assign(video,{getBoundingClientRect:()=>({left:0,top:0,width:800,height:450,right:800,bottom:450,x:0,y:0}),pause:()=>{}});
+  Object.defineProperties(video,{videoWidth:{value:1600},videoHeight:{value:900}});video.currentTime=12.842;
+  assert.match(page.text(),/Historical explanation/);assert.equal(page.document.querySelectorAll('textarea').length,1);
+  await key(page,page.document.querySelector('[data-testid="spatial-overlay"]')!,'Enter');
+  assert.equal(page.document.querySelectorAll('textarea').length,2,'one field per mark');
+  await typeInto(page,Array.from(page.document.querySelectorAll('textarea'))[1],'Make the place name clearer.');
+  await page.click(button(page,'Save feedback')!);
+  const moments=b.calls.find(c=>c.operation==='saveMoments')!.args.moments;
+  assert.deepEqual(moments[0].card,card);assert.equal(moments[1].startMs,12842);assert.equal(moments[1].endMs,12842);
+  assert.ok(moments[1].region);assert.equal(moments[1].card.whatToDo,'Make the place name clearer.');
+ }finally{page.cleanup();}
 });

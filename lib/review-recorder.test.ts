@@ -119,6 +119,8 @@ test('moment list limit: 64 is accepted, 65 is refused, and addMoment stops at 6
   assert.equal(addMoment([], { startMs: 0, endMs: 40_000, region: null }, 120_000, { momentId: M2, createdAt: NOW }), null, 'over 30 s');
   assert.equal(addMoment([], { startMs: 5_000, endMs: 5_000, region: null }, 120_000, { momentId: M2, createdAt: NOW }), null, 'a new mark needs a span');
   assert.equal(isMomentList([moment({ startMs: 5_000, endMs: 5_000 })], 120_000), true, 'a stored zero-length moment is still contract-valid');
+  const point=addMoment([], {startMs:5000,endMs:5000,region:moment().region},120000,{momentId:M2,createdAt:NOW});
+  assert.equal(point?.[0].startMs,5000); assert.equal(point?.[0].endMs,5000); assert.equal(isMomentList(point,120000),true);
 });
 
 test('per-operation parsers accept the contract and fail closed on anything else', () => {

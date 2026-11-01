@@ -9,6 +9,8 @@ import AgentActions from '../../_components/agent-actions';
 import type {AgentActionContext} from '@/lib/agent-detail';
 import type {PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
 import NewReview from '../../review/new/new-review';
+import RecordingPlayer from '../../review/recordings/[recordingId]/recording-player';
+import type {RecordingDetail} from '@/lib/review-recorder';
 import Modal from '../../_components/modal';
 import {guidedTrainingChanges,trainingPublicationPreview,type TrainingPublicationPreview,type GuidedTrainingChanges,type TrainingChangeRecord} from '@/lib/guided-training-changes';
 import {TrainingEntry,TrainingInfo,TrainingImage,TrainingDetails,revealTrainingElement,type TrainingView,type TrainingRun} from './training-workspace';
@@ -128,11 +130,23 @@ function resolveBridge() {
   return candidate;
 }
 
-export default function TrainingSource({ slug, installationId, forkPermission,ownerId,recordingSelection,lastRunId,recentRuns=[],runsUnavailable=false,runContext }: { slug: string;runContext?:AgentActionContext;recentRuns?:TrainingRun[];runsUnavailable?:boolean;lastRunId?:string|null; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
+export default function TrainingSource({ slug, installationId, forkPermission,ownerId,recordingSelection,lastRunId,recentRuns=[],runsUnavailable=false,runContext,initialRecordingId }: {initialRecordingId?:string; slug: string;runContext?:AgentActionContext;recentRuns?:TrainingRun[];runsUnavailable?:boolean;lastRunId?:string|null; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
   const router=useRouter();
   const [retention] = useState(() => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCMilliseconds(0); return d.toISOString(); });
   const [view,setView]=useState<TrainingView>(recordingSelection?'teach':forkPermission?'settings':'start');
   const [chatExpanded,setChatExpanded]=useState(false);
+  const [activeRecordingId,setActiveRecordingId]=useState<string|null>(initialRecordingId||null),[recordingDirty,setRecordingDirty]=useState(false),[pendingRecordingId,setPendingRecordingId]=useState<string|null>(null),[replaceRecordingOpen,setReplaceRecordingOpen]=useState(false);
+  const [activeRecordingDetail,setActiveRecordingDetail]=useState<RecordingDetail|null>(null);
+  function openRecording(id:string){
+    if(activeRecordingId===id)return;
+    if(activeRecordingId&&activeRecordingId!==id&&recordingDirty){setPendingRecordingId(id);return;}
+    setActiveRecordingId(id);setActiveRecordingDetail(null);setRecordingDirty(false);
+    requestAnimationFrame(()=>{const active=document.activeElement;if(document.querySelector('[aria-modal="true"]')||active instanceof HTMLElement&&(active.isContentEditable||['INPUT','TEXTAREA','SELECT'].includes(active.tagName)))return;const el=document.getElementById('recording-annotation');el?.scrollIntoView?.({block:'nearest',behavior:'smooth'});});
+  }
+  const recordingSources=useRef(new Map<string,{sourceId:string;token:string;version:string;sessionId:string}>());
+  const [narrationRequest,setNarrationRequest]=useState<{recordingId:string;momentId:string|null}|null>(null);
+  const [pendingNarration,setPendingNarration]=useState<{sourceId:string;version:string;sessionId:string}|null>(null);
+  const [pendingNarrationReview,setPendingNarrationReview]=useState<{sourceId:string;recordId:string}|null>(null);
   const [runRequest,setRunRequest]=useState<{nonce:string;binding:PreparedTrainingTest|null}|null>(null);
   const preparedRuns=useRef(new Map<string,PreparedTrainingTest>());
   const showTeaching=()=>setView('teach');
@@ -613,6 +627,40 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     });
   }
 
+  async function beginNarrationAnalysis(){
+    if(!narrationRequest||!activeRecordingDetail?.hasMicrophone||activeRecordingDetail.recordingId!==narrationRequest.recordingId||activeRecordingDetail.state!=='ready'||(activeRecordingDetail.durationMs||0)>600000||!recordingSupported||!currentVersion||versionChanged)return;
+    const requested=narrationRequest,version=currentVersion;setNarrationRequest(null);
+    if([demoText,chosen,why,process,behavior].some(value=>value.trim())){setError('Save or discard your current teaching draft before analyzing this narration.');return;}
+    await work('Opening your recording for narration analysis',async()=>{
+      let id=session;
+      if(!id){const before=await requireCurrentScope('');const created=await call('create',{slug,key:sessionKey});if(!created.sessionId)throw new TrainingError('training_session_unavailable');id=created.sessionId;setSession(id);const after=await requireCurrentScope(id);if(after.agent.currentVersionId!==before.agent.currentVersionId)throw new TrainingError('training_version_changed');}
+      await requireCurrentScope(id);
+      const key=`${id}:${version}:${requested.recordingId}`;let registered=recordingSources.current.get(key);
+      if(!registered){
+        const result=await call('selectRecording',{sessionId:id,recordingId:requested.recordingId,momentId:null,expectedOwnerId:ownerId,consent:{localCustody:true,boundedEvidence:true,futureSelection:true}});
+        if(!result.sourceId||!result.token)throw new TrainingError('training_source_scope_mismatch');
+        registered={sourceId:result.sourceId,token:result.token,sessionId:id,version};recordingSources.current.set(key,registered);
+      }
+      const listed=await load(id);const source=listed.sources?.find(s=>s.sourceId===registered!.sourceId&&s.token===registered!.token);
+      if(!source||source.metadata.mediaType!=='video/mp4')throw new TrainingError('training_source_scope_mismatch');
+      if(!chooseSource(source))return;
+      setDemoText('');setView('start');setPendingNarration({sourceId:source.sourceId,sessionId:id,version});
+    });
+  }
+  useEffect(()=>{
+    if(!pendingNarration||busy)return;
+    if(pendingNarration.sourceId!==selected?.sourceId||pendingNarration.sessionId!==session||pendingNarration.version!==currentVersion||versionChanged){setPendingNarration(null);return;}
+    setPendingNarration(null);setRecordingConsent(true);void findRecordingTeaching(false,true);
+    // Explicit one-shot consent from the narration dialog; wait for the source commit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[pendingNarration,busy,selected?.sourceId,session,currentVersion,versionChanged]);
+  useEffect(()=>{
+    if(!pendingNarrationReview||busy)return;
+    const source=sources.find(s=>s.sourceId===pendingNarrationReview.sourceId),decision=source?.decisions.find(d=>d.recordId===pendingNarrationReview.recordId);
+    if(!source||!decision)return;setPendingNarrationReview(null);void reviewDecision(source,decision);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[pendingNarrationReview,busy,sources]);
+
   async function add(directUpload=false) {
     if(!consent)return;
     await work('Verifying the selected source and saving its identity', async () => {
@@ -759,8 +807,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setSuggested(null);appliedSuggestion.current=null;setDemoText('');setDemoAnnotation(null);setQuestionAnswer(null);
     setSuggestionNote('Review the recognized narration and all three frames. The marked frame is the model’s choice. Nothing has been saved as a teaching or admitted.');
   }
-  async function findRecordingTeaching(agent=false) {
-    if(!selected?.token || !currentVersion || !(agent?agentAnalysisConsent:recordingConsent) || !recordingSupported)return;
+  async function findRecordingTeaching(agent=false,explicitNarrationConsent=false) {
+    if(!selected?.token || !currentVersion || !(agent?agentAnalysisConsent:recordingConsent||explicitNarrationConsent) || !recordingSupported)return;
     const source=selected,version=currentVersion,snapshot=draftSnapshot;
     await work(agent?'Finding a demonstrated tool or method':'Transcribing recording and locating one taste example',async()=>{
       await requireCurrentScope();
@@ -918,7 +966,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     } catch (caught) { setSuggestionNote(caught instanceof Error ? caught.message : 'The suggestion was not applied.'); }
   }
 
-  async function annotate() {
+  async function annotate(narrationFields?:{chosen:string;why:string;process:string;desiredBehavior:string}) {
     if (!selected?.token || !previewIsCurrent || !priorityIsValid || (installationId&&!demoAnnotationIsCurrent)) return;
     const source = selected; const requestedTime = time; const requestedPreview = preview;
     await work('Saving the visual decision draft', async () => {
@@ -933,7 +981,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       if (questionAnswer && questionAnswer.expectedActiveVersionId !== scope.agent.currentVersionId) throw new TrainingError('training_version_changed');
       const drafted = await call('annotate', {
         token: source.token, timeMs: requestedTime, idempotencyKey: decisionKey,
-        decision: { chosen, why, process, desiredBehavior: behavior },
+        decision: narrationFields||{ chosen, why, process, desiredBehavior: behavior },
         content: {
           relation, properties: [property], mustNotCopy: ['source text', 'source logos', 'protected identity'],
           applicability: { taskFacts: [], stages: normalizeTrainingStages(stages), exceptions: [], priority: Number(selectionPriority) },
@@ -959,6 +1007,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         appliedSuggestion.current = null;
       }
       if(recordingLink)await linkRecording(recordingLink);
+      if(narrationFields&&drafted.recordId)setPendingNarrationReview({sourceId:source.sourceId,recordId:drafted.recordId});
       if (questionAnswer) {
         if (!drafted.recordId || !drafted.recordDigest) throw new TrainingError('question_answer_link_unavailable', 'The draft was saved, but no verifiable teaching identity was returned. Select that existing draft to link the answer.');
         await linkAnswers(answerLink!);
@@ -1111,10 +1160,21 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <p className="font-medium text-amber-200">Training needs attention</p>
       {readinessNeedsAttention&&<><p className="text-ink-300">Some saved evidence may not yet guide this agent’s runs. Review its current training status.</p><button type="button" onClick={()=>reveal('training-readiness')}>Review training status</button></>}
       {preservedWorkCount>0&&<><p>{preservedWorkCount} preserved operation{preservedWorkCount===1?' needs':'s need'} attention. Nothing has been discarded.</p><button type="button" onClick={()=>setView('history')}>Review preserved work</button></>}
-      {pendingRecordingLink&&<button type="button" onClick={()=>reveal('recording-analysis')}>Review recording link</button>}
+      {pendingRecordingLink&&<button type="button" disabled={!!busy} onClick={()=>work('Linking the saved recording teaching',()=>linkRecording(pendingRecordingLink))}>Retry recording link</button>}
     </section>}
     {!installationId&&<h2 className="text-xs font-medium text-ink-500">3 ways to train</h2>}
-    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onChat={()=>chatExpanded?setChatExpanded(false):focusChat()} chatExpanded={chatExpanded} chatDisabled={!!busy} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onTrainingUpload={()=>{currentTraining();setConsent(false);setDiscardDraftConfirmed(false);setUploadOpen(true);}} uploadDisabled={!!busy||changesBusy||versionChanged||!currentVersion} uploading={busy==='Verifying the selected source and saving its identity'}/>}/>}
+    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onChat={()=>chatExpanded?setChatExpanded(false):focusChat()} chatExpanded={chatExpanded} chatDisabled={!!busy} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={()=>{currentTraining();setConsent(false);setDiscardDraftConfirmed(false);setUploadOpen(true);}} uploadDisabled={!!busy||changesBusy||versionChanged||!currentVersion} uploading={busy==='Verifying the selected source and saving its identity'}/>}/>}
+    {!installationId&&pendingRecordingId&&<div role="status" className="text-sm text-ink-300">Another recording is ready. Your current feedback is preserved. <button type="button" className="underline" onClick={()=>setReplaceRecordingOpen(true)}>Annotate new recording</button></div>}
+    {!installationId&&activeRecordingId&&<RecordingPlayer key={activeRecordingId} recordingId={activeRecordingId} ownerId={ownerId||''} trainingSlug={slug} embedded onDirtyChange={setRecordingDirty} onRecordingLoaded={setActiveRecordingDetail} onAnalyzeNarration={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId})} narrationUnavailable={!activeRecordingDetail?"Loading your recording…":!activeRecordingDetail.hasMicrophone?"This recording has no microphone narration. You can still leave feedback on the video.":!recordingSupported?"Update Desktop to find learnings in your narration.":(activeRecordingDetail.durationMs||0)>600000?"Narration analysis supports recordings up to 10 minutes. Your visual feedback is still available.":undefined} onClose={()=>{if(recordingDirty){setPendingRecordingId(null);setReplaceRecordingOpen(true);}else{setActiveRecordingId(null);setActiveRecordingDetail(null);}}}/>}
+    {!installationId&&activeRecordingId&&recording&&selected&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===recording.excerpt.sourceId&&<section className="space-y-4 rounded-xl border border-ink-800 p-5" aria-label="Learning from your narration">
+      <h2 className="text-lg font-medium">Learning from your narration</h2><details className="text-sm text-ink-400"><summary>What Implexa heard</summary><blockquote className="mt-3 whitespace-pre-wrap">{recording.excerpt.text}</blockquote><p className="mt-2 text-xs">Speech recognition can make mistakes. Check the wording before saving.</p></details>
+      {recording.suggestion&&<><div className="flex flex-wrap gap-5"><img src={recording.frames[recording.suggestion.frameIndex].image} alt="Frame supporting the suggested learning" className="w-64 rounded-lg object-contain"/><div className="min-w-0 flex-1 space-y-2"><p className="text-sm text-ink-200">{recording.suggestion.fields.desiredBehavior}</p><p className="text-sm text-ink-400">Observed: {recording.suggestion.fields.chosen}</p><p className="text-sm text-ink-400">Why (inferred from narration): {recording.suggestion.fields.why}</p><p className="text-sm text-ink-400">Suggested approach: {recording.suggestion.fields.process}</p></div></div>
+      <p className="text-xs text-ink-400">{relationLabel(relation)} · {property.replaceAll('_',' ')} · {stages.map(trainingStageLabel).join(', ')}</p><details className="text-xs text-ink-400"><summary>Where this learning applies</summary><label className="mt-3 block">Category<select value={property} onChange={e=>{const value=e.target.value as TrainingPropertyCode;setProperty(value);setStages(deriveTrainingStages(value));}}>{TRAINING_PROPERTY_CODES.map(p=><option key={p} value={p}>{p.replaceAll('_',' ')}</option>)}</select></label><label className="mt-3 block">Example type<select value={relation} onChange={e=>setRelation(e.target.value as TrainingRelation)}>{TRAINING_RELATIONS.map(r=><option key={r} value={r}>{relationLabel(r)}</option>)}</select></label>{TRAINING_STAGE_OPTIONS.map(option=><label key={option.value} className="mt-2 flex gap-2"><input type="checkbox" checked={stages.includes(option.value)} onChange={()=>toggleStage(option.value)}/>{option.label}</label>)}</details>
+      <button type="button" className="btn-primary" disabled={!!busy||versionChanged||!previewIsCurrent||preview?.image!==recording.frames[recording.suggestion.frameIndex].image||!stages.length} onClick={()=>void annotate(recording.suggestion!.fields)}>Save as draft</button><p className="text-xs text-ink-500">Review and accept the draft before it becomes training. The marked region remains in your recording notes; the teaching uses the selected frame.</p></>}
+    </section>}
+    {!installationId&&activeRecordingId&&suggestionNote&&<p role="status" className="text-sm text-ink-400">{suggestionNote}</p>}
+    <Modal open={!!narrationRequest} onClose={()=>setNarrationRequest(null)} title="Find learnings in this recording?"><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Implexa transcribes on this Mac, then sends the transcript and 12 storyboard frames to Claude Haiku 5.5. The selected excerpt and three frames are used to suggest a learning. You review it before saving or accepting anything.</p><button type="button" className="btn-primary mt-5" disabled={!!busy||versionChanged||!recordingSupported} onClick={()=>void beginNarrationAnalysis()}>Analyze narration</button></Modal>
+    <Modal open={replaceRecordingOpen} onClose={()=>setReplaceRecordingOpen(false)} title="Leave without saving feedback?"><p>Your unsaved marks stay here if you keep editing.</p><div className="mt-5 flex gap-4"><button type="button" onClick={()=>setReplaceRecordingOpen(false)}>Keep editing</button><button type="button" onClick={()=>{setActiveRecordingId(pendingRecordingId);setActiveRecordingDetail(null);setRecordingDirty(false);setPendingRecordingId(null);setReplaceRecordingOpen(false);}}>Discard unsaved changes</button></div></Modal>
     {!installationId&&(historyBusy||historyError)&&<p role="status" className="text-sm text-ink-400">{historyBusy?'Loading earlier training…':historyError}</p>}
     {!installationId&&history&&<section aria-label="Earlier training" className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 className="text-xl font-medium">Learnings</h2>{versionPicker}</header><p className="text-xs text-ink-500">Earlier version · read-only</p>{history.sources.flatMap(source=>source.decisions.map(d=><details key={d.recordId} className="border-b border-ink-800 py-4"><summary className="cursor-pointer text-sm">{['draft','accepted'].includes(d.state)?d.decision.desiredBehavior||d.content.summary:'This teaching is no longer available for use.'}</summary><div className="space-y-3 pt-4 text-sm leading-6 text-ink-400">{source.token&&d.content.derivatives?.[0]?.sha256&&['draft','accepted'].includes(d.state)&&<TrainingImage token={source.token} recordId={d.recordId} recordDigest={d.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy} context={`${history.sessionId}:${history.versionId}`} alt="Earlier teaching example"/>}{['draft','accepted'].includes(d.state)&&<p>{d.content.summary}</p>}<p>{d.state} · {relationLabel(d.content.relation)}</p></div></details>))}{!history.sources.length&&<p className="text-sm text-ink-500">No examples were returned for this version.</p>}</section>}
     {!installationId&&!session&&!busy&&<button type="button" className="text-sm text-ink-300 disabled:opacity-40" disabled={!currentVersion||versionChanged} onClick={()=>{focusChat();}}>Start teaching →</button>}
@@ -1270,7 +1330,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </section>}
 
     <div hidden={!installationId&&view!=='teach'}>
-    {selected && <section id="recording-analysis" className={`rounded border border-ink-700 p-4 space-y-4 ${legacyControls}`}><h2>Timestamped visual decision</h2>{successorStageExpansion && <section role="status" className="rounded border border-brand-500 p-3 space-y-2"><h3 className="font-semibold">Successor stage diff</h3><p>The predecessor stages were preserved exactly. This active Agent requires this decision at: {successorStageExpansion.required.length ? successorStageExpansion.required.map(trainingStageLabel).join(', ') : 'no additional stages'}.</p>{successorStageExpansion.missing.length > 0 ? <><p>Still missing: {successorStageExpansion.missing.map(trainingStageLabel).join(', ')}. They have not been added automatically.</p><button type="button" disabled={!!busy} onClick={addRequiredSuccessorStages}>Add required stages to this successor draft</button></> : <p>All required stages are now explicitly selected. Preview and accept the new digest separately.</p>}</section>}<fieldset disabled={!!busy || versionChanged} className="space-y-4"><legend className="sr-only">Choose and explain an exact visual decision</legend><label className="block">Frame timestamp<input className="block w-full" type="range" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} step="1" value={time} aria-valuetext={formatTrainingTime(time)} onChange={(event) => changeTime(Number(event.target.value))} /></label><div className="flex flex-wrap items-end gap-2"><label>Exact timestamp in milliseconds<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} value={time} onChange={(event) => changeTime(Number(event.target.value))} /></label>{[-1000, -100, 100, 1000].map((delta) => <button type="button" key={delta} onClick={() => changeTime(time + delta)}>{delta > 0 ? '+' : '−'}{Math.abs(delta)} ms</button>)}</div><p aria-live="polite">Selected time {formatTrainingTime(time)} of {formatTrainingTime(selected.metadata.durationMs)}</p><button type="button" onClick={showPreview}>Preview this exact frame</button>{previewIsCurrent && preview?.image && <img src={preview.image} alt={`Training source frame at ${formatTrainingTime(preview.timeMs)}`} className="w-full" />}
+    {selected && <section hidden={Boolean(activeRecordingId)} id="recording-analysis" className={`rounded border border-ink-700 p-4 space-y-4 ${legacyControls}`}><h2>Timestamped visual decision</h2>{successorStageExpansion && <section role="status" className="rounded border border-brand-500 p-3 space-y-2"><h3 className="font-semibold">Successor stage diff</h3><p>The predecessor stages were preserved exactly. This active Agent requires this decision at: {successorStageExpansion.required.length ? successorStageExpansion.required.map(trainingStageLabel).join(', ') : 'no additional stages'}.</p>{successorStageExpansion.missing.length > 0 ? <><p>Still missing: {successorStageExpansion.missing.map(trainingStageLabel).join(', ')}. They have not been added automatically.</p><button type="button" disabled={!!busy} onClick={addRequiredSuccessorStages}>Add required stages to this successor draft</button></> : <p>All required stages are now explicitly selected. Preview and accept the new digest separately.</p>}</section>}<fieldset disabled={!!busy || versionChanged} className="space-y-4"><legend className="sr-only">Choose and explain an exact visual decision</legend><label className="block">Frame timestamp<input className="block w-full" type="range" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} step="1" value={time} aria-valuetext={formatTrainingTime(time)} onChange={(event) => changeTime(Number(event.target.value))} /></label><div className="flex flex-wrap items-end gap-2"><label>Exact timestamp in milliseconds<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max={Math.max(0, selected.metadata.durationMs - 1)} value={time} onChange={(event) => changeTime(Number(event.target.value))} /></label>{[-1000, -100, 100, 1000].map((delta) => <button type="button" key={delta} onClick={() => changeTime(time + delta)}>{delta > 0 ? '+' : '−'}{Math.abs(delta)} ms</button>)}</div><p aria-live="polite">Selected time {formatTrainingTime(time)} of {formatTrainingTime(selected.metadata.durationMs)}</p><button type="button" onClick={showPreview}>Preview this exact frame</button>{previewIsCurrent && preview?.image && <img src={preview.image} alt={`Training source frame at ${formatTrainingTime(preview.timeMs)}`} className="w-full" />}
       <label className="block">Evidence relation<select value={relation} onChange={(event) => { setRelation(event.target.value as TrainingRelation); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}>{TRAINING_RELATIONS.filter(item=>!installationId||['accepted','rejected'].includes(item)).map((item) => <option key={item} value={item}>{relationLabel(item)}</option>)}</select></label><label className="block">Visual property<select value={property} onChange={(event) => { const next = event.target.value as TrainingPropertyCode; setProperty(next); setStages(deriveTrainingStages(next).filter(stage=>!installationId||['planning','build'].includes(stage))); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID()); }}>{TRAINING_PROPERTY_CODES.map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</select></label>
       <label className="block">Selection priority<input className="block rounded bg-ink-900 border p-2" type="number" min="0" max="100" step="1" value={selectionPriority} aria-describedby="training-priority-help" aria-invalid={!priorityIsValid} onChange={(event) => { setSelectionPriority(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>
       <p id="training-priority-help" className="text-sm">50 is normal. Prefer this example by choosing a higher number, up to 100. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not widen eligible stages or properties, guarantee selection, or override checks, criteria or facts. Saved decisions stay immutable; changing a preference requires a new reviewed and accepted draft.</p>
@@ -1340,7 +1400,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       {installationId&&<h3>Preference wording — confirm or edit</h3>}
       <TrainingDetails title={wordingOpened?'Review prepared teaching':'Advanced manual teaching'} open={Boolean(installationId)||wordingOpened}>
       {!installationId&&![chosen,why,process,behavior].every(value=>value.trim())&&<p>Use your annotation and the suggestion above to prepare the teaching wording. These detailed fields are available if you prefer to draft it manually.</p>}
-      {([['What was chosen', chosen, setChosen], ['Why this choice', why, setWhy], ['Tool or process used', process, setProcess], ['Desired visual, motion or layout behavior', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || !priorityIsValid || stages.length === 0 || (Boolean(installationId)&&!demoAnnotationIsCurrent) || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={annotate}>Save decision draft</button></TrainingDetails></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
+      {([['What was chosen', chosen, setChosen], ['Why this choice', why, setWhy], ['Tool or process used', process, setProcess], ['Desired visual, motion or layout behavior', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || !priorityIsValid || stages.length === 0 || (Boolean(installationId)&&!demoAnnotationIsCurrent) || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={()=>void annotate()}>Save decision draft</button></TrainingDetails></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
     </div>
     {!installationId&&<div className="flex flex-wrap gap-x-6 gap-y-3 border-t border-ink-800 pt-5 text-xs text-ink-500"><button type="button" onClick={()=>setView(view==='history'?'start':'history')} aria-expanded={view==='history'}>Questions & history</button><button type="button" onClick={()=>setView(view==='settings'?'start':'settings')} aria-expanded={view==='settings'}>Sharing & settings</button><TrainingInfo label="Version details">Active version: {shortId(currentVersion)}{sessionVersion?` · Session version: ${shortId(sessionVersion)}`:''}</TrainingInfo></div>}
     </div>

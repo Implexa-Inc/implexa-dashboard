@@ -1894,3 +1894,34 @@ test('a lost test-preparation response retries the same intent key rather than c
   assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);assert.equal(r.calls.push.length,0);
  }finally{r.cleanup();}
 });
+
+test('inline recording analysis waits for explicit consent, uses committed source context and reuses its registration',async()=>{
+ const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;let registrations=0,recognitions=0;
+ const summary={recordingId:RECORD,title:'My demonstration',origin:'recorded',state:'ready',failureReason:null,createdAt:'2026-11-01T12:00:00.000Z',durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:0};
+ Object.assign(h.bridge,{reviewRecorderContractVersion:'2',trainingRecordingLibraryContractVersion:'1',
+  reviewRecorder:async(op:string)=>op==='get'?{ok:true,recording:{...summary,pointerTrack:null,moments:[]}}:op==='list'?{ok:true,recordings:[summary],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true},revokeArtifactPreview:async()=>({ok:true})});
+ h.bridge.trainingLocal=async(op,args)=>{
+  if(op==='selectRecording'){registrations++;h.calls.push({operation:op,args:args as any});return {ok:true,sourceId:SOURCE_ID,token:TOKEN};}
+  if(op==='recording'){recognitions++;return {ok:true,manifest:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A},segments:[{index:0,startMs:0,endMs:5000,text:'Give the location a meaningful visual.'}],storyboard:[],manifestId:QUESTION,manifestDigest:DIGEST};}
+  return original(op,args);
+ };
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,initialRecordingId:RECORD},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const prior=r.window.fetch,requests:any[]=[];
+ r.window.fetch=(async(url:string,init:RequestInit={})=>{
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  requests.push({url,body:JSON.parse(String(init.body))});return {ok:true,status:200,json:async()=>({ok:true,status:'insufficient',reason:'Explain why you prefer this visual.'})};
+ }) as typeof r.window.fetch;
+ const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,30));});
+ try{
+  await flush();assert.ok(r.queryByText('Annotate your recording'));assert.equal(registrations,0);assert.equal(recognitions,0);
+  for(let i=0;i<2;i++){
+   await r.click(r.getByText('Find learnings in my narration'));assert.equal(recognitions,i);assert.match(r.text(),/transcript and 12 storyboard frames/);
+   await r.click(r.getByText('Analyze narration'));await flush();
+   assert.equal(recognitions,i+1);assert.equal(requests.length,i+1);assert.match(requests[i].url,new RegExp(SESSION));assert.equal(requests[i].body.sourceId,SOURCE_ID);
+  }
+  assert.equal(registrations,1);assert.equal(h.calls.find(c=>c.operation==='selectRecording')!.args.momentId,null);
+  assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
+  assert.match(r.text(),/Explain why you prefer this visual/);assert.equal(r.document.querySelector('#recording-analysis')?.hasAttribute('hidden'),true);
+ }finally{r.cleanup();}
+});
