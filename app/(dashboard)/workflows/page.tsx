@@ -26,7 +26,7 @@ import RetryButton from '../_components/retry-button';
 import ChainSuggestions from '../_components/chain-suggestions';
 import { listAgentDiscovery } from '@/lib/agent-discovery';
 import { listChainOfferings } from '@/lib/agent-chain-offerings';
-import AgentHomeFrame from '../_components/agent-home-frame';
+import AgentHomeFrame,{RentBuildHome} from '../_components/agent-home-frame';
 import TalkToImplexa from '../_components/talk-to-implexa';
 import BuildingAgents from '../_components/building-agents';
 import {isExecutorConnected} from '@/lib/connection';
@@ -53,15 +53,9 @@ export default async function WorkflowsPage({searchParams}:{searchParams?:{tab?:
     const connected=await isExecutorConnected(supabase,profile.id,{
       lastMcpCallAt:profile.last_mcp_call_at,lastHookEventAt:profile.last_hook_event_at,
     });
-    return <div className="min-h-screen px-5 py-12 lg:px-8">
-      <div className="mx-auto max-w-[1500px]">
-        <header className="mb-8"><h1 className="text-3xl font-semibold tracking-tight text-ink-50">Rent Agent</h1><p className="mt-2 text-sm text-ink-400">Find a trained agent, or build your own.</p></header>
-        <div className="grid items-start gap-8 xl:grid-cols-[300px_minmax(0,1fr)]">
-          <aside aria-label="Build your own agent" className="min-w-0 xl:sticky xl:top-8"><TalkToImplexa hasAgents compact suggestions={[]} connected={connected}/><BuildingAgents/></aside>
-          <div id="rent-listings" className="min-w-0"><MarketplaceSampleGallery listings={samples.listings}/></div>
-        </div>
-      </div>
-    </div>;
+    return <RentBuildHome build={<><TalkToImplexa hasAgents compact suggestions={[]} connected={connected}/><BuildingAgents/></>}>
+      <MarketplaceSampleGallery listings={samples.listings}/>
+    </RentBuildHome>;
   }
 
   const [feed, mine, dismissed, favoriteSlugs, discovery, chainOfferings] = await Promise.all([

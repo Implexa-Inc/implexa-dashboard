@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import {getMarketplaceSamples} from '@/lib/agent-marketplace-samples-server';
+import {marketplacePilotEnabled} from '@/lib/agent-marketplace-samples';
 import RetryButton from '../_components/retry-button';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
@@ -15,7 +17,8 @@ export default async function TrainingPage({searchParams}:{searchParams?:{view?:
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  const feed = await readMyWorkflows(session.access_token);
+  const [feed,samples] = await Promise.all([readMyWorkflows(session.access_token),getMarketplaceSamples()]);
+  const pilot=marketplacePilotEnabled(samples);
   const recordingId=searchParams?.recordingId&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(searchParams.recordingId)?searchParams.recordingId:undefined;
   const queue=searchParams?.view==='review'&&feed.status==='ready'?await getReviewQueue():null;
   const owned=feed.status==='ready'?feed.workflows.filter(a=>a.source==='generated'):[];
@@ -25,7 +28,7 @@ export default async function TrainingPage({searchParams}:{searchParams?:{view?:
     <div className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-4xl mx-auto">
         <header className="mb-8">
-          <p className="mb-3 text-[10px] font-medium uppercase tracking-[.18em] text-ink-500">Your trainer workspace</p><h1 className="text-3xl font-medium tracking-tight text-ink-50">What would you like to train?</h1>
+          <>{!pilot&&<p className="mb-3 text-[10px] font-medium uppercase tracking-[.18em] text-ink-500">Your trainer workspace</p>}<h1 className="text-3xl font-medium tracking-tight text-ink-50">{pilot?'Train':'What would you like to train?'}</h1></>
           <p className="text-ink-300 text-sm mt-1">
             Teach through a result, a conversation, or a demonstration.
           </p>

@@ -79,7 +79,7 @@ export default async function WorkPage({
     <div className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-3xl mx-auto">
         <header className="mb-6">
-          <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-semibold tracking-tight text-ink-50">{pilot?'Running Agents':'Work'}</h1>{pilot&&<Link href={AGENTS_MANAGE_HREF} className="text-xs text-ink-400 hover:text-ink-100">Manage installed agents →</Link>}</div>
+          <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-semibold tracking-tight text-ink-50">{pilot?'Run':'Work'}</h1>{pilot&&<Link href={AGENTS_MANAGE_HREF} className="text-xs text-ink-400 hover:text-ink-100">Manage installed agents →</Link>}</div>
           <p className="text-ink-300 text-sm mt-1">
             What your agents are producing, what needs you, and what they delivered.
           </p>

@@ -17,3 +17,17 @@ test('the agent frame no longer repeats sidebar destinations as page tabs',async
  const r=await render('agent-home-frame.tsx',{children:'Existing agents'});
  try{assert.equal(r.document.querySelector('nav'),null);assert.match(r.text(),/Existing agents/);}finally{r.cleanup();}
 });
+
+test('the sketch layout starts with a collapsed Build row above the full-width rental content',async()=>{
+ const r=await render('agent-home-frame.tsx',{build:'Existing builder',children:'Rental gallery'},{exportName:'RentBuildHome'});
+ try{
+  assert.equal(r.document.querySelector('h1')?.textContent,'Rent/Build');
+  const disclosure=r.document.querySelector('details')!;
+  assert.equal(disclosure.hasAttribute('open'),false);
+  assert.match(disclosure.querySelector('summary')?.textContent||'',/Build an agent/);
+  assert.ok(r.text().indexOf('Build an agent')<r.text().indexOf('Rental gallery'));
+  await r.click(disclosure.querySelector('summary')!);assert.equal(disclosure.hasAttribute('open'),true);
+  assert.match(disclosure.textContent||'',/Existing builder/);
+  assert.equal(r.calls.backend.length,0);assert.equal(r.calls.push.length,0);
+ }finally{r.cleanup();}
+});
