@@ -59,4 +59,3 @@ export function TrainingFeedUnavailable({ reason }: { reason: Extract<MyWorkflow
     </div>
   );
 }
-
