@@ -1928,8 +1928,8 @@ test('inline recording analysis waits for explicit consent, uses committed sourc
 });
 
 test('a saved picture mark becomes a linked draft from exact feedback, retains region lineage and opens review after link retry',async()=>{
- const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;let registrations=0,links=0;
- const moment={momentId:QUESTION,startMs:1000,endMs:1000,region:{x:100000,y:200000,width:300000,height:200000},card:{whatToDo:'Make the location tell the story, with less repeated copy.',why:'Keep my earlier explanation.',insteadOf:'',howToCheck:'',whenNot:''},createdAt:'2026-11-01T12:00:00.000Z'};
+ const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;let registrations=0,links=0,suggestionCount=0;
+ const moment={momentId:QUESTION,startMs:5000,endMs:5000,region:{x:100000,y:200000,width:300000,height:200000},card:{whatToDo:'Make the location tell the story, with less repeated copy.',why:'Keep my earlier explanation.',insteadOf:'',howToCheck:'',whenNot:''},createdAt:'2026-11-01T12:00:00.000Z'};
  const summary={recordingId:RECORD,title:'My demonstration',origin:'recorded',state:'ready',failureReason:null,createdAt:moment.createdAt,durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:false,hasPointerTrack:false,momentCount:1};
  Object.assign(h.bridge,{reviewRecorderContractVersion:'2',trainingRecordingLibraryContractVersion:'1',reviewRecorder:async(op:string)=>op==='get'?{ok:true,recording:{...summary,pointerTrack:null,moments:[moment]}}:op==='list'?{ok:true,recordings:[summary],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true},revokeArtifactPreview:async()=>({ok:true})});
  h.bridge.trainingLocal=async(op,args)=>{if(op==='selectRecording'){registrations++;return {ok:true,sourceId:SOURCE_ID,token:TOKEN};}return original(op,args);};
@@ -1941,17 +1941,23 @@ test('a saved picture mark becomes a linked draft from exact feedback, retains r
   const b=JSON.parse(String(init.body));requests.push(b);
   if(b.action==='save'){raw=b.rawAnnotation;const {action,expectedActiveVersionId,...annotation}=b;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:'e'.repeat(64),annotation:{contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId}})};}
   if(b.action==='link'){links++;if(links===1)return {ok:false,json:async()=>({ok:false})};return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-link.v1',annotationId:b.annotationId,annotationDigest:b.annotationDigest,recordId:b.recordId,recordDigest:b.expectedRecordDigest,linkReceiptId:QUESTION})};}
-  const {mode,image,consent,...binding}=b;return {ok:true,json:async()=>({requestId:QUESTION,ok:true,contractVersion:'training-teaching-suggestion.v3',model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
+  const {mode,image,consent,...binding}=b;suggestionCount++;return {ok:true,json:async()=>({requestId:QUESTION,ok:true,contractVersion:'training-teaching-suggestion.v3',model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:suggestionCount===1?'insufficient':'suggested',fields:suggestionCount===1?null:SUGGESTION_FIELDS,reason:suggestionCount===1?'Explain your preference more clearly.':'',sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
  }) as typeof r.window.fetch;
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
  try{
   await flush();await r.click(r.getByText('Turn into a learning'));assert.equal(registrations,0);assert.equal(requests.length,0);
   await r.click(r.getByText('Suggest learning'));await flush();
-  assert.equal(registrations,1);assert.deepEqual(JSON.parse(raw),moment,'all card fields and region are original feedback');
-  assert.equal(requests.filter(b=>b.mode==='demonstration').length,1);assert.equal(h.calls.some(c=>c.operation==='recording'||c.operation==='annotate'||c.operation==='accept'),false);
+  assert.match(r.text(),/Explain your preference more clearly/);assert.ok(r.queryByText('Retry suggestion from saved feedback'));
+  await r.click(r.getByText('Discard this suggestion'));assert.equal(r.document.querySelector('[aria-label="Learning from your feedback"]'),null);
+  await r.click(r.getByText('Turn into a learning'));await r.click(r.getByText('Suggest learning'));await flush();
+  assert.equal(registrations,1,'the next mark attempt reuses the source');assert.equal(h.calls.filter(c=>c.operation==='preview').every(c=>c.args.timeMs===4999),true,'the end mark uses the last valid frame');assert.match(r.text(),/just before the recording ends/);assert.deepEqual(JSON.parse(raw),{recordingId:RECORD,moment},'all card fields and region are original feedback');
+  assert.equal(requests.filter(b=>b.mode==='demonstration').length,2);assert.equal(h.calls.some(c=>c.operation==='recording'||c.operation==='annotate'||c.operation==='accept'),false);
   const panel=r.document.querySelector('[aria-label="Learning from your feedback"]')!;assert.match(panel.textContent!,new RegExp(SUGGESTION_FIELDS.desiredBehavior));
+  const save=Array.from(panel.querySelectorAll('button')).find(b=>b.textContent==='Save as draft')!;assert.equal(save.disabled,true);
+  await r.act(()=>{const select=panel.querySelector('select')!;Object.getOwnPropertyDescriptor(r.window.HTMLSelectElement.prototype,'value')!.set!.call(select,'layout_variety');select.dispatchEvent(new r.window.Event('change',{bubbles:true}));});
   await r.click(Array.from(panel.querySelectorAll('button')).find(b=>b.textContent==='Save as draft')!);await flush();
   assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find(c=>c.operation==='annotate')!.args.decision)),SUGGESTION_FIELDS);
+  assert.equal((h.calls.find(c=>c.operation==='annotate')!.args.content as any).relation,'rejected');assert.deepEqual(JSON.parse(JSON.stringify((h.calls.find(c=>c.operation==='annotate')!.args.content as any).properties)),['layout_variety']);
   assert.equal(h.calls.some(c=>c.operation==='accept'),false);assert.equal(r.queryByText('Exact saved evidence'),null,'no admission review before provenance link succeeds');
   await r.click(r.getByText('Retry feedback link'));await flush();
   assert.ok(r.queryByText('Exact saved evidence'));assert.equal(h.calls.filter(c=>c.operation==='annotate').length,1);assert.equal(links,2);assert.equal(h.calls.some(c=>c.operation==='accept'),false);

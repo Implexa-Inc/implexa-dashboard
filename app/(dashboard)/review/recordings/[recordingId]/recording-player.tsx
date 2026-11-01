@@ -577,7 +577,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                 <div className="mt-3"><label htmlFor={`${m.momentId}-feedback`} className="sr-only">What should change here?</label><textarea id={`${m.momentId}-feedback`} placeholder="What should change here?" rows={3} maxLength={CARD_FIELD_MAX} value={m.card.whatToDo} onFocus={()=>setSelectedId(m.momentId)} onChange={e=>setField(m.momentId,'whatToDo',e.target.value)} className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 focus:border-sky-500 focus:outline-none"/>
                   {warnings.whatToDo&&<p data-testid="card-warning" className="mt-1 text-xs text-amber-300">{warnings.whatToDo.join(' ')}</p>}
                 </div>
-                {onUseFeedback&&<button type="button" className="mt-3 text-sm text-brand-400" disabled={busy!==null||dirty||!m.card.whatToDo.trim()} onClick={()=>onUseFeedback(recordingId,m)}>Turn into a learning</button>}
+                {onUseFeedback&&<button type="button" className="mt-3 text-sm text-brand-400" disabled={busy!==null||dirty||!CARD_FIELDS.some(field=>m.card[field].trim())} onClick={()=>onUseFeedback(recordingId,m)}>Turn into a learning</button>}
                 {CARD_FIELDS.some(field=>field!=='whatToDo'&&m.card[field].trim())&&<details className="mt-3 text-xs text-ink-400"><summary>Previously saved notes</summary>{CARD_FIELDS.filter(field=>field!=='whatToDo'&&m.card[field].trim()).map(field=><p key={field} className="mt-2 whitespace-pre-wrap"><strong>{CARD_FIELD_LABELS[field]}:</strong> {m.card[field]}</p>)}</details>}
               </li>
             );
