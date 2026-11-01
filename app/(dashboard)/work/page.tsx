@@ -33,8 +33,8 @@ import {readMyWorkflows} from '@/lib/workflow-catalog';
 import {reviewQueueForArea} from '@/lib/training-review-routing';
 import { getReviewQueue, reviewQueueWarning } from '@/lib/review';
 import { getMyAgents } from '@/lib/agents-home';
-import { parseWorkView, WORK_VIEW_LABELS } from '@/lib/navigation';
-import TodayFeed from '../_components/today-feed';
+import { resolveWorkView, AGENTS_MANAGE_HREF, WORK_VIEW_LABELS } from '@/lib/navigation';
+import TodayFeed,{NeedsYouNotice} from '../_components/today-feed';
 import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
 import InboxList from '../inbox/inbox-list';
 import WorkFilterTabs from './_components/work-filter-tabs';
@@ -63,8 +63,7 @@ export default async function WorkPage({
   if (!profile?.organization_id) redirect('/onboarding');
 
   const pilot=marketplacePilotEnabled(await getMarketplaceSamples());
-  const rawView=Array.isArray(searchParams?.view)?searchParams?.view[0]:searchParams?.view;
-  const view = rawView==='activity'||(pilot&&!rawView)?'activity':parseWorkView(rawView);
+  const view = resolveWorkView(searchParams?.view,pilot);
 
 
   // The review queue is read on EVERY view because the Ready-for-review count is
@@ -80,7 +79,7 @@ export default async function WorkPage({
     <div className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-3xl mx-auto">
         <header className="mb-6">
-          <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-semibold tracking-tight text-ink-50">{pilot?'Running Agents':'Work'}</h1>{pilot&&<Link href="/workflows?tab=manage" className="text-xs text-ink-400 hover:text-ink-100">Manage installed agents →</Link>}</div>
+          <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-semibold tracking-tight text-ink-50">{pilot?'Running Agents':'Work'}</h1>{pilot&&<Link href={AGENTS_MANAGE_HREF} className="text-xs text-ink-400 hover:text-ink-100">Manage installed agents →</Link>}</div>
           <p className="text-ink-300 text-sm mt-1">
             What your agents are producing, what needs you, and what they delivered.
           </p>
@@ -177,10 +176,11 @@ async function DeliveredView() {
 async function ActivityView({jwt}:{jwt:string}) {
   let runs:RunRow[]=[],unavailable=false;
   const supabase=createClient();
-  const [productions]=await Promise.all([
+  const [productions,needsYou]=await Promise.all([
     listOutcomeProductions(jwt),
+    loadNeedsYou(supabase),
     selectRuns(supabase,{limit:40,extraColumns:'current_step_index,total_steps,current_step_label',throwOnError:true})
       .then(rows=>{runs=rows;}).catch(()=>{unavailable=true;}),
   ]);
-  return <><OutcomeProductionsList load={productions}/><LiveRunActivity/><RunActivity runs={runs} unavailable={unavailable}/></>;
+  return <><NeedsYouNotice data={needsYou}/><OutcomeProductionsList load={productions}/><LiveRunActivity/><RunActivity runs={runs} unavailable={unavailable}/></>;
 }

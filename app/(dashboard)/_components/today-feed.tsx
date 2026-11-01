@@ -65,6 +65,22 @@ function JudgeRow({ item }: { item: AttentionItem }) {
   return <JudgeReviewCard item={item} />;
 }
 
+/** Same blocking rows in Today and its activity-view entry point. */
+function countBlockingNeeds(data: NeedsYou): number {
+  const blockingCount =
+    data.needGrant.length + data.signIns.length + data.missed.length + data.homeAttention.length;
+  return blockingCount;
+}
+
+/** A pointer to pending decisions, not a second action list or live poller. */
+export function NeedsYouNotice({data}:{data:NeedsYou}) {
+  const count=countBlockingNeeds(data),incomplete=data.partial||data.truncated;
+  return <>
+    {incomplete&&<p role="status" className="mb-3 text-sm text-amber-300">We couldn’t check everything that needs you. <Link href="/work?view=needs" className="underline">Open Needs you →</Link></p>}
+    {count>0&&<Link href="/work?view=needs" className="mb-5 block rounded-xl border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">{incomplete?'At least ':''}{count} {count===1?'item needs':'items need'} you <span aria-hidden="true">→</span></Link>}
+  </>;
+}
+
 export default function TodayFeed({ data, warning, className = '' }: {
   data: NeedsYou;
   /** attentionWarning(...) computed by the server page — see the import note above. */
@@ -73,13 +89,8 @@ export default function TodayFeed({ data, warning, className = '' }: {
 }) {
   const [live, setLive] = useState<LiveState>({ status: 'loading', count: 0 });
 
-  // Everything Today renders that BLOCKS the user. Named for what it gates, not
-  // for where it came from: it deliberately mixes keying (homeAttention is
-  // run-keyed Judge work; the rest is agent/account/schedule-keyed) because to
-  // the reader they are one question. Every row type rendered below must be in
-  // this count, or the all-clear can fire while that row is on screen.
-  const blockingCount =
-    data.needGrant.length + data.signIns.length + data.missed.length + data.homeAttention.length;
+  // Shared with the activity-view notice; the rows and all-clear stay here.
+  const blockingCount = countBlockingNeeds(data);
 
   // THE ALL-CLEAR IS A CLAIM ABOUT KNOWLEDGE, NOT A COUNT OF ZEROS. It may only
   // be made when every source was actually read: the server-side needs-you feed

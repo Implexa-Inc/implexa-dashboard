@@ -165,6 +165,12 @@ export function parseWorkView(raw: string | string[] | undefined | null): WorkVi
   return (WORK_VIEWS as readonly string[]).includes(v ?? '') ? (v as WorkView) : DEFAULT_WORK_VIEW;
 }
 
+/** Default changes only for a readable pilot; explicit legacy filters still win. */
+export function resolveWorkView(raw: string | string[] | undefined | null, marketplacePilot = false): WorkView {
+  const value=Array.isArray(raw)?raw[0]:raw;
+  return value==='activity'||(marketplacePilot&&!value)?'activity':parseWorkView(value);
+}
+
 export function workViewHref(view: WorkView): string {
   return view === DEFAULT_WORK_VIEW ? '/work' : `/work?view=${view}`;
 }

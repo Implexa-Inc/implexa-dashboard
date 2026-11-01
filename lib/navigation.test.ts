@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import {
   PRIMARY_NAV, primaryNavigation, SECONDARY_NAV, FORBIDDEN_PRIMARY_LABELS,
   ownsPath, isNavItemActive, activeNavItem,
-  WORK_VIEWS, DEFAULT_WORK_VIEW, parseWorkView, workViewHref,
+  WORK_VIEWS, DEFAULT_WORK_VIEW, parseWorkView, resolveWorkView, workViewHref,
   LEGACY_ROUTE_REDIRECTS, legacyDestination,
   resolveDefaultLanding, isCreateFabSuppressed, anySignal,
   countNewerThan, mergeTimestamps, workSeenKey,
@@ -220,4 +220,13 @@ test('the pilot relabels exactly the existing domains; every deep link retains o
  for(const path of ['/workflows','/workflows/a','/create','/work','/runs/a','/review/a','/training','/training/a']){
   assert.equal(nav.filter(n=>isNavItemActive(n,path)).length,1,path);
  }
+});
+
+test('Work defaults to Needs you outside the pilot, and explicit decisions remain reachable for pilots',()=>{
+ for(const value of [undefined,null,''])assert.equal(resolveWorkView(value,false),'needs');
+ assert.equal(resolveWorkView(undefined,true),'activity');
+ for(const pilot of [false,true])for(const view of ['needs','review','delivered','activity'] as const){
+  assert.equal(resolveWorkView(view,pilot),view);assert.equal(resolveWorkView([view],pilot),view);
+ }
+ assert.equal(resolveWorkView('unknown',false),'needs');
 });
