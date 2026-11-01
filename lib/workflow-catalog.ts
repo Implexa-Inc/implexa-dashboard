@@ -315,33 +315,62 @@ export type MyWorkflowCard = {
  * listMyWorkflows() - the signed-in user's OWN workflows (captured + generated),
  * INCLUDING private ones the public catalog hides. Calls the authed backend
  * route GET /api/v2/me/workflows with the caller's Supabase session JWT (so it's
- * owner-scoped, never anyone else's). Degrades to [] on any failure.
+ * owner-scoped, never anyone else's). The legacy list wrapper degrades to [].
+ * Training uses the typed reader so a failed lookup cannot mean an empty library.
  *
  * Pass `token` when the caller already holds the session's access token (the
  * agent page resolves the session ONCE) — the helper then skips its own
  * getSession() round-trip. Absent, it resolves the session itself as before.
  */
-export async function listMyWorkflows(token?: string): Promise<MyWorkflowCard[]> {
+export type MyWorkflowsRead =
+  | { status: 'ready'; workflows: MyWorkflowCard[]; unavailableEntries?: number }
+  | { status: 'unavailable'; reason: 'no_session' | 'http_error' | 'timeout' | 'network' | 'malformed' };
+
+export async function readMyWorkflows(token?: string, deps: {
+  fetchImpl?: typeof fetch; getToken?: () => Promise<string | null>;
+} = {}): Promise<MyWorkflowsRead> {
   let accessToken = token;
   if (!accessToken) {
-    const { createClient } = await import('@/lib/supabase/server');
-    const supabase = createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    accessToken = session?.access_token;
+    if (deps.getToken) accessToken = (await deps.getToken()) ?? undefined;
+    else {
+      const { createClient } = await import('@/lib/supabase/server');
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      accessToken = session?.access_token;
+    }
   }
-  if (!accessToken) return [];
+  if (!accessToken) return { status: 'unavailable', reason: 'no_session' };
+  let res: Response;
   try {
-    const res = await fetch(`${BACKEND}/api/v2/me/workflows`, {
+    res = await (deps.fetchImpl ?? fetch)(`${BACKEND}/api/v2/me/workflows`, {
       headers: { authorization: `Bearer ${accessToken}` },
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) return [];
-    const body = (await res.json()) as { workflows?: MyWorkflowCard[] };
-    return Array.isArray(body.workflows) ? body.workflows : [];
-  } catch {
-    return [];
+  } catch (err) {
+    const name = (err as { name?: string } | null)?.name;
+    return { status: 'unavailable', reason: name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : 'network' };
   }
+  if (!res.ok) return { status: 'unavailable', reason: 'http_error' };
+  try {
+    const body = await res.json();
+    if (body?.ok === false) return { status: 'unavailable', reason: 'http_error' };
+    if (body?.ok !== true || !Array.isArray(body.workflows))
+      return { status: 'unavailable', reason: 'malformed' };
+    const workflows = body.workflows.filter((row: unknown) => row && typeof row === 'object'
+      && typeof (row as MyWorkflowCard).slug === 'string' && (row as MyWorkflowCard).slug.trim()
+      && typeof (row as MyWorkflowCard).name === 'string') as MyWorkflowCard[];
+    const unavailableEntries = body.workflows.length - workflows.length;
+    if (unavailableEntries && !workflows.length) return { status: 'unavailable', reason: 'malformed' };
+    return { status: 'ready', workflows, ...(unavailableEntries ? {unavailableEntries} : {}) };
+  } catch {
+    return { status: 'unavailable', reason: 'malformed' };
+  }
+}
+
+export async function listMyWorkflows(token?: string): Promise<MyWorkflowCard[]> {
+  const result = await readMyWorkflows(token);
+  return result.status === 'ready' ? result.workflows : [];
 }
 
 export type DismissedAgent = {
