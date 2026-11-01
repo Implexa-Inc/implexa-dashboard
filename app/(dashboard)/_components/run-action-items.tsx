@@ -24,6 +24,7 @@
  * run-request + flips the action to 'acting'); dismiss calls .../dismiss.
  */
 
+import {AGENTS_RUNNING_HREF} from '@/lib/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -165,7 +166,7 @@ function ActionRow({
           <div className="mt-1.5">
             <p className="text-xs text-emerald-700 dark:text-emerald-300">{confirmation}</p>
             {!human && (
-              <Link href="/workflows" className="mt-1 inline-block text-[11px] text-sky-600 dark:text-sky-400 hover:underline">
+              <Link href={AGENTS_RUNNING_HREF} className="mt-1 inline-block text-[11px] text-sky-600 dark:text-sky-400 hover:underline">
                 Watch in Active Agents →
               </Link>
             )}

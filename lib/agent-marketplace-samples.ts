@@ -20,3 +20,5 @@ export type AgentHomeTab='rent'|'running'|'training';
 export function agentHomeTab(tab?:string):AgentHomeTab{return tab==='running'||tab==='training'?tab:'rent';}
 
 export const marketplacePilotEnabled=(read:SampleRead)=>read.status==='ready'&&read.listings.length>0;
+
+export function agentHomeView(read:SampleRead,tab?:string):'ordinary'|AgentHomeTab{return marketplacePilotEnabled(read)?agentHomeTab(tab):'ordinary';}

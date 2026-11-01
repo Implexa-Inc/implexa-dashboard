@@ -1421,7 +1421,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           "broken" (founder hit this). */}
       {presentation!=='training' && (state === 'queued' || state === 'running') && (
         <Link
-          href="/workflows"
+          href={AGENTS_RUNNING_HREF}
           className={`text-[11px] text-brand-500 hover:underline ${align === 'end' ? 'text-right' : 'text-left'}`}
         >
           Track it under Active Agents →

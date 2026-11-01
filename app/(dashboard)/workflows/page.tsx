@@ -29,27 +29,27 @@ import { listChainOfferings } from '@/lib/agent-chain-offerings';
 import AgentHomeFrame from '../_components/agent-home-frame';
 import TrainingAgentPicker,{TrainingFeedUnavailable} from '../_components/training-agent-picker';
 import MarketplaceSampleGallery from '../_components/marketplace-sample-gallery';
-import {agentHomeTab,marketplacePilotEnabled,readMarketplaceSamples} from '@/lib/agent-marketplace-samples';
+import {agentHomeView,readMarketplaceSamples} from '@/lib/agent-marketplace-samples';
 import ChainOfferingsSection from '../_components/chain-offerings-section';
 
 export const dynamic = 'force-dynamic';
 
 export default async function WorkflowsPage({searchParams}:{searchParams?:{tab?:string}}) {
   const supabase = createClient();
-  const [{data:{session}},{data:{user}}]=await Promise.all([supabase.auth.getSession(),supabase.auth.getUser()]);
-  if (!session?.user||!user||session.user.id!==user.id) redirect('/login');
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) redirect('/login');
   const profile = await readUserProfile(supabase
     .from('users').select('id, organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
   const samples=await readMarketplaceSamples(()=>supabase.from('agent_marketplace_samples').select('slug,position,listing').order('position').limit(2).abortSignal(AbortSignal.timeout(2000)));
-  const pilot=marketplacePilotEnabled(samples),tab=agentHomeTab(searchParams?.tab);
-  if(pilot&&tab==='rent'){
-    return <AgentHomeFrame tab="rent">{samples.status==='ready'?<MarketplaceSampleGallery listings={samples.listings}/>:<div role="status" className="rounded-xl border border-ink-800 p-8 text-sm text-ink-400">The marketplace preview couldn’t load.<RetryButton/></div>}</AgentHomeFrame>;
+  const view=agentHomeView(samples,searchParams?.tab),pilot=view!=='ordinary';
+  if(view==='rent'){
+    return <AgentHomeFrame tab="rent"><MarketplaceSampleGallery listings={samples.listings}/></AgentHomeFrame>;
   }
-  if(pilot&&tab==='training'){
+  if(view==='training'){
     const owned=await readMyWorkflows(session.access_token);
-    return <AgentHomeFrame tab="training"><div className="mx-auto max-w-4xl"><h2 className="text-2xl font-medium text-ink-100">Choose an agent to train</h2><p className="mb-6 mt-2 text-sm text-ink-400">Improve a result, show how you work, or talk it through with Implexa.</p>{owned.status==='ready'?<TrainingAgentPicker owned={owned.workflows}/>:<TrainingFeedUnavailable reason={owned.reason}/>}</div></AgentHomeFrame>;
+    return <AgentHomeFrame tab="training"><div className="mx-auto max-w-4xl"><h2 className="text-2xl font-medium text-ink-100">Choose an agent to train</h2><p className="mb-6 mt-2 text-sm text-ink-400">Improve a result, show how you work, or talk it through with Implexa.</p>{owned.status==='ready'?<>{!!owned.unavailableEntries&&<p role="status" className="mb-4 text-sm text-ink-400">Some agent entries could not be read. The available agents are shown below.<RetryButton/></p>}<TrainingAgentPicker owned={owned.workflows}/></>:<TrainingFeedUnavailable reason={owned.reason}/>}</div></AgentHomeFrame>;
   }
 
   const [feed, mine, dismissed, favoriteSlugs, discovery, chainOfferings] = await Promise.all([
