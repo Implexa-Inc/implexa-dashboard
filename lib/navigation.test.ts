@@ -215,7 +215,7 @@ test('the global Create button stays out of review and contextual Training/creat
 
 test('the pilot relabels exactly the existing domains; every deep link retains one owner',()=>{
  const nav=primaryNavigation(true);
- assert.deepEqual(nav.map(n=>n.label),['Rent Agent','Running Agents','Training Agents']);
+ assert.deepEqual(nav.map(n=>n.label),['Rent/Build','Run','Train']);
  assert.deepEqual(primaryNavigation(false),PRIMARY_NAV);
  for(const path of ['/workflows','/workflows/a','/create','/work','/runs/a','/review/a','/training','/training/a']){
   assert.equal(nav.filter(n=>isNavItemActive(n,path)).length,1,path);

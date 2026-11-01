@@ -81,7 +81,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
 /** The two-account marketplace pilot changes labels, never route ownership. */
 export function primaryNavigation(marketplacePilot = false): readonly NavItem[] {
   if (!marketplacePilot) return PRIMARY_NAV;
-  const labels = { agents: 'Rent Agent', work: 'Running Agents', training: 'Training Agents' };
+  const labels = { agents: 'Rent/Build', work: 'Run', training: 'Train' };
   return PRIMARY_NAV.map(item => ({ ...item, label: labels[item.id as keyof typeof labels] || item.label }));
 }
 

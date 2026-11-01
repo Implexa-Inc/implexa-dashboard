@@ -208,7 +208,6 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
   };
 
   const busy = state === 'sending' || state === 'opening';
-  const Heading = compact ? 'h2' : 'h1';
   const label = state === 'sending' ? 'Queuing' : state === 'opening' ? 'Opening' : 'Build it';
 
   return (
@@ -221,9 +220,9 @@ export default function TalkToImplexa({ hasAgents = false, guided = false, sugge
         />
       )}
       <div className={compact ? "card p-5" : "card p-6 sm:p-8"}>
-        <Heading className="text-2xl font-semibold tracking-tight text-ink-50">
+        {!compact&&<h1 className="text-2xl font-semibold tracking-tight text-ink-50">
           {hasAgents ? 'Build an agent' : 'Build your first agent'}
-        </Heading>
+        </h1>}
         <p className="text-sm text-ink-400 mt-1.5 mb-2">
           {compact ? 'Tell Implexa what you want it to do.' : guided
             ? 'Just tell us a job you do over and over, in plain words. We build the agent and walk you through turning it on. No setup knowledge needed.'
