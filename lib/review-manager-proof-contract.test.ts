@@ -140,7 +140,7 @@ test('Review packet preserves Manager proof and requires its owner-scoped source
 
 test('Run Detail and Review both surface Manager proof separately from Judge history', () => {
   const runPage = readFileSync(join(process.cwd(), 'app', '(dashboard)', 'runs', '[id]', 'page.tsx'), 'utf8');
-  const reviewPage = readFileSync(join(process.cwd(), 'app', '(dashboard)', 'review', '[runId]', 'page.tsx'), 'utf8');
+  const reviewPage = readFileSync(join(process.cwd(), 'app', '(dashboard)', '_components', 'review-room-page.tsx'), 'utf8');
   const card = readFileSync(join(process.cwd(), 'app', '(dashboard)', '_components', 'stage-manager-proof.tsx'), 'utf8');
   const labels = readFileSync(join(process.cwd(), 'lib', 'run-manager-proof.ts'), 'utf8');
   assert.match(runPage, /<StageManagerProof proof=\{competencePacket\.managerProof\}/);

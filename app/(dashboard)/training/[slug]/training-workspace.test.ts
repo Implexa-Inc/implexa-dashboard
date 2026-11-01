@@ -49,7 +49,7 @@ test('recent results use only the existing preview capability and revoke late ca
   await r.rerender({...props,runs:[]});
   await r.act(async()=>{release({ok:true,url:`implexa-artifact://preview/${token}`});await new Promise(resolve=>setTimeout(resolve,10));});
   assert.deepEqual(calls.at(-1),['revoke',token]);assert.equal(r.document.querySelector('video'),null);
-  assert.equal(r.document.querySelector('a')?.getAttribute('href'),'/workflows/video-agent?source=generated&tab=runs');
+  assert.equal(r.document.querySelector('a')?.getAttribute('href'),'/training/video-agent/runs');
  }finally{r.cleanup();}
 });
 

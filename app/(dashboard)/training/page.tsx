@@ -2,16 +2,24 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readMyWorkflows, type MyWorkflowCard, type MyWorkflowsRead } from '@/lib/workflow-catalog';
+import {getReviewQueue} from '@/lib/review';
+import ReadyForReviewList from '../work/_components/ready-for-review-list';
 import RetryButton from '../_components/retry-button';
 
 export const dynamic = 'force-dynamic';
 
-export default async function TrainingPage() {
+export default async function TrainingPage({searchParams}:{searchParams?:{view?:string;recordingId?:string}}) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
   const feed = await readMyWorkflows(session.access_token);
+  const recordingId=searchParams?.recordingId&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(searchParams.recordingId)?searchParams.recordingId:undefined;
+  const queue=searchParams?.view==='review'&&feed.status==='ready'?await getReviewQueue():null;
+  const owned=feed.status==='ready'?feed.workflows.filter(a=>a.source==='generated'):[];
+  const slugs=new Set(owned.map(a=>a.slug));
+  const feedback=queue?{...queue,items:queue.items.filter(item=>item.slug&&slugs.has(item.slug)&&item.reason!=='approval'&&item.holdKind!=='approval_before_action'),total:null}:null;
+  if(feedback)feedback.visibleCount=feedback.items.length;
 
   return (
     <div className="min-h-screen px-6 lg:px-12 py-14">
@@ -25,7 +33,7 @@ export default async function TrainingPage() {
 
         {feed.status !== 'ready' ? <FeedUnavailable reason={feed.reason} /> : <>
           {!!feed.unavailableEntries && <p role="status" className="mb-4 text-sm text-ink-400">Some agent entries could not be read. The available agents are shown below.<RetryButton /></p>}
-          <OwnedAgents owned={feed.workflows} />
+          {feedback?<><Link href="/training" className="mb-5 inline-block text-sm text-ink-400">← Your agents</Link><h2 className="mb-5 text-xl">Feedback from runs</h2><ReadyForReviewList queue={feedback} nameBySlug={new Map(owned.map(a=>[a.slug,a.name]))} training/></>:<><Link href="/training?view=review" className="mb-6 inline-block text-sm text-ink-400">Feedback from runs →</Link><OwnedAgents owned={feed.workflows} recordingId={recordingId} /></>}
         </>}
       </div>
     </div>
@@ -46,7 +54,7 @@ function FeedUnavailable({ reason }: { reason: Extract<MyWorkflowsRead, {status:
   );
 }
 
-function OwnedAgents({ owned }: { owned: MyWorkflowCard[] }) {
+function OwnedAgents({ owned,recordingId }: { owned: MyWorkflowCard[];recordingId?:string }) {
   // Ownership is the whole gate here: a renter sees the empty state, an owner
   // sees their agents. There is no mode toggle (DESIGN.md §4.2).
   const bySlug = new Map<string, MyWorkflowCard>();
@@ -73,7 +81,7 @@ function OwnedAgents({ owned }: { owned: MyWorkflowCard[] }) {
         {[...bySlug.values()].map((a) => (
           <li key={a.slug} className="transition-colors hover:bg-ink-900/30">
             <Link
-              href={`/training/${a.slug}`}
+              href={`/training/${encodeURIComponent(a.slug)}${recordingId?`?annotateRecording=${encodeURIComponent(recordingId)}`:''}`}
               className="flex items-center justify-between gap-5 rounded-lg px-4 py-6 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900"
             >
               <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-950/40 text-emerald-200/80">✦</span><span className="min-w-0 flex-1">
