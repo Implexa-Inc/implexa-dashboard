@@ -76,5 +76,6 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
 export function teachingCaption(summary:string|null){
  if(!summary)return 'Teaching unavailable';
  const preferred=summary.match(/Desired behavior:\s*([\s\S]*)/i)?.[1]||summary.match(/Chosen:\s*([\s\S]*?)(?:\s+Why:|$)/i)?.[1]||summary;
- return preferred.length>170?`${preferred.slice(0,167).trimEnd()}…`:preferred;
+ const excerpt=preferred.match(/^([\s\S]*?[.!?])(?:\s|$)/)?.[1]||preferred;
+ return excerpt.length>170?`${excerpt.slice(0,167).trimEnd()}…`:excerpt;
 }

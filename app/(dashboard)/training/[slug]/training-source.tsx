@@ -98,7 +98,7 @@ type Bridge = {
   trainingLocal: (operation: string, args: unknown) => Promise<Result>;
 };
 type Preview = { token: string; timeMs: number; image: string };
-type ReviewedDecision = { source: Source; decision: Decision; image: string | null };
+type ReviewedDecision = { source: Source; decision: Decision; image: string | null; readOnly?: boolean };
 type VersionTransition = { fromVersion: string; sources: Source[] };
 
 class TrainingError extends Error {
@@ -157,15 +157,22 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
   function currentTraining(){historyRead.current++;setHistory(null);setHistoryBusy(false);setHistoryError('');}
   const versionPicker=<nav className="flex items-center gap-4 text-xs" aria-label="Learning versions"><button type="button" aria-current={!history?'page':undefined} onClick={currentTraining} className={!history?'text-ink-100':'text-ink-500'}>Current</button>{earlierSessions.map((item,i)=><button type="button" key={item.sessionId} disabled={historyBusy} aria-current={history?.sessionId===item.sessionId?'page':undefined} title={`Agent version ${shortId(item.agent.baseVersionId)}`} onClick={()=>void showHistory(item)} className={history?.sessionId===item.sessionId?'text-ink-100':'text-ink-500'}>Earlier {i+1}</button>)}</nav>;
+  function savedExample(record:TrainingChangeRecord){
+    if(!record.summary||record.sourceKind!=='legacy_evidence'||['revoked','unavailable','discarded','retired'].includes(record.state))return null;
+    for(const [inventory,readOnly] of [[sources,false],[versionTransition?.sources||[],true]] as const){
+      const source=inventory.find(s=>s.decisions.some(d=>d.recordId===record.recordId&&d.recordDigest===record.recordDigest&&['draft','accepted'].includes(d.state)));
+      const decision=source?.decisions.find(d=>d.recordId===record.recordId&&d.recordDigest===record.recordDigest);
+      if(source&&decision)return {source,decision,readOnly};
+    }
+    return null;
+  }
   function learningCaption(record:TrainingChangeRecord){
-    if(!record.summary)return null;
-    return sources.flatMap(source=>source.decisions).find(d=>d.recordId===record.recordId&&d.recordDigest===record.recordDigest)?.decision.desiredBehavior||record.summary;
+    return record.summary?savedExample(record)?.decision.decision.desiredBehavior||record.summary:null;
   }
   function learningExample(record:TrainingChangeRecord,index:number){
-    if(index>=8||record.sourceKind!=='legacy_evidence'||!record.summary||['revoked','unavailable','discarded'].includes(record.state))return null;
-    const source=sources.find(source=>source.decisions.some(d=>d.recordId===record.recordId&&d.recordDigest===record.recordDigest));
-    const d=source?.decisions.find(d=>d.recordId===record.recordId&&d.recordDigest===record.recordDigest);
-    return source?.token&&d?.content.derivatives?.[0]?.sha256&&['draft','accepted','retired'].includes(d.state)?<TrainingImage key={`${record.recordId}:${record.recordDigest}`} token={source.token} recordId={record.recordId} recordDigest={record.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy&&!changesBusy} context={`${session}:${currentVersion}`} alt="Saved teaching example"/>:null;
+    if(index>=8)return null;const example=savedExample(record);
+    const sha=example?.decision.content.derivatives?.[0]?.sha256;
+    return example?.source.token&&sha?<TrainingImage key={`${record.recordId}:${record.recordDigest}`} token={example.source.token} recordId={record.recordId} recordDigest={record.recordDigest} frameSha256={sha} enabled={!busy&&!changesBusy} context={`${session}:${currentVersion}`} alt="Saved teaching example"/>:null;
   }
   const [selected, setSelected] = useState<Source | null>(null);
   const [busy, setBusy] = useState('');
@@ -203,9 +210,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   function editCandidate(record:TrainingChangeRecord){
     if(!record.summary)return;
     if(record.sourceKind==='legacy_evidence'){
-      const source=sources.find(s=>s.decisions.some(d=>d.recordId===record.recordId));
-      const decision=source?.decisions.find(d=>d.recordId===record.recordId);
-      if(source&&decision)void reviewDecision(source,decision);
+      const example=savedExample(record);
+      if(example)void reviewDecision(example.source,example.decision,example.readOnly);
       else setChangesError('training_source_review_unavailable');
       return;
     }
@@ -255,15 +261,17 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     return true;
   }
   async function reviewPublicationExample(recordId:string){
-    const source=sources.find(s=>s.decisions.some(d=>d.recordId===recordId)),decision=source?.decisions.find(d=>d.recordId===recordId);
-    if(!source||!decision){setChangesError('training_publication_source_review_unavailable');return;}
-    setPublicationReviewOpen(false);await reviewDecision(source,decision);
+    const record=changes?.records.find(r=>r.recordId===recordId),example=record?savedExample(record):null;
+    if(!example){setChangesError('training_publication_source_review_unavailable');return;}
+    setPublicationReviewOpen(false);await reviewDecision(example.source,example.decision,example.readOnly);
   }
   const busyRef = useRef(false);
   const [error, setError] = useState('');
   const [consent, setConsent] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [reviewed, setReviewed] = useState<ReviewedDecision | null>(null);
+  const reviewedIsVisible=!!reviewed&&(!reviewed.readOnly||changes?.records.some(r=>r.recordId===reviewed.decision.recordId&&r.recordDigest===reviewed.decision.recordDigest&&r.summary&&!['revoked','unavailable','discarded','retired'].includes(r.state)));
+  useEffect(()=>{if(reviewed?.readOnly&&!reviewedIsVisible)setReviewed(null);},[reviewed,reviewedIsVisible]);
   const reviewHeadingRef = useRef<HTMLHeadingElement>(null);
   const [acceptConfirmed, setAcceptConfirmed] = useState(false);
   const [retireConfirmed, setRetireConfirmed] = useState(false);
@@ -934,13 +942,17 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     });
   }
 
-  async function reviewDecision(source: Source, decision: Decision) {
-    if (!source.token) return;
+  async function reviewDecision(source: Source, decision: Decision,readOnly=false) {
+    if (!source.token) {if(readOnly)setReviewed({source,decision,image:null,readOnly:true});return;}
     await work('Opening the exact saved evidence', async () => {
       await requireCurrentScope();
-      const result = await call('decisionPreview', { token: source.token, recordId: decision.recordId });
-      if (result.recordId !== decision.recordId || result.recordDigest !== decision.recordDigest || !result.image) throw new TrainingError('training_decision_preview_mismatch', 'The saved evidence identity could not be verified.');
-      showTeaching();setReviewed({ source, decision, image: result.image }); setAcceptConfirmed(false); setRetireConfirmed(false); setRevokeConfirmed(false);
+      let image:string|null=null;
+      try{
+        const result = await call('decisionPreview', { token: source.token, recordId: decision.recordId });
+        if (result.recordId !== decision.recordId || result.recordDigest !== decision.recordDigest || !result.image) throw new TrainingError('training_decision_preview_mismatch', 'The saved evidence identity could not be verified.');
+        image=result.image;
+      }catch(error){if(!readOnly)throw error;}
+      if(!readOnly)showTeaching();setReviewed({ source, decision, image,readOnly });setAcceptConfirmed(false);setRetireConfirmed(false);setRevokeConfirmed(false);
     });
   }
 
@@ -1182,8 +1194,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </section>)}</TrainingDetails>
 
     </div>
-    {reviewed && <section className={`rounded border border-brand-500 p-4 space-y-4 ${legacyControls}`} aria-labelledby="decision-review-heading"><h2 ref={reviewHeadingRef} id="decision-review-heading" tabIndex={-1}>{reviewed.image ? 'Exact saved evidence' : 'Saved teaching'}</h2>{reviewed.image && <img src={reviewed.image} alt={`Saved evidence at ${formatTrainingTime(reviewed.decision.content.anchor.startMs)}`} className="w-full" />}<dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Source</dt><dd>{reviewed.source.localName || `SHA-256 ${shortId(reviewed.source.metadata.sha256)}`}</dd></div><div><dt className="font-semibold">Timestamp</dt><dd>{formatTrainingTime(reviewed.decision.content.anchor.startMs)}</dd></div><div><dt className="font-semibold">Relation</dt><dd>{relationLabel(reviewed.decision.content.relation)}</dd></div><div><dt className="font-semibold">Visual properties</dt><dd>{reviewed.decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</dd></div><div><dt className="font-semibold">Eligible stages</dt><dd>{normalizeTrainingStages(reviewed.decision.content.applicability?.stages).length ? normalizeTrainingStages(reviewed.decision.content.applicability?.stages).map(trainingStageLabel).join(', ') : 'Not recorded'}</dd></div><div><dt className="font-semibold">Decision</dt><dd>{reviewed.decision.content.summary}</dd></div><div><dt className="font-semibold">Immutable digest</dt><dd className="break-all">{reviewed.decision.recordDigest}</dd></div></dl>
+    {reviewed && reviewedIsVisible && <section className={`rounded border border-brand-500 p-4 space-y-4 ${legacyControls}`} aria-labelledby="decision-review-heading"><h2 ref={reviewHeadingRef} id="decision-review-heading" tabIndex={-1}>{reviewed.image ? 'Exact saved evidence' : 'Saved teaching'}</h2>{reviewed.readOnly&&<p className="text-xs text-ink-400">Original example · read-only. Current training is unchanged.</p>}{reviewed.readOnly&&!reviewed.image&&<p role="status" className="text-sm text-ink-400">Saved frame unavailable on this computer. The original teaching text is preserved.</p>}{reviewed.image && <img src={reviewed.image} alt={`Saved evidence at ${formatTrainingTime(reviewed.decision.content.anchor.startMs)}`} className="w-full" />}<dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Source</dt><dd>{reviewed.source.localName || `SHA-256 ${shortId(reviewed.source.metadata.sha256)}`}</dd></div><div><dt className="font-semibold">Timestamp</dt><dd>{formatTrainingTime(reviewed.decision.content.anchor.startMs)}</dd></div><div><dt className="font-semibold">Relation</dt><dd>{relationLabel(reviewed.decision.content.relation)}</dd></div><div><dt className="font-semibold">Visual properties</dt><dd>{reviewed.decision.content.properties.map((item) => item.replaceAll('_', ' ')).join(', ')}</dd></div><div><dt className="font-semibold">Eligible stages</dt><dd>{normalizeTrainingStages(reviewed.decision.content.applicability?.stages).length ? normalizeTrainingStages(reviewed.decision.content.applicability?.stages).map(trainingStageLabel).join(', ') : 'Not recorded'}</dd></div><div><dt className="font-semibold">Decision</dt><dd>{reviewed.decision.content.summary}</dd></div><div><dt className="font-semibold">Immutable digest</dt><dd className="break-all">{reviewed.decision.recordDigest}</dd></div></dl>
       <p><span className="font-semibold">Selection priority:</span> {reviewed.decision.content.applicability?.priority ?? 'Not recorded'}. Higher priorities rank first among eligible examples for the same quality property and relation; equal priorities retain the existing tie-break. This does not guarantee selection or override checks, criteria or facts.</p>
+      {!reviewed.readOnly&&<>
       {reviewed.decision.state === 'draft' && <><label className="flex gap-3"><input type="checkbox" checked={acceptConfirmed} disabled={!!busy} onChange={(event) => setAcceptConfirmed(event.target.checked)} />{installationId?"I reviewed this exact frame and confirm this preference wording, including any agent-suggested wording, for my future runs only.":"I reviewed this exact frame and decision and want it eligible for future Manager selection."}</label><button disabled={!!busy || !acceptConfirmed} onClick={acceptReviewed}>Accept this exact decision</button></>}
       {reviewed.decision.state === 'accepted' && <>
         {!installationId && <section className="rounded border border-ink-700 p-3 space-y-2" aria-labelledby="teaching-delivery-heading">
@@ -1218,6 +1231,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         {!reviewed.image && <button disabled={!!busy || !reviewed.source.token || versionChanged} onClick={() => reviewDecision(reviewed.source, reviewed.decision)}>Preview exact saved frame</button>}
         <label className="flex gap-3"><input type="checkbox" checked={revokeConfirmed} disabled={!!busy} onChange={(event) => setRevokeConfirmed(event.target.checked)} />Withdraw permission for further use now, including active runs. This may interrupt them; already disclosed material cannot be recalled.</label>
         <button disabled={!!busy || !revokeConfirmed} onClick={() => reduceReviewedAuthority('revoke')}>Withdraw permission now</button>
+      </>}
       </>}
       <button disabled={!!busy} onClick={() => setReviewed(null)}>Close evidence review</button>
     </section>}
