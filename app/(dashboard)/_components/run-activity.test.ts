@@ -50,3 +50,11 @@ test('the All-runs route actually loads and mounts its Needs-you entry point',()
  assert.match(activity,/<NeedsYouNotice data=\{needsYou\}/);
  assert.doesNotMatch(activity,/<TodayFeed/);
 });
+
+test('full run rows stay on the server; the only new client boundary takes a timestamp',()=>{
+ const history=readFileSync(new URL('./run-activity.tsx',import.meta.url),'utf8');
+ const time=readFileSync(new URL('./local-time.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(history,/['"]use client['"]/);
+ assert.match(history,/<LocalTime iso=\{run.ran_at\}/);
+ assert.match(time,/function LocalTime\(\{iso\}:\{iso:string\}\)/);
+});

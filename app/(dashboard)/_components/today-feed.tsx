@@ -65,7 +65,10 @@ function JudgeRow({ item }: { item: AttentionItem }) {
   return <JudgeReviewCard item={item} />;
 }
 
-/** Same blocking rows in Today and its activity-view entry point. */
+/** Same blocking rows in Today and its activity-view entry point.
+ * Every blocking row Today renders must be included here, or its all-clear
+ * could appear while a decision is still on screen.
+ */
 function countBlockingNeeds(data: NeedsYou): number {
   const blockingCount =
     data.needGrant.length + data.signIns.length + data.missed.length + data.homeAttention.length;
