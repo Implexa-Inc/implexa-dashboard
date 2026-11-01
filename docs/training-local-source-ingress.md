@@ -4,6 +4,25 @@ Original ingress PRs: [Backend #443](https://github.com/Implexa-Inc/implexa-back
 
 Draft implementation, based on backend fcc284a, Desktop b23b981 (0.4.8), and Dashboard e0368de1. No existing checkout, production database, Mac Mini file, provider, compositor, activation, or release was changed. PostgreSQL migration execution was confined to a newly initialized disposable fixture database.
 
+## Current owner entry (November 2026)
+
+The Multimodal Training toolbar stays inside the agent workspace. “Upload and
+annotate Video/Image” opens the existing per-source attestation in a focused dialog,
+then the native MP4/PNG/JPEG/WebP picker. The freshly registered source is matched by
+ID/token, selected and previewed at time zero for inline annotation. Cancel stays in
+Training; a handoff URL never silently reuses its prior recording. Unsaved source
+wording must be explicitly discarded before switching; saved feedback and the
+recorded question remain. The legacy Add training source/Use selected recording
+controls remain for the existing customer and recording-handoff paths.
+
+“Record your training” uses the same typed recorder controller as the recordings
+library. It opens the native recorder directly; ready/failed/interrupted results
+remain in Training with an explicit annotator/recovery link, so completion cannot
+navigate away from a draft or uncertain chat Send. Saved recordings remain a
+secondary entry. The training-scoped player returns directly to Training. Analysis
+and admission remain separate; recording alone neither calls a model nor admits a
+learning.
+
 ## Audit: existing versus new
 
 | Area | Current main | This change |

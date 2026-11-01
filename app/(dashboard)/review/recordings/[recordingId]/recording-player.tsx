@@ -378,7 +378,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug }: { 
   // ── render ────────────────────────────────────────────────────────────────
 
   const back = (
-    <Link href="/review/new" className="text-sm text-sky-400 hover:underline">← New review</Link>
+    <Link href={trainingSlug?`/training/${encodeURIComponent(trainingSlug)}`:'/review/new'} className="text-sm text-sky-400 hover:underline">{trainingSlug?'← Back to Training':'← New review'}</Link>
   );
 
   if (availability && availability.state !== 'ready') {

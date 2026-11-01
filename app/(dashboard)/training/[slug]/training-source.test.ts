@@ -1659,7 +1659,7 @@ test('owner workspace is one page with closed chat, direct teaching actions and 
  const visible=(el:Element)=>!el.closest('[hidden]');
  r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);
  try{
-  for(const label of ['Improve from recent runs','↑ Upload a video or image','◉ Record training'])assert.equal(visible(r.getByText(label)),true);
+  for(const label of ['Improve from recent runs','Multimodal Training','Upload and annotate Video/Image','Record your training'])assert.equal(visible(r.getByText(label)),true);
   assert.equal(visible(r.getByText('Check public visibility')),false);
   assert.equal(visible(r.getByText('Load recorded questions')),false);
   assert.equal(visible(r.getByText('Add training source')),false);
@@ -1668,9 +1668,11 @@ test('owner workspace is one page with closed chat, direct teaching actions and 
   const toggle=r.document.getElementById('training-chat-toggle')!;await r.click(toggle);
   assert.equal(chat.hidden,false);assert.equal(toggle.getAttribute('aria-expanded'),'true');
   await r.click(r.document.querySelector('[aria-label="Close chat"]')!);assert.equal(chat.hidden,true);
-  await r.click(r.getByText('↑ Upload a video or image'));
-  assert.equal(visible(r.getByText('Add training source')),true);
-  assert.equal((r.getByText('Add training source') as HTMLButtonElement).disabled,true,'source consent stays unchecked');
+  await r.click(r.getByText('Upload and annotate Video/Image'));
+  const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;assert.ok(dialog);
+  assert.equal((dialog.querySelector('input') as HTMLInputElement).checked,false);
+  assert.equal((r.getByText('Choose video or image') as HTMLButtonElement).disabled,true,'source attestation remains explicit');
+  await r.click(dialog.querySelector('[aria-label="Close"]')!);
   await r.click(r.getByText('Questions & history'));
   assert.equal(visible(r.getByText('Load recorded questions')),true);
   await r.click(r.getByText('Sharing & settings'));
@@ -1730,16 +1732,16 @@ test('earlier learning versions are read-only and never replace the active editi
 });
 
 
-test('upload opens only its freshly listed source for annotation, without preview or analysis',async()=>{
+test('direct upload opens its exact initial frame inline after per-source consent, without analysis',async()=>{
  const h=await renderedWith(),r=h.rendered;
  try{
-  await r.click(r.getByText('↑ Upload a video or image'));
-  const consent=Array.from(r.document.querySelectorAll('label')).find(l=>l.textContent?.includes('I created this source'))!.querySelector('input')!;
-  await r.click(consent);await r.click(r.getByText('Add training source'));
+  await chooseDirectUpload(r);
   assert.ok(r.document.querySelector('#recording-analysis'));
   assert.equal(r.document.querySelector('#recording-analysis')!.closest('[hidden]'),null);
   assert.equal(h.calls.filter(c=>c.operation==='select').length,1);
-  assert.equal(h.calls.some(c=>['preview','recording','annotate','accept'].includes(c.operation)),false);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.filter(c=>c.operation==='preview').map(c=>c.args))),[{token:TOKEN,timeMs:0}]);
+  assert.equal(h.calls.some(c=>['recording','annotate','accept'].includes(c.operation)),false);assert.equal(r.calls.push.length,0);
+  assert.equal(r.document.querySelector('[alt="Training source frame at 00:00.000"]')?.getAttribute('src'),PNG);
  }finally{r.cleanup();}
 });
 
@@ -1749,9 +1751,7 @@ test('an upload identity mismatch preserves the source error and never opens ano
  h.bridge.trainingLocal=async(op,args)=>op==='select'?{ok:true,sourceId:RECORD,token:TOKEN}:original(op,args);
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
  try{
-  await r.click(r.getByText('↑ Upload a video or image'));
-  await r.click(Array.from(r.document.querySelectorAll('label')).find(l=>l.textContent?.includes('I created this source'))!.querySelector('input')!);
-  await r.click(r.getByText('Add training source'));
+  await chooseDirectUpload(r);
   assert.match(r.text(),/source is saved but could not be opened/);assert.equal(r.document.querySelector('#recording-analysis'),null);
   assert.equal(h.calls.some(c=>['preview','recording','annotate','accept'].includes(c.operation)),false);
  }finally{r.cleanup();}
@@ -1781,4 +1781,24 @@ test('adopted examples use the already-preserved predecessor only by exact diges
    if(scenario==='match'){Object.assign(changes.records[0],{summary:null,state:'unavailable',included:false});await r.click(r.getByText('Remove from this candidate'));assert.equal(r.document.querySelector('[aria-labelledby="decision-review-heading"]'),null,'a fresh null summary hides an already-open predecessor view');}
   }finally{r.cleanup();}
  }
+});
+
+
+async function chooseDirectUpload(r:Rendered){
+ await r.click(r.getByText('Upload and annotate Video/Image'));
+ const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;
+ await r.click(dialog.querySelector('input[type=checkbox]')!);await r.click(r.getByText('Choose video or image'));
+}
+test('cancelling direct upload stays in Training and never previews or calls analysis',async()=>{
+ const h=harness(),original=h.bridge.trainingLocal;
+ h.bridge.trainingLocal=async(op,args)=>op==='select'?{ok:false,reason:'selection_cancelled'}:original(op,args);
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+ try{await chooseDirectUpload(r);assert.equal(r.calls.push.length,0);assert.equal(r.document.querySelector('#recording-analysis'),null);assert.equal(h.calls.some(c=>['preview','recording','annotate','accept'].includes(c.operation)),false);assert.doesNotMatch(r.text(),/selection cancelled/);}finally{r.cleanup();}
+});
+
+
+test('Upload on a recording handoff still opens a fresh file, not the old recording',async()=>{
+ const h=harness();
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,recordingSelection:{recordingId:SOURCE_ID,momentId:null}},{bridge:h.bridge});
+ try{await chooseDirectUpload(r);assert.equal(h.calls.filter(c=>c.operation==='select').length,1);assert.equal(h.calls.some(c=>c.operation==='selectRecording'),false);assert.equal(r.calls.push.length,0);}finally{r.cleanup();}
 });

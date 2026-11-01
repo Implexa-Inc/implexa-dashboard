@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../../_components/modal';
+import {TrainingInfo} from '../../training/[slug]/training-workspace';
 import {
   ACTIVE_STATE_LABELS, RECORD_NOTICE, RECORDING_STATE_LABELS, createReviewRecorderClient, failureMessage,
   formatBytes, formatRecordingDuration, recordingPlayerHref as playerHref, recorderAvailability, recorderErrorMessage,
@@ -30,7 +31,7 @@ const STATE_BADGE: Record<RecordingSummary['state'], string> = {
   failed: 'bg-rose-500/15 text-rose-300',
 };
 
-export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainingSlug?:string}) {
+export default function NewReview({ownerId,trainingSlug,presentation='review',onTrainingUpload,uploadDisabled=false,uploading=false}:{ownerId:string;trainingSlug?:string;presentation?:'review'|'training';onTrainingUpload?:()=>void;uploadDisabled?:boolean;uploading?:boolean}) {
   const router = useRouter();
   const recordingHref=(id:string)=>playerHref(id)+(trainingSlug?`?trainingSlug=${encodeURIComponent(trainingSlug)}`:'');
   // Through a ref, so the refresh callback (and the subscription keyed on it) stays
@@ -55,6 +56,7 @@ export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainin
   const [loadError, setLoadError] = useState<string | null>(null);
   // The recording this page started: when it becomes ready, open it (spec §3.2 step 4).
   const startedRef = useRef<string | null>(null);
+  const [trainingRecording,setTrainingRecording]=useState<RecordingSummary|null>(null);
 
   const refresh = useCallback(async () => {
     // Events, focus and actions all refresh; an older answer must not overwrite a newer one.
@@ -68,15 +70,17 @@ export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainin
       setActive(status.active);
       setLoadError(null);
       const started = startedRef.current;
-      if (started && listed.recordings.some((r) => r.recordingId === started && r.state === 'ready')) {
-        startedRef.current = null;
-        routerRef.current.push(recordingHref(started));
+      const result=started?listed.recordings.find(r=>r.recordingId===started):null;
+      if(result&&presentation==='training'&&['ready','failed','interrupted'].includes(result.state)){
+        startedRef.current=null;setTrainingRecording(result);
+      }else if(result?.state==='ready'){
+        startedRef.current=null;routerRef.current.push(recordingHref(result.recordingId));
       }
     } catch (caught) {
       if (seq !== refreshSeq.current) return;
       setLoadError(recorderErrorMessage(caught) ?? 'Your recordings library could not be read just now.');
     }
-  }, [client,trainingSlug]);
+  }, [client,trainingSlug,presentation]);
 
   useEffect(() => {
     const a = recorderAvailability();
@@ -106,6 +110,7 @@ export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainin
   const busy = (key: string) => inFlight.has(key);
 
   const record = () => work('record', async () => {
+    setTrainingRecording(null);
     const { recordingId } = await client.start(microphone);
     startedRef.current = recordingId;
     await refresh();
@@ -125,9 +130,7 @@ export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainin
   const ready = availability?.state === 'ready';
   const recorderBusy = active !== null;
 
-  return (
-    <div className="min-h-screen px-6 py-14 lg:px-12">
-      <Modal open={startFailure !== null} onClose={() => setStartFailure(null)} title="Recording did not start">
+  const startFailureDialog=(<Modal open={startFailure !== null} onClose={() => setStartFailure(null)} title="Recording did not start">
         {startFailure && <>
           <p>{recorderStartFailureMessage(startFailure)}</p>
           <details className="mt-3 text-xs text-ink-400">
@@ -135,11 +138,30 @@ export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainin
             <p>{startFailure.phase} / {startFailure.errorName} / {startFailure.reason}</p>
           </details>
         </>}
-      </Modal>
+      </Modal>);
+  if(presentation==='training')return <section className="space-y-4 border-y border-ink-800 py-6" aria-labelledby="multimodal-training-heading">
+    {startFailureDialog}
+    <header><h2 id="multimodal-training-heading" className="text-lg font-medium">Multimodal Training</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-ink-400">You can upload a video/image and annotate directly, or record a video describing the training. Implexa extracts suggested learnings for you to review.</p></header>
+    <div className="flex flex-wrap items-center gap-3">
+      <button type="button" disabled={uploadDisabled||uploading} onClick={onTrainingUpload} className="rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 disabled:opacity-40">{uploading?'Opening your example…':'Upload and annotate Video/Image'}</button>
+      <button type="button" disabled={!ready||!ownerId||busy('record')||(recorderBusy&&active?.state!=='permission_required')} onClick={()=>void record()} className="rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 disabled:opacity-40">{busy('record')?'Opening recorder…':active?.state==='permission_required'?'Open permission setup':'Record your training'}</button>
+      <TrainingInfo label="About multimodal training">Select a file you have permission to use as a private training source. Originals stay on this Mac. Recording uses your screen and microphone; macOS asks for access when needed. Analysis and including a suggested teaching keep their existing review steps.</TrainingInfo>
+    </div>
+    {availability&&availability.state!=='ready'&&<p className="text-xs text-ink-400">{availability.message}</p>}
+    <p className="text-[11px] leading-5 text-ink-500" data-testid="record-notice">{RECORD_NOTICE}</p>
+    <Link href={`/review/new?trainingSlug=${encodeURIComponent(trainingSlug||'')}`} className="inline-block text-xs text-ink-400 hover:text-ink-100">Saved recordings</Link>
+    {trainingRecording&&<div role="status" className="text-sm text-ink-300"><p>{trainingRecording.state==='ready'?'Your recording is ready to annotate.':trainingRecording.state==='failed'?failureMessage(trainingRecording.failureReason):'Recording interrupted. Open it to recover the saved portion.'}</p><Link href={recordingHref(trainingRecording.recordingId)} className="mt-2 inline-block underline underline-offset-4">{trainingRecording.state==='ready'?'Annotate recording':'Open recording'}</Link></div>}
+    {active&&<p role="status" className="text-xs text-ink-400">{ACTIVE_STATE_LABELS[active.state]}</p>}
+    {error&&<p role="alert" className="text-sm text-rose-300">{error}</p>}
+  </section>;
+
+  return (
+    <div className="min-h-screen px-6 py-14 lg:px-12">
+      {startFailureDialog}
       <div className="mx-auto max-w-3xl">
         <header className="mb-6">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">New review</h1>
-          <p className="mt-1 text-sm text-ink-300">Review an Agent result, or show your Agent what you mean with a video.</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">{trainingSlug?'Training recordings':'New review'}</h1>
+          <p className="mt-1 text-sm text-ink-300">{trainingSlug?'Choose a saved demonstration to annotate.':'Review an Agent result, or show your Agent what you mean with a video.'}</p>{trainingSlug&&<Link href={`/training/${encodeURIComponent(trainingSlug)}`} className="mt-2 inline-block text-xs text-ink-400">← Back to Training</Link>}
         </header>
 
         {availability && availability.state !== 'ready' && (
@@ -155,14 +177,14 @@ export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainin
           <p role="alert" className="mb-5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</p>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <section className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
+        <div className={`grid gap-3 ${trainingSlug?'sm:grid-cols-2':'sm:grid-cols-3'}`}>
+          {!trainingSlug&&<section className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
             <h2 className="text-base font-medium text-ink-100">Review a result</h2>
             <p className="mt-1 text-xs text-ink-400">Pick something an Agent delivered and give it feedback.</p>
             <Link href="/work?view=review" className="mt-4 inline-block rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 hover:bg-white">
               Pick a result
             </Link>
-          </section>
+          </section>}
 
           <section className="rounded-lg border border-ink-800 bg-ink-900/40 p-4">
             <h2 className="text-base font-medium text-ink-100">Upload a video</h2>
