@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readMyWorkflows, type MyWorkflowCard, type MyWorkflowsRead } from '@/lib/workflow-catalog';
+import {reviewQueueForArea} from '@/lib/training-review-routing';
 import {getReviewQueue} from '@/lib/review';
 import ReadyForReviewList from '../work/_components/ready-for-review-list';
 import RetryButton from '../_components/retry-button';
@@ -17,9 +18,7 @@ export default async function TrainingPage({searchParams}:{searchParams?:{view?:
   const recordingId=searchParams?.recordingId&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(searchParams.recordingId)?searchParams.recordingId:undefined;
   const queue=searchParams?.view==='review'&&feed.status==='ready'?await getReviewQueue():null;
   const owned=feed.status==='ready'?feed.workflows.filter(a=>a.source==='generated'):[];
-  const slugs=new Set(owned.map(a=>a.slug));
-  const feedback=queue?{...queue,items:queue.items.filter(item=>item.slug&&slugs.has(item.slug)&&item.reason!=='approval'&&item.holdKind!=='approval_before_action'),total:null}:null;
-  if(feedback)feedback.visibleCount=feedback.items.length;
+  const feedback=queue?reviewQueueForArea(queue,feed,'training'):null;
 
   return (
     <div className="min-h-screen px-6 lg:px-12 py-14">

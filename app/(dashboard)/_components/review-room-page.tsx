@@ -38,7 +38,7 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
   if(trainingSlug){
     if(packet.live&&packet.run?.slug!==trainingSlug)notFound();
     if(packet.live&&packet.run?.holdKind==='approval_before_action'&&owned.status==='ready'&&owned.workflows.some(a=>a.slug===trainingSlug&&a.source==='generated'))redirect(`/review/${encodeURIComponent(params.runId)}${searchParams?.artifact?`?artifact=${encodeURIComponent(searchParams.artifact)}`:''}`);
-    if(!ownerSlug)return <main className="mx-auto max-w-3xl p-10"><h1>Training review unavailable</h1><p>We could not verify this result belongs to an agent you train.</p><Link href="/training">Return to Training</Link></main>;
+    if(!ownerSlug)return <main className="mx-auto max-w-3xl p-10"><h1>Training review unavailable</h1><p>We could not verify this result belongs to an agent you train.</p><Link href="/training">Return to Training</Link><p><Link href={`/review/${encodeURIComponent(params.runId)}${searchParams?.artifact?`?artifact=${encodeURIComponent(searchParams.artifact)}`:''}`}>Open existing review</Link></p></main>;
   }
   if(legacy&&ownerSlug)redirect(trainingReviewHref(ownerSlug,params.runId,searchParams?.artifact));
   const backHref=trainingSlug?`/training/${encodeURIComponent(trainingSlug)}`:'/review';
