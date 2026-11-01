@@ -31,8 +31,9 @@ const STATE_BADGE: Record<RecordingSummary['state'], string> = {
   failed: 'bg-rose-500/15 text-rose-300',
 };
 
-export default function NewReview({ownerId,trainingSlug,presentation='review',onTrainingUpload,uploadDisabled=false,uploading=false}:{ownerId:string;trainingSlug?:string;presentation?:'review'|'training';onTrainingUpload?:()=>void;uploadDisabled?:boolean;uploading?:boolean}) {
+export default function NewReview({ownerId,trainingSlug,presentation='review',onTrainingUpload,uploadDisabled=false,uploading=false,onRecordingReady}:{ownerId:string;trainingSlug?:string;presentation?:'review'|'training';onTrainingUpload?:()=>void;onRecordingReady?:(recordingId:string)=>void;uploadDisabled?:boolean;uploading?:boolean}) {
   const router = useRouter();
+  const onReadyRef=useRef(onRecordingReady);onReadyRef.current=onRecordingReady;
   const recordingHref=(id:string)=>playerHref(id)+(trainingSlug?`?trainingSlug=${encodeURIComponent(trainingSlug)}`:'');
   // Through a ref, so the refresh callback (and the subscription keyed on it) stays
   // stable even where the router object is not.
@@ -72,7 +73,9 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
       const started = startedRef.current;
       const result=started?listed.recordings.find(r=>r.recordingId===started):null;
       if(result&&presentation==='training'&&['ready','failed','interrupted'].includes(result.state)){
-        startedRef.current=null;setTrainingRecording(result);
+        startedRef.current=null;
+        if(result.state==='ready'){if(onReadyRef.current)onReadyRef.current(result.recordingId);else routerRef.current.push(recordingHref(result.recordingId));}
+        else setTrainingRecording(result);
       }else if(result?.state==='ready'){
         startedRef.current=null;routerRef.current.push(recordingHref(result.recordingId));
       }
@@ -149,7 +152,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
     </div>
     {availability&&availability.state!=='ready'&&<p className="text-xs text-ink-400">{availability.message}</p>}
     <p className="text-[11px] leading-5 text-ink-500" data-testid="record-notice">{RECORD_NOTICE}</p>
-    <Link href={`/review/new?trainingSlug=${encodeURIComponent(trainingSlug||'')}`} className="inline-block text-xs text-ink-400 hover:text-ink-100">Saved recordings</Link>
+    {onRecordingReady?<details className="text-xs text-ink-400"><summary className="cursor-pointer">Saved recordings</summary><ul className="mt-3 space-y-3">{recordings?.map(r=><li key={r.recordingId} className="flex items-center justify-between gap-3"><span>{r.title||'Recording'} · {r.state}</span><button type="button" className="underline underline-offset-4" onClick={()=>onRecordingReady(r.recordingId)}>Open</button></li>)}</ul>{recordings?.length===0&&<p className="mt-3">No recordings yet.</p>}</details>:<Link href={`/review/new?trainingSlug=${encodeURIComponent(trainingSlug||'')}`} className="inline-block text-xs text-ink-400 hover:text-ink-100">Saved recordings</Link>}
     {trainingRecording&&<div role="status" className="text-sm text-ink-300"><p>{trainingRecording.state==='ready'?'Your recording is ready to annotate.':trainingRecording.state==='failed'?failureMessage(trainingRecording.failureReason):'Recording interrupted. Open it to recover the saved portion.'}</p><Link href={recordingHref(trainingRecording.recordingId)} className="mt-2 inline-block underline underline-offset-4">{trainingRecording.state==='ready'?'Annotate recording':'Open recording'}</Link></div>}
     {active&&<p role="status" className="text-xs text-ink-400">{ACTIVE_STATE_LABELS[active.state]}</p>}
     {error&&<p role="alert" className="text-sm text-rose-300">{error}</p>}

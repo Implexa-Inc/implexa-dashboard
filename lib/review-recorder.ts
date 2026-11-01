@@ -689,7 +689,7 @@ export const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startM
 
 /**
  * Append a new draft moment, or refuse (null) when the list is full, the range is
- * empty (start === end — from the bar or from M…M alike), or it is not a valid moment. `momentId` comes from `crypto.randomUUID()` at the call site.
+ * empty without a region (a timeline/M…M mark), or it is not a valid moment. `momentId` comes from `crypto.randomUUID()` at the call site.
  */
 export function addMoment(
   moments: readonly Moment[],
@@ -698,8 +698,8 @@ export function addMoment(
   ids: { momentId: string; createdAt: string },
 ): Moment[] | null {
   if (moments.length >= MAX_MOMENTS) return null;
-  // A new mark needs a span. (A stored zero-length moment is still valid contract data.)
-  if (draft.endMs <= draft.startMs) return null;
+  // A timeline mark needs a span; a picture annotation is an exact point with a region.
+  if (draft.endMs < draft.startMs || draft.endMs === draft.startMs && !draft.region) return null;
   const moment: Moment = { momentId: ids.momentId, startMs: draft.startMs, endMs: draft.endMs, region: draft.region, card: emptyCard(), createdAt: ids.createdAt };
   if (!isMoment(moment, durationMs) || moments.some((m) => m.momentId === moment.momentId)) return null;
   return [...moments, moment].sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
