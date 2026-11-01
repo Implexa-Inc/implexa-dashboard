@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import {useEffect,useId,useRef,useState,type ReactNode} from 'react';
+import {useEffect,useLayoutEffect,useId,useRef,useState,type ReactNode} from 'react';
 import {parsePreviewUrl,requestPreview,revokePreview,previewKind} from '@/lib/review-preview';
 import {teachingFrame,teachingDigest} from '@/lib/training-teaching-draft';
 import type {ReviewArtifact} from '@/lib/review';
@@ -12,10 +12,18 @@ export type TrainingRun={id:string;date:string;status:string;artifact:ReviewArti
 /** Explanations are available to hover, keyboard and touch without filling the page. */
 export function TrainingInfo({label,children}:{label:string;children:ReactNode}){
  const id=useId(),[pinned,setPinned]=useState(false),[hover,setHover]=useState(false);
- const open=pinned||hover;
+ const open=pinned||hover,button=useRef<HTMLButtonElement>(null),tooltip=useRef<HTMLSpanElement>(null);
+ const [position,setPosition]=useState({left:12,top:12});
+ useLayoutEffect(()=>{
+  if(!open)return;
+  const place=()=>{if(!button.current||!tooltip.current)return;const rect=button.current.getBoundingClientRect(),height=tooltip.current.offsetHeight,width=tooltip.current.offsetWidth;
+   setPosition({left:Math.max(12,Math.min(rect.right-width,window.innerWidth-width-12)),top:rect.bottom+8+height>window.innerHeight-12?Math.max(12,rect.top-height-8):rect.bottom+8});};
+  place();window.addEventListener('resize',place);window.addEventListener('scroll',place,true);
+  return()=>{window.removeEventListener('resize',place);window.removeEventListener('scroll',place,true);};
+ },[open]);
  return <span className="relative inline-flex align-middle" onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} onKeyDown={e=>{if(e.key==='Escape'){setPinned(false);setHover(false);}}}>
-  <button type="button" aria-label={label} aria-expanded={open} aria-controls={id} onClick={()=>setPinned(!pinned)} onBlur={e=>{if(!e.currentTarget.parentElement?.contains(e.relatedTarget as Node))setPinned(false);}} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs text-ink-500 hover:text-ink-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">ⓘ</button>
-  <span id={id} role="tooltip" hidden={!open} className="absolute right-0 top-full z-30 mt-2 w-64 max-w-[75vw] rounded-xl border border-ink-700 bg-ink-900 p-4 text-left text-xs font-normal leading-5 text-ink-300 shadow-xl">{children}</span>
+  <button ref={button} type="button" aria-label={label} aria-expanded={open} aria-controls={id} onClick={()=>setPinned(!pinned)} onBlur={e=>{if(!e.currentTarget.parentElement?.contains(e.relatedTarget as Node))setPinned(false);}} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs text-ink-500 hover:text-ink-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">ⓘ</button>
+  <span ref={tooltip} id={id} role="tooltip" hidden={!open} style={position} className="fixed z-50 w-64 max-w-[75vw] rounded-xl border border-ink-700 bg-ink-900 p-4 text-left text-xs font-normal leading-5 text-ink-300 shadow-xl">{children}</span>
  </span>;
 }
 
