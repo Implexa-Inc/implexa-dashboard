@@ -111,3 +111,12 @@ test('learning rows show a concise saved sentence while keeping the complete ori
  assert.match(row.querySelector('summary')?.textContent||'',/Use imagery to explain the relationship/);assert.doesNotMatch(row.querySelector('summary')?.textContent||'',/Specific fonts/);
  assert.match(row.textContent||'',/Specific fonts, colors and positions remain optional/);assert.equal(calls.length,0);
 });
+
+
+test('serving state is optional for old servers but rejects invented pending or mismatched-version status',()=>{
+ const v=value();v.activation={canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:false}};
+ assert.equal(guidedTrainingChanges(v,expected),true);
+ for(const serving of [{mode:'legacy_accepted',candidateDiffers:'false'},{mode:'guessed',candidateDiffers:true},{mode:'snapshot_other_version',candidateDiffers:false}]){
+  v.activation.serving=serving as any;assert.equal(guidedTrainingChanges(v,expected),false);
+ }
+});

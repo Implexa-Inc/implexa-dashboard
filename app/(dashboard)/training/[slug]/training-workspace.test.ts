@@ -63,3 +63,19 @@ test('video thumbnails keep the exact protocol URL and seek only after metadata'
   Object.defineProperty(video,'duration',{value:4});await r.act(()=>video.dispatchEvent(new r.window.Event('loadedmetadata')));assert.equal(video.currentTime,1);
  }finally{r.cleanup();}
 });
+
+
+test('teaching image hover and focus enlarge the verified frame without a second read or summary click',async()=>{
+ const calls:any[]=[],props={token:'local',recordId:'example',recordDigest:'a'.repeat(64),frameSha256:H,alt:'Saved example',expandable:true};
+ const r=await render(component,props,{exportName:'TrainingImage',bridge:{trainingLocal:async(op:string,args:any)=>{calls.push({op,args});return {ok:true,recordId:'example',recordDigest:'a'.repeat(64),image:PNG};}}});
+ try{
+  Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});
+  (r.window as any).IntersectionObserver=class{callback:any;constructor(callback:any){this.callback=callback;}observe(){this.callback([{isIntersecting:true}]);}disconnect(){}};
+  await r.rerender({...props,context:'visible'});await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});
+  const button=r.document.querySelector('button')!;assert.ok(button);assert.equal(r.document.querySelector('[role=tooltip]'),null);
+  await r.act(()=>button.dispatchEvent(new r.window.MouseEvent('mouseover',{bubbles:true})));assert.equal(r.document.querySelector('[role=tooltip] img')?.getAttribute('src'),PNG);
+  const click=new r.window.MouseEvent('click',{bubbles:true,cancelable:true});await r.act(()=>button.dispatchEvent(click));assert.equal(click.defaultPrevented,true);
+  await r.act(()=>button.dispatchEvent(new r.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));assert.equal(r.document.querySelector('[role=tooltip]'),null);
+  assert.equal(calls.length,1);assert.equal(r.calls.push.length,0);
+ }finally{r.cleanup();}
+});

@@ -26,7 +26,7 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
 import { listMyWorkflows, workflowRunInputs } from '@/lib/workflow-catalog';
-import { getAgentDetail } from '@/lib/agent-detail';
+import { getAgentDetail, agentActionContext } from '@/lib/agent-detail';
 import { remoteSafety } from '@/lib/remote-safety';
 import { loadInboxItems } from '@/lib/inbox';
 import { desktopAppLive, appActivateUrl } from '@/lib/app-links';
@@ -54,7 +54,6 @@ import AgentUpdateGate, { ProposedAgentUpdateGate } from '../../_components/agen
 import ReviseLandedPoller from '../../_components/revise-landed-poller';
 import StepRow from '../../_components/step-row';
 import ExtendChain from '../../_components/extend-chain';
-import { isRevisePending, newestVersionAt } from '@/lib/revise-pending';
 import GradeBadge from '../../_components/grade-badge';
 import { isPausableRoutine } from '@/lib/schedule-trigger';
 import { getAgentResume } from '@/lib/agent-discovery';
@@ -284,30 +283,7 @@ export default async function WorkflowDetailPage({
   // "Running". RLS-scoped; bounded to a 12h window so a stuck/abandoned request
   // doesn't pin the button forever. Best-effort — any error just falls back to
   // the normal Run-now button.
-  let inFlight: 'queued' | 'running' | null = null;
-  // A queued/in-progress EDIT (kind='revise') is tracked separately from a run:
-  // it's a rewrite of the agent's steps, not a run — so it must NOT read as
-  // "Queued ✓ / Running" on Run now, and while it's pending Run now is blocked
-  // (running the OLD version mid-rewrite is a footgun). Cleared once the user's
-  // Claude drains the revise request (status → done) and a new version lands.
-  // SELF-HEALING (2026-07-16): the open-request check is only the TRIGGER — it's
-  // AND-gated with "no version landed since the ask" (isRevisePending). A session
-  // that lands the version but skips resolve_run_request leaves the request stuck
-  // at 'consumed' forever (a revise has no skill_run, so no server backstop closes
-  // it); without the gate that pinned "Updating…" indefinitely. workflow.versions
-  // is already in scope from the detail read — no extra round-trip.
-  let revisePending = false;
-  // The envelope carries the RAW rows (same 12h window / kinds / statuses the
-  // page used to query itself); the derivation — the truth — stays here,
-  // unchanged. A missing lifecycle section falls back to the Run-now defaults,
-  // exactly like the old catch block.
-  if (detail!.lifecycle) {
-    const reqRows = detail!.lifecycle.requests;
-    revisePending = isRevisePending(reqRows, newestVersionAt(workflow.versions));
-    const runReq = reqRows.find((r) => r.kind === 'run' || r.kind === 'continue');
-    if (runReq) inFlight = runReq.status === 'consumed' ? 'running' : 'queued';
-    if (!inFlight && detail!.lifecycle.runningRun) inFlight = 'running';
-  }
+  const {inFlight,revisePending}=agentActionContext(detailResult);
 
   // ── tab panels (server-rendered, handed to the client tab shell) ──
 

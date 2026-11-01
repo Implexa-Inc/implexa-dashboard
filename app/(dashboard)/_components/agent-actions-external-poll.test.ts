@@ -77,12 +77,12 @@ test('a run-request started from THIS component still defers to its own dedicate
 });
 
 const VERSION = '33333333-3333-4333-8333-333333333333';
-async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, statusUnavailable = false,trainingTest:{testPreparationId:string;preparationDigest:string}|null=null) {
+async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, statusUnavailable = false,trainingTest:{testPreparationId:string;preparationDigest:string}|null=null,extra:Record<string,unknown>={}) {
   return render('agent-actions.tsx', {
     slug: 'video-agent', isActive: true, inFlight, statusUnavailable,trainingTest,
     workflowVersionId: VERSION, inputContractDigest: 'c'.repeat(64),
     inputContract: { version: 1, fields: [{ key: 'brief', label: 'Brief', kind: 'text',
-      cardinality: 'one', required: true, order: 1 }] },
+      cardinality: 'one', required: true, order: 1 }] },...extra,
   }, { backend: path => {
     if (path.startsWith('/api/v2/agent-training/agents/')) {const value={ ok: true, home: {
       agent: { currentVersionId: VERSION },
@@ -92,8 +92,8 @@ async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, 
         scope: 'workflow_version_quality_references', workflowVersionId: VERSION,
         classified: false, requiredPairs: [], fulfilledPairs: [], missingPairs: [],
         readiness: 'not_applicable', reason: null },
-    } };return trainingTest?{ok:true,contractVersion:'prepared-agent-training-preflight.v1',agentFamilyId:'11111111-1111-4111-8111-111111111111',workflowVersionId:VERSION,
-      managerTrainingRequirements:value.home.managerTrainingRequirements,trainingTest}:value;}
+    } };const query=new URL(path,'https://fixture.invalid').searchParams;const selected=query.has('testPreparationId')?{testPreparationId:query.get('testPreparationId'),preparationDigest:query.get('preparationDigest')}:trainingTest;return selected?{ok:true,contractVersion:'prepared-agent-training-preflight.v1',agentFamilyId:'11111111-1111-4111-8111-111111111111',workflowVersionId:VERSION,
+      managerTrainingRequirements:value.home.managerTrainingRequirements,trainingTest:selected}:value;}
     if (path.includes('/setup')) return { schema: [{ key: 'format', question: 'Format', kind: 'text', optional: true }],
       answers: { format: '16:9' }, note: '', runInputDefaults: { brief: 'same preserved input' } };
     if (path.includes('/run-precheck')) return { ok: true, fingerprint: 'same-fingerprint',
@@ -167,4 +167,42 @@ test('unreadable lifecycle state still withholds Run another', async () => {
   const r = await renderAnother('running', false, true);
   try { assert.equal(r.queryByText('Run another…'), null); assert.ok(r.getByText('Status unavailable')); }
   finally { r.cleanup(); }
+});
+
+
+test('Training opens the same Run dialog in place and cannot switch a prepared binding under it',async()=>{
+ const binding={testPreparationId:'11111111-1111-4111-8111-111111111111',preparationDigest:'b'.repeat(64)};let queued=0;
+ const props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,inputContractDigest:'c'.repeat(64),inputContract:{version:1,fields:[{key:'brief',label:'Brief',kind:'text',cardinality:'one',required:true,order:1}]},presentation:'training',onQueued:()=>queued++,trainingChoices:{pending:true,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
+ const r=await renderAnother('running',false,false,null,props);
+ try{
+  assert.ok(r.getByText('Run with new training (pending)'));assert.ok(r.getByText('Run with latest saved learnings'));
+  assert.equal(r.calls.backend.some(c=>c.path.includes('/agent-training/agents/')),false,'rendering starts nothing');
+  await r.rerender({...props,runRequest:{nonce:'pending',binding}});
+  assert.ok(r.getByText('Save & run'));assert.equal(r.calls.push.length,0);
+  await r.rerender({...props,runRequest:{nonce:'switch-under-open-dialog',binding:null}});
+  await r.click(r.getByText('Save & run'));
+  const posts=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(posts.length,1);
+  assert.deepEqual(JSON.parse(JSON.stringify((posts[0].init as any).body.trainingTest)),binding);
+  assert.equal(r.calls.push.length,0,'queue confirmation stays on Training');assert.equal(queued,1);
+ }finally{r.cleanup();}
+});
+
+test('controlled Training open cannot bypass unavailable, inactive, updating or required-setup gates',async()=>{
+ for(const gate of [{statusUnavailable:true},{isActive:false},{revisePending:true},{blockingQuestions:1}]){
+  const r=await renderAnother('running',false,false,null,{presentation:'training',...gate,runRequest:{nonce:'explicit',binding:null}});
+  try{assert.equal(r.calls.backend.some(c=>c.path.includes('/agent-training/agents/')),false);assert.equal(r.document.querySelector('[role=dialog]'),null);assert.equal(r.calls.push.length,0);}finally{r.cleanup();}
+ }
+});
+
+test('Training run choices reflect only the supplied serving state and saved mode clears a cancelled candidate',async()=>{
+ const binding={testPreparationId:'11111111-1111-4111-8111-111111111111',preparationDigest:'b'.repeat(64)};
+ const props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,inputContractDigest:'c'.repeat(64),inputContract:{version:1,fields:[{key:'brief',label:'Brief',kind:'text',cardinality:'one',required:true,order:1}]},presentation:'training',trainingChoices:{pending:false,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
+ const r=await renderAnother('running',false,false,null,props);
+ try{
+  assert.equal(r.queryByText('Run with new training (pending)'),null);assert.ok(r.getByText('Run with latest saved learnings'));
+  await r.rerender({...props,runRequest:{nonce:'candidate',binding}});await r.click(r.document.querySelector('[role=dialog] [aria-label=Close]')!);
+  await r.rerender({...props,runRequest:{nonce:'saved',binding:null}});await r.click(r.getByText('Save & run'));
+  const posts=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(posts.length,1);assert.equal((posts[0].init as any).body.trainingTest,undefined);
+  const reads=r.calls.backend.filter(c=>c.path.includes('/agent-training/agents/'));assert.equal(reads.length,2);assert.equal(reads[1].path.includes('testPreparationId'),false);
+ }finally{r.cleanup();}
 });

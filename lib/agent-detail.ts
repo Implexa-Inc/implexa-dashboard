@@ -24,6 +24,7 @@
 
 // Relative, alias-free imports on purpose: node:test resolves no '@/' alias,
 // and this reader must stay unit-testable (lib/agent-detail.test.ts).
+import { isRevisePending, newestVersionAt } from './revise-pending.ts';
 import { mapWorkflowDetail, type WorkflowDetail } from './workflow-catalog.ts';
 import { mapActivationChecklist } from './activation-core.ts';
 import type { ActivationChecklist } from './activation';
@@ -240,3 +241,17 @@ export async function getAgentDetail(
     return { status: 'unavailable' };
   }
 }
+
+/** Shared read-only props for the existing Run dialog on Agent and Training. */
+export function agentActionContext(result:AgentDetailResult){
+ const d=result.status==='ready'?result.detail:null,w=d?.workflow,c=d?.checklist;
+ const run=d?.lifecycle?.requests.find(r=>r.kind==='run'||r.kind==='continue');
+ return {slug:w?.slug||'',name:w?.name,isActive:c?.state==='active',requiresLocal:c?.requiresLocal,source:w?.source||'generated',
+  nextRunAt:c?.nextRunAt,pendingQuestions:c?.pendingQuestions,blockingQuestions:c?.blockingQuestions,
+  inFlight:(run?(run.status==='consumed'?'running':'queued'):d?.lifecycle?.runningRun?'running':null) as 'queued'|'running'|null,
+  revisePending:isRevisePending(d?.lifecycle?.requests,newestVersionAt(w?.versions)),
+  statusUnavailable:!d||['activation','connections','lifecycle'].some(key=>d.isUnavailable(key as AgentSection)),
+  workflowVersionId:w?.workflow_version_id||null,activeVersionNumber:w?.version||null,inputContract:w?.input_contract||null,inputContractDigest:w?.input_contract_digest||null,
+  pendingUpdate:w?.update_available?{version:w.update_available.version,state:w.update_available.state}:null};
+}
+export type AgentActionContext=ReturnType<typeof agentActionContext>;

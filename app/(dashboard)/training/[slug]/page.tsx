@@ -1,7 +1,7 @@
 import {createClient} from '@/lib/supabase/server';
 import {redirect} from 'next/navigation';
 import TrainingSource from './training-source';
-import {getAgentDetail} from '@/lib/agent-detail';
+import {getAgentDetail,agentActionContext} from '@/lib/agent-detail';
 import {getReviewPacket} from '@/lib/review';
 import type {TrainingRun} from './training-workspace';
 export default async function Page({params,searchParams}:{params:{slug:string};searchParams?:{installationId?:string;forkId?:string;forkParentVersionId?:string;recordingId?:string;momentId?:string}}) {
@@ -25,5 +25,5 @@ export default async function Page({params,searchParams}:{params:{slug:string};s
   const artifact=packet.live&&packet.run?.id===run.id&&packet.run.slug===params.slug?packet.artifacts.find(a=>a.runId===run.id&&a.role==='final_output'&&a.status==='validated'&&a.sha256&&/\.(mp4|png|jpe?g|webp)$/i.test(a.relativePath))||null:null;
   return {id:run.id,date:run.ran_at,status:run.state.label,artifact};
  }));
- return <TrainingSource key={`${params.slug}:${installationId||'owner'}:${user.id}`} slug={params.slug} ownerId={user.id} lastRunId={recentRuns[0]?.id} recentRuns={recentRuns} runsUnavailable={runsUnavailable} recordingSelection={recordingId?{recordingId,momentId:momentId||null}:undefined} installationId={installationId} forkPermission={forkPermission}/>;
+ return <TrainingSource key={`${params.slug}:${installationId||'owner'}:${user.id}`} slug={params.slug} ownerId={user.id} runContext={installationId?undefined:agentActionContext(detail||{status:'unavailable'})} lastRunId={recentRuns[0]?.id} recentRuns={recentRuns} runsUnavailable={runsUnavailable} recordingSelection={recordingId?{recordingId,momentId:momentId||null}:undefined} installationId={installationId} forkPermission={forkPermission}/>;
 }
