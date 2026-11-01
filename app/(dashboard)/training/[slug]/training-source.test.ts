@@ -1802,3 +1802,60 @@ test('Upload on a recording handoff still opens a fresh file, not the old record
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,recordingSelection:{recordingId:SOURCE_ID,momentId:null}},{bridge:h.bridge});
  try{await chooseDirectUpload(r);assert.equal(h.calls.filter(c=>c.operation==='select').length,1);assert.equal(h.calls.some(c=>c.operation==='selectRecording'),false);assert.equal(r.calls.push.length,0);}finally{r.cleanup();}
 });
+
+test('cancelled or rejected upload preserves a draft even after confirming discard',async()=>{
+ for(const reason of ['selection_cancelled','training_source_unavailable']){
+  const h=harness(),original=h.bridge.trainingLocal;
+  h.bridge.trainingLocal=async(op,args)=>op==='select'?{ok:false,reason}:original(op,args);
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+  try{
+   await r.click(r.getByText('Annotate source'));await fillManualTeaching(r);
+   const annotation=r.getByText('What should this demonstration teach?').closest('label')!.querySelector('textarea')!;
+   await setTextarea(r,annotation,'Keep this unfinished annotation.');
+   await r.click(r.getByText('Upload and annotate Video/Image'));
+   const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;
+   for(const checkbox of Array.from(dialog.querySelectorAll('input[type=checkbox]')))await r.click(checkbox);
+   await r.click(r.getByText('Choose video or image'));
+   assert.equal(annotation.value,'Keep this unfinished annotation.');
+   assert.equal((r.getByText('What was chosen').closest('label')!.querySelector('textarea') as HTMLTextAreaElement).value,'Spatial illustration');
+   assert.equal(r.calls.push.length,0);assert.equal(h.calls.some(c=>c.operation==='preview'),false);
+  }finally{r.cleanup();}
+ }
+});
+
+test('recording handoff cannot overwrite the current source draft when source switching is blocked',async()=>{
+ const h=harness(),original=h.bridge.trainingLocal,other={...source(),sourceId:RECORD,token:RECORD};
+ Object.assign(h.bridge,{trainingRecordingLibraryContractVersion:'1'});
+ h.bridge.trainingLocal=async(op,args)=>{
+  if(op==='selectRecording')return {ok:true,sourceId:RECORD,token:RECORD,recordingDraft:{recordingId:RECORD,momentId:null,timeMs:2500,rawAnnotation:'Notes for the other recording.'}};
+  const result=await original(op,args);if(op==='list')result.sources=[...(result.sources||[]),other];return result;
+ };
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,recordingSelection:{recordingId:RECORD,momentId:null}},{bridge:h.bridge});
+ try{
+  await r.click(Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Annotate source')!);await fillManualTeaching(r);
+  const annotation=r.getByText('What should this demonstration teach?').closest('label')!.querySelector('textarea')!;
+  await setTextarea(r,annotation,'Source A draft.');
+  const panel=r.document.querySelector('#training-demonstration')!;
+  await r.click(panel.querySelector('input[type=checkbox]')!);await r.click(r.getByText('Use selected recording'));
+  assert.match(r.text(),/Save or discard your current annotation/);assert.equal(annotation.value,'Source A draft.');
+  await r.click(r.getByText('Preview this exact frame'));
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.filter(c=>c.operation==='preview').map(c=>c.args))),[{token:TOKEN,timeMs:0}]);
+ }finally{r.cleanup();}
+});
+
+test('a confirmed source replacement clears its old draft but preserves the recorded question answer',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{
+  const requests=questionTransport(r,h.calls);await prepareAnswer(r);
+  await r.click(r.getByText('Annotate source'));await fillManualTeaching(r);
+  await r.click(r.getByText('Upload and annotate Video/Image'));
+  const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;
+  for(const checkbox of Array.from(dialog.querySelectorAll('input[type=checkbox]')))await r.click(checkbox);
+  await r.click(r.getByText('Choose video or image'));
+  assert.equal((r.getByText('What was chosen').closest('label')!.querySelector('textarea') as HTMLTextAreaElement).value,'');
+  assert.match(r.text(),/Use the visual example to explain the comparison clearly/);
+  await fillManualTeaching(r);await r.click(r.getByText('Save decision draft'));
+  assert.equal(requests.find(x=>x.body)?.body?.rawAnswer,'Use the visual example to explain the comparison clearly.');
+  assert.equal(h.calls.some(c=>c.operation==='accept'),false);
+ }finally{r.cleanup();}
+});

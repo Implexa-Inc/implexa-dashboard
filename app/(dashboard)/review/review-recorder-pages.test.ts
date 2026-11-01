@@ -657,8 +657,10 @@ test('Training toolbar calls record directly and offers the finished annotator w
  }finally{page.cleanup();}
 });
 test('Training recording failures remain visible with a recovery destination',async()=>{
+ for(const state of ['failed','interrupted'] as const){
  let started=false;
- const b=bridge(op=>op==='list'?{ok:true,library,recordings:started?[summary({recordingId:NEW,state:'failed',failureReason:'finalize_failed',durationMs:null})]:[]}:op==='status'?{ok:true,active:null}:op==='start'?(started=true,{ok:true,recordingId:NEW}):{ok:true});
+ const b=bridge(op=>op==='list'?{ok:true,library,recordings:started?[summary({recordingId:NEW,state,failureReason:state==='failed'?'finalize_failed':null,durationMs:null})]:[]}:op==='status'?{ok:true,active:null}:op==='start'?(started=true,{ok:true,recordingId:NEW}):{ok:true});
  const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training'},{bridge:b.value});
- try{await page.click(button(page,'Record your training')!);assert.match(page.text(),new RegExp(FAILURE_REASON_MESSAGES.finalize_failed));assert.equal(page.calls.push.length,0);assert.equal(page.document.querySelector('a[href="/review/recordings/'+NEW+'?trainingSlug=trained-video"]')?.textContent,'Open recording');}finally{page.cleanup();}
+ try{await page.click(button(page,'Record your training')!);assert.match(page.text(),state==='failed'?new RegExp(FAILURE_REASON_MESSAGES.finalize_failed):/Recording interrupted/);assert.equal(page.calls.push.length,0);assert.equal(page.document.querySelector('a[href="/review/recordings/'+NEW+'?trainingSlug=trained-video"]')?.textContent,'Open recording');}finally{page.cleanup();}
+ }
 });

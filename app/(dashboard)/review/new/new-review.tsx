@@ -145,7 +145,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
     <div className="flex flex-wrap items-center gap-3">
       <button type="button" disabled={uploadDisabled||uploading} onClick={onTrainingUpload} className="rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 disabled:opacity-40">{uploading?'Opening your example…':'Upload and annotate Video/Image'}</button>
       <button type="button" disabled={!ready||!ownerId||busy('record')||(recorderBusy&&active?.state!=='permission_required')} onClick={()=>void record()} className="rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 disabled:opacity-40">{busy('record')?'Opening recorder…':active?.state==='permission_required'?'Open permission setup':'Record your training'}</button>
-      <TrainingInfo label="About multimodal training">Select a file you have permission to use as a private training source. Originals stay on this Mac. Recording uses your screen and microphone; macOS asks for access when needed. Analysis and including a suggested teaching keep their existing review steps.</TrainingInfo>
+      <TrainingInfo label="About multimodal training">Select a file you created as a private training source. Originals stay on this Mac. Recording uses your screen and microphone; macOS asks for access when needed. Analysis and including a suggested teaching keep their existing review steps.</TrainingInfo>
     </div>
     {availability&&availability.state!=='ready'&&<p className="text-xs text-ink-400">{availability.message}</p>}
     <p className="text-[11px] leading-5 text-ink-500" data-testid="record-notice">{RECORD_NOTICE}</p>
@@ -153,6 +153,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
     {trainingRecording&&<div role="status" className="text-sm text-ink-300"><p>{trainingRecording.state==='ready'?'Your recording is ready to annotate.':trainingRecording.state==='failed'?failureMessage(trainingRecording.failureReason):'Recording interrupted. Open it to recover the saved portion.'}</p><Link href={recordingHref(trainingRecording.recordingId)} className="mt-2 inline-block underline underline-offset-4">{trainingRecording.state==='ready'?'Annotate recording':'Open recording'}</Link></div>}
     {active&&<p role="status" className="text-xs text-ink-400">{ACTIVE_STATE_LABELS[active.state]}</p>}
     {error&&<p role="alert" className="text-sm text-rose-300">{error}</p>}
+    {loadError&&<p role="status" className="text-sm text-amber-300">{loadError}</p>}
   </section>;
 
   return (
