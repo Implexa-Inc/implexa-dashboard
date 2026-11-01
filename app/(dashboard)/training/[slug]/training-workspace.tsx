@@ -52,6 +52,7 @@ export function TrainingImage({token,recordId,recordDigest,frameSha256,alt,enabl
  const previewId=useId();
  const [enlarged,setEnlarged]=useState(false),[previewPosition,setPreviewPosition]=useState({left:16,top:16,width:480});
  const [frame,setFrame]=useState<{identity:string;image:string}|null>(null);
+ useEffect(()=>{if(!enabled)setEnlarged(false);},[enabled,token,recordId,recordDigest,frameSha256,context]);
  const identity=`${context}:${token}:${recordId}:${recordDigest}:${frameSha256}`;
  const marker=useRef<HTMLSpanElement>(null),attempted=useRef<string|null>(null),[visible,setVisible]=useState(false);
  useEffect(()=>{

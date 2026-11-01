@@ -76,6 +76,8 @@ test('teaching image hover and focus enlarge the verified frame without a second
   await r.act(()=>button.dispatchEvent(new r.window.MouseEvent('mouseover',{bubbles:true})));assert.equal(r.document.querySelector('[role=tooltip] img')?.getAttribute('src'),PNG);
   const click=new r.window.MouseEvent('click',{bubbles:true,cancelable:true});await r.act(()=>button.dispatchEvent(click));assert.equal(click.defaultPrevented,true);
   await r.act(()=>button.dispatchEvent(new r.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));assert.equal(r.document.querySelector('[role=tooltip]'),null);
+  await r.act(()=>button.dispatchEvent(new r.window.MouseEvent('mouseover',{bubbles:true})));
+  await r.rerender({...props,context:'visible',enabled:false});await r.rerender({...props,context:'visible',enabled:true});assert.equal(r.document.querySelector('[role=tooltip]'),null,'busy cannot restore a stale hover');
   assert.equal(calls.length,1);assert.equal(r.calls.push.length,0);
  }finally{r.cleanup();}
 });

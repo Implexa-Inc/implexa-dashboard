@@ -52,6 +52,7 @@ import {
   type ManagerTrainingRunPreflight,
   type PreparedTrainingTest,
 } from '@/lib/manager-training-run-preflight';
+import {TrainingInfo} from '../training/[slug]/training-workspace';
 import { trainingStageLabel } from '@/lib/training-local-ingress';
 
 type RunState = 'idle' | 'queuing' | 'preparing' | 'queued' | 'running' | 'done' | 'error';
@@ -146,12 +147,14 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   pendingUpdate?: { version: number; state: string } | null;
   trainingTest?:PreparedTrainingTest|null;
   presentation?:'agent'|'training';
-  trainingChoices?:{pending:boolean|null;canTest:boolean;delivered:boolean;savedAvailable:boolean;busy:boolean;onPending:()=>void;onSaved:()=>void};
+  trainingChoices?:{pendingUnknown?:boolean;pending:boolean|null;canTest:boolean;delivered:boolean;savedAvailable:boolean;busy:boolean;onPending:()=>void;onSaved:()=>void};
   runRequest?:{nonce:string;binding:PreparedTrainingTest|null}|null;
   onQueued?:()=>void;
 }) {
   const [acceptedTrainingTest,setAcceptedTrainingTest]=useState<PreparedTrainingTest|null>(null);
   const trainingTest=presentation==='training'?acceptedTrainingTest:initialTrainingTest;
+  const [trainingOpening,setTrainingOpening]=useState(false);
+  const trainingOpeningRef=useRef(false);
   const handledTrainingRequest=useRef<string|null>(null);
   // ONE gate expression. Optional preferences never stop a run.
   const blocking = blockingQuestions ?? pendingQuestions;
@@ -294,13 +297,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const observingOpenRun = !requestId.current && (state === 'queued' || state === 'running');
   const runActionBusy = state === 'queuing'
     || (!!requestId.current && (state === 'queued' || state === 'running'));
-  const trainingEntryBusy=trainingChecking||runActionBusy||state==='preparing'||state==='error'||showSetupModal||showRunModal||setupSaving||!!dupe||!!capCard||!!setupCard||!!versionRefusal||!!trainingGate||!!bundleRefusal;
+  const trainingEntryBusy=trainingOpening||trainingChecking||runActionBusy||state==='preparing'||showSetupModal||showRunModal||setupSaving||!!dupe||!!capCard||!!setupCard||!!versionRefusal||!!trainingGate||!!bundleRefusal;
   useEffect(()=>{
     if(presentation!=='training'||!runRequest||handledTrainingRequest.current===runRequest.nonce)return;
     handledTrainingRequest.current=runRequest.nonce;
-    if(trainingEntryBusy||trainingChoices?.busy||statusUnavailable||!isActive||revisePending||blocking>0)return;
-    setAcceptedTrainingTest(runRequest.binding);
-    void runNow(runRequest.binding);
+    if(trainingOpeningRef.current||trainingEntryBusy||trainingChoices?.busy||statusUnavailable||!isActive||revisePending||blocking>0)return;
+    trainingOpeningRef.current=true;setTrainingOpening(true);setAcceptedTrainingTest(runRequest.binding);
+    void runNow(runRequest.binding).catch(error=>setMsg(error instanceof Error?error.message:'Could not open the run form.')).finally(()=>{trainingOpeningRef.current=false;setTrainingOpening(false);});
     // One explicit request, never an automatic launch on a readiness change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[runRequest?.nonce]);
@@ -471,13 +474,17 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       if (!requestId.current) return;
       if (Date.now() - pollStart.current > POLL_MAX_MS) {
         clearInterval(t);
-        setMsg('Still queued. It runs the next time Claude Code is open; the result lands in your inbox.');
+        if(presentation==='training'){requestId.current=null;setMsg('Completion is not yet confirmed here. The run remains recorded in Work.');onQueued?.();}
+        else setMsg('Still queued. It runs the next time Claude Code is open; the result lands in your inbox.');
         return;
       }
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const res = await callBackend(`/api/v2/me/run-requests/${requestId.current}`, { jwt: session?.access_token });
+        const polledRequestId=requestId.current;
+        const res = await callBackend(`/api/v2/me/run-requests/${polledRequestId}`, { jwt: session?.access_token });
+        if(requestId.current!==polledRequestId)return;
         const status = res?.request?.status;
+        if(presentation==='training'&&['done','cancelled','failed'].includes(status)){clearInterval(t);requestId.current=null;setState('idle');setMsg(status==='done'?'Run finished. Saved training status refreshed.':status==='failed'?'The run needs attention. Its history is preserved.':'The run was cancelled.');onQueued?.();return;}
         if (status === 'consumed') { setState('running'); setMsg('Running in Claude Code…'); }
         else if (status === 'done') { clearInterval(t); setState('done'); setMsg(''); }
         else if (status === 'cancelled') { clearInterval(t); setState('error'); setMsg('The run was cancelled.'); }
@@ -523,6 +530,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         if (++misses >= 2) {
           setState('idle');
           setMsg('');
+          if(presentation==='training')onQueued?.();
         }
       }
     });
@@ -1205,7 +1213,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         >
           ✎ Updating…
         </button>
-      ) : state === 'done' ? (
+      ) : state === 'done' && presentation!=='training' ? (
         <Link href="/inbox" className="btn-success text-sm px-4 py-2">
           ✓ Done — view result
         </Link>
@@ -1220,9 +1228,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           Answer {blocking} question{blocking === 1 ? '' : 's'} to run ↑
         </button>
       ) : presentation==='training'&&trainingChoices ? (<div className="flex flex-wrap items-center gap-3">
-        {trainingChoices.pending===true&&<><button type="button" className="btn-primary disabled:opacity-40" disabled={trainingEntryBusy||trainingChoices.busy||(!trainingChoices.delivered&&!trainingChoices.canTest)} onClick={trainingChoices.onPending}>{trainingChoices.delivered?'Review tested training':'Run with new training (pending)'}</button><span title="Until you run your agent on pending new training, it cannot be applied to the live agent. A delivered test can then be activated separately." className="cursor-help text-ink-500" tabIndex={0}>ⓘ</span></>}
+        {trainingChoices.pending===true&&<><button type="button" className="btn-primary disabled:opacity-40" disabled={trainingEntryBusy||trainingChoices.busy||(!trainingChoices.delivered&&!trainingChoices.canTest)} onClick={trainingChoices.onPending}>{trainingChoices.delivered?'Review tested training':'Run with new training (pending)'}</button><TrainingInfo label="About pending training">Until you run your agent on pending new training, it cannot be applied to the live agent. A delivered test can then be activated separately.</TrainingInfo></>}
         <button type="button" className="btn-success disabled:opacity-40" disabled={trainingEntryBusy||trainingChoices.busy||!trainingChoices.savedAvailable} onClick={trainingChoices.onSaved}>Run with latest saved learnings</button>
-        {trainingChoices.pending===null&&<span className="text-xs text-ink-500">Pending training status unavailable.</span>}
+        {trainingChoices.pending===null&&trainingChoices.pendingUnknown&&<span className="text-xs text-ink-500">Pending training status unavailable.</span>}
         {!trainingChoices.savedAvailable&&<span className="text-xs text-ink-500">Live training belongs to an earlier agent version. Review the pending update first.</span>}
       </div>) : (
         <button
@@ -1409,12 +1417,12 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           an on-demand Run now fires as a separate one-time task, so that page
           shows the (often paused) schedule with a "Skipped" cron, which reads as
           "broken" (founder hit this). */}
-      {(state === 'queued' || state === 'running') && (
+      {presentation!=='training' && (state === 'queued' || state === 'running') && (
         <Link
           href="/workflows"
           className={`text-[11px] text-brand-500 hover:underline ${align === 'end' ? 'text-right' : 'text-left'}`}
         >
-          {presentation==='training'?'Back to Training':'Track it under Active Agents →'}
+          Track it under Active Agents →
         </Link>
       )}
       {/* When does it run next (scheduled agents), grey + small. */}
@@ -1456,7 +1464,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           onClick={() => { setShowRunModal(false); if(presentation==='training')onQueued?.();else router.push('/workflows'); }}
           className="btn-success text-sm px-5 py-2"
         >
-          Track it under Active Agents →
+          {presentation==='training'?'Back to Training':'Track it under Active Agents →'}
         </button>
       </div>
     </Modal>

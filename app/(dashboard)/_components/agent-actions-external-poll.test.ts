@@ -77,7 +77,7 @@ test('a run-request started from THIS component still defers to its own dedicate
 });
 
 const VERSION = '33333333-3333-4333-8333-333333333333';
-async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, statusUnavailable = false,trainingTest:{testPreparationId:string;preparationDigest:string}|null=null,extra:Record<string,unknown>={}) {
+async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, statusUnavailable = false,trainingTest:{testPreparationId:string;preparationDigest:string}|null=null,extra:Record<string,unknown>={},control:{readStatus?:()=>string;loadSetup?:()=>unknown}={}) {
   return render('agent-actions.tsx', {
     slug: 'video-agent', isActive: true, inFlight, statusUnavailable,trainingTest,
     workflowVersionId: VERSION, inputContractDigest: 'c'.repeat(64),
@@ -94,6 +94,8 @@ async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, 
         readiness: 'not_applicable', reason: null },
     } };const query=new URL(path,'https://fixture.invalid').searchParams;const selected=query.has('testPreparationId')?{testPreparationId:query.get('testPreparationId'),preparationDigest:query.get('preparationDigest')}:trainingTest;return selected?{ok:true,contractVersion:'prepared-agent-training-preflight.v1',agentFamilyId:'11111111-1111-4111-8111-111111111111',workflowVersionId:VERSION,
       managerTrainingRequirements:value.home.managerTrainingRequirements,trainingTest:selected}:value;}
+    if (path.includes('/setup')&&control.loadSetup)return control.loadSetup();
+    if (path==='/api/v2/me/run-requests/fresh-request')return {request:{status:control.readStatus?.()||'pending'}};
     if (path.includes('/setup')) return { schema: [{ key: 'format', question: 'Format', kind: 'text', optional: true }],
       answers: { format: '16:9' }, note: '', runInputDefaults: { brief: 'same preserved input' } };
     if (path.includes('/run-precheck')) return { ok: true, fingerprint: 'same-fingerprint',
@@ -204,5 +206,36 @@ test('Training run choices reflect only the supplied serving state and saved mod
   await r.rerender({...props,runRequest:{nonce:'saved',binding:null}});await r.click(r.getByText('Save & run'));
   const posts=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(posts.length,1);assert.equal((posts[0].init as any).body.trainingTest,undefined);
   const reads=r.calls.backend.filter(c=>c.path.includes('/agent-training/agents/'));assert.equal(reads.length,2);assert.equal(reads[1].path.includes('testPreparationId'),false);
+ }finally{r.cleanup();}
+});
+
+
+test('Training refreshes terminal or long-running test status and frees its local controls without asserting completion',async()=>{
+ for(const outcome of ['done','cancelled','failed','poll_cap']){
+  let refreshed=0,tick:()=>Promise<void>=async()=>{};
+  const props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,inputContractDigest:'c'.repeat(64),inputContract:{version:1,fields:[{key:'brief',label:'Brief',kind:'text',cardinality:'one',required:true,order:1}]},presentation:'training',onQueued:()=>refreshed++,trainingChoices:{pending:true,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
+  const r=await renderAnother('running',false,false,null,props,{readStatus:()=>outcome});
+  try{
+   r.window.setInterval=((f:()=>Promise<void>)=>{tick=f;return 123;}) as any;
+   await r.rerender({...props,runRequest:{nonce:outcome,binding:null}});await r.click(r.getByText('Save & run'));await r.click(r.getByText('Back to Training'));
+   const before=refreshed;if(outcome==='poll_cap'){const now=r.window.Date.now();r.window.Date.now=()=>now+301000;}
+   await r.act(()=>tick());assert.equal(refreshed,before+1);
+   assert.equal((r.getByText('Run with latest saved learnings') as HTMLButtonElement).disabled,false);
+   assert.equal(r.calls.push.length,0);assert.equal(r.queryByText('Done — view result'),null);
+   if(outcome==='poll_cap')assert.match(r.text(),/Completion is not yet confirmed/);
+  }finally{r.cleanup();}
+ }
+});
+
+test('Training cannot change its binding while saved inputs are still loading',async()=>{
+ let release:(v:any)=>void=()=>{};
+ const binding={testPreparationId:'11111111-1111-4111-8111-111111111111',preparationDigest:'b'.repeat(64)},props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,inputContractDigest:'c'.repeat(64),inputContract:{version:1,fields:[{key:'brief',label:'Brief',kind:'text',cardinality:'one',required:true,order:1}]},presentation:'training',trainingChoices:{pending:true,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
+ const r=await renderAnother('running',false,false,null,props,{loadSetup:()=>new Promise(resolve=>{release=resolve;})});
+ try{
+  await r.rerender({...props,runRequest:{nonce:'candidate',binding}});
+  await r.rerender({...props,runRequest:{nonce:'saved-during-load',binding:null}});
+  await r.act(()=>release({schema:[],answers:{},note:'',runInputDefaults:{brief:'same preserved input'}}));
+  await r.click(r.getByText('▶ Run now'));
+  const posts=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(posts.length,1);assert.deepEqual(JSON.parse(JSON.stringify((posts[0].init as any).body.trainingTest)),binding);
  }finally{r.cleanup();}
 });
