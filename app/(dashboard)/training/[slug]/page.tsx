@@ -5,9 +5,9 @@ import {getAgentDetail} from '@/lib/agent-detail';
 import {getReviewPacket} from '@/lib/review';
 import type {TrainingRun} from './training-workspace';
 export default async function Page({params,searchParams}:{params:{slug:string};searchParams?:{installationId?:string;forkId?:string;forkParentVersionId?:string;recordingId?:string;momentId?:string}}) {
- const {data:{session}}=await createClient().auth.getSession();
- if(!session?.user)redirect('/login');
- const user=session.user;
+ const supabase=createClient();
+ const [{data:{user}},{data:{session}}]=await Promise.all([supabase.auth.getUser(),supabase.auth.getSession()]);
+ if(!user||!session||session.user.id!==user.id)redirect('/login');
  const recordingId=searchParams?.recordingId,momentId=searchParams?.momentId;
  const installationId=searchParams?.installationId;
  const forkId=searchParams?.forkId,parentVersionId=searchParams?.forkParentVersionId;
