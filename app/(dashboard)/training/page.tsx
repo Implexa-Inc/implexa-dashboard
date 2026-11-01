@@ -23,7 +23,10 @@ export default async function TrainingPage() {
           </p>
         </header>
 
-        {feed.status !== 'ready' ? <FeedUnavailable reason={feed.reason} /> : <OwnedAgents owned={feed.workflows} />}
+        {feed.status !== 'ready' ? <FeedUnavailable reason={feed.reason} /> : <>
+          {!!feed.unavailableEntries && <p role="status" className="mb-4 text-sm text-ink-400">Some agent entries could not be read. The available agents are shown below.<RetryButton /></p>}
+          <OwnedAgents owned={feed.workflows} />
+        </>}
       </div>
     </div>
   );
@@ -62,14 +65,14 @@ function OwnedAgents({ owned }: { owned: MyWorkflowCard[] }) {
   return (
     <>
       <ul className="divide-y divide-ink-800">
-        {owned.map((a) => (
+        {[...bySlug.values()].map((a) => (
           <li key={a.slug} className="transition-colors hover:bg-ink-900/30">
             <Link
               href={`/training/${a.slug}`}
               className="flex items-center justify-between gap-5 rounded-lg px-4 py-6 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900"
             >
               <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-950/40 text-emerald-200/80">✦</span><span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-ink-100">{a.name}</span>
+                <span className="block truncate text-sm font-medium text-ink-100">{a.name.trim() || a.slug}</span>
                 <span className="mt-0.5 block text-xs text-ink-500">
                   {a.is_scheduled ? 'Scheduled' : 'On-demand'}
                 </span>
@@ -84,3 +87,8 @@ function OwnedAgents({ owned }: { owned: MyWorkflowCard[] }) {
     </>
   );
 }
+  const bySlug = new Map<string, MyWorkflowCard>();
+  for (const agent of owned) {
+    const current = bySlug.get(agent.slug);
+    if (!current || (agent.source === 'generated' && current.source !== 'generated')) bySlug.set(agent.slug, agent);
+  }

@@ -323,7 +323,7 @@ export type MyWorkflowCard = {
  * getSession() round-trip. Absent, it resolves the session itself as before.
  */
 export type MyWorkflowsRead =
-  | { status: 'ready'; workflows: MyWorkflowCard[] }
+  | { status: 'ready'; workflows: MyWorkflowCard[]; unavailableEntries?: number }
   | { status: 'unavailable'; reason: 'no_session' | 'http_error' | 'timeout' | 'network' | 'malformed' };
 
 export async function readMyWorkflows(token?: string, deps: {
@@ -355,12 +355,14 @@ export async function readMyWorkflows(token?: string, deps: {
   try {
     const body = await res.json();
     if (body?.ok === false) return { status: 'unavailable', reason: 'http_error' };
-    if (body?.ok !== true || !Array.isArray(body.workflows)
-      || body.workflows.some((row: unknown) => !row || typeof row !== 'object'
-        || typeof (row as MyWorkflowCard).slug !== 'string' || !(row as MyWorkflowCard).slug.trim()
-        || typeof (row as MyWorkflowCard).name !== 'string' || !(row as MyWorkflowCard).name.trim()))
+    if (body?.ok !== true || !Array.isArray(body.workflows))
       return { status: 'unavailable', reason: 'malformed' };
-    return { status: 'ready', workflows: body.workflows as MyWorkflowCard[] };
+    const workflows = body.workflows.filter((row: unknown) => row && typeof row === 'object'
+      && typeof (row as MyWorkflowCard).slug === 'string' && (row as MyWorkflowCard).slug.trim()
+      && typeof (row as MyWorkflowCard).name === 'string') as MyWorkflowCard[];
+    const unavailableEntries = body.workflows.length - workflows.length;
+    if (unavailableEntries && !workflows.length) return { status: 'unavailable', reason: 'malformed' };
+    return { status: 'ready', workflows, ...(unavailableEntries ? {unavailableEntries} : {}) };
   } catch {
     return { status: 'unavailable', reason: 'malformed' };
   }

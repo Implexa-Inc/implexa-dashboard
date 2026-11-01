@@ -26,6 +26,12 @@ test('a genuine empty owner library is ready, while failed lookups are unavailab
   }
 });
 
+test('one blank name or bad row cannot erase the healthy owner library', async () => {
+  const unnamed = {...card,slug:'unnamed',name:''};
+  assert.deepEqual(await readMyWorkflows('token',{fetchImpl:reply({ok:true,workflows:[card,unnamed,{name:'no slug'}]})}),
+    {status:'ready',workflows:[card,unnamed],unavailableEntries:1});
+});
+
 test('timeout, network, bad JSON and missing session retain their failure reasons', async () => {
   for (const [name,reason] of [['TimeoutError','timeout'],['AbortError','timeout'],['TypeError','network']] as const) {
     const fetchImpl = (async()=>{throw Object.assign(new Error('private upstream detail'),{name});}) as typeof fetch;
