@@ -641,3 +641,26 @@ test('Use in Training carries only saved recording/moment IDs and the existing A
   assert.equal(JSON.stringify(page.calls.push).includes('/Users/'),false);
  }finally{page.cleanup();}
 });
+
+
+test('Training toolbar calls record directly and offers the finished annotator without automatic navigation',async()=>{
+ let started=false,uploads=0;
+ const b=bridge(op=>op==='list'?{ok:true,library,recordings:started?[summary({recordingId:NEW})]:[]}:op==='status'?{ok:true,active:null}:op==='start'?(started=true,{ok:true,recordingId:NEW}):{ok:true});
+ const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training',onTrainingUpload:()=>uploads++},{bridge:b.value});
+ try{
+  assert.match(page.text(),/Multimodal Training/);assert.equal(page.queryByText('Review a result'),null);assert.equal(ops(b).includes('start'),false);
+  await page.click(button(page,'Upload and annotate Video/Image')!);assert.equal(uploads,1);assert.equal(ops(b).includes('import'),false);assert.equal(page.calls.push.length,0);
+  await page.click(button(page,'Record your training')!);
+  assert.deepEqual(b.calls.find(c=>c.operation==='start')?.args,{microphone:true,expectedOwnerId:ID});
+  assert.equal(page.calls.push.length,0,'completion does not discard Training or an uncertain chat Send');
+  assert.equal(page.document.querySelector('a[href="/review/recordings/'+NEW+'?trainingSlug=trained-video"]')?.textContent,'Annotate recording');
+ }finally{page.cleanup();}
+});
+test('Training recording failures remain visible with a recovery destination',async()=>{
+ for(const state of ['failed','interrupted'] as const){
+ let started=false;
+ const b=bridge(op=>op==='list'?{ok:true,library,recordings:started?[summary({recordingId:NEW,state,failureReason:state==='failed'?'finalize_failed':null,durationMs:null})]:[]}:op==='status'?{ok:true,active:null}:op==='start'?(started=true,{ok:true,recordingId:NEW}):{ok:true});
+ const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training'},{bridge:b.value});
+ try{await page.click(button(page,'Record your training')!);assert.match(page.text(),state==='failed'?new RegExp(FAILURE_REASON_MESSAGES.finalize_failed):/Recording interrupted/);assert.equal(page.calls.push.length,0);assert.equal(page.document.querySelector('a[href="/review/recordings/'+NEW+'?trainingSlug=trained-video"]')?.textContent,'Open recording');}finally{page.cleanup();}
+ }
+});

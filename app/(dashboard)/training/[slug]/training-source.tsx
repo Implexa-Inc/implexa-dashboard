@@ -5,6 +5,8 @@ import {useRouter} from 'next/navigation';
 import PublisherTeachingRelease,{GuidedPublicationReview} from './publisher-teaching-release';
 import TrainingChat,{type TrainingChatRequest} from './training-chat';
 import TrainingChanges from './training-changes';
+import NewReview from '../../review/new/new-review';
+import Modal from '../../_components/modal';
 import {guidedTrainingChanges,trainingPublicationPreview,type TrainingPublicationPreview,type GuidedTrainingChanges,type TrainingChangeRecord} from '@/lib/guided-training-changes';
 import {TrainingEntry,TrainingInfo,TrainingImage,TrainingDetails,revealTrainingElement,type TrainingView,type TrainingRun} from './training-workspace';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -34,6 +36,8 @@ import {
   type TrainingStage,
   type TrainingSuccessorProjection,
 } from '@/lib/training-local-ingress';
+
+const OWNER_SOURCE_CONSENT = 'I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection. The original stays on this computer. I can stop future selection or withdraw permission in Saved sources & original decisions.';
 
 type DecisionState = 'draft' | 'accepted' | 'retired' | 'unavailable' | 'revoked';
 type DeliveryMode = 'standing' | 'on_question';
@@ -268,6 +272,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const busyRef = useRef(false);
   const [error, setError] = useState('');
   const [consent, setConsent] = useState(false);
+  const [directSource,setDirectSource]=useState(false),[uploadOpen,setUploadOpen]=useState(false),[discardDraftConfirmed,setDiscardDraftConfirmed]=useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [reviewed, setReviewed] = useState<ReviewedDecision | null>(null);
   const reviewedIsVisible=!!reviewed&&(!reviewed.readOnly||changes?.records.some(r=>r.recordId===reviewed.decision.recordId&&r.recordDigest===reviewed.decision.recordDigest&&r.summary&&!['revoked','unavailable','discarded','retired'].includes(r.state)));
@@ -579,7 +584,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }, [slug,installationId]);
 
   useEffect(() => { if (reviewed) reviewHeadingRef.current?.focus(); }, [reviewed]);
-  useEffect(()=>{if(!installationId&&view==='teach')document.getElementById('training-demonstration')?.scrollIntoView?.({block:'nearest',behavior:'smooth'});},[view,installationId]);
+  useEffect(()=>{if(!installationId&&view==='teach')document.getElementById(directSource?'recording-analysis':'training-demonstration')?.scrollIntoView?.({block:'nearest',behavior:'smooth'});},[view,installationId,directSource,selected?.sourceId]);
 
   async function startPrivateTraining(){
     if(session||installationId||versionChanged)return;
@@ -595,7 +600,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     });
   }
 
-  async function add() {
+  async function add(directUpload=false) {
+    if(!consent)return;
     await work('Verifying the selected source and saving its identity', async () => {
       let id = session;
       if (!id) {
@@ -607,7 +613,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         if (after.agent.currentVersionId !== before.agent.currentVersionId) throw new TrainingError('training_version_changed');
       } else await requireCurrentScope(id);
       const consents={localCustody:true,boundedEvidence:true,futureSelection:true};
-      if(recordingSelection){
+      if(recordingSelection&&!directUpload){
         if(bridge()?.trainingRecordingLibraryContractVersion!=='1'||!ownerId)throw new TrainingError('training_desktop_update_required','Update Desktop to use this saved recording.');
         const result=await call('selectRecording',{sessionId:id,...recordingSelection,expectedOwnerId:ownerId,consent:consents}) as Result & {sourceId:string;token:string;recordingDraft:{recordingId:string;momentId:string|null;timeMs:number;rawAnnotation:string}};
         const note=result.recordingDraft;
@@ -617,22 +623,31 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         await requireCurrentScope(id);const listed=await load(id);
         const source=listed.sources?.find(value=>value.sourceId===result.sourceId&&value.token===result.token);
         if(!source)throw new TrainingError('training_source_scope_mismatch');
-        chooseSource(source);setTime(note.timeMs);setDemoText(note.rawAnnotation);
+        if(!chooseSource(source))return;setDirectSource(false);setTime(note.timeMs);setDemoText(note.rawAnnotation);
         setSuggestionNote('Saved moment notes are preserved verbatim as draft annotation. Preview this exact frame, save its annotation, then review and accept any teaching separately.');
       }else{
         const added=await call('select',{sessionId:id,consent:consents});
         await requireCurrentScope(id);const listed=await load(id);
         const source=listed.sources?.find(s=>s.sourceId===added.sourceId&&s.token===added.token);
         if(!source)throw new TrainingError('training_source_scope_mismatch','The source is saved but could not be opened for annotation. Find it in Saved sources & original decisions.');
-        chooseSource(source);
+        if(!chooseSource(source,directUpload&&discardDraftConfirmed))return;
+        if(directUpload&&discardDraftConfirmed){setDemoText('');setChosen('');setWhy('');setProcess('');setBehavior('');}
+        if(directUpload&&source.token){
+          setDirectSource(true);setConsent(false);
+          const frame=await call('preview',{token:source.token,timeMs:0});
+          if(frame.image)setPreview({token:source.token,timeMs:0,image:frame.image});
+        }
       }
+      setConsent(false);
     });
+    setConsent(false);
   }
 
-  function chooseSource(source: Source) {
+  function chooseSource(source: Source,allowDiscard=false) {
+    if(selected&&selected.sourceId!==source.sourceId&&[demoText,chosen,why,process,behavior].some(s=>s.trim())&&!allowDiscard){setError('Save or discard your current annotation before choosing another source.');return false;}
     showTeaching();
     setSelected(source); setTime(0); setPreview(null); setReviewed(null); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID());
-    setSelectionPriority('50');
+    setSelectionPriority('50');return true;
   }
   function toggleStage(stage: TrainingStage) {
     setStages((current) => {
@@ -1085,7 +1100,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       {preservedWorkCount>0&&<><p>{preservedWorkCount} preserved operation{preservedWorkCount===1?' needs':'s need'} attention. Nothing has been discarded.</p><button type="button" onClick={()=>setView('history')}>Review preserved work</button></>}
       {pendingRecordingLink&&<button type="button" onClick={()=>reveal('recording-analysis')}>Review recording link</button>}
     </section>}
-    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onShow={showTeaching}/>}
+    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onTrainingUpload={()=>{currentTraining();setConsent(false);setDiscardDraftConfirmed(false);setUploadOpen(true);}} uploadDisabled={!!busy||changesBusy||versionChanged||!currentVersion} uploading={busy==='Verifying the selected source and saving its identity'}/>}/>}
     {!installationId&&(historyBusy||historyError)&&<p role="status" className="text-sm text-ink-400">{historyBusy?'Loading earlier training…':historyError}</p>}
     {!installationId&&history&&<section aria-label="Earlier training" className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 className="text-xl font-medium">Learnings</h2>{versionPicker}</header><p className="text-xs text-ink-500">Earlier version · read-only</p>{history.sources.flatMap(source=>source.decisions.map(d=><details key={d.recordId} className="border-b border-ink-800 py-4"><summary className="cursor-pointer text-sm">{['draft','accepted'].includes(d.state)?d.decision.desiredBehavior||d.content.summary:'This teaching is no longer available for use.'}</summary><div className="space-y-3 pt-4 text-sm leading-6 text-ink-400">{source.token&&d.content.derivatives?.[0]?.sha256&&['draft','accepted'].includes(d.state)&&<TrainingImage token={source.token} recordId={d.recordId} recordDigest={d.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy} context={`${history.sessionId}:${history.versionId}`} alt="Earlier teaching example"/>}{['draft','accepted'].includes(d.state)&&<p>{d.content.summary}</p>}<p>{d.state} · {relationLabel(d.content.relation)}</p></div></details>))}{!history.sources.length&&<p className="text-sm text-ink-500">No examples were returned for this version.</p>}</section>}
     {!installationId&&!session&&!busy&&<button type="button" className="text-sm text-ink-300 disabled:opacity-40" disabled={!currentVersion||versionChanged} onClick={()=>{focusChat();}}>Start teaching →</button>}
@@ -1164,12 +1179,12 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {installationId && versionChanged && <p role="alert">This preference session belongs to another installed version. Reopen your agent’s private preferences; no teaching is moved automatically.</p>}
     {installationId && pendingDemoLink && <button disabled={!!busy} onClick={() => work("Linking the preserved preference feedback", () => linkDemoAnnotation(pendingDemoLink))}>Retry feedback link</button>}
     {!installationId && versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded border p-4 space-y-3 ${legacyControls} ${activeVersionTrainingIsReady ? 'border-emerald-600' : 'border-amber-500'}`}><h2 className="font-semibold">{activeVersionTrainingIsReady ? 'Active-version Manager training is ready' : 'Move reviewed evidence to the active version explicitly'}</h2>{activeVersionTrainingIsReady ? <><p>This historical session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version {shortId(currentVersion)} can select the same evidence through explicit immutable adoption receipts; all {managerTrainingRequirements?.requiredPairs.length || 0} critical request-admission visual-reference routes are fulfilled. First launch still verifies every declared reference.</p><p>No new successor training session is required to run this Agent. Start one only when you want to change or add training evidence for the active version.</p></> : <><p>This session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version is {shortId(currentVersion)} and cannot select those records. Start a separate successor session, re-select the exact source, and review each new decision before accepting it.</p><label className="flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event) => setTransitionConfirmed(event.target.checked)} />I understand this creates new evidence records for the active version and does not change or automatically accept the existing records.</label><button disabled={!!busy || !transitionConfirmed || !currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></>}</section>}
-    <div id="training-demonstration" hidden={!installationId&&view!=='teach'} className={`space-y-4 rounded-xl border border-ink-800 p-5 ${legacyControls}`}>
+    <div id="training-demonstration" hidden={!installationId&&(view!=='teach'||directSource)} className={`space-y-4 rounded-xl border border-ink-800 p-5 ${legacyControls}`}>
     {!installationId&&<div><h2 className="text-lg font-medium">Your demonstration</h2><p className="mt-2 text-sm text-ink-400">Choose a recording or image, then select the moment you want to teach.</p></div>}
-    <label className="flex gap-3 text-sm leading-6"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />{installationId?"I have permission to use this output and save bounded private preference evidence for one year":"I created this source and consent to local custody, saving bounded frame evidence for one year, and relevant future evidence selection."} The original stays on this computer. I can stop future selection or withdraw permission below.</label>
-    {!installationId && <a href={`/review/new?trainingSlug=${encodeURIComponent(slug)}`}>Choose or record a demonstration</a>}
+    <label className="flex gap-3 text-sm leading-6"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />{installationId?"I have permission to use this output and save bounded private preference evidence for one year":OWNER_SOURCE_CONSENT}{installationId&&" The original stays on this computer. I can stop future selection or withdraw permission below."}</label>
+
     {recordingSelection && <p>Use the selected saved recording and moment notes. Notes over the existing annotation limit must be shortened or split deliberately; the full saved moment remains on this Mac.</p>}
-    <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={add}>{recordingSelection?"Use selected recording":"Add training source"}</button>
+    <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={()=>void add()}>{recordingSelection?"Use selected recording":"Add training source"}</button>
     </div>
     {busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{error && <p role="alert">{reasonLabel(error)}</p>}
     <div id="training-readiness"><TrainingDetails title="Training readiness & version details" open={readinessNeedsAttention}>
@@ -1313,12 +1328,18 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </div>
     {!installationId&&<aside id="training-companion" hidden={!chatExpanded} className="fixed inset-x-3 top-4 z-40 min-w-0 rounded-xl bg-ink-950 shadow-2xl lg:sticky lg:inset-auto lg:top-6 lg:z-auto lg:shadow-none" onKeyDown={e=>{if(e.key==='Escape'){setChatExpanded(false);document.getElementById('training-chat-toggle')?.focus();}}}>
       {session?<TrainingChat embedded onClose={()=>{setChatExpanded(false);document.getElementById('training-chat-toggle')?.focus();}} sessionId={session} versionId={currentVersion} slug={slug} sources={sources}
-        selectedSourceId={selected?.sourceId||null} disabled={!!busy||changesBusy||versionChanged} busy={!!busy} onAttach={()=>{setChatExpanded(false);showTeaching();}}
+        selectedSourceId={selected?.sourceId||null} disabled={!!busy||changesBusy||versionChanged} busy={!!busy} onAttach={()=>{setChatExpanded(false);setConsent(false);setDiscardDraftConfirmed(false);setUploadOpen(true);}}
         guided={!!changes} automaticInclusion={changes?.policy.enabled===true} request={chatRequest} onSaved={()=>loadChanges()}
         onSelectSource={id=>{const source=sources.find(s=>s.sourceId===id);if(source){setChatExpanded(false);chooseSource(source);}else{setSelected(null);setPreview(null);setReviewed(null);}}}
         onAction={chatAction}/>:<div className="rounded-xl border border-ink-800 p-5 text-sm text-ink-400"><div className="flex items-center justify-between"><p>Chat with Implexa</p><button type="button" aria-label="Close chat" onClick={()=>setChatExpanded(false)}>×</button></div><button type="button" className="btn-outline mt-3" disabled={!!busy||!currentVersion||versionChanged} onClick={()=>void startPrivateTraining()}>Start private training</button></div>}
     </aside>}
     </div>
+    {!installationId&&<Modal open={uploadOpen} onClose={()=>{setUploadOpen(false);setConsent(false);setDiscardDraftConfirmed(false);}} title="Upload and annotate Video/Image">
+      <label className="flex items-start gap-3 text-sm leading-6 text-ink-300"><input type="checkbox" className="mt-1" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>{OWNER_SOURCE_CONSENT}</span></label>
+      {[demoText,chosen,why,process,behavior].some(s=>s.trim())&&<label className="mt-4 flex items-start gap-3 text-sm leading-6 text-ink-300"><input type="checkbox" className="mt-1" checked={discardDraftConfirmed} onChange={e=>setDiscardDraftConfirmed(e.target.checked)}/><span>Discard my unsaved annotation and wording before opening a new source. Saved feedback and the recorded question stay available.</span></label>}
+      <p className="mt-4 text-xs text-ink-400">MP4, PNG, JPEG or WebP.</p>
+      <button type="button" className="btn-primary mt-5" disabled={!!busy||!consent||([demoText,chosen,why,process,behavior].some(s=>s.trim())&&!discardDraftConfirmed)} onClick={()=>{setUploadOpen(false);void add(true);}}>Choose video or image</button>
+    </Modal>}
     {!installationId&&changes&&<GuidedPublicationReview open={publicationReviewOpen} value={changes} busy={!!busy||changesBusy||versionChanged} error={changesError}
       onClose={()=>setPublicationReviewOpen(false)} onPrepare={preparePublication} onPublish={publishPreparedSnapshot} onReviewExample={reviewPublicationExample}
       onTest={preview=>prepareCandidateTest(preview.candidateSnapshotDigest,'public_projection',preview.snapshotDigest,preview)}/>}

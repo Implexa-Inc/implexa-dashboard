@@ -71,7 +71,7 @@ export function TrainingImage({token,recordId,recordDigest,frameSha256,alt,enabl
 }
 
 /** Presentation only: existing Training, recorder and Review Room own all actions. */
-export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,onShow}:{slug:string;lastRunId?:string|null;runs?:TrainingRun[];runsUnavailable?:boolean;onShow:()=>void}){
+export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,actions}:{slug:string;lastRunId?:string|null;runs?:TrainingRun[];runsUnavailable?:boolean;actions?:ReactNode}){
  return <section className="space-y-8 py-3" aria-label="Teach this agent">
   <div>
    <div className="mb-4 flex items-baseline justify-between gap-4"><h2 className="text-lg font-medium">Improve from recent runs</h2><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/workflows/${encodeURIComponent(slug)}?source=generated&tab=runs`}>All runs →</Link></div>
@@ -81,11 +81,7 @@ export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,onSh
     <time dateTime={run.date} className="block text-xs text-ink-500">{new Date(run.date).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}</time>
    </Link>)}</div>:<p className="text-sm text-ink-500">{runsUnavailable?'Recent results couldn’t load. ':lastRunId?'Open your latest result to give feedback. ':'Teach with an example, or run your agent to review its work. '}{lastRunId&&<Link href={`/review/${encodeURIComponent(lastRunId)}`} className="text-ink-300 underline underline-offset-4">Latest result →</Link>}</p>}
   </div>
-  <div className="flex flex-wrap items-center gap-3 border-y border-ink-800 py-6">
-   <button type="button" onClick={onShow} className="rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500">↑ Upload a video or image</button>
-   <Link href={`/review/new?trainingSlug=${encodeURIComponent(slug)}`} className="rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500">◉ Record training</Link>
-   <TrainingInfo label="About training examples">Upload an example or record a demonstration. You can annotate the moments you want Implexa to learn from.</TrainingInfo>
-  </div>
+  {actions}
  </section>;
 }
 
