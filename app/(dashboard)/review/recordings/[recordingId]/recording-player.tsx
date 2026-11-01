@@ -31,7 +31,7 @@ const pct = (n: number) => `${Math.round(n / (COORD_MAX / 100))}%`;
 const regionLabel = (r: Region) => `${pct(r.width)} × ${pct(r.height)} at (${pct(r.x)}, ${pct(r.y)})`;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 
-export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embedded=false,onAnalyzeNarration,narrationUnavailable,onDirtyChange,onClose,onRecordingLoaded }: { recordingId: string; ownerId:string;trainingSlug?:string;embedded?:boolean;onAnalyzeNarration?:(recordingId:string,momentId:string|null)=>void;narrationUnavailable?:string;onDirtyChange?:(dirty:boolean)=>void;onClose?:()=>void;onRecordingLoaded?:(detail:RecordingDetail)=>void }) {
+export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embedded=false,onAnalyzeNarration,onUseFeedback,narrationUnavailable,onDirtyChange,onClose,onRecordingLoaded }: { recordingId: string; ownerId:string;trainingSlug?:string;embedded?:boolean;onAnalyzeNarration?:(recordingId:string,momentId:string|null)=>void;onUseFeedback?:(recordingId:string,moment:Moment)=>void;narrationUnavailable?:string;onDirtyChange?:(dirty:boolean)=>void;onClose?:()=>void;onRecordingLoaded?:(detail:RecordingDetail)=>void }) {
   const router = useRouter();
   const client = useMemo(() => createReviewRecorderClient(undefined,ownerId), [ownerId]);
   const [availability, setAvailability] = useState<RecorderAvailability | null>(null);
@@ -305,7 +305,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   };
   const onRegionAnnotate = ({ spatial, frozenTimestampMs }: { frozenTimestampMs: number | null; spatial: { geometry: { kind: 'point' | 'rect'; x: number; y: number; width: number | null; height: number | null } } }) => {
     if(!drawing){
-      if(frozenTimestampMs===null||durationMs===null||frozenTimestampMs<0||frozenTimestampMs>durationMs)return;
+      if(frozenTimestampMs===null||durationMs===null||frozenTimestampMs<0||frozenTimestampMs>durationMs){setRegionError('Wait for the picture to finish seeking, then mark it again.');return;}
       const region=regionFromSpatial(spatial.geometry);if(!region)return;
       createMoment({startMs:frozenTimestampMs,endMs:frozenTimestampMs},region);setRegionError(null);return;
     }
@@ -549,7 +549,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
             {busy === 'save' ? 'Saving…' : dirty ? 'Save feedback' : 'Saved'}
           </button>
         </div>
-        <p className="mb-4 text-xs text-ink-500">{MOMENTS_NEXT_NOTE}</p>
+        <p className="mb-4 text-xs text-ink-500">{embedded?'Save your feedback, then turn a mark into a learning.':MOMENTS_NEXT_NOTE}</p>
 
         {moments.length === 0 && (
           <p className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-6 text-center text-sm text-ink-400">No moments yet.</p>
@@ -577,6 +577,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                 <div className="mt-3"><label htmlFor={`${m.momentId}-feedback`} className="sr-only">What should change here?</label><textarea id={`${m.momentId}-feedback`} placeholder="What should change here?" rows={3} maxLength={CARD_FIELD_MAX} value={m.card.whatToDo} onFocus={()=>setSelectedId(m.momentId)} onChange={e=>setField(m.momentId,'whatToDo',e.target.value)} className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 focus:border-sky-500 focus:outline-none"/>
                   {warnings.whatToDo&&<p data-testid="card-warning" className="mt-1 text-xs text-amber-300">{warnings.whatToDo.join(' ')}</p>}
                 </div>
+                {onUseFeedback&&<button type="button" className="mt-3 text-sm text-brand-400" disabled={busy!==null||dirty||!m.card.whatToDo.trim()} onClick={()=>onUseFeedback(recordingId,m)}>Turn into a learning</button>}
                 {CARD_FIELDS.some(field=>field!=='whatToDo'&&m.card[field].trim())&&<details className="mt-3 text-xs text-ink-400"><summary>Previously saved notes</summary>{CARD_FIELDS.filter(field=>field!=='whatToDo'&&m.card[field].trim()).map(field=><p key={field} className="mt-2 whitespace-pre-wrap"><strong>{CARD_FIELD_LABELS[field]}:</strong> {m.card[field]}</p>)}</details>}
               </li>
             );
@@ -607,7 +608,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
 }
 
 function Shell({ back, title, children,embedded=false }: {embedded?:boolean; back: ReactNode; title: string; children: ReactNode }) {
-  if(embedded)return <section id="recording-annotation" aria-label="Annotate your recording" className="space-y-4"><h2 className="text-lg font-medium">Annotate your recording</h2>{children}</section>;
+  if(embedded)return <section id="recording-annotation" tabIndex={-1} aria-label="Annotate your recording" className="space-y-4"><h2 className="text-lg font-medium">Annotate your recording</h2>{children}</section>;
   return (
     <div className="min-h-screen px-6 py-10 lg:px-12">
       <div className="mx-auto max-w-4xl">

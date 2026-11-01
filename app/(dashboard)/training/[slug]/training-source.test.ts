@@ -1593,7 +1593,7 @@ test('server image custody uses an explicit separate consent and shows withdrawa
  }finally{r.cleanup();}
 });
 
-test('saved recording handoff preserves raw moment notes, previews explicitly and never auto-admits',async()=>{
+test('saved recording handoff preserves raw moment notes, previews the exact frame and never auto-admits',async()=>{
  const h=harness();const notes=JSON.stringify({recordingId:RECORD,moment:{card:{whatToDo:' Keep\nthis ',why:'why',insteadOf:'instead',howToCheck:'check',whenNot:'never'}}});
  const calls:Call[]=[];
  const b={...h.bridge,trainingRecordingLibraryContractVersion:'1',trainingLocal:async(operation:string,args:unknown)=>{
@@ -1607,7 +1607,8 @@ test('saved recording handoff preserves raw moment notes, previews explicitly an
   assert.equal(calls.length,1);assert.equal(calls[0].args.expectedOwnerId,VERSION_A);
   assert.equal(calls[0].args.recordingId,RECORD);assert.equal(Object.hasOwn(calls[0].args,'selectedPath'),false);
   const annotation=[...r.document.querySelectorAll('textarea')].find(value=>value.value===notes);assert.ok(annotation,'all original fields and whitespace survive as raw annotation');
-  assert.equal(h.calls.some(c=>['preview','annotate','accept','recording'].includes(c.operation)),false,'select does not extract, infer or admit');
+  assert.deepEqual(h.calls.filter(c=>c.operation==='preview').map(c=>JSON.parse(JSON.stringify(c.args))),[{token:TOKEN,timeMs:100}]);
+  assert.equal(h.calls.some(c=>['annotate','accept','recording'].includes(c.operation)),false,'preview does not infer or admit');
   assert.match(r.text(),/Preview this exact frame/);
  }finally{r.cleanup();}
 });
@@ -1923,5 +1924,36 @@ test('inline recording analysis waits for explicit consent, uses committed sourc
   assert.equal(registrations,1);assert.equal(h.calls.find(c=>c.operation==='selectRecording')!.args.momentId,null);
   assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
   assert.match(r.text(),/Explain why you prefer this visual/);assert.equal(r.document.querySelector('#recording-analysis')?.hasAttribute('hidden'),true);
+ }finally{r.cleanup();}
+});
+
+test('a saved picture mark becomes a linked draft from exact feedback, retains region lineage and opens review after link retry',async()=>{
+ const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;let registrations=0,links=0;
+ const moment={momentId:QUESTION,startMs:1000,endMs:1000,region:{x:100000,y:200000,width:300000,height:200000},card:{whatToDo:'Make the location tell the story, with less repeated copy.',why:'Keep my earlier explanation.',insteadOf:'',howToCheck:'',whenNot:''},createdAt:'2026-11-01T12:00:00.000Z'};
+ const summary={recordingId:RECORD,title:'My demonstration',origin:'recorded',state:'ready',failureReason:null,createdAt:moment.createdAt,durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:false,hasPointerTrack:false,momentCount:1};
+ Object.assign(h.bridge,{reviewRecorderContractVersion:'2',trainingRecordingLibraryContractVersion:'1',reviewRecorder:async(op:string)=>op==='get'?{ok:true,recording:{...summary,pointerTrack:null,moments:[moment]}}:op==='list'?{ok:true,recordings:[summary],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true},revokeArtifactPreview:async()=>({ok:true})});
+ h.bridge.trainingLocal=async(op,args)=>{if(op==='selectRecording'){registrations++;return {ok:true,sourceId:SOURCE_ID,token:TOKEN};}return original(op,args);};
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,initialRecordingId:RECORD},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const prior=r.window.fetch,requests:any[]=[];let raw='';
+ r.window.fetch=(async(url:string,init:RequestInit={})=>{
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  const b=JSON.parse(String(init.body));requests.push(b);
+  if(b.action==='save'){raw=b.rawAnnotation;const {action,expectedActiveVersionId,...annotation}=b;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:'e'.repeat(64),annotation:{contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId}})};}
+  if(b.action==='link'){links++;if(links===1)return {ok:false,json:async()=>({ok:false})};return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-link.v1',annotationId:b.annotationId,annotationDigest:b.annotationDigest,recordId:b.recordId,recordDigest:b.expectedRecordDigest,linkReceiptId:QUESTION})};}
+  const {mode,image,consent,...binding}=b;return {ok:true,json:async()=>({requestId:QUESTION,ok:true,contractVersion:'training-teaching-suggestion.v3',model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
+ }) as typeof r.window.fetch;
+ const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
+ try{
+  await flush();await r.click(r.getByText('Turn into a learning'));assert.equal(registrations,0);assert.equal(requests.length,0);
+  await r.click(r.getByText('Suggest learning'));await flush();
+  assert.equal(registrations,1);assert.deepEqual(JSON.parse(raw),moment,'all card fields and region are original feedback');
+  assert.equal(requests.filter(b=>b.mode==='demonstration').length,1);assert.equal(h.calls.some(c=>c.operation==='recording'||c.operation==='annotate'||c.operation==='accept'),false);
+  const panel=r.document.querySelector('[aria-label="Learning from your feedback"]')!;assert.match(panel.textContent!,new RegExp(SUGGESTION_FIELDS.desiredBehavior));
+  await r.click(Array.from(panel.querySelectorAll('button')).find(b=>b.textContent==='Save as draft')!);await flush();
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find(c=>c.operation==='annotate')!.args.decision)),SUGGESTION_FIELDS);
+  assert.equal(h.calls.some(c=>c.operation==='accept'),false);assert.equal(r.queryByText('Exact saved evidence'),null,'no admission review before provenance link succeeds');
+  await r.click(r.getByText('Retry feedback link'));await flush();
+  assert.ok(r.queryByText('Exact saved evidence'));assert.equal(h.calls.filter(c=>c.operation==='annotate').length,1);assert.equal(links,2);assert.equal(h.calls.some(c=>c.operation==='accept'),false);
  }finally{r.cleanup();}
 });
