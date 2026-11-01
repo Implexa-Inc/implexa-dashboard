@@ -53,7 +53,7 @@ export default async function WorkflowsPage({searchParams}:{searchParams?:{tab?:
     const connected=await isExecutorConnected(supabase,profile.id,{
       lastMcpCallAt:profile.last_mcp_call_at,lastHookEventAt:profile.last_hook_event_at,
     });
-    return <RentBuildHome build={<><TalkToImplexa hasAgents compact suggestions={[]} connected={connected}/><BuildingAgents/></>}>
+    return <RentBuildHome build={<TalkToImplexa hasAgents compact suggestions={[]} connected={connected}/>} status={<BuildingAgents/>}>
       <MarketplaceSampleGallery listings={samples.listings}/>
     </RentBuildHome>;
   }

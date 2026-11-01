@@ -19,11 +19,12 @@ test('the agent frame no longer repeats sidebar destinations as page tabs',async
 });
 
 test('the sketch layout starts with a collapsed Build row above the full-width rental content',async()=>{
- const r=await render('agent-home-frame.tsx',{build:'Existing builder',children:'Rental gallery'},{exportName:'RentBuildHome'});
+ const r=await render('agent-home-frame.tsx',{build:'Existing builder',status:'Build status',children:'Rental gallery'},{exportName:'RentBuildHome'});
  try{
   assert.equal(r.document.querySelector('h1')?.textContent,'Rent/Build');
   const disclosure=r.document.querySelector('details')!;
   assert.equal(disclosure.hasAttribute('open'),false);
+  assert.match(r.text(),/Build status/);assert.doesNotMatch(disclosure.textContent||'',/Build status/);
   assert.match(disclosure.querySelector('summary')?.textContent||'',/Build an agent/);
   assert.ok(r.text().indexOf('Build an agent')<r.text().indexOf('Rental gallery'));
   await r.click(disclosure.querySelector('summary')!);assert.equal(disclosure.hasAttribute('open'),true);

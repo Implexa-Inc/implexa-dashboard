@@ -220,7 +220,7 @@ test('the Work badge does not render in server markup (hydration-safe)', () => {
 });
 
 // Owner-requested beta behavior: same routes, labels moved to the actual shell.
-test('pilot desktop and narrow shells expose Rent, Running and Training with one selected domain',()=>{
+test('pilot desktop and narrow shells expose Rent/Build, Run and Train with one selected domain',()=>{
  for(const which of ['desktop','narrow'] as const){
   for(const [pathname,label] of [['/workflows','Rent/Build'],['/runs/a','Run'],['/training/a','Train']]){
    const html=renderShell(which,pathname,{user:{...USER,marketplacePilot:true}});
