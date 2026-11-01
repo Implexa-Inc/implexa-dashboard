@@ -151,6 +151,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   runRequest?:{nonce:string;binding:PreparedTrainingTest|null}|null;
   onQueued?:()=>void;
 }) {
+  const onQueuedRef=useRef(onQueued);onQueuedRef.current=onQueued;
   const [acceptedTrainingTest,setAcceptedTrainingTest]=useState<PreparedTrainingTest|null>(null);
   const trainingTest=presentation==='training'?acceptedTrainingTest:initialTrainingTest;
   const [trainingOpening,setTrainingOpening]=useState(false);
@@ -474,7 +475,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       if (!requestId.current) return;
       if (Date.now() - pollStart.current > POLL_MAX_MS) {
         clearInterval(t);
-        if(presentation==='training'){requestId.current=null;setMsg('Completion is not yet confirmed here. The run remains recorded in Work.');onQueued?.();}
+        if(presentation==='training'){requestId.current=null;setMsg('Completion is not yet confirmed here. The run remains recorded in Work.');onQueuedRef.current?.();}
         else setMsg('Still queued. It runs the next time Claude Code is open; the result lands in your inbox.');
         return;
       }
@@ -484,7 +485,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         const res = await callBackend(`/api/v2/me/run-requests/${polledRequestId}`, { jwt: session?.access_token });
         if(requestId.current!==polledRequestId)return;
         const status = res?.request?.status;
-        if(presentation==='training'&&['done','cancelled','failed'].includes(status)){clearInterval(t);requestId.current=null;setState('idle');setMsg(status==='done'?'Run finished. Saved training status refreshed.':status==='failed'?'The run needs attention. Its history is preserved.':'The run was cancelled.');onQueued?.();return;}
+        if(presentation==='training'&&['done','cancelled','failed'].includes(status)){clearInterval(t);requestId.current=null;setState('idle');setMsg(status==='done'?'Run finished. Saved training status refreshed.':status==='failed'?'The run needs attention. Its history is preserved.':'The run was cancelled.');onQueuedRef.current?.();return;}
         if (status === 'consumed') { setState('running'); setMsg('Running in Claude Code…'); }
         else if (status === 'done') { clearInterval(t); setState('done'); setMsg(''); }
         else if (status === 'cancelled') { clearInterval(t); setState('error'); setMsg('The run was cancelled.'); }
@@ -530,7 +531,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         if (++misses >= 2) {
           setState('idle');
           setMsg('');
-          if(presentation==='training')onQueued?.();
+          if(presentation==='training')onQueuedRef.current?.();
         }
       }
     });
@@ -1021,7 +1022,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         setShowRunModal(false);
         setShowSetupModal(false);
         setRunInstalledVersionConfirmed(false);
-        if(presentation==='training')onQueued?.();else router.push('/workflows');
+        if(presentation==='training')onQueuedRef.current?.();else router.push('/workflows');
         return;
       }
       // A 2xx transport response is not a queue receipt.  Do not clear inputs,
@@ -1061,7 +1062,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       } else if(presentation!=='training') {
         router.push('/workflows');
       }
-      if(presentation==='training'){setShowSetupModal(false);setShowRunModal(true);onQueued?.();}
+      if(presentation==='training'){setShowSetupModal(false);setShowRunModal(true);onQueuedRef.current?.();}
     } catch (e) {
       const bundle = projectBundleRefusal(e);
       if (bundle) {
@@ -1461,7 +1462,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       <div className="mt-5 flex justify-end">
         <button
           type="button"
-          onClick={() => { setShowRunModal(false); if(presentation==='training')onQueued?.();else router.push('/workflows'); }}
+          onClick={() => { setShowRunModal(false); if(presentation==='training')onQueuedRef.current?.();else router.push('/workflows'); }}
           className="btn-success text-sm px-5 py-2"
         >
           {presentation==='training'?'Back to Training':'Track it under Active Agents →'}

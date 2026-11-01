@@ -239,3 +239,19 @@ test('Training cannot change its binding while saved inputs are still loading',a
   const posts=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(posts.length,1);assert.deepEqual(JSON.parse(JSON.stringify((posts[0].init as any).body.trainingTest)),binding);
  }finally{r.cleanup();}
 });
+
+
+test('Training feed completion uses the current refresh callback after the session becomes available',async()=>{
+ let oldCalls=0,newCalls=0,nextTick:()=>Promise<void>=async()=>{};
+ const props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,presentation:'training',inFlight:'running',onQueued:()=>oldCalls++,trainingChoices:{pending:false,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
+ const r=await renderAnother('running',false,false,null,props);
+ try{
+  Object.defineProperty(r.document,'hidden',{value:false,configurable:true});
+  const nativeTimeout=r.window.setTimeout.bind(r.window);
+  r.window.setTimeout=((callback:any,ms?:number,...args:any[])=>{if((ms||0)>=2000){nextTick=callback;return 123;}return nativeTimeout(callback,ms,...args);}) as any;
+  await r.rerender({...props,onQueued:()=>newCalls++});
+  await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,5050));});
+  assert.ok(r.calls.backend.some(c=>c.path==='/api/v2/scheduled-skills/live'));
+  await r.act(()=>nextTick());assert.equal(oldCalls,0);assert.equal(newCalls,1);
+ }finally{r.cleanup();}
+});
