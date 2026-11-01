@@ -154,6 +154,10 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
   function currentTraining(){historyRead.current++;setHistory(null);setHistoryBusy(false);setHistoryError('');}
   const versionPicker=<nav className="flex items-center gap-4 text-xs" aria-label="Learning versions"><button type="button" aria-current={!history?'page':undefined} onClick={currentTraining} className={!history?'text-ink-100':'text-ink-500'}>Current</button>{earlierSessions.map((item,i)=><button type="button" key={item.sessionId} disabled={historyBusy} aria-current={history?.sessionId===item.sessionId?'page':undefined} title={`Agent version ${shortId(item.agent.baseVersionId)}`} onClick={()=>void showHistory(item)} className={history?.sessionId===item.sessionId?'text-ink-100':'text-ink-500'}>Earlier {i+1}</button>)}</nav>;
+  function learningCaption(record:TrainingChangeRecord){
+    if(!record.summary)return null;
+    return sources.flatMap(source=>source.decisions).find(d=>d.recordId===record.recordId&&d.recordDigest===record.recordDigest)?.decision.desiredBehavior||record.summary;
+  }
   function learningExample(record:TrainingChangeRecord,index:number){
     if(index>=8||record.sourceKind!=='legacy_evidence'||!record.summary||['revoked','unavailable','discarded'].includes(record.state))return null;
     const source=sources.find(source=>source.decisions.some(d=>d.recordId===record.recordId&&d.recordDigest===record.recordDigest));
@@ -1068,7 +1072,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&history&&<section aria-label="Earlier training" className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 className="text-xl font-medium">Learnings</h2>{versionPicker}</header><p className="text-xs text-ink-500">Earlier version · read-only</p>{history.sources.flatMap(source=>source.decisions.map(d=><details key={d.recordId} className="border-b border-ink-800 py-4"><summary className="cursor-pointer text-sm">{d.decision.desiredBehavior||d.content.summary}</summary><div className="space-y-3 pt-4 text-sm leading-6 text-ink-400">{source.token&&d.content.derivatives?.[0]?.sha256&&['draft','accepted','retired'].includes(d.state)&&<TrainingImage token={source.token} recordId={d.recordId} recordDigest={d.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy} context={`${history.sessionId}:${history.versionId}`} alt="Earlier teaching example"/>}<p>{d.content.summary}</p><p>{d.state} · {relationLabel(d.content.relation)}</p></div></details>))}{!history.sources.length&&<p className="text-sm text-ink-500">No examples were returned for this version.</p>}</section>}
     {!installationId&&!session&&!busy&&<button type="button" className="text-sm text-ink-300" disabled={!currentVersion||versionChanged} onClick={()=>{focusChat();}}>Start teaching →</button>}
     {!installationId&&session&&!history&&<>
-      {changes?<TrainingChanges value={changes} versionPicker={versionPicker} renderExample={learningExample} busy={!!busy||changesBusy||versionChanged}
+      {changes?<TrainingChanges value={changes} versionPicker={versionPicker} renderExample={learningExample} captionFor={learningCaption} busy={!!busy||changesBusy||versionChanged}
         onActivate={activateCandidate}
         onWithdraw={target=>mutateChanges('withdraw',{sourceEventId:target.eventId,expectedEventDigest:target.eventDigest})}
         onImport={(build,noteIndex)=>mutateChanges('creation-import',{buildRequestId:build.buildRequestId,replyId:build.replyId,replyDigest:build.replyDigest,noteIndex})}
