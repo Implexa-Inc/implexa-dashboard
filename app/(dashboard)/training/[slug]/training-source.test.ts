@@ -1756,3 +1756,29 @@ test('an upload identity mismatch preserves the source error and never opens ano
   assert.equal(h.calls.some(c=>['preview','recording','annotate','accept'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
+
+test('adopted examples use the already-preserved predecessor only by exact digest and open read-only',async()=>{
+ for(const scenario of ['match','digest','withdrawn','frame_unavailable']){
+  const matches=scenario!=='digest';
+  const h=harness({currentVersion:VERSION_B,includeCurrentSession:true,state:'accepted'}),original=h.bridge.trainingLocal;
+  h.bridge.trainingLocal=async(op,args)=>{const v=await original(op,args);if(op==='decisionPreview'){if(scenario==='frame_unavailable')return {ok:false,reason:'training_source_mutated'};v.image=VALID_FRAME;}return v;};
+  const changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:NEW_SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_B,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],
+   records:[{recordId:RECORD,recordDigest:matches?DIGEST:'f'.repeat(64),summary:'Use a meaningful visual.',state:'human_accepted',included:true,admissionOrigin:'human_decision',category:'taste',sourceKind:'legacy_evidence',policyReceiptId:null,policyReceiptDigest:null,sourceEventId:null,sourceEventDigest:null,model:null}],
+   test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:false},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
+  if(scenario==='withdrawn')Object.assign(changes.records[0],{summary:null,state:'unavailable',included:false});
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,fetch:(async(url:any)=>({ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}})) as typeof fetch});
+  try{
+   if(scenario==='withdrawn'){assert.equal((r.getByText('Review original example') as HTMLButtonElement).disabled,true);assert.equal(h.calls.some(c=>c.operation==='decisionPreview'),false);continue;}
+   await r.click(r.getByText('Review original example'));
+   const review=r.document.querySelector('[aria-labelledby="decision-review-heading"]');
+   if(matches){
+    assert.ok(review);assert.match(review.textContent||'',/Original example · read-only/);if(scenario==='frame_unavailable'){assert.equal(review.querySelector('img'),null);assert.match(review.textContent||'',/Saved frame unavailable/);}else assert.equal(review.querySelector('img')?.getAttribute('src'),VALID_FRAME);
+    assert.deepEqual(Array.from(review.querySelectorAll('button')).map(b=>b.textContent),['Close evidence review']);
+    assert.equal(h.calls.filter(c=>c.operation==='decisionPreview').length,1);
+   }else{assert.equal(review,null);assert.match(r.text(),/training source review unavailable/);assert.equal(h.calls.some(c=>c.operation==='decisionPreview'),false);}
+   assert.equal(h.calls.some(c=>['accept','delivery','recording','annotate','serverStorage'].includes(c.operation)),false);
+   assert.ok(r.document.querySelector('[aria-label="Your private training update"]'));
+   if(scenario==='match'){Object.assign(changes.records[0],{summary:null,state:'unavailable',included:false});await r.click(r.getByText('Remove from this candidate'));assert.equal(r.document.querySelector('[aria-labelledby="decision-review-heading"]'),null,'a fresh null summary hides an already-open predecessor view');}
+  }finally{r.cleanup();}
+ }
+});

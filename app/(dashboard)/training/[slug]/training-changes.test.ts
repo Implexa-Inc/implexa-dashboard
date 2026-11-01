@@ -103,3 +103,11 @@ test('pre-test guidance shows executor and real budget limits without claiming a
  assert.doesNotMatch(r.text(),/5 (?:text )?teachings (?:were )?delivered/);
  (v.selectionCoverage as any).maxStandingReferences=3;assert.equal(guidedTrainingChanges(v,expected),false);
 });
+
+
+test('learning rows show a concise saved sentence while keeping the complete original on expand',async t=>{
+ const v=value();v.records[0].summary='Use imagery to explain the relationship. Specific fonts, colors and positions remain optional.';
+ const {r,calls}=await setup(t,v);const row=r.document.querySelector('[aria-label="Your private training update"] details.group')!;
+ assert.match(row.querySelector('summary')?.textContent||'',/Use imagery to explain the relationship/);assert.doesNotMatch(row.querySelector('summary')?.textContent||'',/Specific fonts/);
+ assert.match(row.textContent||'',/Specific fonts, colors and positions remain optional/);assert.equal(calls.length,0);
+});
