@@ -77,14 +77,14 @@ test('a run-request started from THIS component still defers to its own dedicate
 });
 
 const VERSION = '33333333-3333-4333-8333-333333333333';
-async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, statusUnavailable = false) {
+async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, statusUnavailable = false,trainingTest:{testPreparationId:string;preparationDigest:string}|null=null) {
   return render('agent-actions.tsx', {
-    slug: 'video-agent', isActive: true, inFlight, statusUnavailable,
+    slug: 'video-agent', isActive: true, inFlight, statusUnavailable,trainingTest,
     workflowVersionId: VERSION, inputContractDigest: 'c'.repeat(64),
     inputContract: { version: 1, fields: [{ key: 'brief', label: 'Brief', kind: 'text',
       cardinality: 'one', required: true, order: 1 }] },
   }, { backend: path => {
-    if (path.startsWith('/api/v2/agent-training/agents/')) return { ok: true, home: {
+    if (path.startsWith('/api/v2/agent-training/agents/')) {const value={ ok: true, home: {
       agent: { currentVersionId: VERSION },
       successorProjection: { contractVersion: 'agent-training-successor-projection.v1',
         activeVersionId: VERSION, eligiblePredecessor: null },
@@ -92,7 +92,8 @@ async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, 
         scope: 'workflow_version_quality_references', workflowVersionId: VERSION,
         classified: false, requiredPairs: [], fulfilledPairs: [], missingPairs: [],
         readiness: 'not_applicable', reason: null },
-    } };
+    } };return trainingTest?{ok:true,contractVersion:'prepared-agent-training-preflight.v1',agentFamilyId:'11111111-1111-4111-8111-111111111111',workflowVersionId:VERSION,
+      managerTrainingRequirements:value.home.managerTrainingRequirements,trainingTest}:value;}
     if (path.includes('/setup')) return { schema: [{ key: 'format', question: 'Format', kind: 'text', optional: true }],
       answers: { format: '16:9' }, note: '', runInputDefaults: { brief: 'same preserved input' } };
     if (path.includes('/run-precheck')) return { ok: true, fingerprint: 'same-fingerprint',
@@ -102,6 +103,19 @@ async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, 
     return { ok: true };
   } });
 }
+
+test('a prepared Training test keeps the ordinary inputs and admission, and carries its exact binding at birth',async()=>{
+ const binding={testPreparationId:'11111111-1111-4111-8111-111111111111',preparationDigest:'b'.repeat(64)};
+ const r=await renderAnother('running',false,false,binding);
+ try{await r.click(r.getByText('Run another…'));await r.click(r.getByText('Save & run'));
+  const preflight=r.calls.backend.find(c=>c.path.startsWith('/api/v2/agent-training/agents/'));
+  assert.ok(preflight?.path.includes(`testPreparationId=${binding.testPreparationId}`));assert.ok(preflight?.path.includes(`preparationDigest=${binding.preparationDigest}`));
+  const posts=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(posts.length,1);
+  const body=(posts[0].init as any).body;assert.deepEqual(JSON.parse(JSON.stringify(body.trainingTest)),binding);
+  assert.deepEqual(JSON.parse(JSON.stringify(body.inputBindings)),{brief:'same preserved input'});
+  assert.equal(body.workflowVersionId,VERSION);assert.ok(r.calls.backend.some(c=>c.path==='/api/v2/me/run-admission'));
+ }finally{r.cleanup();}
+});
 
 for (const status of ['running', 'queued'] as const) {
   test(`a separately observed ${status} run permits one new normal, version-bound submission`, async () => {

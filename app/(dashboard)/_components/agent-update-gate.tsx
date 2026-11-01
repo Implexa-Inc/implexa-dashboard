@@ -12,6 +12,8 @@ import { trainingProposedAdoptionPreview, trainingProposedAdoptionReceipt,
 
 export type AvailableAgentUpdate = {
   workflow_version_id: string;
+  published_snapshot_digest?:string;
+  manager_text_guidance_required?:boolean;
   version: number;
   input_contract: WorkflowInputContract | null;
   input_contract_digest: string;
@@ -122,6 +124,7 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
         : purposeChanged ? 'This proposal changes the agent’s job. Reference carry-forward and activation are unavailable.'
         : 'This carries already accepted references to a reviewed proposal. It creates no new training and starts no run.'}</p>
       <p className="mt-2 text-xs break-all">Current definition: {baseVersionId}</p>
+      <p className="mt-2 text-xs text-ink-400">If this agent serves a tested training snapshot, applying a definition change pauses future scheduled runs until you test and activate training for that definition. Already-running tasks keep their frozen material.</p>
       {targetId && <p className="text-xs break-all">Proposed definition: {targetId}</p>}
       {preview && !freshPurpose && !purposeChanged && <p className="mt-3">{preview.eligibleRecordCount} accepted records cover {preview.eligibleRouteCount} reference routes.</p>}
       {freshPurpose && <section className="mt-3 text-xs">
@@ -198,11 +201,14 @@ export default function AgentUpdateGate({ workflowId, update }: {
   const [permissionsConfirmed, setPermissionsConfirmed] = useState(false);
 
   const incompatible = update.state === 'incompatible';
+  const trainingOnly=update.state==='training_update_available';
+  const snapshotDigest=typeof update.published_snapshot_digest==='string'&&/^[a-f0-9]{64}$/.test(update.published_snapshot_digest)?update.published_snapshot_digest:null;
+  const snapshotUnavailable=trainingOnly&&!snapshotDigest;
   const needsPermissions = update.state === 'reactivation_required';
   const authority = describeAuthorityDelta(update.authority_delta);
 
   async function activate() {
-    if (needsPermissions && !permissionsConfirmed) return;
+    if (snapshotUnavailable||saving||(needsPermissions && !permissionsConfirmed)) return;
     setSaving(true);
     setMessage('');
     try {
@@ -215,10 +221,12 @@ export default function AgentUpdateGate({ workflowId, update }: {
         body: {
           workflowVersionId: update.workflow_version_id,
           inputContractDigest: update.input_contract_digest,
+          ...(snapshotDigest?{expectedPublishedSnapshotDigest:snapshotDigest}:{}),
           permissionsConfirmed,
         },
       });
-      if (!result?.ok || result.activeVersionId !== update.workflow_version_id) {
+      if (!result?.ok || result.activeVersionId !== update.workflow_version_id
+        ||snapshotDigest&&result.activePublishedSnapshotDigest!==snapshotDigest) {
         throw new Error('The server did not confirm the requested installed version.');
       }
       setOpen(false);
@@ -234,25 +242,27 @@ export default function AgentUpdateGate({ workflowId, update }: {
     <>
       <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-left max-w-[320px]">
         <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
-          Agent update v{update.version} needs review
+          {trainingOnly?'Tested training update needs review':<>Agent update v{update.version} needs review</>}
         </p>
+        {update.manager_text_guidance_required&&<p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">This training requires Codex and Implexa Desktop 0.4.160 or newer. Claude execution is not supported for its text guidance yet.</p>}
         <p className="text-[11px] text-ink-400 mt-1">
-          {incompatible
+          {snapshotUnavailable?'The published training identity is unavailable. Reload before updating.':trainingOnly?'The agent’s steps are unchanged. Future runs keep using your installed training until you explicitly activate this tested teaching set.':incompatible
             ? 'This update cannot be applied to your installed version. It needs a migration, not an activation.'
             : needsPermissions
               ? 'This update changes what the agent is allowed to do. Run now stays on your installed version until you approve it.'
               : 'Run now stays on your installed version until you activate this update.'}
         </p>
-        <button type="button" disabled={incompatible} onClick={() => setOpen(true)}
+        <button type="button" disabled={incompatible||snapshotUnavailable} onClick={() => setOpen(true)}
           className="mt-2 btn-outline text-xs px-3 py-1.5 disabled:opacity-40">
           {incompatible ? 'Update is incompatible' : 'Review & activate update'}
         </button>
       </div>
       <Modal open={open} onClose={() => !saving && setOpen(false)} title={`Activate agent update v${update.version}`}>
         <p className="text-sm text-ink-300 mb-4">
-          This advances the version your future runs use. It does not ask for files —
+          {trainingOnly?'This changes the tested publisher training used by future runs. Running tasks keep their frozen training. Your private preferences are unchanged.':'This advances the version your future runs use.'} It does not ask for files —
           each run collects its own inputs when you start it.
         </p>
+        {snapshotDigest&&<p className="mb-4 text-xs text-ink-400 break-all">Published training snapshot: {snapshotDigest}</p>}
 
         {/* §3.2 — the exact authority delta, when there is one. */}
         {authority.hasChanges && <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 mb-3">

@@ -14,7 +14,7 @@ export type ManagerTrainingRunPreflight =
     optional?: true;
     installedCustomer?: true;
   }
-  | { state: 'unavailable' };
+  | { state: 'unavailable';reason?:'training_served_snapshot_version_mismatch' };
 
 export type TrainingSuccessorAdoptionPreview = {
   contractVersion: 'manager-training-successor-adoption-preview.v1';
@@ -45,6 +45,17 @@ export type TrainingSuccessorAdoptionReceipt = {
 };
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+export type PreparedTrainingTest={testPreparationId:string;preparationDigest:string};
+/** Query values select a prepared test, never create authority. The server
+ * revalidates the owner/material at preflight and again at request birth. */
+export function preparedTrainingTestQuery(id:unknown,digest:unknown):{state:'none'}|{state:'invalid'}|{state:'prepared';binding:PreparedTrainingTest}{
+  if(id===undefined&&digest===undefined)return {state:'none'};
+  return typeof id==='string'&&UUID.test(id)&&typeof digest==='string'&&/^[a-f0-9]{64}$/.test(digest)
+    ?{state:'prepared',binding:{testPreparationId:id,preparationDigest:digest}}:{state:'invalid'};
+}
+export function preparedTrainingTestMatches(response:any,binding:PreparedTrainingTest){
+  return response?.trainingTest?.testPreparationId===binding.testPreparationId&&response.trainingTest.preparationDigest===binding.preparationDigest;
+}
 const ADOPTION_REASONS = new Set([
   'agent_not_owned', 'agent_active_version_changed', 'version_lineage_incompatible',
   'task_identity_changed', 'manager_policy_changed', 'training_successor_no_eligible_records',
@@ -211,11 +222,21 @@ export function trainingSuccessorAdoptionReceipt(
 export function managerTrainingRunPreflight(
   response: unknown,
   workflowVersionId: string | null,
+  expectedTrainingTest:PreparedTrainingTest|null=null,
 ): ManagerTrainingRunPreflight {
   if (!workflowVersionId || !response || typeof response !== 'object' || Array.isArray(response)) {
     return { state: 'unavailable' };
   }
   const root = response as Record<string, unknown>;
+  if(root.ok===false&&root.reason==='training_served_snapshot_version_mismatch')return {state:'unavailable',reason:'training_served_snapshot_version_mismatch'};
+  if(expectedTrainingTest){
+    if(!exact(root,['ok','contractVersion','agentFamilyId','workflowVersionId','managerTrainingRequirements','trainingTest'])
+      ||root.ok!==true||root.contractVersion!=='prepared-agent-training-preflight.v1'||!preparedTrainingTestMatches(root,expectedTrainingTest)
+      ||typeof root.agentFamilyId!=='string'||!UUID.test(root.agentFamilyId)||root.workflowVersionId!==workflowVersionId
+      ||!isManagerTrainingRequirements(root.managerTrainingRequirements,workflowVersionId))return {state:'unavailable'};
+    const requirements=root.managerTrainingRequirements;
+    return requirements.readiness==='coach_reference_training_required'?{state:'training_required',requirements,hasEligiblePredecessor:false,successorAdoption:null}:{state:'ready',requirements};
+  }
   if (root.contractVersion === 'installed-agent-training-preflight.v1') {
     if (!exact(root, ['ok', 'contractVersion', 'agentFamilyId', 'workflowVersionId', 'managerTrainingRequirements'])
       || root.ok !== true || typeof root.agentFamilyId !== 'string' || !UUID.test(root.agentFamilyId)

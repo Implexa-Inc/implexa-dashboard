@@ -59,6 +59,7 @@ import GradeBadge from '../../_components/grade-badge';
 import { isPausableRoutine } from '@/lib/schedule-trigger';
 import { getAgentResume } from '@/lib/agent-discovery';
 import AgentResume from '../../_components/agent-resume';
+import {preparedTrainingTestQuery} from '@/lib/manager-training-run-preflight';
 import ForkRunCta from '@/app/s/run/[token]/fork-run-cta';
 
 export const dynamic = 'force-dynamic';
@@ -93,11 +94,13 @@ export default async function WorkflowDetailPage({
   searchParams,
 }: {
   params: { slug: string };
-  searchParams: { source?: string; tab?: string; legacy?: string };
+  searchParams: { source?: string; tab?: string; legacy?: string; trainingPreparationId?:string;trainingPreparationDigest?:string };
 }) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
+  const trainingTest=preparedTrainingTestQuery(searchParams.trainingPreparationId,searchParams.trainingPreparationDigest);
+  if(trainingTest.state==='invalid')return <main className="mx-auto max-w-3xl px-6 py-10"><h1 className="text-xl font-medium">Training test unavailable</h1><p role="alert" className="mt-3">This test link is incomplete. Return to Training and prepare the current private update again. Nothing has started.</p><Link href={`/training/${encodeURIComponent(params.slug)}`} className="mt-4 inline-block underline">Return to Training</Link></main>;
   const profile = await readUserProfile(supabase
     .from('users').select('id, organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
@@ -111,7 +114,7 @@ export default async function WorkflowDetailPage({
   // it now runs in parallel with the envelope and simply wins when the agent is
   // a marketplace one.
   const detailPromise = getAgentDetail(params.slug, session.access_token, { source: searchParams.source });
-  if (searchParams.legacy !== '1') {
+  if (searchParams.legacy !== '1'&&trainingTest.state!=='prepared') {
     const resume = await getAgentResume(params.slug, session.access_token);
     if (resume.status === 'found') return <AgentResume agent={resume.agent} />;
     if (resume.status === 'unavailable') return <main className="min-h-screen px-4 py-10"><div className="mx-auto max-w-4xl rounded-md border border-amber-500/30 bg-amber-500/10 p-4"><h1 className="text-lg font-semibold text-ink-50">Agent unavailable</h1><p role="alert" className="mt-2 text-sm text-amber-200">{resume.reason} Marketplace readiness could not be verified, so running is disabled. Try again.</p></div></main>;
@@ -604,6 +607,7 @@ export default async function WorkflowDetailPage({
          * immediately followed by the actual next action, no navigating away. */}
         <div className="mt-3">
           <AgentActions
+            trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
             slug={workflow.slug}
             name={workflow.name}
             isActive={isActive}
@@ -654,6 +658,8 @@ export default async function WorkflowDetailPage({
         <nav className="text-sm text-ink-500 mb-6">
           <BackLink fallback="/workflows" label="Back" />
         </nav>
+
+        {workflow.publisher_text_guidance_required&&<p className="mb-4 rounded-lg border border-amber-500/30 p-3 text-sm text-amber-700 dark:text-amber-300">The latest released training requires Codex and Implexa Desktop 0.4.160 or newer. Check this before installing or adopting it; Claude execution is not supported for this text guidance yet.</p>}
 
         {/* Header */}
         <header className="mb-6">
@@ -758,6 +764,7 @@ export default async function WorkflowDetailPage({
                 </p>
               )}
               <AgentActions
+                trainingTest={trainingTest.state==='prepared'?trainingTest.binding:null}
                 slug={workflow.slug}
                 name={workflow.name}
                 isActive={isActive}

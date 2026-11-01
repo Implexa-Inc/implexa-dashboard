@@ -2,6 +2,9 @@
 import {useEffect,useRef,useState} from 'react';
 import {isTrainingEvidenceStorage,type TrainingEvidenceStorage} from '@/lib/training-local-ingress';
 import {teachingDigest} from '@/lib/training-teaching-draft';
+import Modal from '../../_components/modal';
+import type {GuidedTrainingChanges,TrainingPublicationPreview} from '@/lib/guided-training-changes';
+import {trainingSnapshotReason} from '@/lib/guided-training-changes';
 
 type Projection={recordId:string;recordDigest:string;relation:string;properties:string[];summary:string;mustNotCopy:string[];attribution:string|null;
  derivative:{evidenceId:string;sha256:string;anchorDigest:string;mediaType:string;sizeBytes:number;width:number;height:number}};
@@ -22,6 +25,60 @@ function candidate(v:any):v is Candidate {
   &&[v.projection.derivative.width,v.projection.derivative.height].every(n=>Number.isInteger(n)&&n>0&&n<=2560)
   &&(v.storage===null||isTrainingEvidenceStorage(v.storage,v.recordId,v.recordDigest))
   &&(v.release===null||uuid(v.release?.releaseId)&&sha(v.release?.releaseDigest)&&typeof v.release?.current==='boolean');
+}
+
+/** The normal publication path reviews one tested snapshot. The existing image
+ * custody/fork controls above remain available for detailed evidence operations. */
+export function GuidedPublicationReview({open,value,busy=false,error='',onClose,onPrepare,onTest,onPublish,onReviewExample}:{
+ open:boolean;value:GuidedTrainingChanges;busy?:boolean;error?:string;onClose:()=>void;
+ onPrepare:(recordIds:string[])=>Promise<TrainingPublicationPreview|null>;
+ onTest:(preview:TrainingPublicationPreview)=>Promise<void>;
+ onPublish:(preview:TrainingPublicationPreview)=>Promise<boolean>;
+ onReviewExample?:(recordId:string)=>void;
+}){
+ const [ids,setIds]=useState<string[]>([]),[preview,setPreview]=useState<TrainingPublicationPreview|null>(null),[consent,setConsent]=useState(false);
+ const [working,setWorking]=useState(false),[note,setNote]=useState('');const pending=useRef(false);
+ const identity=`${value.binding.sessionId}:${value.binding.workflowVersionId}:${value.binding.snapshotDigest}:${open}`,current=useRef(identity);current.current=identity;
+ useEffect(()=>{setIds([]);setPreview(null);setConsent(false);setNote('');},[identity]);
+ const work=async(action:()=>Promise<void>)=>{if(pending.current||busy)return;pending.current=true;setWorking(true);setNote('');try{await action();}catch{setNote('This publication action could not be confirmed. Refresh the saved state before trying again.');}finally{pending.current=false;setWorking(false);}};
+ const prepare=async()=>{const captured=identity,found=await onPrepare(ids);if(current.current!==captured)return;setPreview(found);setConsent(false);if(!found)setNote('The exact public preview is unavailable. Your private training and served version are unchanged.');};
+ const unavailable=busy||working;
+ return <Modal open={open} onClose={onClose} title="Review the public version" maxWidth="max-w-3xl">
+  <div className="space-y-5 text-sm leading-6">
+   <p className="text-ink-400">Choose exactly which teachings customers may receive. Your private candidate, raw feedback and recordings are not published by opening this review. Nothing is selected automatically.</p>
+   <div className="space-y-3" aria-label="Teachings proposed for public release">{value.records.filter(r=>r.included&&r.summary).map(r=><label key={r.recordId} className="flex items-start gap-3 rounded-lg border border-ink-800 p-3">
+    <input type="checkbox" disabled={unavailable||!ids.includes(r.recordId)&&ids.length>=32} checked={ids.includes(r.recordId)} className="mt-1" onChange={e=>{setIds(old=>e.target.checked?[...old,r.recordId]:old.filter(id=>id!==r.recordId));setPreview(null);setConsent(false);}}/>
+    <span><span className="block">{r.summary}</span><span className="text-xs text-ink-500">{r.sourceKind==='legacy_evidence'?'Teaching with visual evidence':'Text guidance'} · {r.recordDigest.slice(0,12)}</span></span>
+   </label>)}</div>
+   <p className="text-xs text-ink-500">{ids.length} selected. Selecting none prepares a definition-only public version.</p>
+   <button type="button" className="btn-outline" disabled={unavailable||!value.publication.canPrepare} onClick={()=>work(prepare)}>Prepare exact public preview</button>
+   {preview&&<section className="space-y-4 rounded-xl border border-ink-700 p-4" aria-label="Exact public snapshot">
+    <div><h3 className="font-medium">{preview.definition.name}</h3><p className="mt-2 text-ink-400">{preview.definition.description}</p></div>
+    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-sm text-amber-300">This selection includes text guidance. Customers need Codex and Implexa Desktop 0.4.160 or newer to run it; Claude execution is not supported for this teaching format yet.</p>}
+    <div className="space-y-2" aria-label="Changes for customers"><h4 className="font-medium">What changes for customers</h4>
+     <p>{preview.publicationDelta.definitionChanged?'The public definition changes.':'The public definition stays the same.'}</p>
+     <p>{preview.publicationDelta.changes.filter(c=>c.change==='added').length} added · {preview.publicationDelta.changes.filter(c=>c.change==='removed').length} removed · {preview.publicationDelta.changes.filter(c=>c.change==='changed').length} changed · {preview.publicationDelta.changes.filter(c=>c.change==='unchanged').length} unchanged teachings.</p>
+     {preview.publicationDelta.changes.some(c=>c.change==='removed')&&<p className="text-amber-300">The removed teachings will be absent from new installs and from existing customers who accept this update. Existing pins and running tasks stay unchanged.</p>}
+     <ul className="text-xs text-ink-400">{preview.publicationDelta.changes.map(c=><li key={c.recordId}>{c.change[0].toUpperCase()+c.change.slice(1)}: {preview.records.find(r=>r.recordId===c.recordId)?.summary||`Teaching ${c.recordId.slice(0,8)}`}</li>)}</ul>
+    </div>
+    {preview.records.map(r=><article className="border-t border-ink-800 pt-3" key={r.recordId}><p>{r.summary}</p>
+     <p className="mt-1 text-xs text-ink-500">{r.relation} · {r.deliveryMode==='standing'?'Stage-start guidance':'Retrieved for relevant questions'} · {r.derivative.mediaType==='image/png'?'Image and guidance':'Text guidance'}</p>
+     {r.mustNotCopy.length>0&&<p className="mt-1 text-xs text-ink-400">Preserved restrictions: {r.mustNotCopy.map(s=>s.replaceAll('_',' ')).join(', ')}</p>}
+     {r.attribution&&<p className="mt-1 text-xs text-ink-400">{r.attribution}</p>}
+     {r.derivative.mediaType==='image/png'&&onReviewExample&&<button type="button" className="mt-2 text-xs underline" disabled={unavailable} onClick={()=>onReviewExample(r.recordId)}>Review exact image</button>}
+    </article>)}
+    <p className="text-xs text-ink-500">Material snapshot {preview.snapshotDigest.slice(0,12)}. Selected example copies may be inspected by customers who receive them; withdrawal stops future access.</p>
+    {!preview.canPublish&&<><p className="text-ink-400">{trainingSnapshotReason(preview.reason)}</p>
+     <button type="button" className="btn-outline" disabled={unavailable} onClick={()=>work(()=>onTest(preview))}>Test this public version</button></>}
+    {preview.canPublish&&<p className="text-emerald-300">A delivered test matches this exact public material.</p>}
+    {preview.records.some(r=>r.derivative.kind==='text_guidance')&&<p className="text-xs text-ink-400">Testing this text guidance currently requires Codex and Implexa Desktop 0.4.160 or newer, through the prepared Run now path.</p>}
+    <label className="flex items-start gap-3"><input type="checkbox" className="mt-1" checked={consent} disabled={unavailable} onChange={e=>setConsent(e.target.checked)}/>
+     <span>I reviewed this definition, the selected guidance and examples, and the additions, changes and removals listed above. I release this exact public version for customers. Raw feedback and recordings stay private.</span></label>
+    <button type="button" className="btn-primary" disabled={unavailable||!preview.canPublish||!consent} onClick={()=>work(async()=>{const captured=identity;if(await onPublish(preview)&&current.current===captured){setNote('This exact tested public version is published.');setConsent(false);}})}>Publish tested public version</button>
+   </section>}
+   {working&&<p role="status">Checking the exact snapshot…</p>}{(error||note)&&<p role="status">{error?error.replaceAll('_',' '):note}</p>}
+  </div>
+ </Modal>;
 }
 async function verifyImage(image:string,p:Projection){
  if(typeof image!=='string'||!image.startsWith('data:image/png;base64,')||image.length>11200000)throw Error('The exact teaching image is unavailable.');

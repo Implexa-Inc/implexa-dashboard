@@ -1,0 +1,368 @@
+{
+  "provenance": {
+    "producer": "public.read_guided_training_changes(uuid,uuid)",
+    "migration": "0542_inert_training_text_candidates.sql",
+    "migrationSha256": "fb1778d70e2d7f1f093784816cdd0f728cb0a1adfeba9756390b689e4694d9c2",
+    "environment": "synthetic complete-schema disposable UTF8 PostgreSQL",
+    "capturedWithoutTranslation": true
+  },
+  "result": {
+    "ok": true,
+    "test": {
+      "gaps": [
+        "training_test_not_ready"
+      ],
+      "runId": null,
+      "scope": null,
+      "status": "not_run",
+      "canTest": false,
+      "qualityScore": null,
+      "snapshotDigest": null
+    },
+    "policy": {
+      "enabled": false,
+      "policyId": "a7001104-9382-44f1-b26c-2331f6f5f7ed",
+      "revision": 2,
+      "receiptId": "f23d58fa-1bc8-4723-ae21-afc05a97eee7",
+      "policyDigest": "35d73ca307c5e0f666347681299873d65794e07cc55e2d2d7d6b160c683ebb9f"
+    },
+    "binding": {
+      "sessionId": "00000000-0000-4000-8000-000000000104",
+      "agentFamilyId": "00000000-0000-4000-8000-000000000102",
+      "snapshotDigest": "bfdbaeab6bcdd06f540d3ca383795401862fa1232dfb264d70a3a3d4927c5eb3",
+      "workflowVersionId": "00000000-0000-4000-8000-000000000103"
+    },
+    "records": [
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "taste",
+        "included": false,
+        "recordId": "1c246cfc-8853-4139-84ff-4768a04741f4",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "9c87ffb9d84faddacfd2c5ca0a7766af90fb55d6344ddcfc03e1e21bf13a4761",
+        "sourceEventId": "48221eb7-b35e-4c5f-9c8d-ea3164818ba5",
+        "admissionOrigin": "owner_candidate",
+        "policyReceiptId": null,
+        "sourceEventDigest": "e2a5ee8c1c19bff80b7d9593bbd42687a451bff4899dd11a8e88dfc2346180b6",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "taste",
+        "included": false,
+        "recordId": "26311dfa-3f09-4d3d-ae2d-c776cda1676f",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "2f529f4472e02f2e77f36b85bce8a8f68feb4f73e8e3146e73191db5d48a1a45",
+        "sourceEventId": "48221eb7-b35e-4c5f-9c8d-ea3164818ba5",
+        "admissionOrigin": "owner_candidate",
+        "policyReceiptId": null,
+        "sourceEventDigest": "e2a5ee8c1c19bff80b7d9593bbd42687a451bff4899dd11a8e88dfc2346180b6",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "taste",
+        "included": false,
+        "recordId": "146212c3-e2f5-476e-8528-08d0b46326da",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "9b6480b3e0ac63c5178366e36bcfbfa971ca0fb823d27d115009dd199c860ac7",
+        "sourceEventId": "2dcd4fc0-43ee-49d6-9081-17991b8bdcee",
+        "admissionOrigin": "standing_policy",
+        "policyReceiptId": "453e3717-cef3-402f-9088-d1a318ee82a2",
+        "sourceEventDigest": "24b1029a1f7a7bf9ecdffa05845b04ba5efd5cda3a845cfdb32276dc68d19237",
+        "policyReceiptDigest": "f3c99920fa9692bdfd2285f12f9eca9e61475dde04fdae030500f128cf152130",
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "method_preference",
+        "included": false,
+        "recordId": "58d2e2e2-6e85-43aa-a961-808438e4d598",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "ce5c86c9f89b83d037af0c5555ea18bd8e00d9ace43d5cefdb3e65db6f082143",
+        "sourceEventId": "2dcd4fc0-43ee-49d6-9081-17991b8bdcee",
+        "admissionOrigin": "none",
+        "policyReceiptId": null,
+        "sourceEventDigest": "24b1029a1f7a7bf9ecdffa05845b04ba5efd5cda3a845cfdb32276dc68d19237",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "suggested",
+        "summary": "Use quieter labels.",
+        "category": "taste",
+        "included": false,
+        "recordId": "9c3db3a0-1f56-4dd5-8505-4bf1f2e78bd2",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "bf9e7cbb83ac8737e7ed1650e25b34aad7c99c5cdad9ff215dc3d0dcedf85de0",
+        "sourceEventId": "61383939-71f0-4566-9f07-05d4e3fda9ab",
+        "admissionOrigin": "none",
+        "policyReceiptId": null,
+        "sourceEventDigest": "70134722df6588ccbedadf1015930317e411e9261dc224ff36d2ea451e14c072",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "suggested",
+        "summary": "Keep the main point prominent.",
+        "category": "taste",
+        "included": false,
+        "recordId": "ee1568ab-5238-4491-8679-7bd0c2d5550b",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "5db142d8fa369e2ddca564ccea6793934f2f9298865514d05d167f8222bed230",
+        "sourceEventId": "61383939-71f0-4566-9f07-05d4e3fda9ab",
+        "admissionOrigin": "none",
+        "policyReceiptId": null,
+        "sourceEventDigest": "70134722df6588ccbedadf1015930317e411e9261dc224ff36d2ea451e14c072",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "taste",
+        "included": false,
+        "recordId": "849aa0d7-03ee-467d-8048-696352f16ff2",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "a3fe3dc5fb451398daec34a150d11f6aab8f877410f3ec331158c1ca5c7c0f1b",
+        "sourceEventId": "d66c16a0-c409-4549-a853-038f53958701",
+        "admissionOrigin": "owner_candidate",
+        "policyReceiptId": null,
+        "sourceEventDigest": "91fb51d76bc2e5327134e804d4727d5dbf499ea8346c95f7c9cc752600159ec1",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": "146212c3-e2f5-476e-8528-08d0b46326da",
+        "predecessorRecordDigest": "9b6480b3e0ac63c5178366e36bcfbfa971ca0fb823d27d115009dd199c860ac7"
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "unavailable",
+        "summary": null,
+        "category": "taste",
+        "included": false,
+        "recordId": "ab5beb50-79b7-49ac-9700-8586ba28f86e",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "cca2f79f2663036758e09ba74bda3babd9f5124a43a155172aa3a4dd18884936",
+        "sourceEventId": "d66c16a0-c409-4549-a853-038f53958701",
+        "admissionOrigin": "owner_candidate",
+        "policyReceiptId": null,
+        "sourceEventDigest": "91fb51d76bc2e5327134e804d4727d5dbf499ea8346c95f7c9cc752600159ec1",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": "146212c3-e2f5-476e-8528-08d0b46326da",
+        "predecessorRecordDigest": "9b6480b3e0ac63c5178366e36bcfbfa971ca0fb823d27d115009dd199c860ac7"
+      },
+      {
+        "model": null,
+        "state": "human_accepted",
+        "summary": "Chosen: Clear hierarchy. Why: Readable evidence. Process: Use a clear diagram. Desired behavior: Keep the main point prominent",
+        "category": null,
+        "included": true,
+        "recordId": "51b6cb8f-00eb-4727-bd33-f2be424e9d28",
+        "sourceKind": "legacy_evidence",
+        "recordDigest": "8b69a5475a332a4f1eec28abfeaeaa92d2bfc6fcd09c4ae927a3280c60c03e11",
+        "sourceEventId": null,
+        "admissionOrigin": "human_decision",
+        "policyReceiptId": null,
+        "sourceEventDigest": null,
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      }
+    ],
+    "feedback": [
+      {
+        "text": null,
+        "reason": "training_feedback_withdrawn",
+        "eventId": "48221eb7-b35e-4c5f-9c8d-ea3164818ba5",
+        "outcome": "added",
+        "recordIds": [
+          "1c246cfc-8853-4139-84ff-4768a04741f4",
+          "26311dfa-3f09-4d3d-ae2d-c776cda1676f"
+        ],
+        "sourceKind": "trainer_feedback",
+        "eventDigest": "e2a5ee8c1c19bff80b7d9593bbd42687a451bff4899dd11a8e88dfc2346180b6",
+        "uncoveredText": [],
+        "analysisStatus": "unavailable",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      },
+      {
+        "text": null,
+        "reason": "training_feedback_withdrawn",
+        "eventId": "2dcd4fc0-43ee-49d6-9081-17991b8bdcee",
+        "outcome": "added",
+        "recordIds": [
+          "146212c3-e2f5-476e-8528-08d0b46326da",
+          "58d2e2e2-6e85-43aa-a961-808438e4d598"
+        ],
+        "sourceKind": "trainer_feedback",
+        "eventDigest": "24b1029a1f7a7bf9ecdffa05845b04ba5efd5cda3a845cfdb32276dc68d19237",
+        "uncoveredText": [],
+        "analysisStatus": "unavailable",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "training_policy_changed",
+        "eventId": "6d7c37ed-9f58-404e-948e-b371c2d1e4b8",
+        "outcome": "not_analysed",
+        "recordIds": [],
+        "sourceKind": "trainer_feedback",
+        "eventDigest": "2eddddef2bc176ec865425421cac895a492d4cc8cbf0ccfb077ce94f4d94c97f",
+        "uncoveredText": [],
+        "analysisStatus": "failed",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "not_requested",
+        "eventId": "260289c3-8891-432c-b7b2-2b0e0f4e6048",
+        "outcome": "not_analysed",
+        "recordIds": [],
+        "sourceKind": "trainer_feedback",
+        "eventDigest": "b731c6cbdf746c6c51e9aa9141b13115654fdf70c3c4c24e18a7ba26aefce482",
+        "uncoveredText": [],
+        "analysisStatus": "not_requested",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "suggested_not_admitted",
+        "eventId": "61383939-71f0-4566-9f07-05d4e3fda9ab",
+        "outcome": "added",
+        "recordIds": [
+          "9c3db3a0-1f56-4dd5-8505-4bf1f2e78bd2",
+          "ee1568ab-5238-4491-8679-7bd0c2d5550b"
+        ],
+        "sourceKind": "trainer_feedback",
+        "eventDigest": "70134722df6588ccbedadf1015930317e411e9261dc224ff36d2ea451e14c072",
+        "uncoveredText": [],
+        "analysisStatus": "answered",
+        "proposalOutcomes": [
+          {
+            "reason": "proposed_guidance",
+            "status": "mapped",
+            "candidateKey": "teaching-1"
+          },
+          {
+            "reason": "proposed_guidance",
+            "status": "mapped",
+            "candidateKey": "teaching-2"
+          }
+        ],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "question",
+        "eventId": "494e4173-8eae-4f00-91b5-c0a841546735",
+        "outcome": "not_converted",
+        "recordIds": [],
+        "sourceKind": "trainer_feedback",
+        "eventDigest": "f100565f010d2a6f9afd7b82dc11c633c1b89625f04a514ff4f5388352808b53",
+        "uncoveredText": [
+          "  Prefer quieter labels. Keep the main point prominent.  "
+        ],
+        "analysisStatus": "answered",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "suggested_not_admitted",
+        "eventId": "d66c16a0-c409-4549-a853-038f53958701",
+        "outcome": "added",
+        "recordIds": [
+          "ab5beb50-79b7-49ac-9700-8586ba28f86e",
+          "849aa0d7-03ee-467d-8048-696352f16ff2"
+        ],
+        "sourceKind": "trainer_feedback",
+        "eventDigest": "91fb51d76bc2e5327134e804d4727d5dbf499ea8346c95f7c9cc752600159ec1",
+        "uncoveredText": [],
+        "analysisStatus": "answered",
+        "proposalOutcomes": [
+          {
+            "reason": "proposed_guidance",
+            "status": "mapped",
+            "candidateKey": "teaching-1"
+          },
+          {
+            "reason": "proposed_guidance",
+            "status": "mapped",
+            "candidateKey": "teaching-2"
+          }
+        ],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "not_requested",
+        "eventId": "eaee87d1-0f6f-43c8-8df8-b9445fef808d",
+        "outcome": "not_analysed",
+        "recordIds": [],
+        "sourceKind": "creation_notes",
+        "eventDigest": "5ca91c4ae62239146dcd62a3dd006fb3102890a60a0782216f770d8418096617",
+        "uncoveredText": [],
+        "analysisStatus": "not_requested",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      },
+      {
+        "text": "Unanalysed creation note.",
+        "reason": "not_requested",
+        "eventId": "27190622-d15f-4e95-9a49-48c3a483c4ba",
+        "outcome": "not_analysed",
+        "recordIds": [],
+        "sourceKind": "creation_notes",
+        "eventDigest": "1b2c43fb360ac97589310ddf9f8c2450ce75283f21a1f76d15d47a8d5265402d",
+        "uncoveredText": [],
+        "analysisStatus": "not_requested",
+        "proposalOutcomes": [],
+        "includedRecordCount": 0
+      }
+    ],
+    "publication": {
+      "reason": "publication_test_required",
+      "canPublish": false,
+      "servedSnapshotDigest": null
+    },
+    "contractVersion": "guided-training-changes.v1",
+    "creationImports": [
+      {
+        "notes": [
+          "  Prefer quieter labels. Keep the main point prominent.  ",
+          "Unanalysed creation note."
+        ],
+        "replyId": "4d5a9e90-8afe-4daa-8295-3eabc5aa5641",
+        "noteCount": 2,
+        "replyDigest": "1dcd6c1aae3b3d9f35ef6f1960800fa3cc79ad074ba02dc168f39ddb661bd10f",
+        "buildRequestId": "00000000-0000-4000-8000-000000000152",
+        "importedNoteIndices": [
+          0,
+          1
+        ]
+      }
+    ]
+  }
+}

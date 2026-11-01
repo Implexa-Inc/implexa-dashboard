@@ -191,8 +191,11 @@ export type WorkflowDetail = {
   input_contract: WorkflowInputContract | null;
   input_contract_digest: string | null;
   run_input_version_source?: 'installed' | 'live';
+  publisher_text_guidance_required?:boolean;
   update_available?: {
     workflow_version_id: string;
+    published_snapshot_digest?:string;
+    manager_text_guidance_required?:boolean;
     version: number;
     input_contract: WorkflowInputContract | null;
     input_contract_digest: string | null;
@@ -664,11 +667,15 @@ export function mapWorkflowDetail(w: any, slug: string, source: string): Workflo
     input_contract: w.input_contract?.version === 1 && Array.isArray(w.input_contract.fields) ? w.input_contract : null,
     input_contract_digest: typeof w.input_contract_digest === 'string' ? w.input_contract_digest : null,
     run_input_version_source: w.run_input_version_source === 'installed' ? 'installed' : 'live',
+    publisher_text_guidance_required:w.publisher_text_guidance_required===true,
     update_available: w.update_available
       && typeof w.update_available.workflow_version_id === 'string'
       && typeof w.update_available.input_contract_digest === 'string'
       ? {
           workflow_version_id: w.update_available.workflow_version_id,
+          ...(typeof w.update_available.published_snapshot_digest==='string'&&/^[a-f0-9]{64}$/.test(w.update_available.published_snapshot_digest)
+            ?{published_snapshot_digest:w.update_available.published_snapshot_digest}:{}),
+          manager_text_guidance_required:w.update_available.manager_text_guidance_required===true,
           version: Number(w.update_available.version) || 0,
           input_contract: w.update_available.input_contract?.version === 1
             && Array.isArray(w.update_available.input_contract.fields)

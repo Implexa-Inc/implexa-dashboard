@@ -1,0 +1,292 @@
+{
+  "gate": "training-snapshot-actual-read",
+  "synthetic": true,
+  "preparation": {
+    "ok": true,
+    "scope": "private_candidate",
+    "sessionId": "fc23f58d-513a-4345-9e16-302548593122",
+    "snapshotDigest": "b6e4b53d0e122227bc8df365625f9486d7fd1421e304718675e62bdf8674fedd",
+    "preparationDigest": "d86cc3bf6ee61d8b03aa724915ea7f16f0839330bd35ff33db8ba4ef367b13c3",
+    "testPreparationId": "1e6f5454-2c7e-495e-825a-f873a22789e7",
+    "workflowVersionId": "ec120000-0000-4000-8000-000000006004"
+  },
+  "preflight": {
+    "ok": true,
+    "trainingTest": {
+      "preparationDigest": "d86cc3bf6ee61d8b03aa724915ea7f16f0839330bd35ff33db8ba4ef367b13c3",
+      "testPreparationId": "1e6f5454-2c7e-495e-825a-f873a22789e7"
+    },
+    "agentFamilyId": "ec120000-0000-4000-8000-000000006003",
+    "contractVersion": "prepared-agent-training-preflight.v1",
+    "workflowVersionId": "ec120000-0000-4000-8000-000000006004",
+    "managerTrainingRequirements": {
+      "scope": "workflow_version_quality_references",
+      "reason": null,
+      "readiness": "not_applicable",
+      "classified": true,
+      "missingPairs": [],
+      "requiredPairs": [],
+      "fulfilledPairs": [],
+      "contractVersion": "manager-reference-training-readiness.v1",
+      "workflowVersionId": "ec120000-0000-4000-8000-000000006004"
+    }
+  },
+  "read": {
+    "ok": true,
+    "test": {
+      "gaps": [
+        "training_candidate_snapshot_changed"
+      ],
+      "runId": "5224506c-0c7d-4b80-8d2f-1b98e50c78dd",
+      "scope": "private_candidate",
+      "status": "stale",
+      "canTest": true,
+      "requestId": "00000000-0000-4000-8000-000000020003",
+      "qualityScore": null,
+      "snapshotDigest": "b6e4b53d0e122227bc8df365625f9486d7fd1421e304718675e62bdf8674fedd"
+    },
+    "policy": {
+      "enabled": false,
+      "policyId": null,
+      "revision": 0,
+      "receiptId": null,
+      "policyDigest": null
+    },
+    "binding": {
+      "sessionId": "fc23f58d-513a-4345-9e16-302548593122",
+      "agentFamilyId": "ec120000-0000-4000-8000-000000006003",
+      "snapshotDigest": "354aadd243d52b89ee1797d9ae27de1d31bf55f5edbeb738f71b7950747b1628",
+      "workflowVersionId": "ec120000-0000-4000-8000-000000006004"
+    },
+    "records": [
+      {
+        "model": "claude-haiku-5-5",
+        "state": "removed",
+        "summary": "Use quieter labels.",
+        "category": "taste",
+        "included": false,
+        "recordId": "0e051ba9-f07f-46d6-98ea-3536e6fb9df6",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "e022777557a460fc703592c74c3dfc91026134ff43f54c3175d2833a218c8fb3",
+        "sourceEventId": "84de987c-92e4-4692-9a1e-d9479c6dc9e4",
+        "admissionOrigin": "owner_candidate",
+        "policyReceiptId": null,
+        "sourceEventDigest": "971756de01137935f85d391ae3a4b6c83941d91af8e6caa69db0e0dec6336060",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "state": "suggested",
+        "summary": "Keep the main point prominent.",
+        "category": "taste",
+        "included": false,
+        "recordId": "3f02f321-41a5-4a51-b5ea-7d0fb50c08ad",
+        "sourceKind": "trainer_feedback",
+        "recordDigest": "f88b7aedea7e8ce0bbf834d0bf6ceb260c96d0da1b27f971b2c95f903df417f8",
+        "sourceEventId": "84de987c-92e4-4692-9a1e-d9479c6dc9e4",
+        "admissionOrigin": "none",
+        "policyReceiptId": null,
+        "sourceEventDigest": "971756de01137935f85d391ae3a4b6c83941d91af8e6caa69db0e0dec6336060",
+        "policyReceiptDigest": null,
+        "predecessorRecordId": null,
+        "predecessorRecordDigest": null
+      }
+    ],
+    "feedback": [
+      {
+        "text": "  Prefer quieter labels. Keep the main point prominent.  ",
+        "reason": "suggested_not_admitted",
+        "eventId": "84de987c-92e4-4692-9a1e-d9479c6dc9e4",
+        "outcome": "added",
+        "recordIds": [
+          "0e051ba9-f07f-46d6-98ea-3536e6fb9df6",
+          "3f02f321-41a5-4a51-b5ea-7d0fb50c08ad"
+        ],
+        "sourceKind": "trainer_feedback",
+        "eventDigest": "971756de01137935f85d391ae3a4b6c83941d91af8e6caa69db0e0dec6336060",
+        "uncoveredText": [],
+        "analysisStatus": "answered",
+        "proposalOutcomes": [
+          {
+            "reason": "proposed_guidance",
+            "status": "mapped",
+            "candidateKey": "teaching-1"
+          },
+          {
+            "reason": "proposed_guidance",
+            "status": "mapped",
+            "candidateKey": "teaching-2"
+          }
+        ],
+        "includedRecordCount": 0
+      }
+    ],
+    "activation": {
+      "reason": "training_delivered_test_required",
+      "canActivate": false,
+      "testRequestId": null,
+      "stoppedSinceTest": 0,
+      "withdrawnSinceTest": 0,
+      "servedSnapshotDigest": "b6e4b53d0e122227bc8df365625f9486d7fd1421e304718675e62bdf8674fedd"
+    },
+    "publication": {
+      "reason": "publication_test_required",
+      "canPrepare": false,
+      "canPublish": false,
+      "qualifyingRunId": null,
+      "servedSnapshotDigest": null,
+      "proposedSnapshotDigest": null,
+      "qualifyingTestRequestId": null,
+      "qualifyingSnapshotDigest": null
+    },
+    "contractVersion": "guided-training-changes.v1",
+    "creationImports": [],
+    "selectionCoverage": {
+      "eligibleTextByStage": [],
+      "maxStandingReferences": 2
+    }
+  },
+  "definition": {
+    "ok": true,
+    "scope": "private_candidate",
+    "material": {
+      "definition": {
+        "name": "Source fixture",
+        "steps": [
+          {
+            "kind": "decision",
+            "label": "Inspect input.",
+            "order": 1,
+            "inputs": [
+              {
+                "from": "run.topic",
+                "name": "topic",
+                "required": true
+              }
+            ],
+            "outputs": [
+              {
+                "name": "source_manifest",
+                "type": "json",
+                "relativePath": "out/source.json"
+              }
+            ],
+            "managerGuidance": {
+              "stage": "build",
+              "decisionId": "creative-choice",
+              "disclosure": "on_question",
+              "properties": [
+                "typography_treatment"
+              ],
+              "contractVersion": "manager-guidance-decision.v1"
+            },
+            "managerQualityCoverage": {
+              "stage": "build",
+              "critical": false,
+              "taskFacts": [],
+              "contractVersion": "manager-quality-coverage.v1",
+              "requiredReferences": [],
+              "requiredCriterionIds": [],
+              "requiredDecisionKeys": [],
+              "requiredProcedureTools": []
+            }
+          },
+          {
+            "kind": "decision",
+            "label": "Author the candidate.",
+            "order": 2,
+            "inputs": [
+              {
+                "from": "step.1.source_manifest",
+                "name": "source_manifest",
+                "required": true
+              }
+            ],
+            "outputs": [
+              {
+                "name": "draft",
+                "type": "json",
+                "relativePath": "out/draft.json"
+              }
+            ]
+          },
+          {
+            "kind": "decision",
+            "label": "Check and package the result.",
+            "order": 3,
+            "inputs": [
+              {
+                "from": "step.2.draft",
+                "name": "draft",
+                "required": true
+              }
+            ],
+            "outputs": [
+              {
+                "name": "result",
+                "type": "file",
+                "relativePath": "out/result.json"
+              }
+            ]
+          },
+          {
+            "kind": "decision",
+            "label": "Independently inspect the result.",
+            "order": 4,
+            "enrichment": "critique_gate"
+          }
+        ],
+        "content": "# Synthetic fixture",
+        "audience": null,
+        "metadata": {
+          "generated": null,
+          "generated_by": "ec120000-0000-4000-8000-000000006000",
+          "capability_setup": null
+        },
+        "source_url": "https://example.invalid/source-fixture",
+        "description": null,
+        "frontmatter": null,
+        "limitations": null,
+        "run_context": null,
+        "search_query": null,
+        "prerequisites": null,
+        "example_result": null,
+        "outcome_schema": {
+          "primary": "An independently checked isolated result.",
+          "input_contract": {
+            "fields": [
+              {
+                "key": "topic",
+                "kind": "text",
+                "label": "Topic",
+                "order": 1,
+                "required": true,
+                "cardinality": "one",
+                "description": "An isolated test topic."
+              }
+            ],
+            "version": 1
+          },
+          "input_contract_digest": "809b6deab9625ea618855c8b6214af5c84ce05dcd965f4be937cc1f6e0880bcc"
+        },
+        "required_inputs": null,
+        "editorial_summary": null,
+        "publication_state": null,
+        "permission_manifest": {
+          "rules": [],
+          "tools": [],
+          "domains": [],
+          "version": 1,
+          "requires_browser": false
+        },
+        "active_input_contract_digest": "809b6deab9625ea618855c8b6214af5c84ce05dcd965f4be937cc1f6e0880bcc"
+      },
+      "hardeningManifestDigest": "dccea9d4b20806f1c2f09faac84268b8868826e630792d53402f097ad122df14"
+    },
+    "snapshotDigest": "b6e4b53d0e122227bc8df365625f9486d7fd1421e304718675e62bdf8674fedd",
+    "contractVersion": "run-training-definition.v1",
+    "workflowVersionId": "ec120000-0000-4000-8000-000000006004"
+  }
+}

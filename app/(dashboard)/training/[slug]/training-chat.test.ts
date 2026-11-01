@@ -8,9 +8,9 @@ const context=()=>({agent:{id:id(4),name:'Video agent',slug:'video-agent',versio
  source:{sourceId:SOURCE,sha256:H},availableActions:['none','analyse_taste','review_method','test_agent']});
 const turn=(patch={})=>({turnId:id(5),versionId:VERSION,sourceId:SOURCE,sourceSha256:H,message:'Please review this recording.',createdAt:'2026-10-31T12:00:00Z',
  status:'answered',answer:'The research method is already attached. We can review taste.',action:'analyse_taste',reason:null,...patch});
-async function setup(t:any,options:{turns?:any[];offlineOnce?:boolean;wrongContext?:boolean;historical?:boolean;embedded?:boolean}={}){
+async function setup(t:any,options:{turns?:any[];offlineOnce?:boolean;wrongContext?:boolean;historical?:boolean;embedded?:boolean;guided?:boolean}={}){
  const calls:any[]=[],actions:any[]=[];let saved=options.turns||[],posts=0;
- const props={embedded:options.embedded,sessionId:SESSION,versionId:VERSION,slug:'video-agent',sources:[source],selectedSourceId:SOURCE,disabled:options.historical===true,
+ const props={guided:options.guided,embedded:options.embedded,sessionId:SESSION,versionId:VERSION,slug:'video-agent',sources:[source],selectedSourceId:SOURCE,disabled:options.historical===true,
   onSelectSource:()=>{},onAction:async(...args:any[])=>{actions.push(args);}};
  const r=await render('../training/[slug]/training-chat.tsx',props,{fetch:(async(url:string,init:any={})=>{
   calls.push({url,init});let c=context();if(options.wrongContext)c.agent.versionId=id(99);
@@ -80,4 +80,37 @@ test('embedded Training companion restores privately with GET only and stays the
  await r.rerender({...props,busy:true});
  assert.equal(r.document.querySelector('textarea')!.value,'Keep this unsent feedback while I review the example.');
  assert.equal(calls.length,1);assert.equal(actions.length,0);
+});
+
+test('selected feedback is an explicit target, never sent by opening; Send binds target and clears it after save',async t=>{
+ const {r,calls,props}=await setup(t,{guided:true,embedded:true});
+ const target={kind:'feedback',id:id(40),digest:H},request={key:'first-target',target,prompt:'Please prepare a learning from the selected feedback.'};
+ let saved=0;await r.rerender({...props,request,onSaved:()=>saved++});
+ assert.equal(calls.filter(c=>c.init.method==='POST').length,0);assert.equal(saved,0);
+ assert.match(r.text(),/Nothing is sent until Send/);
+ await r.click(r.getByText('Send'));const b=JSON.parse(calls.find(c=>c.init.method==='POST').init.body);
+ assert.deepEqual(b.target,target);assert.equal(b.changesContract,'guided-training-changes.v1');assert.equal(saved,1);
+ assert.equal(r.queryByText('Cancel selected target'),null);
+ await type(r,'Prefer fewer labels.');await r.click(r.getByText('Send'));
+ const normal=JSON.parse(calls.filter(c=>c.init.method==='POST').at(-1).init.body);assert.equal(normal.target,null);
+});
+test('switching selected targets changes idempotency identity and a version switch drops an unsent target',async t=>{
+ const {r,calls,props}=await setup(t,{guided:true,embedded:true});
+ await r.rerender({...props,request:{key:'target-one',target:{kind:'record',id:id(40),digest:H},prompt:'Prefer quieter emphasis.'}});
+ await r.rerender({...props,request:{key:'target-two',target:{kind:'record',id:id(41),digest:H},prompt:'Prefer quieter emphasis.'}});
+ await r.click(r.getByText('Send'));assert.equal(JSON.parse(calls.find(c=>c.init.method==='POST').init.body).target.id,id(41));
+ await r.rerender({...props,versionId:id(90),disabled:true});assert.equal(r.queryByText('Cancel selected target'),null);
+});
+
+test('guided test suggestion reviews the snapshot gate rather than bypassing it through the normal run page',async t=>{
+ const {r,calls,actions}=await setup(t,{guided:true,embedded:true,turns:[turn({action:'test_agent'})]});
+ const b=r.getByText('Review the private update’s test');assert.equal(b.tagName,'BUTTON');
+ await r.click(b);assert.equal(actions[0][0],'test_agent');assert.equal(calls.some(c=>c.init.method==='POST'),false);
+ assert.equal(r.document.querySelector('a[href*="/workflows/"]'),null);
+});
+
+test('an imported AI creation note is never labelled as trainer speech or an unfinished provider call',async t=>{
+ const {r,calls}=await setup(t,{guided:true,embedded:true,turns:[turn({sourceKind:'creation_notes',status:'pending',answer:null,action:'none'})]});
+ assert.match(r.text(),/Implexa creation note:/);assert.match(r.text(),/No chat reply was requested/);
+ assert.doesNotMatch(r.text(),/You:|Reply not yet confirmed/);assert.equal(calls.some(c=>c.init.method==='POST'),false);
 });
