@@ -502,7 +502,22 @@ export async function selectRuns(
     return q;
   };
 
-  const withoutManagerScaffolds = async (rows: RunRow[]): Promise<RunRow[]> => {
+
+
+  const richRes = await build(rich);
+  if (!richRes.error) return withoutManagerScaffolds(supabase, (richRes.data as unknown as RunRow[]) || []);
+  if (!isMissingColumn(richRes.error)) {
+    if (opts.throwOnError) throw new Error('run_history_unavailable');
+    // A real error (auth, RLS, network): surface nothing rather than throwing,
+    // matching the rest of the dashboard's degrade-to-empty server reads.
+    return [];
+  }
+  const baseRes = await build(base);
+  if (baseRes.error && opts.throwOnError) throw new Error('run_history_unavailable');
+  return baseRes.error ? [] : withoutManagerScaffolds(supabase, (baseRes.data as unknown as RunRow[]) || []);
+}
+
+async function withoutManagerScaffolds<T extends {id: string}>(supabase: SupabaseClient, rows: T[]): Promise<T[]> {
     if (!rows.length) return rows;
     const { data, error } = await supabase
       .from('run_requests')
@@ -515,17 +530,4 @@ export async function selectRuns(
     const hidden = new Set(((data as Array<{ run_id: string | null }> | null) ?? [])
       .map((row) => row.run_id).filter((id): id is string => !!id));
     return rows.filter((row) => !hidden.has(row.id));
-  };
-
-  const richRes = await build(rich);
-  if (!richRes.error) return withoutManagerScaffolds((richRes.data as unknown as RunRow[]) || []);
-  if (!isMissingColumn(richRes.error)) {
-    if (opts.throwOnError) throw new Error('run_history_unavailable');
-    // A real error (auth, RLS, network): surface nothing rather than throwing,
-    // matching the rest of the dashboard's degrade-to-empty server reads.
-    return [];
-  }
-  const baseRes = await build(base);
-  if (baseRes.error && opts.throwOnError) throw new Error('run_history_unavailable');
-  return baseRes.error ? [] : withoutManagerScaffolds((baseRes.data as unknown as RunRow[]) || []);
 }
