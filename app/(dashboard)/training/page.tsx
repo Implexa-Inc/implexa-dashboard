@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { getMyAgents, type MyAgent } from '@/lib/agents-home';
+import { readMyWorkflows, type MyWorkflowCard, type MyWorkflowsRead } from '@/lib/workflow-catalog';
+import RetryButton from '../_components/retry-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ export default async function TrainingPage() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
 
-  const feed = await getMyAgents();
+  const feed = await readMyWorkflows(session.access_token);
 
   return (
     <div className="min-h-screen px-6 lg:px-12 py-14">
@@ -22,7 +23,7 @@ export default async function TrainingPage() {
           </p>
         </header>
 
-        {feed.status !== 'ready' ? <FeedUnavailable /> : <OwnedAgents feed={feed} />}
+        {feed.status !== 'ready' ? <FeedUnavailable reason={feed.reason} /> : <OwnedAgents owned={feed.workflows} />}
       </div>
     </div>
   );
@@ -32,19 +33,19 @@ export default async function TrainingPage() {
  * An unreadable roster is not an empty roster. Showing "Build your first agent"
  * to an owner whose feed just failed would tell them their work does not exist.
  */
-function FeedUnavailable() {
+function FeedUnavailable({ reason }: { reason: Extract<MyWorkflowsRead, {status:'unavailable'}>['reason'] }) {
   return (
     <div role="status" className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-10 text-center">
       <p className="text-sm text-ink-300">We can&apos;t show your agents right now.</p>
-      <p className="mt-1 text-xs text-ink-500">This is not the same as having none — try again shortly.</p>
+      <p className="mt-1 text-xs text-ink-500">{reason === 'timeout' ? 'The agent lookup took too long.' : reason === 'no_session' ? 'Your session is unavailable.' : 'The agent lookup could not be completed.'} This is not the same as having none.</p>
+      <RetryButton />
     </div>
   );
 }
 
-function OwnedAgents({ feed }: { feed: { active: MyAgent[]; needsActivation: MyAgent[]; drafts: MyAgent[] } }) {
+function OwnedAgents({ owned }: { owned: MyWorkflowCard[] }) {
   // Ownership is the whole gate here: a renter sees the empty state, an owner
   // sees their agents. There is no mode toggle (DESIGN.md §4.2).
-  const owned = [...feed.active, ...feed.needsActivation, ...feed.drafts];
 
   if (owned.length === 0) {
     return (
@@ -70,7 +71,7 @@ function OwnedAgents({ feed }: { feed: { active: MyAgent[]; needsActivation: MyA
               <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-950/40 text-emerald-200/80">✦</span><span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-ink-100">{a.name}</span>
                 <span className="mt-0.5 block text-xs text-ink-500">
-                  {a.mode === 'on_demand' ? 'On-demand' : (a.scheduleNl || 'Scheduled')}
+                  {a.is_scheduled ? 'Scheduled' : 'On-demand'}
                 </span>
               </span>
               <span className="shrink-0 text-xs text-ink-400">Train agent →</span>
