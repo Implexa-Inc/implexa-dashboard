@@ -106,3 +106,10 @@ test('the count is exposed to assistive tech as a decision count, not a bare num
   const html = renderTabs('needs', 4);
   assert.match(html, /aria-label="4 waiting for your decision"/);
 });
+
+test('pilot run filters add All runs while preserving approval/review and delivered destinations',()=>{
+ const html=renderToStaticMarkup(React.createElement(tabsMod.default as never,{current:'activity',reviewCount:2,activity:true}));
+ const links=anchors(navByLabel(html,'Work filters')!.inner);
+ assert.deepEqual(links.map(a=>a.href),['/work?view=activity','/work?view=needs','/work?view=review','/work?view=delivered']);
+ assert.equal(links.find(a=>a.attrs['aria-current']==='page')?.label,'All runs');
+});

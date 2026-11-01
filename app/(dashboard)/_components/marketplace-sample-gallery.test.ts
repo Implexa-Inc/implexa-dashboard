@@ -13,8 +13,7 @@ test('the gallery shows two labelled sample offers; rental, details and owner pr
   await r.click(r.getByText('All'));assert.equal(r.document.querySelectorAll('article').length,2);assert.equal(r.calls.backend.length,0);
  }finally{r.cleanup();}
 });
-test('the agent frame exposes three page tabs and marks the current view',async()=>{
- const r=await render('agent-home-frame.tsx',{tab:'rent',children:'Gallery'});
- try{const links=Array.from(r.document.querySelectorAll('nav[aria-label="Agent views"] a'));assert.deepEqual(links.map(a=>a.textContent),['Rent Agent','Running Agents','Training Agent']);assert.equal(links[0].getAttribute('aria-current'),'page');assert.equal(links[1].getAttribute('href'),'/workflows?tab=running');}finally{r.cleanup();}
- const other=await render('agent-home-frame.tsx',{children:'Existing agents'});try{assert.equal(other.document.querySelector('nav[aria-label="Agent views"]'),null);assert.match(other.text(),/Existing agents/);}finally{other.cleanup();}
+test('the agent frame no longer repeats sidebar destinations as page tabs',async()=>{
+ const r=await render('agent-home-frame.tsx',{children:'Existing agents'});
+ try{assert.equal(r.document.querySelector('nav'),null);assert.match(r.text(),/Existing agents/);}finally{r.cleanup();}
 });

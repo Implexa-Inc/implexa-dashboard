@@ -7,9 +7,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PRIMARY_NAV, SECONDARY_NAV, FORBIDDEN_PRIMARY_LABELS,
+  PRIMARY_NAV, primaryNavigation, SECONDARY_NAV, FORBIDDEN_PRIMARY_LABELS,
   ownsPath, isNavItemActive, activeNavItem,
-  WORK_VIEWS, DEFAULT_WORK_VIEW, parseWorkView, workViewHref,
+  WORK_VIEWS, DEFAULT_WORK_VIEW, parseWorkView, resolveWorkView, workViewHref,
   LEGACY_ROUTE_REDIRECTS, legacyDestination,
   resolveDefaultLanding, isCreateFabSuppressed, anySignal,
   countNewerThan, mergeTimestamps, workSeenKey,
@@ -211,4 +211,22 @@ test('the global Create button stays out of review and contextual Training/creat
   for (const p of ['/workflows', '/workflows/x', '/settings', '/overview']) {
     assert.equal(isCreateFabSuppressed(p), false, `${p} should keep Create`);
   }
+});
+
+test('the pilot relabels exactly the existing domains; every deep link retains one owner',()=>{
+ const nav=primaryNavigation(true);
+ assert.deepEqual(nav.map(n=>n.label),['Rent Agent','Running Agents','Training Agents']);
+ assert.deepEqual(primaryNavigation(false),PRIMARY_NAV);
+ for(const path of ['/workflows','/workflows/a','/create','/work','/runs/a','/review/a','/training','/training/a']){
+  assert.equal(nav.filter(n=>isNavItemActive(n,path)).length,1,path);
+ }
+});
+
+test('Work defaults to Needs you outside the pilot, and explicit decisions remain reachable for pilots',()=>{
+ for(const value of [undefined,null,''])assert.equal(resolveWorkView(value,false),'needs');
+ assert.equal(resolveWorkView(undefined,true),'activity');
+ for(const pilot of [false,true])for(const view of ['needs','review','delivered','activity'] as const){
+  assert.equal(resolveWorkView(view,pilot),view);assert.equal(resolveWorkView([view],pilot),view);
+ }
+ assert.equal(resolveWorkView('unknown',false),'needs');
 });

@@ -33,13 +33,18 @@ import {readMyWorkflows} from '@/lib/workflow-catalog';
 import {reviewQueueForArea} from '@/lib/training-review-routing';
 import { getReviewQueue, reviewQueueWarning } from '@/lib/review';
 import { getMyAgents } from '@/lib/agents-home';
-import { parseWorkView, WORK_VIEW_LABELS } from '@/lib/navigation';
-import TodayFeed from '../_components/today-feed';
+import { resolveWorkView, AGENTS_MANAGE_HREF, WORK_VIEW_LABELS } from '@/lib/navigation';
+import TodayFeed,{NeedsYouNotice} from '../_components/today-feed';
 import { RunAttentionBanner, type AttentionItem } from '../_components/run-attention-banner';
 import InboxList from '../inbox/inbox-list';
 import WorkFilterTabs from './_components/work-filter-tabs';
 import ReadyForReviewList from './_components/ready-for-review-list';
 import OutcomeProductionsList from './_components/outcome-productions-list';
+import {getMarketplaceSamples} from '@/lib/agent-marketplace-samples-server';
+import {marketplacePilotEnabled} from '@/lib/agent-marketplace-samples';
+import {selectRuns,type RunRow} from '@/lib/run-state';
+import LiveRunActivity from '../_components/live-run-activity';
+import RunActivity from '../_components/run-activity';
 import { listOutcomeProductions } from '@/lib/outcome-production-load';
 
 export const dynamic = 'force-dynamic';
@@ -57,7 +62,9 @@ export default async function WorkPage({
     .from('users').select('id, organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const view = parseWorkView(searchParams?.view);
+  const pilot=marketplacePilotEnabled(await getMarketplaceSamples());
+  const view = resolveWorkView(searchParams?.view,pilot);
+
 
   // The review queue is read on EVERY view because the Ready-for-review count is
   // what replaced the old Review navigation entry — a filter whose count only
@@ -72,13 +79,15 @@ export default async function WorkPage({
     <div className="min-h-screen px-6 lg:px-12 py-14">
       <div className="max-w-3xl mx-auto">
         <header className="mb-6">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Work</h1>
+          <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-semibold tracking-tight text-ink-50">{pilot?'Running Agents':'Work'}</h1>{pilot&&<Link href={AGENTS_MANAGE_HREF} className="text-xs text-ink-400 hover:text-ink-100">Manage installed agents →</Link>}</div>
           <p className="text-ink-300 text-sm mt-1">
             What your agents are producing, what needs you, and what they delivered.
           </p>
         </header>
 
-        <WorkFilterTabs current={view} reviewCount={reviewCount} />
+        <WorkFilterTabs current={view} reviewCount={reviewCount} activity={pilot||view==='activity'} />
+
+        {view === 'activity' && <ActivityView jwt={session.access_token} />}
 
         {view === 'needs'     && <NeedsYouView jwt={session.access_token} />}
         {view === 'review'    && <ReviewView queue={queue} />}
@@ -161,4 +170,17 @@ async function DeliveredView() {
       <InboxList initialItems={items} basePath="/work" />
     </>
   );
+}
+
+/** The same live lifecycle plus caller-scoped recent history; no agent roster. */
+async function ActivityView({jwt}:{jwt:string}) {
+  let runs:RunRow[]=[],unavailable=false;
+  const supabase=createClient();
+  const [productions,needsYou]=await Promise.all([
+    listOutcomeProductions(jwt),
+    loadNeedsYou(supabase),
+    selectRuns(supabase,{limit:40,extraColumns:'current_step_index,total_steps,current_step_label',throwOnError:true})
+      .then(rows=>{runs=rows;}).catch(()=>{unavailable=true;}),
+  ]);
+  return <><NeedsYouNotice data={needsYou}/><OutcomeProductionsList load={productions}/><LiveRunActivity/><RunActivity runs={runs} unavailable={unavailable}/></>;
 }

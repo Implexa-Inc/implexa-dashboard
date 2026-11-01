@@ -12,7 +12,7 @@
  * (TalkToImplexa, listWorkflows) so there's one source of truth, not a fork.
  */
 
-import {AGENTS_RUNNING_HREF} from '@/lib/navigation';
+import {AGENTS_MANAGE_HREF} from '@/lib/navigation';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
@@ -52,7 +52,7 @@ export default async function CreatePage({searchParams}:{searchParams?:{from?:st
     <main className="min-h-screen px-6 lg:px-12 py-14">
       <div className={`${fromTraining?'max-w-6xl':'max-w-3xl'} mx-auto`}>
         <div className="mb-6">
-          <Link href={fromTraining?'/training':AGENTS_RUNNING_HREF} className="text-xs text-ink-400 hover:text-ink-200 hover:underline">{fromTraining?'← Training':'← Your agents'}</Link>
+          <Link href={fromTraining?'/training':AGENTS_MANAGE_HREF} className="text-xs text-ink-400 hover:text-ink-200 hover:underline">{fromTraining?'← Training':'← Your agents'}</Link>
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50 mt-2">Create an agent</h1>
           <p className="text-sm text-ink-400 mt-1">
             {fromTraining?'Describe what this agent should do, any required tools, and the input and output you expect. Once it is built, train it with your demonstrations and feedback.':'Describe what you want and your connected engine builds it — or start from one the community already runs.'}

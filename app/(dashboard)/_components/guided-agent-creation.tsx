@@ -1,5 +1,6 @@
 'use client';
 
+import {AGENTS_RUNNING_HREF} from '@/lib/navigation';
 import {useEffect,useRef,useState} from 'react';
 import Link from 'next/link';
 import {createAgentBuild} from '@/lib/plan-review';
@@ -93,7 +94,7 @@ export default function GuidedAgentCreation({ownerId}:{ownerId:string}){
      <button type="button" className="text-sm text-ink-400 underline disabled:opacity-40" disabled={busy||!previousPrepared} onClick={undo}>Undo last change</button>
      <p className="text-xs text-ink-500">No run, permission grant or media purchase.</p></div>}
    </>}
-   {isBuilt&&!data?.withdrawn&&<div role="status" className="rounded-xl border border-emerald-800 p-5 text-sm"><p>Build queued through your connected engine. This is not yet a built or tested agent. If it fails, copy these cards to a new draft.</p><Link className="mt-3 inline-block underline" href="/workflows">View your agents →</Link></div>}
+   {isBuilt&&!data?.withdrawn&&<div role="status" className="rounded-xl border border-emerald-800 p-5 text-sm"><p>Build queued through your connected engine. This is not yet a built or tested agent. If it fails, copy these cards to a new draft.</p><Link className="mt-3 inline-block underline" href={AGENTS_RUNNING_HREF}>View your agents →</Link></div>}
    {notice&&<p role="status" className="text-sm text-ink-400">{notice}</p>}
    {error&&<p role="alert" className="rounded-lg border border-amber-700 p-3 text-sm">{error.replaceAll('_',' ')}</p>}
   </div>

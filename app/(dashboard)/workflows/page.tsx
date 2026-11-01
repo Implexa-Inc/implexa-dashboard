@@ -15,7 +15,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
-import { readMyWorkflows, listMyWorkflows, listDismissedWorkflows, listFavoriteSlugs } from '@/lib/workflow-catalog';
+import { listMyWorkflows, listDismissedWorkflows, listFavoriteSlugs } from '@/lib/workflow-catalog';
 import { getMyAgents } from '@/lib/agents-home';
 import { buildRoster } from '@/lib/agents-roster';
 import { categorizeAgent } from '@/lib/agent-category';
@@ -27,9 +27,12 @@ import ChainSuggestions from '../_components/chain-suggestions';
 import { listAgentDiscovery } from '@/lib/agent-discovery';
 import { listChainOfferings } from '@/lib/agent-chain-offerings';
 import AgentHomeFrame from '../_components/agent-home-frame';
-import TrainingAgentPicker,{TrainingFeedUnavailable} from '../_components/training-agent-picker';
+import TalkToImplexa from '../_components/talk-to-implexa';
+import BuildingAgents from '../_components/building-agents';
+import {isExecutorConnected} from '@/lib/connection';
+import {getMarketplaceSamples} from '@/lib/agent-marketplace-samples-server';
 import MarketplaceSampleGallery from '../_components/marketplace-sample-gallery';
-import {agentHomeView,readMarketplaceSamples} from '@/lib/agent-marketplace-samples';
+import {agentHomeView} from '@/lib/agent-marketplace-samples';
 import ChainOfferingsSection from '../_components/chain-offerings-section';
 
 export const dynamic = 'force-dynamic';
@@ -39,17 +42,26 @@ export default async function WorkflowsPage({searchParams}:{searchParams?:{tab?:
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) redirect('/login');
   const profile = await readUserProfile(supabase
-    .from('users').select('id, organization_id').eq('id', session.user.id));
+    .from('users').select('id, organization_id, last_mcp_call_at, last_hook_event_at').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
 
-  const samples=await readMarketplaceSamples(()=>supabase.from('agent_marketplace_samples').select('slug,position,listing').order('position').limit(2).abortSignal(AbortSignal.timeout(2000)));
+  const samples=await getMarketplaceSamples();
   const view=agentHomeView(samples,searchParams?.tab),pilot=view!=='ordinary';
+  if(view==='running') redirect('/work?view=activity');
+  if(view==='training') redirect('/training');
   if(view==='rent'){
-    return <AgentHomeFrame tab="rent"><MarketplaceSampleGallery listings={samples.listings}/></AgentHomeFrame>;
-  }
-  if(view==='training'){
-    const owned=await readMyWorkflows(session.access_token);
-    return <AgentHomeFrame tab="training"><div className="mx-auto max-w-4xl"><h2 className="text-2xl font-medium text-ink-100">Choose an agent to train</h2><p className="mb-6 mt-2 text-sm text-ink-400">Improve a result, show how you work, or talk it through with Implexa.</p>{owned.status==='ready'?<>{!!owned.unavailableEntries&&<p role="status" className="mb-4 text-sm text-ink-400">Some agent entries could not be read. The available agents are shown below.<RetryButton/></p>}<TrainingAgentPicker owned={owned.workflows}/></>:<TrainingFeedUnavailable reason={owned.reason}/>}</div></AgentHomeFrame>;
+    const connected=await isExecutorConnected(supabase,profile.id,{
+      lastMcpCallAt:profile.last_mcp_call_at,lastHookEventAt:profile.last_hook_event_at,
+    });
+    return <div className="min-h-screen px-5 py-12 lg:px-8">
+      <div className="mx-auto max-w-[1500px]">
+        <header className="mb-8"><h1 className="text-3xl font-semibold tracking-tight text-ink-50">Rent Agent</h1><p className="mt-2 text-sm text-ink-400">Find a trained agent, or build your own.</p></header>
+        <div className="grid items-start gap-8 xl:grid-cols-[300px_minmax(0,1fr)]">
+          <aside aria-label="Build your own agent" className="min-w-0 xl:sticky xl:top-8"><TalkToImplexa hasAgents compact suggestions={[]} connected={connected}/><BuildingAgents/></aside>
+          <div id="rent-listings" className="min-w-0"><MarketplaceSampleGallery listings={samples.listings}/></div>
+        </div>
+      </div>
+    </div>;
   }
 
   const [feed, mine, dismissed, favoriteSlugs, discovery, chainOfferings] = await Promise.all([
@@ -87,7 +99,7 @@ export default async function WorkflowsPage({searchParams}:{searchParams?:{tab?:
   });
 
   return (
-    <AgentHomeFrame tab={pilot?'running':undefined}><div className={pilot?'mx-auto max-w-4xl':''}>
+    <AgentHomeFrame manage={pilot}><div className={pilot?'mx-auto max-w-4xl':''}>
         {/* THE HONEST UNAVAILABLE STATE (P0, 2026-07-28).
             Previously a failed feed rendered the whole roster as "needs activation".
             Now the page says what it does not know, and says nothing about activation. */}

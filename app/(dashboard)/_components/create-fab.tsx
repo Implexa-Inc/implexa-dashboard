@@ -27,7 +27,7 @@ import CreateDecisionGate from './create-decision-gate';
 
 type State = 'idle' | 'sending' | 'queued' | 'error';
 
-export default function CreateFab() {
+export default function CreateFab({marketplacePilot=false}:{marketplacePilot?:boolean}={}) {
   const pathname = usePathname() || '';
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -54,7 +54,7 @@ export default function CreateFab() {
   // Suppressed on Work and review surfaces. Placed AFTER every hook so the hook
   // order is identical on every route (an early return above the effects would
   // break the rules of hooks the moment the user navigates onto /work).
-  if (isCreateFabSuppressed(pathname)) return null;
+  if (isCreateFabSuppressed(pathname) || (marketplacePilot && pathname === '/workflows')) return null;
 
   // Open the plan review; the build is enqueued only when the user accepts it.
   function submit() {
