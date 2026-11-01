@@ -210,7 +210,7 @@ test('first-use screen permission is explained before choosing and never starts 
   const page = await render(NEW_REVIEW,{ownerId:ID},{bridge:b.value});
   try {
     await page.act(()=>{});
-    assert.match(page.text(),/Allow Screen Recording/);
+    assert.match(page.text(),/Finish screen recording setup/);
     assert.match(page.text(),/No recording has started/);
     assert.doesNotMatch(page.text(),/Choose a screen or window in the recorder window/);
     assert.equal(ops(b).includes('start'),false);

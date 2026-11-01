@@ -743,8 +743,8 @@ export const RECORDING_STATE_LABELS: Record<RecordingState, string> = {
   recording: 'Recording', finalizing: 'Saving…', ready: 'Ready', interrupted: 'Interrupted', failed: 'Failed',
 };
 export const ACTIVE_STATE_LABELS: Record<ActiveState, string> = {
-  permission_required: 'Allow Screen Recording in the recorder window before choosing a screen. No recording has started.',
-  choosing: 'Choose a screen or window in the recorder window.',
+  permission_required: 'Finish screen recording setup in the recorder window. No recording has started.',
+  choosing: 'Continue in the recorder window to allow access or choose a screen.',
   countdown: 'Starting…',
   recording: 'Recording. Use the floating control bar to pause or stop.',
   paused: 'Paused. Use the floating control bar to resume or stop.',
