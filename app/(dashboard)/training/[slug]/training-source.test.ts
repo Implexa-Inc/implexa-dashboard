@@ -595,7 +595,7 @@ test('malformed or stale active-version training requirements fail closed before
 test('source and session identities, exact time input and accessible range value are visible', async () => {
   const { rendered } = await renderedWith();
   try {
-    assert.match(rendered.text(), /TrainingVideo craft/);
+    assert.match(rendered.text(), /Train your agent on “taste” and “judgement”/);assert.match(rendered.text(), /Video craft/);
     assert.match(rendered.text(), /Active version: 11111111 · Session version: 11111111/);
     assert.match(rendered.text(), /approved-edit.mp4 · 1920×1080 · 11:50.667 · SHA-256 bbbbbbbb/);
     await rendered.click(rendered.getByText('Annotate source'));
@@ -1650,7 +1650,7 @@ test('the existing Training controller sends the exact reviewed public preparati
   await r.click(r.getByText('Review publication'));await r.click(r.getByText('Prepare exact public preview'));
   assert.match(r.text(),/0 added · 1 removed/);await r.click(r.getByText('Test this public version'));
   assert.deepEqual(JSON.parse(JSON.stringify(requests.at(-1).body)),{expectedActiveVersionId:VERSION_A,expectedSnapshotDigest:H,scope:'public_projection',publicationPreparationId:QUESTION,preparationDigest:preparation});
-  assert.equal(r.calls.push.length,1);assert.match(r.calls.push[0],/trainingPreparationId=/);
+  assert.equal(r.calls.push.length,0,'public preparation stays on Training');
   assert.equal(h.calls.some(c=>['accept','delivery'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
@@ -1659,7 +1659,7 @@ test('owner workspace is one page with closed chat, direct teaching actions and 
  const visible=(el:Element)=>!el.closest('[hidden]');
  r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);
  try{
-  for(const label of ['Improve from recent runs','Multimodal Training','Upload and annotate Video/Image','Record your training'])assert.equal(visible(r.getByText(label)),true);
+  for(const label of ['Give feedback on recent runs','Multimodal Training','Upload and annotate Video/Image','Record your training'])assert.equal(visible(r.getByText(label)),true);
   assert.equal(visible(r.getByText('Check public visibility')),false);
   assert.equal(visible(r.getByText('Load recorded questions')),false);
   assert.equal(visible(r.getByText('Add training source')),false);
@@ -1857,5 +1857,40 @@ test('a confirmed source replacement clears its old draft but preserves the reco
   await fillManualTeaching(r);await r.click(r.getByText('Save decision draft'));
   assert.equal(requests.find(x=>x.body)?.body?.rawAnswer,'Use the visual example to explain the comparison clearly.');
   assert.equal(h.calls.some(c=>c.operation==='accept'),false);
+ }finally{r.cleanup();}
+});
+
+
+test('same-page pending test reuses its held preparation after cancellation and never queues from the button',async()=>{
+ const h=harness(),posts:any[]=[],changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
+ const runContext={slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null};
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
+  if(init.method==='POST'){posts.push(JSON.parse(init.body));return {ok:true,json:async()=>({ok:true,testPreparationId:SOURCE_ID,preparationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:DIGEST,scope:'private_candidate'})};}
+  return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
+ }) as typeof fetch});
+ try{
+  await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,1);assert.equal(r.calls.push.length,0);
+  const close=r.document.querySelector('[role=dialog] [aria-label=Close]');assert.ok(close);await r.click(close);
+  await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,1,'held preparation is reused');
+  await r.click(r.document.querySelector('[role=dialog] [aria-label=Close]')!);
+  Object.assign(changes.test,{status:'failed',scope:'private_candidate',snapshotDigest:DIGEST,requestId:RECORD});
+  await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,2,'a failed spent preparation permits a fresh test');
+  await r.click(r.document.querySelector('[role=dialog] [aria-label=Close]')!);
+  Object.assign(changes.test,{status:'running'});
+  await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,2,'running test never prepares again');assert.match(r.text(),/already queued or running/);
+  assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);
+ }finally{r.cleanup();}
+});
+
+test('a lost test-preparation response retries the same intent key rather than creating a new test',async()=>{
+ const h=harness(),keys:string[]=[],changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null as string|null,snapshotDigest:null as string|null,requestId:null,runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext:{slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null}},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
+  if(init.method==='POST'){keys.push(init.headers['Idempotency-Key']);Object.assign(changes.test,{status:'prepared',scope:'private_candidate',snapshotDigest:DIGEST});if(keys.length===1)throw Error('Response lost after preparation');return {ok:true,json:async()=>({ok:true,testPreparationId:SOURCE_ID,preparationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:DIGEST,scope:'private_candidate'})};}
+  return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
+ }) as typeof fetch});
+ try{
+  await r.click(r.getByText('Run with new training (pending)'));assert.match(r.text(),/training change unconfirmed/);
+  await r.click(r.getByText('Run with new training (pending)'));assert.equal(keys.length,2);assert.ok(keys[0]);assert.equal(keys[0],keys[1]);
+  assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);assert.equal(r.calls.push.length,0);
  }finally{r.cleanup();}
 });

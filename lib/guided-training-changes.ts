@@ -10,7 +10,7 @@ export type GuidedTrainingChanges={ok:true;contractVersion:'guided-training-chan
  creationImports?:Array<{buildRequestId:string;replyId:string;replyDigest:string;noteCount:number;notes:string[];importedNoteIndices:number[]}>;
  selectionCoverage?:{maxStandingReferences:2;eligibleTextByStage:Array<{stage:string;count:number}>};
  test:{snapshotDigest:string|null;scope:'private_candidate'|'public_projection'|null;status:'not_run'|'prepared'|'queued'|'running'|'delivered'|'stale'|'failed'|'cancelled'|'blocked';runId:string|null;requestId?:string|null;qualityScore:number|null;gaps:string[];canTest:boolean};
- activation?:{canActivate:boolean;reason:string|null;servedSnapshotDigest:string|null;withdrawnSinceTest:number;stoppedSinceTest?:number;testRequestId:string|null};
+ activation?:{serving?:{mode:'activated_snapshot'|'legacy_accepted'|'snapshot_other_version';candidateDiffers:boolean};canActivate:boolean;reason:string|null;servedSnapshotDigest:string|null;withdrawnSinceTest:number;stoppedSinceTest?:number;testRequestId:string|null};
  publication:{canPublish:boolean;reason:string|null;servedSnapshotDigest:string|null;proposedSnapshotDigest?:string|null;canPrepare?:boolean;
  qualifyingTestRequestId?:string|null;qualifyingRunId?:string|null;qualifyingSnapshotDigest?:string|null}};
 const id=(v:any)=>typeof v==='string'&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(v);
@@ -43,6 +43,7 @@ export function guidedTrainingChanges(v:any,expected:{sessionId:string;workflowV
   ||!Array.isArray(v.selectionCoverage.eligibleTextByStage)||v.selectionCoverage.eligibleTextByStage.length>10
   ||new Set(v.selectionCoverage.eligibleTextByStage.map((s:any)=>s?.stage)).size!==v.selectionCoverage.eligibleTextByStage.length
   ||v.selectionCoverage.eligibleTextByStage.some((s:any)=>!text(s?.stage,80)||!/^[a-z][a-z_]*$/.test(s.stage)||!Number.isInteger(s.count)||s.count<0||s.count>100)))return false;
+ if(a?.serving!==undefined&&(!a.serving||!['activated_snapshot','legacy_accepted','snapshot_other_version'].includes(a.serving.mode)||typeof a.serving.candidateDiffers!=='boolean'||a.serving.mode==='snapshot_other_version'&&!a.serving.candidateDiffers))return false;
  if(a!==undefined&&(!a||typeof a.canActivate!=='boolean'||!(a.reason===null||text(a.reason,2000))||!(a.servedSnapshotDigest===null||sha(a.servedSnapshotDigest))
   ||!Number.isInteger(a.withdrawnSinceTest)||a.withdrawnSinceTest<0||!(a.testRequestId===null||id(a.testRequestId))
   ||a.stoppedSinceTest!==undefined&&(!Number.isInteger(a.stoppedSinceTest)||a.stoppedSinceTest<0)

@@ -4,7 +4,10 @@ import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import PublisherTeachingRelease,{GuidedPublicationReview} from './publisher-teaching-release';
 import TrainingChat,{type TrainingChatRequest} from './training-chat';
-import TrainingChanges from './training-changes';
+import TrainingChanges,{TrainingRunPanel} from './training-changes';
+import AgentActions from '../../_components/agent-actions';
+import type {AgentActionContext} from '@/lib/agent-detail';
+import type {PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
 import NewReview from '../../review/new/new-review';
 import Modal from '../../_components/modal';
 import {guidedTrainingChanges,trainingPublicationPreview,type TrainingPublicationPreview,type GuidedTrainingChanges,type TrainingChangeRecord} from '@/lib/guided-training-changes';
@@ -125,11 +128,13 @@ function resolveBridge() {
   return candidate;
 }
 
-export default function TrainingSource({ slug, installationId, forkPermission,ownerId,recordingSelection,lastRunId,recentRuns=[],runsUnavailable=false }: { slug: string;recentRuns?:TrainingRun[];runsUnavailable?:boolean;lastRunId?:string|null; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
+export default function TrainingSource({ slug, installationId, forkPermission,ownerId,recordingSelection,lastRunId,recentRuns=[],runsUnavailable=false,runContext }: { slug: string;runContext?:AgentActionContext;recentRuns?:TrainingRun[];runsUnavailable?:boolean;lastRunId?:string|null; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
   const router=useRouter();
   const [retention] = useState(() => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCMilliseconds(0); return d.toISOString(); });
   const [view,setView]=useState<TrainingView>(recordingSelection?'teach':forkPermission?'settings':'start');
   const [chatExpanded,setChatExpanded]=useState(false);
+  const [runRequest,setRunRequest]=useState<{nonce:string;binding:PreparedTrainingTest|null}|null>(null);
+  const preparedRuns=useRef(new Map<string,PreparedTrainingTest>());
   const showTeaching=()=>setView('teach');
   const focusChat=()=>{setChatExpanded(true);requestAnimationFrame(()=>document.getElementById('training-chat-message')?.focus());};
   const reveal=(id:string)=>{setChatExpanded(false);setView('teach');requestAnimationFrame(()=>revealTrainingElement(id));};
@@ -176,7 +181,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   function learningExample(record:TrainingChangeRecord,index:number){
     if(index>=8)return null;const example=savedExample(record);
     const sha=example?.decision.content.derivatives?.[0]?.sha256;
-    return example?.source.token&&sha?<TrainingImage key={`${record.recordId}:${record.recordDigest}`} token={example.source.token} recordId={record.recordId} recordDigest={record.recordDigest} frameSha256={sha} enabled={!busy&&!changesBusy} context={`${session}:${currentVersion}`} alt="Saved teaching example"/>:null;
+    return example?.source.token&&sha?<TrainingImage key={`${record.recordId}:${record.recordDigest}`} token={example.source.token} recordId={record.recordId} recordDigest={record.recordDigest} frameSha256={sha} enabled={!busy&&!changesBusy} context={`${session}:${currentVersion}`} alt="Saved teaching example" expandable/>:null;
   }
   const [selected, setSelected] = useState<Source | null>(null);
   const [busy, setBusy] = useState('');
@@ -191,7 +196,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     try{const response=await fetch(`/api/agent-training/changes?sessionId=${encodeURIComponent(session)}`,{cache:'no-store',signal});
       const value=await response.json();if(signal?.aborted||changesIdentity.current!==captured)return;
       if(!response.ok||!guidedTrainingChanges(value,{sessionId:session,workflowVersionId:currentVersion}))throw Error(value.reason||'training_changes_unavailable');
-      setChanges(value);setChangesError('');
+      setChanges(value);setChangesError('');return value;
     }catch(e){if(!signal?.aborted&&changesIdentity.current===captured){setChanges(null);setChangesError(e instanceof Error?e.message:'training_changes_unavailable');}}
   }
   useEffect(()=>{setChanges(null);setChangesError('');setChatRequest(null);changeIntent.current=null;const controller=new AbortController();void loadChanges(controller.signal);return()=>controller.abort();},[session,currentVersion,installationId]);
@@ -223,6 +228,13 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
   async function prepareCandidateTest(snapshotDigest:string,scope:'private_candidate'|'public_projection'='private_candidate',resultSnapshotDigest=snapshotDigest,publicationPreview?:TrainingPublicationPreview){
     if(!changes||snapshotDigest!==changes.binding.snapshotDigest||!currentVersion)return;
+    const fresh=await loadChanges();if(!fresh||fresh.binding.snapshotDigest!==snapshotDigest)return;
+    if(fresh.test.snapshotDigest===resultSnapshotDigest&&['queued','running'].includes(fresh.test.status)){setChangesError('This training test is already queued or running. Open its result instead of starting it again.');return;}
+    if(scope==='private_candidate'&&fresh.test.status==='delivered'&&fresh.test.snapshotDigest===snapshotDigest){revealTrainingElement('training-activation');return;}
+    const preparationKey=`${session}:${currentVersion}:${scope}:${resultSnapshotDigest}:${publicationPreview?.publicationPreparationId||''}`;
+    if(fresh.test.requestId&&fresh.test.snapshotDigest===resultSnapshotDigest&&fresh.test.scope===scope)preparedRuns.current.delete(preparationKey);
+    const held=preparedRuns.current.get(preparationKey);
+    if(held){setPublicationReviewOpen(false);setRunRequest({nonce:crypto.randomUUID(),binding:held});return;}
     if(scope==='public_projection'&&(!publicationPreview||publicationPreview.snapshotDigest!==resultSnapshotDigest||publicationPreview.candidateSnapshotDigest!==snapshotDigest))return;
     const prepared=await mutateChanges('tests/prepare',{expectedActiveVersionId:currentVersion,expectedSnapshotDigest:snapshotDigest,scope,
       ...(scope==='public_projection'?{publicationPreparationId:publicationPreview!.publicationPreparationId,preparationDigest:publicationPreview!.preparationDigest}:{})});
@@ -232,7 +244,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       ||typeof prepared.preparationDigest!=='string'||!/^[a-f0-9]{64}$/.test(prepared.preparationDigest)){
       setChangesError('training_test_preparation_unconfirmed');return;
     }
-    router.push(`/workflows/${encodeURIComponent(slug)}?source=generated&trainingPreparationId=${prepared.testPreparationId}&trainingPreparationDigest=${prepared.preparationDigest}`);
+    const binding={testPreparationId:prepared.testPreparationId,preparationDigest:prepared.preparationDigest};
+    preparedRuns.current.set(preparationKey,binding);setPublicationReviewOpen(false);setRunRequest({nonce:crypto.randomUUID(),binding});
   }
   async function activateCandidate(snapshotDigest:string,testRequestId:string){
     if(!changes||!currentVersion||snapshotDigest!==changes.binding.snapshotDigest||!changes.activation?.canActivate||testRequestId!==changes.activation.testRequestId)return;
@@ -1089,8 +1102,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
 
   return <main id="main-content" tabIndex={-1} className={`mx-auto px-6 py-10 space-y-6 ${installationId?'max-w-3xl':'max-w-7xl lg:px-10'}`}>
     <Link className="text-xs text-ink-400 hover:text-ink-100" href={installationId?`/workflows/${encodeURIComponent(slug)}`:"/training"}>{installationId?"← Agent":"← Your agents"}</Link>
-    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-ink-800 pb-7"><div className="space-y-3"><p className="text-xs text-ink-500">{installationId?'Your private preferences':'Training'}</p><h1 className="max-w-2xl text-2xl font-medium tracking-tight sm:text-3xl">{installationId?'Private preferences for ':''}{agentName}</h1>{installationId&&<p className="text-xs text-ink-500">Active version: {shortId(currentVersion)}{sessionVersion?` · Session version: ${shortId(sessionVersion)}`:''}</p>}</div>
-      {!installationId&&<div className="flex items-center gap-4"><button id="training-chat-toggle" type="button" className="rounded-lg border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-ink-500" aria-expanded={chatExpanded} aria-controls="training-companion" onClick={()=>chatExpanded?setChatExpanded(false):focusChat()}>Chat with Implexa</button><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>Open agent →</Link></div>}
+    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-ink-800 pb-7"><div className="space-y-3">{installationId&&<p className="text-xs text-ink-500">Your private preferences</p>}<h1 className="max-w-3xl text-2xl font-medium tracking-tight sm:text-3xl">{installationId?`Private preferences for ${agentName}`:'Train your agent on “taste” and “judgement”'}</h1>{!installationId&&<><p className="max-w-3xl text-sm leading-6 text-ink-400">Implexa automatically applies saved learnings during a run and suggests updates to your agent’s steps, tools, and input/output requirements for you to review.</p><p className="pt-2 text-lg text-ink-200">{agentName}</p></>}{installationId&&<p className="text-xs text-ink-500">Active version: {shortId(currentVersion)}{sessionVersion?` · Session version: ${shortId(sessionVersion)}`:''}</p>}</div>
+      {!installationId&&<Link className="text-xs text-ink-400 hover:text-ink-100" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>Open agent →</Link>}
     </header>
     <div className={installationId?'':`grid items-start gap-10 ${chatExpanded?'lg:grid-cols-[minmax(0,1fr)_360px]':''}`}>
     <div className={`min-w-0 space-y-7 ${installationId?legacyControls:''}`}>
@@ -1100,12 +1113,13 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       {preservedWorkCount>0&&<><p>{preservedWorkCount} preserved operation{preservedWorkCount===1?' needs':'s need'} attention. Nothing has been discarded.</p><button type="button" onClick={()=>setView('history')}>Review preserved work</button></>}
       {pendingRecordingLink&&<button type="button" onClick={()=>reveal('recording-analysis')}>Review recording link</button>}
     </section>}
-    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onTrainingUpload={()=>{currentTraining();setConsent(false);setDiscardDraftConfirmed(false);setUploadOpen(true);}} uploadDisabled={!!busy||changesBusy||versionChanged||!currentVersion} uploading={busy==='Verifying the selected source and saving its identity'}/>}/>}
+    {!installationId&&<h2 className="text-xs font-medium text-ink-500">3 ways to train</h2>}
+    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onChat={()=>chatExpanded?setChatExpanded(false):focusChat()} chatExpanded={chatExpanded} chatDisabled={!!busy} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onTrainingUpload={()=>{currentTraining();setConsent(false);setDiscardDraftConfirmed(false);setUploadOpen(true);}} uploadDisabled={!!busy||changesBusy||versionChanged||!currentVersion} uploading={busy==='Verifying the selected source and saving its identity'}/>}/>}
     {!installationId&&(historyBusy||historyError)&&<p role="status" className="text-sm text-ink-400">{historyBusy?'Loading earlier training…':historyError}</p>}
     {!installationId&&history&&<section aria-label="Earlier training" className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 className="text-xl font-medium">Learnings</h2>{versionPicker}</header><p className="text-xs text-ink-500">Earlier version · read-only</p>{history.sources.flatMap(source=>source.decisions.map(d=><details key={d.recordId} className="border-b border-ink-800 py-4"><summary className="cursor-pointer text-sm">{['draft','accepted'].includes(d.state)?d.decision.desiredBehavior||d.content.summary:'This teaching is no longer available for use.'}</summary><div className="space-y-3 pt-4 text-sm leading-6 text-ink-400">{source.token&&d.content.derivatives?.[0]?.sha256&&['draft','accepted'].includes(d.state)&&<TrainingImage token={source.token} recordId={d.recordId} recordDigest={d.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy} context={`${history.sessionId}:${history.versionId}`} alt="Earlier teaching example"/>}{['draft','accepted'].includes(d.state)&&<p>{d.content.summary}</p>}<p>{d.state} · {relationLabel(d.content.relation)}</p></div></details>))}{!history.sources.length&&<p className="text-sm text-ink-500">No examples were returned for this version.</p>}</section>}
     {!installationId&&!session&&!busy&&<button type="button" className="text-sm text-ink-300 disabled:opacity-40" disabled={!currentVersion||versionChanged} onClick={()=>{focusChat();}}>Start teaching →</button>}
     {!installationId&&session&&!history&&<>
-      {changes?<TrainingChanges value={changes} versionPicker={versionPicker} renderExample={learningExample} captionFor={learningCaption} busy={!!busy||changesBusy||versionChanged}
+      {changes?<TrainingChanges hideRunPanel value={changes} versionPicker={versionPicker} renderExample={learningExample} captionFor={learningCaption} busy={!!busy||changesBusy||versionChanged}
         onActivate={activateCandidate}
         onWithdraw={target=>mutateChanges('withdraw',{sourceEventId:target.eventId,expectedEventDigest:target.eventDigest})}
         onImport={(build,noteIndex)=>mutateChanges('creation-import',{buildRequestId:build.buildRequestId,replyId:build.replyId,replyDigest:build.replyDigest,noteIndex})}
@@ -1117,6 +1131,10 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         onPublish={()=>setPublicationReviewOpen(true)}/>:<p className="text-sm text-ink-500">{changesError?'Saved training changes are unavailable; existing evidence is preserved.':'Loading saved training changes…'}</p>}
       {changesError&&<p role="status" className="text-xs text-ink-400">{changesError.replaceAll('_',' ')} <button type="button" disabled={changesBusy} onClick={()=>loadChanges()}>Refresh saved changes</button></p>}
     </>}
+    {!installationId&&<TrainingRunPanel value={changes} busy={!!busy||changesBusy||versionChanged} onTest={digest=>prepareCandidateTest(digest)} onPublish={()=>setPublicationReviewOpen(true)} onActivate={activateCandidate}
+      actions={runContext?<AgentActions {...runContext} slug={slug} name={agentName} align="start" presentation="training" statusUnavailable={runContext.statusUnavailable||runContext.workflowVersionId!==currentVersion} runRequest={runRequest} onQueued={()=>void loadChanges()}
+        trainingChoices={{pendingUnknown:!!changesError,pending:versionChanged?null:changes?.activation?.serving?.candidateDiffers??null,canTest:!versionChanged&&!!changes?.test.canTest,delivered:!versionChanged&&changes?.test.status==='delivered'&&changes.test.snapshotDigest===changes.binding.snapshotDigest,savedAvailable:changes?.activation?.serving?.mode!=='snapshot_other_version',busy:!!busy||changesBusy,
+         onPending:()=>{if(changes)void prepareCandidateTest(changes.binding.snapshotDigest);},onSaved:()=>setRunRequest({nonce:crypto.randomUUID(),binding:null})}}/>:<p className="mt-3 text-sm text-ink-500">Run setup is unavailable. Refresh this page to try again.</p>}/>}
     <div hidden={!installationId&&view!=='settings'} className={`space-y-6 ${legacyControls}`}>
     <p>Teach visual decisions from your own video or image without starting a run. Accepted decisions are eligible only for the exact agent version and stages shown here, and can later be stopped for new runs or have permission withdrawn.</p>
     {!installationId && !changes?.publication.canPrepare&&<section className="rounded border border-ink-700 p-4 space-y-3" aria-label="Public agent definition">

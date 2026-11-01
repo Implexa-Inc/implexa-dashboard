@@ -12,7 +12,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getAgentDetail } from './agent-detail.ts';
+import { getAgentDetail, agentActionContext } from './agent-detail.ts';
 
 const ENVELOPE = {
   ok: true,
@@ -223,4 +223,13 @@ test('?source= rides the query string', async () => {
   const { impl, calls } = fetchStub(200, ENVELOPE);
   await getAgentDetail('daily-brief', 'jwt-123', { source: 'community', fetchImpl: impl });
   assert.match(calls[0].url, /\?source=community$/);
+});
+
+
+test('Agent and Training share action-state derivation and preserve unknown readiness',async()=>{
+ const raw=structuredClone(ENVELOPE);raw.lifecycle={requests:[{kind:'revise',status:'consumed',created_at:'2099-01-01T00:00:00Z'},{kind:'run',status:'pending',created_at:'2026-08-01T00:00:00Z'}],runningRun:false};
+ const result=await getAgentDetail('daily-brief','jwt',{fetchImpl:fetchStub(200,raw).impl});
+ const context=agentActionContext(result);assert.equal(context.inFlight,'queued');assert.equal(context.revisePending,true);assert.equal(context.slug,'daily-brief');
+ assert.equal(agentActionContext({status:'unavailable'}).statusUnavailable,true);
+ const missing=await getAgentDetail('daily-brief','jwt',{fetchImpl:fetchStub(200,{...raw,unavailable:['lifecycle']}).impl});assert.equal(agentActionContext(missing).statusUnavailable,true);
 });

@@ -77,12 +77,12 @@ test('a run-request started from THIS component still defers to its own dedicate
 });
 
 const VERSION = '33333333-3333-4333-8333-333333333333';
-async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, statusUnavailable = false,trainingTest:{testPreparationId:string;preparationDigest:string}|null=null) {
+async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, statusUnavailable = false,trainingTest:{testPreparationId:string;preparationDigest:string}|null=null,extra:Record<string,unknown>={},control:{readStatus?:()=>string;loadSetup?:()=>unknown}={}) {
   return render('agent-actions.tsx', {
     slug: 'video-agent', isActive: true, inFlight, statusUnavailable,trainingTest,
     workflowVersionId: VERSION, inputContractDigest: 'c'.repeat(64),
     inputContract: { version: 1, fields: [{ key: 'brief', label: 'Brief', kind: 'text',
-      cardinality: 'one', required: true, order: 1 }] },
+      cardinality: 'one', required: true, order: 1 }] },...extra,
   }, { backend: path => {
     if (path.startsWith('/api/v2/agent-training/agents/')) {const value={ ok: true, home: {
       agent: { currentVersionId: VERSION },
@@ -92,8 +92,10 @@ async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, 
         scope: 'workflow_version_quality_references', workflowVersionId: VERSION,
         classified: false, requiredPairs: [], fulfilledPairs: [], missingPairs: [],
         readiness: 'not_applicable', reason: null },
-    } };return trainingTest?{ok:true,contractVersion:'prepared-agent-training-preflight.v1',agentFamilyId:'11111111-1111-4111-8111-111111111111',workflowVersionId:VERSION,
-      managerTrainingRequirements:value.home.managerTrainingRequirements,trainingTest}:value;}
+    } };const query=new URL(path,'https://fixture.invalid').searchParams;const selected=query.has('testPreparationId')?{testPreparationId:query.get('testPreparationId'),preparationDigest:query.get('preparationDigest')}:trainingTest;return selected?{ok:true,contractVersion:'prepared-agent-training-preflight.v1',agentFamilyId:'11111111-1111-4111-8111-111111111111',workflowVersionId:VERSION,
+      managerTrainingRequirements:value.home.managerTrainingRequirements,trainingTest:selected}:value;}
+    if (path.includes('/setup')&&control.loadSetup)return control.loadSetup();
+    if (path==='/api/v2/me/run-requests/fresh-request')return {request:{status:control.readStatus?.()||'pending'}};
     if (path.includes('/setup')) return { schema: [{ key: 'format', question: 'Format', kind: 'text', optional: true }],
       answers: { format: '16:9' }, note: '', runInputDefaults: { brief: 'same preserved input' } };
     if (path.includes('/run-precheck')) return { ok: true, fingerprint: 'same-fingerprint',
@@ -167,4 +169,89 @@ test('unreadable lifecycle state still withholds Run another', async () => {
   const r = await renderAnother('running', false, true);
   try { assert.equal(r.queryByText('Run another…'), null); assert.ok(r.getByText('Status unavailable')); }
   finally { r.cleanup(); }
+});
+
+
+test('Training opens the same Run dialog in place and cannot switch a prepared binding under it',async()=>{
+ const binding={testPreparationId:'11111111-1111-4111-8111-111111111111',preparationDigest:'b'.repeat(64)};let queued=0;
+ const props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,inputContractDigest:'c'.repeat(64),inputContract:{version:1,fields:[{key:'brief',label:'Brief',kind:'text',cardinality:'one',required:true,order:1}]},presentation:'training',onQueued:()=>queued++,trainingChoices:{pending:true,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
+ const r=await renderAnother('running',false,false,null,props);
+ try{
+  assert.ok(r.getByText('Run with new training (pending)'));assert.ok(r.getByText('Run with latest saved learnings'));
+  assert.equal(r.calls.backend.some(c=>c.path.includes('/agent-training/agents/')),false,'rendering starts nothing');
+  await r.rerender({...props,runRequest:{nonce:'pending',binding}});
+  assert.ok(r.getByText('Save & run'));assert.equal(r.calls.push.length,0);
+  await r.rerender({...props,runRequest:{nonce:'switch-under-open-dialog',binding:null}});
+  await r.click(r.getByText('Save & run'));
+  const posts=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(posts.length,1);
+  assert.deepEqual(JSON.parse(JSON.stringify((posts[0].init as any).body.trainingTest)),binding);
+  assert.equal(r.calls.push.length,0,'queue confirmation stays on Training');assert.equal(queued,1);
+ }finally{r.cleanup();}
+});
+
+test('controlled Training open cannot bypass unavailable, inactive, updating or required-setup gates',async()=>{
+ for(const gate of [{statusUnavailable:true},{isActive:false},{revisePending:true},{blockingQuestions:1}]){
+  const r=await renderAnother('running',false,false,null,{presentation:'training',...gate,runRequest:{nonce:'explicit',binding:null}});
+  try{assert.equal(r.calls.backend.some(c=>c.path.includes('/agent-training/agents/')),false);assert.equal(r.document.querySelector('[role=dialog]'),null);assert.equal(r.calls.push.length,0);}finally{r.cleanup();}
+ }
+});
+
+test('Training run choices reflect only the supplied serving state and saved mode clears a cancelled candidate',async()=>{
+ const binding={testPreparationId:'11111111-1111-4111-8111-111111111111',preparationDigest:'b'.repeat(64)};
+ const props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,inputContractDigest:'c'.repeat(64),inputContract:{version:1,fields:[{key:'brief',label:'Brief',kind:'text',cardinality:'one',required:true,order:1}]},presentation:'training',trainingChoices:{pending:false,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
+ const r=await renderAnother('running',false,false,null,props);
+ try{
+  assert.equal(r.queryByText('Run with new training (pending)'),null);assert.ok(r.getByText('Run with latest saved learnings'));
+  await r.rerender({...props,runRequest:{nonce:'candidate',binding}});await r.click(r.document.querySelector('[role=dialog] [aria-label=Close]')!);
+  await r.rerender({...props,runRequest:{nonce:'saved',binding:null}});await r.click(r.getByText('Save & run'));
+  const posts=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(posts.length,1);assert.equal((posts[0].init as any).body.trainingTest,undefined);
+  const reads=r.calls.backend.filter(c=>c.path.includes('/agent-training/agents/'));assert.equal(reads.length,2);assert.equal(reads[1].path.includes('testPreparationId'),false);
+ }finally{r.cleanup();}
+});
+
+
+test('Training refreshes terminal or long-running test status and frees its local controls without asserting completion',async()=>{
+ for(const outcome of ['done','cancelled','failed','poll_cap']){
+  let refreshed=0,tick:()=>Promise<void>=async()=>{};
+  const props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,inputContractDigest:'c'.repeat(64),inputContract:{version:1,fields:[{key:'brief',label:'Brief',kind:'text',cardinality:'one',required:true,order:1}]},presentation:'training',onQueued:()=>refreshed++,trainingChoices:{pending:true,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
+  const r=await renderAnother('running',false,false,null,props,{readStatus:()=>outcome});
+  try{
+   r.window.setInterval=((f:()=>Promise<void>)=>{tick=f;return 123;}) as any;
+   await r.rerender({...props,runRequest:{nonce:outcome,binding:null}});await r.click(r.getByText('Save & run'));await r.click(r.getByText('Back to Training'));
+   const before=refreshed;if(outcome==='poll_cap'){const now=r.window.Date.now();r.window.Date.now=()=>now+301000;}
+   await r.act(()=>tick());assert.equal(refreshed,before+1);
+   assert.equal((r.getByText('Run with latest saved learnings') as HTMLButtonElement).disabled,false);
+   assert.equal(r.calls.push.length,0);assert.equal(r.queryByText('Done — view result'),null);
+   if(outcome==='poll_cap')assert.match(r.text(),/Completion is not yet confirmed/);
+  }finally{r.cleanup();}
+ }
+});
+
+test('Training cannot change its binding while saved inputs are still loading',async()=>{
+ let release:(v:any)=>void=()=>{};
+ const binding={testPreparationId:'11111111-1111-4111-8111-111111111111',preparationDigest:'b'.repeat(64)},props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,inputContractDigest:'c'.repeat(64),inputContract:{version:1,fields:[{key:'brief',label:'Brief',kind:'text',cardinality:'one',required:true,order:1}]},presentation:'training',trainingChoices:{pending:true,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
+ const r=await renderAnother('running',false,false,null,props,{loadSetup:()=>new Promise(resolve=>{release=resolve;})});
+ try{
+  await r.rerender({...props,runRequest:{nonce:'candidate',binding}});
+  await r.rerender({...props,runRequest:{nonce:'saved-during-load',binding:null}});
+  await r.act(()=>release({schema:[],answers:{},note:'',runInputDefaults:{brief:'same preserved input'}}));
+  await r.click(r.getByText('▶ Run now'));
+  const posts=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(posts.length,1);assert.deepEqual(JSON.parse(JSON.stringify((posts[0].init as any).body.trainingTest)),binding);
+ }finally{r.cleanup();}
+});
+
+
+test('Training feed completion uses the current refresh callback after the session becomes available',async()=>{
+ let oldCalls=0,newCalls=0,nextTick:()=>Promise<void>=async()=>{};
+ const props={slug:'video-agent',isActive:true,workflowVersionId:VERSION,presentation:'training',inFlight:'running',onQueued:()=>oldCalls++,trainingChoices:{pending:false,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
+ const r=await renderAnother('running',false,false,null,props);
+ try{
+  Object.defineProperty(r.document,'hidden',{value:false,configurable:true});
+  const nativeTimeout=r.window.setTimeout.bind(r.window);
+  r.window.setTimeout=((callback:any,ms?:number,...args:any[])=>{if((ms||0)>=2000){nextTick=callback;return 123;}return nativeTimeout(callback,ms,...args);}) as any;
+  await r.rerender({...props,onQueued:()=>newCalls++});
+  await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,5050));});
+  assert.ok(r.calls.backend.some(c=>c.path==='/api/v2/scheduled-skills/live'));
+  await r.act(()=>nextTick());assert.equal(oldCalls,0);assert.equal(newCalls,1);
+ }finally{r.cleanup();}
 });
