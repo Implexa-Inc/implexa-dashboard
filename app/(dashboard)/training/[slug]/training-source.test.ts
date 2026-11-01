@@ -202,7 +202,7 @@ function harness(options: {
           parentSessionId: options.successorParentSessionId === undefined ? SESSION : options.successorParentSessionId,
         };
       }
-      if (operation === 'select' && args.sessionId === NEW_SESSION) successorSelected = true;
+      if (operation === 'select') {if(args.sessionId === NEW_SESSION) successorSelected = true;return {ok:true,sourceId:SOURCE_ID,token:TOKEN};}
       if (operation === 'list') {
         if (authorityAcknowledged && options.failRefreshAfterAuthority) return { ok: false, reason: 'training_local_unavailable' };
         if (deliveryAttempts && options.failRefreshAfterDelivery) return { ok: false, reason: 'training_local_unavailable' };
@@ -595,7 +595,7 @@ test('malformed or stale active-version training requirements fail closed before
 test('source and session identities, exact time input and accessible range value are visible', async () => {
   const { rendered } = await renderedWith();
   try {
-    assert.match(rendered.text(), /Trainer workspaceVideo craft/);
+    assert.match(rendered.text(), /TrainingVideo craft/);
     assert.match(rendered.text(), /Active version: 11111111 · Session version: 11111111/);
     assert.match(rendered.text(), /approved-edit.mp4 · 1920×1080 · 11:50.667 · SHA-256 bbbbbbbb/);
     await rendered.click(rendered.getByText('Annotate source'));
@@ -1654,25 +1654,27 @@ test('the existing Training controller sends the exact reviewed public preparati
   assert.equal(h.calls.some(c=>['accept','delivery'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
-test('owner workspace starts with three choices and one chat, without running or admitting anything',async()=>{
+test('owner workspace is one page with closed chat, direct teaching actions and unchanged consents',async()=>{
  const h=await renderedWith(),r=h.rendered;
  const visible=(el:Element)=>!el.closest('[hidden]');
+ r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);
  try{
-  for(const label of ['Improve a result','Show how you do it','Explain a change'])assert.equal(visible(r.getByText(label)),true);
+  for(const label of ['Improve from recent runs','↑ Upload a video or image','◉ Record training'])assert.equal(visible(r.getByText(label)),true);
   assert.equal(visible(r.getByText('Check public visibility')),false);
   assert.equal(visible(r.getByText('Load recorded questions')),false);
   assert.equal(visible(r.getByText('Add training source')),false);
-  assert.equal(r.document.querySelectorAll('#training-chat-message').length,1,'one conversation, including mobile');
-  assert.equal(r.queryByText('Open conversation'),null,'embedded chat is already open');
-  await r.click(r.getByText('Show how you do it'));
+  const chat=r.document.getElementById('training-companion')!;
+  assert.equal(chat.hidden,true);assert.equal(r.document.querySelectorAll('#training-chat-message').length,1);
+  const toggle=r.document.getElementById('training-chat-toggle')!;await r.click(toggle);
+  assert.equal(chat.hidden,false);assert.equal(toggle.getAttribute('aria-expanded'),'true');
+  await r.click(r.document.querySelector('[aria-label="Close chat"]')!);assert.equal(chat.hidden,true);
+  await r.click(r.getByText('↑ Upload a video or image'));
   assert.equal(visible(r.getByText('Add training source')),true);
-  assert.equal((r.getByText('Add training source') as HTMLButtonElement).disabled,true,'original source consent stays unchecked');
-  await r.click(r.getByText('Learnings & history'));
+  assert.equal((r.getByText('Add training source') as HTMLButtonElement).disabled,true,'source consent stays unchecked');
+  await r.click(r.getByText('Questions & history'));
   assert.equal(visible(r.getByText('Load recorded questions')),true);
-  assert.equal(visible(r.getByText('Add training source')),false);
-  await r.click(r.getByText('Sharing & details'));
+  await r.click(r.getByText('Sharing & settings'));
   assert.equal(visible(r.getByText('Check public visibility')),true);
-  assert.equal(r.document.querySelectorAll('#training-chat-message').length,1);
   assert.equal(h.calls.some(c=>['select','recording','annotate','accept','delivery'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
@@ -1680,7 +1682,7 @@ test('owner workspace starts with three choices and one chat, without running or
 test('choosing a source from history returns to teaching without changing the saved source or granting consent',async()=>{
  const h=await renderedWith(),r=h.rendered;
  try{
-  await r.click(r.getByText('Learnings & history'));
+  await r.click(r.getByText('Questions & history'));
   await r.click(r.getByText('Annotate source'));
   assert.equal(r.document.getElementById('recording-analysis')!.closest('[hidden]'),null);
   const wording=r.getByText('Advanced manual teaching').closest('details')!;assert.equal(wording.open,false,'empty structured wording is not imposed on the normal annotation path');
@@ -1698,5 +1700,59 @@ test('ineffective training stays visible on the starting view and its full warni
   assert.equal(warning.closest('[hidden]'),null);
   assert.equal(warning.closest('details')!.open,true);
   assert.equal(h.calls.some(c=>['annotate','accept','delivery'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
+test('earlier learning versions are read-only and never replace the active editing session',async()=>{
+ const h=harness(),original=h.bridge.trainingLocal,oldSession='99999999-9999-4999-8999-999999999999';let withdrawn=false;
+ h.bridge.trainingLocal=async(operation,args)=>{
+  const v=await original(operation,args);
+  if(operation==='home')v.home.recentSessions.push({sessionId:oldSession,sourceMode:'raw_input',terminal:true,agent:{baseVersionId:VERSION_B}});
+  if(operation==='scope'&&args.sessionId===oldSession)v.scope.session={sessionId:oldSession,baseVersionId:VERSION_B,terminal:true};
+  if(operation==='list'&&args.sessionId===oldSession&&withdrawn)v.sources[0].decisions[0].state='revoked';
+  return v;
+ };
+ const changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:false},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
+ const requests:any[]=[],r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{requests.push({url,init});return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};}) as typeof fetch});
+ try{
+  const initial=h.calls.length;await r.click(r.getByText('Earlier 1'));
+  const prior=r.document.querySelector('[aria-label="Earlier training"]')!;assert.ok(prior);assert.match(prior.textContent||'',/read-only/);
+  assert.equal(prior.querySelectorAll('input,textarea').length,0);
+  assert.equal(prior.querySelectorAll('button:not([aria-current])').length,1,'only the other version navigation is available');
+  assert.deepEqual(h.calls.slice(initial).map(c=>c.operation),['scope','list']);
+  assert.equal(requests.some(c=>c.init.method==='POST'),false);
+  withdrawn=true;await r.click(r.getByText('Earlier 1'));
+  const redacted=r.document.querySelector('[aria-label="Earlier training"]')!;assert.match(redacted.textContent||'',/no longer available/);assert.doesNotMatch(redacted.textContent||'',/overlay the route|Chosen: a real map/);
+  await r.click(r.getByText('Current'));assert.equal(r.document.querySelector('[aria-label="Earlier training"]'),null);
+  assert.ok(r.document.querySelector('[aria-label="Your private training update"]'));
+  assert.ok(requests.filter(c=>String(c.url).includes('/changes?')).every(c=>String(c.url).includes(SESSION)));
+ }finally{r.cleanup();}
+});
+
+
+test('upload opens only its freshly listed source for annotation, without preview or analysis',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{
+  await r.click(r.getByText('↑ Upload a video or image'));
+  const consent=Array.from(r.document.querySelectorAll('label')).find(l=>l.textContent?.includes('I created this source'))!.querySelector('input')!;
+  await r.click(consent);await r.click(r.getByText('Add training source'));
+  assert.ok(r.document.querySelector('#recording-analysis'));
+  assert.equal(r.document.querySelector('#recording-analysis')!.closest('[hidden]'),null);
+  assert.equal(h.calls.filter(c=>c.operation==='select').length,1);
+  assert.equal(h.calls.some(c=>['preview','recording','annotate','accept'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
+
+test('an upload identity mismatch preserves the source error and never opens another source',async()=>{
+ const h=harness(),original=h.bridge.trainingLocal;
+ h.bridge.trainingLocal=async(op,args)=>op==='select'?{ok:true,sourceId:RECORD,token:TOKEN}:original(op,args);
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+ try{
+  await r.click(r.getByText('↑ Upload a video or image'));
+  await r.click(Array.from(r.document.querySelectorAll('label')).find(l=>l.textContent?.includes('I created this source'))!.querySelector('input')!);
+  await r.click(r.getByText('Add training source'));
+  assert.match(r.text(),/source is saved but could not be opened/);assert.equal(r.document.querySelector('#recording-analysis'),null);
+  assert.equal(h.calls.some(c=>['preview','recording','annotate','accept'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
