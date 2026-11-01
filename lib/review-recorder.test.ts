@@ -154,6 +154,12 @@ test('per-operation parsers accept the contract and fail closed on anything else
   assert.throws(() => parse.done({ ok: false, reason: 'library_full' }), (e: unknown) => e instanceof RecorderError && e.reason === 'library_full');
 });
 
+test('first-use permission setup is an active recorder state, not a ready source picker', () => {
+  assert.deepEqual(parse.status({ok:true,active:{recordingId:ID,state:'permission_required'}}),
+    {active:{recordingId:ID,state:'permission_required'}});
+  assert.equal(isRecorderChange({ownerId:ID,recordingId:ID,state:'permission_required'}),true);
+});
+
 test('list: malformed and repeated rows are dropped and counted, not fatal', () => {
   const other = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
   const out = parse.list({ ok: true, library: { usedBytes: 1, limitBytes: 2 }, recordings: [

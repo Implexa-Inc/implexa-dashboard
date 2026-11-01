@@ -186,11 +186,11 @@ export default function NewReview({ownerId,trainingSlug}:{ownerId:string;trainin
             </label>
             <button
               type="button"
-              disabled={!ready || busy('record') || recorderBusy}
+              disabled={!ready || busy('record') || (recorderBusy && active?.state !== 'permission_required')}
               onClick={() => void record()}
               className="mt-3 rounded-md bg-rose-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {busy('record') ? 'Opening recorder…' : 'Record'}
+              {busy('record') ? 'Opening recorder…' : active?.state === 'permission_required' ? 'Open permission setup' : 'Record'}
             </button>
             <p className="mt-2 text-[11px] leading-snug text-ink-500" data-testid="record-notice">{RECORD_NOTICE}</p>
           </section>
