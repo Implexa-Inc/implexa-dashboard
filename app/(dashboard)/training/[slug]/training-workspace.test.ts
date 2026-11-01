@@ -52,3 +52,14 @@ test('recent results use only the existing preview capability and revoke late ca
   assert.equal(r.document.querySelector('a')?.getAttribute('href'),'/workflows/video-agent?source=generated&tab=runs');
  }finally{r.cleanup();}
 });
+
+
+test('video thumbnails keep the exact protocol URL and seek only after metadata',async()=>{
+ const url='implexa-artifact://preview/1234567890abcdef1234567890abcdef';
+ const artifact={id:'artifact',runId:'run',relativePath:'final.mp4',role:'final_output',status:'validated',sha256:H,sizeBytes:100,mtime:null,validatedAt:null};
+ const r=await render(component,{slug:'video-agent',runs:[{id:'run',date:'2026-10-31T12:00:00Z',status:'Done',artifact}],onShow:()=>{}},{exportName:'TrainingEntry',bridge:{createArtifactPreview:async()=>({ok:true,url}),revokeArtifactPreview:async()=>{}}});
+ try{
+  const video=r.document.querySelector('video')!;assert.ok(video);assert.equal(video.getAttribute('src'),url);
+  Object.defineProperty(video,'duration',{value:4});await r.act(()=>video.dispatchEvent(new r.window.Event('loadedmetadata')));assert.equal(video.currentTime,1);
+ }finally{r.cleanup();}
+});

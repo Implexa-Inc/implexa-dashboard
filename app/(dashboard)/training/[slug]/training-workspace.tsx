@@ -21,7 +21,7 @@ export function TrainingInfo({label,children}:{label:string;children:ReactNode})
   place();window.addEventListener('resize',place);window.addEventListener('scroll',place,true);
   return()=>{window.removeEventListener('resize',place);window.removeEventListener('scroll',place,true);};
  },[open]);
- return <span className="relative inline-flex align-middle" onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} onKeyDown={e=>{if(e.key==='Escape'){setPinned(false);setHover(false);}}}>
+ return <span className="relative inline-flex align-middle" onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} onKeyDown={e=>{if(e.key==='Escape'&&open){e.stopPropagation();setPinned(false);setHover(false);}}}>
   <button ref={button} type="button" aria-label={label} aria-expanded={open} aria-controls={id} onClick={()=>setPinned(!pinned)} onBlur={e=>{if(!e.currentTarget.parentElement?.contains(e.relatedTarget as Node))setPinned(false);}} className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs text-ink-500 hover:text-ink-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">ⓘ</button>
   <span ref={tooltip} id={id} role="tooltip" hidden={!open} style={position} className="fixed z-50 w-64 max-w-[75vw] rounded-xl border border-ink-700 bg-ink-900 p-4 text-left text-xs font-normal leading-5 text-ink-300 shadow-xl">{children}</span>
  </span>;
@@ -41,7 +41,7 @@ function RunImage({artifact}:{artifact:ReviewArtifact}){
   return()=>{live=false;void revokePreview(token);};
  },[identity,artifact.status]);
  if(!image||image.identity!==identity||failed)return null;
- return previewKind(artifact.relativePath)==='video'?<video aria-label="Result preview" src={`${image.url}#t=1`} muted playsInline preload="metadata" onError={()=>setFailed(true)} className="aspect-video w-full rounded-xl bg-ink-900 object-cover"/>:<img src={image.url} alt="Result preview" onError={()=>setFailed(true)} className="aspect-video w-full rounded-xl object-cover"/>;
+ return previewKind(artifact.relativePath)==='video'?<video aria-label="Result preview" src={image.url} muted playsInline preload="metadata" onLoadedMetadata={event=>{const video=event.currentTarget;if(Number.isFinite(video.duration)&&video.duration>0)try{video.currentTime=Math.min(1,video.duration/2);}catch{/* The first decoded frame is still a usable preview. */}}} onError={()=>setFailed(true)} className="aspect-video w-full rounded-xl bg-ink-900 object-cover"/>:<img src={image.url} alt="Result preview" onError={()=>setFailed(true)} className="aspect-video w-full rounded-xl object-cover"/>;
 }
 
 let frameQueue:Promise<void>=Promise.resolve();
@@ -50,7 +50,7 @@ let frameQueue:Promise<void>=Promise.resolve();
 export function TrainingImage({token,recordId,recordDigest,frameSha256,alt,enabled=true,context=''}:{token:string;recordId:string;recordDigest:string;frameSha256:string;alt:string;enabled?:boolean;context?:string}){
  const [frame,setFrame]=useState<{identity:string;image:string}|null>(null);
  const identity=`${context}:${token}:${recordId}:${recordDigest}:${frameSha256}`;
- const marker=useRef<HTMLSpanElement>(null),[visible,setVisible]=useState(false);
+ const marker=useRef<HTMLSpanElement>(null),attempted=useRef<string|null>(null),[visible,setVisible]=useState(false);
  useEffect(()=>{
   if(!marker.current||typeof IntersectionObserver==='undefined')return;
   const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){setVisible(true);observer.disconnect();}},{rootMargin:'100px'});
@@ -59,7 +59,7 @@ export function TrainingImage({token,recordId,recordDigest,frameSha256,alt,enabl
  useEffect(()=>{
   let live=true;
   const local=(window as unknown as {implexaDesktop?:{trainingLocal?:(op:string,args:unknown)=>Promise<any>}}).implexaDesktop?.trainingLocal;
-  if(local&&visible&&enabled&&frame?.identity!==identity)frameQueue=frameQueue.then(async()=>{if(!live)return;try{
+  if(local&&visible&&enabled&&frame?.identity!==identity&&attempted.current!==identity)frameQueue=frameQueue.then(async()=>{if(!live)return;attempted.current=identity;try{
    const value=await local('decisionPreview',{token,recordId});
    if(!live||!value.ok||value.recordId!==recordId||value.recordDigest!==recordDigest||typeof value.image!=='string')return;
    const bytes=teachingFrame(value.image);if(await teachingDigest(bytes)!==frameSha256||!live)return;

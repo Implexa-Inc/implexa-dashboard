@@ -1704,11 +1704,12 @@ test('ineffective training stays visible on the starting view and its full warni
 });
 
 test('earlier learning versions are read-only and never replace the active editing session',async()=>{
- const h=harness(),original=h.bridge.trainingLocal,oldSession='99999999-9999-4999-8999-999999999999';
+ const h=harness(),original=h.bridge.trainingLocal,oldSession='99999999-9999-4999-8999-999999999999';let withdrawn=false;
  h.bridge.trainingLocal=async(operation,args)=>{
   const v=await original(operation,args);
   if(operation==='home')v.home.recentSessions.push({sessionId:oldSession,sourceMode:'raw_input',terminal:true,agent:{baseVersionId:VERSION_B}});
   if(operation==='scope'&&args.sessionId===oldSession)v.scope.session={sessionId:oldSession,baseVersionId:VERSION_B,terminal:true};
+  if(operation==='list'&&args.sessionId===oldSession&&withdrawn)v.sources[0].decisions[0].state='revoked';
   return v;
  };
  const changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:false},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
@@ -1720,6 +1721,8 @@ test('earlier learning versions are read-only and never replace the active editi
   assert.equal(prior.querySelectorAll('button:not([aria-current])').length,1,'only the other version navigation is available');
   assert.deepEqual(h.calls.slice(initial).map(c=>c.operation),['scope','list']);
   assert.equal(requests.some(c=>c.init.method==='POST'),false);
+  withdrawn=true;await r.click(r.getByText('Earlier 1'));
+  const redacted=r.document.querySelector('[aria-label="Earlier training"]')!;assert.match(redacted.textContent||'',/no longer available/);assert.doesNotMatch(redacted.textContent||'',/overlay the route|Chosen: a real map/);
   await r.click(r.getByText('Current'));assert.equal(r.document.querySelector('[aria-label="Earlier training"]'),null);
   assert.ok(r.document.querySelector('[aria-label="Your private training update"]'));
   assert.ok(requests.filter(c=>String(c.url).includes('/changes?')).every(c=>String(c.url).includes(SESSION)));
@@ -1736,6 +1739,20 @@ test('upload opens only its freshly listed source for annotation, without previe
   assert.ok(r.document.querySelector('#recording-analysis'));
   assert.equal(r.document.querySelector('#recording-analysis')!.closest('[hidden]'),null);
   assert.equal(h.calls.filter(c=>c.operation==='select').length,1);
+  assert.equal(h.calls.some(c=>['preview','recording','annotate','accept'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
+
+test('an upload identity mismatch preserves the source error and never opens another source',async()=>{
+ const h=harness(),original=h.bridge.trainingLocal;
+ h.bridge.trainingLocal=async(op,args)=>op==='select'?{ok:true,sourceId:RECORD,token:TOKEN}:original(op,args);
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+ try{
+  await r.click(r.getByText('↑ Upload a video or image'));
+  await r.click(Array.from(r.document.querySelectorAll('label')).find(l=>l.textContent?.includes('I created this source'))!.querySelector('input')!);
+  await r.click(r.getByText('Add training source'));
+  assert.match(r.text(),/source is saved but could not be opened/);assert.equal(r.document.querySelector('#recording-analysis'),null);
   assert.equal(h.calls.some(c=>['preview','recording','annotate','accept'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
