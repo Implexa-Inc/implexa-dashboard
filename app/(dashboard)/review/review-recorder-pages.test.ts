@@ -204,6 +204,23 @@ test('New review lists the library, explains failures in plain English, and star
   } finally { page.cleanup(); }
 });
 
+test('first-use screen permission is explained before choosing and never starts capture on its own', async () => {
+  const b = bridge((op) => op === 'list' ? {ok:true,recordings:[],library}
+    : op === 'start' ? {ok:true,recordingId:NEW} : {ok:true,active:{recordingId:NEW,state:'permission_required'}});
+  const page = await render(NEW_REVIEW,{ownerId:ID},{bridge:b.value});
+  try {
+    await page.act(()=>{});
+    assert.match(page.text(),/Allow Screen Recording/);
+    assert.match(page.text(),/No recording has started/);
+    assert.doesNotMatch(page.text(),/Choose a screen or window in the recorder window/);
+    assert.equal(ops(b).includes('start'),false);
+    const reopen = button(page,'Open permission setup')!;
+    assert.equal(reopen.disabled,false);
+    await page.click(reopen);
+    assert.equal(ops(b).filter(op=>op==='start').length,1,'only the explicit reopen click sends start');
+  } finally {page.cleanup();}
+});
+
 test('a failed capture opens a diagnostic modal after cleanup without retrying', async () => {
   const b = bridge((op) => {
     if (op === 'list') return { ok: true, recordings: [], library };

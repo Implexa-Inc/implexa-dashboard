@@ -56,7 +56,7 @@ export const CARD_FIELD_LABELS: Record<CardField, string> = {
 
 export const RECORDING_STATES = ['recording', 'finalizing', 'ready', 'interrupted', 'failed'] as const;
 export type RecordingState = typeof RECORDING_STATES[number];
-export const ACTIVE_STATES = ['choosing', 'countdown', 'recording', 'paused', 'finalizing'] as const;
+export const ACTIVE_STATES = ['permission_required', 'choosing', 'countdown', 'recording', 'paused', 'finalizing'] as const;
 export type ActiveState = typeof ACTIVE_STATES[number];
 
 export type Region = { x: number; y: number; width: number; height: number };
@@ -743,6 +743,7 @@ export const RECORDING_STATE_LABELS: Record<RecordingState, string> = {
   recording: 'Recording', finalizing: 'Saving…', ready: 'Ready', interrupted: 'Interrupted', failed: 'Failed',
 };
 export const ACTIVE_STATE_LABELS: Record<ActiveState, string> = {
+  permission_required: 'Allow Screen Recording in the recorder window before choosing a screen. No recording has started.',
   choosing: 'Choose a screen or window in the recorder window.',
   countdown: 'Starting…',
   recording: 'Recording. Use the floating control bar to pause or stop.',
