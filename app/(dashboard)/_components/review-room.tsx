@@ -22,6 +22,7 @@
  *    approval-before-action hold never renders Accept result.
  */
 
+import {trainingReviewHref} from '@/lib/training-review-routing';
 import { ReviewAudioEvidence } from './review-audio-evidence';
 import HistoricalReviewCandidateNotice from './historical-review-candidate-notice';
 import type { HistoricalReviewCandidate } from '@/lib/historical-review-candidate';
@@ -78,6 +79,7 @@ import {
 } from '@/lib/review-timestamp-feedback';
 
 type Props = {
+  trainingSlug?:string;
   runId: string;
   agentSlug?: string | null;
   agentName: string;
@@ -583,7 +585,7 @@ export default function ReviewRoom(props: Props) {
       const { body } = await reviewAction({ action: 'continuation_status', sessionId: session.id });
       if (!body?.ok) { setError(body?.error || 'Could not locate that revision attempt.'); return; }
       if (body.resultRunId) {
-        router.push(`/review/${encodeURIComponent(String(body.resultRunId))}`);
+        router.push(props.trainingSlug?trainingReviewHref(props.trainingSlug,String(body.resultRunId)):`/review/${encodeURIComponent(String(body.resultRunId))}`);
         return;
       }
       if (props.agentSlug && body.requestId) {
@@ -596,7 +598,7 @@ export default function ReviewRoom(props: Props) {
     } finally {
       setBusy(false);
     }
-  }, [session, router, props.agentSlug]);
+  }, [session, router, props.agentSlug,props.trainingSlug]);
 
   /**
    * Preserve the submitted round and open an editable successor only when the backend
@@ -610,7 +612,7 @@ export default function ReviewRoom(props: Props) {
     try {
       const { body } = await reviewAction({ action: 'amend_failed_revision', sessionId: session.id });
       if (!body?.ok) {
-        if (body?.resultRunId) router.push(`/review/${encodeURIComponent(String(body.resultRunId))}`);
+        if (body?.resultRunId) router.push(props.trainingSlug?trainingReviewHref(props.trainingSlug,String(body.resultRunId)):`/review/${encodeURIComponent(String(body.resultRunId))}`);
         else setError(body?.error || 'Could not open another feedback round.');
         return;
       }
@@ -631,7 +633,7 @@ export default function ReviewRoom(props: Props) {
     } finally {
       setBusy(false);
     }
-  }, [session, router]);
+  }, [session, router,props.trainingSlug]);
 
   const addMoreFeedback = useCallback(async () => {
     if (historicalProvenanceUnavailable) { setError('Historical candidate provenance is unavailable. No feedback was changed.'); return; }

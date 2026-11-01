@@ -29,6 +29,8 @@ import { readUserProfile } from '@/lib/profile-read';
 import { loadInboxItems } from '@/lib/inbox';
 import { loadNeedsYou } from '@/lib/needs-you';
 import { attentionWarning } from '@/lib/attention';
+import {readMyWorkflows} from '@/lib/workflow-catalog';
+import {reviewQueueForArea} from '@/lib/training-review-routing';
 import { getReviewQueue, reviewQueueWarning } from '@/lib/review';
 import { getMyAgents } from '@/lib/agents-home';
 import { parseWorkView, WORK_VIEW_LABELS } from '@/lib/navigation';
@@ -60,7 +62,8 @@ export default async function WorkPage({
   // The review queue is read on EVERY view because the Ready-for-review count is
   // what replaced the old Review navigation entry — a filter whose count only
   // appears once you are already looking at it is not a queue.
-  const queue = await getReviewQueue();
+  const [allReview,owned]=await Promise.all([getReviewQueue(),readMyWorkflows(session.access_token)]);
+  const queue=reviewQueueForArea(allReview,owned,'work');
   // Only claim a number when the queue was fully readable. reviewQueueWarning()
   // is non-null whenever a source was unavailable or the list was truncated.
   const reviewCount = reviewQueueWarning(queue) === null ? queue.items.length : null;

@@ -1,5 +1,6 @@
 import {createClient} from '@/lib/supabase/server';
 import {redirect} from 'next/navigation';
+import {readMyWorkflows} from '@/lib/workflow-catalog';
 import NewReview from './new-review';
 
 export const dynamic = 'force-dynamic';
@@ -21,5 +22,6 @@ export default async function NewReviewPage({searchParams}:{searchParams?:{train
   if(!user)redirect('/login');
   const trainingSlug=searchParams?.trainingSlug;
   if(trainingSlug!==undefined&&!/^[a-zA-Z0-9_-]{1,200}$/.test(trainingSlug))return <main>Training context unavailable.</main>;
+  if(trainingSlug){const owned=await readMyWorkflows();if(owned.status==='ready'&&owned.workflows.some(a=>a.slug===trainingSlug&&a.source==='generated'))redirect(`/training/${encodeURIComponent(trainingSlug)}`);}
   return <NewReview ownerId={user.id} trainingSlug={trainingSlug}/>;
 }

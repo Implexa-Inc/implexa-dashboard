@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import {trainingReviewHref} from '@/lib/training-review-routing';
 import {
   reasonLabel, primaryActionLabel, versionSummary, unresolvedIssueLabel,
   reviewQueueWarning, canClaimAllClear, unavailableSources,
@@ -11,8 +12,8 @@ import {
  * This is the surface that replaces the old top-level Review entry (DESIGN.md
  * §9.3: "There is no top-level Review navigation entry. Work owns a Ready for
  * review filter and an unresolved-decision count"). It is a LIST ONLY — every
- * row links straight into `/review/[runId]`, which remains the canonical
- * artifact-aware review mode and is untouched by this change. Nothing here
+ * row opens the shared artifact-aware Review Room. Its Training presentation
+ * uses an owner-scoped Training route; operational/customer entries keep Work. Nothing here
  * decides, resolves, submits, or renders an artifact.
  *
  * The honesty rule it inherits from the queue page: an unreadable source must
@@ -22,10 +23,11 @@ import {
  * is waiting" from "we could not look".
  */
 export default function ReadyForReviewList({
-  queue, nameBySlug,
+  queue, nameBySlug,training=false,
 }: {
   queue: ReviewQueue;
   nameBySlug: Map<string, string>;
+  training?:boolean;
 }) {
   const warning = reviewQueueWarning(queue);
   const allClear = canClaimAllClear(queue);
@@ -35,9 +37,9 @@ export default function ReadyForReviewList({
     <section aria-label="Ready for review">
       {/* Entry to /review/new (record or upload a video to review). A link only:
           the queue below is unchanged. */}
-      <div className="mb-3 flex justify-end">
+      {!training&&<div className="mb-3 flex justify-end">
         <Link href="/review/new" className="text-sm text-sky-400 hover:underline">New review</Link>
-      </div>
+      </div>}
       {warning && (
         <div
           role="status"
@@ -110,7 +112,7 @@ export default function ReadyForReviewList({
                 </div>
 
                 <Link
-                  href={`/review/${item.latestRunId}`}
+                  href={training&&item.slug&&!isApproval?trainingReviewHref(item.slug,item.latestRunId):`/review/${item.latestRunId}`}
                   className="shrink-0 rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 hover:bg-white focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900"
                 >
                   {primaryActionLabel(item)}
