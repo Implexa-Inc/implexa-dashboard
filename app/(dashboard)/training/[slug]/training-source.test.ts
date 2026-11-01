@@ -202,7 +202,7 @@ function harness(options: {
           parentSessionId: options.successorParentSessionId === undefined ? SESSION : options.successorParentSessionId,
         };
       }
-      if (operation === 'select' && args.sessionId === NEW_SESSION) successorSelected = true;
+      if (operation === 'select') {if(args.sessionId === NEW_SESSION) successorSelected = true;return {ok:true,sourceId:SOURCE_ID,token:TOKEN};}
       if (operation === 'list') {
         if (authorityAcknowledged && options.failRefreshAfterAuthority) return { ok: false, reason: 'training_local_unavailable' };
         if (deliveryAttempts && options.failRefreshAfterDelivery) return { ok: false, reason: 'training_local_unavailable' };
@@ -1723,5 +1723,19 @@ test('earlier learning versions are read-only and never replace the active editi
   await r.click(r.getByText('Current'));assert.equal(r.document.querySelector('[aria-label="Earlier training"]'),null);
   assert.ok(r.document.querySelector('[aria-label="Your private training update"]'));
   assert.ok(requests.filter(c=>String(c.url).includes('/changes?')).every(c=>String(c.url).includes(SESSION)));
+ }finally{r.cleanup();}
+});
+
+
+test('upload opens only its freshly listed source for annotation, without preview or analysis',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{
+  await r.click(r.getByText('↑ Upload a video or image'));
+  const consent=Array.from(r.document.querySelectorAll('label')).find(l=>l.textContent?.includes('I created this source'))!.querySelector('input')!;
+  await r.click(consent);await r.click(r.getByText('Add training source'));
+  assert.ok(r.document.querySelector('#recording-analysis'));
+  assert.equal(r.document.querySelector('#recording-analysis')!.closest('[hidden]'),null);
+  assert.equal(h.calls.filter(c=>c.operation==='select').length,1);
+  assert.equal(h.calls.some(c=>['preview','recording','annotate','accept'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });

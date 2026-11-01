@@ -70,6 +70,8 @@ type Result = {
   ok: boolean;
   reason?: string;
   sessionId?: string;
+  sourceId?: string;
+  token?: string;
   baseVersionId?: string;
   parentSessionId?: string | null;
   home?: Home;
@@ -609,8 +611,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         chooseSource(source);setTime(note.timeMs);setDemoText(note.rawAnnotation);
         setSuggestionNote('Saved moment notes are preserved verbatim as draft annotation. Preview this exact frame, save its annotation, then review and accept any teaching separately.');
       }else{
-        await call('select',{sessionId:id,consent:consents});
-        await requireCurrentScope(id);await load(id);
+        const added=await call('select',{sessionId:id,consent:consents});
+        await requireCurrentScope(id);const listed=await load(id);
+        const source=listed.sources?.find(s=>s.sourceId===added.sourceId&&s.token===added.token);
+        if(!source)throw new TrainingError('training_source_scope_mismatch','The source is saved but could not be opened for annotation. Find it in Saved sources & original decisions.');
+        chooseSource(source);
       }
     });
   }
