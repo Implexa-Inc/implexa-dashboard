@@ -13,10 +13,9 @@
  */
 
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
-import { listMyWorkflows, listDismissedWorkflows, listFavoriteSlugs } from '@/lib/workflow-catalog';
+import { readMyWorkflows, listMyWorkflows, listDismissedWorkflows, listFavoriteSlugs } from '@/lib/workflow-catalog';
 import { getMyAgents } from '@/lib/agents-home';
 import { buildRoster } from '@/lib/agents-roster';
 import { categorizeAgent } from '@/lib/agent-category';
@@ -27,17 +26,31 @@ import RetryButton from '../_components/retry-button';
 import ChainSuggestions from '../_components/chain-suggestions';
 import { listAgentDiscovery } from '@/lib/agent-discovery';
 import { listChainOfferings } from '@/lib/agent-chain-offerings';
+import AgentHomeFrame from '../_components/agent-home-frame';
+import TrainingAgentPicker,{TrainingFeedUnavailable} from '../_components/training-agent-picker';
+import MarketplaceSampleGallery from '../_components/marketplace-sample-gallery';
+import {agentHomeTab,marketplacePilotEnabled,readMarketplaceSamples} from '@/lib/agent-marketplace-samples';
 import ChainOfferingsSection from '../_components/chain-offerings-section';
 
 export const dynamic = 'force-dynamic';
 
-export default async function WorkflowsPage() {
+export default async function WorkflowsPage({searchParams}:{searchParams?:{tab?:string}}) {
   const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) redirect('/login');
+  const [{data:{session}},{data:{user}}]=await Promise.all([supabase.auth.getSession(),supabase.auth.getUser()]);
+  if (!session?.user||!user||session.user.id!==user.id) redirect('/login');
   const profile = await readUserProfile(supabase
     .from('users').select('id, organization_id').eq('id', session.user.id));
   if (!profile?.organization_id) redirect('/onboarding');
+
+  const samples=await readMarketplaceSamples(()=>supabase.from('agent_marketplace_samples').select('slug,position,listing').order('position').limit(2).abortSignal(AbortSignal.timeout(2000)));
+  const pilot=marketplacePilotEnabled(samples),tab=agentHomeTab(searchParams?.tab);
+  if(pilot&&tab==='rent'){
+    return <AgentHomeFrame tab="rent">{samples.status==='ready'?<MarketplaceSampleGallery listings={samples.listings}/>:<div role="status" className="rounded-xl border border-ink-800 p-8 text-sm text-ink-400">The marketplace preview couldn’t load.<RetryButton/></div>}</AgentHomeFrame>;
+  }
+  if(pilot&&tab==='training'){
+    const owned=await readMyWorkflows(session.access_token);
+    return <AgentHomeFrame tab="training"><div className="mx-auto max-w-4xl"><h2 className="text-2xl font-medium text-ink-100">Choose an agent to train</h2><p className="mb-6 mt-2 text-sm text-ink-400">Improve a result, show how you work, or talk it through with Implexa.</p>{owned.status==='ready'?<TrainingAgentPicker owned={owned.workflows}/>:<TrainingFeedUnavailable reason={owned.reason}/>}</div></AgentHomeFrame>;
+  }
 
   const [feed, mine, dismissed, favoriteSlugs, discovery, chainOfferings] = await Promise.all([
     getMyAgents(),
@@ -74,21 +87,7 @@ export default async function WorkflowsPage() {
   });
 
   return (
-    <main className="min-h-screen px-4 py-12">
-      <div className="max-w-4xl mx-auto">
-        <header className="mb-7 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Agents</h1>
-            <p className="text-ink-300 text-sm mt-1">
-              Find an agent by the outcome you need, or manage the agents already working for you.
-            </p>
-          </div>
-          {/* The discovery entry point: describe a new agent OR pick a proven one
-              from the community catalog. Without this, a new user with zero
-              agents had no way INTO building/finding one from this page. */}
-          <Link href="/create" className="flex-none btn-primary text-sm px-4 py-2 whitespace-nowrap">+ Create agent</Link>
-        </header>
-
+    <AgentHomeFrame tab={pilot?'running':undefined}><div className={pilot?'mx-auto max-w-4xl':''}>
         {/* THE HONEST UNAVAILABLE STATE (P0, 2026-07-28).
             Previously a failed feed rendered the whole roster as "needs activation".
             Now the page says what it does not know, and says nothing about activation. */}
@@ -122,8 +121,8 @@ export default async function WorkflowsPage() {
         <AgentsList
           agents={list.map((a) => ({ ...a, favorite: favSet.has(a.slug) }))}
           archived={archived}
-          availableAgents={discovery.agents}
-          discoveryUnavailable={discovery.status === 'unavailable' ? discovery.reason : null}
+          availableAgents={pilot?[]:discovery.agents}
+          discoveryUnavailable={!pilot&&discovery.status === 'unavailable' ? discovery.reason : null}
         />
 
         {/* Marketplace chain offerings — outcome-first compositions the
@@ -131,7 +130,7 @@ export default async function WorkflowsPage() {
             renders nothing for anyone without a grant, indistinguishable from
             there being nothing. An unavailable read also renders nothing:
             fail closed, never an invented catalog. */}
-        <ChainOfferingsSection offerings={chainOfferings.status === 'ready' ? chainOfferings.offerings : []} />
+        <ChainOfferingsSection offerings={!pilot&&chainOfferings.status === 'ready' ? chainOfferings.offerings : []} />
 
         {/* Agent Chains, folded in as an in-page suggestion (Codex's design
             audit, 2026-07-01) rather than its own nav tab — "Agent Chains"
@@ -141,7 +140,6 @@ export default async function WorkflowsPage() {
         <div className="mt-10">
           <ChainSuggestions agents={list.map((a) => ({ slug: a.slug, source: a.source, name: a.name }))} />
         </div>
-      </div>
-    </main>
+      </div></AgentHomeFrame>
   );
 }

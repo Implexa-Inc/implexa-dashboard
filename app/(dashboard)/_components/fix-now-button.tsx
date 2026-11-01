@@ -17,6 +17,7 @@
  * Codex parity comes later (the routine deep link is Claude-specific today).
  */
 
+import {AGENTS_RUNNING_HREF} from '@/lib/navigation';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -67,7 +68,7 @@ export default function FixNowButton({ slug, name, claudeTaskId, neverArmed = fa
   // id (undocumented deep link, verified 2026-06-12), else Active Agents.
   function afterQueued() {
     if (claudeTaskId) { window.location.href = `claude://claude.ai/claude-code-desktop/scheduled/${encodeURIComponent(claudeTaskId)}`; return; }
-    router.push('/workflows'); router.refresh();
+    router.push(AGENTS_RUNNING_HREF); router.refresh();
   }
 
   // Case 1: we know the routine's Claude task id → queue first, THEN take the

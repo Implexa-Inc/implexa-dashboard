@@ -1,12 +1,12 @@
 import Link from 'next/link';
+import RetryButton from '../_components/retry-button';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readMyWorkflows, type MyWorkflowsRead } from '@/lib/workflow-catalog';
 import {reviewQueueForArea} from '@/lib/training-review-routing';
 import {getReviewQueue} from '@/lib/review';
 import ReadyForReviewList from '../work/_components/ready-for-review-list';
-import TrainingAgentPicker from '../_components/training-agent-picker';
-import RetryButton from '../_components/retry-button';
+import TrainingAgentPicker,{TrainingFeedUnavailable as FeedUnavailable} from '../_components/training-agent-picker';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,20 +36,6 @@ export default async function TrainingPage({searchParams}:{searchParams?:{view?:
           {feedback?<><Link href="/training" className="mb-5 inline-block text-sm text-ink-400">← Your agents</Link><h2 className="mb-5 text-xl">Feedback from runs</h2><ReadyForReviewList queue={feedback} nameBySlug={new Map(owned.map(a=>[a.slug,a.name]))} training/></>:<><Link href="/training?view=review" className="mb-6 inline-block text-sm text-ink-400">Feedback from runs →</Link><TrainingAgentPicker owned={feed.workflows} recordingId={recordingId} /></>}
         </>}
       </div>
-    </div>
-  );
-}
-
-/**
- * An unreadable roster is not an empty roster. Showing "Build your first agent"
- * to an owner whose feed just failed would tell them their work does not exist.
- */
-function FeedUnavailable({ reason }: { reason: Extract<MyWorkflowsRead, {status:'unavailable'}>['reason'] }) {
-  return (
-    <div role="status" className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-10 text-center">
-      <p className="text-sm text-ink-300">We can&apos;t show your agents right now.</p>
-      <p className="mt-1 text-xs text-ink-500">{reason === 'timeout' ? 'The agent lookup took too long.' : reason === 'no_session' ? 'Your session is unavailable.' : 'The agent lookup could not be completed.'} This is not the same as having none.</p>
-      <RetryButton />
     </div>
   );
 }

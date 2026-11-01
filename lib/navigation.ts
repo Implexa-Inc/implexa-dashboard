@@ -348,3 +348,6 @@ export const CREATE_FAB_SUPPRESSED_PREFIXES: readonly string[] = ['/work', '/rev
 export function isCreateFabSuppressed(pathname: string): boolean {
   return CREATE_FAB_SUPPRESSED_PREFIXES.some((p) => ownsPath(p, pathname));
 }
+
+/** Stable return after an agent action; the default Agents page may be the rental gallery. */
+export const AGENTS_RUNNING_HREF='/workflows?tab=running';

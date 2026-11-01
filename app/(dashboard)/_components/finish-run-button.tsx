@@ -12,6 +12,7 @@
  * common "just finish it" case.
  */
 
+import {AGENTS_RUNNING_HREF} from '@/lib/navigation';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -58,7 +59,7 @@ export default function FinishRunButton({
         },
       }), () => {
         // Land on Active Agents so the user SEES it spin up (parity with Run-now).
-        router.push('/workflows'); router.refresh();
+        router.push(AGENTS_RUNNING_HREF); router.refresh();
       });
       if (!gated.ok) { setState('idle'); return; }
     } catch {

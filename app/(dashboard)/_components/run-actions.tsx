@@ -22,6 +22,7 @@
  * /runs/:id/review{approved|dismissed}; changes = run-requests{kind:continue,note}.
  */
 
+import {AGENTS_RUNNING_HREF} from '@/lib/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -174,7 +175,7 @@ export default function RunActions({
       }), () => {
         // Land the user on Active Agents so they SEE the new task spin up (parity
         // with Run-now) instead of a static "done" line they have to interpret.
-        router.push('/workflows'); router.refresh();
+        router.push(AGENTS_RUNNING_HREF); router.refresh();
       });
       if (!gated.ok) { setBusy(null); return; }
     } catch {
@@ -229,7 +230,7 @@ export default function RunActions({
           }
         }
         // Land on Active Agents so the new run's loader is visible (parity with Run).
-        router.push('/workflows'); router.refresh();
+        router.push(AGENTS_RUNNING_HREF); router.refresh();
       });
       // The note stays exactly as typed behind the setup modal.
       if (!gated.ok) { setBusy(null); return; }
@@ -276,7 +277,7 @@ export default function RunActions({
           note: 'The original typed local input has been reauthorized on Desktop. Preserve every completed step and the approved plan; continue from the first pending step.',
           ...(machineId ? { executionMachineId: machineId } : {}),
         },
-      }), () => { router.push('/workflows'); router.refresh(); });
+      }), () => { router.push(AGENTS_RUNNING_HREF); router.refresh(); });
       // The verified local input stays verified; the setup modal owns the retry.
       if (!gated.ok) { setBusy(null); return; }
     } catch (error) {

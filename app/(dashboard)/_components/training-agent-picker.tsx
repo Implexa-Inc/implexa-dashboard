@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import type {MyWorkflowCard} from '@/lib/workflow-catalog';
+import RetryButton from './retry-button';
+import type {MyWorkflowsRead,MyWorkflowCard} from '@/lib/workflow-catalog';
 
 export default function TrainingAgentPicker({ owned,recordingId }: { owned: MyWorkflowCard[];recordingId?:string }) {
   // Ownership is the whole gate here: a renter sees the empty state, an owner
@@ -44,3 +45,18 @@ export default function TrainingAgentPicker({ owned,recordingId }: { owned: MyWo
     </>
   );
 }
+
+/**
+ * An unreadable roster is not an empty roster. Showing "Build your first agent"
+ * to an owner whose feed just failed would tell them their work does not exist.
+ */
+export function TrainingFeedUnavailable({ reason }: { reason: Extract<MyWorkflowsRead, {status:'unavailable'}>['reason'] }) {
+  return (
+    <div role="status" className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-10 text-center">
+      <p className="text-sm text-ink-300">We can&apos;t show your agents right now.</p>
+      <p className="mt-1 text-xs text-ink-500">{reason === 'timeout' ? 'The agent lookup took too long.' : reason === 'no_session' ? 'Your session is unavailable.' : 'The agent lookup could not be completed.'} This is not the same as having none.</p>
+      <RetryButton />
+    </div>
+  );
+}
+
