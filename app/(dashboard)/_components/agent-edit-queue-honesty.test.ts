@@ -31,7 +31,7 @@ test('an edit is acknowledged only with the durable inserted request identity', 
   assert.ok(runFeedback.indexOf('confirmedAgentRevisionRequestId(response.ok, body)') < runFeedback.indexOf('setDone(true)'));
   assert.match(runFeedback, /permanent edit was not confirmed/);
   const continuation = runActions.slice(runActions.indexOf('async function continueWithChanges()'), runActions.indexOf('async function reconnectAndContinue()'));
-  assert.ok(continuation.indexOf('confirmedAgentRevisionRequestId(response.ok, body)') < continuation.indexOf("router.push('/workflows')"));
+  assert.ok(continuation.indexOf('confirmedAgentRevisionRequestId(response.ok, body)') < continuation.indexOf("router.push(AGENTS_RUNNING_HREF)"));
   assert.match(continuation, /continuation was queued, but the permanent agent edit was not confirmed/);
 });
 

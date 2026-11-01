@@ -55,7 +55,7 @@ test('approves only the five frozen identities through the dedicated endpoint an
       projectCheckpointId: SUMMARY.projectCheckpointId,
       projectCheckpointDigest: SUMMARY.projectCheckpointDigest,
     }));
-    assert.deepEqual(r.calls.push, ['/workflows']);
+    assert.deepEqual(r.calls.push, ['/workflows?tab=running']);
   } finally { r.cleanup(); }
 });
 
@@ -114,7 +114,7 @@ test('a mismatched response fails closed, authorizes no navigation, and retries 
     await settle(r);
     assert.equal(r.calls.backend.length, 2);
     assert.deepEqual(r.calls.backend[0].init, r.calls.backend[1].init, 'lost/invalid response retry preserves the exact identity');
-    assert.deepEqual(r.calls.push, ['/workflows']);
+    assert.deepEqual(r.calls.push, ['/workflows?tab=running']);
   } finally { r.cleanup(); }
 });
 

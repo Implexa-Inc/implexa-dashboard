@@ -1,5 +1,6 @@
 'use client';
 
+import {AGENTS_RUNNING_HREF} from '@/lib/navigation';
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -64,7 +65,7 @@ export default function PaidActionApproval({ runId, view }: { runId: string; vie
         },
       });
       if (!validPaidActionApprovalResponse(result, summary)) throw new Error('approval response did not match the reviewed batch');
-      router.push('/workflows');
+      router.push(AGENTS_RUNNING_HREF);
       router.refresh();
     } catch {
       inFlight.current = false;

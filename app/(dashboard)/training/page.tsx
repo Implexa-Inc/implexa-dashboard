@@ -1,11 +1,12 @@
 import Link from 'next/link';
+import RetryButton from '../_components/retry-button';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { readMyWorkflows, type MyWorkflowCard, type MyWorkflowsRead } from '@/lib/workflow-catalog';
+import { readMyWorkflows, type MyWorkflowsRead } from '@/lib/workflow-catalog';
 import {reviewQueueForArea} from '@/lib/training-review-routing';
 import {getReviewQueue} from '@/lib/review';
 import ReadyForReviewList from '../work/_components/ready-for-review-list';
-import RetryButton from '../_components/retry-button';
+import TrainingAgentPicker,{TrainingFeedUnavailable as FeedUnavailable} from '../_components/training-agent-picker';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,67 +33,10 @@ export default async function TrainingPage({searchParams}:{searchParams?:{view?:
 
         {feed.status !== 'ready' ? <FeedUnavailable reason={feed.reason} /> : <>
           {!!feed.unavailableEntries && <p role="status" className="mb-4 text-sm text-ink-400">Some agent entries could not be read. The available agents are shown below.<RetryButton /></p>}
-          {feedback?<><Link href="/training" className="mb-5 inline-block text-sm text-ink-400">← Your agents</Link><h2 className="mb-5 text-xl">Feedback from runs</h2><ReadyForReviewList queue={feedback} nameBySlug={new Map(owned.map(a=>[a.slug,a.name]))} training/></>:<><Link href="/training?view=review" className="mb-6 inline-block text-sm text-ink-400">Feedback from runs →</Link><OwnedAgents owned={feed.workflows} recordingId={recordingId} /></>}
+          {feedback?<><Link href="/training" className="mb-5 inline-block text-sm text-ink-400">← Your agents</Link><h2 className="mb-5 text-xl">Feedback from runs</h2><ReadyForReviewList queue={feedback} nameBySlug={new Map(owned.map(a=>[a.slug,a.name]))} training/></>:<><Link href="/training?view=review" className="mb-6 inline-block text-sm text-ink-400">Feedback from runs →</Link><TrainingAgentPicker owned={feed.workflows} recordingId={recordingId} /></>}
         </>}
       </div>
     </div>
   );
 }
 
-/**
- * An unreadable roster is not an empty roster. Showing "Build your first agent"
- * to an owner whose feed just failed would tell them their work does not exist.
- */
-function FeedUnavailable({ reason }: { reason: Extract<MyWorkflowsRead, {status:'unavailable'}>['reason'] }) {
-  return (
-    <div role="status" className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-10 text-center">
-      <p className="text-sm text-ink-300">We can&apos;t show your agents right now.</p>
-      <p className="mt-1 text-xs text-ink-500">{reason === 'timeout' ? 'The agent lookup took too long.' : reason === 'no_session' ? 'Your session is unavailable.' : 'The agent lookup could not be completed.'} This is not the same as having none.</p>
-      <RetryButton />
-    </div>
-  );
-}
-
-function OwnedAgents({ owned,recordingId }: { owned: MyWorkflowCard[];recordingId?:string }) {
-  // Ownership is the whole gate here: a renter sees the empty state, an owner
-  // sees their agents. There is no mode toggle (DESIGN.md §4.2).
-  const bySlug = new Map<string, MyWorkflowCard>();
-  for (const agent of owned) {
-    const current = bySlug.get(agent.slug);
-    if (!current || (agent.source === 'generated' && current.source !== 'generated')) bySlug.set(agent.slug, agent);
-  }
-
-  if (owned.length === 0) {
-    return (
-      <section className="card text-center py-12">
-        <p className="text-ink-100 font-medium">You don&apos;t own an agent yet.</p>
-        <p className="text-ink-400 text-sm mt-1">
-          Training is where an agent you own accumulates evidence from the work you review.{' '}
-          <Link href="/create?from=training" className="text-brand-500 hover:underline">Build your first agent</Link>.
-        </p>
-      </section>
-    );
-  }
-
-  return (
-    <>
-      <ul className="divide-y divide-ink-800">
-        {[...bySlug.values()].map((a) => (
-          <li key={a.slug} className="transition-colors hover:bg-ink-900/30">
-            <Link
-              href={`/training/${encodeURIComponent(a.slug)}${recordingId?`?annotateRecording=${encodeURIComponent(recordingId)}`:''}`}
-              className="flex items-center justify-between gap-5 rounded-lg px-4 py-6 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900"
-            >
-              <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-950/40 text-emerald-200/80">✦</span><span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-ink-100">{a.name.trim() || a.slug}</span>
-              </span>
-              <span className="shrink-0 text-xs text-ink-400">Train agent →</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-
-      <p className="mt-7 flex items-center gap-3 text-sm text-ink-500">Starting with something new?<Link href="/create?from=training" className="text-ink-200 underline underline-offset-4 hover:text-brand-400">Build a new agent →</Link></p>
-    </>
-  );
-}

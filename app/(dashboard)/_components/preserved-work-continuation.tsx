@@ -1,5 +1,6 @@
 'use client';
 
+import {AGENTS_RUNNING_HREF} from '@/lib/navigation';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -50,7 +51,7 @@ export default function PreservedWorkContinuation({ runId, slug = null, workflow
       }), () => {
         // A managed continuation is drained hands-off. Show its queued/running row,
         // rather than leaving the user on the failed parent with a dead spinner.
-        router.push('/workflows');
+        router.push(AGENTS_RUNNING_HREF);
         router.refresh();
       });
       if (!gated.ok) { setBusy(false); return; }

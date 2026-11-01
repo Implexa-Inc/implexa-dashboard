@@ -8,6 +8,7 @@
  * to that path.
  */
 
+import {AGENTS_RUNNING_HREF} from '@/lib/navigation';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
@@ -193,7 +194,7 @@ export default async function AllConnectionsPage() {
               account on its activation card. Everything you connect shows up here.
             </p>
             <Link
-              href="/workflows"
+              href={AGENTS_RUNNING_HREF}
               className="inline-flex items-center mt-4 text-sm font-medium rounded-md px-3.5 py-2 bg-brand-500/15 text-brand-600 dark:text-brand-400 hover:bg-brand-500/25 transition-colors"
             >
               See your agents

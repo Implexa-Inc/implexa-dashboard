@@ -50,7 +50,7 @@ test('Approve & finish (run-actions): refusal → modal, no navigation; Recheck 
     assert.equal(state.runRequests.length, 2, 'the SAME continue is retried exactly once');
     assert.equal(state.runRequests[1].kind, 'continue');
     assert.equal(state.runRequests[1].executionMachineId, 'mac-mini-a', 'on the machine the card named');
-    assert.deepEqual(r.calls.push, ['/workflows'], 'navigation happens only after the request exists');
+    assert.deepEqual(r.calls.push, ['/workflows?tab=running'], 'navigation happens only after the request exists');
     assert.equal(r.queryByText(TITLE), null);
   } finally { r.cleanup(); }
 });
@@ -181,7 +181,7 @@ test('GAP 5 — a continuation Recheck retries its OWN request (the run’s froz
     assert.equal(r.calls.backend.some((c) => c.path === '/api/v2/me/run-admission'), false, 'no current-version pre-admission for a continuation');
     assert.equal(state.runRequests.length, 2, 'the same continue, retried once');
     assert.equal(state.runRequests[1].executionMachineId, 'mac-mini-a');
-    assert.deepEqual(r.calls.push, ['/workflows'], 'navigation only after the request exists');
+    assert.deepEqual(r.calls.push, ['/workflows?tab=running'], 'navigation only after the request exists');
   } finally { r.cleanup(); }
 });
 
@@ -232,6 +232,6 @@ test('Continue preserved work (managed continuation, main #229): refusal → mod
     assert.equal(state.runRequests[1].kind, 'continue');
     assert.match(String(state.runRequests[1].note), /Desktop-validated preserved work/, 'the same continuation, same intent');
     assert.equal(state.runRequests[1].executionMachineId, 'mac-mini-a');
-    assert.deepEqual(r.calls.push, ['/workflows']);
+    assert.deepEqual(r.calls.push, ['/workflows?tab=running']);
   } finally { r.cleanup(); }
 });

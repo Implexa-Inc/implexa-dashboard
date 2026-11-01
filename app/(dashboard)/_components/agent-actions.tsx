@@ -17,6 +17,7 @@
  *   instead of leaving the user to go find the inbox.
  */
 
+import {AGENTS_RUNNING_HREF} from '@/lib/navigation';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -1022,7 +1023,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         setShowRunModal(false);
         setShowSetupModal(false);
         setRunInstalledVersionConfirmed(false);
-        if(presentation==='training')onQueuedRef.current?.();else router.push('/workflows');
+        if(presentation==='training')onQueuedRef.current?.();else router.push(AGENTS_RUNNING_HREF);
         return;
       }
       // A 2xx transport response is not a queue receipt.  Do not clear inputs,
@@ -1060,7 +1061,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         markFirstRunPermsSeen();
         setShowRunModal(true);
       } else if(presentation!=='training') {
-        router.push('/workflows');
+        router.push(AGENTS_RUNNING_HREF);
       }
       if(presentation==='training'){setShowSetupModal(false);setShowRunModal(true);onQueuedRef.current?.();}
     } catch (e) {
@@ -1420,7 +1421,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           "broken" (founder hit this). */}
       {presentation!=='training' && (state === 'queued' || state === 'running') && (
         <Link
-          href="/workflows"
+          href={AGENTS_RUNNING_HREF}
           className={`text-[11px] text-brand-500 hover:underline ${align === 'end' ? 'text-right' : 'text-left'}`}
         >
           Track it under Active Agents →
@@ -1462,7 +1463,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       <div className="mt-5 flex justify-end">
         <button
           type="button"
-          onClick={() => { setShowRunModal(false); if(presentation==='training')onQueuedRef.current?.();else router.push('/workflows'); }}
+          onClick={() => { setShowRunModal(false); if(presentation==='training')onQueuedRef.current?.();else router.push(AGENTS_RUNNING_HREF); }}
           className="btn-success text-sm px-5 py-2"
         >
           {presentation==='training'?'Back to Training':'Track it under Active Agents →'}
