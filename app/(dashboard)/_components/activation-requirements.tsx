@@ -24,6 +24,7 @@
 import { useEffect, useState } from 'react';
 import { InlineAddKeyButton, useDesktopBridge } from './api-key-row';
 import type { AgentRequirementsPayload, AgentMachineTools } from '@/lib/activation';
+import { apiKeyAccessReady, toolAccessReady } from '@/lib/activation-core';
 
 export function DeclaredMachineTools({ tools }: { tools?: AgentMachineTools | null }) {
   if (!tools?.requirements.length) return null;
@@ -35,7 +36,7 @@ export function DeclaredMachineTools({ tools }: { tools?: AgentMachineTools | nu
         {tools.requirements.map((tool) => (
           <li key={tool.id} className="flex items-center justify-between gap-3 text-sm">
             <span className="text-ink-200">{tool.label}</span>
-            <span className="text-xs text-ink-500">Local{tool.required ? '' : ' · optional'}</span>
+            <span className="text-xs text-ink-500">{tool.kind === 'cli_auth' ? 'CLI sign-in · checked before run' : 'Local'}{tool.required ? '' : ' · optional'}</span>
           </li>
         ))}
       </ul>
@@ -126,6 +127,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
   }, [slug]);
 
   if (!req) return null;
+  if (req.unavailable) return <p role="status" className="text-sm text-ink-500">Tool setup status is unavailable. Refresh to check again.</p>;
   const services = req.services ?? [];
   const tools = req.tools ?? [];
   if (!services.length && !tools.length) return null;
@@ -134,21 +136,12 @@ export function ActivationRequirements({ req, slug, onChanged }: {
   // verified local-session route below, so a provider without a vault key can
   // still be ready without ever inventing an API-key requirement.
   const apiReady = (s: (typeof services)[number]) =>
-    !!s.provider && s.keyOnMachine && grants?.[s.provider] === true;
-  const browserReady = (s: (typeof services)[number]) => s.browserSession?.status === 'reachable';
+    apiKeyAccessReady(s, grants);
   const accessMode = (s: (typeof services)[number]) =>
     s.accessMode ?? (s.apiKeyRequired === false ? 'browser' : s.apiKeyRequired === true ? 'api' : 'unknown');
   // New payloads say which route the workflow actually executes. Old payloads
   // retain the historical API-key behavior for a calm rolling upgrade.
-  const satisfied = (s: (typeof services)[number]) => {
-    // A verified browser session is an alternative only when the builder has
-    // declared the provider browser-only. If a future workflow needs both an
-    // API and browser access, do not overstate readiness from either alone.
-    const mode = accessMode(s);
-    if (mode === 'browser') return browserReady(s);
-    if (mode === 'api_and_browser') return apiReady(s) && browserReady(s);
-    return apiReady(s);
-  };
+  const satisfied = (s: (typeof services)[number]) => toolAccessReady(s, grants);
 
   const outstanding = services.filter((s) => !satisfied(s));
   const ready = services.filter(satisfied);
@@ -164,7 +157,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
           {services.map((s) => {
             // The key exists but THIS agent isn't allowed it yet — a grant, not a
             // purchase. Never send the user off to buy a second key.
-            const needsGrantOnly = !!s.provider && s.keyOnMachine;
+            const needsGrantOnly = !!s.provider && s.keysReadable !== false && s.keyOnMachine;
             const mode = accessMode(s);
             // A browser-route tool needs a signed-in session, not a key — whether
             // or not the backend registered a verifiable session for it. Veed (no
@@ -180,7 +173,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm text-ink-100">{s.name}</span>
                     {/* Cost is only news if they still have to go get it. */}
-                    {!isReady && !needsGrantOnly && !browserOnly && (
+                    {!isReady && !needsGrantOnly && !browserOnly && !unknownAccess && (
                       <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 uppercase tracking-wide">
                         {s.cost}
                       </span>
@@ -192,8 +185,10 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                     </p>
                   ) : unknownAccess ? (
                     <p className="text-xs text-ink-500 mt-0.5">
-                      This workflow names {s.name}, but has not proved whether it uses an API key or a signed-in browser. Use an API key unless this agent is revised to declare browser access.
+                      This agent declares {s.name}, but its access route needs clarification in Edit Agent.
                     </p>
+                  ) : s.keysReadable === false ? (
+                    <p className="text-xs text-ink-500 mt-0.5">Key status unavailable — open Implexa on this Mac to check.</p>
                   ) : keyReady ? (
                     <p className="text-xs text-ink-500 mt-0.5">Key saved on this Mac and allowed for this agent.</p>
                   ) : needsGrantOnly ? (
@@ -208,11 +203,11 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                 </div>
                 <div className="flex-none flex items-center gap-1.5">
                   {s.browserSession && <BrowserSessionAccess session={s.browserSession} onVerified={() => onChanged?.()} />}
-                  {s.provider && !browserOnly && !keyReady && <InlineAddKeyButton provider={s.provider} slug={slug} />}
+                  {s.provider && !browserOnly && !unknownAccess && !keyReady && <InlineAddKeyButton provider={s.provider} slug={slug} />}
                   {keyReady && <span className="text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">✓ key allowed</span>}
                   {/* Suppress "Get it" once a key exists — that was the original
                       complaint: being invited to buy something you already own. */}
-                  {!keyReady && !needsGrantOnly && !browserOnly && s.url && (
+                  {!keyReady && !needsGrantOnly && !browserOnly && !unknownAccess && s.url && (
                     <a href={s.url} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Get it ↗</a>
                   )}
                 </div>

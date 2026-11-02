@@ -39,7 +39,7 @@ test('the "uses your local browser" note renders for any browser-route row, not 
 test('the "Get it" link is suppressed when there is no URL (never render a null href)', () => {
   assert.match(
     src,
-    /\{!keyReady && !needsGrantOnly && !browserOnly && s\.url && \(/,
+    /\{!keyReady && !needsGrantOnly && !browserOnly && !unknownAccess && s\.url && \(/,
     'a link-less row (url:null) must not render an <a href={null}>',
   );
 });

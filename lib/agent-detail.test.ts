@@ -13,7 +13,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getAgentDetail, agentActionContext } from './agent-detail.ts';
-import { mapActivationChecklist } from './activation-core.ts';
+import { mapActivationChecklist, toolAccessReady } from './activation-core.ts';
+import type { AgentRequirementsPayload } from './activation';
+
+test('tool readiness needs a declared route, readable evidence and this agent’s actual grant', () => {
+  const service: AgentRequirementsPayload['services'][number] = { key: 'runway', name: 'Runway', cost: '', url: '', alt: null,
+    provider: 'runway', accessMode: 'api', keyOnMachine: true, keysReadable: true };
+  assert.equal(toolAccessReady(service, null), false);
+  assert.equal(toolAccessReady(service, { runway: false }), false);
+  assert.equal(toolAccessReady(service, { runway: true }), true);
+  assert.equal(toolAccessReady({ ...service, keysReadable: false }, { runway: true }), false);
+  assert.equal(toolAccessReady({ ...service, accessMode: 'unknown' }, { runway: true }), false);
+  const browser = { ...service, provider: null, accessMode: 'browser' as const, browserSession: { required: true, domain: 'veed.io', label: 'VEED', status: 'unknown' as const } };
+  assert.equal(toolAccessReady(browser, { runway: true }), false);
+  assert.equal(toolAccessReady({ ...browser, browserSession: { ...browser.browserSession, status: 'reachable' } }, null), true);
+  assert.equal(toolAccessReady({ ...service, accessMode: 'api_and_browser' }, { runway: true }), false);
+});
 
 test('selected compiled local tools survive the checklist without becoming access grants', () => {
   const checklist = mapActivationChecklist({ ok: true, machineCapabilityContract: {
@@ -22,11 +37,13 @@ test('selected compiled local tools survive the checklist without becoming acces
       { id: 'runtime', kind: 'managed_node_runtime', label: 'Node runtime', required: true, secret: 'never copied' },
       { id: 'ffmpeg', kind: 'media_tool', label: 'ffmpeg', required: true },
       { id: 'disk', kind: 'disk_capacity', label: 'Disk space', required: true },
+      { id: 'cli_auth', kind: 'cli_auth', label: 'Higgsfield sign-in', required: true },
     ],
   }, requirements: { services: [], tools: [], source: 'machine_capability_contract' } }, 'video');
   assert.deepEqual(checklist?.machineTools, { digest: 'c'.repeat(64), requirements: [
     { id: 'runtime', kind: 'managed_node_runtime', label: 'Node runtime', required: true },
     { id: 'ffmpeg', kind: 'media_tool', label: 'ffmpeg', required: true },
+    { id: 'cli_auth', kind: 'cli_auth', label: 'Higgsfield sign-in', required: true },
   ] });
   assert.deepEqual(checklist?.requirements?.services, []);
   assert.deepEqual(checklist?.steps, []);
