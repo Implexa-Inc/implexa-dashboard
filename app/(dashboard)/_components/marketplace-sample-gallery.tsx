@@ -4,6 +4,11 @@ import {useState} from 'react';
 import type {MarketplaceSample} from '@/lib/agent-marketplace-samples';
 import Modal from './modal';
 
+const SAMPLE_PRICING = {
+ video: 'Try for free. $50/run. Or $200/mo for unlimited runs.',
+ marketing: 'Try for free. $10/day or $100/mo for unlimited runs.',
+};
+
 /** A visual pilot, deliberately disconnected from acquisition and checkout. */
 export default function MarketplaceSampleGallery({listings}:{listings:MarketplaceSample[]}){
  const [category,setCategory]=useState('all'),[view,setView]=useState<'gallery'|'list'>('gallery');
@@ -19,13 +24,13 @@ export default function MarketplaceSampleGallery({listings}:{listings:Marketplac
      <p className="text-[10px] uppercase tracking-wider text-ink-500">Sample performance</p><dl className="grid grid-cols-3 gap-3 border-y border-ink-800 py-4 text-sm"><div><dt className="text-[11px] text-ink-500">Taste variants</dt><dd className="mt-1 font-medium text-ink-100">{agent.tasteVariants}</dd></div><div><dt className="text-[11px] text-ink-500">Runs</dt><dd className="mt-1 font-medium text-ink-100">{agent.runCount.toLocaleString('en-US')}</dd><dd className="mt-1 text-[11px] text-emerald-400">{agent.deliveryRate}% delivered</dd></div><div><dt className="text-[11px] text-ink-500">Avg. grade</dt><dd className="mt-1 font-medium text-ink-100">{agent.averageGrade}<span className="text-xs font-normal text-ink-500">/100</span></dd></div></dl>
      <div className="flex items-center gap-2 text-xs"><span className="mr-1 text-ink-500">Supports</span>{agent.supportedEngines.map(engine=><span key={engine} className="rounded-md border border-ink-700 px-2 py-1 text-ink-300">{engine}</span>)}</div>
      <div className="flex items-center gap-3"><span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-500/10 text-sm text-brand-400">{agent.owner.handle.slice(0,1)}</span><div><button type="button" className="text-sm text-ink-200 hover:text-brand-400" onClick={()=>setSelected({agent,mode:'owner'})}>{agent.owner.handle} <span className="ml-1 text-[10px] text-ink-500">View profile ↗</span></button><p className="mt-1 text-[11px] text-ink-500">Sample trainer · Trains {agent.owner.agentCount} {agent.owner.agentCount===1?'agent':'agents'} · {agent.owner.averageGrade}/100 avg. evaluation</p></div></div>
-     <div><button type="button" className="btn-primary w-full px-4 py-3 text-sm" onClick={()=>setSelected({agent,mode:'rent'})}>Rent for ${agent.monthlyUsd}/mo <span className="font-normal">· {agent.trial.toLowerCase()}</span></button><p className="mt-3 text-center text-[11px] text-ink-500">Needs your Claude or ChatGPT subscription</p></div>
+     <div><button type="button" className="btn-primary w-full px-4 py-3 text-sm" onClick={()=>setSelected({agent,mode:'rent'})}>{SAMPLE_PRICING[agent.artwork]}</button><p className="mt-3 text-center text-[11px] text-ink-500">Needs your Claude or ChatGPT subscription</p></div>
     </div>
    </article>)}
   </div>
   {!shown.length&&<p className="py-10 text-sm text-ink-400">No sample agents in this category.</p>}
   <Modal open={!!selected} onClose={()=>setSelected(null)} title={selected?.mode==='owner'?selected.agent.owner.handle:selected?.agent.name||'Agent preview'}>
-   {selected&&<div className="space-y-4 text-sm leading-6 text-ink-300"><p className="text-xs text-brand-400">Beta sample</p>{selected.mode==='owner'?<><p>Trains {selected.agent.owner.agentCount} {selected.agent.owner.agentCount===1?'agent':'agents'}.</p><p>Average evaluation: {selected.agent.owner.averageGrade}/100.</p><p className="text-xs text-ink-500">Illustrative trainer profile for this preview.</p></>:<><p>{selected.agent.outcome}</p><p className="text-lg text-ink-100">${selected.agent.monthlyUsd}/month · {selected.agent.trial}</p><p>Needs your Claude or ChatGPT subscription.</p><p className="text-xs text-ink-500">Sample listing. Agent details and rental checkout are coming next.</p></>}<button type="button" className="btn-primary mt-2" onClick={()=>setSelected(null)}>Done</button></div>}
+   {selected&&<div className="space-y-4 text-sm leading-6 text-ink-300"><p className="text-xs text-brand-400">Beta sample</p>{selected.mode==='owner'?<><p>Trains {selected.agent.owner.agentCount} {selected.agent.owner.agentCount===1?'agent':'agents'}.</p><p>Average evaluation: {selected.agent.owner.averageGrade}/100.</p><p className="text-xs text-ink-500">Illustrative trainer profile for this preview.</p></>:<><p>{selected.agent.outcome}</p><p className="text-lg text-ink-100">{SAMPLE_PRICING[selected.agent.artwork]}</p><p>Needs your Claude or ChatGPT subscription.</p><p className="text-xs text-ink-500">Sample listing. Agent details and rental checkout are coming next.</p></>}<button type="button" className="btn-primary mt-2" onClick={()=>setSelected(null)}>Done</button></div>}
   </Modal>
  </section>;
 }

@@ -5,7 +5,7 @@ test('the gallery shows two labelled sample offers; rental, details and owner pr
  const r=await render('marketplace-sample-gallery.tsx',{listings:[video,marketing]});
  try{
   assert.equal(r.document.querySelectorAll('article').length,2);assert.equal(Array.from(r.document.querySelectorAll('p')).filter(p=>p.textContent==='Sample performance').length,2);assert.match(r.text(),/89% delivered/);assert.match(r.text(),/4,540/);assert.match(r.text(),/86\/100/);assert.match(r.text(),/Needs your Claude or ChatGPT subscription/);
-  await r.click(r.getByText(/Rent for \$8\/mo/));assert.ok(r.document.querySelector('[role="dialog"]'));assert.match(r.text(),/rental checkout are coming next/);assert.equal(r.calls.backend.length,0);assert.equal(r.calls.push.length,0);assert.equal(r.document.querySelectorAll('form').length,0);
+  await r.click(r.getByText(/Try for free\. \$50\/run/));assert.ok(r.document.querySelector('[role="dialog"]'));assert.match(r.text(),/rental checkout are coming next/);assert.equal(r.calls.backend.length,0);assert.equal(r.calls.push.length,0);assert.equal(r.document.querySelectorAll('form').length,0);
   await r.click(r.getByText('Done'));await r.click(Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent?.startsWith('Juju8080'))!);assert.match(r.text(),/Illustrative trainer profile/);await r.click(r.getByText('Done'));
   await r.click(r.document.querySelector('button[aria-label="View The Video Studio"]')!);assert.match(r.text(),/Beta sample/);await r.click(r.getByText('Done'));
   await r.click(r.getByText('YouTube & video'));assert.equal(r.document.querySelectorAll('article').length,1);
