@@ -68,7 +68,7 @@ export async function loadOutcomeProduction(productionId: string, jwt: string): 
 }
 
 export type OutcomeProductionListLoad =
-  | { status: 'ready'; productions: Production[] }
+  | { status: 'ready'; productions: Production[]; truncated?: boolean }
   /**
    * This deployment has no outcome-production list route at all. Distinct from
    * `unavailable` because it is not a fault the user can act on or should be
@@ -85,12 +85,12 @@ export type OutcomeProductionListLoad =
  * created it — navigate away and the running work, its budget, and its one
  * stop control are gone.
  */
-export async function listOutcomeProductions(jwt: string): Promise<OutcomeProductionListLoad> {
+export async function listOutcomeProductions(jwt: string, options: {activeOnly?: boolean} = {}): Promise<OutcomeProductionListLoad> {
   try {
-    const response = await callBackend('/api/v2/outcome-productions', { jwt });
+    const response = await callBackend(`/api/v2/outcome-productions${options.activeOnly ? '?activeOnly=1' : ''}`, { jwt });
     const productions = parseProductionListResponse(response);
     if (!productions) return { status: 'unavailable', reason: 'The productions response did not match the contract.' };
-    return { status: 'ready', productions };
+    return { status: 'ready', productions, ...(options.activeOnly ? {truncated: response.truncated === true || (response.truncated === undefined && productions.length >= 20)} : {}) };
   } catch (error) {
     // A 404 here is the deployment saying "I have no such route", not "your
     // productions failed to load" — so it renders nothing rather than putting

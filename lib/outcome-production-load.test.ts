@@ -158,3 +158,19 @@ test('a deployment without the list route is ABSENT, not a fault to warn about',
     assert.equal((await listOutcomeProductions('jwt')).status, 'absent');
   } finally { restore(); }
 });
+
+test('active-only list uses the existing scoped route and leaves the default URL unchanged', async()=>{
+ const urls:string[]=[];
+ const restore=stubFetch(url=>{urls.push(url);return {status:200,body:{ok:true,productions:[]}};});
+ try {
+  assert.equal((await listOutcomeProductions('jwt',{activeOnly:true})).status,'ready');
+  assert.equal((await listOutcomeProductions('jwt')).status,'ready');
+  assert.ok(urls[0].endsWith('/api/v2/outcome-productions?activeOnly=1'));
+  assert.ok(urls[1].endsWith('/api/v2/outcome-productions'));
+ } finally{restore();}
+});
+
+test('active production loader retains backend truncation',async()=>{
+ const restore=stubFetch(()=>({status:200,body:{ok:true,productions:[],truncated:true}}));
+ try{const load=await listOutcomeProductions('jwt',{activeOnly:true});assert.ok(load.status==='ready'&&load.truncated===true);}finally{restore();}
+});

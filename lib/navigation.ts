@@ -148,12 +148,13 @@ export function activeNavItem(pathname: string): NavItem | null {
 // context, never destination ownership (§8.5).
 
 export const WORK_VIEWS = ['needs', 'review', 'delivered'] as const;
-export type WorkView = typeof WORK_VIEWS[number] | 'activity';
+export type WorkView = typeof WORK_VIEWS[number] | 'activity' | 'agents';
 
 export const DEFAULT_WORK_VIEW: WorkView = 'needs';
 
 export const WORK_VIEW_LABELS: Record<WorkView, string> = {
   activity: 'All runs',
+  agents: 'All agents',
   needs:     'Needs you',
   review:    'Ready for review',
   delivered: 'Delivered',
@@ -168,6 +169,7 @@ export function parseWorkView(raw: string | string[] | undefined | null): WorkVi
 /** Default changes only for a readable pilot; explicit legacy filters still win. */
 export function resolveWorkView(raw: string | string[] | undefined | null, marketplacePilot = false): WorkView {
   const value=Array.isArray(raw)?raw[0]:raw;
+  if (marketplacePilot && value==='agents') return 'agents';
   return value==='activity'||(marketplacePilot&&!value)?'activity':parseWorkView(value);
 }
 
