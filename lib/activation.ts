@@ -60,6 +60,8 @@ export type ActivationState = 'created' | 'activating' | 'active' | 'needs_atten
  *  itself — it used to, from a hand-copied table that had already drifted from
  *  the backend's (different alt strings, a client-only provider column). */
 export type AgentRequirementsPayload = {
+  unavailable?: boolean;
+  source?: string;
   services: {
     key: string; name: string; cost: string; url: string;
     alt: string | null; provider: string | null;
@@ -87,6 +89,7 @@ export type AgentRequirementsPayload = {
      * PR #63 removed (row collapses, "Use saved key" hidden, no way to authorize).
      */
     keyOnMachine: boolean;
+    keysReadable?: boolean;
     /** Other detected services this same key covers (Seedance rides HeyGen's). */
     alsoCovers?: string[];
   }[];

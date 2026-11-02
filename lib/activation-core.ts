@@ -20,6 +20,18 @@ import type {
 } from './activation';
 import { parseMarketplaceExecutionRequirements } from './marketplace-execution-requirements.ts';
 
+type ToolService = AgentRequirementsPayload['services'][number];
+export function apiKeyAccessReady(service: ToolService, grants: Record<string, boolean> | null): boolean {
+  return !!service.provider && service.keysReadable !== false && service.keyOnMachine && grants?.[service.provider] === true;
+}
+export function toolAccessReady(service: ToolService, grants: Record<string, boolean> | null, structured = true): boolean {
+  const mode = service.accessMode ?? (service.apiKeyRequired === false ? 'browser' : service.apiKeyRequired === true ? 'api' : 'unknown');
+  const browser = service.browserSession?.status === 'reachable';
+  if (mode === 'browser') return browser;
+  if (mode === 'api_and_browser') return browser && apiKeyAccessReady(service, grants);
+  return (mode === 'api' || !structured && mode === 'unknown') && apiKeyAccessReady(service, grants);
+}
+
 function machineTools(value: unknown): AgentMachineTools | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const v = value as Record<string, unknown>;
@@ -37,7 +49,7 @@ function machineTools(value: unknown): AgentMachineTools | null {
     ids.add(r.id);
     // Only software belongs in this list. Disk, network and cache readiness
     // remain in the existing preflight, never inferred as external tools.
-    if (['managed_node_runtime', 'npm_runtime', 'local_cli', 'media_tool'].includes(r.kind)) {
+    if (['managed_node_runtime', 'npm_runtime', 'local_cli', 'media_tool', 'cli_auth'].includes(r.kind)) {
       requirements.push({ id: r.id, kind: r.kind, label: r.label, required: r.required });
     }
   }
