@@ -13,6 +13,33 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getAgentDetail, agentActionContext } from './agent-detail.ts';
+import { mapActivationChecklist } from './activation-core.ts';
+
+test('selected compiled local tools survive the checklist without becoming access grants', () => {
+  const checklist = mapActivationChecklist({ ok: true, machineCapabilityContract: {
+    contract_type: 'machine_capability_requirements', contract_version: 1, digest: 'c'.repeat(64),
+    requirements: [
+      { id: 'runtime', kind: 'managed_node_runtime', label: 'Node runtime', required: true, secret: 'never copied' },
+      { id: 'ffmpeg', kind: 'media_tool', label: 'ffmpeg', required: true },
+      { id: 'disk', kind: 'disk_capacity', label: 'Disk space', required: true },
+    ],
+  }, requirements: { services: [], tools: [], source: 'machine_capability_contract' } }, 'video');
+  assert.deepEqual(checklist?.machineTools, { digest: 'c'.repeat(64), requirements: [
+    { id: 'runtime', kind: 'managed_node_runtime', label: 'Node runtime', required: true },
+    { id: 'ffmpeg', kind: 'media_tool', label: 'ffmpeg', required: true },
+  ] });
+  assert.deepEqual(checklist?.requirements?.services, []);
+  assert.deepEqual(checklist?.steps, []);
+  assert.equal(checklist?.canActivate, false);
+  assert.doesNotMatch(JSON.stringify(checklist?.machineTools), /secret|granted|ready|veed/i);
+});
+
+test('absent or malformed compiled declarations do not invent a local tool inventory', () => {
+  for (const contract of [undefined, {}, { contract_type: 'machine_capability_requirements', contract_version: 1,
+    digest: 'c'.repeat(64), requirements: [{ id: 'runtime', kind: 'media_tool', label: 'ffmpeg', required: null }] }]) {
+    assert.equal(mapActivationChecklist({ ok: true, machineCapabilityContract: contract }, 'video')?.machineTools, null);
+  }
+});
 
 const ENVELOPE = {
   ok: true,
