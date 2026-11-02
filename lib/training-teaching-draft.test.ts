@@ -14,6 +14,10 @@ test('recording capability suggestion stays separate from teaching and requires 
   capability:'web_reference_research',frameIndex:0,reason:'',limitations:['Image generation unverified.'],suggestionId:id,suggestionDigest:'d'.repeat(64),
   proposedChange:'Generic capability instruction',application:'not_applied',methodSelection:'pending_existing_binder',binding:expected};
  assert.equal(recordingAgentSuggestion(proposal,expected),true);
+ const background={...proposal,capability:'presenter_background_removal'};
+ assert.equal(recordingAgentSuggestion(background,expected,'presenter_background_removal'),true);
+ assert.equal(recordingAgentSuggestion(background,expected),false,'another capability cannot replace the selected research proposal');
+ assert.equal(recordingAgentSuggestion(proposal,expected,'presenter_background_removal'),false,'research cannot masquerade as the selected VEED proposal');
  for(const patch of [{capability:'higgsfield'},{application:'applied'},{methodSelection:'ranked_top'},{fields:value.fields},
   {model:'other'},{frameIndex:3},{binding:{...expected,targetVersionId:'other'}},{limitations:['x'.repeat(201)]}])
   assert.equal(recordingAgentSuggestion({...proposal,...patch},expected),false);

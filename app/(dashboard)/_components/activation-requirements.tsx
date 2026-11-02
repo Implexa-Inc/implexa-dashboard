@@ -29,7 +29,7 @@ export function DeclaredMachineTools({ tools }: { tools?: AgentMachineTools | nu
   if (!tools?.requirements.length) return null;
   return (
     <section className="rounded-lg border border-ink-800 p-4" aria-label="Declared local tools">
-      <h2 className="text-sm font-medium text-ink-100">Tools &amp; access</h2>
+      <h2 className="text-sm font-medium text-ink-100">Declared local tools</h2>
       <p className="mt-1 text-xs text-ink-500">Declared for this version. Availability is checked before each run.</p>
       <ul className="mt-3 space-y-2">
         {tools.requirements.map((tool) => (

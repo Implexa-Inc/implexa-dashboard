@@ -70,13 +70,14 @@ export type RecordingExcerpt = {sourceId:string;sourceSha256:string;targetVersio
 export type RecordingSuggestion = {ok:true;contractVersion:'training-teaching-suggestion.v4';requestId:string;model:string;status:'suggested';fields:TeachingFields;reason:'';
   frameIndex:number;suggestionId:string;suggestionDigest:string;sources:Record<typeof TEACHING_FIELDS[number],string>;
   binding:{sourceId:string;sourceSha256:string;targetVersionId:string;excerptId:string;excerptDigest:string;frames:Array<{timeMs:number;frameSha256:string}>}};
+export type RecordingAgentCapability = 'web_reference_research'|'presenter_background_removal';
 export type RecordingAgentSuggestion = {ok:true;contractVersion:'training-recording-agent-suggestion.v1';requestId:string;model:string;status:'suggested';
-  capability:'web_reference_research';frameIndex:number;reason:'';limitations:string[];suggestionId:string;suggestionDigest:string;
+  capability:RecordingAgentCapability;frameIndex:number;reason:'';limitations:string[];suggestionId:string;suggestionDigest:string;
   proposedChange:string;application:'not_applied';methodSelection:'pending_existing_binder';binding:RecordingSuggestion['binding']};
-export function recordingAgentSuggestion(v:any,expected:RecordingSuggestion['binding']):v is RecordingAgentSuggestion {
+export function recordingAgentSuggestion(v:any,expected:RecordingSuggestion['binding'],capability:RecordingAgentCapability='web_reference_research'):v is RecordingAgentSuggestion {
   return exact(v,['ok','contractVersion','requestId','model','status','capability','frameIndex','reason','limitations','suggestionId','suggestionDigest','proposedChange','application','methodSelection','binding'])
     && v.ok===true&&v.contractVersion==='training-recording-agent-suggestion.v1'&&v.model===TEACHING_MODEL&&recordingUuid(v.requestId)
-    &&v.status==='suggested'&&v.capability==='web_reference_research'&&v.reason===''&&Number.isInteger(v.frameIndex)&&v.frameIndex>=0&&v.frameIndex<3
+    &&v.status==='suggested'&&v.capability===capability&&['web_reference_research','presenter_background_removal'].includes(v.capability)&&v.reason===''&&Number.isInteger(v.frameIndex)&&v.frameIndex>=0&&v.frameIndex<3
     &&recordingUuid(v.suggestionId)&&recordingSha(v.suggestionDigest)&&typeof v.proposedChange==='string'&&v.proposedChange.length>0&&v.proposedChange.length<=2000
     &&v.application==='not_applied'&&v.methodSelection==='pending_existing_binder'&&Array.isArray(v.limitations)&&v.limitations.length<=5
     &&v.limitations.every((s:unknown)=>typeof s==='string'&&!!s.trim()&&s.length<=200)

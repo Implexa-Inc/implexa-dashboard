@@ -1024,9 +1024,9 @@ export function ActivationCard({
       <div className="mt-4">
         <ActivationRequirements req={checklist.requirements} slug={checklist.slug} onChanged={() => router.refresh()} />
       </div>
-      <div className="mt-4">
+      {!!checklist.machineTools?.requirements.length && <div className="mt-4">
         <DeclaredMachineTools tools={checklist.machineTools} />
-      </div>
+      </div>}
 
       {/* Capabilities with NO viable tool (server-derived from capability_setup).
           requirements above cannot show these — a gap has no step reflecting a
