@@ -55,10 +55,10 @@ function scriptedBackend(steps: Step[]) {
   };
 }
 
-async function renderFeed(steps: Step[]) {
+async function renderFeed(steps: Step[], props: Record<string,unknown> = {}) {
   const { render } = await import('../../../lib/test/render.ts');
   const backend = scriptedBackend(steps);
-  const rendered = await render('running-agents.tsx', { pollMs: POLL_MS }, { backend: backend.fn });
+  const rendered = await render('running-agents.tsx', { pollMs: POLL_MS, ...props }, { backend: backend.fn });
   const flush = async (ms: number) => {
     await rendered.act(async () => { await new Promise((r) => setTimeout(r, ms)); });
   };
@@ -550,4 +550,18 @@ test('a dialog does not spring back open when its card returns', async () => {
       'a destructive dialog the user did not reopen must not reopen');
     assert.equal(!!rendered.queryByText(/This will cancel/), false);
   } finally { rendered.cleanup(); }
+});
+
+
+test('compact rows keep prelaunch Cancel and stale continuity, while finished results leave the active list', async () => {
+ const {rendered,at}=await renderFeed([
+  {items:[prep()]}, {items:[]},
+  {items:[prep({runId:RUN,status:'finished',lifecyclePhase:'finished',isTerminal:true,finishedAt:new Date().toISOString()})]},
+ ],{compact:true});
+ try {
+  assert.ok(buttons(rendered,/Cancel request/).length===1);
+  await at(1);assert.equal(renderedKeys(rendered).length,1);
+  assert.match(rendered.text(),/Updating status/);
+  await at(2);assert.equal(renderedKeys(rendered).length,0);
+ }finally{rendered.cleanup();}
 });

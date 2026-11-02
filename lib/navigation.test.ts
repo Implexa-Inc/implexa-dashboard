@@ -230,3 +230,11 @@ test('Work defaults to Needs you outside the pilot, and explicit decisions remai
  }
  assert.equal(resolveWorkView('unknown',false),'needs');
 });
+
+
+test('All agents collection belongs only to the pilot; legacy filters retain their destinations',()=>{
+ assert.equal(resolveWorkView('agents',true),'agents');
+ assert.equal(resolveWorkView('agents',false),'needs');
+ assert.equal(resolveWorkView(undefined,true),'activity');
+ for(const view of ['needs','review','delivered'] as const) assert.equal(resolveWorkView(view,true),view);
+});

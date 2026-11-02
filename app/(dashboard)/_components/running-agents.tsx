@@ -205,8 +205,11 @@ function elapsedMs(iso: string | null): number {
  */
 export type LiveState = { status: 'loading' | 'ready' | 'unavailable'; count: number };
 
-export default function RunningAgents({ alertsOnly = false, bare = false, onState, pollMs = POLL_MS }: {
+export default function RunningAgents({ alertsOnly = false, bare = false, onState, compact = false, onFinished, pollMs = POLL_MS }: {
   alertsOnly?: boolean;
+  /** Compact Run rows reuse this same lifecycle, polling and action controls. */
+  compact?: boolean;
+  onFinished?: () => void;
   /** Nested inside a parent that owns the heading (see TodayFeed). */
   bare?: boolean;
   /** Reports what the live read knows, so the parent can own the all-clear honestly. */
@@ -331,6 +334,16 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
   // Electron webview, so the Notification API reaches the OS). We seed on the first
   // poll so pre-existing states don't storm, then notify only on NEW transitions.
   const onStateRef = useRef<((s: LiveState) => void) | undefined>(undefined);
+  const onFinishedRef = useRef(onFinished);
+  onFinishedRef.current = onFinished;
+  const finishedSeen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!cards || failed) return;
+    const ids = cards.filter(c => c.status === 'finished' && c.runId).map(c => c.runId!);
+    const previous = finishedSeen.current;
+    if (previous && ids.some(id => !previous.has(id))) onFinishedRef.current?.();
+    finishedSeen.current = new Set([...(previous ?? []), ...ids]);
+  }, [cards, failed]);
   const notified = useRef<Set<string>>(new Set());
   const seeded = useRef(false);
 
@@ -453,6 +466,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
   // alongside `liveStatus` — while cards is null it is 0 because there is nothing
   // to show YET, which is emphatically not the same fact as "there is nothing".
   const list = (alertsOnly ? (cards ?? []).filter((c) => ALERT_STATUSES.has(c.status) || recentlyDone(c)) : (cards ?? []))
+    .filter((c) => !(compact && c.status === 'finished'))
     .filter((c) => !(c.runId && dismissed.has(c.runId)))
     // A cancel we fired locally hides the card optimistically — but ONLY while the
     // request never became a run. Now that a run card carries its request's
@@ -503,7 +517,8 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
 
   if (!cards) return null;
   if (list.length === 0) return null; // invisible at rest
-  const shown = showAll ? list : list.slice(0, 5);
+  const visibleLimit = compact ? 3 : 5;
+  const shown = showAll ? list : list.slice(0, visibleLimit);
 
   return (
     <section className={bare ? '' : 'mb-8'}>
@@ -551,13 +566,13 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     the state is unmissable even while it's a static "Running" with
                     no per-step detail yet. */}
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="text-sm text-ink-100 truncate">{c.headline || humanize(c.skillSlug)}</div>
+                  <div className="text-sm text-ink-100 truncate">{compact ? humanize(c.skillSlug) : c.headline || humanize(c.skillSlug)}</div>
                   <span className={`shrink-0 text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded border ${s.chipCls}`}>
                     {s.chip}
                   </span>
                 </div>
                 <div className="text-[11px] text-ink-500 truncate">
-                  {c.headline ? `${humanize(c.skillSlug)} · ` : ''}
+                  {!compact && c.headline ? `${humanize(c.skillSlug)} · ` : ''}
                   {/* HONEST ABOUT WHAT WE ACTUALLY KNOW. A card being held across
                       a lifecycle handoff, or through a read we couldn't make,
                       says so instead of presenting a stale state as current —
@@ -665,7 +680,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           // key — which is how one request could inherit the other's rendered
           // card, and with it the Cancel button bound to that card.
           const key = c.continuityKey;
-          const cls = 'group flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3';
+          const cls = compact ? 'group flex items-center gap-3 border-b border-ink-800 px-1 py-4' : 'group flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-950/40 px-4 py-3';
           // FOREVER FALLBACK: a run that's stuck (soft heartbeat-stale, or hard
           // stalled) is almost always its dispatcher session waiting on a permission
           // prompt. Offer a guaranteed one-click "open it in Claude & approve" so a
@@ -698,7 +713,7 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
             && (String(c.failureReason || '').startsWith('desktop_preparation_')
               || c.failureReason === 'run_enqueue_interrupted');
           const card = linkable ? (
-            <Link href={href!} className={`${cls} hover:border-ink-700 transition-colors`}>{body}</Link>
+            <Link href={href!} prefetch={compact ? false : undefined} className={`${cls} hover:border-ink-700 transition-colors`}>{body}</Link>
           ) : (
             <div className={cls}>{body}</div>
           );
@@ -816,13 +831,13 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
           );
         })}
       </div>
-      {list.length > 5 && (
+      {list.length > visibleLimit && (
         <button
           type="button"
           onClick={() => setShowAll((v) => !v)}
           className="text-xs text-ink-500 hover:text-ink-300 mt-2"
         >
-          {showAll ? 'Show less' : `Load more (${list.length - 5})`}
+          {showAll ? 'Show less' : compact ? `More (${list.length - visibleLimit}) ↓` : `Load more (${list.length - 5})`}
         </button>
       )}
 

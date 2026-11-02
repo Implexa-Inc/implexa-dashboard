@@ -517,7 +517,7 @@ export async function selectRuns(
   return baseRes.error ? [] : withoutManagerScaffolds(supabase, (baseRes.data as unknown as RunRow[]) || []);
 }
 
-async function withoutManagerScaffolds<T extends {id: string}>(supabase: SupabaseClient, rows: T[]): Promise<T[]> {
+async function withoutManagerScaffolds<T extends {id: string}>(supabase: SupabaseClient, rows: T[], strict = false): Promise<T[]> {
     if (!rows.length) return rows;
     const { data, error } = await supabase
       .from('run_requests')
@@ -526,8 +526,48 @@ async function withoutManagerScaffolds<T extends {id: string}>(supabase: Supabas
       .in('run_id', rows.map((row) => row.id));
     // Preserve primary history if this ancillary classification read is
     // temporarily unavailable. Direct permalinks have a second target guard.
-    if (error) return rows;
+    if (error) { if (strict) throw new Error('run_history_unavailable'); return rows; }
     const hidden = new Set(((data as Array<{ run_id: string | null }> | null) ?? [])
       .map((row) => row.run_id).filter((id): id is string => !!id));
     return rows.filter((row) => !hidden.has(row.id));
+}
+
+
+/** Metadata only: result bodies are read when the user opens a result. */
+export type RunSummary = Pick<RunRow, 'id' | 'skill_slug' | 'status' | 'ran_at'>;
+export type RunSummaryCursor = {ranAt: string; id: string};
+export type RunSummaryPage = {rows: RunSummary[]; nextCursor: RunSummaryCursor | null};
+
+export function parseRunSummaryCursor(ranAt: string | null, id: string | null): RunSummaryCursor | null {
+  if (!ranAt && !id) return null;
+  // Validate before composing the PostgREST expression. Preserve database
+  // microseconds instead of round-tripping through Date's millisecond precision.
+  if (!ranAt || !id || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(ranAt)
+      || !Number.isFinite(Date.parse(ranAt)) || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('invalid_cursor');
+  }
+  return {ranAt, id};
+}
+
+export async function selectRunSummaries(supabase: SupabaseClient, userId: string, cursor: RunSummaryCursor | null = null): Promise<RunSummaryPage> {
+  if (cursor) parseRunSummaryCursor(cursor.ranAt, cursor.id);
+  const pageSize = 5;
+  let query = supabase.from('skill_runs')
+    .select('id,skill_slug,status,ran_at')
+    .eq('user_id', userId)
+    .in('status', ['completed', 'partial'])
+    .or('run_state.eq.completed,run_state.is.null')
+    .or('review_status.is.null,and(review_status.neq.pending,review_status.neq.needs_input)')
+    .not('output_markdown', 'is', null)
+    .order('ran_at', {ascending: false}).order('id', {ascending: false}).limit(pageSize + 1);
+  if (cursor) query = query.or(`ran_at.lt.${cursor.ranAt},and(ran_at.eq.${cursor.ranAt},id.lt.${cursor.id})`);
+  const {data, error} = await query;
+  if (error) throw new Error('run_history_unavailable');
+  const raw = (data ?? []) as RunSummary[];
+  const consumed = raw.slice(0, pageSize);
+  const rows = await withoutManagerScaffolds(supabase, consumed, true);
+  const last = consumed.at(-1);
+  // Pagination follows raw rows, including hidden Manager scaffolds. A short
+  // visible page must not strand older customer results.
+  return {rows, nextCursor: raw.length > pageSize && last ? {ranAt: last.ran_at, id: last.id} : null};
 }

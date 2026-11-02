@@ -85,9 +85,9 @@ export type OutcomeProductionListLoad =
  * created it — navigate away and the running work, its budget, and its one
  * stop control are gone.
  */
-export async function listOutcomeProductions(jwt: string): Promise<OutcomeProductionListLoad> {
+export async function listOutcomeProductions(jwt: string, options: {activeOnly?: boolean} = {}): Promise<OutcomeProductionListLoad> {
   try {
-    const response = await callBackend('/api/v2/outcome-productions', { jwt });
+    const response = await callBackend(`/api/v2/outcome-productions${options.activeOnly ? '?activeOnly=1' : ''}`, { jwt });
     const productions = parseProductionListResponse(response);
     if (!productions) return { status: 'unavailable', reason: 'The productions response did not match the contract.' };
     return { status: 'ready', productions };

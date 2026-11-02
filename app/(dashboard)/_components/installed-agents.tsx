@@ -1,3 +1,4 @@
+import {Fragment} from 'react';
 import {createClient} from '@/lib/supabase/server';
 import {listMyWorkflows,listDismissedWorkflows,listFavoriteSlugs} from '@/lib/workflow-catalog';
 import {getMyAgents} from '@/lib/agents-home';
@@ -21,8 +22,8 @@ export default async function InstalledAgents({jwt,pilot,insideRun=false}:{jwt:s
     listMyWorkflows(),
     listDismissedWorkflows(),
     listFavoriteSlugs(),
-    listAgentDiscovery(jwt),
-    listChainOfferings(jwt),
+    pilot ? Promise.resolve(null) : listAgentDiscovery(jwt),
+    pilot ? Promise.resolve(null) : listChainOfferings(jwt),
   ]);
   const favSet = new Set(favoriteSlugs);
   const archived: ArchivedAgent[] = dismissed.map((d) => ({ slug: d.slug, name: d.name, source: d.source }));
@@ -50,8 +51,9 @@ export default async function InstalledAgents({jwt,pilot,insideRun=false}:{jwt:s
     categorize: categorizeAgent,
   });
 
+  const Frame = insideRun ? Fragment : AgentHomeFrame;
   return (
-    <AgentHomeFrame manage={pilot}><div className={pilot?'mx-auto max-w-4xl':''}>
+    <Frame {...(insideRun ? {} : {manage: pilot})}><div className={pilot?'mx-auto max-w-4xl':''}>
         {/* THE HONEST UNAVAILABLE STATE (P0, 2026-07-28).
             Previously a failed feed rendered the whole roster as "needs activation".
             Now the page says what it does not know, and says nothing about activation. */}
@@ -76,17 +78,17 @@ export default async function InstalledAgents({jwt,pilot,insideRun=false}:{jwt:s
 
         {/* Quiet, dismissible tips on getting hands-off agents (keep Claude
             running, schedule browser agents, run from your phone). */}
-        <ManageTips />
+        {!insideRun&&<ManageTips />}
 
         {/* Live "Running" section — polls /scheduled-skills/live, renders the
             5-status pulsing-dot cards. Invisible when nothing is running. */}
-        <RunningAgents />
+        {!insideRun&&<RunningAgents />}
 
         <AgentsList
           agents={list.map((a) => ({ ...a, favorite: favSet.has(a.slug) }))}
           archived={archived}
-          availableAgents={pilot?[]:discovery.agents}
-          discoveryUnavailable={!pilot&&discovery.status === 'unavailable' ? discovery.reason : null}
+          availableAgents={discovery?.status==='ready'?discovery.agents:[]}
+          discoveryUnavailable={!pilot&&discovery?.status === 'unavailable' ? discovery.reason : null}
         />
 
         {/* Marketplace chain offerings — outcome-first compositions the
@@ -94,16 +96,16 @@ export default async function InstalledAgents({jwt,pilot,insideRun=false}:{jwt:s
             renders nothing for anyone without a grant, indistinguishable from
             there being nothing. An unavailable read also renders nothing:
             fail closed, never an invented catalog. */}
-        <ChainOfferingsSection offerings={!pilot&&chainOfferings.status === 'ready' ? chainOfferings.offerings : []} />
+        <ChainOfferingsSection offerings={!pilot&&chainOfferings?.status === 'ready' ? chainOfferings.offerings : []} />
 
         {/* Agent Chains, folded in as an in-page suggestion (Codex's design
             audit, 2026-07-01) rather than its own nav tab — "Agent Chains"
             sounded like a separate product. ChainSuggestions already renders
             nothing without enough agents to chain, so this is a no-op for a
             new user and appears naturally once there's something to chain. */}
-        <div className="mt-10">
+        {!insideRun&&<div className="mt-10">
           <ChainSuggestions agents={list.map((a) => ({ slug: a.slug, source: a.source, name: a.name }))} />
-        </div>
-      </div></AgentHomeFrame>
+        </div>}
+      </div></Frame>
   );
 }
