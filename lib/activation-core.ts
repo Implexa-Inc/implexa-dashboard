@@ -24,12 +24,12 @@ type ToolService = AgentRequirementsPayload['services'][number];
 export function apiKeyAccessReady(service: ToolService, grants: Record<string, boolean> | null): boolean {
   return !!service.provider && service.keysReadable !== false && service.keyOnMachine && grants?.[service.provider] === true;
 }
-export function toolAccessReady(service: ToolService, grants: Record<string, boolean> | null): boolean {
+export function toolAccessReady(service: ToolService, grants: Record<string, boolean> | null, structured = true): boolean {
   const mode = service.accessMode ?? (service.apiKeyRequired === false ? 'browser' : service.apiKeyRequired === true ? 'api' : 'unknown');
   const browser = service.browserSession?.status === 'reachable';
   if (mode === 'browser') return browser;
   if (mode === 'api_and_browser') return browser && apiKeyAccessReady(service, grants);
-  return mode === 'api' && apiKeyAccessReady(service, grants);
+  return (mode === 'api' || !structured && mode === 'unknown') && apiKeyAccessReady(service, grants);
 }
 
 function machineTools(value: unknown): AgentMachineTools | null {

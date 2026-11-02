@@ -24,6 +24,7 @@ test('tool readiness needs a declared route, readable evidence and this agent’
   assert.equal(toolAccessReady(service, { runway: true }), true);
   assert.equal(toolAccessReady({ ...service, keysReadable: false }, { runway: true }), false);
   assert.equal(toolAccessReady({ ...service, accessMode: 'unknown' }, { runway: true }), false);
+  assert.equal(toolAccessReady({ ...service, accessMode: 'unknown' }, { runway: true }, false), true, 'legacy setup retains its prior action path');
   const browser = { ...service, provider: null, accessMode: 'browser' as const, browserSession: { required: true, domain: 'veed.io', label: 'VEED', status: 'unknown' as const } };
   assert.equal(toolAccessReady(browser, { runway: true }), false);
   assert.equal(toolAccessReady({ ...browser, browserSession: { ...browser.browserSession, status: 'reachable' } }, null), true);

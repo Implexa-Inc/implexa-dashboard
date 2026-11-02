@@ -61,6 +61,7 @@ export type ActivationState = 'created' | 'activating' | 'active' | 'needs_atten
  *  the backend's (different alt strings, a client-only provider column). */
 export type AgentRequirementsPayload = {
   unavailable?: boolean;
+  source?: string;
   services: {
     key: string; name: string; cost: string; url: string;
     alt: string | null; provider: string | null;

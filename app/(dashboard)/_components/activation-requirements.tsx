@@ -130,6 +130,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
   if (req.unavailable) return <p role="status" className="text-sm text-ink-500">Tool setup status is unavailable. Refresh to check again.</p>;
   const services = req.services ?? [];
   const tools = req.tools ?? [];
+  const structured = ['machine_capability_contract', 'frozen_step_declarations'].includes(req.source || '');
   if (!services.length && !tools.length) return null;
 
   // An API route needs BOTH halves. Browser-only providers use their separately
@@ -141,7 +142,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
     s.accessMode ?? (s.apiKeyRequired === false ? 'browser' : s.apiKeyRequired === true ? 'api' : 'unknown');
   // New payloads say which route the workflow actually executes. Old payloads
   // retain the historical API-key behavior for a calm rolling upgrade.
-  const satisfied = (s: (typeof services)[number]) => toolAccessReady(s, grants);
+  const satisfied = (s: (typeof services)[number]) => toolAccessReady(s, grants, structured);
 
   const outstanding = services.filter((s) => !satisfied(s));
   const ready = services.filter(satisfied);
@@ -164,8 +165,8 @@ export function ActivationRequirements({ req, slug, onChanged }: {
             // provider, no session widget) still belongs here: it must read
             // "uses your browser", never a cost badge + "Get it" link.
             const browserOnly = mode === 'browser';
-            const unknownAccess = mode === 'unknown';
-            const keyReady = apiReady(s);
+            const unknownAccess = structured && mode === 'unknown';
+            const keyReady = !browserOnly && !unknownAccess && apiReady(s);
             const isReady = satisfied(s);
             return (
               <li key={s.key} className="flex items-start justify-between gap-3">
@@ -173,7 +174,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm text-ink-100">{s.name}</span>
                     {/* Cost is only news if they still have to go get it. */}
-                    {!isReady && !needsGrantOnly && !browserOnly && !unknownAccess && (
+                    {!isReady && !needsGrantOnly && !browserOnly && !unknownAccess && s.keysReadable !== false && (
                       <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 uppercase tracking-wide">
                         {s.cost}
                       </span>
@@ -207,7 +208,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                   {keyReady && <span className="text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">✓ key allowed</span>}
                   {/* Suppress "Get it" once a key exists — that was the original
                       complaint: being invited to buy something you already own. */}
-                  {!keyReady && !needsGrantOnly && !browserOnly && !unknownAccess && s.url && (
+                  {!keyReady && !needsGrantOnly && !browserOnly && !unknownAccess && s.keysReadable !== false && s.url && (
                     <a href={s.url} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs px-2.5 py-1">Get it ↗</a>
                   )}
                 </div>
