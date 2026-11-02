@@ -565,3 +565,12 @@ test('compact rows keep prelaunch Cancel and stale continuity, while finished re
   await at(2);assert.equal(renderedKeys(rendered).length,0);
  }finally{rendered.cleanup();}
 });
+
+
+test('compact completion refresh seeds quietly and fires once for each new terminal result',async()=>{
+ let refreshed=0;
+ const done=(runId:string,status='finished')=>prep({runId,requestId:null,status,lifecyclePhase:null,isTerminal:true,finishedAt:new Date().toISOString()});
+ const first=done(RUN);const next=done('33333333-3333-4333-8333-333333333333','action_available');
+ const {rendered,at}=await renderFeed([{items:[first]},{items:[first,next]},{items:[first,next]}],{compact:true,onFinished:()=>{refreshed++;}});
+ try{assert.equal(refreshed,0);await at(1);assert.equal(refreshed,1,rendered.text());await at(2);assert.equal(refreshed,1);}finally{rendered.cleanup();}
+});

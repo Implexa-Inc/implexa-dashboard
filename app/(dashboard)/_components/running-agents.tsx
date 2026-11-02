@@ -338,8 +338,8 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
   onFinishedRef.current = onFinished;
   const finishedSeen = useRef<Set<string> | null>(null);
   useEffect(() => {
-    if (!cards || failed) return;
-    const ids = cards.filter(c => c.status === 'finished' && c.runId).map(c => c.runId!);
+    if (!cards || failed || !onFinishedRef.current) return;
+    const ids = cards.filter(c => (c.status === 'finished' || c.status === 'action_available') && c.runId).map(c => c.runId!);
     const previous = finishedSeen.current;
     if (previous && ids.some(id => !previous.has(id))) onFinishedRef.current?.();
     finishedSeen.current = new Set([...(previous ?? []), ...ids]);
@@ -566,11 +566,12 @@ export default function RunningAgents({ alertsOnly = false, bare = false, onStat
                     the state is unmissable even while it's a static "Running" with
                     no per-step detail yet. */}
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="text-sm text-ink-100 truncate">{compact ? humanize(c.skillSlug) : c.headline || humanize(c.skillSlug)}</div>
+                  <div className="text-sm text-ink-100 truncate">{compact ? humanize(c.skillSlug) || 'Agent' : c.headline || humanize(c.skillSlug)}</div>
                   <span className={`shrink-0 text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded border ${s.chipCls}`}>
                     {s.chip}
                   </span>
                 </div>
+                {compact&&c.headline&&<div className="text-[11px] text-ink-500 truncate">{c.headline}</div>}
                 <div className="text-[11px] text-ink-500 truncate">
                   {!compact && c.headline ? `${humanize(c.skillSlug)} · ` : ''}
                   {/* HONEST ABOUT WHAT WE ACTUALLY KNOW. A card being held across

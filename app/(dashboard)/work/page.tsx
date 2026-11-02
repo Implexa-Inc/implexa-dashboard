@@ -47,7 +47,7 @@ import {selectRuns,type RunRow} from '@/lib/run-state';
 import LiveRunActivity from '../_components/live-run-activity';
 import RunActivity from '../_components/run-activity';
 import InstalledAgents from '../_components/installed-agents';
-import {coalesceUnstartedDrafts} from './_components/outcome-productions-list';
+import {CompactRunAlerts,CompactActiveProductions} from '../_components/compact-run-attention';
 import { listOutcomeProductions } from '@/lib/outcome-production-load';
 
 export const dynamic = 'force-dynamic';
@@ -76,7 +76,8 @@ export default async function WorkPage({
       <header className="flex items-center justify-between gap-4 mb-7"><h1 className="text-3xl font-semibold text-ink-50">Run</h1><Link href="/work?view=needs" prefetch={false} className="text-sm text-ink-300 hover:text-brand-400">Needs you →</Link></header>
       <nav aria-label="Run views" className="flex gap-7 border-b border-ink-800 mb-7">{(['activity','agents'] as const).map(tab => <Link key={tab} href={tab==='activity'?'/work':'/work?view=agents'} prefetch={false} aria-current={view===tab?'page':undefined} className={`pb-3 text-sm border-b-2 ${view===tab?'text-ink-50 border-brand-500':'text-ink-400 border-transparent hover:text-ink-100'}`}>{tab==='activity'?'Active agent runs':'All agents'}</Link>)}</nav>
       {view==='agents' ? <Suspense fallback={<p role="status" className="text-sm text-ink-500">Loading agents…</p>}><InstalledAgents jwt={session.access_token} pilot insideRun/></Suspense> : <>
-        <Suspense fallback={<p role="status" className="text-xs text-ink-500 mb-5">Checking decisions and other active work…</p>}><CompactRunAttention jwt={session.access_token}/></Suspense>
+        <Suspense fallback={<p role="status" className="text-xs text-ink-500 mb-3">Checking decisions…</p>}><CompactRunAttention/></Suspense>
+        <Suspense fallback={<p role="status" className="text-xs text-ink-500 mb-3">Checking other active work…</p>}><CompactProductionList jwt={session.access_token}/></Suspense>
         <LiveRunActivity compact/>
       </>}
     </div></div>;
@@ -202,16 +203,10 @@ async function ActivityView({jwt}:{jwt:string}) {
 }
 
 
-/** Concise links to existing authoritative attention and production surfaces. */
-async function CompactRunAttention({jwt}:{jwt:string}) {
- const [attention, load] = await Promise.all([getAttention(), listOutcomeProductions(jwt,{activeOnly:true})]);
- const warning = attention.partial || attention.truncated || !attention.live;
- const count = new Set(attention.items.map(item => item.runId ?? item.attentionId)).size;
- const parents = load.status==='ready' ? coalesceUnstartedDrafts(load.productions).filter(item => !item.settled) : [];
- return <div className="mb-5 space-y-3 text-sm">
-  {count>0 && <Link href="/work?view=needs" prefetch={false} className="inline-block text-amber-300 hover:underline">{count} {count===1?'run needs':'runs need'} you →</Link>}
-  {warning && <p role="status" className="text-xs text-amber-300">Some run alerts couldn’t be checked. <Link href="/work?view=needs" prefetch={false} className="underline">Needs you</Link></p>}
-  {load.status==='unavailable' && <p role="status" className="text-xs text-amber-300">Other active work couldn’t be checked. <Link href="/work?view=needs" prefetch={false} className="underline">View work</Link></p>}
-  {parents.length>0 && <details className="border-b border-ink-800 pb-3"><summary className="cursor-pointer text-ink-300">Other active work · {parents.length}</summary><ul className="mt-2 divide-y divide-ink-800">{parents.map(item => <li key={item.id}><Link href={`/runs/productions/${item.id}`} prefetch={false} className="flex items-center justify-between gap-4 py-3"><span className="truncate text-ink-100">{item.goal}</span><span className="shrink-0 text-xs text-ink-400"><span className="capitalize">{item.state.replace(/_/g,' ')}</span> · {item.progress.completedNodes}/{item.progress.totalNodes}</span></Link></li>)}</ul></details>}
- </div>;
+/** Independent stream boundaries keep a slow parent read from holding alerts. */
+async function CompactRunAttention() {
+ return <CompactRunAlerts attention={await getAttention()}/>;
+}
+async function CompactProductionList({jwt}:{jwt:string}) {
+ return <CompactActiveProductions load={await listOutcomeProductions(jwt,{activeOnly:true})}/>;
 }
