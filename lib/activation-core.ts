@@ -16,8 +16,33 @@ import type {
   ActivationVerification,
   AgentRequirementsPayload,
   CapabilityGap,
+  AgentMachineTools,
 } from './activation';
 import { parseMarketplaceExecutionRequirements } from './marketplace-execution-requirements.ts';
+
+function machineTools(value: unknown): AgentMachineTools | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  if (v.contract_type !== 'machine_capability_requirements' || v.contract_version !== 1
+    || typeof v.digest !== 'string' || !/^[a-f0-9]{64}$/.test(v.digest)
+    || !Array.isArray(v.requirements) || v.requirements.length < 1 || v.requirements.length > 32) return null;
+  const requirements: AgentMachineTools['requirements'] = [];
+  const ids = new Set<string>();
+  for (const raw of v.requirements) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const r = raw as Record<string, unknown>;
+    if (typeof r.id !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,79}$/.test(r.id) || ids.has(r.id)
+      || typeof r.kind !== 'string' || typeof r.label !== 'string' || !r.label.trim() || r.label.length > 200
+      || typeof r.required !== 'boolean') return null;
+    ids.add(r.id);
+    // Only software belongs in this list. Disk, network and cache readiness
+    // remain in the existing preflight, never inferred as external tools.
+    if (['managed_node_runtime', 'npm_runtime', 'local_cli', 'media_tool'].includes(r.kind)) {
+      requirements.push({ id: r.id, kind: r.kind, label: r.label, required: r.required });
+    }
+  }
+  return { digest: v.digest, requirements };
+}
 
 /**
  * Shared mapper: raw checklist payload (from /agents/:slug/activation or the
@@ -49,6 +74,7 @@ export function mapActivationChecklist(b: Record<string, unknown> | null | undef
       : [],
     requirements: (b.requirements as AgentRequirementsPayload) ?? undefined,
     executionRequirements: parseMarketplaceExecutionRequirements(b.executionRequirements),
+    machineTools: machineTools(b.machineCapabilityContract),
     source: (b.source as string) ?? 'generated',
     canActivate: !!b.canActivate,
     stepsLeft: Number(b.stepsLeft ?? 0),

@@ -23,7 +23,25 @@
 
 import { useEffect, useState } from 'react';
 import { InlineAddKeyButton, useDesktopBridge } from './api-key-row';
-import type { AgentRequirementsPayload } from '@/lib/activation';
+import type { AgentRequirementsPayload, AgentMachineTools } from '@/lib/activation';
+
+export function DeclaredMachineTools({ tools }: { tools?: AgentMachineTools | null }) {
+  if (!tools?.requirements.length) return null;
+  return (
+    <section className="rounded-lg border border-ink-800 p-4" aria-label="Declared local tools">
+      <h2 className="text-sm font-medium text-ink-100">Tools &amp; access</h2>
+      <p className="mt-1 text-xs text-ink-500">Declared for this version. Availability is checked before each run.</p>
+      <ul className="mt-3 space-y-2">
+        {tools.requirements.map((tool) => (
+          <li key={tool.id} className="flex items-center justify-between gap-3 text-sm">
+            <span className="text-ink-200">{tool.label}</span>
+            <span className="text-xs text-ink-500">Local{tool.required ? '' : ' · optional'}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 type Bridge = { keysGrantedFor?: (slug: string) => Promise<Record<string, boolean>> };
 function bridge(): Bridge | null {

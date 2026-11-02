@@ -18,7 +18,7 @@ import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import AgentActions from './agent-actions';
 import AgentSetupCard from './agent-setup-card';
-import { ActivationRequirements } from './activation-requirements';
+import { ActivationRequirements, DeclaredMachineTools } from './activation-requirements';
 import { MarketplaceExecutionRequirementsCard } from './marketplace-execution-requirements';
 import CapabilityGapsNotice from './capability-gaps-notice';
 import AgentFeedback from './agent-feedback';
@@ -1023,6 +1023,9 @@ export function ActivationCard({
       </div>
       <div className="mt-4">
         <ActivationRequirements req={checklist.requirements} slug={checklist.slug} onChanged={() => router.refresh()} />
+      </div>
+      <div className="mt-4">
+        <DeclaredMachineTools tools={checklist.machineTools} />
       </div>
 
       {/* Capabilities with NO viable tool (server-derived from capability_setup).

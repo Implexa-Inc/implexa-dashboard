@@ -100,6 +100,13 @@ export type CapabilityGap = {
   requiredness: 'required_to_deliver' | 'recommended';
 };
 
+/** Display-only projection of the selected version's compiled requirements.
+ * This is a declaration, not a machine-readiness attestation or a grant. */
+export type AgentMachineTools = {
+  digest: string;
+  requirements: Array<{ id: string; kind: string; label: string; required: boolean }>;
+};
+
 export type ActivationChecklist = {
   slug: string;
   name: string;
@@ -131,6 +138,7 @@ export type ActivationChecklist = {
   requirements?: AgentRequirementsPayload;
   /** Signed, secret-free marketplace authority disclosure. */
   executionRequirements?: MarketplaceExecutionRequirements | null;
+  machineTools?: AgentMachineTools | null;
   /** Catalog source, threaded to the setup card / run command. */
   source?: string;
   canActivate: boolean;
