@@ -358,13 +358,14 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [pendingDemoLink, setPendingDemoLink] = useState<{ annotation: DemoAnnotation; sessionId: string; recordId: string; recordDigest: string } | null>(null);
   const [recordingConsent,setRecordingConsent] = useState(false);
   const [agentAnalysisConsent,setAgentAnalysisConsent] = useState(false);
+  const [agentCapability,setAgentCapability] = useState<'web_reference_research'|'presenter_background_removal'>('web_reference_research');
   const [agentProposal,setAgentProposal] = useState<RecordingAgentSuggestion|null>(null);
   const [agentChangeConfirmed,setAgentChangeConfirmed] = useState(false);
   const [agentChange,setAgentChange] = useState<{requestId:string;status:string;sourceLinkRecorded?:boolean;warning?:string}|null>(null);
   const [method,setMethod] = useState<{id:string;slug:string;name:string;content:string;contentDigest:string;status:string;scope:string;model:string|null}|null>(null);
   const [recordingSupported,setRecordingSupported] = useState(false);
   useEffect(()=>{setRecordingSupported(bridge()?.trainingRecordingContractVersion==='1');},[]);
-  const [recording,setRecording] = useState<{excerptId:string;excerptDigest:string;excerpt:RecordingExcerpt;frames:RecordingFrame[];suggestion:RecordingSuggestion|null;purpose?:'taste'|'agent'}|null>(null);
+  const [recording,setRecording] = useState<{excerptId:string;excerptDigest:string;excerpt:RecordingExcerpt;frames:RecordingFrame[];suggestion:RecordingSuggestion|null;purpose?:'taste'|'agent';capability?:'web_reference_research'|'presenter_background_removal'}|null>(null);
   const [pendingRecordingLink,setPendingRecordingLink] = useState<{body:Record<string,unknown>;sessionId:string;key:string}|null>(null);
   useEffect(()=>{setRecording(null);setRecordingConsent(false);},[selected?.sourceId,session,currentVersion]);
   useEffect(()=>{setAgentProposal(null);setAgentChangeConfirmed(false);setAgentAnalysisConsent(false);setAgentChange(null);setMethod(null);},[selected?.sourceId,session,currentVersion]);
@@ -375,7 +376,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const appliedSuggestion = useRef<TeachingSuggestion | null>(null);
   const previewIdentity = useMemo(() => crypto.randomUUID(), [preview]);
   const draftSnapshot = JSON.stringify({ session, sessionVersion, currentVersion, versionChanged, token: selected?.token, sourceId: selected?.sourceId,
-    time, previewIdentity, property, stages, relation, chosen, why, process, behavior, answer: questionAnswer, demoText, demoAnnotation });
+    time, previewIdentity, property, stages, relation, chosen, why, process, behavior, answer: questionAnswer, demoText, demoAnnotation, agentCapability });
   const latestDraft = useRef(draftSnapshot); latestDraft.current = draftSnapshot;
   useEffect(() => { setDraftConsent(false); }, [preview?.image, selected?.sourceId, time, questionAnswer, demoText, demoAnnotation, session, currentVersion]);
   const previewIsCurrent = useMemo(() => previewMatches(preview, selected?.token, time), [preview, selected, time]);
@@ -823,14 +824,14 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       excerptId:prepared.excerptId,excerptDigest:prepared.excerptDigest,frames:prepared.frames.map(({timeMs,frameSha256})=>({timeMs,frameSha256}))};
     const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({mode:agent?'recording-agent-draft':'recording-draft',sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:currentVersion,
-        excerptId:prepared.excerptId,excerptDigest:prepared.excerptDigest,frames:prepared.frames,consent:true})});
+        excerptId:prepared.excerptId,excerptDigest:prepared.excerptDigest,frames:prepared.frames,consent:true,...(agent?{capability:prepared.capability||'web_reference_research'}:{})})});
     const value=await response.json();
     if(latestDraft.current!==snapshot) throw Error('The source or draft changed. The previous recording suggestion was not applied.');
     if(response.ok && value?.ok===true && value.status==='insufficient' && typeof value.reason==='string' && value.reason.length<=300) {
       setSuggestionNote(value.reason);return;
     }
     if(agent){
-      if(!response.ok||!recordingAgentSuggestion(value,binding))throw Error(teachingFailure(value,response.status));
+      if(!response.ok||!recordingAgentSuggestion(value,binding,prepared.capability||'web_reference_research'))throw Error(teachingFailure(value,response.status));
       setRecording(prepared);setAgentProposal(value);setAgentChangeConfirmed(false);setAgentChange(null);
       setSuggestionNote('Capability suggestion only. Review it separately from private taste training. No agent version or operating method has been changed.');return;
     }
@@ -852,7 +853,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       if(local.manifest?.sourceId!==source.sourceId || local.manifest.sourceSha256!==source.metadata.sha256 || local.manifest.targetVersionId!==version)throw Error('The recording scope changed.');
       const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:agent?'recording-agent-locate':'recording-locate',
         sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:version,manifestId:local.manifestId,manifestDigest:local.manifestDigest,
-        segments:local.segments,storyboard:local.storyboard,consent:true})});
+        segments:local.segments,storyboard:local.storyboard,consent:true,...(agent?{capability:agentCapability}:{})})});
       const value=await response.json();
       if(latestDraft.current!==snapshot)throw Error('The draft changed. The located excerpt was not applied.');
       if(response.ok && value?.ok===true && value.status==='insufficient' && typeof value.reason==='string' && value.reason.length<=300){setSuggestionNote(value.reason);return;}
@@ -869,7 +870,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         bytes+=data.length;if(bytes>2*1024*1024)throw Error('The three exact frames exceed the suggestion budget. No draft call was sent.');
         frames.push({timeMs,image,frameSha256:await teachingDigest(data)});
       }
-      const prepared={excerptId:value.excerptId,excerptDigest:value.excerptDigest,excerpt:e,frames,suggestion:null,purpose:agent?'agent' as const:'taste' as const};setRecording(prepared);
+      const prepared={excerptId:value.excerptId,excerptDigest:value.excerptDigest,excerpt:e,frames,suggestion:null,purpose:agent?'agent' as const:'taste' as const,...(agent?{capability:agentCapability}:{})};setRecording(prepared);
       await requestRecordingDraft(prepared,snapshot);
     });
   }
@@ -1389,15 +1390,21 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         <label className="flex gap-2"><input type="checkbox" checked={recordingConsent} onChange={event=>setRecordingConsent(event.target.checked)} />Recognize narration locally, then send the whole transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5 to locate one visual preference; send its excerpt and three exact frames for an editable suggestion. The selected excerpt and lineage are kept in the private append-only Training history. Nothing is automatically admitted.</label>
         <button disabled={!!busy || suggesting || !recordingConsent || !selected.token || versionChanged || !!pendingRecordingLink} onClick={()=>findRecordingTeaching()}>Find teaching in recording</button>
         <label className="flex gap-2"><input type="checkbox" checked={agentAnalysisConsent} onChange={event=>setAgentAnalysisConsent(event.target.checked)} />Separately analyze tool use: send this recording’s recognized transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5, then the selected excerpt and three frames, to suggest a capability change. Keep the suggestion and private source link in Training. This does not grant tool access, apply an agent change, or admit a teaching.</label>
+        <label className="flex items-center gap-2">Tool method
+          <select value={agentCapability} disabled={!!busy||suggesting||!!agentChange} onChange={event=>{setAgentCapability(event.target.value as typeof agentCapability);setAgentProposal(null);setMethod(null);setRecording(null);setAgentChangeConfirmed(false);}}>
+            <option value="web_reference_research">Web reference research</option>
+            <option value="presenter_background_removal">VEED presenter background</option>
+          </select>
+        </label>
         <button disabled={!!busy||suggesting||!agentAnalysisConsent||!selected.token||versionChanged||!!pendingRecordingLink||!!agentChange} onClick={()=>findRecordingTeaching(true)}>Suggest tool and method update</button>
         {agentProposal && <section className="rounded border border-brand-500 p-3 space-y-3">
           <h4>Proposed agent update — not applied</h4>
-          <p>Capability: web reference research. Tool use is conditional; assessing relevance and reporting the decision is required. The existing builder must select and verify a complete operating method before it can be used.</p>
+          <p>{agentProposal.capability==='presenter_background_removal'?'VEED background removal at Build. Requires this agent’s authorized, signed-in browser access; not an API connection.':'Web reference research at Planning.'} Tool use is conditional; assessing need and recording the decision is required.</p>
           <p className="whitespace-pre-wrap">{agentProposal.proposedChange}</p>
           {agentProposal.limitations.length>0&&<ul>{agentProposal.limitations.map((item,index)=><li key={index}>{item}</li>)}</ul>}
           <p>Private taste is saved and accepted separately above. If you want that teaching on this version, finish its admission before requesting the edit. After the edit lands, use the existing compatible-training adoption action; merely opening a successor session does not activate old teaching.</p>
           <p>Only the generic capability instruction goes to Edit Agent. Your recording, transcript, example identities and taste wording stay out of that request. Normal Edit Agent automatically applies the generated revision after you approve this instruction; it does not show a separate generated-diff approval screen. Review the resulting definition before testing. A queued request is not a new version or proof that the tool was used.</p>
-          <p>If no suitable existing method is selected, prepare a generic baseline through the existing authoring service. Only platform-written research-assessment instructions go to the model; your recording and taste are excluded. The result is a private draft, never automatically activated or shared. This is an explicit baseline choice, not a top-ranking claim.</p>
+          <p>Prepare a generic operating method for review. Only platform-written capability instructions go to the model; your recording and taste stay separate. The result is a private draft.</p>
           {!agentChange&&<button disabled={!!busy||versionChanged} onClick={draftMethod}>{method?'Refresh reviewed operating method':'Draft baseline operating method'}</button>}
           {method&&<section className="space-y-2"><h4>{method.name} · {method.status} · {method.scope}</h4>
             <p>Original draft model: {method.model||'not recorded'} · exact current body {shortId(method.contentDigest)}. Later edits may have changed the draft.</p>
