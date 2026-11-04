@@ -1,5 +1,6 @@
 export const TEACHING_MODEL = 'claude-haiku-5-5';
 export const MAX_TEACHING_FRAME_BYTES = 2 * 1024 * 1024;
+// Coordinated wire pin; the Desktop producer test asserts this exact digest.
 export const TOOL_FRAME_RECIPE_DIGEST = 'c2401d78ec3079f9292f36050d473ce7a3b2e0c0b5b002bcb2c90c01c3acc34f';
 export type ToolFrame = {sourceId:string;timeMs:number;width:number;height:number;recipeDigest:string;receiptDigest:string};
 export function toolSuggestionFrame(image:string,frame:ToolFrame|undefined,sourceId:string,timeMs:number):Uint8Array {
