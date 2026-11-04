@@ -428,6 +428,31 @@ test('the player loads a ready recording, previews it, saves moments, and revoke
   assert.deepEqual(b.revoked, [TOKEN], 'the preview token is revoked when the player unmounts');
 });
 
+test('tool analysis saves feedback first, stops on save failure and honors the analysis readiness reason', async () => {
+  const moments=[{momentId:M1,startMs:1000,endMs:4000,region:null,card:emptyCard(),createdAt:NOW}];
+  let saveSucceeds=false;const analyzed:unknown[]=[];
+  const b=bridge((op,args)=>op==='get'?{ok:true,recording:detail({},moments)}:op==='preview'?previewOk:
+    op==='saveMoments'?(saveSucceeds?{ok:true,moments:(args as {moments:unknown}).moments}:{ok:false,reason:'disk_full'}):{ok:true});
+  const props={recordingId:ID,ownerId:ID,onAnalyzeTool:(...args:unknown[])=>analyzed.push(args)};
+  const page=await render(PLAYER,props,{bridge:b.value});
+  try{
+    await page.act(()=>{});
+    await typeInto(page,page.document.querySelector('textarea')!,'Keep the presenter clear.');
+    await page.click(button(page,'Teach a tool or method')!);
+    assert.equal(analyzed.length,0,'failed save must not open analysis');
+    assert.equal(ops(b).filter(op=>op==='saveMoments').length,1);
+    saveSucceeds=true;
+    await page.click(button(page,'Teach a tool or method')!);
+    assert.deepEqual(analyzed,[[ID,null]]);
+    assert.equal(ops(b).filter(op=>op==='saveMoments').length,2);
+    await page.rerender({...props,narrationUnavailable:'This recording has no microphone narration.'});
+    assert.equal(button(page,'Teach a tool or method')!.disabled,true);
+    assert.match(page.text(),/This recording has no microphone narration/);
+    await page.rerender({recordingId:ID,ownerId:ID});
+    assert.equal(button(page,'Teach a tool or method'),undefined,'standalone recording pages remain unchanged');
+  }finally{page.cleanup();}
+});
+
 test('edits made while a save is in flight survive it and stay unsaved', async () => {
   const held = deferred();
   const start = [{ momentId: M1, startMs: 1_000, endMs: 4_000, region: null, card: emptyCard(), createdAt: NOW }];

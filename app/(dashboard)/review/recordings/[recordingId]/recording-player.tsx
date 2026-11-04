@@ -31,7 +31,7 @@ const pct = (n: number) => `${Math.round(n / (COORD_MAX / 100))}%`;
 const regionLabel = (r: Region) => `${pct(r.width)} × ${pct(r.height)} at (${pct(r.x)}, ${pct(r.y)})`;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 
-export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embedded=false,onAnalyzeNarration,onUseFeedback,narrationUnavailable,onDirtyChange,onClose,onRecordingLoaded }: { recordingId: string; ownerId:string;trainingSlug?:string;embedded?:boolean;onAnalyzeNarration?:(recordingId:string,momentId:string|null)=>void;onUseFeedback?:(recordingId:string,moment:Moment)=>void;narrationUnavailable?:string;onDirtyChange?:(dirty:boolean)=>void;onClose?:()=>void;onRecordingLoaded?:(detail:RecordingDetail)=>void }) {
+export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embedded=false,onAnalyzeNarration,onAnalyzeTool,onUseFeedback,narrationUnavailable,onDirtyChange,onClose,onRecordingLoaded }: { recordingId: string; ownerId:string;trainingSlug?:string;embedded?:boolean;onAnalyzeNarration?:(recordingId:string,momentId:string|null)=>void;onAnalyzeTool?:(recordingId:string,momentId:string|null)=>void;onUseFeedback?:(recordingId:string,moment:Moment)=>void;narrationUnavailable?:string;onDirtyChange?:(dirty:boolean)=>void;onClose?:()=>void;onRecordingLoaded?:(detail:RecordingDetail)=>void }) {
   const router = useRouter();
   const client = useMemo(() => createReviewRecorderClient(undefined,ownerId), [ownerId]);
   const [availability, setAvailability] = useState<RecorderAvailability | null>(null);
@@ -587,7 +587,8 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
 
       <section className="my-4 flex flex-wrap items-center gap-3 text-sm">
         {onAnalyzeNarration?<button type="button" className="btn-primary" disabled={busy!==null||!!narrationUnavailable} onClick={async()=>{if(dirty&&!(await save()))return;onAnalyzeNarration(recordingId,selectedId);}}>Find learnings in my narration</button>:<>{trainingSlug?<button type="button" disabled={dirty||busy!==null} onClick={()=>router.push(`/training/${encodeURIComponent(trainingSlug)}?recordingId=${recordingId}${selectedId?`&momentId=${selectedId}`:''}`)}>Use in Training</button>:<Link href={`/training?recordingId=${recordingId}`}>Choose an agent for Training</Link>}</>}
-        {onAnalyzeNarration&&narrationUnavailable&&<p className="text-xs text-ink-400">{narrationUnavailable}</p>}
+        {onAnalyzeTool&&<button type="button" className="btn-secondary" disabled={busy!==null||!!narrationUnavailable} onClick={async()=>{if(dirty&&!(await save()))return;onAnalyzeTool(recordingId,selectedId);}}>Teach a tool or method</button>}
+        {(onAnalyzeNarration||onAnalyzeTool)&&narrationUnavailable&&<p className="text-xs text-ink-400">{narrationUnavailable}</p>}
       </section>
 
       <Modal open={leaveHref !== null} onClose={() => setLeaveHref(null)} title="Leave without saving?">

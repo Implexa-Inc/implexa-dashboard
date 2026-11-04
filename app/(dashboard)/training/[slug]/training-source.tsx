@@ -145,8 +145,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     requestAnimationFrame(()=>{const active=document.activeElement;if(document.querySelector('[aria-modal="true"]')||active instanceof HTMLElement&&(active.isContentEditable||['INPUT','TEXTAREA','SELECT'].includes(active.tagName)))return;const el=document.getElementById('recording-annotation');el?.scrollIntoView?.({block:'nearest',behavior:'smooth'});el?.focus();});
   }
   const recordingSources=useRef(new Map<string,{sourceId:string;token:string;version:string;sessionId:string}>());
-  const [narrationRequest,setNarrationRequest]=useState<{recordingId:string;momentId:string|null}|null>(null);
-  const [pendingNarration,setPendingNarration]=useState<{recordingId:string;sourceId:string;version:string;sessionId:string}|null>(null);
+  const [narrationRequest,setNarrationRequest]=useState<{recordingId:string;momentId:string|null;purpose:'taste'|'agent'}|null>(null);
+  const [pendingNarration,setPendingNarration]=useState<{recordingId:string;sourceId:string;version:string;sessionId:string;purpose:'taste'|'agent';capability:typeof agentCapability}|null>(null);
   const [pendingNarrationReview,setPendingNarrationReview]=useState<{sourceId:string;recordId:string}|null>(null);
   const [feedbackRequest,setFeedbackRequest]=useState<{recordingId:string;moment:Moment}|null>(null);
   const [feedbackInput,setFeedbackInput]=useState<{recordingId:string;sourceId:string;text:string;endFrame:boolean}|null>(null);
@@ -649,11 +649,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   async function beginNarrationAnalysis(){
     if(!narrationRequest||!activeRecordingDetail?.hasMicrophone||activeRecordingDetail.recordingId!==narrationRequest.recordingId||activeRecordingDetail.state!=='ready'||(activeRecordingDetail.durationMs||0)>600000||!recordingSupported||!currentVersion||versionChanged)return;
     const requested=narrationRequest,version=currentVersion;setNarrationRequest(null);
-    if(recordingDraftBlocked()){setError('Finish or discard your current teaching draft or pending link before analyzing this narration.');return;}
+    if(recordingDraftBlocked()||agentChange){setError('Finish or discard your current teaching draft or pending update before analyzing this narration.');return;}
     await work('Opening your recording for narration analysis',async()=>{
       const {id,source}=await registeredRecordingSource(requested.recordingId,version);
       if(activeRecordingRef.current!==requested.recordingId||!chooseSource(source,false,true))return;
-      setRelation('accepted');setDecisionKey(crypto.randomUUID());setView('start');setPendingNarration({recordingId:requested.recordingId,sourceId:source.sourceId,sessionId:id,version});
+      setRelation('accepted');setDecisionKey(crypto.randomUUID());setView('start');setPendingNarration({recordingId:requested.recordingId,sourceId:source.sourceId,sessionId:id,version,purpose:requested.purpose,capability:agentCapability});
     });
   }
   async function beginFeedbackLearning(){
@@ -682,11 +682,13 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   },[pendingFeedback,busy,suggesting,activeRecordingId,selected?.sourceId,session,currentVersion,time,versionChanged,demoAnnotationIsCurrent]);
   useEffect(()=>{
     if(!pendingNarration||busy)return;
-    if(pendingNarration.recordingId!==activeRecordingId||pendingNarration.sourceId!==selected?.sourceId||pendingNarration.sessionId!==session||pendingNarration.version!==currentVersion||versionChanged){setPendingNarration(null);return;}
-    setPendingNarration(null);setRecordingConsent(true);void findRecordingTeaching(false,true);
+    if(pendingNarration.recordingId!==activeRecordingId||pendingNarration.sourceId!==selected?.sourceId||pendingNarration.sessionId!==session||pendingNarration.version!==currentVersion||versionChanged||pendingNarration.capability!==agentCapability){setPendingNarration(null);return;}
+    const agent=pendingNarration.purpose==='agent';setPendingNarration(null);
+    if(agent)setAgentAnalysisConsent(true);else setRecordingConsent(true);
+    void findRecordingTeaching(agent,true);
     // Explicit one-shot consent from the narration dialog; wait for the source commit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[pendingNarration,busy,activeRecordingId,selected?.sourceId,session,currentVersion,versionChanged]);
+  },[pendingNarration,busy,activeRecordingId,selected?.sourceId,session,currentVersion,versionChanged,agentCapability]);
   useEffect(()=>{
     if(!pendingNarrationReview||busy||pendingRecordingLink||pendingDemoLink||pendingAnswerLinks)return;
     const source=sources.find(s=>s.sourceId===pendingNarrationReview.sourceId),decision=source?.decisions.find(d=>d.recordId===pendingNarrationReview.recordId);
@@ -842,7 +844,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setSuggestionNote('Review the recognized narration and all three frames. The marked frame is the model’s choice. Nothing has been saved as a teaching or admitted.');
   }
   async function findRecordingTeaching(agent=false,explicitNarrationConsent=false) {
-    if(!selected?.token || !currentVersion || !(agent?agentAnalysisConsent:recordingConsent||explicitNarrationConsent) || !recordingSupported)return;
+    if(!selected?.token || !currentVersion || !((agent?agentAnalysisConsent:recordingConsent)||explicitNarrationConsent) || !recordingSupported)return;
     const source=selected,version=currentVersion,snapshot=draftSnapshot;
     await work(agent?'Finding a demonstrated tool or method':'Transcribing recording and locating one taste example',async()=>{
       await requireCurrentScope();
@@ -1172,6 +1174,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(action==='analyse_tool_method'||action==='analyse_taste'){
       const agent=action==='analyse_tool_method';
       if(!(agent?agentAnalysisConsent:recordingConsent)){
+        if(activeRecordingId&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===binding.sourceId){setChatExpanded(false);setNarrationRequest({recordingId:activeRecordingId,momentId:null,purpose:agent?'agent':'taste'});return;}
         setSuggestionNote('Review the recording-analysis consent below, then choose its analysis action. Chat has not sent the recording or started analysis.');
         reveal('recording-analysis');return;
       }
@@ -1181,7 +1184,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       const d=selected.decisions.find(d=>d.state==='draft')||selected.decisions.find(d=>d.state==='accepted');
       if(d){setChatExpanded(false);await reviewDecision(selected,d);return;}
     }
-    const id=action==='review_method'?'training-chat-methods':'recording-analysis';
+    const id=action==='review_method'?'training-chat-methods':action==='review_agent_update'&&agentProposal?'recording-tool-proposal':'recording-analysis';
     if(action==='review_method')revealTrainingElement(id);else reveal(id);
     if(action==='review_agent_update')setSuggestionNote('Review the recording proposal, exact method and agent-change confirmation below. Nothing has been queued by chat.');
   }
@@ -1204,8 +1207,37 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&<h2 className="text-xs font-medium text-ink-500">3 ways to train</h2>}
     {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onChat={()=>chatExpanded?setChatExpanded(false):focusChat()} chatExpanded={chatExpanded} chatDisabled={!!busy} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={()=>{currentTraining();setConsent(false);setDiscardDraftConfirmed(false);setUploadOpen(true);}} uploadDisabled={!!busy||changesBusy||versionChanged||!currentVersion} uploading={busy==='Verifying the selected source and saving its identity'}/>}/>}
     {!installationId&&pendingRecordingId&&<div role="status" className="text-sm text-ink-300">Another recording is ready. Your current feedback is preserved. <button type="button" className="underline" onClick={()=>{if(recordingDirty){setClosingRecording(false);setReplaceRecordingOpen(true);}else if(pendingRecordingId)openRecording(pendingRecordingId);}}>Annotate new recording</button></div>}
-    {!installationId&&activeRecordingId&&<RecordingPlayer key={activeRecordingId} recordingId={activeRecordingId} ownerId={ownerId||''} trainingSlug={slug} embedded onDirtyChange={setRecordingDirty} onRecordingLoaded={setActiveRecordingDetail} onUseFeedback={(recordingId,moment)=>setFeedbackRequest({recordingId,moment})} onAnalyzeNarration={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId})} narrationUnavailable={pendingRecordingLink||pendingDemoLink||suggesting?"Finish the current teaching or pending link first.":!activeRecordingDetail?"Loading your recording…":!activeRecordingDetail.hasMicrophone?"This recording has no microphone narration. You can still leave feedback on the video.":!recordingSupported?"Update Desktop to find learnings in your narration.":(activeRecordingDetail.durationMs||0)>600000?"Narration analysis supports recordings up to 10 minutes. Your visual feedback is still available.":undefined} onClose={()=>{if(recordingDirty){setClosingRecording(true);setReplaceRecordingOpen(true);}else{setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(null);setActiveRecordingDetail(null);}}}/>}
-    {!installationId&&activeRecordingId&&recording&&selected&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===recording.excerpt.sourceId&&<section className="space-y-4 rounded-xl border border-ink-800 p-5" aria-label="Learning from your narration">
+    {!installationId&&activeRecordingId&&<RecordingPlayer key={activeRecordingId} recordingId={activeRecordingId} ownerId={ownerId||''} trainingSlug={slug} embedded onDirtyChange={setRecordingDirty} onRecordingLoaded={setActiveRecordingDetail} onUseFeedback={(recordingId,moment)=>setFeedbackRequest({recordingId,moment})} onAnalyzeNarration={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'taste'})} onAnalyzeTool={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'agent'})} narrationUnavailable={pendingRecordingLink||pendingDemoLink||suggesting?"Finish the current teaching or pending link first.":!activeRecordingDetail?"Loading your recording…":!activeRecordingDetail.hasMicrophone?"This recording has no microphone narration. You can still leave feedback on the video.":!recordingSupported?"Update Desktop to find learnings in your narration.":(activeRecordingDetail.durationMs||0)>600000?"Narration analysis supports recordings up to 10 minutes. Your visual feedback is still available.":undefined} onClose={()=>{if(recordingDirty){setClosingRecording(true);setReplaceRecordingOpen(true);}else{setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(null);setActiveRecordingDetail(null);}}}/>}
+        {agentProposal && <section id="recording-tool-proposal" aria-label="Proposed tool update" className="rounded border border-brand-500 p-3 space-y-3">
+          <h4>Proposed agent update — not applied</h4>
+          <p className="text-xs text-ink-400">Source: {sources.find(source=>source.sourceId===agentProposal.binding.sourceId)?.localName||'Saved recording'} · {shortId(agentProposal.binding.sourceSha256)}{activeRecordingId&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId!==agentProposal.binding.sourceId?' · From a previously selected recording':''}</p>
+          <p>{agentProposal.capability==='presenter_background_removal'?'VEED background removal at Build. Requires this agent’s authorized, signed-in browser access; not an API connection.':'Web reference research at Planning.'} Tool use is conditional; assessing need and recording the decision is required.</p>
+          <p className="whitespace-pre-wrap">{agentProposal.proposedChange}</p>
+          {agentProposal.limitations.length>0&&<ul>{agentProposal.limitations.map((item,index)=><li key={index}>{item}</li>)}</ul>}
+          <p>Private taste is saved and accepted separately above. If you want that teaching on this version, finish its admission before requesting the edit. After the edit lands, use the existing compatible-training adoption action; merely opening a successor session does not activate old teaching.</p>
+          <p>Only the generic capability instruction goes to Edit Agent. Your recording, transcript, example identities and taste wording stay out of that request. Normal Edit Agent automatically applies the generated revision after you approve this instruction; it does not show a separate generated-diff approval screen. Review the resulting definition before testing. A queued request is not a new version or proof that the tool was used.</p>
+          <p>Prepare a generic operating method for review. Only platform-written capability instructions go to the model; your recording and taste stay separate. The result is a private draft.</p>
+          {!agentChange&&<button disabled={!!busy||versionChanged} onClick={draftMethod}>{method?'Refresh reviewed operating method':'Draft baseline operating method'}</button>}
+          {method&&<section className="space-y-2"><h4>{method.name} · {method.status} · {method.scope}</h4>
+            <p>Original draft model: {method.model||'not recorded'} · exact current body {shortId(method.contentDigest)}. Later edits may have changed the draft.</p>
+            <details><summary>Review the exact operating method</summary><pre className="whitespace-pre-wrap break-words text-sm">{method.content}</pre></details>
+            <Link href={`/skills/${method.slug}`}>Review and activate this operating method</Link>
+            <p>After using the existing activation action, refresh here. A public agent also requires the generic method to be publicly available; its private teachings are never included.</p></section>}
+          {!agentChange&&<><label className="flex gap-2"><input type="checkbox" checked={agentChangeConfirmed} onChange={event=>setAgentChangeConfirmed(event.target.checked)} />Request this capability and operating-method update through normal Edit Agent. Preserve the remaining contracts and permissions.</label>
+            <button disabled={!!busy||versionChanged||!agentChangeConfirmed||method?.status!=='active'} onClick={queueAgentChange}>Request this agent update</button>
+            <button disabled={!!busy||versionChanged} onClick={()=>{setAgentProposal(null);setRecording(null);setMethod(null);setAgentChangeConfirmed(false);setSuggestionNote('The local proposal was discarded. Its saved evidence and any operating-method draft remain in Training history and the method library.');}}>Discard this tool proposal</button></>}
+          {agentChange&&<div role="status"><p>Edit request {shortId(agentChange.requestId)} · {agentChange.status}. The agent update is not yet verified.</p>
+            {agentChange.warning&&<p>{agentChange.warning}</p>}<Link href={`/workflows/${slug}?source=generated`}>Review the agent’s edit status</Link></div>}
+        </section>}
+    {!installationId&&recording?.purpose==='agent'&&!agentProposal&&selected?.sourceId===recording.excerpt.sourceId&&<section aria-label="Retained tool analysis" className="space-y-3 rounded-xl border border-ink-800 p-5">
+      <h2 className="text-lg font-medium">Tool update not ready yet</h2>
+      <p className="text-xs text-ink-400">Source: {selected?.localName} · {shortId(recording.excerpt.sourceSha256)}</p>
+      <p className="text-sm text-ink-400">Your selected excerpt and three frames are retained. Retry the draft, or discard this local draft to choose another recording. Saved evidence stays in Training history.</p>
+      <details className="text-sm"><summary>Selected narration</summary><blockquote className="mt-2 whitespace-pre-wrap">{recording.excerpt.text}</blockquote></details>
+      <button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>void retryRecordingDraft()}>Retry tool draft</button>
+      <button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>{setRecording(null);setSuggestionNote('');}}>Discard tool draft</button>
+    </section>}
+    {!installationId&&activeRecordingId&&recording&&recording.purpose!=='agent'&&selected&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===recording.excerpt.sourceId&&<section className="space-y-4 rounded-xl border border-ink-800 p-5" aria-label="Learning from your narration">
       <h2 className="text-lg font-medium">Learning from your narration</h2><details className="text-sm text-ink-400"><summary>What Implexa heard</summary><blockquote className="mt-3 whitespace-pre-wrap">{recording.excerpt.text}</blockquote><p className="mt-2 text-xs">Speech recognition can make mistakes. Check the wording before saving.</p></details>
       {!recording.suggestion&&<button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>void retryRecordingDraft()}>Retry draft from this excerpt</button>}{recording.suggestion&&<><div className="flex flex-wrap gap-5"><img src={recording.frames[recording.suggestion.frameIndex].image} alt="Frame supporting the suggested learning" className="w-64 rounded-lg object-contain"/><div className="min-w-0 flex-1 space-y-2"><p className="text-sm text-ink-200">{recording.suggestion.fields.desiredBehavior}</p><p className="text-sm text-ink-400">Observed: {recording.suggestion.fields.chosen}</p><p className="text-sm text-ink-400">Why (inferred from narration): {recording.suggestion.fields.why}</p><p className="text-sm text-ink-400">Suggested approach: {recording.suggestion.fields.process}</p></div></div>
       <p className="text-xs text-ink-400">{relationLabel(relation)} · {property.replaceAll('_',' ')} · {stages.map(trainingStageLabel).join(', ')}</p>{learningScopeControls()}
@@ -1223,7 +1255,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </section>}
     <Modal open={feedbackRetry} onClose={()=>setFeedbackRetry(false)} title="Retry this teaching suggestion?"><p>The selected frame and your saved feedback will be sent again to Anthropic Claude Haiku 5.5.</p><button type="button" disabled={!!busy||suggesting||!demoAnnotationIsCurrent||versionChanged} onClick={()=>{setFeedbackRetry(false);setDraftConsent(true);void suggestTeaching(true);}}>Retry suggestion</button></Modal>
     <Modal open={!!feedbackRequest} onClose={()=>setFeedbackRequest(null)} title="Turn this feedback into a learning?"><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Your exact saved mark, including earlier notes and its region, is kept as the private feedback source. This frame and the complete saved mark, including earlier notes and region coordinates, are sent to Anthropic Claude Haiku 5.5 to suggest a learning. You review it before admission.</p><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void beginFeedbackLearning()}>Suggest learning</button></Modal>
-    <Modal open={!!narrationRequest} onClose={()=>setNarrationRequest(null)} title="Find learnings in this recording?"><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Implexa transcribes on this Mac, then sends the transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5. Typed feedback is not included in narration analysis. The selected excerpt and three frames are used to suggest a learning. The selected excerpt and lineage are kept in your private append-only Training history. You review the suggestion before saving or accepting it.</p><button type="button" className="btn-primary mt-5" disabled={!!busy||versionChanged||!recordingSupported} onClick={()=>void beginNarrationAnalysis()}>Analyze narration</button></Modal>
+    <Modal open={!!narrationRequest} onClose={()=>setNarrationRequest(null)} title={narrationRequest?.purpose==='agent'?"Teach a tool from this recording?":"Find learnings in this recording?"}><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Implexa transcribes on this Mac, then sends the transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5. Typed feedback is not included in narration analysis. The selected excerpt and three frames are used to {narrationRequest?.purpose==='agent'?'suggest a tool and method update':'suggest a learning'}. The selected excerpt and lineage are kept in your private append-only Training history. You review the suggestion before saving or accepting it.</p>{narrationRequest?.purpose==='agent'&&<label className="mt-4 block text-sm">Tool method<select className="mt-2 block w-full rounded border border-ink-700 bg-ink-900 p-2" value={agentCapability} disabled={!!busy||suggesting||!!agentChange} onChange={event=>setAgentCapability(event.target.value as typeof agentCapability)}><option value="web_reference_research">Web reference research</option><option value="presenter_background_removal">VEED presenter background</option></select><span className="mt-2 block text-xs text-ink-400">You'll review the proposal before requesting an agent update. Tool access is connected separately.</span></label>}<button type="button" className="btn-primary mt-5" disabled={!!busy||versionChanged||!recordingSupported||!!agentChange} onClick={()=>void beginNarrationAnalysis()}>{narrationRequest?.purpose==='agent'?'Suggest tool update':'Analyze narration'}</button></Modal>
     <Modal open={replaceRecordingOpen} onClose={()=>setReplaceRecordingOpen(false)} title="Leave without saving feedback?"><p>Your unsaved marks stay here if you keep editing.</p><div className="mt-5 flex gap-4"><button type="button" onClick={()=>setReplaceRecordingOpen(false)}>Keep editing</button><button type="button" onClick={()=>{setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(closingRecording?null:pendingRecordingId);setActiveRecordingDetail(null);setRecordingDirty(false);if(!closingRecording)setPendingRecordingId(null);setClosingRecording(false);setReplaceRecordingOpen(false);}}>Discard unsaved changes</button></div></Modal>
     {!installationId&&(historyBusy||historyError)&&<p role="status" className="text-sm text-ink-400">{historyBusy?'Loading earlier training…':historyError}</p>}
     {!installationId&&history&&<section aria-label="Earlier training" className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 className="text-xl font-medium">Learnings</h2>{versionPicker}</header><p className="text-xs text-ink-500">Earlier version · read-only</p>{history.sources.flatMap(source=>source.decisions.map(d=><details key={d.recordId} className="border-b border-ink-800 py-4"><summary className="cursor-pointer text-sm">{['draft','accepted'].includes(d.state)?d.decision.desiredBehavior||d.content.summary:'This teaching is no longer available for use.'}</summary><div className="space-y-3 pt-4 text-sm leading-6 text-ink-400">{source.token&&d.content.derivatives?.[0]?.sha256&&['draft','accepted'].includes(d.state)&&<TrainingImage token={source.token} recordId={d.recordId} recordDigest={d.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy} context={`${history.sessionId}:${history.versionId}`} alt="Earlier teaching example"/>}{['draft','accepted'].includes(d.state)&&<p>{d.content.summary}</p>}<p>{d.state} · {relationLabel(d.content.relation)}</p></div></details>))}{!history.sources.length&&<p className="text-sm text-ink-500">No examples were returned for this version.</p>}</section>}
@@ -1397,25 +1429,6 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
           </select>
         </label>
         <button disabled={!!busy||suggesting||!agentAnalysisConsent||!selected.token||versionChanged||!!pendingRecordingLink||!!agentChange} onClick={()=>findRecordingTeaching(true)}>Suggest tool and method update</button>
-        {agentProposal && <section className="rounded border border-brand-500 p-3 space-y-3">
-          <h4>Proposed agent update — not applied</h4>
-          <p>{agentProposal.capability==='presenter_background_removal'?'VEED background removal at Build. Requires this agent’s authorized, signed-in browser access; not an API connection.':'Web reference research at Planning.'} Tool use is conditional; assessing need and recording the decision is required.</p>
-          <p className="whitespace-pre-wrap">{agentProposal.proposedChange}</p>
-          {agentProposal.limitations.length>0&&<ul>{agentProposal.limitations.map((item,index)=><li key={index}>{item}</li>)}</ul>}
-          <p>Private taste is saved and accepted separately above. If you want that teaching on this version, finish its admission before requesting the edit. After the edit lands, use the existing compatible-training adoption action; merely opening a successor session does not activate old teaching.</p>
-          <p>Only the generic capability instruction goes to Edit Agent. Your recording, transcript, example identities and taste wording stay out of that request. Normal Edit Agent automatically applies the generated revision after you approve this instruction; it does not show a separate generated-diff approval screen. Review the resulting definition before testing. A queued request is not a new version or proof that the tool was used.</p>
-          <p>Prepare a generic operating method for review. Only platform-written capability instructions go to the model; your recording and taste stay separate. The result is a private draft.</p>
-          {!agentChange&&<button disabled={!!busy||versionChanged} onClick={draftMethod}>{method?'Refresh reviewed operating method':'Draft baseline operating method'}</button>}
-          {method&&<section className="space-y-2"><h4>{method.name} · {method.status} · {method.scope}</h4>
-            <p>Original draft model: {method.model||'not recorded'} · exact current body {shortId(method.contentDigest)}. Later edits may have changed the draft.</p>
-            <details><summary>Review the exact operating method</summary><pre className="whitespace-pre-wrap break-words text-sm">{method.content}</pre></details>
-            <Link href={`/skills/${method.slug}`}>Review and activate this operating method</Link>
-            <p>After using the existing activation action, refresh here. A public agent also requires the generic method to be publicly available; its private teachings are never included.</p></section>}
-          {!agentChange&&<><label className="flex gap-2"><input type="checkbox" checked={agentChangeConfirmed} onChange={event=>setAgentChangeConfirmed(event.target.checked)} />Request this capability and operating-method update through normal Edit Agent. Preserve the remaining contracts and permissions.</label>
-            <button disabled={!!busy||versionChanged||!agentChangeConfirmed||method?.status!=='active'} onClick={queueAgentChange}>Request this agent update</button></>}
-          {agentChange&&<div role="status"><p>Edit request {shortId(agentChange.requestId)} · {agentChange.status}. The agent update is not yet verified.</p>
-            {agentChange.warning&&<p>{agentChange.warning}</p>}<Link href={`/workflows/${slug}?source=generated`}>Review the agent’s edit status</Link></div>}
-        </section>}
         {recording && <>
           <p>Recognized narration (Desktop-reported ASR, not a verified owner quote): {formatTrainingTime(recording.excerpt.startMs)}–{formatTrainingTime(recording.excerpt.endMs)}</p>
           <blockquote className="whitespace-pre-wrap">{recording.excerpt.text}</blockquote>

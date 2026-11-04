@@ -1927,6 +1927,90 @@ test('inline recording analysis waits for explicit consent, uses committed sourc
  }finally{r.cleanup();}
 });
 
+for(const initialDraft of ['suggested','insufficient','error','chat'])test(`inline tool entry recovers from ${initialDraft} with separate consent, VEED scope and visible review`,async()=>{
+ const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
+ const summary={recordingId:RECORD,title:'My demonstration',origin:'recorded',state:'ready',failureReason:null,createdAt:'2026-11-01T12:00:00.000Z',durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:0};
+ const segments=[{index:0,startMs:0,endMs:5000,text:'Use VEED to remove the presenter background when the explanation needs it.'}];
+ let registrations=0,recognitions=0;
+ Object.assign(h.bridge,{reviewRecorderContractVersion:'2',trainingRecordingLibraryContractVersion:'1',
+  reviewRecorder:async(op:string)=>op==='get'?{ok:true,recording:{...summary,pointerTrack:null,moments:[]}}:op==='list'?{ok:true,recordings:[summary],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true},revokeArtifactPreview:async()=>({ok:true})});
+ h.bridge.trainingLocal=async(op,args)=>{
+  if(op==='selectRecording'){registrations++;return {ok:true,sourceId:SOURCE_ID,token:TOKEN};}
+  if(op==='recording'){recognitions++;return {ok:true,manifest:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A},segments,storyboard:[],manifestId:QUESTION,manifestDigest:DIGEST};}
+  return original(op,args);
+ };
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,initialRecordingId:RECORD},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);r.window.Element.prototype.scrollIntoView=()=>{};
+ const prior=r.window.fetch,requests:any[]=[];let drafts=0;
+ r.window.fetch=(async(url:string,init:RequestInit={})=>{
+  if(String(url).includes('/agent-training/chat?')){
+   const context={agent:{id:RECORD,name:'Video craft',slug:'video-craft',versionId:VERSION_A},researchMethodPresent:true,source:{sourceId:SOURCE_ID,sha256:SOURCE_DIGEST},boundMethods:[],availableActions:['none','analyse_tool_method']};
+   if(init.method==='POST'){const message=JSON.parse(String(init.body));return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:true,context,turn:{turnId:message.turnId,versionId:VERSION_A,sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,message:message.message,createdAt:'2026-10-31T12:00:00Z',status:'answered',answer:'Review this tool method.',action:'analyse_tool_method',reason:null}})};}
+   return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:true,context,turns:[],totalTurns:0})};
+  }
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  const b=JSON.parse(String(init.body));
+  if(b.mode==='recording-locate')return {ok:true,status:200,json:async()=>({ok:true,status:'insufficient',reason:'Describe a visual preference.'})};
+  requests.push(b);
+  if(b.mode==='recording-agent-locate')return {ok:true,status:200,json:async()=>({ok:true,status:'located',excerptId:QUESTION,excerptDigest:DIGEST,excerpt:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A,startIndex:0,endIndex:0,startMs:0,endMs:5000,text:segments[0].text,segments}})};
+  assert.equal(b.mode,'recording-agent-draft');drafts++;
+  if(drafts===1&&initialDraft==='insufficient')return {ok:true,status:200,json:async()=>({ok:true,status:'insufficient',reason:'Show the tool controls more clearly.'})};
+  if(drafts===1&&initialDraft==='error')return {ok:false,status:502,json:async()=>({ok:false,reason:'model_unavailable'})};
+  return {ok:true,status:200,json:async()=>({ok:true,contractVersion:'training-recording-agent-suggestion.v1',requestId:QUESTION,model:'claude-haiku-5-5',status:'suggested',capability:'presenter_background_removal',frameIndex:1,reason:'',limitations:['Transparent export must be verified.'],suggestionId:QUESTION,suggestionDigest:DIGEST,proposedChange:'Assess and remove the presenter background through VEED when useful.',application:'not_applied',methodSelection:'pending_existing_binder',binding:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A,excerptId:QUESTION,excerptDigest:DIGEST,frames:b.frames.map(({timeMs,frameSha256}:any)=>({timeMs,frameSha256}))}})};
+ }) as typeof r.window.fetch;
+ const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,30));});
+ try{
+  await flush();
+  if(initialDraft==='chat'){
+   await r.click(r.getByText('Find learnings in my narration'));await r.click(r.getByText('Analyze narration'));await flush();
+   // The first analysis commits this recording's source without granting tool-analysis consent.
+   await r.click(r.getByText('Start chatting'));await flush();
+   const area=r.getByText('Message Implexa').closest('label')!.querySelector('textarea')!;await setTextarea(r,area,'Analyze the tool in this recording.');
+   await r.click(Array.from(r.document.querySelectorAll('button')).find(button=>button.textContent==='Send')!);await flush();
+   await r.click(r.getByText('Analyze the recording’s tool method'));await flush();
+  }else await r.click(r.getByText('Teach a tool or method'));
+  assert.equal(registrations,initialDraft==='chat'?1:0);assert.equal(recognitions,initialDraft==='chat'?1:0);assert.equal(requests.length,0);
+  const dialog=r.document.querySelector('[role="dialog"]')!;assert.match(dialog.textContent!,/Teach a tool from this recording/);
+  const select=dialog.querySelector('select')!;
+  await r.act(()=>{select.value='presenter_background_removal';select.dispatchEvent(new r.window.Event('change',{bubbles:true}));});
+  await r.click(r.getByText('Suggest tool update'));await flush();
+  assert.equal(registrations,1);assert.equal(recognitions,initialDraft==='chat'?2:1);assert.equal(requests.length,2);
+  if(initialDraft==='insufficient'||initialDraft==='error'){
+   const retained=r.document.querySelector('[aria-label="Retained tool analysis"]')!;assert.ok(retained);assert.equal(retained.closest('[hidden]'),null);
+   assert.equal(r.document.querySelector('[aria-label="Proposed tool update"]'),null);
+   if(initialDraft==='insufficient'){
+    await r.click(r.getByText('Retry tool draft'));await flush();
+    assert.equal(recognitions,1,'retry reuses the exact excerpt without transcription');
+    assert.deepEqual(requests[2],requests[1],'retry uses the same excerpt, frames, capability and version');
+   }else{
+    await r.click(r.getByText('Discard tool draft'));
+    assert.equal(r.document.querySelector('[aria-label="Retained tool analysis"]'),null);
+    await r.click(r.getByText('Teach a tool or method'));await r.click(r.getByText('Suggest tool update'));await flush();
+    assert.equal(recognitions,2,'discard permits a fresh same-capability attempt');
+    assert.equal(registrations,1,'the new attempt reuses the registered recording');
+   }
+  }
+
+  assert.ok(requests.every(b=>b.capability==='presenter_background_removal'&&b.sourceId===SOURCE_ID&&b.expectedActiveVersionId===VERSION_A));
+  const proposal=r.document.querySelector('[aria-label="Proposed tool update"]')!;assert.ok(proposal);
+  assert.equal(proposal.closest('[hidden]'),null,'the real recorder must show its proposal');
+  assert.match(proposal.textContent!,/VEED background removal at Build/);
+  assert.equal(r.document.querySelectorAll('[aria-label="Proposed tool update"]').length,1);
+  assert.equal(r.document.querySelector('[aria-label="Learning from your narration"]'),null,'a tool proposal is not a taste draft');
+  assert.equal((r.getByText('Request this agent update') as HTMLButtonElement).disabled,true);
+  await r.click(r.getByText('Teach a tool or method'));
+  const nextDialog=r.document.querySelector('[role="dialog"]')!,nextSelect=nextDialog.querySelector('select')!;
+  await r.act(()=>{nextSelect.value='web_reference_research';nextSelect.dispatchEvent(new r.window.Event('change',{bubbles:true}));});
+  assert.ok(r.document.querySelector('[aria-label="Proposed tool update"]'),'changing a modal choice cannot silently discard the retained proposal');
+  await r.click(nextDialog.querySelector('button[aria-label="Close"]')!);
+  await r.click(r.getByText('Discard this tool proposal'));
+  assert.equal(r.document.querySelector('[aria-label="Proposed tool update"]'),null);
+  assert.equal(r.document.querySelector('[aria-label="Retained tool analysis"]'),null);
+  assert.equal(h.calls.some(c=>['annotate','accept'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
 test('a saved picture mark becomes a linked draft from exact feedback, retains region lineage and opens review after link retry',async()=>{
  const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;let registrations=0,links=0,suggestionCount=0;
  const moment={momentId:QUESTION,startMs:5000,endMs:5000,region:{x:100000,y:200000,width:300000,height:200000},card:{whatToDo:'Make the location tell the story, with less repeated copy.',why:'Keep my earlier explanation.',insteadOf:'',howToCheck:'',whenNot:''},createdAt:'2026-11-01T12:00:00.000Z'};
