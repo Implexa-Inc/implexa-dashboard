@@ -16,7 +16,7 @@ import {guidedTrainingChanges,trainingPublicationPreview,type TrainingPublicatio
 import {TrainingEntry,TrainingInfo,TrainingImage,TrainingDetails,revealTrainingElement,type TrainingView,type TrainingRun} from './training-workspace';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
-import { teachingDigest, teachingFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation, recordingSuggestion, recordingAgentSuggestion, type RecordingAgentSuggestion, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
+import { teachingDigest, teachingFrame, toolSuggestionFrame, TOOL_FRAME_RECIPE_DIGEST, type ToolFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation, recordingSuggestion, recordingAgentSuggestion, type RecordingAgentSuggestion, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
 import {
   deriveTrainingStages,
   isTrainingEvidenceStorage,
@@ -87,6 +87,7 @@ type Result = {
   scope?: Scope;
   sources?: Source[];
   image?: string;
+  toolFrame?: ToolFrame;
   recordId?: string;
   recordDigest?: string;
   state?: DecisionState;
@@ -102,6 +103,7 @@ type Result = {
 type Bridge = {
   trainingLocalContractVersion?: string;
   trainingRecordingContractVersion?: string;
+  trainingToolFrameContractVersion?: string;
   trainingRecordingLibraryContractVersion?: string;
   trainingEvidenceStorageContractVersion?: string;
   trainingLocal: (operation: string, args: unknown) => Promise<Result>;
@@ -364,8 +366,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [agentChange,setAgentChange] = useState<{requestId:string;status:string;sourceLinkRecorded?:boolean;warning?:string}|null>(null);
   const [method,setMethod] = useState<{id:string;slug:string;name:string;content:string;contentDigest:string;status:string;scope:string;model:string|null}|null>(null);
   const [recordingSupported,setRecordingSupported] = useState(false);
-  useEffect(()=>{setRecordingSupported(bridge()?.trainingRecordingContractVersion==='1');},[]);
-  const [recording,setRecording] = useState<{excerptId:string;excerptDigest:string;excerpt:RecordingExcerpt;frames:RecordingFrame[];suggestion:RecordingSuggestion|null;purpose?:'taste'|'agent';capability?:'web_reference_research'|'presenter_background_removal'}|null>(null);
+  const [toolFramesSupported,setToolFramesSupported]=useState(false);
+  useEffect(()=>{setRecordingSupported(bridge()?.trainingRecordingContractVersion==='1');setToolFramesSupported(bridge()?.trainingToolFrameContractVersion==='1');},[]);
+  const [recording,setRecording] = useState<{excerptId:string;excerptDigest:string;excerpt:RecordingExcerpt;frames:RecordingFrame[];suggestion:RecordingSuggestion|null;purpose?:'taste'|'agent';frameRecipeDigest?:string;capability?:'web_reference_research'|'presenter_background_removal'}|null>(null);
   const [pendingRecordingLink,setPendingRecordingLink] = useState<{body:Record<string,unknown>;sessionId:string;key:string}|null>(null);
   useEffect(()=>{setRecording(null);setRecordingConsent(false);},[selected?.sourceId,session,currentVersion]);
   useEffect(()=>{setAgentProposal(null);setAgentChangeConfirmed(false);setAgentAnalysisConsent(false);setAgentChange(null);setMethod(null);},[selected?.sourceId,session,currentVersion]);
@@ -839,6 +842,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
 
   async function requestRecordingDraft(prepared:NonNullable<typeof recording>,snapshot:string,agent=prepared.purpose==='agent') {
+    if(!agent&&prepared.frameRecipeDigest)throw Error('Tool-analysis frames cannot become taste training. Start a separate taste analysis.');
     const source=selected;
     if(!source || !currentVersion || latestDraft.current!==snapshot) throw Error('The source or draft changed. No recording suggestion was requested.');
     const binding={sourceId:source.sourceId,sourceSha256:source.metadata.sha256,targetVersionId:currentVersion,
@@ -863,6 +867,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setSuggestionNote('Review the recognized narration and all three frames. The marked frame is the model’s choice. Nothing has been saved as a teaching or admitted.');
   }
   async function findRecordingTeaching(agent=false,explicitNarrationConsent=false) {
+    if(agent&&bridge()?.trainingToolFrameContractVersion!=='1'){setError('Update Desktop to analyze demonstrated tools. Taste analysis is still available.');return;}
     if(!selected?.token || !currentVersion || !((agent?agentAnalysisConsent:recordingConsent)||explicitNarrationConsent) || !recordingSupported)return;
     const source=selected,version=currentVersion,snapshot=draftSnapshot;
     await work(agent?'Finding a demonstrated tool or method':'Transcribing recording and locating one taste example',async()=>{
@@ -887,11 +892,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       const frames:RecordingFrame[]=[];let bytes=0;
       for(const timeMs of [e.startMs,Math.floor((e.startMs+e.endMs)/2),e.endMs-1]) {
         await requireCurrentScope();if(latestDraft.current!==snapshot)throw Error('The draft changed. Evidence extraction stopped.');
-        const frame=await call('preview',{token:source.token,timeMs});const image=frame.image||'',data=teachingFrame(image);
+        const frame=await call('preview',{token:source.token,timeMs,...(agent?{purpose:'tool_suggestion'}:{})});const image=frame.image||'',data=agent?toolSuggestionFrame(image,frame.toolFrame,source.sourceId,timeMs):teachingFrame(image);
         bytes+=data.length;if(bytes>2*1024*1024)throw Error('The three exact frames exceed the suggestion budget. No draft call was sent.');
         frames.push({timeMs,image,frameSha256:await teachingDigest(data)});
       }
-      const prepared={excerptId:value.excerptId,excerptDigest:value.excerptDigest,excerpt:e,frames,suggestion:null,purpose:agent?'agent' as const:'taste' as const,...(agent?{capability:agentCapability}:{})};setRecording(prepared);
+      const prepared={excerptId:value.excerptId,excerptDigest:value.excerptDigest,excerpt:e,frames,suggestion:null,purpose:agent?'agent' as const:'taste' as const,...(agent?{capability:agentCapability,frameRecipeDigest:TOOL_FRAME_RECIPE_DIGEST}:{})};setRecording(prepared);
       await requestRecordingDraft(prepared,snapshot);
     });
   }
@@ -1274,7 +1279,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </section>}
     <Modal open={feedbackRetry} onClose={()=>setFeedbackRetry(false)} title="Retry this teaching suggestion?"><p>The selected frame and your saved feedback will be sent again to Anthropic Claude Haiku 5.5.</p><button type="button" disabled={!!busy||suggesting||!demoAnnotationIsCurrent||versionChanged} onClick={()=>{setFeedbackRetry(false);setDraftConsent(true);void suggestTeaching(true);}}>Retry suggestion</button></Modal>
     <Modal open={!!feedbackRequest} onClose={()=>setFeedbackRequest(null)} title="Turn this feedback into a learning?"><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Your exact saved mark, including earlier notes and its region, is kept as the private feedback source. This frame and the complete saved mark, including earlier notes and region coordinates, are sent to Anthropic Claude Haiku 5.5 to suggest a learning. You review it before admission.</p><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void beginFeedbackLearning()}>Suggest learning</button></Modal>
-    <Modal open={!!narrationRequest} onClose={()=>setNarrationRequest(null)} title={narrationRequest?.purpose==='agent'?"Teach a tool from this recording?":"Find learnings in this recording?"}><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Implexa transcribes on this Mac, then sends the transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5. Typed feedback is not included in narration analysis. The selected excerpt and three frames are used to {narrationRequest?.purpose==='agent'?'suggest a tool and method update':'suggest a learning'}. The selected excerpt and lineage are kept in your private append-only Training history. You review the suggestion before saving or accepting it.</p>{narrationRequest?.purpose==='agent'&&<label className="mt-4 block text-sm">Tool method<select className="mt-2 block w-full rounded border border-ink-700 bg-ink-900 p-2" value={agentCapability} disabled={!!busy||suggesting||!!agentChange} onChange={event=>setAgentCapability(event.target.value as typeof agentCapability)}><option value="web_reference_research">Web reference research</option><option value="presenter_background_removal">VEED presenter background</option></select><span className="mt-2 block text-xs text-ink-400">You'll review the proposal before requesting an agent update. Tool access is connected separately.</span></label>}<button type="button" className="btn-primary mt-5" disabled={!!busy||versionChanged||!recordingSupported||!!agentChange} onClick={()=>void beginNarrationAnalysis()}>{narrationRequest?.purpose==='agent'?'Suggest tool update':'Analyze narration'}</button></Modal>
+    <Modal open={!!narrationRequest} onClose={()=>setNarrationRequest(null)} title={narrationRequest?.purpose==='agent'?"Teach a tool from this recording?":"Find learnings in this recording?"}><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Implexa transcribes on this Mac, then sends the transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5. Typed feedback is not included in narration analysis. The selected excerpt and three frames are used to {narrationRequest?.purpose==='agent'?'suggest a tool and method update':'suggest a learning'}. The selected excerpt and lineage are kept in your private append-only Training history. You review the suggestion before saving or accepting it.</p>{narrationRequest?.purpose==='agent'&&<label className="mt-4 block text-sm">Tool method<select className="mt-2 block w-full rounded border border-ink-700 bg-ink-900 p-2" value={agentCapability} disabled={!!busy||suggesting||!!agentChange} onChange={event=>setAgentCapability(event.target.value as typeof agentCapability)}><option value="web_reference_research">Web reference research</option><option value="presenter_background_removal">VEED presenter background</option></select><span className="mt-2 block text-xs text-ink-400">You'll review the proposal before requesting an agent update. Tool access is connected separately.</span></label>}{narrationRequest?.purpose==='agent'&&!toolFramesSupported&&<p role="status" className="mt-3 text-sm">Update Desktop to analyze demonstrated tools. Taste analysis is still available.</p>}<button type="button" className="btn-primary mt-5" disabled={!!busy||versionChanged||!recordingSupported||!!agentChange||(narrationRequest?.purpose==='agent'&&!toolFramesSupported)} onClick={()=>void beginNarrationAnalysis()}>{narrationRequest?.purpose==='agent'?'Suggest tool update':'Analyze narration'}</button></Modal>
     <Modal open={replaceRecordingOpen} onClose={()=>setReplaceRecordingOpen(false)} title="Leave without saving feedback?"><p>Your unsaved marks stay here if you keep editing.</p><div className="mt-5 flex gap-4"><button type="button" onClick={()=>setReplaceRecordingOpen(false)}>Keep editing</button><button type="button" onClick={()=>{setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(closingRecording?null:pendingRecordingId);setActiveRecordingDetail(null);setRecordingDirty(false);if(!closingRecording)setPendingRecordingId(null);setClosingRecording(false);setReplaceRecordingOpen(false);}}>Discard unsaved changes</button></div></Modal>
     {!installationId&&(historyBusy||historyError)&&<p role="status" className="text-sm text-ink-400">{historyBusy?'Loading earlier training…':historyError}</p>}
     {!installationId&&history&&<section aria-label="Earlier training" className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 className="text-xl font-medium">Learnings</h2>{versionPicker}</header><p className="text-xs text-ink-500">Earlier version · read-only</p>{history.sources.flatMap(source=>source.decisions.map(d=><details key={d.recordId} className="border-b border-ink-800 py-4"><summary className="cursor-pointer text-sm">{['draft','accepted'].includes(d.state)?d.decision.desiredBehavior||d.content.summary:'This teaching is no longer available for use.'}</summary><div className="space-y-3 pt-4 text-sm leading-6 text-ink-400">{source.token&&d.content.derivatives?.[0]?.sha256&&['draft','accepted'].includes(d.state)&&<TrainingImage token={source.token} recordId={d.recordId} recordDigest={d.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy} context={`${history.sessionId}:${history.versionId}`} alt="Earlier teaching example"/>}{['draft','accepted'].includes(d.state)&&<p>{d.content.summary}</p>}<p>{d.state} · {relationLabel(d.content.relation)}</p></div></details>))}{!history.sources.length&&<p className="text-sm text-ink-500">No examples were returned for this version.</p>}</section>}
@@ -1459,7 +1464,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
               if(recording.suggestion?.frameIndex!==index){setChosen('');setWhy('');setProcess('');setBehavior('');setSuggestionNote('Different offered frame selected. Draft manually for this frame; the model fields have been cleared.');}}}>Use this frame</button>
           </figure>)}</div>
           {!recording.suggestion && !(recording.purpose==='agent'&&agentProposal) && <button disabled={!!busy||!(recording.purpose==='agent'?agentAnalysisConsent:recordingConsent)} onClick={retryRecordingDraft}>Request draft from this excerpt only</button>}
-          {recording.purpose==='agent'&&!recording.suggestion&&<button disabled={!!busy||!recordingConsent} onClick={()=>work('Drafting private taste separately',()=>requestRecordingDraft(recording,draftSnapshot,false))}>Draft a separate taste teaching from this excerpt</button>}
+          {recording.purpose==='agent'&&!recording.frameRecipeDigest&&!recording.suggestion&&<button disabled={!!busy||!recordingConsent} onClick={()=>work('Drafting private taste separately',()=>requestRecordingDraft(recording,draftSnapshot,false))}>Draft a separate taste teaching from this excerpt</button>}
           {recording.suggestion && <><dl>{TEACHING_FIELDS.map(key=><div key={key}><dt>{key}</dt><dd>{recording.suggestion!.fields[key]}</dd></div>)}</dl>
             <p>Preference inferred from recognized narration; review for ASR mistakes. Stills do not establish motion or a tool procedure.</p>
             <button disabled={!!busy || !previewIsCurrent || preview?.image!==recording.frames[recording.suggestion.frameIndex].image} onClick={useRecordingSuggestion}>Use recording suggestion in editable fields</button></>}

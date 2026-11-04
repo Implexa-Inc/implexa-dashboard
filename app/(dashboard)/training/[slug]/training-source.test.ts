@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { render, type Rendered } from '../../../../lib/test/render.ts';
 import { isTrainingEvidenceStorage, deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
+import {toolSuggestionFrame,TOOL_FRAME_RECIPE_DIGEST} from '../../../../lib/training-teaching-draft.ts';
 import { questionsPage, validAnswerBody, answerReceipt } from '../../../../lib/trainer-questions.ts';
 
 test('Training chat enters the existing recording flow only after its separate consent, never auto-edits or admits',async()=>{
@@ -169,7 +170,7 @@ function harness(options: {
   let deliveryReceiptDigest: string | null = null;
   const bridge = {
     trainingLocalContractVersion: '2',
-    ...(options.recording?{trainingRecordingContractVersion:'1'}:{}),
+    ...(options.recording?{trainingRecordingContractVersion:'1',trainingToolFrameContractVersion:'1'}:{}),
     trainingLocal: async (operation: string, unknownArgs: unknown) => {
       const args = (unknownArgs || {}) as Record<string, unknown>;
       calls.push({ operation, args });
@@ -241,7 +242,7 @@ function harness(options: {
         authorityAcknowledged = true;
         return options.authorityResponse || { ok: true, recordId: RECORD, recordDigest: DIGEST, state: decisionState };
       }
-      return { ok: true, image: options.previewImage || PNG };
+      return { ok: true, image: options.previewImage || PNG,...(operation==='preview'&&args.purpose==='tool_suggestion'?{toolFrame:{sourceId:SOURCE_ID,timeMs:args.timeMs,width:1,height:1,recipeDigest:TOOL_FRAME_RECIPE_DIGEST,receiptDigest:DIGEST}}:{}) };
     },
   };
   return { bridge, calls, setCurrentVersion: (value: string | null) => { currentVersion = value; }, setSessionTerminal: (value: boolean) => { sessionTerminal = value; } };
@@ -1927,7 +1928,7 @@ test('inline recording analysis waits for explicit consent, uses committed sourc
  }finally{r.cleanup();}
 });
 
-for(const initialDraft of ['suggested','insufficient','error','chat'])test(`inline tool entry recovers from ${initialDraft} with separate consent, VEED scope and visible review`,async()=>{
+for(const initialDraft of ['suggested','insufficient','error','chat','no_tool_capability','wrong_tool_capability','over_budget','bad_dimensions'])test(`inline tool entry recovers from ${initialDraft} with separate consent, VEED scope and visible review`,async()=>{
  const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
  const summary={recordingId:RECORD,title:'My demonstration',origin:'recorded',state:'ready',failureReason:null,createdAt:'2026-11-01T12:00:00.000Z',durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:0};
  const segments=[{index:0,startMs:0,endMs:5000,text:'Use VEED to remove the presenter background when the explanation needs it.'}];
@@ -1937,8 +1938,13 @@ for(const initialDraft of ['suggested','insufficient','error','chat'])test(`inli
  h.bridge.trainingLocal=async(op,args)=>{
   if(op==='selectRecording'){registrations++;return {ok:true,sourceId:SOURCE_ID,token:TOKEN};}
   if(op==='recording'){recognitions++;return {ok:true,manifest:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A},segments,storyboard:[],manifestId:QUESTION,manifestDigest:DIGEST};}
-  return original(op,args);
+  const result=await original(op,args);
+  if(op==='preview'&&initialDraft==='bad_dimensions')return {...result,toolFrame:{...(result as any).toolFrame,width:2}};
+  if(op==='preview'&&initialDraft==='over_budget')return {...result,image:'data:image/png;base64,'+Buffer.concat([Buffer.from(VALID_FRAME.split(',')[1],'base64'),Buffer.alloc(800000)]).toString('base64')};
+  return result;
  };
+ if(initialDraft==='no_tool_capability')delete (h.bridge as any).trainingToolFrameContractVersion;
+ if(initialDraft==='wrong_tool_capability')(h.bridge as any).trainingToolFrameContractVersion='2';
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,initialRecordingId:RECORD},{bridge:h.bridge});
  Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
  r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);r.window.Element.prototype.scrollIntoView=()=>{};
@@ -1972,9 +1978,22 @@ for(const initialDraft of ['suggested','insufficient','error','chat'])test(`inli
   }else await r.click(r.getByText('Teach a tool or method'));
   assert.equal(registrations,initialDraft==='chat'?1:0);assert.equal(recognitions,initialDraft==='chat'?1:0);assert.equal(requests.length,0);
   const dialog=r.document.querySelector('[role="dialog"]')!;assert.match(dialog.textContent!,/Teach a tool from this recording/);
+  if(initialDraft==='no_tool_capability'||initialDraft==='wrong_tool_capability'){
+   assert.match(dialog.textContent!,/Update Desktop to analyze demonstrated tools/);
+   assert.equal((r.getByText('Suggest tool update') as HTMLButtonElement).disabled,true);
+   assert.equal(recognitions,0);assert.equal(requests.length,0);assert.equal(registrations,0);
+   await r.click(dialog.querySelector('button[aria-label="Close"]')!);
+   assert.equal((r.getByText('Find learnings in my narration') as HTMLButtonElement).disabled,false,'taste remains available');return;
+  }
   const select=dialog.querySelector('select')!;
   await r.act(()=>{select.value='presenter_background_removal';select.dispatchEvent(new r.window.Event('change',{bubbles:true}));});
   await r.click(r.getByText('Suggest tool update'));await flush();
+  if(initialDraft==='over_budget'||initialDraft==='bad_dimensions'){
+   assert.equal(requests.length,1,'only the locator ran; the draft must not be sent');
+   const frames=h.calls.filter(c=>c.operation==='preview');
+   assert.equal(frames.length,initialDraft==='over_budget'?3:1,'one extraction per anchor, no fallback');
+   assert.match(r.text(),initialDraft==='over_budget'?/three exact frames exceed/:/supported tool-analysis frame/);return;
+  }
   assert.equal(registrations,1);assert.equal(recognitions,initialDraft==='chat'?2:1);assert.equal(requests.length,2);
   if(initialDraft==='insufficient'||initialDraft==='error'){
    const retained=r.document.querySelector('[aria-label="Retained tool analysis"]')!;assert.ok(retained);assert.equal(retained.closest('[hidden]'),null);
@@ -1994,6 +2013,8 @@ for(const initialDraft of ['suggested','insufficient','error','chat'])test(`inli
 
   assert.ok(requests.every(b=>b.capability==='presenter_background_removal'&&b.sourceId===SOURCE_ID&&b.expectedActiveVersionId===VERSION_A));
   const proposal=r.document.querySelector('[aria-label="Proposed tool update"]')!;assert.ok(proposal);
+  assert.equal(r.queryByText('Draft a separate taste teaching from this excerpt'),null,'tool frame recipe must not leak into taste drafts');
+  assert.ok(h.calls.filter(c=>c.operation==='preview').every(c=>c.args.purpose==='tool_suggestion'));
   assert.equal(proposal.closest('[hidden]'),null,'the real recorder must show its proposal');
   assert.match(proposal.textContent!,/VEED background removal at Build/);
   assert.equal(r.document.querySelectorAll('[aria-label="Proposed tool update"]').length,1);
@@ -2098,4 +2119,14 @@ test('a saved picture mark becomes a linked draft from exact feedback, retains r
   const second=h.calls.filter(c=>c.operation==='annotate')[1];assert.ok(second);assert.equal((second.args.content as any).relation,'accepted','negative feedback does not leak into positive narration');
   assert.deepEqual(JSON.parse(JSON.stringify(second.args.decision)),SUGGESTION_FIELDS);assert.equal(requests.filter(b=>b.mode==='recording-locate').length,1);assert.equal(requests.filter(b=>b.mode==='recording-draft').length,1);assert.equal(h.calls.some(c=>c.operation==='accept'),false);
  }finally{r.cleanup();}
+});
+
+
+test('tool frame metadata must match the PNG, pinned recipe and selected source before a draft',()=>{
+ const frame={sourceId:SOURCE_ID,timeMs:1000,width:1,height:1,recipeDigest:TOOL_FRAME_RECIPE_DIGEST,receiptDigest:DIGEST};
+ assert.equal(toolSuggestionFrame(VALID_FRAME,frame,SOURCE_ID,1000).length,Buffer.from(VALID_FRAME.split(',')[1],'base64').length);
+ for(const patch of [{width:2},{height:2},{recipeDigest:DIGEST},{sourceId:RECORD},{timeMs:1001},{receiptDigest:'invalid'}])assert.throws(()=>toolSuggestionFrame(VALID_FRAME,{...frame,...patch},SOURCE_ID,1000));
+ assert.throws(()=>toolSuggestionFrame(VALID_FRAME,undefined,SOURCE_ID,1000),'old Desktop cannot silently ignore the requested purpose');
+ const png=Buffer.from(VALID_FRAME.split(',')[1],'base64');png.writeUInt32BE(1025,16);
+ assert.throws(()=>toolSuggestionFrame('data:image/png;base64,'+png.toString('base64'),{...frame,width:1025},SOURCE_ID,1000));
 });
