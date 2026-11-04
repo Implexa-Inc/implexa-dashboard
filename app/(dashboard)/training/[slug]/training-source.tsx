@@ -1174,6 +1174,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(action==='analyse_tool_method'||action==='analyse_taste'){
       const agent=action==='analyse_tool_method';
       if(!(agent?agentAnalysisConsent:recordingConsent)){
+        if(activeRecordingId&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===binding.sourceId){setChatExpanded(false);setNarrationRequest({recordingId:activeRecordingId,momentId:null,purpose:agent?'agent':'taste'});return;}
         setSuggestionNote('Review the recording-analysis consent below, then choose its analysis action. Chat has not sent the recording or started analysis.');
         reveal('recording-analysis');return;
       }
@@ -1228,8 +1229,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
           {agentChange&&<div role="status"><p>Edit request {shortId(agentChange.requestId)} · {agentChange.status}. The agent update is not yet verified.</p>
             {agentChange.warning&&<p>{agentChange.warning}</p>}<Link href={`/workflows/${slug}?source=generated`}>Review the agent’s edit status</Link></div>}
         </section>}
-    {!installationId&&activeRecordingId&&recording?.purpose==='agent'&&!agentProposal&&selected&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===recording.excerpt.sourceId&&<section aria-label="Retained tool analysis" className="space-y-3 rounded-xl border border-ink-800 p-5">
+    {!installationId&&recording?.purpose==='agent'&&!agentProposal&&selected?.sourceId===recording.excerpt.sourceId&&<section aria-label="Retained tool analysis" className="space-y-3 rounded-xl border border-ink-800 p-5">
       <h2 className="text-lg font-medium">Tool update not ready yet</h2>
+      <p className="text-xs text-ink-400">Source: {selected?.localName} · {shortId(recording.excerpt.sourceSha256)}</p>
       <p className="text-sm text-ink-400">Your selected excerpt and three frames are retained. Retry the draft, or discard this local draft to choose another recording. Saved evidence stays in Training history.</p>
       <details className="text-sm"><summary>Selected narration</summary><blockquote className="mt-2 whitespace-pre-wrap">{recording.excerpt.text}</blockquote></details>
       <button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>void retryRecordingDraft()}>Retry tool draft</button>

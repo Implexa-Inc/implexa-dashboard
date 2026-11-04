@@ -1927,7 +1927,7 @@ test('inline recording analysis waits for explicit consent, uses committed sourc
  }finally{r.cleanup();}
 });
 
-for(const initialDraft of ['suggested','insufficient','error'])test(`inline tool entry recovers from ${initialDraft} with separate consent, VEED scope and visible review`,async()=>{
+for(const initialDraft of ['suggested','insufficient','error','chat'])test(`inline tool entry recovers from ${initialDraft} with separate consent, VEED scope and visible review`,async()=>{
  const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
  const summary={recordingId:RECORD,title:'My demonstration',origin:'recorded',state:'ready',failureReason:null,createdAt:'2026-11-01T12:00:00.000Z',durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:0};
  const segments=[{index:0,startMs:0,endMs:5000,text:'Use VEED to remove the presenter background when the explanation needs it.'}];
@@ -1941,10 +1941,18 @@ for(const initialDraft of ['suggested','insufficient','error'])test(`inline tool
  };
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,initialRecordingId:RECORD},{bridge:h.bridge});
  Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);r.window.Element.prototype.scrollIntoView=()=>{};
  const prior=r.window.fetch,requests:any[]=[];let drafts=0;
  r.window.fetch=(async(url:string,init:RequestInit={})=>{
+  if(String(url).includes('/agent-training/chat?')){
+   const context={agent:{id:RECORD,name:'Video craft',slug:'video-craft',versionId:VERSION_A},researchMethodPresent:true,source:{sourceId:SOURCE_ID,sha256:SOURCE_DIGEST},boundMethods:[],availableActions:['none','analyse_tool_method']};
+   if(init.method==='POST'){const message=JSON.parse(String(init.body));return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:true,context,turn:{turnId:message.turnId,versionId:VERSION_A,sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,message:message.message,createdAt:'2026-10-31T12:00:00Z',status:'answered',answer:'Review this tool method.',action:'analyse_tool_method',reason:null}})};}
+   return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:true,context,turns:[],totalTurns:0})};
+  }
   if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
-  const b=JSON.parse(String(init.body));requests.push(b);
+  const b=JSON.parse(String(init.body));
+  if(b.mode==='recording-locate')return {ok:true,status:200,json:async()=>({ok:true,status:'insufficient',reason:'Describe a visual preference.'})};
+  requests.push(b);
   if(b.mode==='recording-agent-locate')return {ok:true,status:200,json:async()=>({ok:true,status:'located',excerptId:QUESTION,excerptDigest:DIGEST,excerpt:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A,startIndex:0,endIndex:0,startMs:0,endMs:5000,text:segments[0].text,segments}})};
   assert.equal(b.mode,'recording-agent-draft');drafts++;
   if(drafts===1&&initialDraft==='insufficient')return {ok:true,status:200,json:async()=>({ok:true,status:'insufficient',reason:'Show the tool controls more clearly.'})};
@@ -1953,14 +1961,22 @@ for(const initialDraft of ['suggested','insufficient','error'])test(`inline tool
  }) as typeof r.window.fetch;
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,30));});
  try{
-  await flush();await r.click(r.getByText('Teach a tool or method'));
-  assert.equal(registrations,0);assert.equal(recognitions,0);assert.equal(requests.length,0);
+  await flush();
+  if(initialDraft==='chat'){
+   await r.click(r.getByText('Find learnings in my narration'));await r.click(r.getByText('Analyze narration'));await flush();
+   // The first analysis commits this recording's source without granting tool-analysis consent.
+   await r.click(r.getByText('Start chatting'));await flush();
+   const area=r.getByText('Message Implexa').closest('label')!.querySelector('textarea')!;await setTextarea(r,area,'Analyze the tool in this recording.');
+   await r.click(Array.from(r.document.querySelectorAll('button')).find(button=>button.textContent==='Send')!);await flush();
+   await r.click(r.getByText('Analyze the recording’s tool method'));await flush();
+  }else await r.click(r.getByText('Teach a tool or method'));
+  assert.equal(registrations,initialDraft==='chat'?1:0);assert.equal(recognitions,initialDraft==='chat'?1:0);assert.equal(requests.length,0);
   const dialog=r.document.querySelector('[role="dialog"]')!;assert.match(dialog.textContent!,/Teach a tool from this recording/);
   const select=dialog.querySelector('select')!;
   await r.act(()=>{select.value='presenter_background_removal';select.dispatchEvent(new r.window.Event('change',{bubbles:true}));});
   await r.click(r.getByText('Suggest tool update'));await flush();
-  assert.equal(registrations,1);assert.equal(recognitions,1);assert.equal(requests.length,2);
-  if(initialDraft!=='suggested'){
+  assert.equal(registrations,1);assert.equal(recognitions,initialDraft==='chat'?2:1);assert.equal(requests.length,2);
+  if(initialDraft==='insufficient'||initialDraft==='error'){
    const retained=r.document.querySelector('[aria-label="Retained tool analysis"]')!;assert.ok(retained);assert.equal(retained.closest('[hidden]'),null);
    assert.equal(r.document.querySelector('[aria-label="Proposed tool update"]'),null);
    if(initialDraft==='insufficient'){
