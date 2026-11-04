@@ -111,7 +111,7 @@ type ReviewedDecision = { source: Source; decision: Decision; image: string | nu
 type VersionTransition = { fromVersion: string; sources: Source[] };
 
 class TrainingError extends Error {
-  constructor(readonly reason: string, message?: string) { super(message || reason); }
+  constructor(readonly reason: string, message?: string, readonly existingSourceId: string | null = null) { super(message || reason); }
 }
 
 const bridge = () => (window as unknown as { implexaDesktop?: Bridge }).implexaDesktop;
@@ -426,7 +426,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       return result as Result;
     }
     const result = await resolveBridge().trainingLocal(operation, args);
-    if (!result.ok) throw new TrainingError(result.reason || 'training_unavailable', result.reason==='recording_annotation_too_large'?'These saved notes exceed the existing annotation limit. Shorten or split the moment deliberately; all original notes remain in your recording.':result.reason || 'Training is unavailable. Your draft is preserved.');
+    if (!result.ok) throw new TrainingError(result.reason || 'training_unavailable', result.reason==='recording_annotation_too_large'?'These saved notes exceed the existing annotation limit. Shorten or split the moment deliberately; all original notes remain in your recording.':result.reason || 'Training is unavailable. Your draft is preserved.',
+      operation==='selectRecording'&&result.reason==='duplicate_source'&&typeof result.sourceId==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(result.sourceId)?result.sourceId:null);
     return result;
   }
 
@@ -641,8 +642,26 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(!id){const before=await requireCurrentScope('');const created=await call('create',{slug,key:sessionKey});if(!created.sessionId)throw new TrainingError('training_session_unavailable');id=created.sessionId;setSession(id);const after=await requireCurrentScope(id);if(after.agent.currentVersionId!==before.agent.currentVersionId)throw new TrainingError('training_version_changed');}
     await requireCurrentScope(id);
     const key=`${id}:${version}:${recordingId}`;let registered=recordingSources.current.get(key);
-    if(!registered){const result=await call('selectRecording',{sessionId:id,recordingId,momentId:null,expectedOwnerId:ownerId,consent:{localCustody:true,boundedEvidence:true,futureSelection:true}});if(!result.sourceId||!result.token)throw new TrainingError('training_source_scope_mismatch');registered={sourceId:result.sourceId,token:result.token,sessionId:id,version};recordingSources.current.set(key,registered);}
-    const listed=await load(id),source=listed.sources?.find(s=>s.sourceId===registered!.sourceId&&s.token===registered!.token);
+    let refreshed:Result|undefined;
+    if(!registered){
+      try{
+        const result=await call('selectRecording',{sessionId:id,recordingId,momentId:null,expectedOwnerId:ownerId,consent:{localCustody:true,boundedEvidence:true,futureSelection:true}});
+        if(!result.sourceId||!result.token)throw new TrainingError('training_source_scope_mismatch');
+        registered={sourceId:result.sourceId,token:result.token,sessionId:id,version};
+      }catch(error){
+        if(!(error instanceof TrainingError)||error.reason!=='duplicate_source'||!error.existingSourceId)throw error;
+        // Desktop has just verified the recording; the server's exact registration
+        // digest identifies its canonical source. Reuse only that id's local custody.
+        const scope=await requireCurrentScope(id);
+        if(scope.session?.sessionId!==id||scope.agent.currentVersionId!==version)throw new TrainingError('training_source_scope_mismatch');
+        refreshed=await load(id);
+        const matches=refreshed.sources?.filter(source=>source.sourceId===error.existingSourceId)||[];
+        if(matches.length!==1||!matches[0].token||matches[0].metadata.mediaType!=='video/mp4')throw new TrainingError('training_source_scope_mismatch');
+        registered={sourceId:matches[0].sourceId,token:matches[0].token,sessionId:id,version};
+      }
+      recordingSources.current.set(key,registered);
+    }
+    const listed=refreshed||await load(id),source=listed.sources?.find(s=>s.sourceId===registered!.sourceId&&s.token===registered!.token);
     if(!source||source.metadata.mediaType!=='video/mp4'){recordingSources.current.delete(key);throw new TrainingError('training_source_scope_mismatch');}
     return {id,source};
   }

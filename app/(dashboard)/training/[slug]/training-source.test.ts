@@ -2011,6 +2011,50 @@ for(const initialDraft of ['suggested','insufficient','error','chat'])test(`inli
  }finally{r.cleanup();}
 });
 
+for(const mode of ['reuse','missing_id','invalid_id','wrong_id','no_token','not_video','ambiguous','list_failed','scope_changed','session_not_found','idempotency_key_conflict','training_source_scope_mismatch','training_source_mutated','other_operation','mutated_after_bind'])test(`recording registration canonical reuse: ${mode}`,async()=>{
+ const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
+ const summary={recordingId:RECORD,title:'Saved demonstration',origin:'recorded',state:'ready',failureReason:null,createdAt:'2026-11-01T12:00:00.000Z',durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:0};
+ Object.assign(h.bridge,{reviewRecorderContractVersion:'2',trainingRecordingLibraryContractVersion:'1',reviewRecorder:async(op:string)=>op==='get'?{ok:true,recording:{...summary,pointerTrack:null,moments:[]}}:op==='list'?{ok:true,recordings:[summary],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true},revokeArtifactPreview:async()=>({ok:true})});
+ let selections=0,recordings=0,selected=false;
+ h.bridge.trainingLocal=async(op,args)=>{
+  if(op==='selectRecording'){
+   selections++;selected=true;
+   if(mode==='other_operation')return {ok:true,sourceId:SOURCE_ID,token:TOKEN};
+   const reason=['session_not_found','idempotency_key_conflict','training_source_scope_mismatch','training_source_mutated'].includes(mode)?mode:'duplicate_source';
+   return {ok:false,reason,...(mode==='missing_id'?{}:{sourceId:mode==='invalid_id'?'invalid':mode==='wrong_id'?RECORD:SOURCE_ID})};
+  }
+  if(op==='recording'){
+   recordings++;assert.equal((args as any).token,TOKEN);
+   if(mode==='mutated_after_bind')return {ok:false,reason:'training_source_mutated'};
+   return {ok:true,manifest:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A},segments:[{index:0,startMs:0,endMs:5000,text:'Demonstrate the tool.'}],storyboard:[],manifestId:QUESTION,manifestDigest:DIGEST};
+  }
+  const result=await original(op,args);
+  if(selected&&op==='scope'&&mode==='scope_changed')return {...result,scope:{...(result as any).scope,agent:{...(result as any).scope.agent,currentVersionId:VERSION_B}}};
+  if(selected&&op==='list'){
+   if(mode==='list_failed'||mode==='other_operation')return {ok:false,reason:mode==='other_operation'?'duplicate_source':'training_local_unavailable',sourceId:SOURCE_ID};
+   const existing=(result as any).sources[0];
+   if(mode==='no_token')return {...result,sources:[{...existing,token:null}]};
+   if(mode==='not_video')return {...result,sources:[{...existing,metadata:{...existing.metadata,mediaType:'image/png'}}]};
+   if(mode==='ambiguous')return {...result,sources:[existing,existing]};
+  }
+  return result;
+ };
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,initialRecordingId:RECORD},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const prior=r.window.fetch;let modelRequests=0;
+ r.window.fetch=(async(url:string,init:RequestInit={})=>{if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);modelRequests++;return {ok:true,status:200,json:async()=>({ok:true,status:'insufficient',reason:'A fuller tool demonstration is needed.'})};}) as typeof r.window.fetch;
+ const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,30));});
+ try{
+  await flush();await r.click(r.getByText('Teach a tool or method'));await r.click(r.getByText('Suggest tool update'));await flush();
+  assert.equal(selections,1,'never select or register again to recover');
+  assert.equal(recordings,['reuse','mutated_after_bind'].includes(mode)?1:0);
+  assert.equal(modelRequests,mode==='reuse'?1:0,'all refused custody paths stop before a model call');
+  if(mode==='reuse')assert.match(r.text(),/fuller tool demonstration/);
+  else assert.match(r.text(),/duplicate source|scope mismatch|session|version|local unavailable|idempotency key conflict|source mutated/i);
+  assert.equal(h.calls.some(c=>['register','retryDraft','annotate','accept'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
 test('a saved picture mark becomes a linked draft from exact feedback, retains region lineage and opens review after link retry',async()=>{
  const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;let registrations=0,links=0,suggestionCount=0;
  const moment={momentId:QUESTION,startMs:5000,endMs:5000,region:{x:100000,y:200000,width:300000,height:200000},card:{whatToDo:'Make the location tell the story, with less repeated copy.',why:'Keep my earlier explanation.',insteadOf:'',howToCheck:'',whenNot:''},createdAt:'2026-11-01T12:00:00.000Z'};
