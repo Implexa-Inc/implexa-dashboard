@@ -1,5 +1,16 @@
 export const TEACHING_MODEL = 'claude-haiku-5-5';
 export const MAX_TEACHING_FRAME_BYTES = 2 * 1024 * 1024;
+export const TOOL_FRAME_RECIPE_DIGEST = 'c2401d78ec3079f9292f36050d473ce7a3b2e0c0b5b002bcb2c90c01c3acc34f';
+export type ToolFrame = {sourceId:string;timeMs:number;width:number;height:number;recipeDigest:string;receiptDigest:string};
+export function toolSuggestionFrame(image:string,frame:ToolFrame|undefined,sourceId:string,timeMs:number):Uint8Array {
+  const bytes=teachingFrame(image),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  const width=view.getUint32(16),height=view.getUint32(20);
+  if(!frame||!exact(frame,['sourceId','timeMs','width','height','recipeDigest','receiptDigest'])||frame.sourceId!==sourceId||frame.timeMs!==timeMs
+    ||frame.recipeDigest!==TOOL_FRAME_RECIPE_DIGEST||!/^[a-f0-9]{64}$/.test(frame.receiptDigest)
+    ||Array.from(bytes.slice(0,8)).join(',')!=='137,80,78,71,13,10,26,10'||String.fromCharCode(...bytes.slice(12,16))!=='IHDR'
+    ||!width||!height||width>1024||height>1024||width!==frame.width||height!==frame.height)throw Error('Desktop did not return the supported tool-analysis frame. Update Desktop and try again.');
+  return bytes;
+}
 export const TEACHING_FIELDS = ['chosen', 'why', 'process', 'desiredBehavior'] as const;
 export type TeachingFields = Record<typeof TEACHING_FIELDS[number], string>;
 type FrameBinding = { sourceId: string; sourceSha256: string; timeMs: number; frameSha256: string;
