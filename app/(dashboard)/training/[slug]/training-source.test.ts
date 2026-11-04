@@ -1927,6 +1927,48 @@ test('inline recording analysis waits for explicit consent, uses committed sourc
  }finally{r.cleanup();}
 });
 
+test('the inline tool entry uses separate consent, pins VEED and exposes the existing review outside hidden controls',async()=>{
+ const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
+ const summary={recordingId:RECORD,title:'My demonstration',origin:'recorded',state:'ready',failureReason:null,createdAt:'2026-11-01T12:00:00.000Z',durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:0};
+ const segments=[{index:0,startMs:0,endMs:5000,text:'Use VEED to remove the presenter background when the explanation needs it.'}];
+ let registrations=0,recognitions=0;
+ Object.assign(h.bridge,{reviewRecorderContractVersion:'2',trainingRecordingLibraryContractVersion:'1',
+  reviewRecorder:async(op:string)=>op==='get'?{ok:true,recording:{...summary,pointerTrack:null,moments:[]}}:op==='list'?{ok:true,recordings:[summary],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true},revokeArtifactPreview:async()=>({ok:true})});
+ h.bridge.trainingLocal=async(op,args)=>{
+  if(op==='selectRecording'){registrations++;return {ok:true,sourceId:SOURCE_ID,token:TOKEN};}
+  if(op==='recording'){recognitions++;return {ok:true,manifest:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A},segments,storyboard:[],manifestId:QUESTION,manifestDigest:DIGEST};}
+  return original(op,args);
+ };
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,initialRecordingId:RECORD},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const prior=r.window.fetch,requests:any[]=[];
+ r.window.fetch=(async(url:string,init:RequestInit={})=>{
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  const b=JSON.parse(String(init.body));requests.push(b);
+  if(b.mode==='recording-agent-locate')return {ok:true,status:200,json:async()=>({ok:true,status:'located',excerptId:QUESTION,excerptDigest:DIGEST,excerpt:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A,startIndex:0,endIndex:0,startMs:0,endMs:5000,text:segments[0].text,segments}})};
+  assert.equal(b.mode,'recording-agent-draft');
+  return {ok:true,status:200,json:async()=>({ok:true,contractVersion:'training-recording-agent-suggestion.v1',requestId:QUESTION,model:'claude-haiku-5-5',status:'suggested',capability:'presenter_background_removal',frameIndex:1,reason:'',limitations:['Transparent export must be verified.'],suggestionId:QUESTION,suggestionDigest:DIGEST,proposedChange:'Assess and remove the presenter background through VEED when useful.',application:'not_applied',methodSelection:'pending_existing_binder',binding:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A,excerptId:QUESTION,excerptDigest:DIGEST,frames:b.frames.map(({timeMs,frameSha256}:any)=>({timeMs,frameSha256}))}})};
+ }) as typeof r.window.fetch;
+ const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,30));});
+ try{
+  await flush();await r.click(r.getByText('Teach a tool or method'));
+  assert.equal(registrations,0);assert.equal(recognitions,0);assert.equal(requests.length,0);
+  const dialog=r.document.querySelector('[role="dialog"]')!;assert.match(dialog.textContent!,/Teach a tool from this recording/);
+  const select=dialog.querySelector('select')!;
+  await r.act(()=>{select.value='presenter_background_removal';select.dispatchEvent(new r.window.Event('change',{bubbles:true}));});
+  await r.click(r.getByText('Suggest tool update'));await flush();
+  assert.equal(registrations,1);assert.equal(recognitions,1);assert.equal(requests.length,2);
+  assert.ok(requests.every(b=>b.capability==='presenter_background_removal'&&b.sourceId===SOURCE_ID&&b.expectedActiveVersionId===VERSION_A));
+  const proposal=r.document.querySelector('[aria-label="Proposed tool update"]')!;assert.ok(proposal);
+  assert.equal(proposal.closest('[hidden]'),null,'the real recorder must show its proposal');
+  assert.match(proposal.textContent!,/VEED background removal at Build/);
+  assert.equal(r.document.querySelectorAll('[aria-label="Proposed tool update"]').length,1);
+  assert.equal(r.document.querySelector('[aria-label="Learning from your narration"]'),null,'a tool proposal is not a taste draft');
+  assert.equal((r.getByText('Request this agent update') as HTMLButtonElement).disabled,true);
+  assert.equal(h.calls.some(c=>['annotate','accept'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
 test('a saved picture mark becomes a linked draft from exact feedback, retains region lineage and opens review after link retry',async()=>{
  const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;let registrations=0,links=0,suggestionCount=0;
  const moment={momentId:QUESTION,startMs:5000,endMs:5000,region:{x:100000,y:200000,width:300000,height:200000},card:{whatToDo:'Make the location tell the story, with less repeated copy.',why:'Keep my earlier explanation.',insteadOf:'',howToCheck:'',whenNot:''},createdAt:'2026-11-01T12:00:00.000Z'};
