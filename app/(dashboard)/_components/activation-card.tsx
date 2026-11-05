@@ -808,6 +808,7 @@ export function ActivationCard({
   const serverComputerUseCheck = (checklist.verification?.checks ?? []).find((c) => c.key === 'computer_use');
   const activationBridge = useDesktopBridge();
   const [openingComputerSetup, setOpeningComputerSetup] = useState(false);
+  const [computerSetupError, setComputerSetupError] = useState<string | null>(null);
   // Never unlock activation from the server's historical runtime report. macOS
   // privacy grants can be revoked at any time; only this desktop app can check
   // the current Screen Recording + Accessibility state.
@@ -967,17 +968,19 @@ export function ActivationCard({
             <p className="text-sm text-ink-400 mt-1 leading-snug">{checklist.summary}</p>
           ) : null}
           {setupSurface && activationBridge?.openSetup && (
+            <div>
             <button
               type="button"
               disabled={openingComputerSetup}
               className="mt-2 text-sm text-ink-300 underline underline-offset-4 disabled:opacity-50"
               onClick={async () => {
                 setOpeningComputerSetup(true);
+                setComputerSetupError(null);
                 try {
                   const result = await activationBridge.openSetup!();
-                  if (!result.ok) setError('Could not open computer setup. Please try again.');
+                  if (!result.ok) setComputerSetupError('Could not open computer setup. Please try again.');
                 } catch {
-                  setError('Could not open computer setup. Please try again.');
+                  setComputerSetupError('Could not open computer setup. Please try again.');
                 } finally {
                   setOpeningComputerSetup(false);
                 }
@@ -985,6 +988,8 @@ export function ActivationCard({
             >
               {openingComputerSetup ? 'Opening…' : 'Computer & browser setup'}
             </button>
+            {computerSetupError && <p role="alert" className="mt-1 text-sm text-amber-500">{computerSetupError}</p>}
+            </div>
           )}
           {checklist.requiresLocal && (
             <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-ink-400">
