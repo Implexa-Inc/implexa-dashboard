@@ -807,6 +807,7 @@ export function ActivationCard({
   // status, so keep that immediate read locally for the activation decision.
   const serverComputerUseCheck = (checklist.verification?.checks ?? []).find((c) => c.key === 'computer_use');
   const activationBridge = useDesktopBridge();
+  const [openingComputerSetup, setOpeningComputerSetup] = useState(false);
   // Never unlock activation from the server's historical runtime report. macOS
   // privacy grants can be revoked at any time; only this desktop app can check
   // the current Screen Recording + Accessibility state.
@@ -965,6 +966,26 @@ export function ActivationCard({
           ) : checklist.summary ? (
             <p className="text-sm text-ink-400 mt-1 leading-snug">{checklist.summary}</p>
           ) : null}
+          {setupSurface && activationBridge?.openSetup && (
+            <button
+              type="button"
+              disabled={openingComputerSetup}
+              className="mt-2 text-sm text-ink-300 underline underline-offset-4 disabled:opacity-50"
+              onClick={async () => {
+                setOpeningComputerSetup(true);
+                try {
+                  const result = await activationBridge.openSetup!();
+                  if (!result.ok) setError('Could not open computer setup. Please try again.');
+                } catch {
+                  setError('Could not open computer setup. Please try again.');
+                } finally {
+                  setOpeningComputerSetup(false);
+                }
+              }}
+            >
+              {openingComputerSetup ? 'Opening…' : 'Computer & browser setup'}
+            </button>
+          )}
           {checklist.requiresLocal && (
             <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-ink-400">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-500 flex-none" aria-hidden />
