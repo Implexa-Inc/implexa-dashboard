@@ -106,3 +106,16 @@ test('headless/browser activation stays usable; CU always requires current Mac a
   const legacy = { requiresLocal: false, setupContext: null, steps: [{ id: 'computer-use' }] };
   assert.equal(gate(legacy, false).satisfied, false, 'old backend cannot unlock CU from its historical timestamp');
 });
+
+
+test('legacy CU missing installed context explains update rather than Mac permission repair', async () => {
+  let calls = 0;
+  const f = await fixture({ agentSetupReadiness: async () => { calls++; return ready; } });
+  try {
+    await f.render(null);
+    assert.equal(calls, 0);
+    assert.match(f.text(), /Install or update this Agent/);
+    assert.match(f.text(), /matching service update/);
+    assert.equal(f.evidence.includes(true), false);
+  } finally { await f.close(); }
+});

@@ -252,7 +252,7 @@ function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; o
       const ticket = ++sequence;
       onReady(false);
       setState(null);
-      let next: AgentMacAccess = { ok: false, reason: 'setup_unavailable' };
+      let next: AgentMacAccess = { ok: false, reason: target ? 'setup_unavailable' : 'setup_context_missing' };
       try { if (target && bridge?.agentSetupReadiness) next = await bridge.agentSetupReadiness(target); } catch { /* unavailable */ }
       if (!current || sequence !== ticket) return;
       setState(next);
@@ -268,7 +268,7 @@ function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; o
     <div>
       <p className="text-sm text-ink-200">{ready ? '✓ Mac access ready' : unavailable ? 'Mac access not verified' : state ? 'Mac access needs setup' : 'Checking Mac access…'}</p>
       {state?.ok && !ready && <p className="mt-1 text-xs text-ink-400">{state.routeResolved === false ? 'The browser route is checked before execution. Saved browser access can be reviewed here.' : 'Review only the missing permissions in Set Up.'}</p>}
-      {state?.ok === false && <p className="mt-1 text-xs text-ink-400">{state.reason === 'account_mismatch' ? 'Sign in to the same account in Desktop and this page.' : state.reason === 'agent_setup_changed' ? 'This Agent was updated. Refresh the page and reopen Set Up.' : 'Could not check this Mac. Reconnect Desktop and try again.'}</p>}
+      {state?.ok === false && <p className="mt-1 text-xs text-ink-400">{state.reason === 'setup_context_missing' ? 'Install or update this Agent, then refresh. If it is already installed, setup is waiting for the matching service update.' : state.reason === 'account_mismatch' ? 'Sign in to the same account in Desktop and this page.' : state.reason === 'agent_setup_changed' ? 'This Agent was updated. Refresh the page and reopen Set Up.' : 'Could not check this Mac. Reconnect Desktop and try again.'}</p>}
       {error && <p role="alert" className="mt-1 text-xs text-amber-500">{error}</p>}
     </div>
     <button type="button" data-computer-use-setup disabled={!target || !bridge?.openAgentSetup || opening}
