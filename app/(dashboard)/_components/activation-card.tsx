@@ -12,7 +12,7 @@
  * lands next; the Activate button reflects readiness today.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
@@ -25,7 +25,7 @@ import AgentFeedback from './agent-feedback';
 import AgentBrowserConnect from './agent-browser-connect';
 import { ImplexaJudgePolicy } from './implexa-judge-policy';
 import { useDesktopBridge, desktopBridge, KeysList, type KeyItem } from './api-key-row';
-import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier } from '@/lib/activation';
+import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier, AgentSetupTarget, AgentMacAccess } from '@/lib/activation';
 import type { WorkflowRunInputs } from '@/lib/workflow-catalog';
 
 // Defined here (not imported) because lib/activation.ts is server-only; a client
@@ -237,105 +237,49 @@ function ConnectionRow({ item, onChanged, workedAround, onToggleWorkAround, slug
   );
 }
 
-type ComputerUsePermissionState = {
-  supported: boolean;
-  screenRecording: string;
-  accessibility: string;
-  ready: boolean;
-};
-
-type ComputerUseManagedHealth = {
-  supported: boolean;
-  status: string;
-  failureCode: string | null;
-  features: { checkHealth: boolean; restartIfIdle: boolean; openPermissions: boolean; managedRuntime: boolean };
-};
-
-// Computer Use is an OS-level capability of the packaged Implexa app (it is the
-// app that launches Codex), while the workflow permission itself remains scoped
-// to this agent. Put the macOS explanation here, before the first run, so the
-// system dialog is expected rather than looking like an unrelated Implexa ask.
-function ComputerUseSetup({ onReady }: { onReady: (ready: boolean) => void }) {
+// One passive read of effective product consent + live/observed OS access.
+// Opening the local setup window is the only action; this web page cannot grant.
+function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; onReady: (ready: boolean) => void }) {
   const bridge = useDesktopBridge();
-  const [state, setState] = useState<ComputerUsePermissionState | null>(null);
-  const [managedHealth, setManagedHealth] = useState<ComputerUseManagedHealth | null>(null);
-  const [checking, setChecking] = useState(false);
-
-  const check = async () => {
-    if (!bridge?.computerUsePermissionsStatus) return;
-    setChecking(true);
-    try {
-      const next = await bridge.computerUsePermissionsStatus();
+  const [state, setState] = useState<AgentMacAccess | null>(null);
+  const [opening, setOpening] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const key = target ? JSON.stringify(target) : null;
+  useEffect(() => {
+    let current = true;
+    let sequence = 0;
+    const check = async () => {
+      const ticket = ++sequence;
+      onReady(false);
+      setState(null);
+      let next: AgentMacAccess = { ok: false, reason: 'setup_unavailable' };
+      try { if (target && bridge?.agentSetupReadiness) next = await bridge.agentSetupReadiness(target); } catch { /* unavailable */ }
+      if (!current || sequence !== ticket) return;
       setState(next);
-      onReady(!!next?.ready);
-      if (bridge.checkComputerUseHealth) {
-        const health = await bridge.checkComputerUseHealth({ targetApp: 'com.google.Chrome' });
-        setManagedHealth(health);
-      }
-    } finally { setChecking(false); }
-  };
-  useEffect(() => { void check(); }, [bridge]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const open = async (pane: 'screenRecording' | 'accessibility') => {
-    if (!bridge?.openComputerUsePermissions) return;
-    await bridge.openComputerUsePermissions(pane);
-  };
-  const granted = (v: string | undefined) => v === 'granted';
-  const nativeAvailable = !!bridge?.computerUsePermissionsStatus;
-
-  return (
-    <div className="mt-3 rounded-lg border border-amber-500/35 bg-amber-500/5 p-3">
-      <p className="text-sm font-medium text-ink-100">Required before this agent can operate HeyGen or Runway</p>
-      <p className="text-xs text-ink-400 mt-1 leading-snug">
-        This workflow uses Codex Computer Use to operate signed-in web apps. macOS may say “<strong className="font-semibold text-ink-200">Implexa</strong> wants to record this computer’s screen” because Implexa launches the local runner; it does not share your screen with Implexa&apos;s servers.
-      </p>
-      {nativeAvailable ? (
-        <div className="mt-3 space-y-2 text-xs">
-          <div className="flex items-center justify-between gap-3">
-            <span className={granted(state?.screenRecording) ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300'}>
-              {granted(state?.screenRecording) ? '✓' : '!' } Screen Recording
-            </span>
-            {!granted(state?.screenRecording) && <button type="button" onClick={() => open('screenRecording')} className="btn-outline text-xs px-2.5 py-1">Open settings</button>}
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className={granted(state?.accessibility) ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300'}>
-              {granted(state?.accessibility) ? '✓' : '!' } Accessibility
-            </span>
-            {!granted(state?.accessibility) && <button type="button" onClick={() => open('accessibility')} className="btn-outline text-xs px-2.5 py-1">Open settings</button>}
-          </div>
-          {state?.ready ? (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">✓ macOS permissions granted</p>
-          ) : (
-            <button type="button" onClick={check} disabled={checking} className="text-xs text-brand-500 hover:underline disabled:opacity-60">
-              {checking ? 'Checking…' : 'I granted both — check again'}
-            </button>
-          )}
-          {state?.ready && (
-            <div className="rounded-md border border-ink-700/50 bg-ink-900/30 p-2.5 space-y-1.5">
-              <p className="text-xs text-ink-300">
-                Computer control health is checked inside the Codex run before its first app action. This is not a desktop pre-dispatch health check.
-              </p>
-              {managedHealth?.features.restartIfIdle !== true && (
-                <p className="text-[11px] text-ink-500">
-                  Automatic recovery is unavailable because the current Computer Use runtime does not expose a safe managed restart.
-                </p>
-              )}
-              <button
-                type="button"
-                disabled
-                title="A safe managed restart is not supported by the current Computer Use runtime"
-                className="btn-outline text-xs px-2.5 py-1 opacity-50 cursor-not-allowed"
-              >
-                Restart computer control
-              </button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">Open this agent in the Implexa desktop app to grant and verify these Mac permissions.</p>
-      )}
+      onReady(next.ok === true && next.routeVerified === true && next.permissionsReady === true);
+    };
+    void check();
+    window.addEventListener('focus', check);
+    return () => { current = false; window.removeEventListener('focus', check); };
+  }, [key, bridge, onReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ready = state?.ok && state.routeVerified && state.permissionsReady;
+  const unavailable = state?.ok === false || state?.routeVerified === false;
+  return <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-ink-800 pb-3">
+    <div>
+      <p className="text-sm text-ink-200">{ready ? '✓ Mac access ready' : unavailable ? 'Mac access not verified' : state ? 'Mac access needs setup' : 'Checking Mac access…'}</p>
+      {state?.ok && !ready && <p className="mt-1 text-xs text-ink-400">{state.routeVerified === false ? 'The browser execution route still needs verification.' : 'Review only the missing permissions in Set Up.'}</p>}
+      {state?.ok === false && <p className="mt-1 text-xs text-ink-400">Reopen this Agent after checking the app connection and installed version.</p>}
+      {error && <p role="alert" className="mt-1 text-xs text-amber-500">{error}</p>}
     </div>
-  );
+    <button type="button" data-computer-use-setup disabled={!target || !bridge?.openAgentSetup || opening}
+      className="btn-outline text-xs px-3 py-1.5 disabled:opacity-50" onClick={async () => {
+        if (!target || !bridge?.openAgentSetup) return;
+        setOpening(true); setError(null);
+        try { const result = await bridge.openAgentSetup(target); if (!result.ok) setError('Could not open this Agent’s setup. Refresh and try again.'); }
+        catch { setError('Could not open this Agent’s setup. Try again.'); }
+        finally { setOpening(false); }
+      }}>{opening ? 'Opening…' : ready ? 'View access' : 'Set Up'}</button>
+  </div>;
 }
 
 function ConnectionsList({ items, onChanged, workedAround, onToggleWorkAround, slug }: {
@@ -608,7 +552,7 @@ export function SchedulePicker({ slug, onSaved, initial }: { slug: string; onSav
   );
 }
 
-function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, savingGroup, workedAround, onToggleWorkAround, permissionNote, computerUseReady, onComputerUseReady }: {
+function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, savingGroup, workedAround, onToggleWorkAround, permissionNote }: {
   step: ActivationStep;
   slug: string;
   optIns: Record<string, boolean>;
@@ -619,20 +563,12 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
   permissionNote?: string | null;
   workedAround: Set<string>;
   onToggleWorkAround: (key: string, on: boolean) => void;
-  computerUseReady: boolean;
-  onComputerUseReady: (ready: boolean) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
   const items = (step.data?.items ?? []) as PermissionItem[];
   const requiredItems = step.id === 'permissions' ? items.filter((it) => it.tier === 2 && !it.optional) : [];
   const permissionLocallyComplete = step.id === 'permissions' && requiredItems.length > 0 && requiredItems.every((it) => optIns[it.group]);
-  const computerUseLocallyComplete = step.id === 'computer-use' && computerUseReady;
-  // A server-side runtime timestamp is only historical telemetry. For Computer
-  // Use, render the current desktop TCC result exclusively — otherwise a revoked
-  // macOS grant would still look green while the Activate CTA is correctly held.
-  const effectiveStatus = step.id === 'computer-use'
-    ? (computerUseLocallyComplete ? 'done' : 'todo')
-    : (permissionLocallyComplete ? 'done' : step.status);
+  const effectiveStatus = permissionLocallyComplete ? 'done' : step.status;
   const isTodo = effectiveStatus === 'todo';
 
   // Resolve the CTA target/behavior per step.
@@ -652,8 +588,7 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
     // Always expandable (even when fully granted) so the user can see what's
     // automatic vs. explicitly granted to this agent, and revoke it.
     cta = <button type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : (step.cta || 'View')}</button>;
-  } else if (step.id === 'computer-use') {
-    cta = <button data-computer-use-setup type="button" onClick={() => setOpen((o) => !o)} className="btn-outline text-xs px-2.5 py-1">{open ? 'Hide' : (effectiveStatus === 'done' ? 'View' : 'Set up')}</button>;
+
   } else if (step.id === 'api-keys' && ((step.data?.items ?? []) as unknown as KeyItem[]).length > 0) {
     // Expandable whether todo (Add key) or done (View) — the paste/create flow is
     // inline, never a navigation. Soft gate: this never blocks Activate.
@@ -693,7 +628,6 @@ function StepRow({ step, slug, optIns, onToggleOptIn, onChanged, defaultOpen, sa
           )}
         </>
       )}
-      {step.id === 'computer-use' && open && <ComputerUseSetup onReady={onComputerUseReady} />}
       {step.id === 'connections' && open && needed.length > 0 && (
         <ConnectionsList items={needed} onChanged={onChanged} workedAround={workedAround} onToggleWorkAround={onToggleWorkAround} slug={slug} />
       )}
@@ -802,30 +736,14 @@ export function ActivationCard({
   const [error, setError] = useState<string | null>(null);
   const [localGrantNote, setLocalGrantNote] = useState<string | null>(null);
   const [savingGroup, setSavingGroup] = useState<string | null>(null);
-  // The server retains only a best-effort historical report. The packaged app is
-  // authoritative for its own current macOS Screen Recording/Accessibility TCC
-  // status, so keep that immediate read locally for the activation decision.
-  const serverComputerUseCheck = (checklist.verification?.checks ?? []).find((c) => c.key === 'computer_use');
-  const activationBridge = useDesktopBridge();
-  const [openingComputerSetup, setOpeningComputerSetup] = useState(false);
-  const [computerSetupError, setComputerSetupError] = useState<string | null>(null);
-  // Never unlock activation from the server's historical runtime report. macOS
-  // privacy grants can be revoked at any time; only this desktop app can check
-  // the current Screen Recording + Accessibility state.
-  const [computerUseReady, setComputerUseReady] = useState(() => !serverComputerUseCheck);
-  useEffect(() => {
-    if (!serverComputerUseCheck) return;
-    let cancelled = false;
-    const status = activationBridge?.computerUsePermissionsStatus;
-    if (!status) {
-      setComputerUseReady(false);
-      return;
-    }
-    void status()
-      .then((next) => { if (!cancelled) setComputerUseReady(!!next?.ready); })
-      .catch(() => { if (!cancelled) setComputerUseReady(false); });
-    return () => { cancelled = true; };
-  }, [serverComputerUseCheck, activationBridge]);
+  const [macAccessEvidence, setMacAccessEvidence] = useState<{ key: string; ready: boolean } | null>(null);
+  const setupTarget: AgentSetupTarget | null = checklist.setupContext ? {
+    slug: checklist.slug, accountId: checklist.setupContext.accountId,
+    versionId: checklist.setupContext.versionId, requiredRouteClass: checklist.setupContext.requiredRouteClass,
+  } : null;
+  const setupTargetKey = JSON.stringify(setupTarget);
+  const onMacAccessReady = useCallback((ready: boolean) => setMacAccessEvidence({ key: setupTargetKey, ready }), [setupTargetKey]);
+  const computerUseReady = macAccessEvidence?.key === setupTargetKey && macAccessEvidence.ready;
 
   // Persist the given opt-ins to the backend. The desktop enforces this exact
   // agent's policy at spawn time; never widen ~/.claude/settings.json globally.
@@ -865,8 +783,8 @@ export function ActivationCard({
   const requiredTier2 = tier2.filter((i) => !i.optional);
   const allSavedGranted = requiredTier2.every((i) => (i as PermissionItem & { granted?: boolean }).granted) || savedLocally;
   const allLocalGranted = requiredTier2.every((i) => optIns[i.group]); // saved + just-toggled
-  const computerUseRequired = !!checklist.steps.find((s) => s.id === 'computer-use');
-  const computerUseSatisfied = !computerUseRequired || computerUseReady;
+  const computerUseRequired = !!checklist.requiresLocal;
+  const computerUseSatisfied = !computerUseRequired || !!computerUseReady;
   const isActive = checklist.state === 'active' || activated;
   // Active, but a Tier-2 grant is still missing -> the wedged "Fix"/needs-you case.
   const needsGrant = isActive && !allSavedGranted;
@@ -910,7 +828,6 @@ export function ActivationCard({
   const capabilityReady = checklist.readyToRun !== false;
   const verifiedHandsFree = isActive && verification.verified && computerUseSatisfied && capabilityReady;
   const browserCheck = verification.checks.find((c) => c.key === 'browser' && c.status !== 'ok');
-  const computerUseCheck = verification.checks.find((c) => c.key === 'computer_use');
   // Override the green "Active" chip ONLY for a genuinely-active-but-unverified
   // agent — never mask 'needs_attention' or a not-yet-activated state.
   const badge = (checklist.state === 'active' && (!verification.verified || !computerUseSatisfied || !capabilityReady))
@@ -967,30 +884,6 @@ export function ActivationCard({
           ) : checklist.summary ? (
             <p className="text-sm text-ink-400 mt-1 leading-snug">{checklist.summary}</p>
           ) : null}
-          {setupSurface && activationBridge?.openSetup && (
-            <div>
-            <button
-              type="button"
-              disabled={openingComputerSetup}
-              className="mt-2 text-sm text-ink-300 underline underline-offset-4 disabled:opacity-50"
-              onClick={async () => {
-                setOpeningComputerSetup(true);
-                setComputerSetupError(null);
-                try {
-                  const result = await activationBridge.openSetup!();
-                  if (!result.ok) setComputerSetupError('Could not open computer setup. Please try again.');
-                } catch {
-                  setComputerSetupError('Could not open computer setup. Please try again.');
-                } finally {
-                  setOpeningComputerSetup(false);
-                }
-              }}
-            >
-              {openingComputerSetup ? 'Opening…' : 'Computer & browser setup'}
-            </button>
-            {computerSetupError && <p role="alert" className="mt-1 text-sm text-amber-500">{computerSetupError}</p>}
-            </div>
-          )}
           {checklist.requiresLocal && (
             <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-ink-400">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-500 flex-none" aria-hidden />
@@ -1014,8 +907,10 @@ export function ActivationCard({
         </p>
       )}
 
+      {checklist.requiresLocal && <AgentMacSetup target={setupTarget} onReady={onMacAccessReady} />}
+
       <ul className="divide-y divide-ink-800">
-        {checklist.steps.map((s) => (
+        {checklist.steps.filter((s) => s.id !== 'computer-use').map((s) => (
           <StepRow
             key={s.id}
             step={s}
@@ -1027,9 +922,7 @@ export function ActivationCard({
             permissionNote={localGrantNote}
             workedAround={workedAround}
             onToggleWorkAround={toggleWorkAround}
-            computerUseReady={computerUseReady}
-            onComputerUseReady={setComputerUseReady}
-            defaultOpen={(needsGrant && s.id === 'permissions') || (showStallNudge && s.id === 'permissions') || (s.id === 'connections' && s.status === 'todo') || (s.id === 'computer-use' && !computerUseSatisfied)}
+            defaultOpen={(needsGrant && s.id === 'permissions') || (showStallNudge && s.id === 'permissions') || (s.id === 'connections' && s.status === 'todo')}
           />
         ))}
       </ul>
@@ -1068,9 +961,9 @@ export function ActivationCard({
           <div className="flex flex-col gap-2">
             {verifiedHandsFree ? (
               <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Active — runs hands-free. Take it for its first run:</span>
-            ) : computerUseCheck && !computerUseSatisfied ? (
+            ) : !computerUseSatisfied ? (
               <div className="rounded-md bg-amber-500/10 border border-amber-500/25 px-3 py-2.5">
-                <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">Active — Computer Use still needs permission</p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">Active — Mac access needs setup</p>
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5 leading-snug">Open Permissions &amp; access above and grant Screen Recording plus Accessibility to Implexa before this agent reaches its web-app step.</p>
               </div>
             ) : browserCheck ? (
@@ -1204,7 +1097,7 @@ export function ActivationCard({
               }}
               className="btn-outline border-amber-500/50 text-amber-700 dark:text-amber-300"
             >
-              Set up required Computer Use
+              Set up required Mac access
             </button>
             <span className="text-xs text-amber-700 dark:text-amber-300 max-w-md leading-snug">This agent cannot deliver its final output without Screen Recording and Accessibility on this Mac. macOS will identify the requester as Implexa because it launches the local Codex runner.</span>
           </div>

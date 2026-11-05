@@ -15,8 +15,12 @@
  */
 
 import { useEffect, useState } from 'react';
+import type { AgentSetupTarget, AgentMacAccess } from '@/lib/activation';
 
 export type DesktopBridge = {
+  agentSetupReadiness?: (target: AgentSetupTarget) => Promise<AgentMacAccess>;
+  openAgentSetup?: (target: AgentSetupTarget) => Promise<{ ok: boolean; reason?: string }>;
+
   openSetup?: () => Promise<{ ok: boolean; reason?: string }>;
   computerUsePermissionsStatus?: () => Promise<{
     supported: boolean;
