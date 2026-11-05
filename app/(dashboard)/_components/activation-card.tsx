@@ -256,19 +256,19 @@ function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; o
       try { if (target && bridge?.agentSetupReadiness) next = await bridge.agentSetupReadiness(target); } catch { /* unavailable */ }
       if (!current || sequence !== ticket) return;
       setState(next);
-      onReady(next.ok === true && next.routeVerified === true && next.permissionsReady === true);
+      onReady(next.ok === true && next.routeResolved === true && next.permissionsReady === true);
     };
     void check();
     window.addEventListener('focus', check);
     return () => { current = false; window.removeEventListener('focus', check); };
   }, [key, bridge, onReady]); // eslint-disable-line react-hooks/exhaustive-deps
-  const ready = state?.ok && state.routeVerified && state.permissionsReady;
-  const unavailable = state?.ok === false || state?.routeVerified === false;
+  const ready = state?.ok && state.routeResolved && state.permissionsReady;
+  const unavailable = state?.ok === false || state?.routeResolved === false;
   return <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-ink-800 pb-3">
     <div>
       <p className="text-sm text-ink-200">{ready ? '✓ Mac access ready' : unavailable ? 'Mac access not verified' : state ? 'Mac access needs setup' : 'Checking Mac access…'}</p>
-      {state?.ok && !ready && <p className="mt-1 text-xs text-ink-400">{state.routeVerified === false ? 'The browser execution route still needs verification.' : 'Review only the missing permissions in Set Up.'}</p>}
-      {state?.ok === false && <p className="mt-1 text-xs text-ink-400">Reopen this Agent after checking the app connection and installed version.</p>}
+      {state?.ok && !ready && <p className="mt-1 text-xs text-ink-400">{state.routeResolved === false ? 'The browser route is checked before execution. Saved browser access can be reviewed here.' : 'Review only the missing permissions in Set Up.'}</p>}
+      {state?.ok === false && <p className="mt-1 text-xs text-ink-400">{state.reason === 'account_mismatch' ? 'Sign in to the same account in Desktop and this page.' : state.reason === 'agent_setup_changed' ? 'This Agent was updated. Refresh the page and reopen Set Up.' : 'Could not check this Mac. Reconnect Desktop and try again.'}</p>}
       {error && <p role="alert" className="mt-1 text-xs text-amber-500">{error}</p>}
     </div>
     <button type="button" data-computer-use-setup disabled={!target || !bridge?.openAgentSetup || opening}
@@ -783,7 +783,9 @@ export function ActivationCard({
   const requiredTier2 = tier2.filter((i) => !i.optional);
   const allSavedGranted = requiredTier2.every((i) => (i as PermissionItem & { granted?: boolean }).granted) || savedLocally;
   const allLocalGranted = requiredTier2.every((i) => optIns[i.group]); // saved + just-toggled
-  const computerUseRequired = !!checklist.requiresLocal;
+  const computerUseRequired = checklist.setupContext?.requiredRouteClass === 'computer_use'
+    || (!checklist.setupContext && checklist.steps.some((step) => step.id === 'computer-use'));
+  const showMacSetup = computerUseRequired || checklist.setupContext?.requiredRouteClass === 'browser';
   const computerUseSatisfied = !computerUseRequired || !!computerUseReady;
   const isActive = checklist.state === 'active' || activated;
   // Active, but a Tier-2 grant is still missing -> the wedged "Fix"/needs-you case.
@@ -907,7 +909,7 @@ export function ActivationCard({
         </p>
       )}
 
-      {checklist.requiresLocal && <AgentMacSetup target={setupTarget} onReady={onMacAccessReady} />}
+      {showMacSetup && <AgentMacSetup target={setupTarget} onReady={onMacAccessReady} />}
 
       <ul className="divide-y divide-ink-800">
         {checklist.steps.filter((s) => s.id !== 'computer-use').map((s) => (

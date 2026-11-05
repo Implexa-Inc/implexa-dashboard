@@ -11,8 +11,8 @@ const CARD = fs.readFileSync(path.join(__dirname, 'activation-card.tsx'), 'utf8'
 const component = CARD.slice(CARD.indexOf('function AgentMacSetup('), CARD.indexOf('\nfunction ConnectionsList'));
 const compiled = transformSync("const { useEffect, useState } = require('react');\n" + component + '\nmodule.exports = AgentMacSetup;', { loader: 'tsx', jsx: 'automatic', format: 'cjs' }).code;
 const target = { accountId: '11111111-1111-4111-8111-111111111111', slug: 'video', versionId: 'v1', requiredRouteClass: 'computer_use' };
-const ready = { ok: true, routeVerified: true, permissionsReady: true };
-const blocked = { ok: true, routeVerified: true, permissionsReady: false };
+const ready = { ok: true, routeResolved: true, permissionsReady: true };
+const blocked = { ok: true, routeResolved: true, permissionsReady: false };
 
 async function fixture(bridge) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'https://example.invalid' });
@@ -55,7 +55,7 @@ test('returning to the Agent rechecks access without another consent action', as
 });
 
 test('missing bridge and unresolved browser transport never claim ready', async () => {
-  for (const bridge of [{}, { agentSetupReadiness: async () => ({ ...ready, routeVerified: false }) }, { agentSetupReadiness: async () => { throw Error('offline'); } }]) {
+  for (const bridge of [{}, { agentSetupReadiness: async () => ({ ...ready, routeResolved: false }) }, { agentSetupReadiness: async () => { throw Error('offline'); } }]) {
     const f = await fixture(bridge);
     try { await f.render(); assert.match(f.text(), /Mac access not verified/); assert.equal(f.evidence.includes(true), false); }
     finally { await f.close(); }
@@ -81,4 +81,28 @@ test('setup replaces OS-only readiness without exposing decision authority or un
   assert.match(CARD, /const \[macAccessEvidence, setMacAccessEvidence\].*null/);
   assert.doesNotMatch(component, /decideCapability|capabilityDisclosure|computerUsePermissionsStatus|checkComputerUseHealth|restartComputerUse/);
   assert.doesNotMatch(CARD, /function ComputerUseSetup|Restart computer control/);
+});
+
+
+test('Mac activation gate follows required CU scope, not broad requiresLocal', () => {
+  assert.match(CARD, /const computerUseRequired = checklist\.setupContext\?\.requiredRouteClass === 'computer_use'/);
+  assert.match(CARD, /!checklist\.setupContext && checklist\.steps\.some\(\(step\) => step\.id === 'computer-use'\)/);
+  assert.doesNotMatch(CARD, /const computerUseRequired = !!checklist\.requiresLocal/);
+  assert.match(CARD, /const computerUseSatisfied = !computerUseRequired \|\| !!computerUseReady/);
+});
+
+test('headless/browser activation stays usable; CU always requires current Mac access', () => {
+  const body = CARD.slice(CARD.indexOf('  const computerUseRequired ='), CARD.indexOf('  const isActive ='));
+  const gate = new Function('checklist', 'computerUseReady', body + '\nreturn { required: computerUseRequired, satisfied: computerUseSatisfied, shown: showMacSetup };');
+  for (const requiredRouteClass of ['headless', 'browser']) {
+    const result = gate({ requiresLocal: true, setupContext: { requiredRouteClass }, steps: [] }, false);
+    assert.equal(result.required, false);
+    assert.equal(result.satisfied, true);
+    assert.equal(result.shown, requiredRouteClass === 'browser');
+  }
+  const cu = { requiresLocal: false, setupContext: { requiredRouteClass: 'computer_use' }, steps: [] };
+  assert.deepEqual(gate(cu, false), { required: true, satisfied: false, shown: true });
+  assert.equal(gate(cu, true).satisfied, true);
+  const legacy = { requiresLocal: false, setupContext: null, steps: [{ id: 'computer-use' }] };
+  assert.equal(gate(legacy, false).satisfied, false, 'old backend cannot unlock CU from its historical timestamp');
 });

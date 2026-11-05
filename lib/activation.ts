@@ -124,7 +124,7 @@ export type AgentSetupTarget = Pick<AgentSetupContext, 'accountId' | 'versionId'
 export type AgentMacAccess = {
   ok: boolean;
   permissionsReady?: boolean;
-  routeVerified?: boolean;
+  routeResolved?: boolean;
   reason?: string | null;
   capabilities?: Array<{ capability: string; ready: boolean; status: string }>;
 };
