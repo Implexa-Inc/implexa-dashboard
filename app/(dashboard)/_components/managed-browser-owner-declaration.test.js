@@ -41,7 +41,14 @@ async function ui(options = {}) {
   return { reads, writes, dom, click, text: () => document.body.textContent,
     confirm: async () => { await React.act(async () => document.querySelector('input[type=checkbox]').click()); },
     expiry: async () => { await React.act(async () => { const input = document.querySelector('input[type=datetime-local]'); input.value = new Date(Date.now() + 3600000).toISOString().slice(0, 16); Simulate.change(input); }); },
-    submit: async () => { await React.act(async () => document.querySelector('form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))); },
+    submit: async () => {
+      await React.act(async () => document.querySelector('form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })));
+      // WebCrypto completes outside React's immediate act flush. Observe the
+      // operation's terminal UI instead of racing its digest on a busy runner.
+      for (let n = 0; n < 100 && document.querySelector('button[type=submit]')?.disabled
+        && document.querySelector('button[type=submit]')?.textContent === 'Confirming…'; n++)
+        await React.act(() => new Promise(resolve => setTimeout(resolve, 5)));
+    },
     switchOwner: async () => { await React.act(async () => { currentOwner = 'other-owner'; authChanged('SIGNED_IN'); }); },
     close: async () => { await React.act(async () => root.unmount()); dom.window.close(); },
   };
