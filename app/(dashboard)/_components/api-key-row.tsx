@@ -17,6 +17,7 @@
 import { useEffect, useState } from 'react';
 
 export type DesktopBridge = {
+  openSetup?: () => Promise<{ ok: boolean; reason?: string }>;
   computerUsePermissionsStatus?: () => Promise<{
     supported: boolean;
     screenRecording: string;
