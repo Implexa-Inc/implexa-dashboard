@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
 import Modal from './modal';
+import TypedLearningsPanel from './typed-learnings-panel';
 
 type Scope = {
   kind: 'private_agent'; agentSlug: string; agentFamilyId: string;
@@ -289,6 +290,8 @@ export default function AgentLearningsCard({ slug, initialPayload = null, initia
           </p>
         )}
       </div>
+
+      <TypedLearningsPanel slug={slug} />
 
       <Modal open={proposalOpen} onClose={closeProposal} title="Propose a learning suggestion"
         subtitle="Use a completed Review revision. This records inert evidence only; approval is a separate human decision.">
