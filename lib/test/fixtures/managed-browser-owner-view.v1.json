@@ -1,0 +1,127 @@
+{
+  "contractVersion": "managed-browser-owner-view-fixtures.v1",
+  "source": {
+    "desktopCommit": "5bbfcc5da009630f23d43cc87292b9529b736f5a",
+    "backendCommit": "9773b57bed6c40d7d2608f1d0195bb0c62bd3b19",
+    "function": "src/execution/managed-browser-contract.js:noSpendOwnerView",
+    "scope": "Actual pure Desktop constructor on unchanged synthetic PG/HTTP producer objects, explicit test clocks. No native/model launch, real account evidence, consent or qualification."
+  },
+  "samples": [
+    {
+      "name": "absent",
+      "inputFile": "managed-browser-no-spend-absent-pg.json",
+      "inputBytesDigest": "ce76ce67bb054af846f6b516edfedd3375c81978bf51e3dbf4dc60ed6cc13bad",
+      "contextDigest": "f3c67e0fb0e002240006b261a9686465f162adb2b7f07204e336b53c7786949d",
+      "testClock": "2026-11-06T19:22:20.680Z",
+      "output": {
+        "contractVersion": "managed-browser-no-spend-owner-view.v1",
+        "state": "absent",
+        "grantId": "55200000-0000-4000-8000-000000000007",
+        "workflowVersionId": "55200000-0000-4000-8000-000000000003",
+        "machineId": "55200000-0000-4000-8000-000000000030",
+        "expectedDeclarationDigest": null,
+        "profileId": "55200000-0000-4000-8000-000000000008",
+        "bindingId": "b4b1511b-217e-40a9-a1c9-f50149c89015",
+        "origins": [
+          "https://veed.io"
+        ],
+        "declaration": null
+      },
+      "outputDigest": "13306357114f5d68c75220a6c39783a37b023fde6e8808dfb1ec66fd4a7b721b"
+    },
+    {
+      "name": "declared",
+      "inputFile": "managed-browser-no-spend-declared-pg.json",
+      "inputBytesDigest": "b93403b8c558a1b3d7583b6358fb235ad0ba3b906a6a3d9302ac584c0729231b",
+      "contextDigest": "0fc99829092b7aabee6a392aab3a504c83fea441cd662376b6f803475d5e8623",
+      "testClock": "2026-11-06T19:22:20.680Z",
+      "output": {
+        "contractVersion": "managed-browser-no-spend-owner-view.v1",
+        "state": "declared_unverified",
+        "grantId": "55200000-0000-4000-8000-000000000007",
+        "workflowVersionId": "55200000-0000-4000-8000-000000000003",
+        "machineId": "55200000-0000-4000-8000-000000000030",
+        "expectedDeclarationDigest": "b9afe80813689aaa97abcfa16644d70834b65ce2a16a8c614b96396a6c589f94",
+        "profileId": "55200000-0000-4000-8000-000000000008",
+        "bindingId": "a938be23-ac71-404a-ae20-c4e3cda4d58e",
+        "origins": [
+          "https://veed.io"
+        ],
+        "declaration": {
+          "statement": "no_payment_method_free_plan",
+          "status": "owner_declared_unverified",
+          "declaredAt": "2026-11-06T19:22:20.679Z",
+          "expiresAt": "2026-11-06T20:22:20.673Z",
+          "origins": [
+            "https://veed.io"
+          ],
+          "evidenceRef": "synthetic unverified owner statement; not provider balance evidence"
+        }
+      },
+      "outputDigest": "7907c9f8bc632b23cafdc6cc82b6dd2e2d03ab117320b662eef50807a2e55551"
+    },
+    {
+      "name": "expired",
+      "inputFile": "managed-browser-no-spend-declared-pg.json",
+      "inputBytesDigest": "b93403b8c558a1b3d7583b6358fb235ad0ba3b906a6a3d9302ac584c0729231b",
+      "contextDigest": "0fc99829092b7aabee6a392aab3a504c83fea441cd662376b6f803475d5e8623",
+      "testClock": "2026-11-06T20:22:20.673Z",
+      "output": {
+        "contractVersion": "managed-browser-no-spend-owner-view.v1",
+        "state": "expired",
+        "grantId": "55200000-0000-4000-8000-000000000007",
+        "workflowVersionId": "55200000-0000-4000-8000-000000000003",
+        "machineId": "55200000-0000-4000-8000-000000000030",
+        "expectedDeclarationDigest": "b9afe80813689aaa97abcfa16644d70834b65ce2a16a8c614b96396a6c589f94",
+        "profileId": "55200000-0000-4000-8000-000000000008",
+        "bindingId": "a938be23-ac71-404a-ae20-c4e3cda4d58e",
+        "origins": [
+          "https://veed.io"
+        ],
+        "declaration": {
+          "statement": "no_payment_method_free_plan",
+          "status": "owner_declared_unverified",
+          "declaredAt": "2026-11-06T19:22:20.679Z",
+          "expiresAt": "2026-11-06T20:22:20.673Z",
+          "origins": [
+            "https://veed.io"
+          ],
+          "evidenceRef": "synthetic unverified owner statement; not provider balance evidence"
+        }
+      },
+      "outputDigest": "be74c452cc77a5a2cff489195b5c421a0ca55fabf54b2f2d1f758de91797332e"
+    },
+    {
+      "name": "revoke",
+      "inputFile": "managed-browser-no-spend-revoke-pg.json",
+      "inputBytesDigest": "10501dfee2728af820f7407edd2eac9abbdd5b203144d87d76e6f5785f87bf1e",
+      "contextDigest": "aecff2fa82f526f277f46a783353a4973a350daf94a6cb2d2589d627a7789daa",
+      "testClock": "2026-11-06T19:36:50.428Z",
+      "output": {
+        "contractVersion": "managed-browser-no-spend-owner-view.v1",
+        "state": "declared_unverified",
+        "grantId": "55200000-0000-4000-8000-000000000007",
+        "workflowVersionId": "55200000-0000-4000-8000-000000000003",
+        "machineId": "55200000-0000-4000-8000-000000000030",
+        "expectedDeclarationDigest": "efa839dca369f348857e82648ec048d103da4901a050d3d1657f600d007c85b5",
+        "profileId": "55200000-0000-4000-8000-000000000008",
+        "bindingId": "9ec3da84-9454-45ca-bbb2-2d12489e1e4a",
+        "origins": [
+          "https://veed.io"
+        ],
+        "purpose": "owner_revoke",
+        "declaration": {
+          "statement": "no_payment_method_free_plan",
+          "status": "owner_declared_unverified",
+          "declaredAt": "2026-11-06T19:36:50.427Z",
+          "expiresAt": "2026-11-06T20:36:50.422Z",
+          "origins": [
+            "https://veed.io"
+          ],
+          "evidenceRef": "synthetic unverified owner statement; not provider balance evidence"
+        }
+      },
+      "outputDigest": "f36cf36d4048055506bd52c89a249249a97cd7c5b31cab272e1c69ad76c3999f"
+    }
+  ]
+}
