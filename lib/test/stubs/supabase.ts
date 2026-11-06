@@ -1,3 +1,4 @@
 export const createClient = () => ({
-  auth: { getSession: async () => ({ data: { session: { access_token: 'test-jwt' } } }) },
+  auth: (globalThis as unknown as { __implexaAuth?: unknown }).__implexaAuth
+    ?? { getSession: async () => ({ data: { session: { access_token: 'test-jwt' } } }) },
 });

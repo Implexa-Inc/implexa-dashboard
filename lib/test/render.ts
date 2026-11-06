@@ -97,6 +97,8 @@ export async function render(component: string, props: Record<string, unknown>, 
   bridge?: Record<string, unknown> | null;
   backend?: (path: string, init: unknown) => unknown;
   fetch?: typeof globalThis.fetch;
+  /** Explicit synthetic auth for owner-sensitive flows; never real credentials. */
+  auth?: Record<string, unknown>;
 } = {}): Promise<Rendered> {
   // React's browser scheduler creates long-lived MessagePorts. jsdom.close()
   // does not own ports created by code evaluated in its window, so remember the
@@ -149,6 +151,7 @@ export async function render(component: string, props: Record<string, unknown>, 
   (window as unknown as Record<string, unknown>).__implexaCalls = calls;
   if (options.backend) (window as unknown as Record<string, unknown>).__implexaBackend = options.backend;
   if (options.bridge) (window as unknown as Record<string, unknown>).implexaDesktop = options.bridge;
+  if (options.auth) (window as unknown as Record<string, unknown>).__implexaAuth = options.auth;
   (window as unknown as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
   // React's scheduler posts its flush through a MessageChannel, which jsdom does
   // not implement. Node's is a faithful one — but its ports are REF'D, and React

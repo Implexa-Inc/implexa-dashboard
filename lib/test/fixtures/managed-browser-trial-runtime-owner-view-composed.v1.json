@@ -1,0 +1,68 @@
+{
+  "fixtureVersion": "managed-browser-trial-runtime-owner-view-fixture.v1",
+  "provenance": {
+    "sourceDesktop": "edcfe80f707a87385cdcd86d0772c7d7bbd56d65",
+    "mainSourceSha256": "f5c0ee10b97767fbf508ba42f0f280134b25450fb078d7caf1a20f33435e6d3c",
+    "contextFixtureSha256": "6b4895a27d088bac261b4d3aa0c09172940609d712bd832755974deeefdea6d0",
+    "backendSource": "b41eb0c5299cbde8bf252a5178e295308549dbb1",
+    "backendProducerFixture": "managed-browser-owner-trial-producers.v1.json",
+    "boundary": "Actual Main IPC handler with synthetic native account/browser and worker observation. Not native runtime or qualification proof."
+  },
+  "target": {
+    "accountId": "55200000-0000-4000-8000-000000000001",
+    "slug": "synthetic-video-agent",
+    "versionId": "55200000-0000-4000-8000-000000000003"
+  },
+  "workerObservation": {
+    "ok": true,
+    "contractVersion": "managed-browser-action-runtime-observation.v1",
+    "descriptor": {
+      "contractVersion": "managed-browser-action-runtime.v1",
+      "machineId": "55200000-0000-4000-8000-000000000030",
+      "app": {
+        "version": "0.4.163",
+        "archiveSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "codex": {
+        "version": "0.166.0-alpha.6",
+        "executableIdentityDigest": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "playwright": {
+        "version": "1.65.0-alpha-2026-10-30",
+        "integrityDigest": "3333333333333333333333333333333333333333333333333333333333333333"
+      },
+      "driver": {
+        "version": "1.65.0-alpha-2026-10-30",
+        "sourceDigest": "4444444444444444444444444444444444444444444444444444444444444444"
+      },
+      "browser": {
+        "version": "Chromium synthetic-owner-view",
+        "executableIdentityDigest": "5555555555555555555555555555555555555555555555555555555555555555"
+      }
+    },
+    "runtimeIdentityDigest": "89e73ad4512fbf7df742e7581e7ca1dad726717a77bf9ee2f906e514fadb3727",
+    "versions": {
+      "app": "0.4.163",
+      "codex": "0.166.0-alpha.6",
+      "playwright": "1.65.0-alpha-2026-10-30",
+      "browser": "Chromium synthetic-owner-view"
+    }
+  },
+  "workerObservationDigest": "d57ab82456ed90219e6ebf38154ad529f20be462ea6538259f49ebddc88eb33b",
+  "output": {
+    "ok": true,
+    "contractVersion": "managed-browser-trial-runtime-view.v1",
+    "machineId": "55200000-0000-4000-8000-000000000030",
+    "profileId": "55200000-0000-4000-8000-000000000008",
+    "bindingId": "2cd4a86b-eca7-4cc4-aa4a-e98d53bc2f9d",
+    "workflowVersionId": "55200000-0000-4000-8000-000000000003",
+    "runtimeIdentityDigest": "89e73ad4512fbf7df742e7581e7ca1dad726717a77bf9ee2f906e514fadb3727",
+    "versions": {
+      "app": "0.4.163",
+      "codex": "0.166.0-alpha.6",
+      "playwright": "1.65.0-alpha-2026-10-30",
+      "browser": "Chromium synthetic-owner-view"
+    }
+  },
+  "outputDigest": "eae64235a6544fa03d13ab6ca2cf880f72b2c2d2e759aef848e38d8e039715ed"
+}

@@ -26,6 +26,7 @@ import { subscribeLiveFeed, notifyRunActivity } from '@/lib/live-feed-poll';
 import { callBackend, BackendError } from '@/lib/api';
 import { projectBundleRefusal, type ProjectBundleRefusal } from '@/lib/project-bundle-refusal';
 import { confirmedRunRequestId } from '@/lib/run-request-receipt';
+import { prepareOwnerTrial, submitOwnerTrial, type PreparedOwnerTrial } from '@/lib/managed-browser-owner-trial';
 import Modal from './modal';
 import SetupChoiceField from './setup-choice-field';
 import { firstRunPermsSeen, markFirstRunPermsSeen } from './first-run-permissions-note';
@@ -170,6 +171,14 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [bundleRechecking, setBundleRechecking] = useState(false);
   const bundleRecheckRef = useRef(false);
   const [runInstalledVersionConfirmed, setRunInstalledVersionConfirmed] = useState(false);
+  const [betaTrial, setBetaTrial] = useState(false);
+  const [betaTrialExpiry, setBetaTrialExpiry] = useState('');
+  const [trialReview, setTrialReview] = useState<PreparedOwnerTrial | null>(null);
+  const [trialReviewConfirmed, setTrialReviewConfirmed] = useState(false);
+  const trialReply = useRef<((approved: boolean) => void) | null>(null);
+  const trialEpoch = useRef(0);
+  const trialTargetKey = JSON.stringify([slug, workflowVersionId, inputContractDigest]);
+  const trialTarget = useRef(trialTargetKey); trialTarget.current = trialTargetKey;
   // One-time permissions heads-up inside the run-triggered modal, shown on the
   // user's first queued run (shared SEEN flag with the Home note so it never
   // double-shows across surfaces).
@@ -311,6 +320,13 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   },[runRequest?.nonce]);
   const supabase = createClient();
   const router = useRouter();
+  useEffect(() => {
+    const changed = () => { trialEpoch.current++; trialReply.current?.(false); trialReply.current = null; setTrialReview(null); };
+    const subscription = supabase.auth.onAuthStateChange?.((event) => {
+      if (['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event)) changed();
+    }).data.subscription;
+    return () => { trialEpoch.current++; trialReply.current?.(false); trialReply.current = null; subscription?.unsubscribe(); };
+  }, [supabase.auth, trialTargetKey]);
 
   // Preserve semantic identity across remount/back navigation. Only opaque ids,
   // digests, and display names are stored; local paths remain Desktop-local.
@@ -361,7 +377,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // field. Cardinality-many keeps the existing append/register path until
       // the durable manifest models ordered arrays end to end; never silently
       // replace prior files or submit a scalar the backend must reject.
-      if (selection === 'file' && field.key !== 'project_bundle' && field.cardinality === 'one' && bridge.pickDeferredRunInput) {
+      if (!betaTrial && selection === 'file' && field.key !== 'project_bundle' && field.cardinality === 'one' && bridge.pickDeferredRunInput) {
         const raw: ({ ok: boolean; canceled?: boolean; error?: string } & Partial<DeferredRunInputSelection>) = await bridge.pickDeferredRunInput({ inputKey: field.key, inputSessionId: sessionId,
           ...(field.accept ? { accept: field.accept } : {}) })
           .catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
@@ -599,6 +615,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const blankRequired = setupFields.filter((f) => !isOptionalField(f) && (setupValues[f.key] ?? '').toString().trim() === '');
 
   async function openPreRun(mode: 'queue' | 'watch', skipOptionalCarry = false,requestedTest:PreparedTrainingTest|null=trainingTest) {
+    setBetaTrial(false); setBetaTrialExpiry('');
     if(requestedTest&&mode==='watch'){setMsg('This prepared Training test must use Run now so its snapshot and result are recorded.');return;}
     if (runActionBusy || (mode === 'watch' && observingOpenRun) || trainingCheckingRef.current) return;
     // Preserve which Run path the user chose even when readiness is temporarily
@@ -758,6 +775,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     if ((pendingUpdate && !runInstalledVersionConfirmed)
         || blankRequired.length || missingRequiredForRun().length
         || revisionIssue
+        || betaTrial && (Object.keys(deferredSelections).length > 0 || !betaTrialExpiry || preRunMode !== 'queue')
         || Object.keys(preparingInputRef.current).length) return;
     setSetupSaving(true);
     setMsg('');
@@ -958,11 +976,26 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         ...(executionMachineId ? { executionMachineId } : {}),
       };
       let res;
+      let preparedTrial: PreparedOwnerTrial | null = null;
+      let trialContext: Parameters<typeof prepareOwnerTrial>[0] | null = null;
+      if (betaTrial) {
+        if (!session?.user.id || !workflowVersionId || trainingTest) throw Error('Sign in and review this exact Agent version.');
+        const epoch = trialEpoch.current, key = trialTargetKey;
+        trialContext = { target: { accountId: session.user.id, slug, versionId: workflowVersionId }, bridge: desktopBridge() || {},
+          getSession: async () => (await supabase.auth.getSession()).data.session, callBackend,
+          current: () => trialEpoch.current === epoch && trialTarget.current === key && queueInFlightRef.current };
+        preparedTrial = await prepareOwnerTrial(trialContext, requestBody, new Date(betaTrialExpiry).toISOString());
+        setTrialReviewConfirmed(false); setTrialReview(preparedTrial);
+        const approved = await new Promise<boolean>(resolve => { trialReply.current = resolve; });
+        trialReply.current = null; setTrialReview(null);
+        if (!approved || !trialContext.current()) { setState('idle'); return; }
+      }
       try {
-        res = await callBackend('/api/v2/me/run-requests', {
+        res = preparedTrial && trialContext ? await submitOwnerTrial(trialContext, preparedTrial) : await callBackend('/api/v2/me/run-requests', {
           jwt: session?.access_token, method: 'POST', body: requestBody,
         });
       } catch (firstError) {
+        if (preparedTrial) throw firstError; // No birth replay or replacement after a trial POST.
         if (projectBundleRefusal(firstError)) throw firstError;
         const transient = parseSetupRequired(firstError);
         // A typed no-birth refusal may use the same ONE freshness repair, if it
@@ -1302,6 +1335,19 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       </button>
       <button className="mr-2 rounded-lg border border-slate-600 px-3 py-2 text-sm disabled:opacity-50" type="button" disabled={bundleRechecking} onClick={() => { setBundleRefusal(null); setShowSetupModal(true); }}>Choose updated export</button>
     </Modal>
+    <Modal open={!!trialReview} title="Confirm one beta browser trial" onClose={() => { trialReply.current?.(false); }}>
+      {trialReview && <div className="space-y-3">
+        <p className="text-sm text-ink-200">This browser path is unqualified. Use Codex for this run only; the Agent’s saved engine preference stays unchanged. No media purchases.</p>
+        <p className="text-sm text-ink-300">{name || slug} · v{activeVersionNumber ?? trialReview.target.versionId} · {trialReview.origins.join(', ')}</p>
+        <p className="text-xs text-ink-400">App {trialReview.runtime.versions.app} · Codex {trialReview.runtime.versions.codex} · {trialReview.runtime.versions.browser}</p>
+        <p className="text-xs text-ink-400">Expires {new Date(trialReview.decision.expiresAt).toLocaleString()}. One attempt, with corrections inside that run allowed. A preparation failure after claim uses the attempt; it will not retry automatically.</p>
+        <p className="text-xs text-ink-400">Revoking browser permission blocks new browser actions; other work may continue. Use Cancel run to stop execution.</p>
+        <details className="text-xs text-ink-400"><summary>Exact test identity</summary><p className="break-all">Request {trialReview.decision.requestId}<br />Runtime {trialReview.runtime.runtimeIdentityDigest}</p></details>
+        <label className="flex items-start gap-2 text-sm text-ink-200"><input type="checkbox" checked={trialReviewConfirmed} onChange={event => setTrialReviewConfirmed(event.target.checked)} />I approve this one unqualified Codex trial with the selected inputs.</label>
+        <div className="flex justify-end gap-3"><button type="button" className="btn-outline text-sm" onClick={() => trialReply.current?.(false)}>Cancel</button>
+          <button type="button" className="btn-primary text-sm" disabled={!trialReviewConfirmed} onClick={() => { if (trialReviewConfirmed) trialReply.current?.(true); }}>Start this trial</button></div>
+      </div>}
+    </Modal>
     <SetupRequiredModal
         card={setupCard}
         slug={slug}
@@ -1559,6 +1605,14 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           )}
         </div>
       )}
+      {preRunMode === 'queue' && !trainingTest && workflowVersionId && desktopBridge()?.managedBrowserTrialRuntime && <div className="mt-3 rounded-md border border-ink-700 p-3">
+        <label className="flex items-start gap-2 text-xs text-ink-300"><input type="checkbox" checked={betaTrial} onChange={event => setBetaTrial(event.target.checked)} />Review a one-run Codex beta browser trial (unqualified)</label>
+        {betaTrial && <>
+          <label className="mt-2 block text-xs text-ink-400">Authorization expires (local time, within 24 hours)<input type="datetime-local" required value={betaTrialExpiry} onChange={event => setBetaTrialExpiry(event.target.value)} className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 p-2" /></label>
+          {Object.keys(deferredSelections).length > 0 && <p className="mt-2 text-xs text-amber-300">Select the pending file again to register it before reviewing the trial. No request will be created during preparation.</p>}
+          <p className="mt-2 text-xs text-ink-400">First confirm the free-account statement in Setup. You will review this trial separately before it starts.</p>
+        </>}
+      </div>}
       {setupFields.length > 0 && setupOpen && (
         <div className="space-y-4">
           {setupFields.map((f) => (
@@ -1885,10 +1939,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <button
           type="button"
           onClick={submitPreRun}
-          disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || !!revisionIssue || (!!pendingUpdate && !runInstalledVersionConfirmed)}
+          disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || !!revisionIssue || (!!pendingUpdate && !runInstalledVersionConfirmed) || (betaTrial && (!betaTrialExpiry || Object.keys(deferredSelections).length > 0))}
           className="btn-success text-sm px-5 py-2 disabled:opacity-50"
         >
-          {setupSaving ? 'Saving…' : preRunMode === 'watch' ? 'Open in Claude →' : pendingUpdate ? 'Run installed version' : setupFields.length ? 'Save & run' : '▶ Run now'}
+          {setupSaving ? 'Saving…' : betaTrial ? 'Review beta trial' : preRunMode === 'watch' ? 'Open in Claude →' : pendingUpdate ? 'Run installed version' : setupFields.length ? 'Save & run' : '▶ Run now'}
         </button>
       </div>
     </Modal>
