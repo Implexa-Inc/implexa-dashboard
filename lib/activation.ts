@@ -110,7 +110,27 @@ export type AgentMachineTools = {
   requirements: Array<{ id: string; kind: string; label: string; required: boolean }>;
 };
 
+/** Declaration only: Desktop resolves local access, not account-wide timestamps. */
+export type AgentSetupContext = {
+  accountId: string;
+  versionId: string;
+  requiredRouteClass: 'headless' | 'browser' | 'computer_use';
+  requiredGroups: string[];
+  missingRequiredGroups: string[];
+  needsBrowser: boolean;
+  needsComputerUse: boolean;
+};
+export type AgentSetupTarget = Pick<AgentSetupContext, 'accountId' | 'versionId' | 'requiredRouteClass'> & { slug: string };
+export type AgentMacAccess = {
+  ok: boolean;
+  permissionsReady?: boolean;
+  routeResolved?: boolean;
+  reason?: string | null;
+  capabilities?: Array<{ capability: string; ready: boolean; status: string }>;
+};
+
 export type ActivationChecklist = {
+  setupContext?: AgentSetupContext | null;
   slug: string;
   name: string;
   summary: string | null;

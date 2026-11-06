@@ -17,6 +17,7 @@ import type {
   AgentRequirementsPayload,
   CapabilityGap,
   AgentMachineTools,
+  AgentSetupContext,
 } from './activation';
 import { parseMarketplaceExecutionRequirements } from './marketplace-execution-requirements.ts';
 
@@ -56,6 +57,23 @@ function machineTools(value: unknown): AgentMachineTools | null {
   return { digest: v.digest, requirements };
 }
 
+export function parseAgentSetupContext(value: unknown): AgentSetupContext | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const c = value as AgentSetupContext;
+  if (typeof c.accountId !== 'string' || !/^[a-f0-9-]{36}$/.test(c.accountId)
+    || typeof c.versionId !== 'string' || !c.versionId || c.versionId.length > 100
+    || !['headless', 'browser', 'computer_use'].includes(c.requiredRouteClass)
+    || typeof c.needsBrowser !== 'boolean' || typeof c.needsComputerUse !== 'boolean'
+    || !Array.isArray(c.requiredGroups) || !Array.isArray(c.missingRequiredGroups)
+    || c.requiredGroups.length > 32 || c.missingRequiredGroups.length > 32
+    || [...c.requiredGroups, ...c.missingRequiredGroups].some((x) => typeof x !== 'string' || !/^[a-z_]{1,60}$/.test(x))
+    || c.missingRequiredGroups.some((x) => !c.requiredGroups.includes(x))
+    || c.requiredRouteClass !== (c.needsComputerUse ? 'computer_use' : c.needsBrowser ? 'browser' : 'headless')) return null;
+  return { accountId: c.accountId, versionId: c.versionId, requiredRouteClass: c.requiredRouteClass,
+    needsBrowser: c.needsBrowser, needsComputerUse: c.needsComputerUse,
+    requiredGroups: [...c.requiredGroups], missingRequiredGroups: [...c.missingRequiredGroups] };
+}
+
 /**
  * Shared mapper: raw checklist payload (from /agents/:slug/activation or the
  * agent-detail envelope's checklist section) -> ActivationChecklist, with the
@@ -65,6 +83,7 @@ export function mapActivationChecklist(b: Record<string, unknown> | null | undef
   if (!b?.ok) return null;
   return {
     slug: String(b.slug ?? slug),
+    setupContext: parseAgentSetupContext(b.setupContext),
     name: String(b.name ?? slug),
     summary: (b.summary as string) ?? null,
     state: (b.state as ActivationState) ?? 'created',
