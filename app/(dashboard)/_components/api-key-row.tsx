@@ -16,8 +16,9 @@
 
 import { useEffect, useState } from 'react';
 import type { AgentSetupTarget, AgentMacAccess } from '@/lib/activation';
+import type { OwnerBridge } from '@/lib/managed-browser-owner-declaration';
 
-export type DesktopBridge = {
+export type DesktopBridge = OwnerBridge & {
   agentSetupReadiness?: (target: AgentSetupTarget) => Promise<AgentMacAccess>;
   openAgentSetup?: (target: AgentSetupTarget) => Promise<{ ok: boolean; reason?: string }>;
 

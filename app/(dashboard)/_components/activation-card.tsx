@@ -23,6 +23,7 @@ import { MarketplaceExecutionRequirementsCard } from './marketplace-execution-re
 import CapabilityGapsNotice from './capability-gaps-notice';
 import AgentFeedback from './agent-feedback';
 import AgentBrowserConnect from './agent-browser-connect';
+import ManagedBrowserOwnerDeclaration from './managed-browser-owner-declaration';
 import { ImplexaJudgePolicy } from './implexa-judge-policy';
 import { useDesktopBridge, desktopBridge, KeysList, type KeyItem } from './api-key-row';
 import type { ActivationChecklist, ActivationStep, PermissionItem, PermissionTier, AgentSetupTarget, AgentMacAccess } from '@/lib/activation';
@@ -910,6 +911,8 @@ export function ActivationCard({
       )}
 
       {showMacSetup && <AgentMacSetup target={setupTarget} onReady={onMacAccessReady} />}
+      {setupSurface && setupTarget?.requiredRouteClass === 'browser' && <ManagedBrowserOwnerDeclaration
+        key={setupTargetKey} target={{ accountId: setupTarget.accountId, slug: setupTarget.slug, versionId: setupTarget.versionId }} />}
 
       <ul className="divide-y divide-ink-800">
         {checklist.steps.filter((s) => s.id !== 'computer-use').map((s) => (
