@@ -1,4 +1,5 @@
 'use client';
+import type { TrialRuntimeBridge } from '@/lib/managed-browser-owner-trial';
 
 /**
  * Shared per-run attachment plumbing (extracted from <AgentActions />, task_4efaa026).
@@ -62,7 +63,7 @@ export function composeNoteWithFiles(note: string, files: string[], marker: stri
 // and returns a real absolute path Claude can Read — the same bridge the kind="file"
 // config question uses. It only exists inside the Implexa desktop app, so the attach
 // affordance is gated on it (a plain browser can't hand Claude a local path).
-export type DesktopBridge = {
+export type DesktopBridge = TrialRuntimeBridge & {
   openAgent?: () => Promise<{ ok: boolean }>;
   /** Machine-capability readiness (backend 0346): a re-probe + re-attest of
    * THIS Mac, and the id the backend resolves it by. Typed statuses only; the
