@@ -6,15 +6,15 @@ import { render } from '../../../lib/test/render.ts';
 const fixture = JSON.parse(readFileSync(new URL('../../../lib/test/fixtures/managed-browser-owner-trial-producers.v1.json', import.meta.url), 'utf8'));
 const native = JSON.parse(readFileSync(new URL('../../../lib/test/fixtures/managed-browser-trial-runtime-owner-view-composed.v1.json', import.meta.url), 'utf8'));
 const q = fixture.trialRequest, preview = fixture.trialContext, version = q.workflow_version_id;
-const props = { slug: q.workflow_slug, name: 'Synthetic browser Agent', isActive: true, requiresLocal: true,
+const props = { slug: q.workflow_slug, name: 'Synthetic browser Agent', isActive: true, requiresLocal: true, setupRouteClass: 'browser',
   workflowVersionId: version, inputContractDigest: q.input_contract_digest, activeVersionNumber: 88,
   inputContract: { version: 1, fields: [] } };
-async function ui(options: { outcome?: 'lost' | 'refused'; noBridge?: boolean; requiredFile?: boolean } = {}) {
+async function ui(options: { outcome?: 'lost' | 'refused'; noBridge?: boolean; requiredFile?: boolean; setupRouteClass?: 'headless' | 'browser' | 'computer_use' | null } = {}) {
   let owner = q.user_id, authChange: ((event: string) => void) | undefined;
   const reads: unknown[] = [], picks: string[] = [];
   const auth = { getSession: async () => ({ data: { session: { user: { id: owner }, access_token: 'synthetic-test-session' } } }),
     onAuthStateChange: (callback: (event: string) => void) => { authChange = callback; return { data: { subscription: { unsubscribe() {} } } }; } };
-  const r = await render('agent-actions.tsx', { ...props, ...(options.requiredFile ? { inputContract: { version: 1,
+  const r = await render('agent-actions.tsx', { ...props, ...('setupRouteClass' in options ? { setupRouteClass: options.setupRouteClass } : {}), ...(options.requiredFile ? { inputContract: { version: 1,
     fields: [{ key: 'source', label: 'Presenter video', kind: 'file', cardinality: 'one', required: true, order: 1 }] } } : {}) }, { auth, bridge: options.noBridge ? null : {
     executionMachineId: async () => native.output.machineId,
     managedBrowserTrialRuntime: async (input: unknown) => { reads.push(input); return native.output; },
@@ -57,6 +57,8 @@ async function ui(options: { outcome?: 'lost' | 'refused'; noBridge?: boolean; r
   };
   const open = async () => { await click('Run now'); };
   const chooseTrial = async () => {
+    const summary = [...r.document.querySelectorAll('summary')].find(x => x.textContent === 'Advanced beta browser diagnostics');
+    assert.ok(summary); await r.click(summary);
     await r.click(r.document.querySelector('input[type=checkbox]')!);
     const input = r.document.querySelector('input[type=datetime-local]') as HTMLInputElement;
     const d = new Date(preview.decision.expiresAt), pad = (v: number) => String(v).padStart(2, '0');
@@ -133,4 +135,17 @@ test('beta file selection enters the existing immediate-registration picker, nev
 
 test('plain browser cannot expose the native beta-trial option', async () => {
   const f = await ui({ noBridge: true }); try { await f.open(); assert.doesNotMatch(f.r.text(), /one-run Codex beta browser trial/); assert.equal(f.reads.length, 0); } finally { f.r.cleanup(); }
+});
+
+
+test('ordinary non-browser and unresolved run forms do not offer the internal beta trial', async () => {
+  for (const setupRouteClass of ['headless', 'computer_use', null] as const) {
+    const f = await ui({ setupRouteClass });
+    try {
+      await f.open();
+      assert.doesNotMatch(f.r.text(), /Advanced beta browser diagnostics|Review a one-run Codex beta browser trial|free-account statement/);
+      assert.equal(f.reads.length, 0);
+      assert.equal(f.births().length, 0);
+    } finally { f.r.cleanup(); }
+  }
 });

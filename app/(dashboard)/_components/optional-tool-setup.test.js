@@ -29,5 +29,5 @@ test('unconnected optional tool remains visible but is skipped without implying 
 test('unconnected required tool keeps its requirement and does not claim ready or fallback', () => {
   const html = render(true);
   assert.match(html, /Required/);
-  assert.doesNotMatch(html, /Required tools are ready|Everything’s set up|The agent will use its fallback/);
+  assert.doesNotMatch(html, /Required service connections are ready|Everything’s set up|The agent will use its fallback/);
 });
