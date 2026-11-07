@@ -98,7 +98,7 @@ test('headless/browser activation stays usable; CU always requires current Mac a
     const result = gate({ requiresLocal: true, setupContext: { requiredRouteClass }, steps: [] }, false);
     assert.equal(result.required, false);
     assert.equal(result.satisfied, true);
-    assert.equal(result.shown, requiredRouteClass === 'browser');
+    assert.equal(result.shown, true, 'local headless runs also expose a read-only Test setup action');
   }
   const cu = { requiresLocal: false, setupContext: { requiredRouteClass: 'computer_use' }, steps: [] };
   assert.deepEqual(gate(cu, false), { required: true, satisfied: false, shown: true });
