@@ -245,6 +245,7 @@ function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; o
   const [state, setState] = useState<AgentMacAccess | null>(null);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checkIndex, setCheckIndex] = useState(0);
   const key = target ? JSON.stringify(target) : null;
   useEffect(() => {
     let current = true;
@@ -262,7 +263,7 @@ function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; o
     void check();
     window.addEventListener('focus', check);
     return () => { current = false; window.removeEventListener('focus', check); };
-  }, [key, bridge, onReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key, bridge, onReady, checkIndex]); // eslint-disable-line react-hooks/exhaustive-deps
   const ready = state?.ok && state.routeResolved && state.permissionsReady;
   const unavailable = state?.ok === false || state?.routeResolved === false;
   return <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-ink-800 pb-3">
@@ -272,6 +273,7 @@ function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; o
       {state?.ok === false && <p className="mt-1 text-xs text-ink-400">{state.reason === 'setup_context_missing' ? 'Install or update this Agent, then refresh. If it is already installed, setup is waiting for the matching service update.' : state.reason === 'account_mismatch' ? 'Sign in to the same account in Desktop and this page.' : state.reason === 'agent_setup_changed' ? 'This Agent was updated. Refresh the page and reopen Set Up.' : 'Could not check this Mac. Reconnect Desktop and try again.'}</p>}
       {error && <p role="alert" className="mt-1 text-xs text-amber-500">{error}</p>}
     </div>
+    <div className="flex items-center gap-2">
     <button type="button" data-computer-use-setup disabled={!target || !bridge?.openAgentSetup || opening}
       className="btn-outline text-xs px-3 py-1.5 disabled:opacity-50" onClick={async () => {
         if (!target || !bridge?.openAgentSetup) return;
@@ -280,6 +282,10 @@ function AgentMacSetup({ target, onReady }: { target: AgentSetupTarget | null; o
         catch { setError('Could not open this Agent’s setup. Try again.'); }
         finally { setOpening(false); }
       }}>{opening ? 'Opening…' : ready ? 'View access' : 'Set Up'}</button>
+    <button type="button" disabled={!target || !bridge?.agentSetupReadiness || !state || opening}
+      className="btn-outline text-xs px-3 py-1.5 disabled:opacity-50"
+      onClick={() => setCheckIndex((value) => value + 1)}>Test setup</button>
+    </div>
   </div>;
 }
 
@@ -911,8 +917,11 @@ export function ActivationCard({
       )}
 
       {showMacSetup && <AgentMacSetup target={setupTarget} onReady={onMacAccessReady} />}
-      {setupSurface && setupTarget?.requiredRouteClass === 'browser' && <ManagedBrowserOwnerDeclaration
-        key={setupTargetKey} target={{ accountId: setupTarget.accountId, slug: setupTarget.slug, versionId: setupTarget.versionId }} />}
+      {setupSurface && setupTarget?.requiredRouteClass === 'browser' && <details className="text-xs text-ink-500">
+        <summary>Advanced beta browser diagnostics</summary>
+        <ManagedBrowserOwnerDeclaration key={setupTargetKey}
+          target={{ accountId: setupTarget.accountId, slug: setupTarget.slug, versionId: setupTarget.versionId }} />
+      </details>}
 
       <ul className="divide-y divide-ink-800">
         {checklist.steps.filter((s) => s.id !== 'computer-use').map((s) => (

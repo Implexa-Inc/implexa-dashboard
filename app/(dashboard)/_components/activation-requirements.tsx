@@ -146,13 +146,14 @@ export function ActivationRequirements({ req, slug, onChanged }: {
 
   const outstanding = services.filter((s) => !satisfied(s));
   const ready = services.filter(satisfied);
+  const requiredOutstanding = outstanding.filter((s) => s.required !== false);
 
   return (
     <div className="rounded-lg border border-ink-800 bg-ink-950/40 p-4">
-      <div className="text-xs font-semibold uppercase tracking-wide text-ink-500 mb-3">What this agent needs</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-ink-500 mb-3">Tools</div>
 
-      {outstanding.length === 0 && (
-        <p className="text-sm text-emerald-600 dark:text-emerald-400 mb-3">Everything’s set up for this agent.</p>
+      {requiredOutstanding.length === 0 && (
+        <p className="text-sm text-emerald-600 dark:text-emerald-400 mb-3">{outstanding.length ? 'Required tools are ready. Unconnected optional tools will be skipped.' : 'Everything’s set up for this agent.'}</p>
       )}
       <ul className="space-y-3">
           {services.map((s) => {
@@ -173,6 +174,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm text-ink-100">{s.name}</span>
+                    <span className="text-[11px] text-ink-500">{s.required === false ? 'Optional' : 'Required'}</span>
                     {/* Cost is only news if they still have to go get it. */}
                     {!isReady && !needsGrantOnly && !browserOnly && !unknownAccess && s.keysReadable !== false && (
                       <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 uppercase tracking-wide">
@@ -182,7 +184,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                   </div>
                   {browserOnly ? (
                     <p className="text-xs text-ink-500 mt-0.5">
-                      This workflow uses {s.name} in your local browser — no API key needed.
+                      Uses your signed-in browser.
                     </p>
                   ) : unknownAccess ? (
                     <p className="text-xs text-ink-500 mt-0.5">
@@ -201,6 +203,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                   ) : s.alt ? (
                     <p className="text-xs text-ink-500 mt-0.5">or use {s.alt} instead</p>
                   ) : null}
+                  {!isReady && s.required === false && <p className="text-xs text-ink-500 mt-0.5">Skipped until connected. The agent will use its fallback.</p>}
                 </div>
                 <div className="flex-none flex items-center gap-1.5">
                   {s.browserSession && <BrowserSessionAccess session={s.browserSession} onVerified={() => onChanged?.()} />}
