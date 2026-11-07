@@ -153,7 +153,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
       <div className="text-xs font-semibold uppercase tracking-wide text-ink-500 mb-3">Tools</div>
 
       {requiredOutstanding.length === 0 && (
-        <p className="text-sm text-emerald-600 dark:text-emerald-400 mb-3">{outstanding.length ? 'Required tools are ready. Unconnected optional tools will be skipped.' : 'Everything’s set up for this agent.'}</p>
+        <p className="text-sm text-emerald-600 dark:text-emerald-400 mb-3">{outstanding.length ? 'Required service connections are ready. Unconnected optional tools will be skipped.' : 'Everything’s set up for this agent.'}</p>
       )}
       <ul className="space-y-3">
           {services.map((s) => {
@@ -203,7 +203,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                   ) : s.alt ? (
                     <p className="text-xs text-ink-500 mt-0.5">or use {s.alt} instead</p>
                   ) : null}
-                  {!isReady && s.required === false && <p className="text-xs text-ink-500 mt-0.5">Skipped until connected. The agent will use its fallback.</p>}
+                  {!isReady && s.required === false && <p className="text-xs text-ink-500 mt-0.5">If unavailable at run time, this optional tool is skipped. The agent will use its fallback.</p>}
                 </div>
                 <div className="flex-none flex items-center gap-1.5">
                   {s.browserSession && <BrowserSessionAccess session={s.browserSession} onVerified={() => onChanged?.()} />}

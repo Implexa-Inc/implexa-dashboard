@@ -1043,6 +1043,7 @@ export function ActivationCard({
                 name={checklist.name}
                 isActive
                 requiresLocal={checklist.requiresLocal}
+                setupRouteClass={checklist.setupContext?.requiredRouteClass ?? null}
                 source={checklist.source}
                 pendingQuestions={checklist.pendingQuestions ?? 0}
                 blockingQuestions={checklist.blockingQuestions}

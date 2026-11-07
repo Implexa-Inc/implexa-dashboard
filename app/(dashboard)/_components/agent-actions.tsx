@@ -108,7 +108,7 @@ const POLL_MAX_MS = 5 * 60 * 1000; // stop after 5 min; the run still lands in t
 // ./run-attachments. The per-run note rides the run-request `note` (a one-off
 // channel), never the saved standing note.
 
-export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, activeVersionNumber = null, inputContract = null, inputContractDigest = null, pendingUpdate = null,trainingTest:initialTrainingTest=null,presentation='agent',trainingChoices,runRequest,onQueued }: {
+export default function AgentActions({ slug, name, isActive, requiresLocal, source = 'generated', nextRunAt, pendingQuestions = 0, blockingQuestions, claudeTaskId, align = 'end', inFlight = null, revisePending = false, statusUnavailable = false, workflowVersionId = null, setupRouteClass = null, activeVersionNumber = null, inputContract = null, inputContractDigest = null, pendingUpdate = null,trainingTest:initialTrainingTest=null,presentation='agent',trainingChoices,runRequest,onQueued }: {
   slug: string;
   /** Display name; the prefilled run command quotes it ("Run my Implexa agent ..."). */
   name?: string;
@@ -144,6 +144,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   workflowVersionId?: string | null;
   /** The installed version number, stated on the Run form so the owner sees what will execute (§3.1). */
   activeVersionNumber?: number | null;
+  /** Applied Setup context only; optional tools do not make this browser-required. */
+  setupRouteClass?: 'headless' | 'browser' | 'computer_use' | null;
   inputContract?: WorkflowInputContract | null;
   inputContractDigest?: string | null;
   pendingUpdate?: { version: number; state: string } | null;
@@ -1605,14 +1607,15 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           )}
         </div>
       )}
-      {preRunMode === 'queue' && !trainingTest && workflowVersionId && desktopBridge()?.managedBrowserTrialRuntime && <div className="mt-3 rounded-md border border-ink-700 p-3">
+      {preRunMode === 'queue' && !trainingTest && setupRouteClass === 'browser' && workflowVersionId && desktopBridge()?.managedBrowserTrialRuntime && <details className="mt-3 rounded-md border border-ink-700 p-3">
+        <summary className="cursor-pointer text-xs text-ink-500">Advanced beta browser diagnostics</summary>
         <label className="flex items-start gap-2 text-xs text-ink-300"><input type="checkbox" checked={betaTrial} onChange={event => setBetaTrial(event.target.checked)} />Review a one-run Codex beta browser trial (unqualified)</label>
         {betaTrial && <>
           <label className="mt-2 block text-xs text-ink-400">Authorization expires (local time, within 24 hours)<input type="datetime-local" required value={betaTrialExpiry} onChange={event => setBetaTrialExpiry(event.target.value)} className="mt-1 block w-full rounded border border-ink-700 bg-ink-950 p-2" /></label>
           {Object.keys(deferredSelections).length > 0 && <p className="mt-2 text-xs text-amber-300">Select the pending file again to register it before reviewing the trial. No request will be created during preparation.</p>}
           <p className="mt-2 text-xs text-ink-400">First confirm the free-account statement in Setup. You will review this trial separately before it starts.</p>
         </>}
-      </div>}
+      </details>}
       {setupFields.length > 0 && setupOpen && (
         <div className="space-y-4">
           {setupFields.map((f) => (
