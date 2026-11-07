@@ -792,7 +792,8 @@ export function ActivationCard({
   const allLocalGranted = requiredTier2.every((i) => optIns[i.group]); // saved + just-toggled
   const computerUseRequired = checklist.setupContext?.requiredRouteClass === 'computer_use'
     || (!checklist.setupContext && checklist.steps.some((step) => step.id === 'computer-use'));
-  const showMacSetup = computerUseRequired || checklist.setupContext?.requiredRouteClass === 'browser';
+  const showMacSetup = computerUseRequired || checklist.setupContext?.requiredRouteClass === 'browser'
+    || !!(checklist.requiresLocal && checklist.setupContext);
   const computerUseSatisfied = !computerUseRequired || !!computerUseReady;
   const isActive = checklist.state === 'active' || activated;
   // Active, but a Tier-2 grant is still missing -> the wedged "Fix"/needs-you case.
