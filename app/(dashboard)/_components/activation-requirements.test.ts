@@ -31,7 +31,7 @@ test('a browser-route tool reads as browser even without a verifiable session (V
 test('the "uses your local browser" note renders for any browser-route row, not only ones with a session', () => {
   assert.match(
     src,
-    /\{browserOnly \? \([\s\S]*?uses \{s\.name\} in your local browser/,
+    /\{browserOnly \? \([\s\S]*?Uses your signed-in browser\./,
     'the browser note branch must key on browserOnly alone',
   );
 });

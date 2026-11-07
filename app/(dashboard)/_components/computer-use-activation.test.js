@@ -119,3 +119,20 @@ test('legacy CU missing installed context explains update rather than Mac permis
     assert.equal(f.evidence.includes(true), false);
   } finally { await f.close(); }
 });
+
+test('Test setup rechecks current access without opening onboarding or changing consent', async () => {
+  let next = blocked, reads = 0, opens = 0;
+  const f = await fixture({ agentSetupReadiness: async () => { reads++; return next; },
+    openAgentSetup: async () => { opens++; return { ok: true }; } });
+  try {
+    await f.render(); assert.equal(reads, 1);
+    next = ready;
+    const button = [...document.querySelectorAll('button')].find(b => b.textContent === 'Test setup');
+    assert.ok(button); assert.equal(button.disabled, false);
+    await React.act(async () => button.click());
+    assert.equal(reads, 2); assert.equal(opens, 0); assert.equal(f.evidence.at(-1), true);
+    next = blocked;
+    await React.act(async () => button.click());
+    assert.equal(reads, 3); assert.equal(f.evidence.at(-1), false);
+  } finally { await f.close(); }
+});
