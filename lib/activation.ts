@@ -64,6 +64,8 @@ export type AgentRequirementsPayload = {
   source?: string;
   services: {
     key: string; name: string; cost: string; url: string;
+    required?: boolean;
+    requiredness?: 'required_to_deliver' | 'recommended' | 'optional';
     alt: string | null; provider: string | null;
     /**
      * Explicit provider access route. Unknown means the provider is detected, but

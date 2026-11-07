@@ -98,7 +98,7 @@ test('headless/browser activation stays usable; CU always requires current Mac a
     const result = gate({ requiresLocal: true, setupContext: { requiredRouteClass }, steps: [] }, false);
     assert.equal(result.required, false);
     assert.equal(result.satisfied, true);
-    assert.equal(result.shown, requiredRouteClass === 'browser');
+    assert.equal(result.shown, true, 'local headless runs also expose a read-only Test setup action');
   }
   const cu = { requiresLocal: false, setupContext: { requiredRouteClass: 'computer_use' }, steps: [] };
   assert.deepEqual(gate(cu, false), { required: true, satisfied: false, shown: true });
@@ -117,5 +117,22 @@ test('legacy CU missing installed context explains update rather than Mac permis
     assert.match(f.text(), /Install or update this Agent/);
     assert.match(f.text(), /matching service update/);
     assert.equal(f.evidence.includes(true), false);
+  } finally { await f.close(); }
+});
+
+test('Test setup rechecks current access without opening onboarding or changing consent', async () => {
+  let next = blocked, reads = 0, opens = 0;
+  const f = await fixture({ agentSetupReadiness: async () => { reads++; return next; },
+    openAgentSetup: async () => { opens++; return { ok: true }; } });
+  try {
+    await f.render(); assert.equal(reads, 1);
+    next = ready;
+    const button = [...document.querySelectorAll('button')].find(b => b.textContent === 'Test setup');
+    assert.ok(button); assert.equal(button.disabled, false);
+    await React.act(async () => button.click());
+    assert.equal(reads, 2); assert.equal(opens, 0); assert.equal(f.evidence.at(-1), true);
+    next = blocked;
+    await React.act(async () => button.click());
+    assert.equal(reads, 3); assert.equal(f.evidence.at(-1), false);
   } finally { await f.close(); }
 });
