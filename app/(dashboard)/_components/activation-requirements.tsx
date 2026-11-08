@@ -80,10 +80,9 @@ function BrowserSessionAccess({ session, target, managed = false, onVerified }: 
       try {
         const out = await bridge.connectAgentTool(target, session.domain);
         if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.'
-          : out?.reason === 'managed_browser_launch_mode_mismatch' ? 'Quit the Agent browser once so Implexa can reopen it with updated settings, then Verify.'
           : 'Could not open this tool. Check setup and try again.'); return; }
         setOpened(true);
-        setNote('Sign in, close the tool’s pages, then select Verify.');
+        setNote('Sign in, then select Verify in Implexa. You can leave the browser open.');
       } catch { setNote('Could not open the sign-in page.'); }
       finally { setBusy(false); }
       return;
