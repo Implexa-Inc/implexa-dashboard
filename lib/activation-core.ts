@@ -36,6 +36,15 @@ export function managedToolConnection(report: AgentMacAccess | null | undefined,
     && ['reachable', 'unreachable', 'unknown'].includes(row.status)) || null;
 }
 
+/** Offer only; the existing owner trial issuer and claim repeat all authority checks. */
+export function optionalBrowserTrialAvailable(report: AgentMacAccess | null | undefined,
+  target: AgentSetupTarget | null | undefined): boolean {
+  return target?.requiredRouteClass === 'headless' && report?.permissionsReady === true
+    && report.routeResolved === true && report.context?.needsComputerUse === false && report.context.needsBrowser === false
+    && !!report.toolConnections?.services.some(row =>
+      managedToolConnection(report, target, row.domain)?.status === 'reachable');
+}
+
 export function apiKeyAccessReady(service: ToolService, grants: Record<string, boolean> | null): boolean {
   return !!service.provider && service.keysReadable !== false && service.keyOnMachine && grants?.[service.provider] === true;
 }

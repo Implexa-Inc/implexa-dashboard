@@ -56,6 +56,8 @@ import {
 } from '@/lib/manager-training-run-preflight';
 import {TrainingInfo} from '../training/[slug]/training-workspace';
 import { trainingStageLabel } from '@/lib/training-local-ingress';
+import { optionalBrowserTrialAvailable } from '@/lib/activation-core';
+import { useDesktopBridge } from './api-key-row';
 
 type RunState = 'idle' | 'queuing' | 'preparing' | 'queued' | 'running' | 'done' | 'error';
 type SetupField = {
@@ -189,6 +191,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // questions (prefilled), so you can confirm/change answers (e.g. swap a
   // reference video) before a hands-off run. Per-agent "don't show again".
   const [showSetupModal, setShowSetupModal] = useState(false);
+  const setupBridge = useDesktopBridge();
+  const [optionalTrialKey, setOptionalTrialKey] = useState<string | null>(null);
+
   const [setupFields, setSetupFields] = useState<SetupField[]>([]);
   const [setupValues, setSetupValues] = useState<Record<string, string>>({});
   const [setupSaving, setSetupSaving] = useState(false);
@@ -211,6 +216,26 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // What the pre-run pop-up does on submit: queue it hands-off, or open a session
   // to watch (so the note is pushed into the live session you're watching).
   const [preRunMode, setPreRunMode] = useState<'queue' | 'watch'>('queue');
+  useEffect(() => {
+    let alive = true, accountId: string | null = null;
+    setOptionalTrialKey(null);
+    if (!showSetupModal || preRunMode !== 'queue' || trainingTest || !workflowVersionId
+      || setupRouteClass !== 'headless' || !setupBridge?.agentSetupReadiness) return;
+    const client = createClient();
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+      if (accountId && session?.user.id !== accountId) { alive = false; setOptionalTrialKey(null); }
+    });
+    void (async () => {
+      const { data: { session } } = await client.auth.getSession();
+      if (!alive || !session?.user.id) return;
+      accountId = session.user.id;
+      const target = { accountId, slug, versionId: workflowVersionId, requiredRouteClass: 'headless' as const };
+      const report = await setupBridge.agentSetupReadiness!(target);
+      const { data: { session: fresh } } = await client.auth.getSession();
+      if (alive && fresh?.user.id === accountId && optionalBrowserTrialAvailable(report, target)) setOptionalTrialKey(trialTargetKey);
+    })().catch(() => { if (alive) setOptionalTrialKey(null); });
+    return () => { alive = false; subscription.unsubscribe(); };
+  }, [showSetupModal, preRunMode, trainingTest, workflowVersionId, setupRouteClass, setupBridge, slug, trialTargetKey]);
   // The pre-run capability ask (backend 409 + needsCapability): this agent needs
   // something the engine it would run on doesn't have. Not an error state — a choice
   // (switch engine / grant it / run anyway), so it renders as a card, not a failure.
@@ -1607,7 +1632,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
           )}
         </div>
       )}
-      {preRunMode === 'queue' && !trainingTest && setupRouteClass === 'browser' && workflowVersionId && desktopBridge()?.managedBrowserTrialRuntime && <details className="mt-3 rounded-md border border-ink-700 p-3">
+      {preRunMode === 'queue' && !trainingTest && (setupRouteClass === 'browser' || optionalTrialKey === trialTargetKey) && workflowVersionId && desktopBridge()?.managedBrowserTrialRuntime && <details className="mt-3 rounded-md border border-ink-700 p-3">
         <summary className="cursor-pointer text-xs text-ink-500">Advanced beta browser diagnostics</summary>
         <label className="flex items-start gap-2 text-xs text-ink-300"><input type="checkbox" checked={betaTrial} onChange={event => setBetaTrial(event.target.checked)} />Review a one-run Codex beta browser trial (unqualified)</label>
         {betaTrial && <>
