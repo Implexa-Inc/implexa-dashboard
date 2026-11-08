@@ -217,24 +217,23 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // to watch (so the note is pushed into the live session you're watching).
   const [preRunMode, setPreRunMode] = useState<'queue' | 'watch'>('queue');
   useEffect(() => {
-    let alive = true, accountId: string | null = null;
+    let alive = true;
     setOptionalTrialKey(null);
     if (!showSetupModal || preRunMode !== 'queue' || trainingTest || !workflowVersionId
       || setupRouteClass !== 'headless' || !setupBridge?.agentSetupReadiness) return;
     const client = createClient();
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
-      if (accountId && session?.user.id !== accountId) { alive = false; setOptionalTrialKey(null); }
-    });
+    const epoch = trialEpoch.current;
     void (async () => {
       const { data: { session } } = await client.auth.getSession();
       if (!alive || !session?.user.id) return;
-      accountId = session.user.id;
+      const accountId = session.user.id;
       const target = { accountId, slug, versionId: workflowVersionId, requiredRouteClass: 'headless' as const };
       const report = await setupBridge.agentSetupReadiness!(target);
       const { data: { session: fresh } } = await client.auth.getSession();
-      if (alive && fresh?.user.id === accountId && optionalBrowserTrialAvailable(report, target)) setOptionalTrialKey(trialTargetKey);
+      if (alive && trialEpoch.current === epoch && fresh?.user.id === accountId
+        && optionalBrowserTrialAvailable(report, target)) setOptionalTrialKey(trialTargetKey);
     })().catch(() => { if (alive) setOptionalTrialKey(null); });
-    return () => { alive = false; subscription.unsubscribe(); };
+    return () => { alive = false; };
   }, [showSetupModal, preRunMode, trainingTest, workflowVersionId, setupRouteClass, setupBridge, slug, trialTargetKey]);
   // The pre-run capability ask (backend 409 + needsCapability): this agent needs
   // something the engine it would run on doesn't have. Not an error state — a choice
@@ -348,7 +347,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const supabase = createClient();
   const router = useRouter();
   useEffect(() => {
-    const changed = () => { trialEpoch.current++; trialReply.current?.(false); trialReply.current = null; setTrialReview(null); };
+    const changed = () => { trialEpoch.current++; trialReply.current?.(false); trialReply.current = null; setTrialReview(null); setOptionalTrialKey(null); };
     const subscription = supabase.auth.onAuthStateChange?.((event) => {
       if (['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event)) changed();
     }).data.subscription;
