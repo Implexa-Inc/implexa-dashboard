@@ -23,8 +23,8 @@
 
 import { useEffect, useState } from 'react';
 import { InlineAddKeyButton, useDesktopBridge } from './api-key-row';
-import type { AgentRequirementsPayload, AgentMachineTools } from '@/lib/activation';
-import { apiKeyAccessReady, toolAccessReady } from '@/lib/activation-core';
+import type { AgentRequirementsPayload, AgentMachineTools, AgentSetupTarget, AgentMacAccess } from '@/lib/activation';
+import { apiKeyAccessReady, toolAccessReady, managedToolConnection } from '@/lib/activation-core';
 
 export function DeclaredMachineTools({ tools }: { tools?: AgentMachineTools | null }) {
   if (!tools?.requirements.length) return null;
@@ -59,7 +59,7 @@ type BrowserSession = NonNullable<AgentRequirementsPayload['services'][number]['
  * authenticated page before the server marks the domain reachable. This same
  * component works for every provider that declares browserSession metadata.
  */
-function BrowserSessionAccess({ session, onVerified }: { session: BrowserSession; onVerified: () => void }) {
+function BrowserSessionAccess({ session, target, managed = false, onVerified }: { session: BrowserSession; target?: AgentSetupTarget | null; managed?: boolean; onVerified: () => void | Promise<void> }) {
   const bridge = useDesktopBridge();
   const [opened, setOpened] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -74,6 +74,18 @@ function BrowserSessionAccess({ session, onVerified }: { session: BrowserSession
   }
 
   const openSignIn = async () => {
+    if (managed) {
+      if (!target || !bridge?.connectAgentTool) { setNote('Open the updated Implexa app to connect this tool.'); return; }
+      setBusy(true); setNote(null);
+      try {
+        const out = await bridge.connectAgentTool(target, session.domain);
+        if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.' : 'Could not open this tool. Check setup and try again.'); return; }
+        setOpened(true);
+        setNote('Sign in, close the tool’s pages, then select Verify.');
+      } catch { setNote('Could not open the sign-in page.'); }
+      finally { setBusy(false); }
+      return;
+    }
     if (!bridge?.connectAccount) { setNote('Open the Implexa desktop app to sign in and verify this account.'); return; }
     setBusy(true); setNote(null);
     try {
@@ -85,6 +97,18 @@ function BrowserSessionAccess({ session, onVerified }: { session: BrowserSession
     finally { setBusy(false); }
   };
   const verify = async () => {
+    if (managed) {
+      if (!target || !bridge?.checkAgentToolConnections) { setNote('Check this tool from the updated Implexa app.'); return; }
+      setBusy(true); setNote(null);
+      try {
+        const out = await bridge.checkAgentToolConnections(target);
+        if (!out?.ok) { setNote(out?.reason === 'desktop_busy' ? 'An agent is using this browser. Try when it finishes.' : 'Connection not confirmed. Check the Implexa dialog.'); return; }
+        await onVerified();
+        setNote('Connection check finished.');
+      } catch { setNote('Could not verify the account. Try again.'); }
+      finally { setBusy(false); }
+      return;
+    }
     if (!bridge?.verifyAccount) { setNote('Open the Implexa desktop app to verify this account.'); return; }
     setBusy(true); setNote(null);
     try {
@@ -101,20 +125,42 @@ function BrowserSessionAccess({ session, onVerified }: { session: BrowserSession
         <button type="button" onClick={openSignIn} disabled={busy} className="btn-outline text-xs px-2.5 py-1">
           {opened ? 'Reopen sign-in' : 'Use signed-in account'}
         </button>
-        {opened && <button type="button" onClick={verify} disabled={busy} className="btn-outline text-xs px-2.5 py-1">Verify</button>}
+        {(opened || managed) && <button type="button" onClick={verify} disabled={busy} className="btn-outline text-xs px-2.5 py-1">Verify</button>}
       </div>
       {note && <p className="text-xs text-ink-500 mt-1 max-w-56 leading-snug">{note}</p>}
     </div>
   );
 }
 
-export function ActivationRequirements({ req, slug, onChanged }: {
+export function ActivationRequirements({ req, slug, target, onChanged }: {
   req: AgentRequirementsPayload | undefined;
   slug: string;
+  target?: AgentSetupTarget | null;
   onChanged?: () => void;
 }) {
+  const structured = ['machine_capability_contract', 'frozen_step_declarations'].includes(req?.source || '');
+  const hasManagedOptionalTools = structured && !!req?.services.some(service => service.required === false && service.browserSession);
   // null = not yet known / unreadable. Never treated as granted.
   const [grants, setGrants] = useState<Record<string, boolean> | null>(null);
+  const desktop = useDesktopBridge();
+  const targetKey = target ? JSON.stringify([target.accountId, target.slug, target.versionId, target.requiredRouteClass]) : '';
+  const [toolReport, setToolReport] = useState<{ key: string; data: AgentMacAccess | null } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (!hasManagedOptionalTools || !target || !desktop?.agentSetupReadiness) { setToolReport(null); return; }
+    desktop.agentSetupReadiness(target).then(data => { if (alive) setToolReport({ key: targetKey, data }); })
+      .catch(() => { if (alive) setToolReport({ key: targetKey, data: null }); });
+    return () => { alive = false; };
+    // The key contains every target field; object identity must not retrigger reads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktop, targetKey, hasManagedOptionalTools]);
+  const refreshTools = async () => {
+    if (target && desktop?.agentSetupReadiness) {
+      try { setToolReport({ key: targetKey, data: await desktop.agentSetupReadiness(target) }); }
+      catch { setToolReport({ key: targetKey, data: null }); }
+    }
+    onChanged?.();
+  };
 
   useEffect(() => {
     let alive = true;
@@ -128,9 +174,13 @@ export function ActivationRequirements({ req, slug, onChanged }: {
 
   if (!req) return null;
   if (req.unavailable) return <p role="status" className="text-sm text-ink-500">Tool setup status is unavailable. Refresh to check again.</p>;
-  const services = req.services ?? [];
+  const services = (req.services ?? []).map(service => {
+    if (!structured || service.required !== false || !service.browserSession) return service;
+    const connection = managedToolConnection(toolReport?.key === targetKey ? toolReport.data : null, target, service.browserSession.domain);
+    return { ...service, browserSession: { ...service.browserSession,
+      status: connection?.status || 'unknown' as const, identity: connection?.identity || null, verifiedAt: connection?.verifiedAt || null } };
+  });
   const tools = req.tools ?? [];
-  const structured = ['machine_capability_contract', 'frozen_step_declarations'].includes(req.source || '');
   if (!services.length && !tools.length) return null;
 
   // An API route needs BOTH halves. Browser-only providers use their separately
@@ -206,7 +256,7 @@ export function ActivationRequirements({ req, slug, onChanged }: {
                   {!isReady && s.required === false && <p className="text-xs text-ink-500 mt-0.5">If unavailable at run time, this optional tool is skipped. The agent will use its fallback.</p>}
                 </div>
                 <div className="flex-none flex items-center gap-1.5">
-                  {s.browserSession && <BrowserSessionAccess session={s.browserSession} onVerified={() => onChanged?.()} />}
+                  {s.browserSession && <BrowserSessionAccess session={s.browserSession} target={target} managed={structured && s.required === false} onVerified={refreshTools} />}
                   {s.provider && !browserOnly && !unknownAccess && !keyReady && <InlineAddKeyButton provider={s.provider} slug={slug} />}
                   {keyReady && <span className="text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">✓ key allowed</span>}
                   {/* Suppress "Get it" once a key exists — that was the original

@@ -100,6 +100,10 @@ test('browser account setup is a reusable verified access method, never an unche
   assert.match(src, /function BrowserSessionAccess/, 'browser sign-in is a reusable service-row component');
   assert.match(src, /bridge\.connectAccount\(session\.domain\)/, 'the provider domain is opened only through the desktop bridge');
   assert.match(src, /bridge\.verifyAccount\(session\.domain\)/, 'the account must be verified after sign-in');
+  assert.match(src, /managed=\{structured && s\.required === false\}/, 'only declared optional tools use the shared route; legacy consumers stay unchanged');
+  assert.match(src, /bridge\.connectAgentTool\(target, session\.domain\)/);
+  assert.match(src, /bridge\.checkAgentToolConnections\(target\)/);
+  assert.match(src, /managedToolConnection\(/, 'only the native current-machine read can show an optional tool connected');
   assert.match(src, /out\?\.ok && out\.reachable/, 'only a successful authenticated probe may mark the route complete');
   assert.match(src, /This workflow uses \{s\.name\} in your local browser — no API key needed\./,
     'browser-only work explains why the API-key prompt is absent');
@@ -114,8 +118,11 @@ test('provider access remains visible in Setup and never hides behind the active
   assert.ok(split > 0, 'the lifecycle CTA branch must remain identifiable');
   const beforeCta = src.slice(0, split);
   const afterCta = src.slice(split);
-  assert.match(beforeCta, /<ActivationRequirements req=\{checklist\.requirements\} slug=\{checklist\.slug\} onChanged=\{\(\) => router\.refresh\(\)\} \/>/,
-    'requirements must render before the lifecycle CTA branches, including Setup for active agents');
+  const [requirements] = openingElements(beforeCta, 'ActivationRequirements');
+  assert.ok(requirements, 'requirements must render before the lifecycle CTA branches, including Setup for active agents');
+  assert.equal(propValue(requirements, 'req'), 'checklist.requirements');
+  assert.equal(propValue(requirements, 'slug'), 'checklist.slug');
+  assert.equal(propValue(requirements, 'target'), 'setupTarget');
   assert.doesNotMatch(afterCta, /<ActivationRequirements req=/,
     'a second, branch-gated render would reproduce the hidden-Setup regression');
 });

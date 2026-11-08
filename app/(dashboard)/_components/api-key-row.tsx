@@ -20,6 +20,8 @@ import type { OwnerBridge } from '@/lib/managed-browser-owner-declaration';
 
 export type DesktopBridge = OwnerBridge & {
   agentSetupReadiness?: (target: AgentSetupTarget) => Promise<AgentMacAccess>;
+  connectAgentTool?: (target: AgentSetupTarget, domain: string) => Promise<{ ok: boolean; reason?: string; message?: string }>;
+  checkAgentToolConnections?: (target: AgentSetupTarget) => Promise<{ ok: boolean; reason?: string }>;
   openAgentSetup?: (target: AgentSetupTarget) => Promise<{ ok: boolean; reason?: string }>;
 
   openSetup?: () => Promise<{ ok: boolean; reason?: string }>;

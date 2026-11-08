@@ -129,6 +129,13 @@ export type AgentMacAccess = {
   routeResolved?: boolean;
   reason?: string | null;
   capabilities?: Array<{ capability: string; ready: boolean; status: string }>;
+  slug?: string;
+  context?: AgentSetupContext;
+  toolConnections?: {
+    machineId: string; versionId: string; available: boolean;
+    services: Array<{ key: string; domain: string; required: false;
+      status: 'reachable' | 'unreachable' | 'unknown'; identity?: string | null; verifiedAt?: string | null }>;
+  };
 };
 
 export type ActivationChecklist = {

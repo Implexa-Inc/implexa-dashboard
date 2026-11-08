@@ -956,7 +956,7 @@ export function ActivationCard({
         <MarketplaceExecutionRequirementsCard contract={checklist.executionRequirements} />
       </div>
       <div className="mt-4">
-        <ActivationRequirements req={checklist.requirements} slug={checklist.slug} onChanged={() => router.refresh()} />
+        <ActivationRequirements req={checklist.requirements} slug={checklist.slug} target={setupTarget} onChanged={() => router.refresh()} />
       </div>
       {!!checklist.machineTools?.requirements.length && <div className="mt-4">
         <DeclaredMachineTools tools={checklist.machineTools} />
