@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapActivationChecklist, parseAgentSetupContext } from './activation-core.ts';
+import { mapActivationChecklist, parseAgentSetupContext, managedToolConnection } from './activation-core.ts';
+import type { AgentMacAccess, AgentSetupTarget } from './activation';
 
 const context = { accountId: '11111111-1111-4111-8111-111111111111', versionId: 'installed-v1',
   requiredRouteClass: 'computer_use', requiredGroups: ['browser'], missingRequiredGroups: ['browser'],
@@ -19,4 +20,23 @@ test('missing or inconsistent setup identity remains unavailable', () => {
     { ...context, missingRequiredGroups: ['shell'] }, { ...context, requiredGroups: 'browser' }]) {
     assert.equal(parseAgentSetupContext(value), null);
   }
+});
+
+test('optional tool badges require a current owner/version native read, not server or legacy reachability alone', () => {
+  const target = { accountId: context.accountId, slug: 'video', versionId: context.versionId,
+    requiredRouteClass: 'computer_use' } as AgentSetupTarget;
+  const report = { ok: true, slug: 'video', context, toolConnections: {
+    available: true, machineId: 'this-mac', versionId: target.versionId,
+    services: [{ key: 'veed', required: false, domain: 'veed.io', status: 'reachable' }],
+  } } as AgentMacAccess;
+  assert.equal(managedToolConnection(report, target, 'veed.io')?.status, 'reachable');
+  for (const invalid of [null, { ok: true }, { ...report, slug: 'other' },
+    { ...report, context: { ...context, accountId: 'other-owner' } },
+    { ...report, context: { ...context, versionId: 'newer-version' } },
+    { ...report, toolConnections: { ...report.toolConnections, available: false } },
+    { ...report, toolConnections: { ...report.toolConnections, versionId: 'old-version' } }]) {
+    assert.equal(managedToolConnection(invalid as AgentMacAccess, target, 'veed.io'), null);
+  }
+  assert.equal(managedToolConnection(report, target, 'other.example'), null);
+  assert.equal(managedToolConnection(report, null, 'veed.io'), null);
 });

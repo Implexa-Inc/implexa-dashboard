@@ -18,10 +18,24 @@ import type {
   CapabilityGap,
   AgentMachineTools,
   AgentSetupContext,
+  AgentSetupTarget,
+  AgentMacAccess,
 } from './activation';
 import { parseMarketplaceExecutionRequirements } from './marketplace-execution-requirements.ts';
 
 type ToolService = AgentRequirementsPayload['services'][number];
+export function managedToolConnection(report: AgentMacAccess | null | undefined,
+  target: AgentSetupTarget | null | undefined, domain: string) {
+  const observations = report?.toolConnections;
+  if (!target || report?.ok !== true || report.slug !== target.slug
+    || report.context?.accountId !== target.accountId || report.context.versionId !== target.versionId
+    || report.context.requiredRouteClass !== target.requiredRouteClass
+    || observations?.available !== true || observations.versionId !== target.versionId
+    || !observations.machineId || !Array.isArray(observations.services)) return null;
+  return observations.services.find(row => row.required === false && row.domain === domain
+    && ['reachable', 'unreachable', 'unknown'].includes(row.status)) || null;
+}
+
 export function apiKeyAccessReady(service: ToolService, grants: Record<string, boolean> | null): boolean {
   return !!service.provider && service.keysReadable !== false && service.keyOnMachine && grants?.[service.provider] === true;
 }
