@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { render, type Rendered } from '../../../../lib/test/render.ts';
 import { isTrainingEvidenceStorage, deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
 import {toolSuggestionFrame,TOOL_FRAME_RECIPE_DIGEST} from '../../../../lib/training-teaching-draft.ts';
-import { questionsPage, validAnswerBody, answerReceipt } from '../../../../lib/trainer-questions.ts';
+import { questionsPage, questionOutcomeLabel, validAnswerBody, answerReceipt } from '../../../../lib/trainer-questions.ts';
 
 test('Training chat enters the existing recording flow only after its separate consent, never auto-edits or admits',async()=>{
  const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal,requests:any[]=[];
@@ -383,6 +383,12 @@ async function fillManualTeaching(rendered: Rendered) {
 
 test('question wire rejects hidden raw answers, malformed identities and invented evidence', () => {
   assert.equal(questionsPage(questionPage()), true);
+  for(const outcome of ['pending','unavailable'] as const) {
+    assert.equal(questionsPage(questionPage([questionRow({ outcome })])), true);
+    assert.doesNotMatch(questionOutcomeLabel(outcome), /No selected guidance matched/);
+  }
+  const references = Array.from({length:10},(_,i)=>`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`);
+  assert.equal(questionsPage(questionPage([questionRow({ outcome:'matched',returnedReferenceIds:references })])),true,'adaptive delivery has no three-reference UI ceiling');
   for (const q of [questionRow({ rawAnswer: 'must not leak' }), questionRow({ id: [QUESTION] }),
     questionRow({ recordedEvidence: true }), questionRow({ fallback: 'invented' })]) assert.equal(questionsPage(questionPage([q])), false);
   assert.equal(questionsPage(questionPage([questionRow({ teachings: [{ sessionId: SESSION, recordId: RECORD, recordDigest: DIGEST, state: 'taught', reason: null, targetVersionId: VERSION_B }] })])), false);

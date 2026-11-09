@@ -15,7 +15,7 @@ import Modal from '../../_components/modal';
 import {guidedTrainingChanges,trainingPublicationPreview,type TrainingPublicationPreview,type GuidedTrainingChanges,type TrainingChangeRecord} from '@/lib/guided-training-changes';
 import {TrainingEntry,TrainingInfo,TrainingImage,TrainingDetails,revealTrainingElement,type TrainingView,type TrainingRun} from './training-workspace';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { answerReceipt, questionGroups, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
+import { answerReceipt, questionGroups, questionOutcomeLabel, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
 import { teachingDigest, teachingFrame, toolSuggestionFrame, TOOL_FRAME_RECIPE_DIGEST, type ToolFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation, recordingSuggestion, recordingAgentSuggestion, type RecordingAgentSuggestion, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
 import {
   deriveTrainingStages,
@@ -1333,7 +1333,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         {group.map(q => <article key={q.id} className="border-t border-ink-800 pt-2 space-y-1">
           <label className="flex gap-2"><input type="checkbox" aria-label={`Select question ${q.questionId}`} checked={questionIds.includes(q.id)} onChange={event => setQuestionIds(ids => event.target.checked ? [...ids, q.id] : ids.filter(id => id !== q.id))} />{q.question}</label>
           <p><Link href={`/runs/${q.runId}`}>Run {shortId(q.runId)}</Link> · {q.runState || q.runStatus || 'State not recorded'} · {q.sceneElement}</p>
-          <p>{q.outcome === 'matched' ? 'References returned; usefulness and application are unverified.' : 'No selected guidance matched. This is not proof the trainer never taught it.'}</p>
+          <p>{questionOutcomeLabel(q.outcome)}</p>
           <p>Returned reference IDs: {q.returnedReferenceIds.length ? q.returnedReferenceIds.map(shortId).join(', ') : 'none'}.</p>
           <p>Fallback and linked frame evidence were not recorded. Choose your own authorized teaching frame below; no run frame is imported.</p>
           {q.teachings.map(t => <p key={`${t.sessionId}:${t.recordId}`}>
