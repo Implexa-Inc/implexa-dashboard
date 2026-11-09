@@ -4,7 +4,7 @@ export type QuestionTeaching = { sessionId: string; recordId: string; recordDige
 export type TrainerQuestion = {
   id: string; receiptDigest: string; createdAt: string; questionId: string; question: string; sceneElement: string;
   property: TrainingPropertyCode; stage: TrainingStage; questionVersionId: string; runId: string;
-  runState: string | null; runStatus: string | null; outcome: 'matched' | 'no_match' | 'pending' | 'unavailable'; returnedReferenceIds: string[];
+  runState: string | null; runStatus: string | null; outcome: 'matched' | 'no_match' | 'pending' | 'unavailable'; outcomeReason?: string | null; returnedReferenceIds: string[];
   recordedEvidence: false; fallback: null; recurrenceCount: number; teachings: QuestionTeaching[];
 };
 export type QuestionsPage = { ok: true; contractVersion: 'trainer-questions.v1'; agentFamilyId: string; activeVersionId: string | null; items: TrainerQuestion[]; nextCursor: { createdAt: string; id: string } | null };
@@ -28,11 +28,12 @@ export function questionsPage(v: any): v is QuestionsPage {
     && v.ok === true && v.contractVersion === 'trainer-questions.v1' && id(v.agentFamilyId)
     && (v.activeVersionId === null || id(v.activeVersionId)) && Array.isArray(v.items) && v.items.length <= 20
     && new Set(v.items.map((q: any) => q?.id)).size === v.items.length
-    && v.items.every((q: any) => exact(q, ['id', 'receiptDigest', 'createdAt', 'questionId', 'question', 'sceneElement', 'property', 'stage', 'questionVersionId', 'runId', 'runState', 'runStatus', 'outcome', 'returnedReferenceIds', 'recordedEvidence', 'fallback', 'recurrenceCount', 'teachings'])
+    && v.items.every((q: any) => exact(q, ['id', 'receiptDigest', 'createdAt', 'questionId', 'question', 'sceneElement', 'property', 'stage', 'questionVersionId', 'runId', 'runState', 'runStatus', 'outcome', 'returnedReferenceIds', 'recordedEvidence', 'fallback', 'recurrenceCount', 'teachings', ...(Object.hasOwn(q,'outcomeReason')?['outcomeReason']:[])])
       && id(q.id) && sha(q.receiptDigest) && time(q.createdAt) && text(q.questionId, 64)
       && text(q.question, 600) && text(q.sceneElement, 160) && TRAINING_PROPERTY_CODES.includes(q.property)
       && TRAINING_STAGE_OPTIONS.some(s => s.value === q.stage) && id(q.questionVersionId) && id(q.runId)
       && (q.runState === null || text(q.runState, 80)) && (q.runStatus === null || text(q.runStatus, 80))
+      && (!Object.hasOwn(q,'outcomeReason')||reason(q.outcomeReason))
       && ['matched', 'no_match', 'pending', 'unavailable'].includes(q.outcome) && Array.isArray(q.returnedReferenceIds)
       && q.returnedReferenceIds.length <= 4096 && q.returnedReferenceIds.every((id: unknown) => typeof id === 'string' && UUID.test(id))
       && new Set(q.returnedReferenceIds).size === q.returnedReferenceIds.length
