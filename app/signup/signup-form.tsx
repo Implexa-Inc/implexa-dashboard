@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/logo';
 import PasswordInput from '@/components/password-input';
+import { attributionFromSignup, hasAttributionCookie, serializeAttributionCookie } from '@/lib/signup-attribution';
 
 /**
  * Client form for /signup.
@@ -33,6 +34,16 @@ export default function SignupForm({
       try { window.localStorage.setItem('implexa_pending_intent', initialIntent.trim()); } catch { /* private mode */ }
     }
   }, [initialIntent]);
+
+  // Remember where this sign-up came from until /onboarding provisions the
+  // account (lib/signup-attribution.ts). The first visit to /signup wins.
+  useEffect(() => {
+    try {
+      if (hasAttributionCookie(document.cookie)) return;
+      const attribution = attributionFromSignup(new URLSearchParams(window.location.search), document.referrer);
+      document.cookie = serializeAttributionCookie(attribution);
+    } catch { /* cookies blocked: sign-up proceeds without a source */ }
+  }, []);
 
   // Preserve `next` through OAuth + email-confirm. If we have an invite token,
   // route post-auth through /onboarding so it can call accept-invite before

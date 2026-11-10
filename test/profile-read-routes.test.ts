@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import './support/tsx-register.mjs';
 
 const supa = await import('./support/stubs/supabase-server.ts');
+const headers = await import('./support/stubs/next-headers.ts');
 const { ProfileReadUnavailableError, PROFILE_READ_TIMEOUT_MS } = await import('@/lib/profile-read.ts');
 const callback = (await import('@/app/auth/callback/route.ts')).GET;
 const onboarding = (await import('@/app/onboarding/page.tsx')).default;
@@ -101,21 +102,27 @@ test('the error boundary offers only a manual retry, not workspace provisioning'
 test('verified genuine absence still provisions and explicit invite acceptance stays intact', async () => {
   const originalFetch = globalThis.fetch;
   const calls: Array<{ path: string; method?: string }> = [];
+  let provisionBody: unknown = null;
   globalThis.fetch = async (input, init) => {
     const path = new URL(String(input)).pathname;
     calls.push({ path, method: init?.method });
+    if (path.endsWith('/provision')) provisionBody = JSON.parse(String(init?.body));
     return new Response(JSON.stringify(path.endsWith('org-suggestion') ? { suggestion: null } : { ok: true }), { status: 200 });
   };
   try {
     supa.__setRow('users', null);
+    // The sign-up source stored by /signup travels with provision.
+    headers.__setCookie('implexa_signup_src', encodeURIComponent(JSON.stringify({ entry: 'website', lp: '/blog/x', email: 'dropped' })));
     await assert.rejects(onboarding({ searchParams: {} }), error => {
       assert.match((error as { digest: string }).digest, /;\/get-app;/);
       return true;
     });
+    headers.__setCookie('implexa_signup_src', null);
     assert.deepEqual(calls, [
       { path: '/api/v2/auth/org-suggestion', method: 'GET' },
       { path: '/api/v2/auth/provision', method: 'POST' },
     ]);
+    assert.deepEqual((provisionBody as { attribution: unknown }).attribution, { entry: 'website', lp: '/blog/x' });
     calls.length = 0;
     supa.__setRow('users', member);
     await assert.rejects(onboarding({ searchParams: { invite: 'fixture-invite' } }), error => {

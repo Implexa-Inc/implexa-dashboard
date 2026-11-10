@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { callBackend } from '@/lib/api';
+import type { SignupAttribution } from '@/lib/signup-attribution';
 
 type Props = {
   jwt: string;
@@ -10,9 +11,10 @@ type Props = {
   displayName: string;
   suggestion: { organizationId: string; organizationName: string; memberCount: number } | null;
   next?: string | null;
+  attribution?: SignupAttribution | null;
 };
 
-export default function OnboardingPicker({ jwt, email, displayName, suggestion, next }: Props) {
+export default function OnboardingPicker({ jwt, email, displayName, suggestion, next, attribution = null }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState<'join' | 'fresh' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export default function OnboardingPicker({ jwt, email, displayName, suggestion, 
       try {
         await callBackend('/api/v2/auth/provision', {
           jwt, method: 'POST',
-          body: { displayName, joinOrgId },
+          body: { displayName, joinOrgId, attribution },
         });
         lastError = null;
         break;
