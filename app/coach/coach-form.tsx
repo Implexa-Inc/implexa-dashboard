@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { callBackend } from '@/lib/api';
+import { joinTools, splitTools, toolsFor } from '@/lib/coach-tools';
 
 // Kept in step with the backend's CATEGORIES (routes/coach-interest.js) and the
 // CHECK in migration 0561.
@@ -28,6 +29,7 @@ const ERRORS: Record<string, string> = {
   talent_required: 'Tell us what you are great at.',
   invalid_work_url: 'The link to your work should start with http:// or https://.',
   invalid_categories: 'Pick from the listed kinds of work.',
+  invalid_tools: 'That is a lot of tools. Please shorten the list.',
 };
 
 export default function CoachForm({
@@ -40,9 +42,14 @@ export default function CoachForm({
 }) {
   const [categories, setCategories] = useState<string[]>(saved?.categories ?? []);
   const [talent, setTalent] = useState(saved?.talent ?? '');
-  const [tools, setTools] = useState(saved?.tools ?? '');
+  const initialTools = splitTools(saved?.tools);
+  const [pickedTools, setPickedTools] = useState<string[]>(initialTools.picked);
+  const [otherTools, setOtherTools] = useState(initialTools.other);
   const [workUrl, setWorkUrl] = useState(saved?.work_url ?? '');
   const [notes, setNotes] = useState(saved?.notes ?? '');
+  // Tags for the chosen categories, plus anything already picked so turning a
+  // category off never hides (and silently keeps) a selected tool.
+  const offeredTools = [...toolsFor(categories), ...pickedTools.filter((t) => !toolsFor(categories).includes(t))];
   const [state, setState] = useState<'idle' | 'saving' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -53,7 +60,7 @@ export default function CoachForm({
     try {
       await callBackend('/api/v2/coach-interest', {
         jwt, method: 'POST',
-        body: { categories, talent, tools, work_url: workUrl, notes },
+        body: { categories, talent, tools: joinTools(pickedTools, otherTools), work_url: workUrl, notes },
       });
       setState('done');
     } catch (err) {
@@ -103,15 +110,32 @@ export default function CoachForm({
           })}
         </div>
       </fieldset>
+      <fieldset className="space-y-2">
+        <legend className="text-sm text-ink-300 mb-1">Tools you use</legend>
+        {offeredTools.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {offeredTools.map((t) => {
+              const on = pickedTools.includes(t);
+              return (
+                <label key={t}
+                  className={`cursor-pointer rounded-full border px-3 py-1 text-sm focus-within:ring-2 focus-within:ring-brand-500 ${on ? 'border-brand-500 bg-brand-500/15 text-ink-50' : 'border-ink-700 text-ink-300'}`}>
+                  <input type="checkbox" className="sr-only" checked={on}
+                    onChange={() => setPickedTools((prev) => on ? prev.filter((x) => x !== t) : [...prev, t])} />
+                  {t}
+                </label>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-xs text-ink-400">Pick the kind of work you do above to see common tools.</p>
+        )}
+        <input maxLength={400} value={otherTools} onChange={(e) => setOtherTools(e.target.value)}
+          placeholder="Other tools, separated by commas" className="input" />
+      </fieldset>
       <label className="block space-y-1">
         <span className="text-sm text-ink-300">What are you great at?</span>
         <textarea required maxLength={500} rows={3} value={talent} onChange={(e) => setTalent(e.target.value)}
           placeholder="e.g. editing YouTube explainers, performance marketing for DTC brands" className="input" />
-      </label>
-      <label className="block space-y-1">
-        <span className="text-sm text-ink-300">Tools you use</span>
-        <input maxLength={500} value={tools} onChange={(e) => setTools(e.target.value)}
-          placeholder="e.g. Premiere Pro, After Effects, Remotion, HeyGen" className="input" />
       </label>
       <label className="block space-y-1">
         <span className="text-sm text-ink-300">Link to your work (optional)</span>
