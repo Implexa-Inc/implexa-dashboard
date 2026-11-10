@@ -3,7 +3,21 @@
 import { useState } from 'react';
 import { callBackend } from '@/lib/api';
 
+// Kept in step with the backend's CATEGORIES (routes/coach-interest.js) and the
+// CHECK in migration 0561.
+export const CATEGORIES = [
+  { id: 'video', label: 'Video' },
+  { id: 'marketing', label: 'Marketing' },
+  { id: 'design', label: 'Design' },
+  { id: 'writing', label: 'Writing' },
+  { id: 'development', label: 'Development' },
+  { id: 'sales', label: 'Sales' },
+  { id: 'research', label: 'Research and analysis' },
+  { id: 'other', label: 'Other' },
+] as const;
+
 export type CoachInterest = {
+  categories?: string[] | null;
   talent: string;
   tools: string | null;
   work_url: string | null;
@@ -13,6 +27,7 @@ export type CoachInterest = {
 const ERRORS: Record<string, string> = {
   talent_required: 'Tell us what you are great at.',
   invalid_work_url: 'The link to your work should start with http:// or https://.',
+  invalid_categories: 'Pick from the listed kinds of work.',
 };
 
 export default function CoachForm({
@@ -23,6 +38,7 @@ export default function CoachForm({
   saved: CoachInterest | null;
   readFailed: boolean;
 }) {
+  const [categories, setCategories] = useState<string[]>(saved?.categories ?? []);
   const [talent, setTalent] = useState(saved?.talent ?? '');
   const [tools, setTools] = useState(saved?.tools ?? '');
   const [workUrl, setWorkUrl] = useState(saved?.work_url ?? '');
@@ -37,7 +53,7 @@ export default function CoachForm({
     try {
       await callBackend('/api/v2/coach-interest', {
         jwt, method: 'POST',
-        body: { talent, tools, work_url: workUrl, notes },
+        body: { categories, talent, tools, work_url: workUrl, notes },
       });
       setState('done');
     } catch (err) {
@@ -71,6 +87,22 @@ export default function CoachForm({
         <span className="text-sm text-ink-300">Email</span>
         <input type="email" value={email} readOnly className="input opacity-70" />
       </label>
+      <fieldset className="space-y-2">
+        <legend className="text-sm text-ink-300 mb-1">What kind of work do you do?</legend>
+        <div className="flex flex-wrap gap-2">
+          {CATEGORIES.map((c) => {
+            const on = categories.includes(c.id);
+            return (
+              <label key={c.id}
+                className={`cursor-pointer rounded-full border px-3 py-1 text-sm focus-within:ring-2 focus-within:ring-brand-500 ${on ? 'border-brand-500 bg-brand-500/15 text-ink-50' : 'border-ink-700 text-ink-300'}`}>
+                <input type="checkbox" className="sr-only" checked={on}
+                  onChange={() => setCategories((prev) => on ? prev.filter((x) => x !== c.id) : [...prev, c.id])} />
+                {c.label}
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
       <label className="block space-y-1">
         <span className="text-sm text-ink-300">What are you great at?</span>
         <textarea required maxLength={500} rows={3} value={talent} onChange={(e) => setTalent(e.target.value)}
