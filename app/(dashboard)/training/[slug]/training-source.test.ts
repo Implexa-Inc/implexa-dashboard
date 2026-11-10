@@ -375,8 +375,8 @@ async function prepareAnswer(rendered: Rendered) {
 }
 
 async function fillManualTeaching(rendered: Rendered) {
-  for (const [label, text] of [['What was chosen', 'Spatial illustration'], ['Why this choice', 'The trainer prefers clear relationships'],
-    ['Tool or process used', 'Arrange meaningful landmarks and connectors'], ['Desired visual, motion or layout behavior', 'Adapt the relationship to the new material']]) {
+  for (const [label, text] of [['Example details', 'Spatial illustration'], ['Judgment', 'The trainer prefers clear relationships'],
+    ['When it applies', 'Arrange meaningful landmarks and connectors'], ['How to adapt', 'Adapt the relationship to the new material']]) {
     await setTextarea(rendered, rendered.getByText(label).closest('label')!.querySelector('textarea')!, text);
   }
 }
@@ -988,6 +988,7 @@ test('an accepted execution-only record stays immutable and requires an independ
     await rendered.click(rendered.getByText('Review accepted evidence'));
     assert.match(rendered.text(), /Eligible stagesBuild the composition, Review previews, Check final quality/);
     await rendered.click(rendered.getByText('Create planning-scoped successor'));
+    assert.equal(rendered.getByText('Original context or approach').closest('label')!.querySelector('textarea')!.value, 'download public map', 'copying a historical process does not pretend to extract applicability');
     assert.equal(calls.some((call) => call.operation === 'annotate' || call.operation === 'accept' || call.operation === 'revoke'), false, 'opening a successor never mutates the accepted record');
     assert.match(rendered.text(), /Selected time 01:23.125/);
     const save = rendered.getByText('Save decision draft') as HTMLButtonElement;
@@ -1332,7 +1333,7 @@ test('an agent without an immutable active version cannot add evidence', async (
 const VALID_FRAME = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg==';
 const SUGGESTION_FIELDS = { chosen: 'A central home links surrounding places.', why: 'The trainer prefers a spatial explanation.',
   process: 'Connect relevant places around a shared anchor.', desiredBehavior: 'Adapt the spatial relationship to the new input.' };
-async function suggestionSetup() {
+async function suggestionSetup(fields = SUGGESTION_FIELDS) {
   const h = await renderedWith({ previewImage: VALID_FRAME });
   Object.defineProperty(h.rendered.window, 'crypto', { value: globalThis.crypto, configurable: true });
   Object.assign(h.rendered.window, { TextEncoder });
@@ -1347,7 +1348,7 @@ async function suggestionSetup() {
     const feedbackSha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(b.feedback))), v => v.toString(16).padStart(2, '0')).join('');
     const { consent, feedback, image, ...binding } = b;
     const value = { requestId: '11111111-1111-4111-8111-111111111111',ok: true, contractVersion: 'training-teaching-suggestion.v2', model: 'claude-haiku-5-5',
-      binding: { ...binding, feedbackSha256 }, status: 'suggested', fields: SUGGESTION_FIELDS, reason: '',
+      binding: { ...binding, feedbackSha256 }, status: 'suggested', fields, reason: '',
       sources: { chosen: 'observed_frame', why: 'trainer_preference', process: 'transferable_guidance', desiredBehavior: 'transferable_guidance' } };
     return await new Promise(resolve => { complete = (override: unknown = value) => resolve({ ok: true, json: async () => override }); });
   }) as typeof h.rendered.window.fetch;
@@ -1366,13 +1367,13 @@ test('suggestion is per-request opt-in, uses the exact frame and answer, and onl
     assert.equal(h.requests.length, 0); assert.equal(r.document.querySelector<HTMLTextAreaElement>('textarea[maxlength="400"]')!.value, '');
     await h.start(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].image, VALID_FRAME);
     assert.equal(h.requests[0].feedback, 'Use the visual example to explain the comparison clearly.'); assert.equal(h.requests[0].questionReceiptId, QUESTION);
-    await h.finish(); assert.match(r.text(), /Observed frame/); assert.match(r.text(), /Trainer preference/); assert.match(r.text(), /Transferable guidance/);
-    assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value, '');
+    await h.finish(); assert.match(r.text(), /Example-specific details/); assert.match(r.text(), /Judgment/); assert.doesNotMatch(r.text(), /General judgment/); assert.match(r.text(), /Applies when/); assert.match(r.text(), /Application to new work/);
+    assert.equal(r.getByText('Example details').closest('label')!.querySelector('textarea')!.value, '');
     assert.equal(h.calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
     await r.click(r.getByText('Use this suggestion in editable fields'));
-    assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value, SUGGESTION_FIELDS.chosen);
+    assert.equal(r.getByText('Example details').closest('label')!.querySelector('textarea')!.value, SUGGESTION_FIELDS.chosen);
     assert.equal(r.getByText('Review prepared teaching').closest('details')!.open,true);
-    await setTextarea(r,r.getByText('Why this choice').closest('label')!.querySelector('textarea')!,'');
+    await setTextarea(r,r.getByText('Judgment').closest('label')!.querySelector('textarea')!,'');
     assert.equal(r.getByText('Review prepared teaching').closest('details')!.open,true,'clearing a field to edit it must not collapse the active form');
     assert.equal(h.calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
     assert.equal((r.getByText(/Send this frame, the recorded question/).closest('label')!.querySelector('input') as HTMLInputElement).checked, false);
@@ -1384,14 +1385,14 @@ test('a late suggestion never overwrites a trainer edit or becomes applicable to
     const h = await suggestionSetup(); const r = h.rendered;
     try {
       await h.start();
-      if (change === 'text') await setTextarea(r, r.getByText('What was chosen').closest('label')!.querySelector('textarea')!, 'My own edited teaching');
+      if (change === 'text') await setTextarea(r, r.getByText('Example details').closest('label')!.querySelector('textarea')!, 'My own edited teaching');
       if (change === 'frame') await setInput(r, r.getByText('Exact timestamp in milliseconds').closest('label')!.querySelector('input')!, '100');
       if (change === 'version') h.setCurrentVersion(VERSION_B);
       await h.finish();
       if (change === 'version') await r.click(r.getByText('Use this suggestion in editable fields'));
       assert.equal((r.getByText('Use this suggestion in editable fields') as HTMLButtonElement).disabled, true);
       assert.match(r.text(), change === 'version' ? /version/i : /previous frame or edit/);
-      if (change === 'text') assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value, 'My own edited teaching');
+      if (change === 'text') assert.equal(r.getByText('Example details').closest('label')!.querySelector('textarea')!.value, 'My own edited teaching');
       assert.equal(h.calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
     } finally { r.cleanup(); }
   }
@@ -1416,7 +1417,7 @@ test('edited suggestion saves through ordinary annotate and answer link, verifie
   const h = await suggestionSetup(); const r = h.rendered;
   try {
     await h.start(); await h.finish(); await r.click(r.getByText('Use this suggestion in editable fields'));
-    await setTextarea(r, r.getByText('Why this choice').closest('label')!.querySelector('textarea')!, 'My reviewed reason, not an automatic rule.');
+    await setTextarea(r, r.getByText('Judgment').closest('label')!.querySelector('textarea')!, 'My reviewed reason, not an automatic rule.');
     await r.click(r.getByText('Save decision draft'));
     const saved = h.calls.filter(c => c.operation === 'annotate'); assert.equal(saved.length,1);
     assert.equal((saved[0].args.decision as any).chosen,SUGGESTION_FIELDS.chosen);
@@ -1430,10 +1431,10 @@ test('edited suggestion saves through ordinary annotate and answer link, verifie
 test('unavailable or malformed suggestion preserves the full answer and an existing manual draft', async () => {
   const h = await suggestionSetup(); const r = h.rendered;
   try {
-    await setTextarea(r,r.getByText('What was chosen').closest('label')!.querySelector('textarea')!,'Keep my manual choice.');
+    await setTextarea(r,r.getByText('Example details').closest('label')!.querySelector('textarea')!,'Keep my manual choice.');
     await h.start(); await h.finish({ok:false,reason:'unavailable'});
     assert.match(r.text(),/Your answer and manual draft are preserved/);
-    assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value,'Keep my manual choice.');
+    assert.equal(r.getByText('Example details').closest('label')!.querySelector('textarea')!.value,'Keep my manual choice.');
     assert.match(r.text(),/Use the visual example to explain the comparison clearly/);
     assert.equal(r.queryByText('Use this suggestion in editable fields'),null);
     assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
@@ -1522,7 +1523,7 @@ test('recording intake is capability gated; call2 retries reuse the exact excerp
   assert.equal(r.document.querySelectorAll('figure').length,3);assert.match(r.text(),/Model choice/);
   assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
   await r.click(r.getByText('Use recording suggestion in editable fields'));
-  assert.equal(r.getByText('What was chosen').closest('label')!.querySelector('textarea')!.value,SUGGESTION_FIELDS.chosen);
+  assert.equal(r.getByText('Example details').closest('label')!.querySelector('textarea')!.value,SUGGESTION_FIELDS.chosen);
  }finally{r.cleanup();}
 });
 
@@ -1825,7 +1826,7 @@ test('cancelled or rejected upload preserves a draft even after confirming disca
    for(const checkbox of Array.from(dialog.querySelectorAll('input[type=checkbox]')))await r.click(checkbox);
    await r.click(r.getByText('Choose video or image'));
    assert.equal(annotation.value,'Keep this unfinished annotation.');
-   assert.equal((r.getByText('What was chosen').closest('label')!.querySelector('textarea') as HTMLTextAreaElement).value,'Spatial illustration');
+   assert.equal((r.getByText('Example details').closest('label')!.querySelector('textarea') as HTMLTextAreaElement).value,'Spatial illustration');
    assert.equal(r.calls.push.length,0);assert.equal(h.calls.some(c=>c.operation==='preview'),false);
   }finally{r.cleanup();}
  }
@@ -1860,7 +1861,7 @@ test('a confirmed source replacement clears its old draft but preserves the reco
   const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;
   for(const checkbox of Array.from(dialog.querySelectorAll('input[type=checkbox]')))await r.click(checkbox);
   await r.click(r.getByText('Choose video or image'));
-  assert.equal((r.getByText('What was chosen').closest('label')!.querySelector('textarea') as HTMLTextAreaElement).value,'');
+  assert.equal((r.getByText('Example details').closest('label')!.querySelector('textarea') as HTMLTextAreaElement).value,'');
   assert.match(r.text(),/Use the visual example to explain the comparison clearly/);
   await fillManualTeaching(r);await r.click(r.getByText('Save decision draft'));
   assert.equal(requests.find(x=>x.body)?.body?.rawAnswer,'Use the visual example to explain the comparison clearly.');
@@ -2135,4 +2136,25 @@ test('tool frame metadata must match the PNG, pinned recipe and selected source 
  assert.throws(()=>toolSuggestionFrame(VALID_FRAME,undefined,SOURCE_ID,1000),'old Desktop cannot silently ignore the requested purpose');
  const png=Buffer.from(VALID_FRAME.split(',')[1],'base64');png.writeUInt32BE(1025,16);
  assert.throws(()=>toolSuggestionFrame('data:image/png;base64,'+png.toString('base64'),{...frame,width:1025},SOURCE_ID,1000));
+});
+
+
+test('judgment, applicability and example details stay distinct through review and ordinary save', async () => {
+  const fields = { chosen: 'This example uses a small red heading above a comparison chart.',
+    why: 'The trainer prefers the heading to be quieter than the values.',
+    process: 'Apply to headings competing with comparison values, not all text or every scene.',
+    desiredBehavior: 'When a heading competes with comparison values, lower its emphasis; do not copy this example’s color, wording or chart.' };
+  const h = await suggestionSetup(fields), r = h.rendered;
+  try {
+    await h.start(); await h.finish();
+    for (const label of ['Example-specific details', 'Judgment', 'Applies when', 'Application to new work']) assert.ok(r.text().includes(label));
+    assert.doesNotMatch(r.text(), /General judgment/);
+    for (const value of Object.values(fields)) assert.ok(r.text().includes(value));
+    await r.click(r.getByText('Use this suggestion in editable fields'));
+    for (const [key, label] of Object.entries({chosen:'Example details',why:'Judgment',process:'When it applies',desiredBehavior:'How to adapt'}))
+      assert.equal(r.getByText(label).closest('label')!.querySelector('textarea')!.value, fields[key as keyof typeof fields]);
+    await r.click(r.getByText('Save decision draft'));
+    assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find(c=>c.operation==='annotate')!.args.decision)), fields);
+    assert.equal(h.calls.some(c=>c.operation==='accept'), false);
+  } finally { r.cleanup(); }
 });
