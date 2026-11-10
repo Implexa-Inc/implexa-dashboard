@@ -1367,7 +1367,7 @@ test('suggestion is per-request opt-in, uses the exact frame and answer, and onl
     assert.equal(h.requests.length, 0); assert.equal(r.document.querySelector<HTMLTextAreaElement>('textarea[maxlength="400"]')!.value, '');
     await h.start(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].image, VALID_FRAME);
     assert.equal(h.requests[0].feedback, 'Use the visual example to explain the comparison clearly.'); assert.equal(h.requests[0].questionReceiptId, QUESTION);
-    await h.finish(); assert.match(r.text(), /Example-specific details/); assert.match(r.text(), /General judgment/); assert.match(r.text(), /Applies when/); assert.match(r.text(), /Application to new work/);
+    await h.finish(); assert.match(r.text(), /Example-specific details/); assert.match(r.text(), /Judgment/); assert.match(r.text(), /Applies when/); assert.match(r.text(), /Application to new work/);
     assert.equal(r.getByText('Example details').closest('label')!.querySelector('textarea')!.value, '');
     assert.equal(h.calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
     await r.click(r.getByText('Use this suggestion in editable fields'));
@@ -2147,7 +2147,7 @@ test('judgment, applicability and example details stay distinct through review a
   const h = await suggestionSetup(fields), r = h.rendered;
   try {
     await h.start(); await h.finish();
-    for (const label of ['Example-specific details', 'General judgment', 'Applies when', 'Application to new work']) assert.ok(r.text().includes(label));
+    for (const label of ['Example-specific details', 'Judgment', 'Applies when', 'Application to new work']) assert.ok(r.text().includes(label));
     for (const value of Object.values(fields)) assert.ok(r.text().includes(value));
     await r.click(r.getByText('Use this suggestion in editable fields'));
     for (const [key, label] of Object.entries({chosen:'Example details',why:'Judgment',process:'When it applies',desiredBehavior:'How to adapt'}))
