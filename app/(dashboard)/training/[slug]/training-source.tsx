@@ -335,6 +335,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [managerTrainingRequirements, setManagerTrainingRequirements] = useState<ManagerTrainingRequirements | null>(null);
   const [successorStageExpansion, setSuccessorStageExpansion] = useState<{ required: TrainingStage[]; missing: TrainingStage[] } | null>(null);
   const [chosen, setChosen] = useState('');
+  const [copiedTeachingWording, setCopiedTeachingWording] = useState(false);
   const [why, setWhy] = useState('');
   const [process, setProcess] = useState('');
   const [behavior, setBehavior] = useState('');
@@ -501,7 +502,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setQuestionAnswer({ questions: selectedQuestions, rawAnswer, expectedActiveVersionId: questions.activeVersionId });
     setSelected(null); setPreview(null); setReviewed(null); setLinkRecordId('');
     setProperty(selectedQuestions[0].property); setStages(normalizeTrainingStages(selectedQuestions.map(q => q.stage))); setRelation('accepted');
-    setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setSuggested(null); appliedSuggestion.current = null;
+    setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setCopiedTeachingWording(false); setSuggested(null); appliedSuggestion.current = null;
     setDraftConsent(false); setSuggestionNote('Your full answer is preserved below. Choose a frame, then draft the four fields manually or request an optional suggestion.');
     setDemoText(''); setDemoAnnotation(null);
     setDecisionKey(crypto.randomUUID()); setQuestionsError('');
@@ -784,7 +785,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     const nextProperty = decision.content.properties[0] || 'motion_rhythm';
     setSelected(source); setTime(decision.content.anchor.startMs); setPreview(null); setReviewed(null);
     setRelation(decision.content.relation); setProperty(nextProperty);
-    setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior);
+    setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior); setCopiedTeachingWording(true);
     setSelectionPriority(String(decision.content.applicability?.priority ?? 50));
     setStages(deriveTrainingStages(nextProperty)); setDecisionKey(crypto.randomUUID());
   }
@@ -813,7 +814,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     const nextProperty = decision.content.properties[0] || 'motion_rhythm';
     setSelected(source); setTime(decision.content.anchor.startMs); setPreview(null); setReviewed(null);
     setRelation(decision.content.relation); setProperty(nextProperty);
-    setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior);
+    setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior); setCopiedTeachingWording(true);
     setSelectionPriority(String(decision.content.applicability?.priority ?? 50));
     const preserved = normalizeTrainingStages(decision.content.applicability?.stages);
     const required = requiredStagesForDecision(managerTrainingRequirements, nextProperty, decision.content.relation);
@@ -942,7 +943,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(!suggestion || !frame || !previewIsCurrent || time!==frame.timeMs || preview?.image!==frame.image)return;
     await work('Using the reviewed recording suggestion',async()=>{
       await requireCurrentScope();
-      setChosen(suggestion.fields.chosen);setWhy(suggestion.fields.why);setProcess(suggestion.fields.process);setBehavior(suggestion.fields.desiredBehavior);
+      setChosen(suggestion.fields.chosen);setWhy(suggestion.fields.why);setProcess(suggestion.fields.process);setBehavior(suggestion.fields.desiredBehavior);setCopiedTeachingWording(false);
       setDecisionKey(crypto.randomUUID());setSuggestionNote('Copied into editable fields. Review and save, then accept separately.');
     });
   }
@@ -1023,7 +1024,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       await requireCurrentScope();
       if (suggested.snapshot !== latestDraft.current) throw Error('The frame or draft changed. Request a new suggestion.');
       const fields = suggested.value.fields;
-      setChosen(fields.chosen); setWhy(fields.why); setProcess(fields.process); setBehavior(fields.desiredBehavior);
+      setChosen(fields.chosen); setWhy(fields.why); setProcess(fields.process); setBehavior(fields.desiredBehavior); setCopiedTeachingWording(false);
       appliedSuggestion.current = suggested.value; setSuggested(null); setDecisionKey(crypto.randomUUID());
       setSuggestionNote('Suggestion copied into the editable fields. Review your wording, save the draft, then accept it separately.');
     } catch (caught) { setSuggestionNote(caught instanceof Error ? caught.message : 'The suggestion was not applied.'); }
@@ -1060,7 +1061,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:scope.agent.currentVersionId,suggestionId:recordingDraft.suggestionId,
         suggestionDigest:recordingDraft.suggestionDigest,recordId:drafted.recordId,expectedRecordDigest:drafted.recordDigest}} : null;
       if(recordingLink)setPendingRecordingLink(recordingLink);
-      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setWordingOpened(false); setSelectionPriority('50'); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null);
+      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setCopiedTeachingWording(false); setWordingOpened(false); setSelectionPriority('50'); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null);
       const saved = await load(session);
       if (appliedSuggestion.current) {
         const record = saved.sources?.flatMap(s => s.decisions).find(d => d.recordId === drafted.recordId);
@@ -1495,7 +1496,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       {installationId&&<h3>Preference wording — confirm or edit</h3>}
       <TrainingDetails title={wordingOpened?'Review prepared teaching':'Advanced manual teaching'} open={Boolean(installationId)||wordingOpened}>
       {!installationId&&![chosen,why,process,behavior].every(value=>value.trim())&&<p>Use your annotation and the suggestion above to prepare the teaching wording. Keep the judgment, its scope and example details separate. These fields are available if you prefer to draft it manually.</p>}
-      {([['Example details', chosen, setChosen], ['Judgment', why, setWhy], ['When it applies', process, setProcess], ['How to adapt', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || !priorityIsValid || stages.length === 0 || (Boolean(installationId)&&!demoAnnotationIsCurrent) || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={()=>void annotate()}>Save decision draft</button></TrainingDetails></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
+      {([['Example details', chosen, setChosen], ['Judgment', why, setWhy], [copiedTeachingWording?'Original context or approach':'When it applies', process, setProcess], ['How to adapt', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || !priorityIsValid || stages.length === 0 || (Boolean(installationId)&&!demoAnnotationIsCurrent) || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={()=>void annotate()}>Save decision draft</button></TrainingDetails></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
     </div>
     {!installationId&&<div className="flex flex-wrap gap-x-6 gap-y-3 border-t border-ink-800 pt-5 text-xs text-ink-500"><button type="button" onClick={()=>setView(view==='history'?'start':'history')} aria-expanded={view==='history'}>Questions & history</button><button type="button" onClick={()=>setView(view==='settings'?'start':'settings')} aria-expanded={view==='settings'}>Sharing & settings</button><TrainingInfo label="Version details">Active version: {shortId(currentVersion)}{sessionVersion?` · Session version: ${shortId(sessionVersion)}`:''}</TrainingInfo></div>}
     </div>

@@ -988,6 +988,7 @@ test('an accepted execution-only record stays immutable and requires an independ
     await rendered.click(rendered.getByText('Review accepted evidence'));
     assert.match(rendered.text(), /Eligible stagesBuild the composition, Review previews, Check final quality/);
     await rendered.click(rendered.getByText('Create planning-scoped successor'));
+    assert.equal(rendered.getByText('Original context or approach').closest('label')!.querySelector('textarea')!.value, 'download public map', 'copying a historical process does not pretend to extract applicability');
     assert.equal(calls.some((call) => call.operation === 'annotate' || call.operation === 'accept' || call.operation === 'revoke'), false, 'opening a successor never mutates the accepted record');
     assert.match(rendered.text(), /Selected time 01:23.125/);
     const save = rendered.getByText('Save decision draft') as HTMLButtonElement;
