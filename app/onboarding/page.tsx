@@ -7,11 +7,13 @@
  */
 
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
 import { postAuthDestination } from '@/lib/navigation';
 import { callBackend } from '@/lib/api';
 import OnboardingPicker from './picker';
+import { ATTRIBUTION_COOKIE, parseAttributionCookie } from '@/lib/signup-attribution';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +24,9 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
 
   const email = session.user.email!;
   const displayName = session.user.user_metadata?.display_name || session.user.user_metadata?.name || email.split('@')[0];
+  // Where the sign-up came from, set by /signup (lib/signup-attribution.ts).
+  // Sent with provision; the backend keeps only the first value per account.
+  const attribution = parseAttributionCookie(cookies().get(ATTRIBUTION_COOKIE)?.value);
   const nextParam = typeof searchParams?.next === 'string'
     && searchParams.next.startsWith('/') && !searchParams.next.startsWith('//')
     && !searchParams.next.split('?')[0].startsWith('/onboarding') ? searchParams.next : null;
@@ -89,7 +94,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
   if (!suggestion) {
     try {
       await callBackend('/api/v2/auth/provision', {
-        jwt: session.access_token, method: 'POST', body: { displayName, joinOrgId: null },
+        jwt: session.access_token, method: 'POST', body: { displayName, joinOrgId: null, attribution },
       });
       autoProvisioned = true;
     } catch (_) { /* fall through to the picker for a manual retry */ }
@@ -110,6 +115,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams?: 
           displayName={displayName}
           suggestion={suggestion}
           next={nextParam}
+          attribution={attribution}
         />
       </div>
     </main>

@@ -53,6 +53,7 @@ const STUBS = {
   'next/link':             join(HERE, 'stubs', 'next-link.tsx'),
   'next/navigation':       join(HERE, 'stubs', 'next-navigation.ts'),
   'next/server':           join(HERE, 'stubs', 'next-server.ts'),
+  'next/headers':          join(HERE, 'stubs', 'next-headers.ts'),
   '@/lib/supabase/server': join(HERE, 'stubs', 'supabase-server.ts'),
   '@/lib/supabase/client': join(HERE, 'stubs', 'supabase-client.ts'),
 };
