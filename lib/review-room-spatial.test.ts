@@ -630,3 +630,23 @@ test('training voice note converts a frozen normalized rectangle to native integ
   assert.equal(start.args.attach.mark.frameMs,1656);assert.equal(start.args.expectedOwnerId,SESSION_ID);assert.equal(calls.some(c=>c.body.action==='create_issue'),false);
  }finally{for(const key of Object.keys(native))delete native[key];Object.assign(native,saved);}
 });
+
+test('training run voice keeps its frozen mark until explicit insert and then saves ordinary feedback', async () => {
+ const native=(dom.window as unknown as {implexaDesktop:Record<string,unknown>}).implexaDesktop,saved={...native},captured:any[]=[];
+ Object.assign(native,{trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string,args:any)=>{
+  captured.push({op,args});if(op==='startVoiceNote')return {ok:true,voiceNoteId:ISSUE_ID};
+  if(op==='getVoiceNote')return {ok:true,voiceNote:{voiceNoteId:ISSUE_ID,state:'ready',attach:captured[0].args.attach,sha256:SHA_V,durationMs:1000,failureReason:null}};
+  return {ok:true,transcript:{text:'Use a more meaningful visual here.',voiceNoteSha256:SHA_V,digest:SHA_V}};
+ }});
+ try{
+  await mount({trainingMode:true,trainingOwnerId:SESSION_ID});const state=rigVideo(video());await media(video(),'loadedmetadata');
+  await fire(overlay(),'pointerdown',{clientX:410,clientY:320});await fire(overlay(),'pointerup',{clientX:410,clientY:320});await clickButton(/Add a voice note/);
+  assert.equal((container.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Use a more meaningful visual here.');
+  assert.equal(buttons().find(b=>b.textContent==='Save issue')!.disabled,true);assert.equal(buttons().find(b=>b.textContent==='Cancel')!.disabled,true);
+  state.currentTime=8;await fire(overlay(),'pointerdown',{clientX:210,clientY:207.5});await fire(overlay(),'pointerup',{clientX:210,clientY:207.5});
+  assert.match(text(),/Pin · 00:01\.656 · \(50%, 50%\)/);assert.equal((container.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Use a more meaningful visual here.');
+  await clickButton(/^Add to this note$/);await clickButton(/^Save issue$/);
+  const issue=calls.find(c=>c.body.action==='create_issue')!.body;assert.equal(issue.body,'Use a more meaningful visual here.');assert.equal((issue.anchor as typeof storedSpatialAnchor).temporal.startMs,1656);
+  assert.equal(calls.some(c=>c.body.action==='submit'),false);
+ }finally{for(const key of Object.keys(native))delete native[key];Object.assign(native,saved);}
+});

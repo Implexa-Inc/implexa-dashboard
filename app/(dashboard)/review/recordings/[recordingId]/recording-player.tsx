@@ -332,10 +332,11 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   // ── edits ─────────────────────────────────────────────────────────────────
 
   const patch = (id: string, fn: (m: Moment) => Moment) => setMoments((prev) => prev.map((m) => (m.momentId === id ? fn(m) : m)));
-  const setRegion = (id: string, region: Region | null) => patch(id, (m) => ({ ...m, region }));
+  const setRegion = (id: string, region: Region | null) => {if(!voiceDirty.has(id))patch(id, (m) => ({ ...m, region }));};
   const setField = (id: string, field: CardField, value: string) =>
     patch(id, (m) => ({ ...m, card: { ...m.card, [field]: value.slice(0, CARD_FIELD_MAX) } }));
   const removeMoment = (id: string) => {
+    if(voiceDirty.has(id))return;
     setMoments((prev) => prev.filter((m) => m.momentId !== id));
     if (selectedId === id) { setSelectedId(null); setDrawing(false); }
   };
@@ -456,7 +457,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                 mediaKind="video"
                 controlsMode="external"
                 mediaEl={() => videoRef.current}
-                enabled
+                enabled={voiceDirty.size===0}
                 pins={moments.flatMap((m,i)=>m.region&&playheadMs>=m.startMs&&playheadMs<=m.endMs?[{issueId:m.momentId,ordinal:i+1,geometry:{kind:'rect' as const,x:m.region.x/COORD_MAX,y:m.region.y/COORD_MAX,width:m.region.width/COORD_MAX,height:m.region.height/COORD_MAX},highlighted:m.momentId===selectedId,title:m.card.whatToDo||'Feedback'}]:[])}
                 draftSpatial={null}
                 freezeMedia={freezeForRegion}
@@ -568,13 +569,13 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                   <button type="button" onClick={() => selectMoment(m)} className="font-mono text-sm text-sky-300 hover:underline">
                     {i + 1}. {formatMs(m.startMs)}–{formatMs(m.endMs)} <span className="text-ink-500">({seconds(m.endMs - m.startMs)})</span>
                   </button>
-                  <button type="button" onClick={() => removeMoment(m.momentId)} className="text-xs text-ink-400 hover:text-rose-300">Delete</button>
+                  <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => removeMoment(m.momentId)} className="text-xs text-ink-400 hover:text-rose-300">Delete</button>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-400">
                   <span>Region: {m.region ? regionLabel(m.region) : 'none'}</span>
-                  <button type="button" onClick={() => { videoRef.current?.pause(); selectMoment(m); setRegionError(null); setDrawing(true); }} className="text-sky-300 hover:underline">Draw region</button>
-                  {pointerBox && <button type="button" onClick={() => setRegion(m.momentId, pointerBox)} className="text-sky-300 hover:underline">Use pointer box</button>}
-                  {m.region && <button type="button" onClick={() => setRegion(m.momentId, null)} className="text-ink-400 hover:underline">Clear region</button>}
+                  <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => { videoRef.current?.pause(); selectMoment(m); setRegionError(null); setDrawing(true); }} className="text-sky-300 hover:underline">Draw region</button>
+                  {pointerBox && <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => setRegion(m.momentId, pointerBox)} className="text-sky-300 hover:underline">Use pointer box</button>}
+                  {m.region && <button type="button" disabled={voiceDirty.has(m.momentId)} onClick={() => setRegion(m.momentId, null)} className="text-ink-400 hover:underline">Clear region</button>}
                 </div>
                 <div className="mt-3"><label htmlFor={`${m.momentId}-feedback`} className="sr-only">What should change here?</label><textarea id={`${m.momentId}-feedback`} placeholder="What should change here?" rows={3} maxLength={CARD_FIELD_MAX} value={m.card.whatToDo} onFocus={()=>setSelectedId(m.momentId)} onChange={e=>setField(m.momentId,'whatToDo',e.target.value)} className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 focus:border-sky-500 focus:outline-none"/>
                   {embedded&&<TrainerVoiceNote disabled={busy!==null} onDirtyChange={dirty=>setVoiceDirty(previous=>{const next=new Set(previous);if(dirty)next.add(m.momentId);else next.delete(m.momentId);return next.size===previous.size&&[...next].every(id=>previous.has(id))?previous:next;})} ownerId={ownerId} attach={{sourceKind:detail.origin==='recorded'?'recording':'upload',sourceRef:`${recordingId}:${m.momentId}`,mark:m.endMs>m.startMs?{startMs:m.startMs,endMs:m.endMs}:{frameMs:m.startMs,region:m.region||{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,CARD_FIELD_MAX-m.card.whatToDo.trim().length-(m.card.whatToDo.trim()?2:0))} onInsert={text=>patch(m.momentId,current=>({...current,card:{...current.card,whatToDo:[current.card.whatToDo.trim(),text].filter(Boolean).join('\n\n')}}))}/>}

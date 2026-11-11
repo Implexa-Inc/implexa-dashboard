@@ -2250,3 +2250,36 @@ test('an uninserted voice transcript blocks source replacement just like typed u
   assert.equal(requests.some(x=>String(x.url).includes('/run-review?')),false);assert.equal(nativeCalls.filter(c=>c.op==='transcribeVoiceNote').length,1);
  }finally{r.cleanup();}
 });
+
+test('image voice commentary can be inserted while its own pending state guards source switching',async()=>{
+ const h=harness({previewImage:VALID_FRAME}),nativeCalls:any[]=[];let voiceAttach:any;
+ Object.assign(h.bridge,{trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string,args:any)=>{
+  nativeCalls.push({op,args});if(op==='startVoiceNote'){voiceAttach=args.attach;return {ok:true,voiceNoteId:QUESTION};}
+  if(op==='getVoiceNote')return {ok:true,voiceNote:{voiceNoteId:QUESTION,state:'ready',attach:voiceAttach,sha256:DIGEST,durationMs:1000,failureReason:null}};
+  if(op==='transcribeVoiceNote')return {ok:true,transcript:{text:'Show the relationship clearly.',voiceNoteSha256:DIGEST,digest:DIGEST}};
+  return {ok:true};
+ }});
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
+ try{
+  await chooseDirectUpload(r);await r.click(r.getByText('Add a voice note'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+  const insert=[...r.document.querySelectorAll('button')].find(button=>button.textContent==='Add to this note')!;assert.ok(insert);assert.equal(insert.disabled,false,'voice pending guards navigation, not its own insertion');
+  await r.click(insert);assert.equal((r.document.querySelector('[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'Show the relationship clearly.');
+  assert.equal(h.calls.some(c=>['recording','annotate','accept'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
+test('uploaded reference narration stays context until explicitly marked as my narrated demonstration',async()=>{
+ const h=harness({recording:true,previewImage:VALID_FRAME}),nativeCalls:any[]=[];
+ const summary={recordingId:RECORD,title:'Uploaded reference',origin:'imported',state:'ready',failureReason:null,createdAt:'2026-11-11T12:00:00.000Z',durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:0};
+ Object.assign(h.bridge,{reviewRecorderContractVersion:'2',trainingRecordingLibraryContractVersion:'1',reviewRecorder:async(op:string,args:any)=>{
+  nativeCalls.push({op,args});return op==='get'?{ok:true,recording:{...summary,pointerTrack:null,moments:[]}}:op==='list'?{ok:true,recordings:[summary],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true};
+ },revokeArtifactPreview:async()=>({ok:true})});
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,initialRecordingId:RECORD},{bridge:h.bridge});
+ try{
+  const analysis=r.getByText('Find learnings in my narration') as HTMLButtonElement;assert.equal(analysis.disabled,true);assert.equal((r.getByText('Done teaching') as HTMLButtonElement).disabled,true);
+  const consent=r.getByText('This is my narrated demonstration').closest('label')!.querySelector('input')!;assert.equal(consent.checked,false);await r.click(consent);
+  assert.equal(analysis.disabled,false);assert.equal(h.calls.some(c=>['selectRecording','recording','annotate','accept'].includes(c.operation)),false);
+  await r.click(analysis);assert.ok(r.document.querySelector('[role="dialog"][aria-label="Find learnings in this recording?"]'));
+  assert.equal(h.calls.some(c=>['selectRecording','recording','annotate','accept'].includes(c.operation)),false,'the separate analysis confirmation is still needed');
+ }finally{r.cleanup();}
+});

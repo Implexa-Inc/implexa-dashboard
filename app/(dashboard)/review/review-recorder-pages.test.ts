@@ -720,3 +720,21 @@ test('Training imported videos open the same inline player while generic uploads
   assert.equal(ops(b).filter(op=>op==='import').length,1);
  }finally{page.cleanup();}
 });
+
+test('a pending voice transcript keeps its moment region frozen until inserted or discarded',async()=>{
+ const moment={momentId:M1,startMs:1000,endMs:1000,region:{x:100000,y:200000,width:300000,height:200000},card:{...emptyCard(),whatToDo:'Saved feedback.'},createdAt:NOW};
+ let attached:any;const sha='a'.repeat(64);
+ const b=bridge((op,args:any)=>{
+  if(op==='startVoiceNote'){attached=args.attach;return {ok:true,voiceNoteId:NEW};}
+  if(op==='getVoiceNote')return {ok:true,voiceNote:{voiceNoteId:NEW,state:'ready',attach:attached,sha256:sha,durationMs:1000,failureReason:null}};
+  if(op==='transcribeVoiceNote')return {ok:true,transcript:{text:'This spoken note refers to the original box.',voiceNoteSha256:sha,digest:sha}};
+  return op==='get'?{ok:true,recording:detail({},[moment])}:op==='preview'?previewOk:{ok:true};
+ },{trainerCommentaryContractVersion:'1'});
+ const page=await render(PLAYER,{recordingId:ID,ownerId:ID,embedded:true},{bridge:b.value});
+ try{
+  await page.click(button(page,/Add a voice note/)!);await page.act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});
+  assert.equal((page.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'This spoken note refers to the original box.');
+  assert.equal(button(page,'Draw region')!.disabled,true,'changing attach geometry must not silently clear a voice transcript');
+  assert.equal(button(page,'Clear region')!.disabled,true);
+ }finally{page.cleanup();}
+});

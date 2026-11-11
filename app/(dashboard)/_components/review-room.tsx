@@ -970,10 +970,11 @@ export default function ReviewRoom(props: ReviewRoomProps) {
 
   /** Arrow-key nudge of an unsaved point — the keyboard's half of placement. */
   const onNudgeDraft = useCallback((next: { x: number; y: number }) => {
+    if(voiceDirty)return;
     setDraft((d) => (d?.spatial && d.spatial.geometry.kind === 'point'
       ? { ...d, spatial: { ...d.spatial, geometry: { ...d.spatial.geometry, x: next.x, y: next.y } } }
       : d));
-  }, []);
+  }, [voiceDirty]);
 
   /**
    * Escape cancels an UNSAVED annotation. One with typed text keeps the no-silent-loss
@@ -1408,7 +1409,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           }}
           onSeek={seekTo}
           spatial={{
-            enabled: !frozen && !accepted && artifact?.status === 'validated',
+            enabled: !voiceDirty && !frozen && !accepted && artifact?.status === 'validated',
             pins: overlayPins,
             draftSpatial: draft?.spatial ?? null,
             freezeMedia: freezeMediaForAnnotation,
