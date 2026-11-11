@@ -614,3 +614,19 @@ test('audio clarification in the real ReviewRoom saves explicit evidence on the 
   assert.equal((String(saved.body).match(/Audio clarification for/g) || []).length, 1);
   assert.equal(calls.some(c => c.body.action === 'submit'), false, 'saving context cannot start a revision');
 });
+
+test('training voice note converts a frozen normalized rectangle to native integer coordinates', async () => {
+ const native=(dom.window as unknown as {implexaDesktop:Record<string,unknown>}).implexaDesktop;
+ const saved={...native},captured:any[]=[];
+ Object.assign(native,{trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string,args:any)=>{
+  captured.push({op,args});if(op==='startVoiceNote')return {ok:true,voiceNoteId:ISSUE_ID};
+  return {ok:true,voiceNote:{voiceNoteId:ISSUE_ID,state:'cancelled',attach:captured[0]?.args.attach,sha256:null,durationMs:null,failureReason:null}};
+ }});
+ try{
+  await mount({trainingMode:true,trainingOwnerId:SESSION_ID});rigVideo(video());await media(video(),'loadedmetadata');
+  await fire(overlay(),'pointerdown',{clientX:210,clientY:207.5});await fire(overlay(),'pointermove',{clientX:610,clientY:432.5});await fire(overlay(),'pointerup',{clientX:610,clientY:432.5});
+  await clickButton(/Add a voice note/);
+  const start=captured.find(call=>call.op==='startVoiceNote');assert.ok(start);assert.deepEqual(start.args.attach.mark.region,{x:250000,y:250000,width:500000,height:500000});
+  assert.equal(start.args.attach.mark.frameMs,1656);assert.equal(start.args.expectedOwnerId,SESSION_ID);assert.equal(calls.some(c=>c.body.action==='create_issue'),false);
+ }finally{for(const key of Object.keys(native))delete native[key];Object.assign(native,saved);}
+});

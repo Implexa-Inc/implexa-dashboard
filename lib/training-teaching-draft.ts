@@ -1,3 +1,4 @@
+import {TRAINING_PROPERTY_CODES,TRAINING_RELATIONS} from './training-local-ingress.ts';
 export const TEACHING_MODEL = 'claude-haiku-5-5';
 export const MAX_TEACHING_FRAME_BYTES = 2 * 1024 * 1024;
 // Coordinated wire pin; the Desktop producer test asserts this exact digest.
@@ -24,6 +25,15 @@ export type TeachingSuggestion = { ok: true; contractVersion: 'training-teaching
   requestId: string;
   binding: SuggestionBinding; status: 'suggested' | 'insufficient'; fields: TeachingFields | null; reason: string;
   sources: { chosen: 'observed_frame'; why: 'trainer_preference'; process: 'transferable_guidance'; desiredBehavior: 'transferable_guidance' } };
+export type ScopedTeachingSuggestion=Omit<TeachingSuggestion,'contractVersion'>&{contractVersion:'training-teaching-suggestion.v6';scopeSuggestion:{property:string;relation:string}|null};
+/** The workspace opts in; older callers keep their exact v2/v3 contract. */
+export function scopedTeachingSuggestion(value:any,expected:SuggestionBinding):value is ScopedTeachingSuggestion{
+  if(!value||value.contractVersion!=='training-teaching-suggestion.v6'||!Object.hasOwn(value,'scopeSuggestion'))return false;
+  const {scopeSuggestion,...legacy}=value;
+  if(!teachingSuggestion({...legacy,contractVersion:'training-teaching-suggestion.v3'},expected))return false;
+  if(value.status==='insufficient')return scopeSuggestion===null;
+  return scopeSuggestion===null || (exact(scopeSuggestion,['property','relation'])&&TRAINING_PROPERTY_CODES.includes(scopeSuggestion.property as any)&&TRAINING_RELATIONS.includes(scopeSuggestion.relation as any));
+}
 const exact = (v: any, keys: string[]) => v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === keys.length && keys.every(k => Object.hasOwn(v, k));
 export async function teachingDigest(bytes: Uint8Array) {
   const hash = await crypto.subtle.digest('SHA-256', bytes as Uint8Array<ArrayBuffer>);

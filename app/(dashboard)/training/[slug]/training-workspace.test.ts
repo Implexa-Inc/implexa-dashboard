@@ -81,3 +81,20 @@ test('teaching image hover and focus enlarge the verified frame without a second
   assert.equal(calls.length,1);assert.equal(r.calls.push.length,0);
  }finally{r.cleanup();}
 });
+
+
+test('source picker selects recent results inline and keeps chat beside source choices',async()=>{
+ const chosen:any[]=[];let chatted=0;
+ const run={id:'run',date:'2026-11-11T12:00:00Z',status:'Done',artifact:null};
+ const props={slug:'video-agent',runs:[run],onSelectRun:(value:any)=>chosen.push(value),onChat:()=>chatted++,selectedRunId:'run'};
+ const r=await render(component,props,{exportName:'TrainingEntry'});
+ try{
+  const pick=r.document.querySelector('button[aria-label="Teach from latest result"]')!;
+  assert.equal(pick.getAttribute('aria-pressed'),'true');await r.click(pick);assert.deepEqual(chosen,[run]);assert.equal(r.calls.push.length,0);
+  assert.equal(r.document.querySelector('a[href="/training/video-agent/review/run"]'),null);
+  await r.click(r.document.querySelector('#training-chat-toggle')!);assert.equal(chatted,1);
+  await r.rerender({...props,sourceActive:true});assert.equal((r.document.querySelector('#training-recent-results') as HTMLElement).hidden,true);
+  const recent=[...r.document.querySelectorAll('button')].find(el=>el.textContent?.includes('Recent results'))!;
+  await r.click(recent);assert.equal((r.document.querySelector('#training-recent-results') as HTMLElement).hidden,false);
+ }finally{r.cleanup();}
+});

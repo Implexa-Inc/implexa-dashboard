@@ -95,7 +95,7 @@ export type RecordingSummary = {
   momentCount: number;
 };
 export type RecordingDetail = RecordingSummary & { pointerTrack: PointerTrack | null; moments: Moment[] };
-export type ActiveRecording = { recordingId: string; state: ActiveState };
+export type ActiveRecording = { recordingId: string; state: ActiveState; origin?: 'voice_note' };
 export type LibraryUsage = { usedBytes: number; limitBytes: number };
 export type RecordingPreview = { url: string; mime: 'video/mp4'; token: string };
 const START_FAILURE_PHASES = ['display', 'recorder_construct', 'recorder_start', 'started_ack', 'countdown_deadline', 'other'] as const;
@@ -319,7 +319,7 @@ export function isLibraryUsage(v: unknown): v is LibraryUsage {
 }
 
 export function isActiveRecording(v: unknown): v is ActiveRecording {
-  return exact(v, ['recordingId', 'state']) && isRecordingId(v.recordingId)
+  return (exact(v, ['recordingId', 'state']) || exact(v,['recordingId','state','origin']) && v.origin==='voice_note') && isRecordingId(v.recordingId)
     && (ACTIVE_STATES as readonly unknown[]).includes(v.state);
 }
 

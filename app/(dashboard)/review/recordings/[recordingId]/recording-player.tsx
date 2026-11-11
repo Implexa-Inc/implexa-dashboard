@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import Modal from '../../../_components/modal';
 import ReviewSpatialOverlay from '../../../_components/review-spatial-overlay';
 import ReviewPlaybackControls from '../../../_components/review-playback-controls';
+import TrainerVoiceNote from '../../../_components/trainer-voice-note';
 import { formatMs } from '@/lib/review-anchor';
 import { inDesktopApp, revokePreview } from '@/lib/review-preview';
 import { visualContentRect } from '@/lib/review-spatial-geometry';
@@ -31,7 +32,7 @@ const pct = (n: number) => `${Math.round(n / (COORD_MAX / 100))}%`;
 const regionLabel = (r: Region) => `${pct(r.width)} × ${pct(r.height)} at (${pct(r.x)}, ${pct(r.y)})`;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 
-export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embedded=false,onAnalyzeNarration,onAnalyzeTool,onUseFeedback,narrationUnavailable,onDirtyChange,onClose,onRecordingLoaded }: { recordingId: string; ownerId:string;trainingSlug?:string;embedded?:boolean;onAnalyzeNarration?:(recordingId:string,momentId:string|null)=>void;onAnalyzeTool?:(recordingId:string,momentId:string|null)=>void;onUseFeedback?:(recordingId:string,moment:Moment)=>void;narrationUnavailable?:string;onDirtyChange?:(dirty:boolean)=>void;onClose?:()=>void;onRecordingLoaded?:(detail:RecordingDetail)=>void }) {
+export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embedded=false,onAnalyzeNarration,onAnalyzeTool,onUseFeedback,onDoneTeaching,onTrainerNarrationChange,trainerNarration=false,narrationUnavailable,onDirtyChange,onClose,onRecordingLoaded }: { recordingId: string; ownerId:string;trainingSlug?:string;embedded?:boolean;onAnalyzeNarration?:(recordingId:string,momentId:string|null)=>void;onAnalyzeTool?:(recordingId:string,momentId:string|null)=>void;onUseFeedback?:(recordingId:string,moment:Moment)=>void;onDoneTeaching?:(recordingId:string,moments:Moment[])=>void;trainerNarration?:boolean;onTrainerNarrationChange?:(enabled:boolean)=>void;narrationUnavailable?:string;onDirtyChange?:(dirty:boolean)=>void;onClose?:()=>void;onRecordingLoaded?:(detail:RecordingDetail)=>void }) {
   const router = useRouter();
   const client = useMemo(() => createReviewRecorderClient(undefined,ownerId), [ownerId]);
   const [availability, setAvailability] = useState<RecorderAvailability | null>(null);
@@ -41,6 +42,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [saved, setSaved] = useState<Moment[]>([]);
   const [moments, setMoments] = useState<Moment[]>([]);
+  const [voiceDirty,setVoiceDirty]=useState<Set<string>>(()=>new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [markStartMs, setMarkStartMs] = useState<number | null>(null);
   const [barDraft, setBarDraft] = useState<Range | null>(null);
@@ -67,7 +69,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
 
   const durationMs = detail?.state === 'ready' ? detail.durationMs : null;
   const samples = detail?.pointerTrack?.samples ?? null;
-  const dirty = momentsDirty(saved, moments);
+  const dirty = momentsDirty(saved, moments)||voiceDirty.size>0;
   useEffect(()=>{dirtyCallback.current?.(dirty);},[dirty]);
   const selected = moments.find((m) => m.momentId === selectedId) ?? null;
   const intrinsic = videoDims
@@ -549,7 +551,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
             {busy === 'save' ? 'Saving…' : dirty ? 'Save feedback' : 'Saved'}
           </button>
         </div>
-        <p className="mb-4 text-xs text-ink-500">{embedded?'Save your feedback, then turn a mark into a learning.':MOMENTS_NEXT_NOTE}</p>
+        <p className="mb-4 text-xs text-ink-500">{embedded?'Mark a moment and tell your agent what matters.':MOMENTS_NEXT_NOTE}</p>
 
         {moments.length === 0 && (
           <p className="rounded-lg border border-ink-800 bg-ink-900/40 px-4 py-6 text-center text-sm text-ink-400">No moments yet.</p>
@@ -575,9 +577,10 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
                   {m.region && <button type="button" onClick={() => setRegion(m.momentId, null)} className="text-ink-400 hover:underline">Clear region</button>}
                 </div>
                 <div className="mt-3"><label htmlFor={`${m.momentId}-feedback`} className="sr-only">What should change here?</label><textarea id={`${m.momentId}-feedback`} placeholder="What should change here?" rows={3} maxLength={CARD_FIELD_MAX} value={m.card.whatToDo} onFocus={()=>setSelectedId(m.momentId)} onChange={e=>setField(m.momentId,'whatToDo',e.target.value)} className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 focus:border-sky-500 focus:outline-none"/>
+                  {embedded&&<TrainerVoiceNote disabled={busy!==null} onDirtyChange={dirty=>setVoiceDirty(previous=>{const next=new Set(previous);if(dirty)next.add(m.momentId);else next.delete(m.momentId);return next.size===previous.size&&[...next].every(id=>previous.has(id))?previous:next;})} ownerId={ownerId} attach={{sourceKind:detail.origin==='recorded'?'recording':'upload',sourceRef:`${recordingId}:${m.momentId}`,mark:m.endMs>m.startMs?{startMs:m.startMs,endMs:m.endMs}:{frameMs:m.startMs,region:m.region||{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,CARD_FIELD_MAX-m.card.whatToDo.trim().length-(m.card.whatToDo.trim()?2:0))} onInsert={text=>patch(m.momentId,current=>({...current,card:{...current.card,whatToDo:[current.card.whatToDo.trim(),text].filter(Boolean).join('\n\n')}}))}/>}
                   {warnings.whatToDo&&<p data-testid="card-warning" className="mt-1 text-xs text-amber-300">{warnings.whatToDo.join(' ')}</p>}
                 </div>
-                {onUseFeedback&&<button type="button" className="mt-3 text-sm text-brand-400" disabled={busy!==null||dirty||!CARD_FIELDS.some(field=>m.card[field].trim())} onClick={()=>onUseFeedback(recordingId,m)}>Turn into a learning</button>}
+                {onUseFeedback&&<button type="button" className="mt-3 text-xs text-ink-500 underline underline-offset-4" disabled={busy!==null||dirty||!CARD_FIELDS.some(field=>m.card[field].trim())} onClick={()=>onUseFeedback(recordingId,m)}>Turn into a learning</button>}
                 {CARD_FIELDS.some(field=>field!=='whatToDo'&&m.card[field].trim())&&<details className="mt-3 text-xs text-ink-400"><summary>Previously saved notes</summary>{CARD_FIELDS.filter(field=>field!=='whatToDo'&&m.card[field].trim()).map(field=><p key={field} className="mt-2 whitespace-pre-wrap"><strong>{CARD_FIELD_LABELS[field]}:</strong> {m.card[field]}</p>)}</details>}
               </li>
             );
@@ -586,9 +589,16 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
       </section>
 
       <section className="my-4 flex flex-wrap items-center gap-3 text-sm">
+        {onDoneTeaching&&<button type="button" className="btn-primary" disabled={busy!==null||voiceDirty.size>0||(!moments.some(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()))&&(!onAnalyzeNarration||!!narrationUnavailable))} onClick={async()=>{
+          if(dirty&&!(await save()))return;
+          const notes=momentsRef.current.filter(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()));
+          if(notes.length)onDoneTeaching(recordingId,notes);else onAnalyzeNarration?.(recordingId,selectedId);
+        }}>Done teaching</button>}
+        <details className="text-xs text-ink-400"><summary className="cursor-pointer">More options</summary><div className="mt-3 flex flex-wrap items-center gap-3">{detail.origin==='imported'&&onTrainerNarrationChange&&<label className="flex w-full items-center gap-2"><input type="checkbox" checked={trainerNarration} onChange={event=>onTrainerNarrationChange(event.target.checked)}/>This is my narrated demonstration</label>}
         {onAnalyzeNarration?<button type="button" className="btn-primary" disabled={busy!==null||!!narrationUnavailable} onClick={async()=>{if(dirty&&!(await save()))return;onAnalyzeNarration(recordingId,selectedId);}}>Find learnings in my narration</button>:<>{trainingSlug?<button type="button" disabled={dirty||busy!==null} onClick={()=>router.push(`/training/${encodeURIComponent(trainingSlug)}?recordingId=${recordingId}${selectedId?`&momentId=${selectedId}`:''}`)}>Use in Training</button>:<Link href={`/training?recordingId=${recordingId}`}>Choose an agent for Training</Link>}</>}
         {onAnalyzeTool&&<button type="button" className="btn-secondary" disabled={busy!==null||!!narrationUnavailable} onClick={async()=>{if(dirty&&!(await save()))return;onAnalyzeTool(recordingId,selectedId);}}>Teach a tool or method</button>}
         {(onAnalyzeNarration||onAnalyzeTool)&&narrationUnavailable&&<p className="text-xs text-ink-400">{narrationUnavailable}</p>}
+        </div></details>
       </section>
 
       <Modal open={leaveHref !== null} onClose={() => setLeaveHref(null)} title="Leave without saving?">

@@ -672,9 +672,9 @@ test('Training toolbar calls record directly and opens the inline annotator with
  const b=bridge(op=>op==='list'?{ok:true,library,recordings:started?[summary({recordingId:NEW})]:[]}:op==='status'?{ok:true,active:null}:op==='start'?(started=true,{ok:true,recordingId:NEW}):{ok:true});
  const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training',onTrainingUpload:()=>uploads++,onRecordingReady:(id:string)=>ready.push(id)},{bridge:b.value});
  try{
-  assert.match(page.text(),/Multimodal Training/);assert.equal(page.queryByText('Review a result'),null);assert.equal(ops(b).includes('start'),false);
-  await page.click(button(page,'Upload and annotate Video/Image')!);assert.equal(uploads,1);assert.equal(ops(b).includes('import'),false);assert.equal(page.calls.push.length,0);
-  await page.click(button(page,'Record your training')!);
+  assert.ok(page.document.querySelector('[aria-label="Record or upload training"]'));assert.doesNotMatch(page.text(),/Multimodal Training/);assert.equal(page.queryByText('Review a result'),null);assert.equal(ops(b).includes('start'),false);
+  await page.click(button(page,'↑ Upload')!);assert.equal(uploads,1);assert.equal(ops(b).includes('import'),false);assert.equal(page.calls.push.length,0);
+  await page.click(button(page,'◉ Record')!);
   assert.deepEqual(b.calls.find(c=>c.operation==='start')?.args,{microphone:true,expectedOwnerId:ID});
   assert.equal(page.calls.push.length,0,'completion does not discard Training or an uncertain chat Send');
   assert.deepEqual(ready,[NEW]);assert.equal(page.document.querySelector('a[href="/review/recordings/'+NEW+'?trainingSlug=trained-video"]'),null);
@@ -685,7 +685,7 @@ test('Training recording failures remain visible with a recovery destination',as
  let started=false;
  const b=bridge(op=>op==='list'?{ok:true,library,recordings:started?[summary({recordingId:NEW,state,failureReason:state==='failed'?'finalize_failed':null,durationMs:null})]:[]}:op==='status'?{ok:true,active:null}:op==='start'?(started=true,{ok:true,recordingId:NEW}):{ok:true});
  const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training'},{bridge:b.value});
- try{await page.click(button(page,'Record your training')!);assert.match(page.text(),state==='failed'?new RegExp(FAILURE_REASON_MESSAGES.finalize_failed):/Recording interrupted/);assert.equal(page.calls.push.length,0);assert.equal(page.document.querySelector('a[href="/review/recordings/'+NEW+'?trainingSlug=trained-video"]')?.textContent,'Open recording');}finally{page.cleanup();}
+ try{await page.click(button(page,'◉ Record')!);assert.match(page.text(),state==='failed'?new RegExp(FAILURE_REASON_MESSAGES.finalize_failed):/Recording interrupted/);assert.equal(page.calls.push.length,0);assert.equal(page.document.querySelector('a[href="/review/recordings/'+NEW+'?trainingSlug=trained-video"]')?.textContent,'Open recording');}finally{page.cleanup();}
  }
 });
 
@@ -706,5 +706,17 @@ test('a ready picture creates a timestamped point mark directly, with one feedba
   const moments=b.calls.find(c=>c.operation==='saveMoments')!.args.moments;
   assert.deepEqual(moments[0].card,card);assert.equal(moments[1].startMs,12842);assert.equal(moments[1].endMs,12842);
   assert.ok(moments[1].region);assert.equal(moments[1].card.whatToDo,'Make the place name clearer.');
+ }finally{page.cleanup();}
+});
+
+
+test('Training imported videos open the same inline player while generic uploads keep their route',async()=>{
+ const ready:string[]=[];
+ const b=bridge(op=>op==='list'?{ok:true,library,recordings:[]}:op==='status'?{ok:true,active:null}:op==='import'?{ok:true,recordingId:NEW}:{ok:true});
+ const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training',onRecordingReady:(id:string)=>ready.push(id)},{bridge:b.value});
+ try{
+  await page.click(button(page,'↑ Upload')!);
+  assert.deepEqual(ready,[NEW]);assert.equal(page.calls.push.length,0);
+  assert.equal(ops(b).filter(op=>op==='import').length,1);
  }finally{page.cleanup();}
 });

@@ -90,7 +90,7 @@ test('activation uses a real matching request and explicit click, without imposi
  v.activation={canActivate:true,reason:null,servedSnapshotDigest:'b'.repeat(64),withdrawnSinceTest:1,testRequestId:id(20)};
  assert.equal(guidedTrainingChanges(v,expected),true,'a fresh matching test may replace old served training with withdrawn items');
  const calls:any[]=[],r=await render('../training/[slug]/training-changes.tsx',{value:v,onPolicy:()=>{},onForce:()=>{},onEdit:()=>{},onRecord:()=>{},onTest:()=>{},onPublish:()=>{},onActivate:(...args:any[])=>calls.push(args)});t.after(()=>r.cleanup());
- assert.equal(calls.length,0);assert.match(r.text(),/Quality: 60\/100/);await r.click(r.getByText('Use this tested update'));assert.deepEqual(calls,[[H,id(20)]]);
+ assert.equal(calls.length,0);assert.match(r.text(),/Quality: 60\/100/);await r.click(r.getByText('Make live'));assert.deepEqual(calls,[[H,id(20)]]);
  v.activation.testRequestId=id(22);assert.equal(guidedTrainingChanges(v,expected),false);
  v.activation.testRequestId=id(20);v.test.status='running';assert.equal(guidedTrainingChanges(v,expected),false);
 });
@@ -107,9 +107,9 @@ test('pre-test guidance shows executor and real budget limits without claiming a
 
 test('learning rows show a concise saved sentence while keeping the complete original on expand',async t=>{
  const v=value();v.records[0].summary='Use imagery to explain the relationship. Specific fonts, colors and positions remain optional.';
- const {r,calls}=await setup(t,v);const row=r.document.querySelector('[aria-label="Your private training update"] details.group')!;
- assert.match(row.querySelector('summary')?.textContent||'',/Use imagery to explain the relationship/);assert.doesNotMatch(row.querySelector('summary')?.textContent||'',/Specific fonts/);
- assert.match(row.textContent||'',/Specific fonts, colors and positions remain optional/);assert.equal(calls.length,0);
+ const {r,calls}=await setup(t,v);const row=r.document.querySelector('[aria-label="Saved teaching"]')!;
+ const caption=row.querySelector('p')!;assert.match(caption.textContent||'',/Use imagery to explain the relationship/);assert.doesNotMatch(caption.textContent||'',/Specific fonts/);
+ const details=row.querySelector('details')!;assert.equal(details.open,false);assert.match(details.textContent||'',/Specific fonts, colors and positions remain optional/);assert.equal(calls.length,0);
 });
 
 
@@ -119,4 +119,53 @@ test('serving state is optional for old servers but rejects invented pending or 
  for(const serving of [{mode:'legacy_accepted',candidateDiffers:'false'},{mode:'guessed',candidateDiffers:true},{mode:'snapshot_other_version',candidateDiffers:false}]){
   v.activation.serving=serving as any;assert.equal(guidedTrainingChanges(v,expected),false);
  }
+});
+
+
+test('taste suggestions are preselected but never written until Apply; method preferences require explicit selection',async t=>{
+ const v=value();v.records=[
+  {...v.records[0],state:'suggested',included:false,admissionOrigin:'none'},
+  {...v.records[0],recordId:id(6),summary:'Use the background tool when needed.',category:'method_preference',state:'suggested',included:false,admissionOrigin:'none'},
+  {...v.records[0],recordId:id(7),summary:'Unclassified suggestion.',category:null,state:'suggested',included:false,admissionOrigin:'none'},
+  {...v.records[0],recordId:id(8),summary:null,state:'unavailable',included:false,admissionOrigin:'none'},
+ ];
+ const applied:any[]=[],explained:any[]=[],props={value:v,onPolicy:()=>{},onForce:()=>{},onEdit:()=>{},onRecord:()=>{},onTest:()=>{},onPublish:()=>{},onApplySelected:(records:any[])=>applied.push(records),onExplain:(record:any)=>explained.push(record)};
+ const r=await render('../training/[slug]/training-changes.tsx',props);t.after(()=>r.cleanup());
+ const boxes=[...r.document.querySelectorAll('input[aria-label^="Select teaching:"]')] as HTMLInputElement[];
+ assert.equal(boxes.length,2);assert.equal(boxes[0].checked,true);assert.equal(boxes[1].checked,false);assert.equal(applied.length,0);
+ await r.click(r.getByText('Apply selected'));assert.deepEqual(applied[0].map((x:any)=>x.recordId),[id(5)]);assert.match(r.text(),/proposed, not applied yet/);
+ await r.click(boxes[1]);await r.click(r.getByText('Apply selected'));assert.deepEqual(applied[1].map((x:any)=>x.recordId),[id(5),id(6)]);
+ await r.click([...r.document.querySelectorAll('button')].find(button=>button.textContent==='✨ Explain')!);assert.equal(explained[0].recordId,id(5));assert.equal(applied.length,2,'Explain does not write or apply');
+});
+
+test('bundle selection survives refresh and partial apply without claiming the rest succeeded',async t=>{
+ const v=value();const first={...v.records[0],state:'suggested',included:false,admissionOrigin:'none'};
+ v.records=[first as any,{...first,recordId:id(6),summary:'Keep the explanation clear.'} as any];
+ const applied:any[]=[],props={value:v,onPolicy:()=>{},onForce:()=>{},onEdit:()=>{},onRecord:()=>{},onTest:()=>{},onPublish:()=>{},onApplySelected:(records:any[])=>applied.push(records)};
+ const r=await render('../training/[slug]/training-changes.tsx',props);t.after(()=>r.cleanup());
+ const boxes=()=>[...r.document.querySelectorAll('input[aria-label^="Select teaching:"]')] as HTMLInputElement[];
+ await r.click(boxes()[1]);await r.rerender({...props,value:{...v}});assert.equal(boxes()[1].checked,false,'snapshot refresh preserves an explicit skip');
+ await r.click(r.getByText('Apply selected'));assert.deepEqual(applied[0].map((x:any)=>x.recordId),[id(5)]);
+ const partial={...v,records:[{...v.records[0],state:'candidate',included:true,admissionOrigin:'owner_candidate'},v.records[1]]};
+ await r.rerender({...props,value:partial});assert.equal(boxes().length,1);assert.equal(boxes()[0].checked,false);assert.equal((r.getByText('Apply selected') as HTMLButtonElement).disabled,true);
+ assert.match(r.text(),/Suggested/);assert.doesNotMatch(r.text(),/All applied|Training applied successfully/);
+ const nextVersion={...v,binding:{...v.binding,workflowVersionId:id(30)}};
+ await r.rerender({...props,value:nextVersion});assert.equal(boxes()[1].checked,true,'another version does not reuse stale skips');
+});
+
+test('Make live is a direct action only when the authoritative matching test allows activation',async t=>{
+ const v=value(),calls:any[]=[],props={value:v,onTest:()=>{},onPublish:()=>{},onActivate:(...args:any[])=>calls.push(args)};
+ const r=await render('../training/[slug]/training-changes.tsx',props,{exportName:'TrainingRunPanel'});t.after(()=>r.cleanup());
+ assert.equal(r.queryByText('Make live'),null);
+ const delivered={...v,test:{...v.test,status:'delivered',runId:id(21),snapshotDigest:H,requestId:id(20)},activation:{canActivate:true,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:id(20)}};
+ await r.rerender({...props,value:delivered});const button=r.getByText('Make live');assert.equal(button.closest('details'),null);assert.equal(calls.length,0);
+ await r.click(button);assert.deepEqual(calls,[[H,id(20)]]);
+});
+
+
+test('read-only explanations render inline without replacing the exact saved wording',async t=>{
+ const v=value(),calls:any[]=[],r=await render('../training/[slug]/training-changes.tsx',{value:v,onPolicy:()=>{},onForce:()=>{},onEdit:()=>{},onRecord:()=>{},onTest:()=>{},onPublish:()=>{},onExplain:(record:any)=>calls.push(record),explanationFor:()=> 'A plain-language explanation.'});t.after(()=>r.cleanup());
+ assert.match(r.text(),/A plain-language explanation/);assert.match(r.text(),/Use imagery to explain the relationship/);
+ const row=r.document.querySelector('[aria-label="Saved teaching"]')!;assert.match(row.querySelector('details')!.textContent||'',/Use imagery to explain the relationship/);
+ await r.click([...row.querySelectorAll('button')].find(button=>button.textContent==='✨ Explain')!);assert.equal(calls[0].recordDigest,H);
 });
