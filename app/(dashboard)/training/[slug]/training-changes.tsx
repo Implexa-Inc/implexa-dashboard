@@ -9,6 +9,7 @@ import Modal from '../../_components/modal';
 type Target={eventId:string;eventDigest:string};
 const reasonCopy:Record<string,string>={question:'This was a question; a clear preference has not been supplied.',tentative:'This was a tentative idea, not a settled instruction.',agent_change:'This needs an agent setup change, not a taste teaching.',authority_request:'This needs a separate permission or spending decision.',insufficient:'There was not enough information to prepare a teaching.',not_converted:'This part has not been converted into a saved teaching.',not_guidance:'This proposal did not express a settled preference.',proposal_refused_content:'A proposed teaching could not be safely delivered. Your original feedback is preserved.',proposal_excerpt_unmatched:'The proposal could not be linked to an exact excerpt of your feedback.',proposal_excerpt_ambiguous:'The quoted excerpt was repeated, so its source was ambiguous.',proposal_excerpt_overlap:'This proposed excerpt overlapped another teaching.',proposed_guidance:'Linked to a saved teaching.'};
 const explain=(reason:string)=>reasonCopy[reason]||(/^(training_|publication_)/.test(reason)?trainingSnapshotReason(reason):reason.replaceAll('_',' '));
+export const trainingTextSelectable=(record:TrainingChangeRecord)=>record.state==='suggested'&&!record.included&&record.sourceKind!=='legacy_evidence'&&!!record.summary&&['taste','method_preference'].includes(record.category||'');
 export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdit,onRecord,onTest,onPublish,onImport,onWithdraw,onActivate,renderExample,captionFor,versionPicker,hideRunPanel=false,onExplain,onApplySelected,explanationFor,hiddenRecordIds=[],applyContainer,onEligibleCountChange}:{applyContainer?:HTMLElement|null;onEligibleCountChange?:(count:number)=>void;
  hiddenRecordIds?:string[];explanationFor?:(record:TrainingChangeRecord)=>ReactNode;onExplain?:(record:TrainingChangeRecord)=>void;onApplySelected?:(records:TrainingChangeRecord[])=>void|Promise<void>;
  hideRunPanel?:boolean;captionFor?:(record:TrainingChangeRecord)=>string|null;renderExample?:(record:TrainingChangeRecord,index:number)=>ReactNode;versionPicker?:ReactNode;
@@ -24,7 +25,7 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
  const live=value.records.filter(r=>r.included),remaining=value.feedback.filter(f=>f.outcome!=='added');
  const button='text-xs text-ink-400 underline underline-offset-4 disabled:opacity-40';
  const selectionKey=(r:TrainingChangeRecord)=>`${value.binding.sessionId}:${value.binding.workflowVersionId}:${r.recordId}:${r.recordDigest}`;
- const selectable=(r:TrainingChangeRecord)=>r.state==='suggested'&&!r.included&&r.sourceKind!=='legacy_evidence'&&!!r.summary&&['taste','method_preference'].includes(r.category||'');
+ const selectable=trainingTextSelectable;
  const selected=(r:TrainingChangeRecord)=>selectable(r)&&(selection[selectionKey(r)]??r.category==='taste');
  const visibleRecords=value.records.filter(record=>!hiddenRecordIds.includes(record.recordId));
  const pendingRecords=visibleRecords.filter(record=>['suggested','candidate'].includes(record.state));
@@ -50,7 +51,7 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
    <details className="group mt-3 text-xs text-ink-400"><summary className="cursor-pointer">Original wording &amp; details</summary><div className="space-y-2 pt-3"><p className="whitespace-pre-wrap text-sm leading-6">{r.summary||'This teaching is no longer available for use.'}</p><p>{r.included?(r.admissionOrigin==='human_decision'?'Previously accepted by you · included in this private candidate':'Included in this private candidate'):r.state==='removed'?'Removed from this candidate':r.state==='retired'?'Removed from future updates':r.state==='revoked'?'Permission withdrawn':r.state==='discarded'?'Discarded':r.state==='unavailable'?'Unavailable · not included':'Suggested · not included'}{r.model?` · Prepared by ${r.model}`:''}</p>
     {r.admissionOrigin!=='none'&&<p>{r.admissionOrigin==='standing_policy'?'Added by your standing policy':r.admissionOrigin==='owner_candidate'?'Added because you asked':'Your recorded human decision'}{r.policyReceiptId&&<span title={r.policyReceiptDigest||''}> · policy receipt {r.policyReceiptId.slice(0,8)}</span>}</p>}
     <div className="flex flex-wrap gap-4 pt-2">{r.included&&<button type="button" className={button} disabled={busy} onClick={()=>onRecord(r,'remove')}>Remove from this candidate</button>}
-     {r.state==='suggested'&&applyContainer===undefined&&<button type="button" className={button} disabled={busy} onClick={()=>onRecord(r,'admit')}>Include in private update</button>}
+     {r.state==='suggested'&&!(applyContainer!==undefined&&trainingTextSelectable(r))&&<button type="button" className={button} disabled={busy} onClick={()=>onRecord(r,'admit')}>Include in private update</button>}
      {r.state==='removed'&&<button type="button" className={button} disabled={busy} onClick={()=>onRecord(r,'undo')}>Undo removal</button>}</div>
    </div></details>
   </article>;})}</div>;
