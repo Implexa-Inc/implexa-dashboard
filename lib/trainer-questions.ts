@@ -75,7 +75,7 @@ export function questionGroups(items: TrainerQuestion[]) {
 /** A match is not proof of success; only explicit backend signals suggest a gap. */
 export function trainingOpportunities(items:TrainerQuestion[],activeVersionId:string|null){
  const seen=new Set<string>();return items.filter(q=>{
-  const signal=q.opportunityReason|| (q.outcome==='no_match'?'no_match':null);
+  const signal=q.opportunityReason;
   const key=`${q.questionVersionId}:${q.stage}:${q.property}`;
   if(!signal||q.questionVersionId!==activeVersionId||q.teachings.some(t=>t.state==='prepared'||t.state==='taught')||seen.has(key))return false;
   seen.add(key);return true;

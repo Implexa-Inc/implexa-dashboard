@@ -2,11 +2,11 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {render} from '../../../../lib/test/render.ts';
 import {trainingOpportunities,questionPresentation,type TrainerQuestion} from '../../../../lib/trainer-questions.ts';
 const U=(n:number)=>`70000000-0000-4000-8000-${String(n).padStart(12,'0')}`,H='a'.repeat(64);
-const q:TrainerQuestion={id:U(1),receiptDigest:H,createdAt:'2026-11-12T12:00:00Z',questionId:'presenter',question:'Should the presenter be close up or wide?',sceneElement:'presenter and diagram',property:'presenter_graphic_integration',stage:'build',questionVersionId:U(2),runId:U(3),runState:'completed',runStatus:'completed',outcome:'no_match',returnedReferenceIds:[],recordedEvidence:false,fallback:null,recurrenceCount:1,teachings:[]};
+const q:TrainerQuestion={id:U(1),receiptDigest:H,createdAt:'2026-11-12T12:00:00Z',questionId:'presenter',question:'Should the presenter be close up or wide?',sceneElement:'presenter and diagram',property:'presenter_graphic_integration',stage:'build',questionVersionId:U(2),runId:U(3),runState:'completed',runStatus:'completed',outcome:'no_match',opportunityReason:'no_match',returnedReferenceIds:[],recordedEvidence:false,fallback:null,recurrenceCount:1,teachings:[]};
 const questions={ok:true,contractVersion:'trainer-questions.v1',agentFamilyId:U(4),activeVersionId:U(2),items:[q],nextCursor:null};
 const p={id:U(5),digest:H,value:{question:'How should your presenter appear beside diagrams?',options:['Use a close presenter crop beside diagrams.','Use a wider crop when gestures explain the point.']}};
 test('opportunities require a real signal, dedupe topics, omit prepared answers and bound the list',()=>{
- assert.deepEqual(trainingOpportunities([{...q,outcome:'matched'}],U(2)),[]);assert.equal(trainingOpportunities([{...q,outcome:'matched',opportunityReason:'review_finding'}],U(2)).length,1);
+ assert.deepEqual(trainingOpportunities([{...q,outcome:'matched',opportunityReason:null}],U(2)),[]);assert.equal(trainingOpportunities([{...q,outcome:'matched',opportunityReason:'review_finding'}],U(2)).length,1);
  assert.equal(trainingOpportunities([q,{...q,id:U(9)}],U(2)).length,1);assert.deepEqual(trainingOpportunities([{...q,teachings:[{sessionId:U(7),recordId:U(8),recordDigest:H,state:'prepared',reason:null,targetVersionId:U(2)}]}],U(2)),[]);
  assert.equal(questionPresentation(p),true);assert.equal(questionPresentation({...p,value:{...p.value,options:['same','same']}}),false);
 });
