@@ -738,3 +738,13 @@ test('a pending voice transcript keeps its moment region frozen until inserted o
   assert.equal(button(page,'Clear region')!.disabled,true);
  }finally{page.cleanup();}
 });
+
+test('active voice capture is labelled as a voice note and its events never open a screen-selection failure modal',async()=>{
+ const b=bridge(op=>op==='list'?{ok:true,library,recordings:[]}:op==='status'?{ok:true,active:{recordingId:NEW,state:'choosing',origin:'voice_note'}}:{ok:true});
+ const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training'},{bridge:b.value});
+ try{
+  assert.match(page.text(),/Opening voice note/);assert.doesNotMatch(page.text(),/Choose a screen or window/);assert.equal(button(page,'◉ Record')!.disabled,true);
+  await page.act(()=>b.emit({ownerId:ID,recordingId:NEW,origin:'voice_note',state:'start_failed',failure:{phase:'started_ack',errorName:'NotAllowedError',reason:'microphone_unavailable'}}));
+  assert.equal(page.document.querySelector('[role="dialog"]'),null);
+ }finally{page.cleanup();}
+});

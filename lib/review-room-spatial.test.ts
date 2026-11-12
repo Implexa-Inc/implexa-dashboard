@@ -620,7 +620,7 @@ test('training voice note converts a frozen normalized rectangle to native integ
  const saved={...native},captured:any[]=[];
  Object.assign(native,{trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string,args:any)=>{
   captured.push({op,args});if(op==='startVoiceNote')return {ok:true,voiceNoteId:ISSUE_ID};
-  return {ok:true,voiceNote:{voiceNoteId:ISSUE_ID,state:'cancelled',attach:captured[0]?.args.attach,sha256:null,durationMs:null,failureReason:null}};
+  return {ok:true,voiceNote:{voiceNoteId:ISSUE_ID,state:'cancelled',attach:captured.find(call=>call.op==='startVoiceNote')?.args.attach,sha256:null,durationMs:null,failureReason:null}};
  }});
  try{
   await mount({trainingMode:true,trainingOwnerId:SESSION_ID});rigVideo(video());await media(video(),'loadedmetadata');
@@ -635,7 +635,7 @@ test('training run voice keeps its frozen mark until explicit insert and then sa
  const native=(dom.window as unknown as {implexaDesktop:Record<string,unknown>}).implexaDesktop,saved={...native},captured:any[]=[];
  Object.assign(native,{trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string,args:any)=>{
   captured.push({op,args});if(op==='startVoiceNote')return {ok:true,voiceNoteId:ISSUE_ID};
-  if(op==='getVoiceNote')return {ok:true,voiceNote:{voiceNoteId:ISSUE_ID,state:'ready',attach:captured[0].args.attach,sha256:SHA_V,durationMs:1000,failureReason:null}};
+  if(op==='getVoiceNote')return {ok:true,voiceNote:{voiceNoteId:ISSUE_ID,state:'ready',attach:captured.find(call=>call.op==='startVoiceNote').args.attach,sha256:SHA_V,durationMs:1000,failureReason:null}};
   return {ok:true,transcript:{text:'Use a more meaningful visual here.',voiceNoteSha256:SHA_V,digest:SHA_V}};
  }});
  try{

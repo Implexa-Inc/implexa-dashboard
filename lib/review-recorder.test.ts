@@ -517,3 +517,11 @@ test('account-bound bridge refuses missing identity and never publishes foreign-
  listener({ownerId:foreign,recordingId:ID,state:'ready'});listener({recordingId:ID,state:'ready'});
  assert.equal(seen.length,0);listener({ownerId:ID,recordingId:ID,state:'ready'});assert.equal(seen.length,1);
 });
+
+test('voice-note recorder events preserve origin and distinguish microphone failures from screen capture',()=>{
+ const base={ownerId:ID,recordingId:ID,origin:'voice_note',state:'cancelled'};
+ assert.equal(isRecorderChange(base),true);assert.equal(isRecorderChange({...base,state:'discarded'}),true);
+ const failed={...base,state:'start_failed',failure:{phase:'started_ack',errorName:'NotAllowedError',reason:'microphone_unavailable'}};
+ assert.equal(isRecorderChange(failed),true);const {origin,...screen}=failed;assert.equal(isRecorderChange(screen),false);
+ assert.equal(isRecorderChange({...base,origin:'other'}),false);assert.equal(isRecorderChange({...base,extra:true}),false);
+});

@@ -102,13 +102,13 @@ const START_FAILURE_PHASES = ['display', 'recorder_construct', 'recorder_start',
 const START_ERROR_NAMES = ['NotAllowedError', 'NotFoundError', 'NotReadableError', 'AbortError', 'NotSupportedError',
   'InvalidStateError', 'SecurityError', 'OverconstrainedError', 'TypeError', 'other'] as const;
 const DISPLAY_FAILURE_REASONS = ['not_armed', 'frame_mismatch', 'phase', 'source_missing', 'sources_failed', 'source_binding_missing',
-  'permission_media_types', 'permission_frame', 'permission_url', 'permission_consumed', 'permission_check', 'not_reported'] as const;
+  'permission_media_types', 'permission_frame', 'permission_url', 'permission_consumed', 'permission_check', 'not_reported', 'microphone_unavailable'] as const;
 export type RecorderStartFailure = {
   phase: typeof START_FAILURE_PHASES[number];
   errorName: typeof START_ERROR_NAMES[number];
   reason: typeof DISPLAY_FAILURE_REASONS[number];
 };
-export type RecorderChange = { ownerId:string; recordingId: string; state: string; failure?: RecorderStartFailure };
+export type RecorderChange = { ownerId:string; recordingId: string; state: string; origin?:'voice_note'; failure?: RecorderStartFailure };
 
 export function recorderStartFailureMessage(failure: RecorderStartFailure): string {
   if (failure.reason === 'source_missing') return 'The selected screen or window disappeared before recording started. No recording was saved.';
@@ -324,14 +324,16 @@ export function isActiveRecording(v: unknown): v is ActiveRecording {
 }
 
 export function isRecorderChange(v: unknown): v is RecorderChange {
-  if (!isObj(v) || !exact(v, v.state === 'start_failed' ? ['ownerId', 'recordingId', 'state', 'failure'] : ['ownerId', 'recordingId', 'state'])
+  if (!isObj(v) || !exact(v, [...(v.state === 'start_failed' ? ['ownerId', 'recordingId', 'state', 'failure'] : ['ownerId', 'recordingId', 'state']),...(v.origin===undefined?[]:['origin'])]) || v.origin!==undefined&&v.origin!=='voice_note'
     || typeof v.ownerId !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v.ownerId)
     || !isRecordingId(v.recordingId) || typeof v.state !== 'string' || v.state.length === 0 || v.state.length > 64) return false;
+  if(v.origin==='voice_note'&&!['choosing','countdown','recording','finalizing','ready','failed','cancelled','discarded','start_failed'].includes(v.state))return false;
   if (v.state !== 'start_failed') return true;
   return exact(v.failure, ['phase', 'errorName', 'reason'])
     && (START_FAILURE_PHASES as readonly unknown[]).includes(v.failure.phase)
     && (START_ERROR_NAMES as readonly unknown[]).includes(v.failure.errorName)
-    && (DISPLAY_FAILURE_REASONS as readonly unknown[]).includes(v.failure.reason);
+    && (DISPLAY_FAILURE_REASONS as readonly unknown[]).includes(v.failure.reason)
+    && (v.failure.reason!=='microphone_unavailable'||v.origin==='voice_note');
 }
 
 // ── per-operation response parsers (pure; exported for tests) ────────────────
