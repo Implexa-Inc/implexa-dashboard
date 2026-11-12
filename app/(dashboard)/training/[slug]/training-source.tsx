@@ -402,24 +402,37 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [rawAnswer, setRawAnswer] = useState('');
   const [answeringQuestionId,setAnsweringQuestionId]=useState<string|null>(null);
   const questionDrafts=useRef(new Map<string,string>());
+  const answerDraftScope=useRef('');
   useEffect(()=>{if(answeringQuestionId)document.getElementById(`question-answer-${answeringQuestionId}`)?.focus();},[answeringQuestionId]);
   function openQuestionAnswer(id:string){
     if(busy||questionsBusy||questionAnswer||pendingAnswerLinks)return;
-    if(answeringQuestionId)questionDrafts.current.set(`${questionScope.current}:${answeringQuestionId}`,rawAnswer);
+    if(answeringQuestionId)questionDrafts.current.set(`${answerDraftScope.current}:${answeringQuestionId}`,rawAnswer);
     if(answeringQuestionId===id){setAnsweringQuestionId(null);setQuestionIds([]);setRawAnswer('');return;}
     setAnsweringQuestionId(id);setQuestionIds([id]);setRawAnswer(questionDrafts.current.get(`${questionScope.current}:${id}`)||'');
   }
   function includeQuestion(id:string,checked:boolean){
     const row=questions?.items.find(q=>q.id===id);
-    if(questionAnswer&&row&&(row.property!==questionAnswer.questions[0].property||row.stage!==questionAnswer.questions[0].stage||row.questionVersionId!==questionAnswer.questions[0].questionVersionId)){setQuestionsError('Choose related questions about the same topic and stage.');return;}
+    const base=questionAnswer?.questions[0]||questions?.items.find(q=>q.id===answeringQuestionId);
+    if(row&&base&&(row.property!==base.property||row.stage!==base.stage||row.questionVersionId!==base.questionVersionId)){setQuestionsError('Choose related questions about the same topic and stage.');return;}
+    if(checked&&!answeringQuestionId){openQuestionAnswer(id);return;}
+    if(id===answeringQuestionId&&!checked)return;
     const ids=checked?[...new Set([...questionIds,id])]:questionIds.filter(value=>value!==id);
     setQuestionIds(ids);
     if(questionAnswer)setQuestionAnswer({...questionAnswer,questions:questions!.items.filter(q=>ids.includes(q.id))});
-    if(checked&&!answeringQuestionId)setAnsweringQuestionId(id);
   }
+
   const [questionAnswer, setQuestionAnswer] = useState<QuestionAnswer | null>(null);
   const [linkRecordId, setLinkRecordId] = useState('');
   const [pendingAnswerLinks, setPendingAnswerLinks] = useState<{ answer: QuestionAnswer; sessionId: string; recordId: string; recordDigest: string } | null>(null);
+  useEffect(()=>{
+    const next=questionScope.current;
+    if(answerDraftScope.current===next)return;
+    if(answeringQuestionId)questionDrafts.current.set(`${answerDraftScope.current}:${answeringQuestionId}`,rawAnswer);
+    answerDraftScope.current=next;setAnsweringQuestionId(null);setQuestionIds([]);setRawAnswer('');
+    if(!pendingAnswerLinks)setQuestionAnswer(null);
+    // A version transition resets the open card, not the previous version's local wording.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[ownerId,slug,currentVersion,installationId]);
   const [demoText, setDemoText] = useState('');
   const [demoAnnotation, setDemoAnnotation] = useState<{ value: DemoAnnotation; previewIdentity: string } | null>(null);
   const pendingDemoSave = useRef<{ fingerprint: string; key: string } | null>(null);
@@ -564,7 +577,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   function prepareQuestionAnswer() {
     const selectedQuestions = questions?.items.filter(q => questionIds.includes(q.id)) || [];
     if (!selectedQuestions.length || !rawAnswer.trim() || !questions?.activeVersionId) return;
-    if (new Set(selectedQuestions.map(q => q.property)).size !== 1) { setQuestionsError('Choose questions about one visual property for one teaching.'); return; }
+    if (new Set(selectedQuestions.map(q => `${q.questionVersionId}:${q.stage}:${q.property}`)).size !== 1) { setQuestionsError('Choose related questions about the same topic and stage.'); return; }
     if (currentVersion !== questions.activeVersionId || (session && sessionVersion !== currentVersion)) { setQuestionsError('Start or select a training session for the active version, then prepare this answer.'); return; }
     setQuestionAnswer({ questions: selectedQuestions, rawAnswer, expectedActiveVersionId: questions.activeVersionId });
     setSelected(null); setPreview(null); setReviewed(null); setLinkRecordId('');
@@ -576,8 +589,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
 
   function cancelQuestionAnswer(){
-    if(!questionAnswer||busy||pendingAnswerLinks)return;
-    if(answeringQuestionId)questionDrafts.current.set(`${questionScope.current}:${answeringQuestionId}`,rawAnswer);
+    if(!questionAnswer||busy||suggesting||pendingAnswerLinks)return;
+    if(answeringQuestionId)questionDrafts.current.set(`${answerDraftScope.current}:${answeringQuestionId}`,rawAnswer);
     setQuestionAnswer(null);setAnsweringQuestionId(null);setQuestionIds([]);setRawAnswer('');setSelected(null);setPreview(null);setReviewed(null);setSuggested(null);appliedSuggestion.current=null;
     setChosen('');setWhy('');setProcess('');setBehavior('');setDraftConsent(false);setLinkRecordId('');setSuggestionNote('');
     window.requestAnimationFrame?.(()=>document.getElementById(`answer-question-${answeringQuestionId}`)?.focus());
@@ -596,7 +609,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       remaining = remaining.slice(1);
       setPendingAnswerLinks(remaining.length ? { ...pending, answer: { ...pending.answer, questions: remaining } } : null);
     }
-    for(const q of pending.answer.questions)questionDrafts.current.delete(`${questionScope.current}:${q.id}`);
+    for(const q of pending.answer.questions)questionDrafts.current.delete(`${ownerId}:${slug}:${pending.answer.expectedActiveVersionId}:${q.id}`);
     setQuestionAnswer(null); setRawAnswer(''); setQuestionIds([]); setAnsweringQuestionId(null); await loadQuestions();
   }
 
@@ -1438,7 +1451,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const preparedQuestionAnswer=questionAnswer?<div className="rounded border border-brand-500 p-3 space-y-2">
         <h3>Choose an example for your answer</h3>
         <blockquote className="whitespace-pre-wrap">{questionAnswer.rawAnswer}</blockquote>
-        <p>Your answer will be saved with the lesson. Add an example, then review the teaching before applying it.</p><button type="button" disabled={!!busy||!!pendingAnswerLinks} onClick={cancelQuestionAnswer}>Cancel lesson draft</button>{pendingAnswerLinks&&<div role="status" className="space-y-2"><p>Your lesson draft is saved. Its answer link needs another try.</p><button disabled={!!busy} onClick={()=>work('Linking the preserved answer',()=>linkAnswers(pendingAnswerLinks))}>Retry saving this answer</button></div>}
+        <p>Your answer will be saved with the lesson. Add an example, then review the teaching before applying it.</p><button type="button" disabled={!!busy||suggesting||!!pendingAnswerLinks} onClick={cancelQuestionAnswer}>Cancel lesson draft</button>{pendingAnswerLinks&&<div role="status" className="space-y-2"><p>{currentVersion!==pendingAnswerLinks.answer.expectedActiveVersionId?'The agent changed after this lesson draft was saved. Its answer link belongs to the earlier version and cannot be applied here.':'Your lesson draft is saved. Its answer link needs another try.'}</p><button disabled={!!busy||currentVersion!==pendingAnswerLinks.answer.expectedActiveVersionId} onClick={()=>work('Linking the preserved answer',()=>linkAnswers(pendingAnswerLinks))}>Retry saving this answer</button></div>}
         <div className="flex flex-wrap gap-3"><button type="button" disabled={!!busy||!!pendingAnswerLinks} onClick={requestTrainingUpload}>Upload an example</button>{sources.some(source=>source.token)&&<label className="block">Choose a saved example<select aria-label="Choose a saved example" value="" disabled={!!busy||!!pendingAnswerLinks} onChange={event=>{const source=sources.find(source=>source.sourceId===event.target.value);if(source)chooseSource(source);}}><option value="">Select video or image</option>{sources.filter(source=>source.token).map((source,index)=><option key={source.sourceId} value={source.sourceId}>{source.localName||`Example ${index+1}`}</option>)}</select></label>}</div><TrainingDetails title="Use an existing lesson instead"><label>Or link an existing teaching that already expresses this answer<select value={linkRecordId} disabled={!!busy||!session||!sources.some(source=>source.decisions.some(d=>['draft','accepted'].includes(d.state)))} onChange={event => setLinkRecordId(event.target.value)}><option value="">Choose a saved draft or teaching</option>{sources.flatMap(source => source.decisions.filter(d => ['draft', 'accepted'].includes(d.state)).map(d => <option key={d.recordId} value={d.recordId}>{shortId(d.recordId)} · {d.state} · {d.content.summary.slice(0, 80)}</option>))}</select></label>
         <p>{!session?'Add an example to start a training session first.':!sources.some(source=>source.decisions.some(d=>['draft','accepted'].includes(d.state)))?'No saved lessons are available in this training session yet.':''}</p><p>Linking preserves the existing teaching; it does not edit its text or evidence. This also resumes a draft saved before an interrupted answer link.</p>
         <button disabled={!!busy || !linkRecordId || sessionVersion !== questionAnswer.expectedActiveVersionId} onClick={linkExistingTeaching}>Link answer to selected teaching</button></TrainingDetails>
@@ -1525,6 +1538,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </Modal>
 
     {!installationId&&heldExtractions.length>0&&<details className="rounded-xl border border-amber-800/60 p-4 text-sm"><summary className="cursor-pointer">Needs clarification ({heldExtractions.length})</summary>{heldExtractions.map(item=><div key={item.key} className="mt-4 space-y-2"><p>{item.text}</p><p className="text-xs text-ink-400">{item.reason}</p></div>)}</details>}
+    {!installationId&&questionAnswer&&(!questionsOpen||!questions?.items.some(q=>q.id===answeringQuestionId))&&<section aria-label="Your answer in progress" className={`space-y-3 rounded-xl border border-ink-700 p-4 ${legacyControls}`}>
+      <h2 className="text-lg font-medium">Your answer in progress</h2><p className="text-sm text-ink-400">{questionExcerpt((questionAnswer.questions.find(q=>q.id===answeringQuestionId)||questionAnswer.questions[0]).question)}</p>{preparedQuestionAnswer}
+    </section>}
     {!installationId&&<button type="button" className="text-sm text-ink-400 hover:text-ink-100" onClick={()=>{setQuestionsOpen(true);if(!questions)void loadQuestions();window.requestAnimationFrame(()=>revealTrainingElement('training-questions'));}}>Questions from your agent →</button>}
     <div hidden={!installationId&&(trainingStep!==1||!questionsOpen)} className={`space-y-5 ${legacyControls}`}>
     {!installationId && <section className="rounded border border-ink-700 p-4 space-y-3" id="training-questions" aria-labelledby="trainer-questions-heading">
@@ -1542,9 +1558,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
           {answeringQuestionId===q.id&&<div id={`question-answer-panel-${q.id}`} className="space-y-3 rounded-xl border border-ink-700 p-4">
             {!questionAnswer?<><label className="block text-sm">Your guidance<textarea id={`question-answer-${q.id}`} aria-describedby={`question-text-${q.id}`} className="mt-2 block min-h-28 w-full rounded-lg border border-ink-700 bg-ink-950 p-3" maxLength={2000} placeholder="Tell your agent what you would choose and why…" value={rawAnswer} onChange={event=>setRawAnswer(event.target.value)}/></label>
             <p className="text-xs text-ink-400">Next, add an example or link a saved lesson. You’ll review the teaching before applying it.</p>
-            <button type="button" className="btn-primary" disabled={!!busy||questionsBusy||!!pendingAnswerLinks||!questionIds.length||!rawAnswer.trim()||!questions?.activeVersionId} onClick={prepareQuestionAnswer}>Use this answer</button></>:preparedQuestionAnswer}
+            <button type="button" className="btn-primary" disabled={!!busy||questionsBusy||!!pendingAnswerLinks||!questionIds.length||!rawAnswer.trim()||!questions?.activeVersionId} onClick={prepareQuestionAnswer}>Use this answer</button></>:questionsOpen?preparedQuestionAnswer:null}
           </div>}
-          <TrainingDetails title="Question details"><p className="whitespace-pre-wrap">{q.question}</p><label className="flex gap-2"><input type="checkbox" aria-label={`Select question ${q.questionId}`} checked={questionIds.includes(q.id)} disabled={!!busy||!!pendingAnswerLinks||!!questionAnswer&&answeringQuestionId===q.id} onChange={event=>includeQuestion(q.id,event.target.checked)}/>Include this question in the same answer</label><p>A returned reference is not proof that it answered the question or was applied.</p><p>question version {shortId(q.questionVersionId)} · {trainingStageLabel(q.stage)}</p><p>{Math.max(...group.map(item=>item.recurrenceCount))} recorded questions for this version, stage and property; {group.length} loaded here. These are not necessarily the same question.</p>
+          <TrainingDetails title="Question details"><p className="whitespace-pre-wrap">{q.question}</p><label className="flex gap-2"><input type="checkbox" aria-label={`Select question ${q.questionId}`} checked={questionIds.includes(q.id)} disabled={!!busy||!!pendingAnswerLinks||answeringQuestionId===q.id} onChange={event=>includeQuestion(q.id,event.target.checked)}/>Include this question in the same answer</label><p>A returned reference is not proof that it answered the question or was applied.</p><p>question version {shortId(q.questionVersionId)} · {trainingStageLabel(q.stage)}</p><p>{Math.max(...group.map(item=>item.recurrenceCount))} recorded questions for this version, stage and property; {group.length} loaded here. These are not necessarily the same question.</p>
           <p><Link href={`/runs/${q.runId}`}>Run {shortId(q.runId)}</Link> · {q.runState || q.runStatus || 'State not recorded'} · {q.sceneElement}</p>
           <p>{questionOutcomeLabel(q.outcome)}</p>
           <p>Returned reference IDs: {q.returnedReferenceIds.length ? q.returnedReferenceIds.map(shortId).join(', ') : 'none'}.</p>
@@ -1629,7 +1645,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     <label className="flex gap-3 text-sm leading-6"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />{installationId?"I have permission to use this output and save bounded private preference evidence for one year":OWNER_SOURCE_CONSENT}{installationId&&" The original stays on this computer. I can stop future selection or withdraw permission below."}</label>
 
     {recordingSelection && <p>Use the selected saved recording and moment notes. Notes over the existing annotation limit must be shortened or split deliberately; the full saved moment remains on this Mac.</p>}
-    <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={()=>void add()}>{recordingSelection?"Use selected recording":"Add training source"}</button>
+    <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={()=>void add()}>{recordingSelection&&!questionAnswer?"Use selected recording":"Add training source"}</button>
     </div>
     {installationId&&busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{installationId&&error && <p role="alert">{reasonLabel(error)}</p>}
     <div><TrainingDetails title="Training readiness & version details"><span id="training-readiness"/>

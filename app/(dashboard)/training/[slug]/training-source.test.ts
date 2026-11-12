@@ -2425,3 +2425,59 @@ test('a failed answer link is retryable on its own card without creating or acce
   assert.equal(h.calls.some(call=>call.operation==='accept'),false);
  }finally{r.cleanup();}
 });
+
+test('refresh can replace the owning question without stranding a prepared answer',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{
+  const page=questionPage([questionRow(),questionRow({id:SOURCE_ID,questionId:'older-choice',question:'Should the presenter stay wider?'})]);
+  const requests=questionTransport(r,h.calls,{page});
+  r.window.Element.prototype.scrollIntoView=()=>{};r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);
+  await r.click(r.getByText('Load recorded questions'));await r.click(r.getByText('Questions from your agent →'));
+  await r.click(r.document.getElementById(`answer-question-${SOURCE_ID}`)!);
+  await setTextarea(r,r.document.getElementById(`question-answer-${SOURCE_ID}`)!,'Use a wider view.');
+  await r.click(r.getByText('Use this answer'));
+  page.items=[questionRow()];await r.click(r.getByText('Refresh recorded questions'));
+  const pending=r.document.querySelector('[aria-label="Your answer in progress"]')!;
+  assert.ok(pending);assert.equal(pending.closest('[hidden]'),null);assert.match(pending.textContent!,/Use a wider view/);
+  await r.click(r.getByText('Cancel lesson draft'));
+  assert.equal((r.document.getElementById(`answer-question-${QUESTION}`) as HTMLButtonElement).disabled,false);
+  assert.equal(requests.some(request=>request.body),false);
+ }finally{r.cleanup();}
+});
+
+test('version changes clear open answer state and do not rekey old wording into the new version',async()=>{
+ for(const prepared of [false,true]){
+  const h=await renderedWith(),r=h.rendered;
+  try{
+   const page=questionPage();const requests=questionTransport(r,h.calls,{page});
+   await r.click(r.getByText('Load recorded questions'));
+   await r.click(r.document.getElementById(`answer-question-${QUESTION}`)!);
+   await setTextarea(r,r.document.getElementById(`question-answer-${QUESTION}`)!,'This is wording for the old version.');
+   if(prepared)await r.click(r.getByText('Use this answer'));
+   h.setCurrentVersion(VERSION_B);page.activeVersionId=VERSION_B;
+   await r.click(r.getByText('Annotate source'));await r.click(r.getByText('Preview this exact frame'));
+   assert.equal(r.document.getElementById(`question-answer-${QUESTION}`),null);
+   assert.equal(r.queryByText('Cancel lesson draft'),null);
+   await r.click(r.getByText('Load recorded questions'));
+   await r.click(r.document.getElementById(`answer-question-${QUESTION}`)!);
+   assert.equal((r.document.getElementById(`question-answer-${QUESTION}`) as HTMLTextAreaElement).value,'');
+   assert.equal(requests.some(request=>request.body),false);
+  }finally{r.cleanup();}
+ }
+});
+
+test('a pending answer link stays visible with an explanation when its agent version changes',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{
+  const page=questionPage();questionTransport(r,h.calls,{page,firstFailure:true});await prepareAnswer(r);
+  await r.click(r.getByText('Annotate source'));await r.click(r.getByText('Preview this exact frame'));
+  await fillManualTeaching(r);await r.click(r.getByText('Save decision draft'));
+  h.setCurrentVersion(VERSION_B);page.activeVersionId=VERSION_B;
+  await r.click(r.getByText('Preview this exact frame'));
+  const pending=r.document.querySelector('[aria-label="Your answer in progress"]')!;
+  assert.ok(pending);assert.equal(pending.closest('[hidden]'),null);
+  assert.match(pending.textContent!,/agent changed after this lesson draft was saved/i);
+  assert.equal((r.getByText('Retry saving this answer') as HTMLButtonElement).disabled,true);
+  assert.equal(h.calls.filter(call=>call.operation==='annotate').length,1);
+ }finally{r.cleanup();}
+});
