@@ -1,5 +1,6 @@
 import {TEACHING_FIELDS,TEACHING_MODEL,type TeachingFields} from './training-teaching-draft.ts';
 import {TRAINING_PROPERTY_CODES,TRAINING_RELATIONS} from './training-local-ingress.ts';
+import {isSpatialAnchorV2,anchorError} from './review-anchor.ts';
 
 export const REVIEW_MARK_BINDING_KEYS=['sourceId','reviewSessionId','issueId','evidenceId','expectedActiveVersionId','issueDigest','anchorDigest','artifactSha256','evidenceSha256'] as const;
 export type ReviewMarkBinding=Record<typeof REVIEW_MARK_BINDING_KEYS[number],string>;
@@ -45,4 +46,21 @@ export function reviewMarkFrame(image:string,evidence:ReviewMarkContext['evidenc
 }
 export function reviewMarkApplied(value:any):value is {ok:true;contractVersion:'training-review-applied.v1';created:boolean;recordId:string;recordDigest:string;state:'accepted';acknowledgmentId:string;acknowledgmentDigest:string}{
  return exact(value,['ok','contractVersion','created','recordId','recordDigest','state','acknowledgmentId','acknowledgmentDigest'])&&value.ok===true&&value.contractVersion==='training-review-applied.v1'&&typeof value.created==='boolean'&&uuid(value.recordId)&&sha(value.recordDigest)&&value.state==='accepted'&&uuid(value.acknowledgmentId)&&sha(value.acknowledgmentDigest);
+}
+
+
+/** Owner-only acknowledgment reader. This is the approved snapshot, never the current editable issue. */
+export type TrainingReviewMarkRecord={ok:true;contractVersion:'training-review-mark-record.v1';trainingSessionId:string;recordId:string;recordDigest:string;relation:string;properties:string[];summary:string;fields:TeachingFields;
+ sourceMark:{issueId:string;artifactId:string;kind:string;body:string;anchor:unknown;anchorDigest:string;purpose:'training'|'revision'};
+ runId:string;reviewSessionId:string;appliedAt:string;availability:'available'};
+export function trainingReviewMarkRecord(value:any,expected:{recordId:string;recordDigest:string}):value is TrainingReviewMarkRecord{
+ if(!exact(value,['ok','contractVersion','trainingSessionId','recordId','recordDigest','relation','properties','summary','fields','sourceMark','runId','reviewSessionId','appliedAt','availability'])||value.ok!==true||value.contractVersion!=='training-review-mark-record.v1'
+  ||!uuid(value.trainingSessionId)||value.recordId!==expected.recordId||value.recordDigest!==expected.recordDigest||!uuid(value.recordId)||!sha(value.recordDigest)||!TRAINING_RELATIONS.includes(value.relation)
+  ||!Array.isArray(value.properties)||value.properties.length<1||value.properties.length>15||new Set(value.properties).size!==value.properties.length||value.properties.some((property:any)=>!TRAINING_PROPERTY_CODES.includes(property))
+  ||typeof value.summary!=='string'||!value.summary.trim()||value.summary.length>2000||!exact(value.fields,TEACHING_FIELDS)||TEACHING_FIELDS.some(key=>typeof value.fields[key]!=='string'||!value.fields[key].trim()||value.fields[key].length>400)
+  ||!uuid(value.runId)||!uuid(value.reviewSessionId)||typeof value.appliedAt!=='string'||!Number.isFinite(Date.parse(value.appliedAt))||value.availability!=='available')return false;
+ const mark=value.sourceMark;
+ return exact(mark,['issueId','artifactId','kind','body','anchor','anchorDigest','purpose'])&&uuid(mark.issueId)&&uuid(mark.artifactId)&&typeof mark.kind==='string'&&mark.kind.length>0&&mark.kind.length<=80
+  &&typeof mark.body==='string'&&!!mark.body.trim()&&mark.body.length<=4000&&sha(mark.anchorDigest)&&['training','revision'].includes(mark.purpose)
+  &&isSpatialAnchorV2(mark.anchor)&&anchorError(mark.anchor)===null&&mark.anchor.observedArtifactId===mark.artifactId;
 }
