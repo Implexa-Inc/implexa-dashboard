@@ -48,6 +48,7 @@ test('the client sends only ids, the microphone flag and moments across the brid
   assert.deepEqual(sent, [
     ['start', '{ microphone }'],
     ['status', null],
+    ['getVoiceNote', '{recordingId:active.recordingId}'],
     ['list', null],
     ['get', '{ recordingId }'],
     ['preview', '{ recordingId }'],
@@ -746,5 +747,23 @@ test('active voice capture is labelled as a voice note and its events never open
   assert.match(page.text(),/Opening voice note/);assert.doesNotMatch(page.text(),/Choose a screen or window/);assert.equal(button(page,'◉ Record')!.disabled,true);
   await page.act(()=>b.emit({ownerId:ID,recordingId:NEW,origin:'voice_note',state:'start_failed',failure:{phase:'started_ack',errorName:'NotAllowedError',reason:'microphone_unavailable'}}));
   assert.equal(page.document.querySelector('[role="dialog"]'),null);
+ }finally{page.cleanup();}
+});
+
+test('voice events identify an active recorder even when the unchanged status wire has no origin',async()=>{
+ const b=bridge(op=>op==='list'?{ok:true,library,recordings:[]}:op==='status'?{ok:true,active:{recordingId:NEW,state:'choosing'}}:{ok:true});
+ const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training'},{bridge:b.value});
+ try{
+  await page.act(()=>b.emit({ownerId:ID,recordingId:NEW,origin:'voice_note',state:'choosing'}));
+  assert.match(page.text(),/Opening voice note/);assert.doesNotMatch(page.text(),/Choose a screen or window/);assert.equal(button(page,'◉ Record')!.disabled,true);assert.equal(ops(b).some(op=>['start','startVoiceNote'].includes(op)),false);
+ }finally{page.cleanup();}
+});
+
+test('reload restores active voice mode through owner-bound metadata without a new capture',async()=>{
+ const b=bridge((op,args:any)=>op==='list'?{ok:true,library,recordings:[]}:op==='status'?{ok:true,active:{recordingId:NEW,state:'choosing'}}:op==='getVoiceNote'?{ok:true,voiceNote:{voiceNoteId:NEW,state:'choosing',attach:{sourceKind:'upload',sourceRef:'source:mark',mark:{startMs:0,endMs:1000}},sha256:null,durationMs:null,failureReason:null}}:{ok:true},{trainerCommentaryContractVersion:'1'});
+ const page=await render(NEW_REVIEW,{ownerId:ID,trainingSlug:'trained-video',presentation:'training'},{bridge:b.value});
+ try{
+  assert.match(page.text(),/Opening voice note/);assert.doesNotMatch(page.text(),/Choose a screen or window/);assert.equal(button(page,'◉ Record')!.disabled,true);
+  const read=b.calls.find(call=>call.operation==='getVoiceNote')!;assert.deepEqual(read.args,{recordingId:NEW,expectedOwnerId:ID});assert.equal(ops(b).some(op=>['start','startVoiceNote','transcribeVoiceNote'].includes(op)),false);
  }finally{page.cleanup();}
 });

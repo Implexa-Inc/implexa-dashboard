@@ -406,6 +406,7 @@ export const parse = {
 
 type RecorderBridge = {
   reviewRecorderContractVersion?: unknown;
+  trainerCommentaryContractVersion?: unknown;
   reviewRecorder?: unknown;
   onReviewRecorderChanged?: unknown;
 };
@@ -446,6 +447,8 @@ export type ReviewRecorderClient = ReturnType<typeof createReviewRecorderClient>
  * the bridge, so the "ids only" rule is enforced in one place (and tested there).
  */
 export function createReviewRecorderClient(win?: unknown, expectedOwnerId?: string) {
+  const voiceOrigins=new Set<string>();
+  const rememberVoice=(id:string)=>{voiceOrigins.add(id);if(voiceOrigins.size>256)voiceOrigins.delete(voiceOrigins.values().next().value!);};
   function invoker(): InvokeFn {
     const availability = recorderAvailability(win);
     if (availability.state !== 'ready') throw new RecorderError(availability.state);
@@ -468,7 +471,20 @@ export function createReviewRecorderClient(win?: unknown, expectedOwnerId?: stri
       if (typeof microphone !== 'boolean') throw new RecorderError('request_invalid');
       return parse.start(await call('start', { microphone }));
     },
-    async status() { return parse.status(await call('status')); },
+    async status() {
+      const parsed=parse.status(await call('status')),active=parsed.active;
+      if(!active)return parsed;
+      // The v2 status wire stays {recordingId,state}. Live voice events identify the
+      // mode; after reload, the existing owner-bound metadata read restores it.
+      if(active.origin==='voice_note')rememberVoice(active.recordingId);
+      if(!voiceOrigins.has(active.recordingId)&&bridgeOf(win)?.trainerCommentaryContractVersion==='1')try{
+        const result=await call('getVoiceNote', {recordingId:active.recordingId});
+        if(isObj(result)&&result.ok===true&&isObj(result.voiceNote)&&result.voiceNote.voiceNoteId===active.recordingId
+          &&isObj(result.voiceNote.attach)&&['recording','upload','run_artifact'].includes(String(result.voiceNote.attach.sourceKind))
+          &&typeof result.voiceNote.attach.sourceRef==='string'&&result.voiceNote.attach.sourceRef.length>0)rememberVoice(active.recordingId);
+      }catch{/* A normal screen recording is not a voice note; its status remains usable. */}
+      return voiceOrigins.has(active.recordingId)?{active:{...active,origin:'voice_note' as const}}:parsed;
+    },
     async list() { return parse.list(await call('list')); },
     async get(recordingId: string) {
       assertRecordingId(recordingId);
@@ -500,7 +516,7 @@ export function createReviewRecorderClient(win?: unknown, expectedOwnerId?: stri
       if (recorderAvailability(win).state !== 'ready' || typeof b?.onReviewRecorderChanged !== 'function') return () => {};
       let off: unknown;
       try {
-        off = (b.onReviewRecorderChanged as (fn: (e: unknown) => void) => unknown)((e) => { if (isRecorderChange(e) && e.ownerId===expectedOwnerId) cb(e); });
+        off = (b.onReviewRecorderChanged as (fn: (e: unknown) => void) => unknown)((e) => { if (isRecorderChange(e) && e.ownerId===expectedOwnerId) {if(e.origin==='voice_note')rememberVoice(e.recordingId);cb(e);} });
       } catch { return () => {}; }
       return () => { if (typeof off === 'function') { try { off(); } catch { /* already gone */ } } };
     },

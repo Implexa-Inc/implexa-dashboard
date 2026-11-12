@@ -525,3 +525,8 @@ test('voice-note recorder events preserve origin and distinguish microphone fail
  assert.equal(isRecorderChange(failed),true);const {origin,...screen}=failed;assert.equal(isRecorderChange(screen),false);
  assert.equal(isRecorderChange({...base,origin:'other'}),false);assert.equal(isRecorderChange({...base,extra:true}),false);
 });
+
+test('active voice enrichment keeps the v2 status wire and rejects a mismatched metadata identity',async()=>{
+ const operations:any[]=[],win={implexaDesktop:{reviewRecorderContractVersion:'2',trainerCommentaryContractVersion:'1',reviewRecorder:async(operation:string,args:any)=>{operations.push({operation,args});return operation==='status'?{ok:true,active:{recordingId:ID,state:'recording'}}:{ok:true,voiceNote:{voiceNoteId:M1,attach:{sourceKind:'upload',sourceRef:'source'}}};}}};
+ const result=await createReviewRecorderClient(win,ID).status();assert.deepEqual(result,{active:{recordingId:ID,state:'recording'}});assert.deepEqual(operations.map(call=>call.operation),['status','getVoiceNote']);assert.deepEqual(operations[1].args,{recordingId:ID,expectedOwnerId:ID});
+});
