@@ -35,7 +35,7 @@ export default function TrainingAgentPicker({ owned,recordingId }: { owned: MyWo
               <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-950/40 text-emerald-200/80">✦</span><span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-ink-100">{a.name.trim() || a.slug}</span>
               </span>
-              <span className="shrink-0 text-xs text-ink-400">Train agent →</span>
+              <span className="shrink-0 text-xs text-ink-400">Edit / train →</span>
             </Link>
           </li>
         ))}

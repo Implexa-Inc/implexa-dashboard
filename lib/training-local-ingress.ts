@@ -40,6 +40,17 @@ export const TRAINING_PROPERTY_CODES = [
   'flicker_exclusion', 'repeated_template_avoidance', 'sparse_motion_avoidance',
 ] as const;
 export type TrainingPropertyCode = typeof TRAINING_PROPERTY_CODES[number];
+export function trainingPropertyLabel(property: TrainingPropertyCode) {
+  return ({composition_density:'How much to show',layout_variety:'Choosing a layout',
+    presenter_graphic_integration:'Presenter and visuals',information_hierarchy:'What to emphasize',
+    typography_treatment:'Text and typography',palette_and_contrast:'Colors and contrast',
+    narrative_visual_alignment:'Matching visuals to the story',motion_rhythm:'Animation and pacing',
+    transition_quality:'Scene transitions',animation_continuity:'Keeping animation consistent',
+    evidence_legibility:'Making information readable',internal_label_exclusion:'Keeping production notes off screen',
+    flicker_exclusion:'Avoiding flicker',repeated_template_avoidance:'Avoiding repetitive layouts',
+    sparse_motion_avoidance:'Adding meaningful motion'} satisfies Record<TrainingPropertyCode,string>)[property];
+}
+
 export const TRAINING_RELATIONS = ['accepted', 'rejected', 'contrast', 'exception'] as const;
 export type TrainingRelation = typeof TRAINING_RELATIONS[number];
 export type TrainingCoveragePair = { stage: TrainingStage; property: TrainingPropertyCode; relation: TrainingRelation };

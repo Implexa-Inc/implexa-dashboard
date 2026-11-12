@@ -60,6 +60,11 @@ export function answerReceipt(v: any, body: any): boolean {
     && ['prepared', 'taught', 'not_eligible'].includes(v.teachingState) && reason(v.reason)
     && id(v.linkReceiptId) && typeof v.idempotent === 'boolean';
 }
+/** Presentation only: retain the exact recorded question and receipts for linking. */
+export function questionExcerpt(question: string) {
+  const explicit = question.match(/\bUncertain(?:ty)?:[ \t]*([^\r\n]+)/i);
+  return explicit?.[1].trim() || question;
+}
 export function questionGroups(items: TrainerQuestion[]) {
   const groups = new Map<string, TrainerQuestion[]>();
   for (const q of items) { const key = `${q.questionVersionId}:${q.stage}:${q.property}`; groups.set(key, [...(groups.get(key) || []), q]); }
