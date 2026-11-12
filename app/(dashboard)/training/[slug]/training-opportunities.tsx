@@ -4,6 +4,8 @@ import {trainingOpportunities,questionPresentation,questionExcerpt,type Question
 import {trainingPropertyLabel} from '@/lib/training-local-ingress';
 import {TrainingInfo,RunImage,type TrainingRun} from './training-workspace';
 
+class AnswerError extends Error{constructor(message:string,readonly editable=false){super(message);}}
+
 /** Presentation and submission use exact recorded identities; no inferred acceptance. */
 export default function TrainingOpportunities({questions,sessionId,versionId,disabled,onSaved,onStart,runs=[],unavailable=false}:{runs?:TrainingRun[];unavailable?:boolean;questions:QuestionsPage|null;sessionId:string|null;versionId:string|null;disabled:boolean;onSaved:()=>void;onStart:()=>Promise<void>}){
  const identity=`${sessionId}:${versionId}`,latest=useRef(identity);latest.current=identity;
@@ -14,7 +16,7 @@ export default function TrainingOpportunities({questions,sessionId,versionId,dis
  useEffect(()=>{setOpened(null);setSkipped([]);setSaved([]);setPresentations({});setAnswer('');setOption(null);setCustom(false);setError('');pending.current=null;},[identity]);
  useEffect(()=>{if(sessionId&&queuedOpen.current){const id=queuedOpen.current;queuedOpen.current=null;void open(id);}},[sessionId]);
  const items=trainingOpportunities(questions?.items||[],versionId).filter(q=>!skipped.includes(q.id)&&!saved.includes(q.id));
- async function request(body:any,key:string){const r=await fetch(`/api/agent-training/questions?operation=teaching&sessionId=${sessionId}`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify(body),cache:'no-store'});const value=await r.json();if(!r.ok||!value.ok)throw Error(value.reason||'Could not save. Try again.');return value;}
+ async function request(body:any,key:string){const r=await fetch(`/api/agent-training/questions?operation=teaching&sessionId=${sessionId}`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify(body),cache:'no-store'});const value=await r.json();if(!r.ok||!value.ok)throw new AnswerError(value.reason||'Could not save. Try again.',['invalid_request','question_answer_invalid_content','question_presentation_changed','question_not_found','session_not_found','agent_active_version_changed'].includes(value.reason));return value;}
  async function open(id:string){if(!sessionId){queuedOpen.current=id;await onStart();return;}if(working)return;setOpened(id);setAnswer('');setOption(null);setCustom(false);setError('');if(presentations[id])return;
   const q=items.find(q=>q.id===id);if(!q)return;const captured=identity;setWorking('Preparing choices');
   try{const value=await request({action:'present',questionReceiptId:id,questionReceiptDigest:q.receiptDigest,expectedActiveVersionId:versionId},crypto.randomUUID());if(latest.current!==captured)return;if(!questionPresentation(value.presentation))throw Error('Choices are unavailable. You can write your answer.');setPresentations(p=>({...p,[id]:value.presentation}));}
@@ -25,7 +27,7 @@ export default function TrainingOpportunities({questions,sessionId,versionId,dis
   if(pending.current&&JSON.stringify(pending.current.body)!==JSON.stringify(body)){setError('Retry the pending answer before changing it.');return;}
   pending.current||={identity,id,key:crypto.randomUUID(),body};setWorking('Saving your teaching');setError('');
   try{const value=await request(pending.current.body,pending.current.key);if(latest.current!==captured)return;if(value.contractVersion!=='training-question-teaching.v1'||value.questionReceiptId!==id||!value.recordId||!value.recordDigest)throw Error('Save could not be confirmed. Retry the same answer.');pending.current=null;setSaved(ids=>[...ids,id]);setOpened(null);setAnswer('');onSaved();}
-  catch(e){if(latest.current===captured)setError(e instanceof Error?e.message:'Save could not be confirmed. Retry.');}finally{if(latest.current===captured)setWorking('');}
+  catch(e){if(latest.current===captured){if(e instanceof AnswerError&&e.editable)pending.current=null;setError(e instanceof Error?e.message:'Save could not be confirmed. Retry.');}}finally{if(latest.current===captured)setWorking('');}
  }
  return <section aria-labelledby="training-opportunities-heading" className="space-y-4">
   <div><h3 id="training-opportunities-heading" className="text-lg font-medium">Help your agent improve</h3><p className="mt-1 text-sm text-ink-400">A few quick answers can guide its next run.</p></div>

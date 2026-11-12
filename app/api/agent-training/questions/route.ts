@@ -14,6 +14,7 @@ async function forward(request: Request, write: boolean) {
     if (write) {
       const sessionId = query.get('sessionId'); body = await request.json();
       const quick=query.get('operation')==='teaching';
+      if(query.has('operation')&&!quick)return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
       const key = request.headers.get('Idempotency-Key');
       if ([...query.keys()].some(k => !['sessionId','operation'].includes(k)) || !UUID.test(sessionId || '') || !(quick ? validQuickAnswer(body) : validAnswerBody(body))
         || !key || key.length < 8 || key.length > 180) return NextResponse.json({ ok: false, reason: 'invalid_question_answer' }, { status: 400 });

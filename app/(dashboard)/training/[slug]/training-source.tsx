@@ -25,7 +25,7 @@ import {TrainingDialog as Modal} from './training-workspace';
 import {guidedTrainingChanges,trainingPublicationPreview,type TrainingPublicationPreview,type GuidedTrainingChanges,type TrainingChangeRecord} from '@/lib/guided-training-changes';
 import {TrainingEntry,TrainingAttention,TrainingInfo,TrainingImage,TrainingDetails,revealTrainingElement,TrainingExplanation,type TrainingStep,type TrainingView,type TrainingRun} from './training-workspace';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { answerReceipt, trainingOpportunities, questionGroups, questionOutcomeLabel, questionExcerpt, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
+import { answerReceipt, questionGroups, questionOutcomeLabel, questionExcerpt, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
 import { teachingDigest, teachingFrame, toolSuggestionFrame, TOOL_FRAME_RECIPE_DIGEST, type ToolFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation, recordingSuggestion, recordingAgentSuggestion, type RecordingAgentSuggestion, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
 
 const TEACHING_SECTION_LABELS = {chosen:'Example-specific details',why:'Judgment',process:'Applies when',desiredBehavior:'Application to new work'} as const;
@@ -1442,7 +1442,6 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const hiddenDraftIds=sources.flatMap(source=>source.decisions.filter(decision=>decision.state==='draft').map(decision=>decision.recordId));
   const textPending=changes?.records.filter(record=>!hiddenDraftIds.includes(record.recordId)&&trainingTextSelectable(record)).length||0;
   const unappliedCount=visualDraftItems.filter(({decision})=>visualTeachingSelectable({relation:decision.content.relation,category:decision.content.properties.join(', ')})).length+textPending+(runPending.identity===`${session}:${currentVersion}`?runPending.count:0);
-  const questionNeedsAnswer=trainingOpportunities(questions?.items||[],currentVersion).length>0;
   const attentionCards=[
 
     ...(preservedWorkCount>0?[{key:`recovery:${preservedWorkCount}`,title:'Finish saved work',description:'An upload or teaching on this Mac needs another look.',label:'Review saved work',optional:true,action:()=>openTrainingHistory('training-recovery')}]:[]),
