@@ -1521,8 +1521,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         <p>Linking preserves the existing teaching; it does not edit its text or evidence. This also resumes a draft saved before an interrupted answer link.</p>
         <button disabled={!!busy || !linkRecordId || sessionVersion !== questionAnswer.expectedActiveVersionId} onClick={linkExistingTeaching}>Link answer to selected teaching</button>
       </div>}
-      {pendingAnswerLinks && <div role="status"><p>The evidence draft is preserved. {pendingAnswerLinks.answer.questions.length} answer link(s) remain unverified.</p><button disabled={!!busy} onClick={() => work('Retrying the saved answer links', () => linkAnswers(pendingAnswerLinks))}>Retry answer links</button></div>}
-      {pendingDemoLink && <div role="status"><p>The teaching draft and original demonstration annotation are preserved. Their link remains unverified.</p><button disabled={!!busy} onClick={() => work('Retrying the saved demonstration link', () => linkDemoAnnotation(pendingDemoLink))}>Retry demonstration link</button></div>}
+
     </section>}
     </div>
     </div>
@@ -1596,7 +1595,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     <button className="btn-primary" disabled={!consent || !!busy || versionChanged || !currentVersion} onClick={()=>void add()}>{recordingSelection?"Use selected recording":"Add training source"}</button>
     </div>
     {installationId&&busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{installationId&&error && <p role="alert">{reasonLabel(error)}</p>}
-    <div id="training-readiness"><TrainingDetails title="Training readiness & version details">
+    <div><TrainingDetails title="Training readiness & version details"><span id="training-readiness"/>
     {readinessNeedsAttention&&versionTransition?.sources.some(source=>source.decisions.some(decision=>decision.state==='accepted'))&&<button type="button" onClick={()=>openTrainingHistory('training-earlier')}>Review training from earlier versions</button>}
     {acceptedEvidenceCount > 0 && <p role="status" className="rounded border border-emerald-600 p-3">Evidence accepted: {acceptedEvidenceCount} immutable decision{acceptedEvidenceCount === 1 ? '' : 's'} in this session. Acceptance preserves the teaching; Agent readiness is verified separately below.</p>}
     {currentVersion && !requirementsAreCurrent && !activeVersionTrainingIsReady && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager reference training readiness unavailable</h2><p>Implexa cannot verify the required stage and quality-reference pairs for this exact active version. Accepted evidence remains preserved. Decision, procedure, criterion, and machine-custody requirements are verified separately at run prelaunch.</p></section>}
@@ -1627,6 +1626,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       }))}</ul>
     </TrainingDetails>}
     <div id="training-recovery" className={`space-y-3 ${legacyControls}`}>
+      {pendingAnswerLinks && <div role="status"><p>The evidence draft is preserved. {pendingAnswerLinks.answer.questions.length} answer link(s) remain unverified.</p><button disabled={!!busy} onClick={() => work('Retrying the saved answer links', () => linkAnswers(pendingAnswerLinks))}>Retry answer links</button></div>}
+      {pendingDemoLink && <div role="status"><p>The teaching draft and original demonstration annotation are preserved. Their link remains unverified.</p><button disabled={!!busy} onClick={() => work('Retrying the saved demonstration link', () => linkDemoAnnotation(pendingDemoLink))}>Retry demonstration link</button></div>}
+    {pendingRecordingLink&&<section className="rounded-xl border border-ink-800 p-4"><p className="mb-3 text-sm text-ink-400">Your recording teaching is saved. Finish linking it to the recording.</p><button disabled={!!busy} onClick={()=>work('Linking the saved recording teaching',()=>linkRecording(pendingRecordingLink))}>Retry recording link</button></section>}
     {failed.map(draft=><section key={draft.token} className="rounded-lg border border-ink-800 p-4 space-y-2" aria-label="Preserved source draft">
       <p className="font-medium">An upload did not finish</p><p className="text-sm text-ink-400">Your existing training is still saved.</p>
       {draft.retryable?<button disabled={!!busy} onClick={()=>work('Retrying registration',async()=>{await requireCurrentScope();await call('register',{token:draft.token});await load(session);})}>Retry upload</button>:<><p className="text-sm text-ink-400">Choose the video or image again to make a new attempt. You can also remove this unfinished upload.</p><button type="button" disabled={!!busy} onClick={requestTrainingUpload}>Choose file again</button><button disabled={!!busy} onClick={()=>discardDraft(draft)}>Remove unfinished upload</button></>}

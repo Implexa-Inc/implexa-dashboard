@@ -20,7 +20,7 @@ export function TrainingDialog(props:ComponentProps<typeof Modal>){
 export type TrainingStep=1|2|3;
 export function TrainingSteps({active,pending,onSelect}:{active:TrainingStep;pending:number;onSelect:(step:TrainingStep)=>void}){
  const labels=['Teach Agent','Review training','Apply & Test'] as const;
- return <nav aria-label="Training steps" className="grid grid-cols-3 overflow-hidden rounded-t-2xl border border-ink-700 bg-ink-900/30">{labels.map((label,index)=>{const step=(index+1) as TrainingStep;return <button key={step} type="button" aria-current={active===step?'step':undefined} onClick={()=>onSelect(step)} className={`min-w-0 border-b-2 px-3 py-5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 sm:px-6 ${index?'border-l border-l-ink-700 ':''}${active===step?'border-b-brand-500 bg-brand-500/10 text-brand-400':'border-b-transparent text-ink-400 hover:bg-ink-800/30 hover:text-ink-200'}`}><span className="block text-xs font-medium">Step {step}:</span><span className="mt-1 block text-sm font-semibold sm:text-lg">{label}</span>{step===3&&pending>0&&<span className="mt-2 block text-xs">{pending} unapplied learning{pending===1?'':'s'}</span>}</button>;})}</nav>;
+ return <nav aria-label="Training steps" className="grid grid-cols-3 overflow-hidden rounded-t-2xl border border-ink-700 bg-ink-900/30">{labels.map((label,index)=>{const step=(index+1) as TrainingStep;return <button key={step} type="button" aria-current={active===step?'step':undefined} onClick={()=>onSelect(step)} className={`flex min-w-0 flex-col items-start justify-start border-b-2 px-3 py-5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 sm:px-6 ${index?'border-l border-l-ink-700 ':''}${active===step?'border-b-brand-500 bg-brand-500/10 text-brand-400':'border-b-transparent text-ink-400 hover:bg-ink-800/30 hover:text-ink-200'}`}><span className="block text-xs font-medium">Step {step}:</span><span className="mt-1 block text-sm font-semibold sm:text-lg">{label}</span>{step===3&&pending>0&&<span className="mt-2 block text-xs">{pending} unapplied learning{pending===1?'':'s'}</span>}</button>;})}</nav>;
 }
 export type TrainingAction={key:string;title:string;description:string;label:string;optional:boolean;action:()=>void};
 /** Dismissal hides a prompt for this visit, never resolves its underlying work. */
@@ -119,8 +119,10 @@ export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,acti
   <h3 className="text-sm font-medium text-ink-300">Show an example</h3>
   <div className="flex flex-wrap items-start gap-2" aria-label="Choose a training source">
    {actions}
-   <button type="button" aria-expanded={resultsOpen} aria-controls="training-recent-results" onClick={()=>setResultsOpen(!resultsOpen)} className={pickerClass}>Give feedback on a recent result</button>
    {onChat&&<button id="training-chat-toggle" type="button" className={`${pickerClass} sm:ml-auto`} disabled={chatDisabled} aria-expanded={chatExpanded} aria-controls="training-companion" onClick={onChat}>✧ {chatExpanded?'Close chat':'Chat with Implexa'}</button>}
+  </div>
+  <div className="flex flex-wrap items-center gap-3 pt-2"><span className="text-xs text-ink-500">Or</span>
+   <button type="button" aria-expanded={resultsOpen} aria-controls="training-recent-results" onClick={()=>setResultsOpen(!resultsOpen)} className={pickerClass}>Give feedback on a recent result</button>
   </div>
   <div id="training-recent-results" hidden={!resultsOpen} className="rounded-xl border border-ink-800 bg-ink-900/20 p-4">
    {resultsOpen&&<><div className="mb-3 flex items-baseline justify-between gap-4"><h2 className="text-sm font-medium text-ink-200">Or teach from a recent result</h2><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/training/${encodeURIComponent(slug)}/runs`}>All runs →</Link></div>

@@ -448,6 +448,10 @@ test('failed answer linking retries the saved teaching identity without another 
     await prepareAnswer(rendered); await rendered.click(rendered.getByText('Annotate source'));
     await rendered.click(rendered.getByText('Preview this exact frame')); await fillManualTeaching(rendered); await rendered.click(rendered.getByText('Save decision draft'));
     assert.match(rendered.text(), /evidence draft is preserved/i);
+    rendered.window.requestAnimationFrame=callback=>rendered.window.setTimeout(()=>callback(0),0);rendered.window.Element.prototype.scrollIntoView=()=>{};
+    await rendered.click(rendered.getByText('Review saved work →'));
+    await rendered.act(()=>new Promise(resolve=>setTimeout(resolve,20)));
+    assert.equal(rendered.getByText('Retry answer links').closest('[hidden]'),null);
     await rendered.click(rendered.getByText('Retry answer links'));
     const posts = requests.filter(r => r.body); assert.equal(posts.length, 2);
     assert.deepEqual(posts[0].body, posts[1].body); assert.equal(posts[0].key, posts[1].key);
