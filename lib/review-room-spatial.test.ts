@@ -670,3 +670,31 @@ test('ordinary review excludes training-only notes from its rail and revision co
  assert.equal(calls.some(call=>call.body.action==='submit'),false);
  await mount({issues:[training],trainingMode:true,onTeachIssue:()=>{}});assert.match(text(),/Future-training-only note/);assert.ok(buttons().find(button=>button.textContent==='Extract training'));
 });
+
+test('Done teaching sends only exact active current-run visual pairs and waits for draft or voice completion',async()=>{
+ const secondId='dddddddd-3333-4333-8333-333333333333',dismissedId='dddddddd-4444-4444-8444-444444444444',textId='dddddddd-5555-4555-8555-555555555555',foreignId='dddddddd-6666-4666-8666-666666666666',previousRun='11111111-2222-4222-8222-222222222222';
+ const first={...storedSpatialIssue,purpose:'training',body:'First exact visual note.'};
+ const second={...storedSpatialIssue,id:secondId,artifactId:IMG,purpose:'training',body:'Second exact visual note.',anchor:{...storedSpatialAnchor,observedArtifactId:IMG,observedArtifactSha256:SHA_I,temporal:null,sourceFrame:{visualWidth:1080,visualHeight:1920}}};
+ const dismissed={...first,id:dismissedId,status:'dismissed',body:'Do not extract this dismissed note.'};
+ const nonvisual={...first,id:textId,body:'Nonvisual note needs a fresh mark.',anchor:{version:1,type:'artifact',artifactSha256:SHA_V}};
+ const foreign={...first,id:foreignId,runId:previousRun,sessionId:SESSION_ID,body:'Carried note from a previous run.'};
+ const stale={...first,id:'dddddddd-7777-4777-8777-777777777777',body:'Stale visual note.',anchor:{...storedSpatialAnchor,observedArtifactSha256:'0'.repeat(64)}};
+ const batches:any[]=[];let release:(value:any)=>void=()=>{};
+ const native=(dom.window as unknown as {implexaDesktop:Record<string,unknown>}).implexaDesktop,saved={...native};
+ Object.assign(native,{trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string)=>op==='listVoiceNotes'?{ok:true,voiceNotes:[]}:op==='startVoiceNote'?{ok:true,voiceNoteId:secondId}:op==='getVoiceNote'?new Promise(resolve=>release=resolve):{ok:false}});
+ try{
+  await mount({trainingMode:true,trainingOwnerId:SESSION_ID,issues:[first,second,dismissed,nonvisual,foreign,stale],session:{id:SESSION_ID,runId:RUN_ID,selectedArtifactId:null,state:'draft',submittedRequestId:null,submittedIssueIds:null,compiledBrief:null,acceptedAt:null,carriedIssueIds:[foreignId]},onDoneTeaching:(pairs:any[])=>batches.push(pairs)});
+  const state=rigVideo(video());await media(video(),'loadedmetadata');
+  const done=()=>buttons().find(button=>button.textContent==='Done teaching')!;
+  assert.equal(done().disabled,false);await fire(done(),'click');assert.equal(batches.length,1);
+  assert.deepEqual(batches[0].map((pair:any)=>pair.issue.id).sort(),[ISSUE_ID,secondId].sort());
+  assert.equal(batches[0].find((pair:any)=>pair.issue.id===ISSUE_ID).issue,first);assert.equal(batches[0].find((pair:any)=>pair.issue.id===ISSUE_ID).artifact,artifacts[0]);
+  assert.equal(batches[0].find((pair:any)=>pair.issue.id===secondId).issue,second);assert.equal(batches[0].find((pair:any)=>pair.issue.id===secondId).artifact,artifacts[1]);
+  assert.equal(calls.some(call=>call.body.action==='submit'||call.body.action==='create_issue'),false,'batch selection does not launch a revision or save another note');
+  await fire(overlay(),'pointerdown',{clientX:410,clientY:320});await fire(overlay(),'pointerup',{clientX:410,clientY:320});assert.equal(done().disabled,true,'finish the open mark before extracting saved notes');
+  await clickButton(/^Cancel$/);assert.equal(done().disabled,false);
+  await fire(overlay(),'pointerdown',{clientX:410,clientY:320});await fire(overlay(),'pointerup',{clientX:410,clientY:320});await clickButton(/Add a voice note/);
+  assert.equal(done().disabled,true,'pending voice cannot be skipped by the batch action');assert.equal(buttons().find(button=>button.textContent==='Cancel')!.disabled,true);assert.equal(batches.length,1);
+  state.currentTime=9;await media(video(),'timeupdate');assert.equal(batches[0].find((pair:any)=>pair.issue.id===ISSUE_ID).issue.anchor.temporal.startMs,3000,'saved note pairs retain their own anchors');
+ }finally{await act(async()=>release({ok:false,reason:'recording_not_found'}));for(const key of Object.keys(native))delete native[key];Object.assign(native,saved);}
+});
