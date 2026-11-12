@@ -25,7 +25,10 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
  const selectionKey=(r:TrainingChangeRecord)=>`${value.binding.sessionId}:${value.binding.workflowVersionId}:${r.recordId}:${r.recordDigest}`;
  const selectable=(r:TrainingChangeRecord)=>r.state==='suggested'&&!r.included&&r.sourceKind!=='legacy_evidence'&&!!r.summary&&['taste','method_preference'].includes(r.category||'');
  const selected=(r:TrainingChangeRecord)=>selectable(r)&&(selection[selectionKey(r)]??r.category==='taste');
- const selectedRecords=value.records.filter(selected);
+ const visibleRecords=value.records.filter(record=>!hiddenRecordIds.includes(record.recordId));
+ const pendingRecords=visibleRecords.filter(record=>['suggested','candidate'].includes(record.state));
+ const savedRecords=visibleRecords.filter(record=>!['suggested','candidate'].includes(record.state));
+ const selectedRecords=visibleRecords.filter(selected);
  const stateLabel=(r:TrainingChangeRecord)=>r.included?'Included':r.state==='suggested'?'Suggested':r.state==='removed'?'Removed':r.state==='revoked'?'Permission withdrawn':r.state==='retired'?'Stopped':r.state==='discarded'?'Discarded':'Unavailable';
  const feedbackRows=(rows:GuidedTrainingChanges['feedback'],original=false)=>rows.map(f=><article key={f.eventId} className="rounded-xl border border-ink-800 p-4 text-sm leading-6">
    <p className="mb-2 text-xs text-ink-500">{f.sourceKind==='creation_notes'?'Drafted by Implexa from your creation chat':f.sourceKind==='trainer_feedback'?'Your original feedback':'Saved source text'}</p>
@@ -35,13 +38,7 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
    {f.outcome!=='added'&&<button type="button" className={`${button} mt-3`} disabled={busy||f.analysisStatus==='pending'||f.analysisStatus==='unavailable'} onClick={()=>onForce({eventId:f.eventId,eventDigest:f.eventDigest})}>Use as learning</button>}
    {onWithdraw&&original&&f.text!==null&&<button type="button" className={`${button} mt-3 ml-5`} disabled={busy} onClick={()=>setWithdrawing({eventId:f.eventId,eventDigest:f.eventDigest})}>Withdraw this feedback from future use</button>}
   </article>);
- return <section className="space-y-5" aria-label="Your private training update">
-  <header className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><h2 className="text-xl font-medium tracking-tight">Learnings</h2><TrainingInfo label="About your training update">{live.length} included · {remaining.length} feedback item{remaining.length===1?'':'s'} not fully converted. Original feedback stays available. Private edits do not change a currently served or published snapshot.</TrainingInfo></div>{versionPicker}</header>
-  {onImport&&value.creationImports?.some(i=>i.importedNoteIndices.length<i.noteCount)&&<section className="rounded-xl border border-ink-800 p-4 text-sm" aria-label="Private notes from creation"><h3 className="font-medium">Bring your creation notes into Training</h3>
-   <p className="mt-2 text-ink-400">These notes came from this agent’s completed build. Import preserves them as private source feedback; it does not accept a learning or change the definition.</p>
-   {value.creationImports.map(i=><div key={`${i.buildRequestId}:${i.replyId}`} className="mt-3 space-y-3">{i.notes.map((note,n)=>i.importedNoteIndices.includes(n)?null:<div key={n}><p className="text-ink-300">{note}</p><button type="button" className={`${button} mt-2`} disabled={busy} onClick={()=>onImport(i,n)}>Import this private note</button></div>)}</div>)}
-  </section>}
-  <div className="grid gap-3 md:grid-cols-2">{value.records.filter(record=>!hiddenRecordIds.includes(record.recordId)).map((r,index)=><article key={`${r.recordId}:${r.recordDigest}`} className={`rounded-xl border p-4 ${onApplySelected&&selected(r)?'border-brand-500/60 bg-brand-500/5':'border-ink-800 bg-ink-900/20'}`} aria-label="Saved teaching">
+ const renderRecords=(records:TrainingChangeRecord[])=><div className="grid gap-3 md:grid-cols-2">{records.map(r=>{const index=visibleRecords.indexOf(r);return <article key={`${r.recordId}:${r.recordDigest}`} className={`rounded-xl border p-4 ${onApplySelected&&selected(r)?'border-brand-500/60 bg-brand-500/5':'border-ink-800 bg-ink-900/20'}`} aria-label="Saved teaching">
    <div className="flex items-start gap-3">
     {onApplySelected&&selectable(r)&&<input type="checkbox" aria-label={`Select teaching: ${teachingCaption(captionFor?.(r)||r.summary)}`} checked={selected(r)} disabled={busy} onChange={e=>setSelection(prev=>({...prev,[selectionKey(r)]:e.target.checked}))} className="mt-1 accent-brand-500"/>}
     {r.summary&&renderExample?.(r,index)}<div className="min-w-0 flex-1"><p className="text-sm leading-6 text-ink-200">{teachingCaption(captionFor?.(r)||r.summary)}</p><p className="mt-2 text-xs text-ink-500">{stateLabel(r)}{r.category==='method_preference'?' · Tool method':''}</p>{explanationFor?.(r)}</div>
@@ -53,9 +50,17 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
      {r.state==='suggested'&&<button type="button" className={button} disabled={busy} onClick={()=>onRecord(r,'admit')}>Include in private update</button>}
      {r.state==='removed'&&<button type="button" className={button} disabled={busy} onClick={()=>onRecord(r,'undo')}>Undo removal</button>}</div>
    </div></details>
-  </article>)}</div>
+  </article>;})}</div>;
+ return <section className="space-y-5" aria-label="Your private training update">
+  <header className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><h2 className="text-xl font-medium tracking-tight">Learnings</h2><TrainingInfo label="About your training update">{live.length} included · {remaining.length} feedback item{remaining.length===1?'':'s'} not fully converted. Original feedback stays available. Private edits do not change a currently served or published snapshot.</TrainingInfo></div>{versionPicker}</header>
+  {onImport&&value.creationImports?.some(i=>i.importedNoteIndices.length<i.noteCount)&&<section className="rounded-xl border border-ink-800 p-4 text-sm" aria-label="Private notes from creation"><h3 className="font-medium">Bring your creation notes into Training</h3>
+   <p className="mt-2 text-ink-400">These notes came from this agent’s completed build. Import preserves them as private source feedback; it does not accept a learning or change the definition.</p>
+   {value.creationImports.map(i=><div key={`${i.buildRequestId}:${i.replyId}`} className="mt-3 space-y-3">{i.notes.map((note,n)=>i.importedNoteIndices.includes(n)?null:<div key={n}><p className="text-ink-300">{note}</p><button type="button" className={`${button} mt-2`} disabled={busy} onClick={()=>onImport(i,n)}>Import this private note</button></div>)}</div>)}
+  </section>}
+  {pendingRecords.length>0&&renderRecords(pendingRecords)}
+  {savedRecords.length>0&&<details className="text-sm text-ink-400"><summary className="cursor-pointer">Saved training ({savedRecords.length})</summary><div className="mt-4">{renderRecords(savedRecords)}</div></details>}
   {value.records.length===0&&<p className="text-sm text-ink-500">Your next teaching will appear here. Mark a moment or explain a preference.</p>}
-  {onApplySelected&&value.records.some(selectable)&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-800 p-4"><p className="text-sm text-ink-300">{selectedRecords.length} selected <span className="text-xs text-ink-500">· proposed, not applied yet</span></p><button type="button" className="btn-primary" disabled={busy||selectedRecords.length===0} onClick={()=>void onApplySelected(selectedRecords)}>{busy?'Applying…':'Apply selected'}</button></div>}
+  {onApplySelected&&pendingRecords.some(selectable)&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-800 p-4"><p className="text-sm text-ink-300">{selectedRecords.length} selected <span className="text-xs text-ink-500">· proposed, not applied yet</span></p><button type="button" className="btn-primary" disabled={busy||selectedRecords.length===0} onClick={()=>void onApplySelected(selectedRecords)}>{busy?'Applying…':'Apply selected'}</button></div>}
   <details className="text-sm text-ink-400"><summary className="cursor-pointer">Feedback history</summary><div className="mt-4 space-y-4">
    <details><summary className="cursor-pointer">Not converted{remaining.length?` (${remaining.length})`:''}</summary><div className="mt-3 space-y-3">{feedbackRows(remaining)}{remaining.length===0&&<p className="text-sm text-ink-500">All analysed feedback is accounted for in saved teachings.</p>}</div></details>
    <details><summary className="cursor-pointer">Original feedback</summary><div className="mt-3 space-y-3">{feedbackRows(value.feedback,true)}</div></details>

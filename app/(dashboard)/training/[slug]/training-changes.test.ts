@@ -169,3 +169,21 @@ test('read-only explanations render inline without replacing the exact saved wor
  const row=r.document.querySelector('[aria-label="Saved teaching"]')!;assert.match(row.querySelector('details')!.textContent||'',/Use imagery to explain the relationship/);
  await r.click([...row.querySelectorAll('button')].find(button=>button.textContent==='✨ Explain')!);assert.equal(calls[0].recordDigest,H);
 });
+
+test('pending training stays visible while the saved library is collapsed with its existing controls and version picker',async t=>{
+ const v=value(),base=v.records[0];v.records=[
+  {...base,recordId:id(31),summary:'A new proposed lesson.',state:'suggested',included:false,admissionOrigin:'none'},
+  {...base,recordId:id(32),summary:'A pending private candidate.',state:'candidate'},
+  {...base,recordId:id(33),summary:'An accepted lesson.',state:'human_accepted',admissionOrigin:'human_decision'},
+  {...base,recordId:id(34),summary:'An earlier removed lesson.',state:'removed',included:false},
+  {...base,recordId:id(35),summary:'A duplicate native draft.',state:'suggested',included:false,admissionOrigin:'none'},
+  {...base,recordId:id(36),summary:'A hidden accepted lesson.',state:'human_accepted',admissionOrigin:'human_decision'},
+ ];
+ const calls:any[]=[],props={value:v,hiddenRecordIds:[id(35),id(36)],versionPicker:'Current · Earlier',onPolicy:()=>{},onForce:()=>{},onEdit:(record:any)=>calls.push(['edit',record.recordId]),onRecord:(record:any,action:any)=>calls.push([action,record.recordId]),onTest:()=>{},onPublish:()=>{},onExplain:(record:any)=>calls.push(['explain',record.recordId]),onApplySelected:(records:any[])=>calls.push(['apply',records.map(record=>record.recordId)])};
+ const r=await render('../training/[slug]/training-changes.tsx',props);t.after(()=>r.cleanup());
+ const savedSummary=r.getByText('Saved training (2)'),library=savedSummary.closest('details')!;assert.equal(library.open,false);assert.match(r.text(),/Current · Earlier/);assert.doesNotMatch(r.text(),/duplicate native draft|hidden accepted lesson/i);
+ const cards=[...r.document.querySelectorAll('[aria-label="Saved teaching"]')];assert.equal(cards.length,4);assert.equal(cards[0].closest('details'),null);assert.equal(cards[1].closest('details'),null);assert.ok(library.contains(cards[2]));assert.ok(library.contains(cards[3]));assert.ok(!library.contains(r.getByText('Apply selected')));
+ await r.click(r.getByText('Apply selected'));assert.deepEqual(calls,[['apply',[id(31)]]],'hidden native drafts never sneak into the batch');
+ await r.click(savedSummary);assert.equal(library.open,true);await r.click([...cards[2].querySelectorAll('button')].find(button=>button.textContent==='✨ Explain')!);await r.click(cards[3].querySelector('summary')!);await r.click([...cards[3].querySelectorAll('button')].find(button=>button.textContent==='Undo removal')!);assert.deepEqual(calls.slice(1),[['explain',id(33)],['undo',id(34)]]);
+ assert.ok(library.compareDocumentPosition(r.getByText('Run your agent'))&r.window.Node.DOCUMENT_POSITION_FOLLOWING,'the Run panel remains after the compact saved library');
+});
