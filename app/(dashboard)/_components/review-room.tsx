@@ -1330,6 +1330,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           </div>
         )}
 
+        {props.trainingMode&&!latestFinalOutput&&<p role="status" className="mb-3 text-sm text-amber-300">The latest result could not be verified. Open Result details to choose a file.</p>}
         <details open={props.trainingMode?undefined:true} className="mb-3">
           <summary className={props.trainingMode?'cursor-pointer text-xs text-ink-500':'hidden'}>Result details</summary>
         <div className="mb-3 rounded-md border border-ink-800 bg-ink-950/50 px-3 py-2.5" aria-label="Review version identity">
