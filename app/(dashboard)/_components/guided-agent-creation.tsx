@@ -11,7 +11,7 @@ import {isCreationDraftRead,type CreationDraftRead,type CreationTurn} from '@/li
 
 /** Prepared cards over the existing plan/build gate. This component grants no
  * tools, starts no runs and stores no private conversation in a definition. */
-export default function GuidedAgentCreation({ownerId}:{ownerId:string}){
+export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:string;connected?:boolean}){
  const [draftId,setDraftId]=useState(''),[data,setData]=useState<CreationDraftRead|null>(null),[selectedId,setSelectedId]=useState<string|null>(null);
  const [text,setText]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [queued,setQueued]=useState(false);
@@ -114,7 +114,7 @@ export default function GuidedAgentCreation({ownerId}:{ownerId:string}){
      <button type="button" className="text-sm text-ink-400 underline disabled:opacity-40" disabled={busy||!previousPrepared} onClick={undo}>Undo last change</button>
 </div>}
    </>}
-   {isBuilt&&!data?.withdrawn&&<div role="status" className="rounded-xl border border-emerald-800 p-5 text-sm"><p>Build queued through your connected engine. This is not yet a built or tested agent. If it fails, copy these cards to a new draft.</p><Link className="mt-3 inline-block underline" href={AGENTS_RUNNING_HREF}>View your agents →</Link></div>}
+   {isBuilt&&!data?.withdrawn&&<div role="status" className="rounded-xl border border-emerald-800 p-5 text-sm"><p>{connected||typeof window!=='undefined'&&!!window.implexaDesktop?.handoffAgent?'Build queued through your connected engine. This is not yet a built or tested agent. If it fails, copy these cards to a new draft.':'Your build request is saved. Connect Claude or Codex in Setup to build it. This is not yet a built or tested agent.'}</p>{!connected&&<Link className="mr-5 mt-3 inline-block underline" href="/install">Connect Claude or Codex</Link>}<Link className="mt-3 inline-block underline" href={AGENTS_RUNNING_HREF}>View your agents →</Link></div>}
    {notice&&<p role="status" className="text-sm text-ink-400">{notice}</p>}
    {error&&<p role="alert" className="rounded-lg border border-amber-700 p-3 text-sm">{error.replaceAll('_',' ')}</p>}
   </div>

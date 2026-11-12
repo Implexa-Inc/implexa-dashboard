@@ -36,7 +36,7 @@ test('explicit Build passes only the chosen private-source reference and public 
  const creates=calls.filter(c=>c.url==='/api/agents/create');assert.equal(creates.length,1);
  const body=JSON.parse(creates[0].init.body);assert.deepEqual(body.creationDraftBinding,{draftId:new URL(calls[0].url,'https://test.invalid').searchParams.get('draftId'),replyId:id(102),replyDigest:H});
  assert.equal(body.intent,'');assert.deepEqual(body.creationDraftFiles,[]);assert.equal(body.toolPreferences,undefined);assert.doesNotMatch(JSON.stringify(body),/warm, quiet|trainingNotes/);
- assert.match(r.text(),/not yet a built or tested agent/);
+ assert.match(r.text(),/not yet a built or tested agent/);assert.match(r.text(),/Connect Claude or Codex in Setup to build it/);assert.equal(r.getByText('Connect Claude or Codex').getAttribute('href'),'/install');
 });
 test('a pending durable reply prevents duplicate Send and Build, but can still be read',async t=>{
  const {r,calls}=await setup(t,[turn(2),turn(3,{status:'pending',replyId:null,replyDigest:null,reply:null,brief:null,model:null,trainingNotes:[],questions:[],buildIntent:null,tools:[],toolPreferences:[]})]);
