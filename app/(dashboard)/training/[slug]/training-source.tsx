@@ -1591,7 +1591,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {coverageCanClaimReady && trainingIsReady && managerTrainingRequirements && <p role="status" className="rounded border border-emerald-600 p-3">Manager reference training ready: all {managerTrainingRequirements.requiredPairs.length} critical request-admission visual-reference routes are explicitly fulfilled for this immutable version. This preflight does not cover every declared reference; first launch verifies all declared references, decisions, procedures, criteria, custody, and the exact selected evidence set.</p>}
 
     </TrainingDetails></div>
-    <div id="training-history" hidden={!installationId&&view!=='history'} className="space-y-5">
+    <div id="training-history" hidden={!installationId&&view!=='history'} className="space-y-5 [&_button]:mr-2">
     {!installationId && versionTransition && <TrainingDetails title="Training from earlier versions">
       <div id="training-earlier"/>
       <p>Earlier examples are saved here. Review one if you want to teach it again or adapt it for this version. Applying it still happens in Step 3.</p>
@@ -1609,7 +1609,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         </li>;
       }))}</ul>
     </TrainingDetails>}
-    <div id="training-recovery" className="space-y-3">
+    <div id="training-recovery" className={`space-y-3 ${legacyControls}`}>
     {failed.map(draft=><section key={draft.token} className="rounded-lg border border-ink-800 p-4 space-y-2" aria-label="Preserved source draft">
       <p className="font-medium">An upload did not finish</p><p className="text-sm text-ink-400">Your existing training is still saved.</p>
       {draft.retryable?<button disabled={!!busy} onClick={()=>work('Retrying registration',async()=>{await requireCurrentScope();await call('register',{token:draft.token});await load(session);})}>Retry upload</button>:<><p className="text-sm text-ink-400">Choose the video or image again to make a new attempt. You can also remove this unfinished upload.</p><button type="button" disabled={!!busy} onClick={requestTrainingUpload}>Choose file again</button><button disabled={!!busy} onClick={()=>discardDraft(draft)}>Remove unfinished upload</button></>}
