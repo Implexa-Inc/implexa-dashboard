@@ -72,3 +72,14 @@ test('long source feedback stays readable in the summary with its full original 
  const body='A detailed original note. '.repeat(40),r=await render(component,{drafts:[{...draft,sourceNote:{body,purpose:'training'}}],busy:false,onApply:()=>{},onEdit:()=>{}});
  try{await r.click(openButton(r));const summary=dialog(r);assert.match(summary.textContent||'',/Training note/);assert.match(summary.textContent||'',/Full saved note/);assert.equal(summary.querySelector('details p')?.textContent,body);const label=[...summary.querySelectorAll('p')].find(p=>p.textContent==='Training note');assert.equal(label?.nextElementSibling?.textContent,body.slice(0,240)+'…');}finally{r.cleanup();}
 });
+
+test('a hidden review panel keeps selection while Apply and its frozen confirmation remain visible outside it',async()=>{
+ const applied:any[]=[],counts:number[]=[],props={drafts:[draft,{...draft,id:'two',judgment:'A second exact lesson.',appliesWhen:'Applies when: geography matters.'}],busy:false,onApply:(ids:string[])=>applied.push(ids),onEdit:()=>{},onEligibleCountChange:(count:number)=>counts.push(count),applyContainer:null as HTMLElement|null};
+ const r=await render(component,props);
+ try{const target=r.document.createElement('div');r.document.body.append(target);await r.rerender({...props,applyContainer:target});const cards=r.document.getElementById('root')!;assert.match(cards.textContent||'',/Applies when geography matters/);assert.doesNotMatch(cards.textContent||'',/Applies when Applies when/);const checks=[...cards.querySelectorAll('input')];await r.click(checks[1]);cards.hidden=true;assert.equal(target.querySelectorAll('button').length,1);assert.match(target.textContent||'',/1 visual lesson selected/);assert.deepEqual(counts,[2],'badge count is eligible, not selected');await r.click(target.querySelector('button')!);const summary=dialog(r);assert.ok(summary);assert.ok(summary.closest('[hidden]')===null,'the final authority dialog cannot inherit hidden review visibility');assert.match(summary.textContent||'',/Use a map/);assert.doesNotMatch(summary.textContent||'',/A second exact lesson/);await r.click(confirmButton(r));assert.deepEqual(JSON.parse(JSON.stringify(applied)),[['one']]);cards.hidden=false;assert.equal((checks[1] as HTMLInputElement).checked,false);}finally{r.cleanup();}
+});
+
+test('equal eligible counts are reported to a new scoped owner without reusing its predecessor callback',async()=>{
+ const first:number[]=[],second:number[]=[],props={drafts:[draft],busy:false,onApply:()=>{},onEdit:()=>{},onEligibleCountChange:(count:number)=>first.push(count)},r=await render(component,props);
+ try{assert.deepEqual(first,[1]);await r.rerender({...props,drafts:[{...draft,id:'new-scope',digest:'b'.repeat(64)}],onEligibleCountChange:(count:number)=>second.push(count)});assert.deepEqual(second,[1]);assert.deepEqual(first,[1]);}finally{r.cleanup();}
+});

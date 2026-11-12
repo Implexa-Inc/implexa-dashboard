@@ -1,14 +1,34 @@
 'use client';
 
 import Link from 'next/link';
+import Modal from '../../_components/modal';
 import {createPortal} from 'react-dom';
-import {useEffect,useLayoutEffect,useId,useRef,useState,type ReactNode} from 'react';
+import {useEffect,useLayoutEffect,useId,useRef,useState,type ComponentProps,type ReactNode} from 'react';
 import {parsePreviewUrl,requestPreview,revokePreview,previewKind} from '@/lib/review-preview';
 import {teachingFrame,teachingDigest} from '@/lib/training-teaching-draft';
 import type {ReviewArtifact} from '@/lib/review';
 
 export type TrainingView='start'|'teach'|'history'|'settings';
 export type TrainingRun={id:string;date:string;status:string;artifact:ReviewArtifact|null};
+
+/** Training panels remain mounted while hidden; interruptions stay outside those panels. */
+export function TrainingDialog(props:ComponentProps<typeof Modal>){
+ const [mounted,setMounted]=useState(false);useEffect(()=>setMounted(true),[]);
+ return mounted?createPortal(<Modal {...props}/>,document.body):null;
+}
+
+export type TrainingStep=1|2|3;
+export function TrainingSteps({active,pending,onSelect}:{active:TrainingStep;pending:number;onSelect:(step:TrainingStep)=>void}){
+ const labels=['Teach Agent','Review training','Apply & Test'] as const;
+ return <nav aria-label="Training steps" className="flex flex-wrap items-center gap-3 sm:gap-5">{labels.map((label,index)=>{const step=(index+1) as TrainingStep;return <button key={step} type="button" aria-current={active===step?'step':undefined} onClick={()=>onSelect(step)} className={`rounded-lg px-3 py-2 text-left transition-colors ${active===step?'bg-brand-500/10 text-lg font-medium text-brand-400':'text-sm text-ink-500 hover:text-ink-200'}`}><span className="mr-2">Step {step}:</span>{label}{step===3&&pending>0&&<span className="ml-2 inline-block rounded-full bg-brand-500/10 px-2 py-1 text-xs text-brand-400">{pending} unapplied learning{pending===1?'':'s'}</span>}</button>;})}</nav>;
+}
+/** New bullet responses stay readable; older prose is preserved as plain text. */
+export function TrainingExplanation({text}:{text:string}){
+ const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+ return lines.length>0&&lines.every(line=>line.startsWith('- '))?<ul className="list-disc space-y-2 pl-5">{lines.map((line,index)=><li key={index}>{line.slice(2)}</li>)}</ul>:<p className="whitespace-pre-wrap">{text}</p>;
+}
+/** Applicability is labelled by the card, not repeated inside its saved sentence. */
+export function trainingApplicability(text:string){return text.replace(/^(?:applies\s+when\s*:?\s*)+/i,'');}
 
 /** Explanations are available to hover, keyboard and touch without filling the page. */
 export function TrainingInfo({label,children}:{label:string;children:ReactNode}){

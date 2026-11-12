@@ -98,3 +98,12 @@ test('source picker selects recent results inline and keeps chat beside source c
   await r.click(recent);assert.equal((r.document.querySelector('#training-recent-results') as HTMLElement).hidden,false);
  }finally{r.cleanup();}
 });
+
+test('step navigation selects explicitly, highlights the active step and counts unapplied independently of selection',async()=>{
+ const selected:number[]=[],props={active:1,pending:1,onSelect:(step:number)=>selected.push(step)},r=await render(component,props,{exportName:'TrainingSteps'});
+ try{const buttons=[...r.document.querySelectorAll('button')];assert.match(buttons[0].textContent||'',/Step 1:Teach Agent/);assert.equal(buttons[0].getAttribute('aria-current'),'step');assert.ok(buttons[0].className.includes('text-brand-400'));assert.match(buttons[2].textContent||'',/1 unapplied learning/);await r.click(buttons[1]);assert.deepEqual(selected,[2]);await r.rerender({...props,active:2,pending:2});assert.equal(buttons[1].getAttribute('aria-current'),'step');assert.match(buttons[2].textContent||'',/2 unapplied learnings/);}finally{r.cleanup();}
+});
+test('explanations render bounded bullet text safely and preserve older prose without losing facts',async()=>{
+ const r=await render(component,{text:'- Prefer a meaningful visual.\n- Use it when geography matters.\n- <script>not executable</script>'},{exportName:'TrainingExplanation'});
+ try{assert.equal(r.document.querySelectorAll('li').length,3);assert.ok(r.document.querySelector('script')===null);assert.match(r.text(),/<script>not executable<\/script>/);const prior='One exact older response.\nIts full second line stays.';await r.rerender({text:prior});assert.ok(r.document.querySelector('ul')===null);assert.equal(r.document.querySelector('p')?.textContent,prior);}finally{r.cleanup();}
+});
