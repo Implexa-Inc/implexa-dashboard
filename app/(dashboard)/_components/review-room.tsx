@@ -353,7 +353,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   // a timeline. `visible` is already filtered, so every group's count is exactly what
   // that group renders.
   const groups = useMemo(() => groupIssuesByArtifact(visible, artifacts), [visible, artifacts]);
-  const teachingNotes=props.trainingMode?visible.flatMap(issue=>{const artifact=artifacts.find(item=>item.id===issue.artifactId);return issue.runId===runId&&artifact?.runId===runId&&artifact.status==='validated'&&artifact.sha256&&isSpatialAnchorV2(issue.anchor)?[{issue,artifact}]:[];}):[];
+  const teachingNotes=props.trainingMode?visible.flatMap(issue=>{const artifact=artifacts.find(item=>item.id===issue.artifactId);return issue.runId===runId&&artifact?.runId===runId&&artifact.status==='validated'&&artifact.sha256&&isSpatialAnchorV2(issue.anchor)&&!isIssueStale(issue,artifacts)?[{issue,artifact}]:[];}):[];
 
   // ── the send-changes action ───────────────────────────────────────────────
   // Local intent only. The DURABLE session row outranks it, so a reload or a second
