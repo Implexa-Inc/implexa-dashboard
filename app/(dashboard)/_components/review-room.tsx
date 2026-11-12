@@ -84,6 +84,7 @@ export type ReviewRoomProps = {
   trainingMode?: boolean;
   trainingOwnerId?: string;
   onTeachIssue?: (issue: ReviewIssue, artifact: ReviewArtifact) => void;
+  onDoneTeaching?: (notes:Array<{issue:ReviewIssue;artifact:ReviewArtifact}>)=>void;
   onDirtyChange?: (dirty: boolean) => void;
   renderVoiceNote?: (binding: {artifactId:string|null;sha256:string|null;frameMs:number|null}, onText:(text:string)=>void) => ReactNode;
   trainingSlug?:string;
@@ -352,6 +353,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   // a timeline. `visible` is already filtered, so every group's count is exactly what
   // that group renders.
   const groups = useMemo(() => groupIssuesByArtifact(visible, artifacts), [visible, artifacts]);
+  const teachingNotes=props.trainingMode?visible.flatMap(issue=>{const artifact=artifacts.find(item=>item.id===issue.artifactId);return issue.runId===runId&&artifact?.runId===runId&&artifact.status==='validated'&&artifact.sha256&&isSpatialAnchorV2(issue.anchor)?[{issue,artifact}]:[];}):[];
 
   // ── the send-changes action ───────────────────────────────────────────────
   // Local intent only. The DURABLE session row outranks it, so a reload or a second
@@ -1751,7 +1753,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                     <p className="mt-0.5 text-[11px] text-sky-400">Opens another file</p>
                   )}
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink-200">{i.body}</p>
-                  {props.trainingMode && props.onTeachIssue && group.artifact && !stale && i.status!=='dismissed' && <button type="button" disabled={busy} className="mt-3 text-xs text-brand-400 hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>Extract training</button>}
+                  {props.trainingMode && props.onTeachIssue && group.artifact && !stale && teachingNotes.some(note=>note.issue.id===i.id) && <button type="button" disabled={busy} className="mt-3 text-xs text-brand-400 hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>Extract training</button>}
                   {!props.trainingMode && submitView.mode === 'send_changes' && patternEligibleIssueIds.has(i.id) && (
                     <label className="mt-2 flex items-start gap-2 rounded border border-violet-500/20 bg-violet-500/5 px-2 py-1.5 text-[11px] text-ink-300">
                       <input
@@ -1849,7 +1851,9 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
           {notice && <p role="status" className="text-xs text-ink-300">{notice}</p>}
           {accepted && <button type="button" disabled={busy} onClick={()=>void addMoreFeedback()} className="text-sm text-brand-400">Add teaching notes</button>}
-          <p className="text-xs text-ink-500">Save a note, then extract what your agent should learn.</p>
+          {props.onDoneTeaching&&<button type="button" className="btn-primary" disabled={busy||!!draft||!!pendingRange||voiceDirty||!teachingNotes.length} onClick={()=>props.onDoneTeaching?.(teachingNotes)}>Done teaching</button>}
+          <p className="text-xs text-ink-500">Your saved notes become lessons you can review before applying.</p>
+          {visible.length>teachingNotes.length&&<p className="text-xs text-ink-400">{visible.length-teachingNotes.length} note(s) need a fresh visual mark before extraction.</p>}
           <a href={props.trainingSlug?trainingReviewHref(props.trainingSlug,runId):`/review/${encodeURIComponent(runId)}`} className="inline-block text-xs text-ink-400 underline underline-offset-4">Revise this result →</a>
         </div>}
         <div className={`${props.trainingMode?'hidden ':''}sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3`}>
