@@ -25,12 +25,13 @@ export function sameVoiceAttach(value:unknown,expected:VoiceNoteAttach){
  return region.x===wanted.x&&region.y===wanted.y&&region.width===wanted.width&&region.height===wanted.height;
 }
 class VoiceError extends Error{constructor(public reason:string,message:string){super(message);}}
-const voiceMessage=(reason:string)=>reason==='asr_unavailable'?'Voice transcription needs the recording tools. You can keep typing your feedback.':reason==='no_speech'?'No speech was found. Try another voice note.':reason==='microphone_unavailable'?'The microphone is unavailable. Check Implexa’s microphone access, then try again.':'The voice note could not be completed. Your typed feedback is unchanged.';
+const voiceMessage=(reason:string)=>reason==='asr_unavailable'?'Voice transcription is unavailable. You can retry this saved note or keep typing.':reason==='no_speech'?"We couldn’t hear anything in this note. Check the selected microphone and record again.":reason==='microphone_unavailable'?'The microphone is unavailable. Check Implexa’s microphone access, then try again.':reason==='transcript_invalid'?"We couldn’t turn this note into text. Record again, or type your feedback.":'The voice note could not be completed. Your typed feedback is unchanged.';
 
 /** The existing trusted recorder owns audio and deletion; only edited text enters feedback. */
 export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,onDirtyChange,disabled=false}:{ownerId:string;attach:VoiceNoteAttach;onInsert:(text:string)=>void;maxLength?:number;onDirtyChange?:(dirty:boolean)=>void;disabled?:boolean}){
  const bound=normalizeVoiceAttach(attach),identity=JSON.stringify({ownerId,attach:bound}),latest=useRef(identity);latest.current=identity;
  const [available,setAvailable]=useState(false),[noteId,setNoteId]=useState<string|null>(null),[state,setState]=useState(''),[text,setText]=useState(''),[error,setError]=useState('');
+ const [transcriptionAttempt,setTranscriptionAttempt]=useState(0),[canRetryTranscription,setCanRetryTranscription]=useState(false);
  const [starting,setStarting]=useState(false),[saved,setSaved]=useState<string|null>(null),[recoverable,setRecoverable]=useState<NativeVoice[]>([]),[deleting,setDeleting]=useState(false);
  const action=useRef(false),live=useRef(true),transcribed=useRef(new Set<string>()),sequence=useRef(0),currentNote=useRef(noteId);currentNote.current=noteId;
  const events=useRef(new Map<string,VoiceEvent>()),dirtyCallback=useRef(onDirtyChange);dirtyCallback.current=onDirtyChange;
@@ -47,7 +48,7 @@ export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,
  useEffect(()=>{dirtyCallback.current?.(Boolean(starting||noteId&&!['failed','cancelled'].includes(state)||text.trim()));},[starting,noteId,state,text]);
  useEffect(()=>{live.current=true;setAvailable(bridge()?.trainerCommentaryContractVersion==='1');return()=>{live.current=false;dirtyCallback.current?.(false);};},[]);
  useEffect(()=>{
-  const captured=identity,read=++sequence.current;setNoteId(null);setState('');setText('');setError('');setSaved(null);setRecoverable([]);
+  const captured=identity,read=++sequence.current;setNoteId(null);setState('');setText('');setError('');setSaved(null);setRecoverable([]);setCanRetryTranscription(false);
   if(bridge()?.trainerCommentaryContractVersion==='1')void (async()=>{try{
    const value=await call('listVoiceNotes',{sourceRef:bound.sourceRef});
    if(!live.current||latest.current!==captured||sequence.current!==read)return;
@@ -77,7 +78,7 @@ export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,
      if(stopped||!live.current||latest.current!==captured)return;
      if(transcript?.voiceNoteSha256!==note.sha256||typeof transcript.text!=='string'||!transcript.text.trim()||transcript.text.length>8000||!/^[a-f0-9]{64}$/.test(transcript.digest||''))throw Error('The transcript could not be matched to this voice note.');
      setText(transcript.text);setState('ready');
-    }catch(caught){transcribed.current.delete(noteId);throw caught;}return;
+    }catch(caught){transcribed.current.delete(noteId);if(!stopped&&live.current&&latest.current===captured)setCanRetryTranscription(caught instanceof VoiceError&&['asr_unavailable','recorder_failed'].includes(caught.reason));throw caught;}return;
    }
    if(['failed','cancelled','discarded','interrupted'].includes(note.state)){setState(note.state==='interrupted'?'failed':note.state);if(['failed','interrupted'].includes(note.state))setError('The voice note did not finish. Try again or type your feedback.');return;}
    setState(note.state);timer=setTimeout(poll,900);
@@ -85,9 +86,9 @@ export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,
   void poll();return()=>{stopped=true;clearTimeout(timer);};
   // State labels must not restart transcription.
   // eslint-disable-next-line react-hooks/exhaustive-deps
- },[noteId,identity]);
+ },[noteId,identity,transcriptionAttempt]);
  async function start(){
-  if(action.current||disabled||noteId&&state==='ready')return;action.current=true;++sequence.current;setStarting(true);const captured=identity;setError('');
+  if(action.current||disabled||noteId&&state==='ready')return;action.current=true;++sequence.current;setStarting(true);const captured=identity;setError('');setCanRetryTranscription(false);
   try{const value=await call('startVoiceNote',{attach:bound});if(!uuid(value.voiceNoteId))throw Error('Voice note could not be started.');if(live.current&&latest.current===captured){setNoteId(value.voiceNoteId);setState('recording');setText('');}}
   catch(caught){if(latest.current===captured)setError(caught instanceof Error?caught.message:'Voice note unavailable.');}
   finally{action.current=false;if(live.current)setStarting(false);}
@@ -111,5 +112,6 @@ export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,
   </div>}
   {saved&&<p className="text-ink-500">Audio stays saved on this Mac. <button type="button" disabled={deleting} className="underline underline-offset-4 disabled:opacity-40" onClick={()=>void removeSaved()}>{deleting?'Deleting…':'Delete saved voice note…'}</button></p>}
   {error&&<p role="alert" className="text-amber-300">{error}</p>}
+  {canRetryTranscription&&noteId&&state==='failed'&&<button type="button" disabled={disabled||starting} className="underline underline-offset-4" onClick={()=>{setCanRetryTranscription(false);setError('');setState('recovering');setTranscriptionAttempt(value=>value+1);}}>Retry saved voice note</button>}
  </div>;
 }

@@ -103,3 +103,29 @@ test('an uninserted transcript cannot be replaced by starting another voice note
   await r.click(r.getByText('Dismiss voice note'));assert.equal((r.getByText('Add a voice note') as HTMLButtonElement).disabled,false);await r.click(r.getByText('Add a voice note'));assert.equal(starts,2,'an explicit dismissal allows a new capture');
  }finally{r.cleanup();}
 });
+
+test('a temporary transcription failure retries the same saved audio without recording again or inserting automatically',async()=>{
+ const calls:any[]=[],inserted:string[]=[];let attempts=0;
+ const bridge={trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string,args:any)=>{
+  calls.push({op,args});if(op==='listVoiceNotes')return {ok:true,voiceNotes:[]};
+  if(op==='startVoiceNote')return {ok:true,voiceNoteId:note};
+  if(op==='getVoiceNote')return {ok:true,voiceNote:{voiceNoteId:note,state:'ready',attach,sha256:sha,durationMs:1000}};
+  if(op==='transcribeVoiceNote')return ++attempts===1?{ok:false,reason:'asr_unavailable'}:{ok:true,transcript:{text:'Keep the diagram clear.',voiceNoteSha256:sha,digest:sha}};
+  throw Error('Unexpected native operation');
+ }};
+ const r=await render('trainer-voice-note.tsx',{ownerId:owner,attach,onInsert:(text:string)=>inserted.push(text)},{bridge});
+ try{
+  await r.click(r.getByText('Add a voice note'));assert.match(r.text(),/retry this saved note/);
+  await r.click(r.getByText('Retry saved voice note'));
+  assert.equal(attempts,2);assert.equal(calls.filter(call=>call.op==='startVoiceNote').length,1);
+  assert.deepEqual(calls.filter(call=>call.op==='transcribeVoiceNote').map(call=>call.args.recordingId),[note,note]);
+  assert.equal((r.document.querySelector('textarea') as HTMLTextAreaElement).value,'Keep the diagram clear.');assert.deepEqual(inserted,[]);
+  await r.click(r.getByText('Add to this note'));assert.deepEqual(inserted,['Keep the diagram clear.']);
+ }finally{r.cleanup();}
+});
+
+for(const reason of ['no_speech','transcript_invalid'])test(`${reason} explains how to recover without repeatedly transcribing unusable audio`,async()=>{
+ const bridge={trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string)=>op==='listVoiceNotes'?{ok:true,voiceNotes:[]}:op==='startVoiceNote'?{ok:true,voiceNoteId:note}:op==='getVoiceNote'?{ok:true,voiceNote:{voiceNoteId:note,state:'ready',attach,sha256:sha,durationMs:1000}}:{ok:false,reason}};
+ const r=await render('trainer-voice-note.tsx',{ownerId:owner,attach,onInsert:()=>assert.fail('failure must not insert text')},{bridge});
+ try{await r.click(r.getByText('Add a voice note'));assert.match(r.text(),reason==='no_speech'?/Check the selected microphone and record again/:/Record again, or type your feedback/);assert.equal(r.queryByText('Retry saved voice note'),null);assert.equal((r.getByText('Add a voice note') as HTMLButtonElement).disabled,false);}finally{r.cleanup();}
+});
