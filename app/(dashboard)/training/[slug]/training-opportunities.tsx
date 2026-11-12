@@ -13,7 +13,7 @@ export default function TrainingOpportunities({questions,sessionId,versionId,dis
  const [presentations,setPresentations]=useState<Record<string,QuestionPresentation>>({}),[answer,setAnswer]=useState(''),[option,setOption]=useState<number|null>(null),[custom,setCustom]=useState(false),[working,setWorking]=useState(''),[error,setError]=useState('');
  const queuedOpen=useRef<string|null>(null);
  const pending=useRef<{identity:string;id:string;key:string;body:any}|null>(null);
- useEffect(()=>{setOpened(null);setSkipped([]);setSaved([]);setPresentations({});setAnswer('');setOption(null);setCustom(false);setError('');pending.current=null;},[identity]);
+ useEffect(()=>{setOpened(null);setSkipped([]);setSaved([]);setPresentations({});setAnswer('');setOption(null);setCustom(false);setWorking('');setError('');pending.current=null;},[identity]);
  useEffect(()=>{if(sessionId&&queuedOpen.current){const id=queuedOpen.current;queuedOpen.current=null;void open(id);}},[sessionId]);
  const items=trainingOpportunities(questions?.items||[],versionId).filter(q=>!skipped.includes(q.id)&&!saved.includes(q.id));
  async function request(body:any,key:string){const r=await fetch(`/api/agent-training/questions?operation=teaching&sessionId=${sessionId}`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify(body),cache:'no-store'});const value=await r.json();if(!r.ok||!value.ok)throw new AnswerError(value.reason||'Could not save. Try again.',['invalid_request','question_answer_invalid_content','question_presentation_changed','question_not_found','session_not_found','agent_active_version_changed'].includes(value.reason));return value;}

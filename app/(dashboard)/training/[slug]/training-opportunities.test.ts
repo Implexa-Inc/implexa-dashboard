@@ -22,3 +22,14 @@ test('uncertain saves retry the exact key and text; Skip never calls a server',a
  try{await r.click(r.getByText('Answer →'));await r.click(r.document.querySelectorAll('input[type=radio]')[0]);await r.click(r.getByText('Save answer'));assert.ok(r.document.querySelector('[role=alert]'));await r.click(r.getByText('Save answer'));assert.equal(requests[1].key,requests[2].key);assert.deepEqual(requests[1].body,requests[2].body);}finally{r.cleanup();}
  const skip=await render('../training/[slug]/training-opportunities.tsx',{questions,sessionId:U(6),versionId:U(2),disabled:false,onSaved:()=>assert.fail('saved'),onStart:async()=>{}},{fetch:(()=>assert.fail('skip called API')) as any});try{await skip.click(skip.getByText('Skip'));assert.match(skip.text(),/No new questions/);}finally{skip.cleanup();}
 });
+
+test('a pending answer blocks other cards and definite rejection restores editing',async()=>{
+ const other={...q,id:U(12),property:'layout_variety',questionId:'layout'};let fail=true;const bodies:any[]=[];
+ const r=await render('../training/[slug]/training-opportunities.tsx',{questions:{...questions,items:[q,other]},sessionId:U(6),versionId:U(2),disabled:false,onSaved:()=>{},onStart:async()=>{}},{fetch:(async(_url:string,init:RequestInit)=>{const body=JSON.parse(String(init.body));bodies.push(body);if(body.action==='save'&&fail){fail=false;throw Error('network');}return {ok:body.action==='present',json:async()=>body.action==='present'?{ok:true,presentation:p}:{ok:false,reason:'question_answer_invalid_content'}};}) as any});
+ try{await r.click([...r.document.querySelectorAll('button')].find(b=>b.textContent==='Answer →')!);await r.click(r.document.querySelectorAll('input[type=radio]')[0]);await r.click(r.getByText('Save answer'));assert.equal((r.getByText('Answer →') as HTMLButtonElement).disabled,true);await r.click(r.getByText('Save answer'));assert.equal((r.document.querySelector('fieldset') as HTMLFieldSetElement).disabled,false);assert.equal((r.getByText('Answer →') as HTMLButtonElement).disabled,false);assert.equal(bodies.filter(b=>b.action==='save').length,2);}finally{r.cleanup();}
+});
+test('changing the training session releases an in-flight presentation and fences its result',async()=>{
+ let resolve:any;const props={questions,sessionId:U(6),versionId:U(2),disabled:false,onSaved:()=>{},onStart:async()=>{}};
+ const r=await render('../training/[slug]/training-opportunities.tsx',props,{fetch:(()=>new Promise(r=>resolve=r)) as any});
+ try{await r.click(r.getByText('Answer →'));assert.match(r.text(),/Preparing choices/);await r.rerender({...props,sessionId:U(16)});assert.equal((r.getByText('Answer →') as HTMLButtonElement).disabled,false);await r.act(()=>resolve({ok:true,json:async()=>({ok:true,presentation:p})}));assert.doesNotMatch(r.text(),/Suggested approaches/);}finally{r.cleanup();}
+});
