@@ -1330,6 +1330,8 @@ export default function ReviewRoom(props: ReviewRoomProps) {
           </div>
         )}
 
+        <details open={props.trainingMode?undefined:true} className="mb-3">
+          <summary className={props.trainingMode?'cursor-pointer text-xs text-ink-500':'hidden'}>Result details</summary>
         <div className="mb-3 rounded-md border border-ink-800 bg-ink-950/50 px-3 py-2.5" aria-label="Review version identity">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
@@ -1385,6 +1387,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
             {artifactPicker === 'review_target' ? 'Freezing file…' : 'Open other file'}
           </button>
         </div>
+        </details>
         {sources.review_artifacts !== 'ready' && (
           <p role="status" className="mb-3 text-xs text-amber-300">
             Other review files are unavailable right now. Reload before attaching or sending them.

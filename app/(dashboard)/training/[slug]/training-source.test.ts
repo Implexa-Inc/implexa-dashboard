@@ -370,8 +370,8 @@ function questionTransport(rendered: Rendered, bridgeCalls: Call[], { firstFailu
 async function prepareAnswer(rendered: Rendered) {
   await rendered.click(rendered.getByText('Load recorded questions'));
   await rendered.click(rendered.document.querySelector('input[aria-label="Select question visual-choice"]')!);
-  await setTextarea(rendered, rendered.getByText('Private answer').closest('label')!.querySelector('textarea')!, 'Use the visual example to explain the comparison clearly.');
-  await rendered.click(rendered.getByText('Answer and prepare teaching'));
+  await setTextarea(rendered, rendered.getByText('Your guidance').closest('label')!.querySelector('textarea')!, 'Use the visual example to explain the comparison clearly.');
+  await rendered.click(rendered.getByText('Create a suggested lesson'));
 }
 
 async function fillManualTeaching(rendered: Rendered) {
@@ -463,7 +463,7 @@ test('a fresh Training page can link the same existing draft to several recorded
       questionId: 'related-choice', question: 'How should the related comparison be shown?', recurrenceCount: 2 })]) });
     await prepareAnswer(rendered);
     await rendered.click(rendered.document.querySelector('input[aria-label="Select question related-choice"]')!);
-    await rendered.click(rendered.getByText('Answer and prepare teaching'));
+    await rendered.click(rendered.getByText('Create a suggested lesson'));
     const select = rendered.getByText('Or link an existing teaching that already expresses this answer').closest('label')!.querySelector('select')!;
     await setSelect(rendered, select, RECORD); await rendered.click(rendered.getByText('Link answer to selected teaching'));
     assert.equal(calls.some(c => c.operation === 'annotate' || c.operation === 'accept' || c.operation === 'preview'), false);
@@ -1404,8 +1404,8 @@ test('long raw answers are shown in full and are never copied with silent 400-ch
     questionTransport(r, calls); await r.click(r.getByText('Load recorded questions'));
     await r.click(r.document.querySelector('input[aria-label="Select question visual-choice"]')!);
     const text = 'A'.repeat(450) + ' preserve this exact ending.';
-    await setTextarea(r, r.getByText('Private answer').closest('label')!.querySelector('textarea')!, text);
-    await r.click(r.getByText('Answer and prepare teaching')); assert.ok(r.text().includes(text));
+    await setTextarea(r, r.getByText('Your guidance').closest('label')!.querySelector('textarea')!, text);
+    await r.click(r.getByText('Create a suggested lesson')); assert.ok(r.text().includes(text));
     await r.click(r.getByText('Annotate source'));
     for (const field of Array.from(r.document.querySelectorAll<HTMLTextAreaElement>('textarea[maxlength="400"]'))) assert.equal(field.value, '');
     assert.equal((r.getByText('Save decision draft') as HTMLButtonElement).disabled, true);
@@ -1668,7 +1668,7 @@ test('owner workspace is one page with closed chat, direct teaching actions and 
  const visible=(el:Element)=>!el.closest('[hidden]');
  r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);
  try{
-  for(const label of ['◉ Record','↑ Upload','▧ Recent results'])assert.equal(visible(r.getByText(label)),true);
+  for(const label of ['◉ Record','↑ Upload','Give feedback on a recent result'])assert.equal(visible(r.getByText(label)),true);
   assert.ok(r.document.querySelector('[aria-label="Choose a training source"]'));assert.equal(r.queryByText('3 ways to train'),null);assert.equal(r.queryByText('Multimodal Training'),null);
   assert.equal(visible(r.getByText('Check public visibility')),false);
   assert.equal(visible(r.getByText('Load recorded questions')),false);
@@ -1684,6 +1684,7 @@ test('owner workspace is one page with closed chat, direct teaching actions and 
   assert.equal((r.getByText('Choose video or image') as HTMLButtonElement).disabled,true,'source attestation remains explicit');
   await r.click(dialog.querySelector('[aria-label="Close"]')!);
   await r.click(r.getByText('Questions & history'));
+  await r.click(r.getByText('Questions from your agent →'));
   assert.equal(visible(r.getByText('Load recorded questions')),true);
   await r.click(r.getByText('Sharing & settings'));
   assert.equal(visible(r.getByText('Check public visibility')),true);
@@ -1706,10 +1707,14 @@ test('choosing a source from history returns to teaching without changing the sa
 test('ineffective training stays visible on the starting view and its full warning is open',async()=>{
  const h=await renderedWith({state:'accepted',managerCoverage:coverage({readiness:'agent_update_required',reason:'manager_quality_coverage_unclassified_training',classified:false,coveredPairs:[],uncoveredPairs:[planningPair]})}),r=h.rendered;
  try{
-  const notice=r.document.querySelector('[aria-label="Training needs attention"]')!;
+  const notice=r.document.querySelector('[aria-label="Your input needed"]')!;
   assert.ok(notice);assert.equal(notice.closest('[hidden]'),null);
   const warning=r.getByText('Agent update required before this evidence can guide runs');
   assert.equal(warning.closest('[hidden]'),null);
+  assert.equal(warning.closest('details')!.open,false);
+  r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);r.window.Element.prototype.scrollIntoView=()=>{};
+  await r.click(r.getByText('Check setup →'));
+  await r.act(()=>new Promise(resolve=>setTimeout(resolve,20)));
   assert.equal(warning.closest('details')!.open,true);
   assert.equal(h.calls.some(c=>['annotate','accept','delivery'].includes(c.operation)),false);
  }finally{r.cleanup();}
@@ -2174,7 +2179,7 @@ test('recent results open inline only after selection and source changes never s
   assert.equal(requests.filter(x=>String(x.url).includes('/run-review?')).length,1);
   assert.match(requests.find(x=>String(x.url).includes('/run-review?')).url,new RegExp(`runId=${QUESTION}`));
   assert.match(r.text(),/saved feedback is unchanged/);
-  await r.click(r.getByText('▧ Recent results'));await r.click(r.document.querySelector('button[aria-label="Teach from result 2"]')!);await flush();
+  await r.click(r.getByText('Give feedback on a recent result'));await r.click(r.document.querySelector('button[aria-label="Teach from result 2"]')!);await flush();
   assert.equal(requests.filter(x=>String(x.url).includes('/run-review?')).length,2);
   assert.match(requests.filter(x=>String(x.url).includes('/run-review?'))[1].url,new RegExp(`runId=${RECORD}`));
   assert.equal(requests.some(x=>x.init.method==='POST'),false);
@@ -2246,7 +2251,7 @@ test('an uninserted voice transcript blocks source replacement just like typed u
   await r.click(r.getByText('Add a voice note'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
   assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');
   const stepButtons=[...r.document.querySelectorAll('[aria-label="Training steps"] button')];const sameTranscript=r.document.querySelector('[aria-label="Voice note transcript"]');await r.click(stepButtons[1]);await r.click(stepButtons[0]);assert.ok(r.document.querySelector('[aria-label="Voice note transcript"]')===sameTranscript,'step navigation does not remount pending voice feedback');
-  await r.click(r.getByText('▧ Recent results'));await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);
+  await r.click(r.getByText('Give feedback on a recent result'));await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);
   assert.ok(r.document.querySelector('#training-run-player')===null,'voice commentary awaiting insertion is unsaved work');
   assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');
   assert.equal(requests.some(x=>String(x.url).includes('/run-review?')),false);assert.equal(nativeCalls.filter(c=>c.op==='transcribeVoiceNote').length,1);
