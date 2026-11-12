@@ -604,7 +604,7 @@ test('source and session identities, exact time input and accessible range value
   try {
     assert.match(rendered.text(), /Train your agent/);assert.match(rendered.text(), /Video craft/);
     assert.match(rendered.text(), /Active version: 11111111 · Session version: 11111111/);
-    assert.match(rendered.text(), /approved-edit.mp4 · 1920×1080 · 11:50.667 · SHA-256 bbbbbbbb/);
+    assert.match(rendered.text(), /approved-edit.mp4Video · 11:50.667Annotate sourceSource details1920×1080 · SHA-256 bbbbbbbb/);
     await rendered.click(rendered.getByText('Annotate source'));
     const range = rendered.document.querySelector('input[type="range"]')!;
     assert.equal(range.getAttribute('aria-valuetext'), '00:00.000');
@@ -644,18 +644,18 @@ test('version transition requires coach confirmation, exact-source re-selection,
     assert.equal(create.args.slug, 'video-craft');
     assert.equal(create.args.parentSessionId, SESSION);
     assert.match(String(create.args.key), /^[a-f0-9-]{36}$/);
-    assert.match(rendered.text(), /records below remain bound to 11111111/);
-    assert.match(rendered.text(), /Re-add source SHA-256 bbbbbbbb/);
+    assert.match(rendered.text(), /Earlier version 11111111 · Current version 22222222/);
+    assert.match(rendered.text(), /Source SHA-256 bbbbbbbb/);
     assert.doesNotMatch(rendered.text(), /This immutable agent version has Manager coverage/, 'old-version readiness cannot transfer to the successor');
     assert.match(rendered.text(), /Manager coverage status unavailable/, 'a stale old-version projection fails closed until new-version records and coverage exist');
-    assert.equal((rendered.getByText('Prepare new-version successor draft') as HTMLButtonElement).disabled, true, 'an old token cannot cross versions');
+    assert.equal((rendered.getByText('Review for this version') as HTMLButtonElement).disabled, true, 'an old token cannot cross versions');
 
     const consent = rendered.getByText(/I created this source and consent/).closest('label')!.querySelector('input')!;
     await rendered.click(consent);
     await rendered.click(rendered.getByText('Add training source'));
     assert.equal(calls.some((call) => call.operation === 'select' && call.args.sessionId === NEW_SESSION), true);
-    assert.equal((rendered.getByText('Prepare new-version successor draft') as HTMLButtonElement).disabled, false, 'the newly verified source has the exact prior SHA');
-    await rendered.click(rendered.getByText('Prepare new-version successor draft'));
+    assert.equal((rendered.getByText('Review for this version') as HTMLButtonElement).disabled, false, 'the newly verified source has the exact prior SHA');
+    await rendered.click(rendered.getByText('Review for this version'));
     assert.match(rendered.text(), /Selected time 01:23.125/);
     assert.equal((rendered.getByText('Save decision draft') as HTMLButtonElement).disabled, true, 'copied prose never bypasses a fresh frame preview');
     await rendered.click(rendered.getByText('Preview this exact frame'));
@@ -696,7 +696,7 @@ test('version transition is restart-durable and retains explicit parent lineage'
     await rendered.click(rendered.getByText('Start successor training session'));
     const create = calls.find((call) => call.operation === 'create')!;
     assert.deepEqual(create.args.parentSessionId, SESSION);
-    assert.match(rendered.text(), /records below remain bound to 11111111/);
+    assert.match(rendered.text(), /Earlier version 11111111 · Current version 22222222/);
     assert.doesNotMatch(rendered.text(), /This immutable agent version has Manager coverage/);
   } finally { rendered.cleanup(); }
 });
@@ -724,7 +724,7 @@ test('lost successor response retries with the same idempotency key and exact pr
     assert.equal(creates[0].args.key, creates[1].args.key);
     assert.equal(creates[0].args.parentSessionId, SESSION);
     assert.equal(creates[1].args.parentSessionId, SESSION);
-    assert.match(rendered.text(), /Recreate reviewed decisions for 22222222/);
+    assert.match(rendered.text(), /Training from earlier versions/);
   } finally { rendered.cleanup(); }
 });
 
@@ -749,9 +749,9 @@ test('reload discovers accepted predecessor evidence behind an existing linked a
   try {
     assert.match(rendered.text(), /Active version: 22222222 · Session version: 22222222/);
     assert.doesNotMatch(rendered.text(), /Move reviewed evidence to the active version explicitly/);
-    assert.match(rendered.text(), /Recreate reviewed decisions for 22222222/);
-    assert.match(rendered.text(), /records below remain bound to 11111111/);
-    assert.match(rendered.text(), /Re-add source SHA-256 bbbbbbbb/);
+    assert.match(rendered.text(), /Training from earlier versions/);
+    assert.match(rendered.text(), /Earlier version 11111111 · Current version 22222222/);
+    assert.match(rendered.text(), /Source SHA-256 bbbbbbbb/);
     assert.equal(calls.filter((call) => call.operation === 'scope' && call.args.sessionId === SESSION).length, 1);
     assert.equal(calls.filter((call) => call.operation === 'list' && call.args.sessionId === SESSION).length, 1);
     assert.equal(calls.some((call) => call.operation === 'create'), false, 'the already linked active session is reused');
@@ -763,7 +763,7 @@ test('reload never treats an unrelated active-version session as the evidence su
   try {
     assert.match(rendered.text(), /Active version: 22222222 · Session version: 11111111/);
     assert.match(rendered.text(), /Move reviewed evidence to the active version explicitly/);
-    assert.doesNotMatch(rendered.text(), /Recreate reviewed decisions/);
+    assert.doesNotMatch(rendered.text(), /Training from earlier versions/);
   } finally { rendered.cleanup(); }
 });
 
@@ -786,8 +786,8 @@ test('version successor refuses a raced version binding and never enables a diff
     await mismatched.rendered.click(mismatched.rendered.getByText('Start successor training session'));
     await mismatched.rendered.click(mismatched.rendered.getByText(/I created this source and consent/).closest('label')!.querySelector('input')!);
     await mismatched.rendered.click(mismatched.rendered.getByText('Add training source'));
-    assert.match(mismatched.rendered.text(), /Re-add source SHA-256 bbbbbbbb/);
-    assert.equal((mismatched.rendered.getByText('Prepare new-version successor draft') as HTMLButtonElement).disabled, true);
+    assert.match(mismatched.rendered.text(), /Source SHA-256 bbbbbbbb/);
+    assert.equal((mismatched.rendered.getByText('Review for this version') as HTMLButtonElement).disabled, true);
     assert.equal(mismatched.calls.some((call) => call.operation === 'annotate' || call.operation === 'accept'), false);
   } finally { mismatched.rendered.cleanup(); }
 
@@ -1110,7 +1110,7 @@ test('successor preserves prior stages and expands required routes only after ex
     await rendered.click(rendered.getByText('Start successor training session'));
     await rendered.click(rendered.getByText(/I created this source and consent/).closest('label')!.querySelector('input')!);
     await rendered.click(rendered.getByText('Add training source'));
-    await rendered.click(rendered.getByText('Prepare new-version successor draft'));
+    await rendered.click(rendered.getByText('Review for this version'));
 
     assert.match(rendered.text(), /The predecessor stages were preserved exactly/);
     assert.match(rendered.text(), /Still missing: Plan the treatment, Design scene contracts, Select assets, Revise from feedback/);
@@ -1312,12 +1312,12 @@ test('only typed transient drafts offer Retry; permanent drafts offer discard', 
   const { rendered, calls } = await renderedWith({ failedDrafts: [retrySource, permanentSource], pendingDecisions: [retryDecision, permanentDecision] });
   try {
     const buttonTexts = Array.from(rendered.document.querySelectorAll('button')).map((button) => button.textContent);
-    assert.equal(buttonTexts.filter((text) => text === 'Retry registration').length, 1);
-    assert.equal(buttonTexts.filter((text) => text === 'Retry saved decision').length, 1);
-    assert.equal(buttonTexts.filter((text) => text === 'Discard local draft').length, 2);
-    await rendered.click(rendered.getByText('Retry registration'));
+    assert.equal(buttonTexts.filter((text) => text === 'Retry upload').length, 1);
+    assert.equal(buttonTexts.filter((text) => text === 'Retry saving').length, 1);
+    assert.equal(buttonTexts.filter((text) => ['Remove unfinished upload','Remove unfinished draft'].includes(text||'')).length, 2);
+    await rendered.click(rendered.getByText('Retry upload'));
     assert.deepEqual(JSON.parse(JSON.stringify(calls.find((item) => item.operation === 'register')?.args)), { token: retrySource.token });
-    await rendered.click(rendered.getByText('Retry saved decision'));
+    await rendered.click(rendered.getByText('Retry saving'));
     assert.deepEqual(JSON.parse(JSON.stringify(calls.find((item) => item.operation === 'retryDraft')?.args)), { token: TOKEN, key: retryDecision.key });
   } finally { rendered.cleanup(); }
 });
@@ -2326,4 +2326,29 @@ test('Upload refuses an open marked-result proposal before file selection and re
  const prior=r.window.fetch;r.window.fetch=(async(url:string,init:RequestInit={})=>{requests.push({url,init});if(String(url).includes('/run-review?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-run-review.v1',review:{runId:QUESTION,trainingSlug:'video-craft',agentName:'Video craft',artifacts:[artifact],production:null,issues:[issue],session:{id:NEW_SESSION,runId:QUESTION,selectedArtifactId:TOKEN,state:'draft',submittedRequestId:null,submittedIssueIds:null,compiledBrief:null,acceptedAt:null},reviewArtifacts:[],sources:{issues:'ready',artifacts:'ready',session:'ready',evidence:'ready',reviewer_resolutions:'ready',review_artifacts:'ready'},isApprovalHold:false}})};if(String(url).includes('review-mark?'))return {ok:true,json:async()=>({ok:true,sourceId:SOURCE_ID})};if(String(url).includes('teaching-suggestion?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-teaching-suggestion.v7',model:'claude-haiku-5-5',binding,status:'insufficient',fields:null,reason:'Explain which relationship should be emphasized.',scopeSuggestion:null,sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};return prior(url,init);}) as typeof fetch;
  const flush=()=>r.act(()=>new Promise(resolve=>setTimeout(resolve,20)));
  try{await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);await flush();await r.click(r.getByText('Done teaching'));await flush();const initial=r.document.querySelector('[role="dialog"][aria-label="Extract training from this note?"]')!;assert.ok(initial);await r.click([...initial.querySelectorAll('button')].find(button=>button.textContent==='Extract training')!);await flush();assert.ok(r.queryByText('Close proposals'));const steps=[...r.document.querySelectorAll('[aria-label="Training steps"] button')];await r.click(steps[0]);const writes=h.calls.filter(call=>['select','create'].includes(call.operation)).length;await r.click(r.getByText('↑ Upload'));const blocked=r.document.querySelector('[role="dialog"][aria-label="Finish your proposed training"]')!;assert.ok(blocked);assert.ok(blocked.closest('[hidden]')===null);assert.match(blocked.textContent||'',/Close your current proposals/);assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,writes);assert.ok(r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')===null);await r.click(r.getByText('Return to proposals'));await flush();assert.equal(steps[1].getAttribute('aria-current'),'step');assert.equal(r.document.activeElement?.textContent,'Close proposals');assert.match(r.text(),/Make the relationship clearer/);assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,writes);}finally{r.cleanup();}
+});
+
+test('saved sources and earlier-version recreation stay out of Teach and open only in History with closed details',async()=>{
+ const {rendered,calls}=await renderedWith({currentVersion:VERSION_B,state:'accepted',includeCurrentSession:true});
+ try{
+  const history=rendered.document.getElementById('training-history')!;assert.equal(history.hidden,true);
+  const earlier=rendered.getByText('Training from earlier versions').closest('details')!;assert.equal(earlier.open,false);assert.ok(earlier.className.includes('border-ink-800'));assert.doesNotMatch(earlier.className,/border-brand/);
+  await rendered.click(rendered.getByText('Questions & history'));assert.equal(history.hidden,false);
+  assert.equal(rendered.getByText('Saved sources & original decisions').closest('details')!.open,false);
+  assert.match(rendered.text(),/Add the original video or image above/);
+  assert.equal(calls.some(call=>['select','annotate','accept'].includes(call.operation)),false);
+  await rendered.click(rendered.getByText('Questions & history'));assert.equal(history.hidden,true);
+ }finally{rendered.cleanup();}
+});
+
+test('History navigation returns from Apply to Step1 and preserved work remains actionable without exposing technical details',async()=>{
+ const {rendered,calls}=await renderedWith({failedDrafts:[{token:TOKEN,retryable:true,reason:'training_network_unavailable'}]});
+ try{
+  const step3=[...rendered.document.querySelectorAll('button')].find(button=>button.textContent?.startsWith('Step 3:'))!;await rendered.click(step3);
+  await rendered.click(rendered.getByText('Review saved work'));
+  assert.equal(rendered.document.querySelector('[aria-label="Training steps"] [aria-current="step"]')?.textContent,'Step 1:Teach Agent');
+  assert.equal(rendered.document.getElementById('training-history')!.hidden,false);
+  const draft=rendered.document.querySelector('[aria-label="Preserved source draft"]')!;assert.match(draft.textContent||'',/An upload did not finish/);assert.equal(draft.querySelector('details')!.open,false);
+  await rendered.click(rendered.getByText('Retry upload'));assert.equal(calls.filter(call=>call.operation==='register').length,1);
+ }finally{rendered.cleanup();}
 });
