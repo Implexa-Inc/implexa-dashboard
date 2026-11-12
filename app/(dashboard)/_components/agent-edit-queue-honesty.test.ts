@@ -23,7 +23,7 @@ test('an edit is acknowledged only with the durable inserted request identity', 
   }
   assert.match(route, /const requestId = confirmedRunRequestId\(data\)/);
   assert.match(route, /if \(!res\.ok \|\| !requestId\)/);
-  assert.match(improve, /const requestId = confirmedAgentRevisionRequestId\(res\.ok, data\)/);
+  assert.match(improve, /!trainingChatBinding\?confirmedAgentRevisionRequestId\(res\.ok, data\):null/);
   assert.ok(improve.indexOf('if (!requestId)') < improve.indexOf("setState('queued')"));
   for (const [name, source] of [['run feedback', runFeedback], ['run actions', runActions]] as const) {
     assert.match(source, /confirmedAgentRevisionRequestId\(response\.ok, body\)/, `${name} must require HTTP success and the durable receipt`);

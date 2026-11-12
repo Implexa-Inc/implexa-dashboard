@@ -22,10 +22,10 @@ import { canSubmitAgentRevision, confirmedAgentRevisionRequestId } from '@/lib/r
 
 type State = 'idle' | 'sending' | 'queued' | 'error';
 
-export default function ImproveAgent({ slug, bare = false, statusUnavailable = false, revisePending = false }: { slug: string; bare?: boolean; statusUnavailable?: boolean; revisePending?: boolean }) {
+export default function ImproveAgent({ slug, bare = false, statusUnavailable = false, revisePending = false, initialNote='', trainingChatBinding }: { slug: string; bare?: boolean; statusUnavailable?: boolean; revisePending?: boolean;initialNote?:string;trainingChatBinding?:{sessionId:string;turnId:string;expectedActiveVersionId:string} }) {
   const router = useRouter();
   const [open, setOpen] = useState(bare);
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(initialNote);
   const [state, setState] = useState<State>('idle');
   const [error, setError] = useState<string | null>(null);
   const [queuedRequestId, setQueuedRequestId] = useState<string | null>(null);
@@ -35,13 +35,13 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
     if (!canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: state === 'sending', note: text })) return;
     setState('sending'); setError(null);
     try {
-      const res = await fetch('/api/agents/revise', {
+      const res = await fetch(trainingChatBinding?`/api/agent-training/chat-edit?sessionId=${encodeURIComponent(trainingChatBinding.sessionId)}`:'/api/agents/revise', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ slug, note: text }),
+        body: JSON.stringify(trainingChatBinding?{turnId:trainingChatBinding.turnId,expectedActiveVersionId:trainingChatBinding.expectedActiveVersionId,note:text}:{ slug, note: text }),
       });
       const data = await res.json().catch(() => null);
-      const requestId = confirmedAgentRevisionRequestId(res.ok, data);
+      const requestId = trainingChatBinding&&res.ok&&data?.ok===true&&data.application==='edit_queued'&&typeof data.requestId==='string'&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(data.requestId)?data.requestId:!trainingChatBinding?confirmedAgentRevisionRequestId(res.ok, data):null;
       if (!requestId) throw new Error(data?.error || 'Could not confirm the queued change.');
       setQueuedRequestId(requestId);
       setState('queued');
@@ -107,7 +107,7 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
           />
           {error && <p className="text-xs text-rose-500 mt-1.5">{error}</p>}
           <div className="flex items-center justify-between mt-2.5">
-            <span className="text-[11px] text-ink-500">Rewrites the agent on your own Claude · ⌘↵</span>
+            <span className="text-[11px] text-ink-500">Proposes updated steps · ⌘↵</span>
             <div className="flex items-center gap-2">
               {!bare && (
                 <button onClick={() => { setOpen(false); setNote(''); setState('idle'); setError(null); }} className="text-xs text-ink-400 hover:text-ink-200">Cancel</button>

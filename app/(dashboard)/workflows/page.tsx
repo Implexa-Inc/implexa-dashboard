@@ -17,9 +17,9 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { readUserProfile } from '@/lib/profile-read';
 import {RentBuildHome} from '../_components/agent-home-frame';
-import TalkToImplexa from '../_components/talk-to-implexa';
-import BuildingAgents from '../_components/building-agents';
+import GuidedAgentCreation from '../_components/guided-agent-creation';
 import {isExecutorConnected} from '@/lib/connection';
+import BuildingAgents from '../_components/building-agents';
 import {getMarketplaceSamples} from '@/lib/agent-marketplace-samples-server';
 import MarketplaceSampleGallery from '../_components/marketplace-sample-gallery';
 import {agentHomeView} from '@/lib/agent-marketplace-samples';
@@ -39,10 +39,8 @@ export default async function WorkflowsPage({searchParams}:{searchParams?:{tab?:
   if(view==='running') redirect('/work?view=activity');
   if(view==='training') redirect('/training');
   if(view==='rent'){
-    const connected=await isExecutorConnected(supabase,profile.id,{
-      lastMcpCallAt:profile.last_mcp_call_at,lastHookEventAt:profile.last_hook_event_at,
-    });
-    return <RentBuildHome build={<TalkToImplexa hasAgents compact suggestions={[]} connected={connected}/>} status={<BuildingAgents/>}>
+    const connected=await isExecutorConnected(supabase,session.user.id,{lastMcpCallAt:profile.last_mcp_call_at,lastHookEventAt:profile.last_hook_event_at});
+    return <RentBuildHome build={<GuidedAgentCreation ownerId={session.user.id} connected={connected}/>} status={<BuildingAgents/>}>
       <MarketplaceSampleGallery listings={samples.listings}/>
     </RentBuildHome>;
   }

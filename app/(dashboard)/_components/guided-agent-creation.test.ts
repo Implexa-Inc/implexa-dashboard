@@ -36,7 +36,7 @@ test('explicit Build passes only the chosen private-source reference and public 
  const creates=calls.filter(c=>c.url==='/api/agents/create');assert.equal(creates.length,1);
  const body=JSON.parse(creates[0].init.body);assert.deepEqual(body.creationDraftBinding,{draftId:new URL(calls[0].url,'https://test.invalid').searchParams.get('draftId'),replyId:id(102),replyDigest:H});
  assert.equal(body.intent,'');assert.deepEqual(body.creationDraftFiles,[]);assert.equal(body.toolPreferences,undefined);assert.doesNotMatch(JSON.stringify(body),/warm, quiet|trainingNotes/);
- assert.match(r.text(),/not yet a built or tested agent/);
+ assert.match(r.text(),/not yet a built or tested agent/);assert.match(r.text(),/Connect Claude or Codex in Setup to build it/);assert.equal(r.getByText('Connect Claude or Codex').getAttribute('href'),'/install');
 });
 test('a pending durable reply prevents duplicate Send and Build, but can still be read',async t=>{
  const {r,calls}=await setup(t,[turn(2),turn(3,{status:'pending',replyId:null,replyDigest:null,reply:null,brief:null,model:null,trainingNotes:[],questions:[],buildIntent:null,tools:[],toolPreferences:[]})]);
@@ -47,4 +47,13 @@ test('Undo from a new branch selects its actual base, not the abandoned precedin
  const {r,calls}=await setup(t,[turn(2),turn(3,{baseReplyId:id(102),message:'Abandoned branch'}),turn(4,{baseReplyId:id(102),message:'Current branch'})]);
  await r.click(r.getByText('Undo last change'));await type(r,'Revise the restored draft.');await r.click(r.getByText('Send'));
  const post=calls.find(c=>c.url==='/api/agents/creation-draft'&&c.init.method==='POST');assert.equal(JSON.parse(post.init.body).baseReplyId,id(102));
+});
+
+
+test('a follow-up question offers choices without building or silently sending the selected answer',async t=>{
+ const q=turn(3,{brief:null,questions:['Which tools would you like to use?'],reply:'Let’s choose your tools.',buildIntent:null,trainingNotes:[],tools:[],toolPreferences:[]});
+ const {r,calls}=await setup(t,[turn(2),q]);
+ assert.equal(r.queryByText('Build this agent'),null);
+ await r.click(r.getByText('Recommend tools'));assert.match(r.document.querySelector('textarea')!.value,/Please recommend suitable tools/);assert.equal(calls.some(c=>c.init.method==='POST'),false);
+ await r.click(r.getByText('Send'));const post=calls.find(c=>c.init.method==='POST');assert.equal(JSON.parse(post.init.body).baseReplyId,q.replyId);assert.equal(calls.some(c=>c.url==='/api/agents/create'),false);
 });

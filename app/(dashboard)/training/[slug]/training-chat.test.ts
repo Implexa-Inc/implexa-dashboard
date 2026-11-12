@@ -111,6 +111,20 @@ test('guided test suggestion reviews the snapshot gate rather than bypassing it 
 
 test('an imported AI creation note is never labelled as trainer speech or an unfinished provider call',async t=>{
  const {r,calls}=await setup(t,{guided:true,embedded:true,turns:[turn({sourceKind:'creation_notes',status:'pending',answer:null,action:'none'})]});
- assert.match(r.text(),/Implexa creation note:/);assert.match(r.text(),/No chat reply was requested/);
+ assert.match(r.text(),/Creation note/);assert.match(r.text(),/No chat reply was requested/);
  assert.doesNotMatch(r.text(),/You:|Reply not yet confirmed/);assert.equal(calls.some(c=>c.init.method==='POST'),false);
+});
+
+test('a structural edit is reviewed with the owner message and queues only after confirmation',async t=>{
+ const {r,calls}=await setup(t,{guided:true,turns:[turn({message:'Add an optional tool step.',answer:'MODEL-REPLY-NOT-AN-EDIT',action:'none',canProposeEdit:true})]});
+ const posts:any[]=[];const base=r.window.fetch;r.window.fetch=(async(url:any,init:any={})=>{if(String(url).includes('/chat-edit?')){posts.push(JSON.parse(init.body));return {ok:true,json:async()=>({ok:true,application:'edit_queued',requestId:id(70)})};}return base(url,init);}) as typeof fetch;
+ await r.click(r.getByText('Open conversation'));await r.click(r.getByText('Review agent change →'));
+ const dialog=r.document.querySelector('[role="dialog"][aria-label="Review agent change"]')!;assert.ok(dialog);
+ assert.equal(dialog.querySelector('textarea')!.value,'Add an optional tool step.');assert.equal(posts.length,0);assert.equal(calls.some(c=>c.init.method==='POST'),false);
+ await r.click([...dialog.querySelectorAll('button')].find(b=>b.textContent==='Apply change')!);
+ assert.deepEqual(posts,[{turnId:id(5),expectedActiveVersionId:VERSION,note:'Add an optional tool step.'}]);assert.doesNotMatch(JSON.stringify(posts),/MODEL-REPLY/);assert.match(dialog.textContent||'',/Edit request queued/);
+});
+test('historical edit suggestions cannot open a revision confirmation',async t=>{
+ const {r}=await setup(t,{guided:true,historical:true,turns:[turn({action:'none',canProposeEdit:true})]});await r.click(r.getByText('Open conversation'));
+ assert.equal(r.queryByText('Review agent change →'),null);assert.equal(r.document.querySelector('[role="dialog"]'),null);
 });

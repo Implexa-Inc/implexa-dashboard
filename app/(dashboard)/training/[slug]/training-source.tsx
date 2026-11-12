@@ -144,7 +144,7 @@ function resolveBridge() {
   return candidate;
 }
 
-export default function TrainingSource({ slug, installationId, forkPermission,ownerId,recordingSelection,lastRunId,recentRuns=[],runsUnavailable=false,runContext,initialRecordingId }: {initialRecordingId?:string; slug: string;runContext?:AgentActionContext;recentRuns?:TrainingRun[];runsUnavailable?:boolean;lastRunId?:string|null; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
+export default function TrainingSource({ slug, installationId, forkPermission,ownerId,recordingSelection,lastRunId,recentRuns=[],runsUnavailable=false,runContext,initialRecordingId,initialChat=false }: {initialChat?:boolean;initialRecordingId?:string; slug: string;runContext?:AgentActionContext;recentRuns?:TrainingRun[];runsUnavailable?:boolean;lastRunId?:string|null; ownerId?:string;recordingSelection?:{recordingId:string;momentId:string|null}; installationId?: string; forkPermission?: {lineageId:string;parentVersionId:string} }) {
   const router=useRouter();
   const [retention] = useState(() => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCMilliseconds(0); return d.toISOString(); });
   const [view,setView]=useState<TrainingView>(recordingSelection?'teach':forkPermission?'settings':'start');
@@ -155,7 +155,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [uploadNoteBlocked,setUploadNoteBlocked]=useState(false);
   function returnToCurrentNote(){setUploadNoteBlocked(false);if(runFeedbackRequest){selectTrainingStep(2);window.requestAnimationFrame?.(()=>{const proposals=document.querySelector('[aria-label="Lessons from your marked result"]');proposals?.scrollIntoView?.({block:'nearest',behavior:'smooth'});const close=[...proposals?.querySelectorAll('button')||[]].find(button=>button.textContent==='Close proposals');close?.focus();});return;}selectTrainingStep(1);window.requestAnimationFrame?.(()=>{const player=document.querySelector('#training-run-player, #recording-annotation, [aria-label="Teach from an image"]');player?.scrollIntoView?.({block:'nearest',behavior:'smooth'});const field=player?.querySelector('textarea');if(field instanceof HTMLElement)field.focus();else if(player instanceof HTMLElement)player.focus();});}
   function requestTrainingUpload(){if(runFeedbackRequest||recordingDirty||runDirty||directVoiceDirty){setUploadNoteBlocked(true);return;}selectTrainingStep(1);currentTraining();setConsent(false);setDiscardDraftConfirmed(false);setUploadOpen(true);}
-  const [chatExpanded,setChatExpanded]=useState(false);
+  const [chatExpanded,setChatExpanded]=useState(initialChat);
   const [activeRunId,setActiveRunId]=useState<string|null>(null),[runDirty,setRunDirty]=useState(false);
   const activeRunRef=useRef(activeRunId);activeRunRef.current=activeRunId;
   function setRunSource(id:string|null){activeRunRef.current=id;setActiveRunId(id);}
@@ -688,6 +688,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       focusChat();
     });
   }
+
+  const chatOpenedAutomatically=useRef(false);
+  useEffect(()=>{if(initialChat&&!chatOpenedAutomatically.current&&currentVersion&&!session&&!busy&&!versionChanged&&!installationId){chatOpenedAutomatically.current=true;void startPrivateTraining();}},[initialChat,currentVersion,session,busy,versionChanged,installationId]);
 
   function recordingDraftBlocked(){return !!(runFeedbackRequest||directVoiceDirty||questionAnswer||recording||pendingRecordingLink||pendingDemoLink||suggesting||[demoText,chosen,why,process,behavior].some(value=>value.trim()));}
   async function registeredRecordingSource(recordingId:string,version:string){
@@ -1403,7 +1406,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   return <main id="main-content" tabIndex={-1} className={`mx-auto px-6 py-10 space-y-6 ${installationId?'max-w-3xl':'max-w-7xl lg:px-10'}`}>
     <Link className="text-xs text-ink-400 hover:text-ink-100" href={installationId?`/workflows/${encodeURIComponent(slug)}`:"/training"}>{installationId?"← Agent":"← Your agents"}</Link>
     <header className="flex flex-wrap items-start justify-between gap-4 border-b border-ink-800 pb-7"><div className="space-y-3">{installationId&&<p className="text-xs text-ink-500">Your private preferences</p>}<h1 className="max-w-3xl text-2xl font-medium tracking-tight sm:text-3xl">{installationId?`Private preferences for ${agentName}`:'Train your agent'}</h1>{!installationId&&<><p className="max-w-3xl text-sm leading-6 text-ink-400">Show an example, explain your judgment, then review what your agent learns.</p><p className="pt-2 text-lg text-ink-200">{agentName}</p></>}{installationId&&<p className="text-xs text-ink-500">Active version: {shortId(currentVersion)}{sessionVersion?` · Session version: ${shortId(sessionVersion)}`:''}</p>}</div>
-      {!installationId&&<Link className="text-xs text-ink-400 hover:text-ink-100" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>Open agent →</Link>}
+      {!installationId&&<div className="flex items-center gap-4"><button id="training-chat-toggle" type="button" aria-expanded={chatExpanded} aria-controls="training-companion" disabled={!!busy} onClick={()=>chatExpanded?setChatExpanded(false):focusChat()} className="rounded-lg border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-ink-500">✦ Chat with AI</button><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>Open agent →</Link></div>}
     </header>
     <div className={installationId?'':`grid items-start gap-10 ${chatExpanded?'lg:grid-cols-[minmax(0,1fr)_360px]':''}`}>
     <div className={`min-w-0 space-y-7 ${installationId?legacyControls:''}`}>
@@ -1418,7 +1421,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     <div hidden={!installationId&&trainingStep!==1} className="space-y-7">
     {!installationId&&<h2 className="text-2xl font-medium tracking-tight">Teach your agent</h2>}
     {!installationId&&<p className="max-w-3xl text-sm leading-6 text-ink-400">Show your work or explain what you’d improve. Record, upload an example, or give feedback on a recent result.</p>}
-    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onSelectRun={openRun} selectedRunId={activeRunId} sourceActive={!!activeRunId||!!activeRecordingId||directSource} onChat={()=>chatExpanded?setChatExpanded(false):focusChat()} chatExpanded={chatExpanded} chatDisabled={!!busy} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={requestTrainingUpload} uploadDisabled={!!busy||changesBusy||versionChanged||!currentVersion} uploading={busy==='Verifying the selected source and saving its identity'}/>}/>}
+    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onSelectRun={openRun} selectedRunId={activeRunId} sourceActive={!!activeRunId||!!activeRecordingId||directSource}  actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={requestTrainingUpload} uploadDisabled={!!busy||changesBusy||versionChanged||!currentVersion} uploading={busy==='Verifying the selected source and saving its identity'}/>}/>}
     {!installationId&&pendingRecordingId&&<div role="status" className="text-sm text-ink-300">Another recording is ready. Your current feedback is preserved. <button type="button" className="underline" onClick={()=>{if(recordingDirty){setClosingRecording(false);setReplaceRecordingOpen(true);}else if(pendingRecordingId)openRecording(pendingRecordingId);}}>Annotate new recording</button></div>}
     {!installationId&&directSource&&!activeRunId&&!activeRecordingId&&selected?.token&&previewIsCurrent&&preview?.image&&<>
       <TrainingImagePlayer key={`${selected.sourceId}:${time}`} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} disabled={!!busy||changesBusy||versionChanged}
@@ -1759,11 +1762,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&<div className="flex flex-wrap gap-x-6 gap-y-3 border-t border-ink-800 pt-5 text-xs text-ink-500"><button type="button" onClick={()=>view==='history'?setView('start'):openTrainingHistory()} aria-expanded={view==='history'}>Questions & history</button><button type="button" onClick={()=>setView(view==='settings'?'start':'settings')} aria-expanded={view==='settings'}>Sharing & settings</button><TrainingInfo label="Version details">Active version: {shortId(currentVersion)}{sessionVersion?` · Session version: ${shortId(sessionVersion)}`:''}</TrainingInfo></div>}
     </div>
     {!installationId&&<aside id="training-companion" hidden={!chatExpanded} className="fixed inset-x-3 top-4 z-40 min-w-0 rounded-xl bg-ink-950 shadow-2xl lg:sticky lg:inset-auto lg:top-6 lg:z-auto lg:shadow-none" onKeyDown={e=>{if(e.key==='Escape'){setChatExpanded(false);document.getElementById('training-chat-toggle')?.focus();}}}>
-      {session?<TrainingChat embedded onClose={()=>{setChatExpanded(false);document.getElementById('training-chat-toggle')?.focus();}} sessionId={session} versionId={currentVersion} slug={slug} sources={sources}
+      {session?<TrainingChat embedded editUnavailable={runContext?.statusUnavailable===true||runContext?.revisePending===true} onClose={()=>{setChatExpanded(false);document.getElementById('training-chat-toggle')?.focus();}} sessionId={session} versionId={currentVersion} slug={slug} sources={sources}
         selectedSourceId={selected?.sourceId||null} disabled={!!busy||changesBusy||versionChanged} busy={!!busy} onAttach={()=>{setChatExpanded(false);requestTrainingUpload();}}
         guided={!!changes} automaticInclusion={changes?.policy.enabled===true} request={chatRequest} onSaved={()=>loadChanges()}
         onSelectSource={id=>{const source=sources.find(s=>s.sourceId===id);if(source){setChatExpanded(false);chooseSource(source);}else{setSelected(null);setPreview(null);setReviewed(null);}}}
-        onAction={chatAction}/>:<div className="rounded-xl border border-ink-800 p-5 text-sm text-ink-400"><div className="flex items-center justify-between"><p>Chat with Implexa</p><button type="button" aria-label="Close chat" onClick={()=>setChatExpanded(false)}>×</button></div><button type="button" className="btn-outline mt-3" disabled={!!busy||!currentVersion||versionChanged} onClick={()=>void startPrivateTraining()}>Start private training</button></div>}
+        onAction={chatAction}/>:<div className="rounded-xl border border-ink-800 p-5 text-sm text-ink-400"><div className="flex items-center justify-between"><p>Chat with AI</p><button type="button" aria-label="Close chat" onClick={()=>setChatExpanded(false)}>×</button></div><button type="button" className="btn-outline mt-3" disabled={!!busy||!currentVersion||versionChanged} onClick={()=>void startPrivateTraining()}>Start private training</button></div>}
     </aside>}
     </div>
     {!installationId&&<Modal open={uploadOpen} onClose={()=>{setUploadOpen(false);setConsent(false);setDiscardDraftConfirmed(false);}} title="Upload and annotate Video/Image">
