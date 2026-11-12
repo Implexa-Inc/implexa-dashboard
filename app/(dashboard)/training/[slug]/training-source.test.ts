@@ -2352,3 +2352,17 @@ test('History navigation returns from Apply to Step1 and preserved work remains 
   await rendered.click(rendered.getByText('Retry upload'));assert.equal(calls.filter(call=>call.operation==='register').length,1);
  }finally{rendered.cleanup();}
 });
+
+
+test('readiness warning links directly to earlier training without recreating or applying it',async()=>{
+ const {rendered:r,calls}=await renderedWith({currentVersion:VERSION_B,state:'accepted',includeCurrentSession:true,managerCoverage:coverage({readiness:'agent_update_required',reason:'manager_quality_coverage_unclassified_training',classified:false,coveredPairs:[],uncoveredPairs:[planningPair]})});
+ r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);r.window.Element.prototype.scrollIntoView=()=>{};
+ try{
+  assert.equal(r.document.getElementById('training-history')!.hidden,true);
+  await r.click(r.getByText('Review training from earlier versions'));
+  await r.act(()=>new Promise(resolve=>setTimeout(resolve,20)));
+  assert.equal(r.document.getElementById('training-history')!.hidden,false);
+  assert.equal(r.getByText('Training from earlier versions').closest('details')!.open,true);
+  assert.equal(calls.some(call=>['annotate','accept'].includes(call.operation)),false);
+ }finally{r.cleanup();}
+});

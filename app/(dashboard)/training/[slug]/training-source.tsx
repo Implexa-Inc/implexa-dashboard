@@ -1396,7 +1396,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     <div className={`min-w-0 space-y-7 ${installationId?legacyControls:''}`}>
     {!installationId&&trainingNeedsAttention&&<section role="status" className={`rounded-xl border border-amber-700/60 bg-amber-950/20 p-4 text-sm space-y-2 ${legacyControls}`} aria-label="Training needs attention">
       <p className="font-medium text-amber-200">{readinessNeedsAttention?'Training needs a quick check':'Saved work to review'}</p>
-      {readinessNeedsAttention&&<><p className="text-ink-300">Some saved lessons are not ready to guide this agent yet. Check what needs finishing.</p><button type="button" onClick={()=>reveal('training-readiness')}>Review training status</button></>}
+      {readinessNeedsAttention&&<><p className="text-ink-300">Some saved lessons are not ready to guide this agent yet. Check what needs finishing.</p><button type="button" onClick={()=>reveal('training-readiness')}>Review training status</button>{versionTransition?.sources.some(source=>source.decisions.some(decision=>decision.state==='accepted'))&&<button type="button" onClick={()=>openTrainingHistory('training-earlier')}>Review training from earlier versions</button>}</>}
       {preservedWorkCount>0&&<><p>{preservedWorkCount} unfinished training item{preservedWorkCount===1?' is':'s are'} saved in your history.</p><button type="button" onClick={()=>openTrainingHistory('training-recovery')}>Review saved work</button></>}
       {pendingRecordingLink&&<button type="button" disabled={!!busy} onClick={()=>work('Linking the saved recording teaching',()=>linkRecording(pendingRecordingLink))}>Retry recording link</button>}
     </section>}
@@ -1593,6 +1593,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </TrainingDetails></div>
     <div id="training-history" hidden={!installationId&&view!=='history'} className="space-y-5">
     {!installationId && versionTransition && <TrainingDetails title="Training from earlier versions">
+      <div id="training-earlier"/>
       <p>Earlier examples are saved here. Review one if you want to teach it again or adapt it for this version. Applying it still happens in Step 3.</p>
       <button type="button" disabled={!!busy} onClick={requestTrainingUpload}>Add original video or image</button>
       <TrainingDetails title="Version details"><p>Earlier version {shortId(versionTransition.fromVersion)} · Current version {shortId(sessionVersion)}. The original records stay unchanged. Reusing one creates a separate draft that needs a fresh preview and review.</p></TrainingDetails>
