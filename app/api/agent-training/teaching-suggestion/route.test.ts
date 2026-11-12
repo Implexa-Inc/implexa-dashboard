@@ -72,3 +72,13 @@ test('recording edit proxy forwards only to the existing authenticated Training 
  assert.equal(p.calls[0].init.headers.authorization,'Bearer server-session');
  assert.deepEqual(JSON.parse(p.calls[0].init.body),body);
 });
+
+test('only the named review-mark operation has the larger exact-PNG budget',async()=>{
+ const p=proxy(),body={mode:'review-mark',image:'x'.repeat(3*1024*1024)};
+ assert.equal((await p.POST(req(JSON.stringify(body),`sessionId=${SESSION}&operation=review-mark`))).status,200);
+ assert.equal(p.calls[0].url,`https://core.implexa.ai/api/v2/agent-training/sessions/${SESSION}/teaching-suggestion`);
+ for(const [query,value] of [[`sessionId=${SESSION}`,{mode:'review-mark'}],[`sessionId=${SESSION}&operation=review-mark`,{mode:'demonstration'}]]){
+  const denied=proxy();assert.equal((await denied.POST(req(JSON.stringify(value),query as string))).status,400);assert.equal(denied.calls.length,0);
+ }
+ const big=proxy();assert.equal((await big.POST(req('x'.repeat(12*1024*1024+1),`sessionId=${SESSION}&operation=review-mark`))).status,413);assert.equal(big.calls.length,0);
+});
