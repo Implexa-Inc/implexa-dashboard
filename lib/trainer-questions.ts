@@ -3,7 +3,7 @@ import { TRAINING_PROPERTY_CODES, TRAINING_STAGE_OPTIONS, type TrainingPropertyC
 export type QuestionTeaching = { sessionId: string; recordId: string; recordDigest: string; state: 'prepared' | 'taught' | 'not_eligible'; reason: string | null; targetVersionId: string | null };
 export type TrainerQuestion = {
   id: string; receiptDigest: string; createdAt: string; questionId: string; question: string; sceneElement: string;
-  property: TrainingPropertyCode; stage: TrainingStage; questionVersionId: string; runId: string;
+  opportunityReason?: 'no_match' | 'review_finding' | null; property: TrainingPropertyCode; stage: TrainingStage; questionVersionId: string; runId: string;
   runState: string | null; runStatus: string | null; outcome: 'matched' | 'no_match' | 'pending' | 'unavailable'; outcomeReason?: string | null; returnedReferenceIds: string[];
   recordedEvidence: false; fallback: null; recurrenceCount: number; teachings: QuestionTeaching[];
 };
@@ -28,12 +28,13 @@ export function questionsPage(v: any): v is QuestionsPage {
     && v.ok === true && v.contractVersion === 'trainer-questions.v1' && id(v.agentFamilyId)
     && (v.activeVersionId === null || id(v.activeVersionId)) && Array.isArray(v.items) && v.items.length <= 20
     && new Set(v.items.map((q: any) => q?.id)).size === v.items.length
-    && v.items.every((q: any) => exact(q, ['id', 'receiptDigest', 'createdAt', 'questionId', 'question', 'sceneElement', 'property', 'stage', 'questionVersionId', 'runId', 'runState', 'runStatus', 'outcome', 'returnedReferenceIds', 'recordedEvidence', 'fallback', 'recurrenceCount', 'teachings', ...(Object.hasOwn(q,'outcomeReason')?['outcomeReason']:[])])
+    && v.items.every((q: any) => exact(q, ['id', 'receiptDigest', 'createdAt', 'questionId', 'question', 'sceneElement', 'property', 'stage', 'questionVersionId', 'runId', 'runState', 'runStatus', 'outcome', 'returnedReferenceIds', 'recordedEvidence', 'fallback', 'recurrenceCount', 'teachings', ...(Object.hasOwn(q,'outcomeReason')?['outcomeReason']:[]),...(Object.hasOwn(q,'opportunityReason')?['opportunityReason']:[])])
       && id(q.id) && sha(q.receiptDigest) && time(q.createdAt) && text(q.questionId, 64)
       && text(q.question, 600) && text(q.sceneElement, 160) && TRAINING_PROPERTY_CODES.includes(q.property)
       && TRAINING_STAGE_OPTIONS.some(s => s.value === q.stage) && id(q.questionVersionId) && id(q.runId)
       && (q.runState === null || text(q.runState, 80)) && (q.runStatus === null || text(q.runStatus, 80))
       && (!Object.hasOwn(q,'outcomeReason')||reason(q.outcomeReason))
+      && (!Object.hasOwn(q,'opportunityReason')||q.opportunityReason===null||['no_match','review_finding'].includes(q.opportunityReason))
       && ['matched', 'no_match', 'pending', 'unavailable'].includes(q.outcome) && Array.isArray(q.returnedReferenceIds)
       && q.returnedReferenceIds.length <= 4096 && q.returnedReferenceIds.every((id: unknown) => typeof id === 'string' && UUID.test(id))
       && new Set(q.returnedReferenceIds).size === q.returnedReferenceIds.length
@@ -69,4 +70,19 @@ export function questionGroups(items: TrainerQuestion[]) {
   const groups = new Map<string, TrainerQuestion[]>();
   for (const q of items) { const key = `${q.questionVersionId}:${q.stage}:${q.property}`; groups.set(key, [...(groups.get(key) || []), q]); }
   return [...groups.values()];
+}
+
+/** A match is not proof of success; only explicit backend signals suggest a gap. */
+export function trainingOpportunities(items:TrainerQuestion[],activeVersionId:string|null){
+ const seen=new Set<string>();return items.filter(q=>{
+  const signal=q.opportunityReason;
+  const key=`${q.questionVersionId}:${q.stage}:${q.property}`;
+  if(!signal||q.questionVersionId!==activeVersionId||q.teachings.some(t=>t.state==='prepared'||t.state==='taught')||seen.has(key))return false;
+  seen.add(key);return true;
+ }).slice(0,3);
+}
+export type QuestionPresentation={id:string;digest:string;value:{question:string;options:string[]}};
+export function questionPresentation(v:any):v is QuestionPresentation{
+ return exact(v,['id','digest','value'])&&id(v.id)&&sha(v.digest)&&exact(v.value,['question','options'])&&text(v.value.question,200)
+  &&Array.isArray(v.value.options)&&v.value.options.length>=2&&v.value.options.length<=3&&v.value.options.every((x:unknown)=>text(x,180))&&new Set(v.value.options.map((x:string)=>x.trim().toLowerCase())).size===v.value.options.length;
 }

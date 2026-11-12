@@ -422,7 +422,7 @@ test('an answered question becomes an actual evidence draft link, not automatic 
   try {
     const requests = questionTransport(rendered, calls);
     await prepareAnswer(rendered);
-    assert.match(rendered.text(), /Choose an example for your answer/);
+    assert.match(rendered.text(), /Add visual context to your answer/);
     assert.equal(calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
     await rendered.click(rendered.getByText('Annotate source'));
     await rendered.click(rendered.getByText('Preview this exact frame'));
@@ -605,7 +605,7 @@ test('malformed or stale active-version training requirements fail closed before
 test('source and session identities, exact time input and accessible range value are visible', async () => {
   const { rendered } = await renderedWith();
   try {
-    assert.match(rendered.text(), /Edit & train your agent/);assert.match(rendered.text(), /Video craft/);
+    assert.match(rendered.text(), /Train your agent or edit its steps/);assert.match(rendered.text(), /Video craft/);
     assert.match(rendered.text(), /Active version: 11111111 · Session version: 11111111/);
     assert.match(rendered.text(), /approved-edit.mp4Video · 11:50.667Annotate sourceSource details1920×1080 · SHA-256 bbbbbbbb/);
     await rendered.click(rendered.getByText('Annotate source'));
@@ -1672,7 +1672,7 @@ test('owner workspace is one page with closed chat, direct teaching actions and 
  const visible=(el:Element)=>!el.closest('[hidden]');
  r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);
  try{
-  for(const label of ['◉ Record','↑ Upload','Give feedback on a recent result'])assert.equal(visible(r.getByText(label)),true);
+  for(const label of ['◉ Record','↑ Upload','Give feedback on recent runs'])assert.equal(visible(r.getByText(label)),true);
   assert.ok(r.document.querySelector('[aria-label="Choose a training source"]'));assert.equal(r.queryByText('3 ways to train'),null);assert.equal(r.queryByText('Multimodal Training'),null);
   assert.equal(visible(r.getByText('Check public visibility')),false);
   assert.equal(visible(r.getByText('Load recorded questions')),false);
@@ -2183,7 +2183,7 @@ test('recent results open inline only after selection and source changes never s
   assert.equal(requests.filter(x=>String(x.url).includes('/run-review?')).length,1);
   assert.match(requests.find(x=>String(x.url).includes('/run-review?')).url,new RegExp(`runId=${QUESTION}`));
   assert.match(r.text(),/saved feedback is unchanged/);
-  await r.click(r.getByText('Give feedback on a recent result'));await r.click(r.document.querySelector('button[aria-label="Teach from result 2"]')!);await flush();
+  assert.ok(r.document.querySelector('#training-recent-results')); await r.click(r.document.querySelector('button[aria-label="Teach from result 2"]')!);await flush();
   assert.equal(requests.filter(x=>String(x.url).includes('/run-review?')).length,2);
   assert.match(requests.filter(x=>String(x.url).includes('/run-review?'))[1].url,new RegExp(`runId=${RECORD}`));
   assert.equal(requests.some(x=>x.init.method==='POST'),false);
@@ -2235,7 +2235,7 @@ test('Done teaching saves exact commentary before scoped extraction and prepares
   assert.equal((draft.args.content as any).relation,'accepted');assert.deepEqual(JSON.parse(JSON.stringify((draft.args.content as any).properties)),['layout_variety']);
   assert.equal(h.calls.some(c=>['accept','recording'].includes(c.operation)),false,'source narration was not analyzed and the suggestion was not admitted');
   assert.match(r.text(),/1 draft ready to review/);assert.match(r.text(),/Nothing is live yet/);assert.equal(r.calls.push.length,0);
-  const steps=[...r.document.querySelectorAll('[aria-label="Training steps"] button')];assert.equal(steps[1].getAttribute('aria-current'),'step');await r.click(steps[0]);await flush();assert.equal(steps[0].getAttribute('aria-current'),'step','new extraction advances once; later refresh never overrides manual navigation');
+  assert.ok(r.getByText('← Ways to train'));await r.click(r.getByText('← Ways to train'));await flush();assert.ok(r.getByText('Ways to train'));
  }finally{r.cleanup();}
 });
 
@@ -2254,8 +2254,8 @@ test('an uninserted voice transcript blocks source replacement just like typed u
  try{
   await r.click(r.getByText('Add a voice note'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
   assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');
-  const stepButtons=[...r.document.querySelectorAll('[aria-label="Training steps"] button')];const sameTranscript=r.document.querySelector('[aria-label="Voice note transcript"]');await r.click(stepButtons[1]);await r.click(stepButtons[0]);assert.ok(r.document.querySelector('[aria-label="Voice note transcript"]')===sameTranscript,'step navigation does not remount pending voice feedback');
-  await r.click(r.getByText('Give feedback on a recent result'));await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);
+  const sameTranscript=r.document.querySelector('[aria-label="Voice note transcript"]');await r.click(r.getByText('Questions & history'));await r.click(r.getByText('Questions & history'));assert.ok(r.document.querySelector('[aria-label="Voice note transcript"]')===sameTranscript,'step navigation does not remount pending voice feedback');
+  assert.ok(r.document.querySelector('#training-recent-results')); await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);
   assert.ok(r.document.querySelector('#training-run-player')===null,'voice commentary awaiting insertion is unsaved work');
   assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');
   assert.equal(requests.some(x=>String(x.url).includes('/run-review?')),false);assert.equal(nativeCalls.filter(c=>c.op==='transcribeVoiceNote').length,1);
@@ -2319,10 +2319,10 @@ test('video upload requests owner-bound playback only with the advertised contra
  }
 });
 
-test('guided steps preserve draft selection, default to Teach and show visible final confirmation only from Apply',async()=>{
+test('contextual review preserves draft selection and requires final Apply confirmation',async()=>{
  const h=harness({previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;h.bridge.trainingLocal=async(operation,args)=>{const result:any=await original(operation,args);if(operation==='list'&&result.sources?.[0]){const first=result.sources[0].decisions[0];first.content.derivatives=[{sha256:DIGEST}];result.sources[0].decisions=[first,{...first,recordId:QUESTION,decision:{...first.decision,why:'A second precise judgment.'}}];}return result;};
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);r.window.Element.prototype.scrollIntoView=()=>{};
- try{const nav=r.document.querySelector('[aria-label="Training steps"]')!,steps=[...nav.querySelectorAll('button')];assert.equal(steps[0].getAttribute('aria-current'),'step','old saved drafts never auto-advance');assert.match(steps[2].textContent||'',/2 unapplied learnings/);const playing=r.document.createElement('video');let paused=0;Object.defineProperty(playing,'paused',{get:()=>false});playing.pause=()=>{paused++;};r.document.querySelector('#main-content')!.append(playing);await r.click(steps[1]);assert.equal(paused,1,'leaving Teach pauses hidden playback without touching native voice capture');playing.remove();const review=r.document.querySelector('[aria-label="Review proposed visual training"]')!;assert.ok(review.closest('[hidden]')===null);const boxes=[...review.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];assert.equal(boxes.length,2);await r.click(boxes[1]);await r.click(r.getByText('Continue to Apply & Test'));assert.ok(review.closest('[hidden]'));const apply=r.document.querySelector('[aria-label="Selected training to apply"]')!;assert.ok(apply.closest('[hidden]')===null);assert.match(apply.textContent||'',/1 visual lesson selected/);assert.match(steps[2].textContent||'',/2 unapplied learnings/);await r.click([...apply.querySelectorAll('button')].find(button=>button.textContent==='Apply selected lesson')!);const modal=r.document.querySelector('[role="dialog"][aria-label="Apply these lessons?"]')!;assert.ok(modal);assert.ok(modal.closest('[hidden]')===null);assert.equal(modal.querySelectorAll('li').length,1);assert.doesNotMatch(modal.textContent||'',/second precise/);await r.click(r.getByText('Keep reviewing'));await r.click(r.getByText('Review selection'));assert.equal(boxes[1].checked,false);assert.equal(h.calls.some(call=>call.operation==='accept'),false);}finally{r.cleanup();}
+ try{assert.equal(r.document.querySelector('[aria-label="Training steps"]'),null);assert.ok(r.getByText('Ways to train'));const playing=r.document.createElement('video');let paused=0;Object.defineProperty(playing,'paused',{get:()=>false});playing.pause=()=>{paused++;};r.document.querySelector('#main-content')!.append(playing);await r.click(r.getByText('Review proposed changes →'));assert.equal(paused,1,'leaving Teach pauses hidden playback without touching native voice capture');playing.remove();const review=r.document.querySelector('[aria-label="Review proposed visual training"]')!;assert.ok(review.closest('[hidden]')===null);const boxes=[...review.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];assert.equal(boxes.length,2);await r.click(boxes[1]);await r.click(r.getByText('Continue to Apply & Test'));assert.ok(review.closest('[hidden]'));const apply=r.document.querySelector('[aria-label="Selected training to apply"]')!;assert.ok(apply.closest('[hidden]')===null);assert.match(apply.textContent||'',/1 visual lesson selected/);await r.click([...apply.querySelectorAll('button')].find(button=>button.textContent==='Apply selected lesson')!);const modal=r.document.querySelector('[role="dialog"][aria-label="Apply these lessons?"]')!;assert.ok(modal);assert.ok(modal.closest('[hidden]')===null);assert.equal(modal.querySelectorAll('li').length,1);assert.doesNotMatch(modal.textContent||'',/second precise/);await r.click(r.getByText('Keep reviewing'));await r.click(r.getByText('Review selection'));assert.equal(boxes[1].checked,false);assert.equal(h.calls.some(call=>call.operation==='accept'),false);}finally{r.cleanup();}
 });
 
 test('Upload refuses an open marked-result proposal before file selection and returns to its mounted review',async()=>{
@@ -2334,7 +2334,7 @@ test('Upload refuses an open marked-result proposal before file selection and re
  const requests:any[]=[],r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,recentRuns:[{id:QUESTION,date:'2026-11-11T12:00:00Z',status:'Done',artifact:null}]},{bridge:h.bridge});Object.assign(r.window,{TextEncoder});r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);r.window.Element.prototype.scrollIntoView=()=>{};
  const prior=r.window.fetch;r.window.fetch=(async(url:string,init:RequestInit={})=>{requests.push({url,init});if(String(url).includes('/run-review?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-run-review.v1',review:{runId:QUESTION,trainingSlug:'video-craft',agentName:'Video craft',artifacts:[artifact],production:null,issues:[issue],session:{id:NEW_SESSION,runId:QUESTION,selectedArtifactId:TOKEN,state:'draft',submittedRequestId:null,submittedIssueIds:null,compiledBrief:null,acceptedAt:null},reviewArtifacts:[],sources:{issues:'ready',artifacts:'ready',session:'ready',evidence:'ready',reviewer_resolutions:'ready',review_artifacts:'ready'},isApprovalHold:false}})};if(String(url).includes('review-mark?'))return {ok:true,json:async()=>({ok:true,sourceId:SOURCE_ID})};if(String(url).includes('teaching-suggestion?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-teaching-suggestion.v7',model:'claude-haiku-5-5',binding,status:'insufficient',fields:null,reason:'Explain which relationship should be emphasized.',scopeSuggestion:null,sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};return prior(url,init);}) as typeof fetch;
  const flush=()=>r.act(()=>new Promise(resolve=>setTimeout(resolve,20)));
- try{await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);await flush();await r.click(r.getByText('Done teaching'));await flush();const initial=r.document.querySelector('[role="dialog"][aria-label="Extract training from this note?"]')!;assert.ok(initial);await r.click([...initial.querySelectorAll('button')].find(button=>button.textContent==='Extract training')!);await flush();assert.ok(r.queryByText('Close proposals'));const steps=[...r.document.querySelectorAll('[aria-label="Training steps"] button')];await r.click(steps[0]);const writes=h.calls.filter(call=>['select','create'].includes(call.operation)).length;await r.click(r.getByText('↑ Upload'));const blocked=r.document.querySelector('[role="dialog"][aria-label="Finish your proposed training"]')!;assert.ok(blocked);assert.ok(blocked.closest('[hidden]')===null);assert.match(blocked.textContent||'',/Close your current proposals/);assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,writes);assert.ok(r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')===null);await r.click(r.getByText('Return to proposals'));await flush();assert.equal(steps[1].getAttribute('aria-current'),'step');assert.equal(r.document.activeElement?.textContent,'Close proposals');assert.match(r.text(),/Make the relationship clearer/);assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,writes);}finally{r.cleanup();}
+ try{await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);await flush();await r.click(r.getByText('Done teaching'));await flush();const initial=r.document.querySelector('[role="dialog"][aria-label="Extract training from this note?"]')!;assert.ok(initial);await r.click([...initial.querySelectorAll('button')].find(button=>button.textContent==='Extract training')!);await flush();assert.ok(r.queryByText('Close proposals'));if(r.queryByText('← Ways to train'))await r.click(r.getByText('← Ways to train'));const writes=h.calls.filter(call=>['select','create'].includes(call.operation)).length;await r.click(r.getByText('↑ Upload'));const blocked=r.document.querySelector('[role="dialog"][aria-label="Finish your proposed training"]')!;assert.ok(blocked);assert.ok(blocked.closest('[hidden]')===null);assert.match(blocked.textContent||'',/Close your current proposals/);assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,writes);assert.ok(r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')===null);await r.click(r.getByText('Return to proposals'));await flush();assert.ok(r.getByText('← Ways to train'));assert.equal(r.document.activeElement?.textContent,'Close proposals');assert.match(r.text(),/Make the relationship clearer/);assert.equal(h.calls.filter(call=>['select','create'].includes(call.operation)).length,writes);}finally{r.cleanup();}
 });
 
 test('saved sources and earlier-version recreation stay out of Teach and open only in History with closed details',async()=>{
@@ -2350,12 +2350,12 @@ test('saved sources and earlier-version recreation stay out of Teach and open on
  }finally{rendered.cleanup();}
 });
 
-test('History navigation returns from Apply to Step1 and preserved work remains actionable without exposing technical details',async()=>{
+test('preserved work is actionable from the training home without technical details',async()=>{
  const {rendered,calls}=await renderedWith({failedDrafts:[{token:TOKEN,retryable:true,reason:'training_network_unavailable'}]});
  try{
-  const step3=[...rendered.document.querySelectorAll('button')].find(button=>button.textContent?.startsWith('Step 3:'))!;await rendered.click(step3);
+  assert.equal(rendered.document.querySelector('[aria-label="Training steps"]'),null);
   await rendered.click(rendered.getByText('Review saved work'));
-  assert.equal(rendered.document.querySelector('[aria-label="Training steps"] [aria-current="step"]')?.textContent,'Step 1:Teach Agent');
+  assert.ok(rendered.getByText('Ways to train'));
   assert.equal(rendered.document.getElementById('training-history')!.hidden,false);
   const draft=rendered.document.querySelector('[aria-label="Preserved source draft"]')!;assert.match(draft.textContent||'',/An upload did not finish/);assert.equal(draft.querySelector('details')!.open,false);
   await rendered.click(rendered.getByText('Retry upload'));assert.equal(calls.filter(call=>call.operation==='register').length,1);
@@ -2400,7 +2400,7 @@ test('Answer opens a focused inline field and keeps separate unsent drafts when 
   await setTextarea(r,area(SOURCE_ID),'Use a wider shot here.');
   await r.click(button(QUESTION));assert.equal(area(QUESTION).value,'Keep the presenter close up.');
   assert.equal(requests.some(request=>request.body),false);
-  await r.click(r.getByText('Use this answer'));assert.match(r.text(),/Choose an example for your answer/);
+  await r.click(r.getByText('Use this answer'));assert.match(r.text(),/Add visual context to your answer/);
   assert.equal((button(SOURCE_ID) as HTMLButtonElement).disabled,true);
   await r.click(r.getByText('Cancel lesson draft'));await r.click(button(QUESTION));
   assert.equal(area(QUESTION).value,'Keep the presenter close up.');

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import PublisherTeachingRelease,{GuidedPublicationReview} from './publisher-teaching-release';
 import TrainingChat,{type TrainingChatRequest} from './training-chat';
+import TrainingOpportunities from './training-opportunities';
 import TrainingChanges,{TrainingRunPanel,trainingTextSelectable} from './training-changes';
 import AgentActions from '../../_components/agent-actions';
 import type {AgentActionContext} from '@/lib/agent-detail';
@@ -22,7 +23,7 @@ import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import type {Moment,RecordingDetail} from '@/lib/review-recorder';
 import {TrainingDialog as Modal} from './training-workspace';
 import {guidedTrainingChanges,trainingPublicationPreview,type TrainingPublicationPreview,type GuidedTrainingChanges,type TrainingChangeRecord} from '@/lib/guided-training-changes';
-import {TrainingEntry,TrainingAttention,TrainingInfo,TrainingImage,TrainingDetails,revealTrainingElement,TrainingSteps,TrainingExplanation,type TrainingStep,type TrainingView,type TrainingRun} from './training-workspace';
+import {TrainingEntry,TrainingAttention,TrainingInfo,TrainingImage,TrainingDetails,revealTrainingElement,TrainingExplanation,type TrainingStep,type TrainingView,type TrainingRun} from './training-workspace';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { answerReceipt, questionGroups, questionOutcomeLabel, questionExcerpt, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
 import { teachingDigest, teachingFrame, toolSuggestionFrame, TOOL_FRAME_RECIPE_DIGEST, type ToolFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type DemoAnnotation, recordingSuggestion, recordingAgentSuggestion, type RecordingAgentSuggestion, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
@@ -152,7 +153,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [view,setView]=useState<TrainingView>(recordingSelection?'teach':forkPermission?'settings':'start');
   const [trainingStep,setTrainingStep]=useState<TrainingStep>(1),[applyContainer,setApplyContainer]=useState<HTMLDivElement|null>(null);
   const [runPending,setRunPending]=useState({identity:'',count:0});
-  function selectTrainingStep(step:TrainingStep){if(step!==trainingStep){document.querySelectorAll<HTMLMediaElement>('#main-content video, #main-content audio').forEach(media=>{if(!media.paused)try{media.pause();}catch{}});window.requestAnimationFrame?.(()=>document.querySelector('[aria-label="Training steps"]')?.scrollIntoView?.({block:'nearest',behavior:'smooth'}));}setTrainingStep(step);}
+  function selectTrainingStep(step:TrainingStep){if(step!==trainingStep){document.querySelectorAll<HTMLMediaElement>('#main-content video, #main-content audio').forEach(media=>{if(!media.paused)try{media.pause();}catch{}});window.requestAnimationFrame?.(()=>document.getElementById('training-workspace')?.scrollIntoView?.({block:'nearest',behavior:'smooth'}));}setTrainingStep(step);}
   const [questionsOpen,setQuestionsOpen]=useState(false);
   const [uploadNoteBlocked,setUploadNoteBlocked]=useState(false);
   function returnToCurrentNote(){setUploadNoteBlocked(false);if(runFeedbackRequest){selectTrainingStep(2);window.requestAnimationFrame?.(()=>{const proposals=document.querySelector('[aria-label="Lessons from your marked result"]');proposals?.scrollIntoView?.({block:'nearest',behavior:'smooth'});const close=[...proposals?.querySelectorAll('button')||[]].find(button=>button.textContent==='Close proposals');close?.focus();});return;}selectTrainingStep(1);window.requestAnimationFrame?.(()=>{const player=document.querySelector('#training-run-player, #recording-annotation, [aria-label="Teach from an image"]');player?.scrollIntoView?.({block:'nearest',behavior:'smooth'});const field=player?.querySelector('textarea');if(field instanceof HTMLElement)field.focus();else if(player instanceof HTMLElement)player.focus();});}
@@ -716,7 +717,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   useEffect(() => { if (reviewed) reviewHeadingRef.current?.focus(); }, [reviewed]);
   useEffect(()=>{if(!installationId&&view==='teach')document.getElementById(questionAnswer&&selected?'recording-analysis':directSource?'recording-analysis':'training-demonstration')?.scrollIntoView?.({block:'nearest',behavior:'smooth'});},[view,installationId,directSource,selected?.sourceId,!!questionAnswer]);
 
-  async function startPrivateTraining(){
+  async function startPrivateTraining(openChat=true){
     if(session||installationId||versionChanged)return;
     await work('Opening private Training',async()=>{
       const before=await requireCurrentScope('');
@@ -726,7 +727,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       const after=await requireCurrentScope(created.sessionId);
       if(after.agent.currentVersionId!==currentVersion||after.session?.baseVersionId!==currentVersion)throw new TrainingError('training_version_changed');
       setSession(created.sessionId);rememberScope(after);await load(created.sessionId);
-      focusChat();
+      if(openChat)focusChat();
     });
   }
 
@@ -1441,15 +1442,14 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const hiddenDraftIds=sources.flatMap(source=>source.decisions.filter(decision=>decision.state==='draft').map(decision=>decision.recordId));
   const textPending=changes?.records.filter(record=>!hiddenDraftIds.includes(record.recordId)&&trainingTextSelectable(record)).length||0;
   const unappliedCount=visualDraftItems.filter(({decision})=>visualTeachingSelectable({relation:decision.content.relation,category:decision.content.properties.join(', ')})).length+textPending+(runPending.identity===`${session}:${currentVersion}`?runPending.count:0);
-  const questionNeedsAnswer=questions?.items.some(q=>!q.teachings.some(t=>t.state==='taught'||t.state==='prepared'))||false;
   const attentionCards=[
-    ...(unappliedCount>0?[{key:`review:${unappliedCount}`,title:'Review new training',description:`${unappliedCount} suggested lesson${unappliedCount===1?' is':'s are'} ready to review.`,label:'Review lessons',optional:true,action:()=>selectTrainingStep(2)}]:[]),
+
     ...(preservedWorkCount>0?[{key:`recovery:${preservedWorkCount}`,title:'Finish saved work',description:'An upload or teaching on this Mac needs another look.',label:'Review saved work',optional:true,action:()=>openTrainingHistory('training-recovery')}]:[]),
     ...(readinessNeedsAttention?[{key:'readiness',title:'Check training setup',description:'Some saved lessons need attention before they can guide this agent.',label:'Check setup',optional:false,action:()=>reveal('training-readiness')}]:[]),
-    ...(questionNeedsAnswer?[{key:`questions:${questions?.items.filter(q=>!q.teachings.length).map(q=>q.id).join(':')}`,title:'Give your agent guidance',description:'Your agent has questions you can help with.',label:'Answer questions',optional:true,action:()=>{selectTrainingStep(1);setQuestionsOpen(true);window.requestAnimationFrame(()=>revealTrainingElement('training-questions'));}}]:[]),
+
   ];
   const preparedQuestionAnswer=questionAnswer?<div className="rounded border border-brand-500 p-3 space-y-2">
-        <h3>Choose an example for your answer</h3>
+        <h3>Add visual context to your answer</h3>
         <blockquote className="whitespace-pre-wrap">{questionAnswer.rawAnswer}</blockquote>
         <p>Your answer will be saved with the lesson. Add an example, then review the teaching before applying it.</p><button type="button" disabled={!!busy||suggesting||!!pendingAnswerLinks} onClick={cancelQuestionAnswer}>Cancel lesson draft</button>{pendingAnswerLinks&&<div role="status" className="space-y-2"><p>{currentVersion!==pendingAnswerLinks.answer.expectedActiveVersionId?'The agent changed after this lesson draft was saved. Its answer link belongs to the earlier version and cannot be applied here.':'Your lesson draft is saved. Its answer link needs another try.'}</p><button disabled={!!busy||currentVersion!==pendingAnswerLinks.answer.expectedActiveVersionId} onClick={()=>work('Linking the preserved answer',()=>linkAnswers(pendingAnswerLinks))}>Retry saving this answer</button></div>}
         <div className="flex flex-wrap gap-3"><button type="button" disabled={!!busy||!!pendingAnswerLinks} onClick={requestTrainingUpload}>Upload an example</button>{sources.some(source=>source.token)&&<label className="block">Choose a saved example<select aria-label="Choose a saved example" value="" disabled={!!busy||!!pendingAnswerLinks} onChange={event=>{const source=sources.find(source=>source.sourceId===event.target.value);if(source)chooseSource(source);}}><option value="">Select video or image</option>{sources.filter(source=>source.token).map((source,index)=><option key={source.sourceId} value={source.sourceId}>{source.localName||`Example ${index+1}`}</option>)}</select></label>}</div><TrainingDetails title="Use an existing lesson instead"><label>Or link an existing teaching that already expresses this answer<select value={linkRecordId} disabled={!!busy||!session||!sources.some(source=>source.decisions.some(d=>['draft','accepted'].includes(d.state)))} onChange={event => setLinkRecordId(event.target.value)}><option value="">Choose a saved draft or teaching</option>{sources.flatMap(source => source.decisions.filter(d => ['draft', 'accepted'].includes(d.state)).map(d => <option key={d.recordId} value={d.recordId}>{shortId(d.recordId)} · {d.state} · {d.content.summary.slice(0, 80)}</option>))}</select></label>
@@ -1458,22 +1458,23 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       </div>:null;
   return <main id="main-content" tabIndex={-1} className={`mx-auto px-6 py-10 space-y-6 ${installationId?'max-w-3xl':'max-w-7xl lg:px-10'}`}>
     <Link className="text-xs text-ink-400 hover:text-ink-100" href={installationId?`/workflows/${encodeURIComponent(slug)}`:"/training"}>{installationId?"← Agent":"← Your agents"}</Link>
-    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-ink-800 pb-7"><div className="space-y-3">{installationId&&<p className="text-xs text-ink-500">Your private preferences</p>}<h1 className="max-w-3xl text-2xl font-medium tracking-tight sm:text-3xl">{installationId?`Private preferences for ${agentName}`:'Edit & train your agent'}</h1>{!installationId&&<><p className="max-w-3xl text-sm leading-6 text-ink-400">Change how your agent works, or teach it through examples and feedback.</p><p className="pt-2 text-lg text-ink-200">{agentName}</p></>}{installationId&&<p className="text-xs text-ink-500">Active version: {shortId(currentVersion)}{sessionVersion?` · Session version: ${shortId(sessionVersion)}`:''}</p>}</div>
-      {!installationId&&<div className="flex items-center gap-4"><button id="training-chat-toggle" type="button" aria-expanded={chatExpanded} aria-controls="training-companion" disabled={!!busy} onClick={()=>chatExpanded?setChatExpanded(false):focusChat()} className="rounded-lg border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-ink-500">✦ Chat with AI</button><AgentEditButton slug={slug} statusUnavailable={!runContext||runContext.statusUnavailable===true} revisePending={runContext?.revisePending===true}/><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/workflows/${encodeURIComponent(slug)}?source=generated`}>Open agent →</Link></div>}
+    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-ink-800 pb-7"><div className="space-y-3">{installationId&&<p className="text-xs text-ink-500">Your private preferences</p>}<h1 className="max-w-3xl text-2xl font-medium tracking-tight sm:text-3xl">{installationId?`Private preferences for ${agentName}`:'Train your agent or edit its steps'}</h1>{!installationId&&<><Link href={`/workflows/${encodeURIComponent(slug)}?source=generated`} className="inline-block pt-2 text-lg text-ink-200 hover:text-brand-400">{agentName} ↗</Link></>}{installationId&&<p className="text-xs text-ink-500">Active version: {shortId(currentVersion)}{sessionVersion?` · Session version: ${shortId(sessionVersion)}`:''}</p>}</div>
+      {!installationId&&<AgentEditButton slug={slug} statusUnavailable={!runContext||runContext.statusUnavailable===true} revisePending={runContext?.revisePending===true}/>}
     </header>
     <div className={installationId?'':`grid items-start gap-10 ${chatExpanded?'lg:grid-cols-[minmax(0,1fr)_360px]':''}`}>
     <div className={`min-w-0 space-y-7 ${installationId?legacyControls:''}`}>
+    {!installationId&&trainingStep===1&&unappliedCount>0&&<div className="flex items-center justify-between gap-3 rounded-xl border border-brand-500/40 bg-brand-500/5 px-5 py-4"><p className="text-sm">{unappliedCount} proposed change{unappliedCount===1?'':'s'} ready</p><button type="button" onClick={()=>selectTrainingStep(2)} className="text-sm font-medium text-brand-400">Review proposed changes →</button></div>}
     {!installationId&&<TrainingAttention key={`${ownerId}:${slug}:${currentVersion}`} cards={attentionCards}/>}
-    <div className={installationId?'':'overflow-hidden rounded-2xl border border-ink-700'}>
-    {!installationId&&<TrainingSteps active={trainingStep} pending={unappliedCount} onSelect={selectTrainingStep}/>}
+    <div id="training-workspace" className={installationId?'':'overflow-hidden rounded-2xl border border-ink-700'}>
+    {!installationId&&trainingStep!==1&&<div className="flex items-center justify-between gap-4 border-b border-ink-800 p-5"><button type="button" onClick={()=>selectTrainingStep(1)} className="text-sm text-ink-400">← Ways to train</button><span className="text-sm font-medium">{trainingStep===2?'Review proposed changes':'Apply & test'}</span></div>}
     <div className={installationId?'':'space-y-6 p-5 sm:p-8'}>
     {!installationId&&busy&&<p role="status" className="text-sm text-ink-400">{busy}…</p>}{!installationId&&error&&<p role="alert" className="text-sm text-amber-300">{reasonLabel(error)}</p>}
     {!installationId&&trainingStep===3&&applyNote&&<p role="status" className="text-sm text-ink-300">{applyNote}</p>}
     {!installationId&&changesError&&trainingStep!==2&&<p role="alert" className="text-sm text-amber-300">{changesError.replaceAll('_',' ')}</p>}
     {!installationId&&extractionNote&&<div role="status" className="flex flex-wrap items-center gap-3 text-sm text-ink-300"><p>{extractionNote}</p>{busy==='Finding the lessons in your feedback'?<button type="button" className="text-xs underline" onClick={()=>{extractionCancel.current=true;}}>Pause after this step</button>:lastFeedbackBatch&&<button type="button" className="text-xs underline" onClick={()=>void extractRecordingFeedback(lastFeedbackBatch)}>Resume extraction</button>}</div>}
     <div hidden={!installationId&&trainingStep!==1} className="space-y-7">
-    {!installationId&&<h2 className="text-2xl font-medium tracking-tight">Teach your agent</h2>}
-    {!installationId&&<p className="max-w-3xl text-sm leading-6 text-ink-400">Show your work or explain what you’d improve. Record, upload an example, or give feedback on a recent result.</p>}
+    {!installationId&&<><h2 className="text-xl font-medium tracking-tight">Ways to train</h2><TrainingOpportunities key={`${ownerId}:${slug}`} runs={recentRuns} unavailable={!!questionsError} questions={questions} sessionId={sessionVersion===currentVersion?session:null} versionId={currentVersion} disabled={!!busy||changesBusy||versionChanged} onStart={()=>startPrivateTraining(false)} onSaved={()=>{void loadChanges();void loadQuestions();selectTrainingStep(2);}}/>
+    <section className="space-y-2 border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Chat with Implexa</h3><p className="text-sm text-ink-400">Teach a preference, ask a question or change how your agent works.</p><button id="training-chat-toggle" type="button" aria-expanded={chatExpanded} aria-controls="training-companion" disabled={!!busy} onClick={()=>chatExpanded?setChatExpanded(false):focusChat()} className="rounded-lg border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-ink-500">✦ {chatExpanded?'Close chat':'Chat with Implexa'}</button></section></>}
     {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onSelectRun={openRun} selectedRunId={activeRunId} sourceActive={!!activeRunId||!!activeRecordingId||directSource}  actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={requestTrainingUpload} uploadDisabled={!!busy||changesBusy||versionChanged||!currentVersion} uploading={busy==='Verifying the selected source and saving its identity'}/>}/>}
     {!installationId&&pendingRecordingId&&<div role="status" className="text-sm text-ink-300">Another recording is ready. Your current feedback is preserved. <button type="button" className="underline" onClick={()=>{if(recordingDirty){setClosingRecording(false);setReplaceRecordingOpen(true);}else if(pendingRecordingId)openRecording(pendingRecordingId);}}>Annotate new recording</button></div>}
     {!installationId&&directSource&&!activeRunId&&!activeRecordingId&&selected?.token&&previewIsCurrent&&preview?.image&&<>
@@ -1541,7 +1542,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&questionAnswer&&(!questionsOpen||!questions?.items.some(q=>q.id===answeringQuestionId))&&<section aria-label="Your answer in progress" className={`space-y-3 rounded-xl border border-ink-700 p-4 ${legacyControls}`}>
       <h2 className="text-lg font-medium">Your answer in progress</h2><p className="text-sm text-ink-400">{questionExcerpt((questionAnswer.questions.find(q=>q.id===answeringQuestionId)||questionAnswer.questions[0]).question)}</p>{preparedQuestionAnswer}
     </section>}
-    {!installationId&&<button type="button" className="text-sm text-ink-400 hover:text-ink-100" onClick={()=>{setQuestionsOpen(true);if(!questions)void loadQuestions();window.requestAnimationFrame(()=>revealTrainingElement('training-questions'));}}>Questions from your agent →</button>}
+    {!installationId&&<TrainingDetails title="Past agent questions"><button type="button" onClick={()=>{setQuestionsOpen(true);if(!questions)void loadQuestions();window.requestAnimationFrame(()=>revealTrainingElement('training-questions'));}}>Questions from your agent →</button></TrainingDetails>}
     <div hidden={!installationId&&(trainingStep!==1||!questionsOpen)} className={`space-y-5 ${legacyControls}`}>
     {!installationId && <section className="rounded border border-ink-700 p-4 space-y-3" id="training-questions" aria-labelledby="trainer-questions-heading">
       <div className="flex justify-between gap-3"><h2 id="trainer-questions-heading" className="text-lg font-medium">Questions from your agent</h2><button type="button" onClick={()=>setQuestionsOpen(false)}>Close</button></div>
