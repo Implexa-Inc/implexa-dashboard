@@ -18,10 +18,6 @@ export function TrainingDialog(props:ComponentProps<typeof Modal>){
 }
 
 export type TrainingStep=1|2|3;
-export function TrainingSteps({active,pending,onSelect}:{active:TrainingStep;pending:number;onSelect:(step:TrainingStep)=>void}){
- const labels=['Teach Agent','Review training','Apply & Test'] as const;
- return <nav aria-label="Training steps" className="grid grid-cols-3 overflow-hidden rounded-t-2xl border border-ink-700 bg-ink-900/30">{labels.map((label,index)=>{const step=(index+1) as TrainingStep;return <button key={step} type="button" aria-current={active===step?'step':undefined} onClick={()=>onSelect(step)} className={`flex min-w-0 flex-col items-start justify-start border-b-2 px-3 py-5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 sm:px-6 ${index?'border-l border-l-ink-700 ':''}${active===step?'border-b-brand-500 bg-brand-500/10 text-brand-400':'border-b-transparent text-ink-400 hover:bg-ink-800/30 hover:text-ink-200'}`}><span className="block text-xs font-medium">Step {step}:</span><span className="mt-1 block text-sm font-semibold sm:text-lg">{label}</span>{step===3&&pending>0&&<span className="mt-2 block text-xs">{pending} unapplied learning{pending===1?'':'s'}</span>}</button>;})}</nav>;
-}
 export type TrainingAction={key:string;title:string;description:string;label:string;optional:boolean;action:()=>void};
 /** Dismissal hides a prompt for this visit, never resolves its underlying work. */
 export function TrainingAttention({cards}:{cards:TrainingAction[]}){
@@ -61,7 +57,7 @@ export function TrainingInfo({label,children}:{label:string;children:ReactNode})
 }
 
 /** Uses the Review Room's existing short-lived, revocable local-file preview. */
-function RunImage({artifact}:{artifact:ReviewArtifact}){
+export function RunImage({artifact}:{artifact:ReviewArtifact}){
  const [image,setImage]=useState<{identity:string;url:string}|null>(null),[failed,setFailed]=useState(false);
  const identity=`${artifact.runId}:${artifact.id}:${artifact.sha256}`;
  useEffect(()=>{
@@ -112,20 +108,10 @@ export function TrainingImage({token,recordId,recordDigest,frameSha256,alt,enabl
 
 /** One source picker. Existing Training, recorder and Review Room still own each action. */
 export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,actions,onChat,chatExpanded=false,chatDisabled=false,onSelectRun,selectedRunId,sourceActive=false}:{slug:string;lastRunId?:string|null;runs?:TrainingRun[];runsUnavailable?:boolean;actions?:ReactNode;onChat?:()=>void;chatExpanded?:boolean;chatDisabled?:boolean;onSelectRun?:(run:TrainingRun)=>void;selectedRunId?:string|null;sourceActive?:boolean}){
- const [resultsOpen,setResultsOpen]=useState(!sourceActive);
- useEffect(()=>{if(sourceActive)setResultsOpen(false);},[sourceActive,selectedRunId]);
- const pickerClass='inline-flex items-center gap-2 rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-40';
  return <section className="space-y-4 py-3" aria-label="Teach this agent">
-  <h3 className="text-sm font-medium text-ink-300">Show an example</h3>
-  <div className="flex flex-wrap items-start gap-2" aria-label="Choose a training source">
-   {actions}
-   {onChat&&<button id="training-chat-toggle" type="button" className={`${pickerClass} sm:ml-auto`} disabled={chatDisabled} aria-expanded={chatExpanded} aria-controls="training-companion" onClick={onChat}>✧ {chatExpanded?'Close chat':'Chat with AI'}</button>}
-  </div>
-  <div className="flex flex-wrap items-center gap-3 pt-2"><span className="text-xs text-ink-500">Or</span>
-   <button type="button" aria-expanded={resultsOpen} aria-controls="training-recent-results" onClick={()=>setResultsOpen(!resultsOpen)} className={pickerClass}>Give feedback on a recent result</button>
-  </div>
-  <div id="training-recent-results" hidden={!resultsOpen} className="rounded-xl border border-ink-800 bg-ink-900/20 p-4">
-   {resultsOpen&&<><div className="mb-3 flex items-baseline justify-between gap-4"><h2 className="text-sm font-medium text-ink-200">Or teach from a recent result</h2><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/training/${encodeURIComponent(slug)}/runs`}>All runs →</Link></div>
+  <div className="border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Give feedback on recent runs</h3></div>
+  <div id="training-recent-results"  className="rounded-xl border border-ink-800 bg-ink-900/20 p-4">
+   {<><div className="mb-3 flex items-baseline justify-between gap-4"><h2 className="text-sm font-medium text-ink-200">Recent results</h2><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/training/${encodeURIComponent(slug)}/runs`}>All runs →</Link></div>
    {runs.length?<div className="flex snap-x gap-3 overflow-x-auto pb-1">{runs.map((run,index)=>{
     const content=<>
      {run.artifact?<RunImage artifact={run.artifact}/>:<span className="flex aspect-video items-center justify-center rounded-lg bg-ink-900 text-xs text-ink-500">No preview</span>}
@@ -136,6 +122,7 @@ export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,acti
     return onSelectRun?<button key={run.id} type="button" aria-pressed={selectedRunId===run.id} aria-label={`Teach from ${index===0?'latest result':`result ${index+1}`}`} className={className} onClick={()=>onSelectRun(run)}>{content}</button>:<Link key={run.id} href={`/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(run.id)}`} className={className}>{content}</Link>;
    })}</div>:<p className="text-sm text-ink-500">{runsUnavailable?'Recent results couldn’t load. ':lastRunId?'Open your latest result to give feedback. ':'Record or upload an example, or run your agent to review its work. '}{lastRunId&&<Link href={`/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(lastRunId)}`} className="text-ink-300 underline underline-offset-4">Latest result →</Link>}</p>}</>}
   </div>
+  <div className="space-y-3 border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Show how you work</h3><div className="flex flex-wrap items-center gap-2" aria-label="Choose a training source">{actions}</div></div>
  </section>;
 }
 
