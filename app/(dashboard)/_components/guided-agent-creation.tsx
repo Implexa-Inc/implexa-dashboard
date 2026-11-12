@@ -77,11 +77,29 @@ export default function GuidedAgentCreation({ownerId}:{ownerId:string}){
   finally{if(active.current===identity)setBusy(false);}
  };
  return <section className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+  <aside className="min-w-0 lg:sticky lg:top-6"><ChatFrame scrollKey={data?.turns.at(-1)?.turnId+':'+data?.turns.at(-1)?.status} title="Chat with AI" subtitle="Build your agent" details={<div className="space-y-3">
+   <p>Send shares this conversation and the prepared draft with Claude Haiku 5.5. Attachments stay local until Build.</p>
+   <button type="button" className="underline" disabled={!draftId||busy} onClick={()=>load(draftId)}>Refresh saved draft</button>
+   {!!data?.recentDrafts?.length&&<label className="block">Private draft history<select aria-label="Private draft history" className="mt-1 w-full rounded border border-ink-700 bg-ink-950 p-2" disabled={busy} value={draftId} onChange={e=>{active.current=e.target.value;setDraftId(e.target.value);setData(null);setSelectedId(null);setQueued(false);setText('');pending.current=null;seed.current=null;resetFiles();try{sessionStorage.setItem(storageKey,e.target.value);}catch{}}}>
+    {!data.recentDrafts.some(d=>d.draft_id===draftId)&&<option value={draftId}>Current draft</option>}{data.recentDrafts.map(d=><option key={d.draft_id} value={d.draft_id}>{new Date(d.updated_at).toLocaleString()}{d.withdrawn?' · Withdrawn':''}</option>)}
+   </select></label>}
+   <p>Messages stay in your private history. Withdrawal stops further preparation and builds from this draft; it does not cancel queued work.</p><button type="button" className="underline" disabled={busy||data?.withdrawn||!data?.turns.length} onClick={withdraw}>Withdraw this draft from further use</button>
+  </div>} composer={<ChatComposer value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder="Tell me what you’d like your agent to do…" attachments={<fieldset disabled={busy||isBuilt}><AttachFiles files={files} canAttach={canAttach} canAttachFolder={canAttachFolder} onAttach={()=>attachFile()} onAttachFolder={()=>attachFolder()} onRemove={removeFile} error={attachError}/></fieldset>}/> }>
+   {!data?.turns.length&&<ChatMessage role="assistant"><p>What would you like your agent to do? Start with the goal—we’ll work out the tools and what it needs together.</p></ChatMessage>}
+   {data&&!data.withdrawn&&data.totalTurns>data.turns.length&&<p className="text-xs text-ink-500">Showing recent exchanges. Earlier messages are saved in this draft.</p>}
+   <ol aria-label="Agent creation conversation" className="space-y-6">{data?.turns.map(t=><li key={t.turnId} className="space-y-3">
+    <ChatMessage role="user"><p className="whitespace-pre-wrap">{t.message}</p></ChatMessage>{t.reply&&<ChatMessage role="assistant"><p className="whitespace-pre-wrap">{t.reply}</p></ChatMessage>}
+    {t.status==='pending'&&<p className="text-sm text-ink-400">Your message is saved. <button type="button" className="underline" disabled={busy} onClick={()=>load(draftId)}>Check for the reply</button></p>}
+    {t.status==='failed'&&<p role="status" className="text-sm text-amber-300">Your message is saved, but the reply couldn’t be prepared. Try a new draft.</p>}
+    {t.brief&&t.replyId!==selectedId&&<button type="button" className="text-xs text-ink-400 underline" disabled={busy||isBuilt} onClick={()=>choose(t)}>Use this saved draft</button>}
+   </li>)}</ol>
+   {selected?.questions?.[0]&&!isBuilt&&<ChatChoices question={selected.questions[0]} choices={creationQuestionChoices(selected.questions[0],selected.brief)} disabled={busy||isPending} onChoose={value=>{setText(value);composer.current?.focus();}}/>}
+  </ChatFrame></aside>
   <div className="min-w-0 space-y-5">
    <div className="flex items-center justify-between gap-4"><p className="text-[10px] uppercase tracking-[.18em] text-ink-500">Your agent, prepared with you</p>
     <button type="button" className="text-xs text-ink-400 underline" disabled={busy} onClick={startNew}>{selected?'Copy to a new draft':'New draft'}</button></div>
-   {!selected&&<div className="rounded-xl border border-ink-800 p-6"><h2 className="text-xl font-medium">{data?.withdrawn?'This draft is withdrawn.':'Start with the job you want done.'}</h2>
-    <p className="mt-3 text-sm leading-6 text-ink-400">{data?.withdrawn?'Choose New draft to start again. This draft can no longer prepare replies or queue a build.':'Explain it in chat. Implexa will prepare the goal, tools, input and output for you. Nothing is built until you choose Build.'}</p></div>}
+   {!selected?.brief&&<div className="rounded-xl border border-ink-800 p-6"><h2 className="text-xl font-medium">{data?.withdrawn?'This draft is withdrawn.':selected?'A few details, then your agent is ready.':'Start with the job you want done.'}</h2>
+    <p className="mt-3 text-sm leading-6 text-ink-400">{data?.withdrawn?'Choose New draft to start again. This draft can no longer prepare replies or queue a build.':selected?'Answer the next question in chat. Your goal, tools, input and output will appear here.':'Explain it in chat. Implexa will prepare the goal, tools, input and output for you. Nothing is built until you choose Build.'}</p></div>}
    {selected?.brief&&<>
     {([['The goal','goal',<><h2 className="text-lg font-medium">{selected.brief.name}</h2><p className="mt-3">{selected.brief.goal}</p></>],
      ['What it receives','inputs',<ul className="list-disc pl-4 space-y-2">{selected.brief.inputs.map((s,i)=><li key={i}>{s}</li>)}</ul>],
@@ -100,23 +118,6 @@ export default function GuidedAgentCreation({ownerId}:{ownerId:string}){
    {notice&&<p role="status" className="text-sm text-ink-400">{notice}</p>}
    {error&&<p role="alert" className="rounded-lg border border-amber-700 p-3 text-sm">{error.replaceAll('_',' ')}</p>}
   </div>
-  <aside className="min-w-0 lg:sticky lg:top-6"><ChatFrame title="Chat with AI" subtitle="Build your agent" details={<div className="space-y-3">
-   <p>Send shares this conversation and the prepared draft with Claude Haiku 5.5. Attachments stay local until Build.</p>
-   <button type="button" className="underline" disabled={!draftId||busy} onClick={()=>load(draftId)}>Refresh saved draft</button>
-   {!!data?.recentDrafts?.length&&<label className="block">Private draft history<select aria-label="Private draft history" className="mt-1 w-full rounded border border-ink-700 bg-ink-950 p-2" disabled={busy} value={draftId} onChange={e=>{active.current=e.target.value;setDraftId(e.target.value);setData(null);setSelectedId(null);setQueued(false);setText('');pending.current=null;seed.current=null;resetFiles();try{sessionStorage.setItem(storageKey,e.target.value);}catch{}}}>
-    {!data.recentDrafts.some(d=>d.draft_id===draftId)&&<option value={draftId}>Current draft</option>}{data.recentDrafts.map(d=><option key={d.draft_id} value={d.draft_id}>{new Date(d.updated_at).toLocaleString()}{d.withdrawn?' · Withdrawn':''}</option>)}
-   </select></label>}
-   <p>Messages stay in your private history. Withdrawal stops further preparation and builds from this draft; it does not cancel queued work.</p><button type="button" className="underline" disabled={busy||data?.withdrawn||!data?.turns.length} onClick={withdraw}>Withdraw this draft from further use</button>
-  </div>} composer={<ChatComposer value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder="Tell me what you’d like your agent to do…" attachments={<fieldset disabled={busy||isBuilt}><AttachFiles files={files} canAttach={canAttach} canAttachFolder={canAttachFolder} onAttach={()=>attachFile()} onAttachFolder={()=>attachFolder()} onRemove={removeFile} error={attachError}/></fieldset>}/> }>
-   {!data?.turns.length&&<ChatMessage role="assistant"><p>What would you like your agent to do? Start with the goal—we’ll work out the tools and what it needs together.</p></ChatMessage>}
-   {data&&!data.withdrawn&&data.totalTurns>data.turns.length&&<p className="text-xs text-ink-500">Showing recent exchanges. Earlier messages are saved in this draft.</p>}
-   <ol aria-label="Agent creation conversation" className="space-y-6">{data?.turns.map(t=><li key={t.turnId} className="space-y-3">
-    <ChatMessage role="user"><p className="whitespace-pre-wrap">{t.message}</p></ChatMessage>{t.reply&&<ChatMessage role="assistant"><p className="whitespace-pre-wrap">{t.reply}</p></ChatMessage>}
-    {t.status==='pending'&&<p className="text-sm text-ink-400">Your message is saved. <button type="button" className="underline" disabled={busy} onClick={()=>load(draftId)}>Check for the reply</button></p>}
-    {t.status==='failed'&&<p role="status" className="text-sm text-amber-300">Your message is saved, but the reply couldn’t be prepared. Try a new draft.</p>}
-    {t.brief&&t.replyId!==selectedId&&<button type="button" className="text-xs text-ink-400 underline" disabled={busy||isBuilt} onClick={()=>choose(t)}>Use this saved draft</button>}
-   </li>)}</ol>
-   {selected?.questions?.[0]&&!isBuilt&&<ChatChoices question={selected.questions[0]} choices={creationQuestionChoices(selected.questions[0],selected.brief)} disabled={busy||isPending} onChoose={value=>{setText(value);composer.current?.focus();}}/>}
-  </ChatFrame></aside>
+
  </section>;
 }

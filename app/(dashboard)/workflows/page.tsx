@@ -19,7 +19,6 @@ import { readUserProfile } from '@/lib/profile-read';
 import {RentBuildHome} from '../_components/agent-home-frame';
 import GuidedAgentCreation from '../_components/guided-agent-creation';
 import BuildingAgents from '../_components/building-agents';
-import {isExecutorConnected} from '@/lib/connection';
 import {getMarketplaceSamples} from '@/lib/agent-marketplace-samples-server';
 import MarketplaceSampleGallery from '../_components/marketplace-sample-gallery';
 import {agentHomeView} from '@/lib/agent-marketplace-samples';

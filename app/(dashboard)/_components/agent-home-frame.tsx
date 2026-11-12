@@ -13,7 +13,7 @@ export function RentBuildHome({build,status,children}:{build:ReactNode;status?:R
   <h1 className="text-3xl font-semibold tracking-tight text-ink-50">Rent/Build</h1>
   <details className="group mb-9 mt-8 border-y border-ink-800 py-5">
    <summary className="flex cursor-pointer list-none items-center gap-3 rounded text-lg font-medium text-ink-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="text-2xl font-light text-brand-500 transition-transform group-open:rotate-45">+</span>Build an agent</summary>
-   <div className="mt-5 max-w-2xl">{build}</div>
+   <div className="mt-5 max-w-5xl">{build}</div>
   </details>
   {status}
   {children}
