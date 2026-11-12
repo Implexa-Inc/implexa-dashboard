@@ -2283,3 +2283,23 @@ test('uploaded reference narration stays context until explicitly marked as my n
   assert.equal(h.calls.some(c=>['selectRecording','recording','annotate','accept'].includes(c.operation)),false,'the separate analysis confirmation is still needed');
  }finally{r.cleanup();}
 });
+
+test('video upload requests owner-bound playback only with the advertised contract and opens the same recorder player',async()=>{
+ for(const contract of [undefined,'2','1']){
+  const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
+  Object.assign(h.bridge,{reviewRecorderContractVersion:'2',...(contract===undefined?{}:{trainingUploadPlaybackContractVersion:contract}),reviewRecorder:async(op:string)=>{
+   const uploaded={recordingId:QUESTION,title:'Uploaded example',origin:'imported',state:'ready',failureReason:null,createdAt:'2026-11-11T12:00:00Z',durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:0};
+   return op==='get'?{ok:true,recording:{...uploaded,pointerTrack:null,moments:[]}}:op==='list'?{ok:true,recordings:[uploaded],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true};
+  },revokeArtifactPreview:async()=>({ok:true})});
+  h.bridge.trainingLocal=async(op,args)=>{const result=await original(op,args);return op==='select'&&contract==='1'?{...result,recordingId:QUESTION,playback:{available:true}}:result;};
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
+  try{
+   await chooseDirectUpload(r);const selected=h.calls.find(call=>call.operation==='select')!;
+   assert.equal(selected.args.expectedOwnerId,contract==='1'?RECORD:undefined);assert.equal(Object.hasOwn(selected.args,'expectedOwnerId'),contract==='1');
+   assert.equal(Boolean(r.document.querySelector('#recording-annotation')),contract==='1','the returned recording opens the existing RecordingPlayer only in playback mode');
+   if(contract==='1'){assert.ok(r.document.querySelector('#recording-annotation video'));assert.match(r.text(),/This is my narrated demonstration/);assert.equal(h.calls.some(c=>c.operation==='preview'),false,'no separate still-frame path runs after a verified playback import');}
+   else assert.ok(r.document.querySelector('[aria-label="Teach from an image"]'),'older Desktop retains the explicit frame fallback');
+   assert.equal(h.calls.some(c=>['recording','annotate','accept','selectRecording'].includes(c.operation)),false);assert.equal(r.calls.push.length,0);
+  }finally{r.cleanup();}
+ }
+});

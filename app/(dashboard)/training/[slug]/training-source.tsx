@@ -11,9 +11,10 @@ import type {PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
 import NewReview from '../../review/new/new-review';
 import RecordingPlayer from '../../review/recordings/[recordingId]/recording-player';
 import TrainingRunPlayer from './training-run-player';
+import RunMarkTraining from './run-mark-training';
 import TrainingImagePlayer from './training-image-player';
 import TrainingDraftBundle from './training-draft-bundle';
-import {extractFeedbackTeaching,type FeedbackExtractionProgress} from '@/lib/training-feedback-extraction';
+import {extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,type FeedbackExtractionProgress} from '@/lib/training-feedback-extraction';
 import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import type {Moment,RecordingDetail} from '@/lib/review-recorder';
 import Modal from '../../_components/modal';
@@ -115,7 +116,7 @@ type Bridge = {
   trainingToolFrameContractVersion?: string;
   trainingRecordingLibraryContractVersion?: string;
   trainingEvidenceStorageContractVersion?: string;
-  trainingRunArtifactContractVersion?: string;
+  trainingUploadPlaybackContractVersion?: string;
   trainingLocal: (operation: string, args: unknown) => Promise<Result>;
 };
 type Preview = { token: string; timeMs: number; image: string };
@@ -166,7 +167,6 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     currentTraining();setActiveRecordingId(null);setActiveRecordingDetail(null);setPendingNarration(null);setPendingFeedback(null);setRunDirty(false);setActiveRunId(run.id);setError('');
   }
   const [runFeedbackRequest,setRunFeedbackRequest]=useState<{issue:ReviewIssue;artifact:ReviewArtifact}|null>(null);
-  const runSources=useRef(new Map<string,{sourceId:string;token:string}>());
   const recordingSources=useRef(new Map<string,{sourceId:string;token:string;version:string;sessionId:string}>());
   const [narrationRequest,setNarrationRequest]=useState<{recordingId:string;momentId:string|null;purpose:'taste'|'agent'}|null>(null);
   const [pendingNarration,setPendingNarration]=useState<{recordingId:string;sourceId:string;version:string;sessionId:string;purpose:'taste'|'agent';capability:typeof agentCapability}|null>(null);
@@ -734,15 +734,15 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       for(const moment of request.moments){
         const rawAnnotation=JSON.stringify({role:'trainer_commentary',recordingId:request.recordingId,moment});
         const fingerprint=await teachingDigest(new TextEncoder().encode(JSON.stringify({sessionId:id,version,sourceSha256:source.metadata.sha256,rawAnnotation})));
-        let progress=extractionProgress.current.get(fingerprint);if(!progress){progress={key:crypto.randomUUID()};extractionProgress.current.set(fingerprint,progress);}
+        let progress=extractionProgress.current.get(fingerprint);if(!progress){progress=extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,fingerprint);extractionProgress.current.set(fingerprint,progress);}
         setExtractionNote(`Reviewing note ${completed+held+1} of ${request.moments.length}…`);
         try{
-          const result=await extractFeedbackTeaching({source:{...source,token:source.token},timeMs:moment.startMs,rawAnnotation,versionId:version,retentionUntil:retention,progress,
+          const result=await extractFeedbackTeaching({source:{...source,token:source.token},timeMs:moment.startMs,rawAnnotation,versionId:version,retentionUntil:retention,progress,checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress!),
             call:async(operation,args)=>await call(operation,args),
             check:async()=>{if(extractionCancel.current||activeRecordingRef.current!==request.recordingId)throw Error('Extraction paused. Your saved notes and completed drafts are preserved.');const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Completed drafts are preserved.');},
             send:async(operation,body,key)=>{
               const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:id,...(operation==='annotation'?{operation:'annotation'}:{})})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(body)});
-              const value=await response.json();if(!response.ok||!value.ok)throw Error('This note could not be analyzed. Its original and any saved draft are preserved.');return value;
+              const value=await response.json();return value;
             }});
           if(result.status==='held'){held++;setHeldExtractions(previous=>[...previous.filter(item=>item.key!==fingerprint),{key:fingerprint,text:moment.card.whatToDo,reason:result.reason}]);}
           else{completed++;setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));}
@@ -758,49 +758,30 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setDirectExtractionRequested(false);
     await work('Finding the lesson in your example',async()=>{
       const fingerprint=await teachingDigest(new TextEncoder().encode(JSON.stringify({id,version,sourceId:source.sourceId,sourceSha256:source.metadata.sha256,rawAnnotation,frameTime})));
-      let progress=extractionProgress.current.get(fingerprint);if(!progress){progress={key:crypto.randomUUID()};extractionProgress.current.set(fingerprint,progress);}
-      const result=await extractFeedbackTeaching({source,timeMs:frameTime,rawAnnotation,versionId:version,retentionUntil:retention,progress,
+      let progress=extractionProgress.current.get(fingerprint);if(!progress){progress=extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,fingerprint);extractionProgress.current.set(fingerprint,progress);}
+      const result=await extractFeedbackTeaching({source,timeMs:frameTime,rawAnnotation,versionId:version,retentionUntil:retention,progress,checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress!),
         call:async(operation,args)=>await call(operation,args),check:async()=>{const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your draft is preserved.');},
-        send:async(operation,body,key)=>{const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:id,...(operation==='annotation'?{operation:'annotation'}:{})})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(body)});const value=await response.json();if(!response.ok||!value.ok)throw Error('This note could not be analyzed. Your feedback and any saved draft are preserved.');return value;}});
+        send:async(operation,body,key)=>{const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:id,...(operation==='annotation'?{operation:'annotation'}:{})})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(body)});const value=await response.json();return value;}});
       if(result.status==='held'){setHeldExtractions(previous=>[...previous.filter(item=>item.key!==fingerprint),{key:fingerprint,text:directNote,reason:result.reason}]);setExtractionNote('This lesson needs clarification. Your original feedback is saved.');}
       else{setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setDemoText('');setDirectNote('');setExtractionNote('Your proposed lesson is ready to review. Nothing is live yet.');}
       await load(id);await loadChanges();
     });
   }
-  async function beginRunFeedbackLearning(){
-    if(!runFeedbackRequest||!activeRunId||!currentVersion||versionChanged)return;
-    const {issue,artifact}=runFeedbackRequest,runId=activeRunId,version=currentVersion;
-    if(issue.runId!==runId||artifact.runId!==runId||issue.artifactId!==artifact.id||artifact.status!=='validated'||!artifact.sha256)return;
-    if(recordingDraftBlocked()){setError('Finish or discard your current teaching draft first.');return;}
-    const anchor=issue.anchor as Record<string,any>,timeMs=anchor.version===2?anchor.temporal?.startMs??0:anchor.type==='media_time'?anchor.timeStartMs:0;
-    if((anchor.version===2?anchor.observedArtifactSha256:anchor.artifactSha256)!==artifact.sha256||!Number.isSafeInteger(timeMs)||timeMs<0)return;
-    const raw=JSON.stringify({role:'trainer_commentary',sourceKind:'run_artifact',runId,artifactId:artifact.id,artifactSha256:artifact.sha256,issueId:issue.id,anchor:issue.anchor,feedback:issue.body});
-    if(raw.length>2000){setError('This note is too long for one teaching. Your complete feedback is saved; split it into shorter notes to extract training.');return;}
-    if(bridge()?.trainingRunArtifactContractVersion!=='1'){setError('Update Implexa Desktop to turn result feedback into visual training. Your note is saved.');return;}
-    await work('Preparing training from your saved note',async()=>{
-      let id=session;if(!id){const created=await call('create',{slug,key:sessionKey});if(!created.sessionId)throw new TrainingError('training_session_unavailable');id=created.sessionId;setSession(id);}
-      await requireCurrentScope(id);
-      const key=`${id}:${version}:${runId}:${artifact.id}:${artifact.sha256}`;
-      let registered=runSources.current.get(key);
-      if(!registered){
-        try{const value=await call('selectRunArtifact',{sessionId:id,runId,artifactId:artifact.id,expectedOwnerId:ownerId,consent:{localCustody:true,boundedEvidence:true,futureSelection:true}});
-          if(!value.sourceId||!value.token)throw new TrainingError('training_source_scope_mismatch');registered={sourceId:value.sourceId,token:value.token};
-        }catch(caught){if(!(caught instanceof TrainingError)||caught.reason!=='duplicate_source'||!caught.existingSourceId)throw caught;
-          const listed=await load(id),existing=listed.sources?.find(source=>source.sourceId===caught.existingSourceId&&source.metadata.sha256===artifact.sha256&&source.token);
-          if(!existing?.token)throw caught;registered={sourceId:existing.sourceId,token:existing.token};}
-        runSources.current.set(key,registered);
-      }
-      const listed=await load(id),source=listed.sources?.find(source=>source.sourceId===registered!.sourceId&&source.token===registered!.token&&source.metadata.sha256===artifact.sha256);
-      if(!source||!chooseSource(source,false,true))throw new TrainingError('training_source_scope_mismatch');
-      const frameTime=Math.min(timeMs,Math.max(0,source.metadata.durationMs-1));
-      const frame=await call('preview',{token:source.token,timeMs:frameTime});if(!frame.image)throw new TrainingError('training_preview_stale');
-      setTime(frameTime);setPreview({token:source.token!,timeMs:frameTime,image:frame.image});setDemoText(raw);setRecording(null);setRelation('rejected');setFeedbackCategoryConfirmed(false);setDecisionKey(crypto.randomUUID());setView('start');
-      const origin=`run:${runId}`;setFeedbackInput({recordingId:origin,sourceId:source.sourceId,text:issue.body,endFrame:frameTime!==timeMs});setPendingFeedback({recordingId:origin,sourceId:source.sourceId,sessionId:id,version,timeMs:frameTime,phase:'save'});setRunFeedbackRequest(null);
+  async function prepareRunTeaching(issue:ReviewIssue,artifact:ReviewArtifact){
+    if(!activeRunId||!currentVersion||!ownerId||versionChanged||runDirty||recordingDraftBlocked())return;
+    const version=currentVersion;
+    if(issue.runId!==activeRunId||artifact.runId!==activeRunId||issue.artifactId!==artifact.id||artifact.status!=='validated'||!artifact.sha256)return;
+    await work('Opening your saved teaching note',async()=>{
+      let id=session;
+      if(!id){const created=await call('create',{slug,key:sessionKey});if(!created.sessionId)throw new TrainingError('training_session_unavailable');id=created.sessionId;setSession(id);}
+      const scoped=await requireCurrentScope(id);
+      if(scoped.agent.currentVersionId!==version)throw new TrainingError('training_version_changed');
+      setRunFeedbackRequest({issue,artifact});
     });
   }
   useEffect(()=>{
     if(!pendingFeedback||busy||suggesting)return;
-    if((pendingFeedback.recordingId!==activeRecordingId&&pendingFeedback.recordingId!==`run:${activeRunId}`)||pendingFeedback.sourceId!==selected?.sourceId||pendingFeedback.sessionId!==session||pendingFeedback.version!==currentVersion||pendingFeedback.timeMs!==time||versionChanged){setPendingFeedback(null);return;}
+    if((pendingFeedback.recordingId!==activeRecordingId)||pendingFeedback.sourceId!==selected?.sourceId||pendingFeedback.sessionId!==session||pendingFeedback.version!==currentVersion||pendingFeedback.timeMs!==time||versionChanged){setPendingFeedback(null);return;}
     if(pendingFeedback.phase==='save'){setPendingFeedback({...pendingFeedback,phase:'suggest'});void saveDemoAnnotation();}
     else if(demoAnnotationIsCurrent){setPendingFeedback(null);setDraftConsent(true);void suggestTeaching(true);}
     // Stage existing annotation/save and suggestion only after their exact state commits.
@@ -848,7 +829,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         if(!chooseSource(source))return;setDirectSource(false);setTime(note.timeMs);setDemoText(note.rawAnnotation);const frame=await call('preview',{token:source.token,timeMs:note.timeMs});if(frame.image)setPreview({token:source.token!,timeMs:note.timeMs,image:frame.image});
         setSuggestionNote('Saved moment notes are preserved verbatim as draft annotation. Preview this exact frame, save its annotation, then review and accept any teaching separately.');
       }else{
-        const added=await call('select',{sessionId:id,consent:consents});
+        const added=await call('select',{sessionId:id,consent:consents,...(bridge()?.trainingUploadPlaybackContractVersion==='1'?{expectedOwnerId:ownerId}:{})});
         await requireCurrentScope(id);const listed=await load(id);
         const source=listed.sources?.find(s=>s.sourceId===added.sourceId&&s.token===added.token);
         if(!source)throw new TrainingError('training_source_scope_mismatch','The source is saved but could not be opened for annotation. Find it in Saved sources & original decisions.');
@@ -1407,7 +1388,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       {playbackFallback&&<p role="status" className="text-xs text-ink-400">{playbackFallback}</p>}
       {selected.metadata.durationMs>0&&<details className="text-xs text-ink-400"><summary className="cursor-pointer">Choose a different frame</summary><input aria-label="Training video frame" className="mt-3 w-full" type="range" min="0" max={selected.metadata.durationMs-1} value={time} disabled={!!busy||!!directNote.trim()} onChange={event=>changeTime(Number(event.target.value))}/><button type="button" disabled={!!busy||!!directNote.trim()} onClick={()=>void showPreview()}>Open this frame</button></details>}
     </>}
-    {!installationId&&activeRunId&&<TrainingRunPlayer key={activeRunId} slug={slug} runId={activeRunId} ownerId={ownerId} onTeach={(issue,artifact)=>setRunFeedbackRequest({issue,artifact})} onDirtyChange={setRunDirty}/>}
+    {!installationId&&activeRunId&&<TrainingRunPlayer key={activeRunId} slug={slug} runId={activeRunId} ownerId={ownerId} onTeach={(issue,artifact)=>void prepareRunTeaching(issue,artifact)} onDirtyChange={setRunDirty}/>}
     {!installationId&&activeRecordingId&&<RecordingPlayer key={activeRecordingId} recordingId={activeRecordingId} ownerId={ownerId||''} trainingSlug={slug} embedded trainerNarration={trainerNarration} onTrainerNarrationChange={setTrainerNarration} onDirtyChange={setRecordingDirty} onRecordingLoaded={setActiveRecordingDetail} onUseFeedback={(recordingId,moment)=>setFeedbackRequest({recordingId,moment})} onDoneTeaching={(recordingId,moments)=>setBatchFeedbackRequest({recordingId,moments})} onAnalyzeNarration={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'taste'})} onAnalyzeTool={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'agent'})} narrationUnavailable={pendingRecordingLink||pendingDemoLink||suggesting?"Finish the current teaching or pending link first.":!activeRecordingDetail?"Loading your recording…":!trainerNarration&&activeRecordingDetail.origin==='imported'?"Add voice notes, or mark this video as your narrated demonstration in More options.":!activeRecordingDetail.hasMicrophone?"This recording has no microphone narration. You can still leave feedback on the video.":!recordingSupported?"Update Desktop to find learnings in your narration.":(activeRecordingDetail.durationMs||0)>600000?"Narration analysis supports recordings up to 10 minutes. Your visual feedback is still available.":undefined} onClose={()=>{if(recordingDirty){setClosingRecording(true);setReplaceRecordingOpen(true);}else{setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(null);setActiveRecordingDetail(null);}}}/>}
         {agentProposal && <section id="recording-tool-proposal" aria-label="Proposed tool update" className="rounded border border-brand-500 p-3 space-y-3">
           <h4>Proposed agent update — not applied</h4>
@@ -1462,7 +1443,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </Modal>
     {!installationId&&extractionNote&&<div role="status" className="flex flex-wrap items-center gap-3 text-sm text-ink-300"><p>{extractionNote}</p>{busy==='Finding the lessons in your feedback'?<button type="button" className="text-xs underline" onClick={()=>{extractionCancel.current=true;}}>Pause after this step</button>:lastFeedbackBatch&&<button type="button" className="text-xs underline" onClick={()=>void extractRecordingFeedback(lastFeedbackBatch)}>Resume extraction</button>}</div>}
     {!installationId&&heldExtractions.length>0&&<details className="rounded-xl border border-amber-800/60 p-4 text-sm"><summary className="cursor-pointer">Needs clarification ({heldExtractions.length})</summary>{heldExtractions.map(item=><div key={item.key} className="mt-4 space-y-2"><p>{item.text}</p><p className="text-xs text-ink-400">{item.reason}</p></div>)}</details>}
-    <Modal open={!!runFeedbackRequest} onClose={()=>setRunFeedbackRequest(null)} title="Extract training from this note?"><p className="text-sm leading-6 text-ink-300">Implexa will use your saved note and its exact frame to suggest a reusable lesson.</p><TrainingInfo label="What training analysis uses">{OWNER_SOURCE_CONSENT} Your note and this one frame go to Claude Haiku 5.5. The result stays a draft until you apply it.</TrainingInfo><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void beginRunFeedbackLearning()}>Extract training</button></Modal>
+    {!installationId&&session&&currentVersion&&ownerId&&<RunMarkTraining sessionId={session} currentVersionId={currentVersion} ownerId={ownerId} slug={slug} request={runFeedbackRequest} onClose={()=>setRunFeedbackRequest(null)} onScopeCheck={async()=>{const scoped=await requireCurrentScope(session);if(scoped.agent.currentVersionId!==currentVersion)throw new TrainingError('training_version_changed');}} onApplied={async()=>{await loadChanges();}}/>}
     <Modal open={feedbackRetry} onClose={()=>setFeedbackRetry(false)} title="Retry this teaching suggestion?"><p>The selected frame and your saved feedback will be sent again to Anthropic Claude Haiku 5.5.</p><button type="button" disabled={!!busy||suggesting||!demoAnnotationIsCurrent||versionChanged} onClick={()=>{setFeedbackRetry(false);setDraftConsent(true);void suggestTeaching(true);}}>Retry suggestion</button></Modal>
     <Modal open={!!feedbackRequest} onClose={()=>setFeedbackRequest(null)} title="Turn this feedback into a learning?"><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Your exact saved mark, including earlier notes and its region, is kept as the private feedback source. This frame and the complete saved mark, including earlier notes and region coordinates, are sent to Anthropic Claude Haiku 5.5 to suggest a learning. You review it before admission.</p><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void beginFeedbackLearning()}>Suggest learning</button></Modal>
     <Modal open={!!narrationRequest} onClose={()=>setNarrationRequest(null)} title={narrationRequest?.purpose==='agent'?"Teach a tool from this recording?":"Find learnings in this recording?"}><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Implexa transcribes on this Mac, then sends the transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5. Typed feedback is not included in narration analysis. The selected excerpt and three frames are used to {narrationRequest?.purpose==='agent'?'suggest a tool and method update':'suggest a learning'}. The selected excerpt and lineage are kept in your private append-only Training history. You review the suggestion before saving or accepting it.</p>{narrationRequest?.purpose==='agent'&&<label className="mt-4 block text-sm">Tool method<select className="mt-2 block w-full rounded border border-ink-700 bg-ink-900 p-2" value={agentCapability} disabled={!!busy||suggesting||!!agentChange} onChange={event=>setAgentCapability(event.target.value as typeof agentCapability)}><option value="web_reference_research">Web reference research</option><option value="presenter_background_removal">VEED presenter background</option></select><span className="mt-2 block text-xs text-ink-400">You'll review the proposal before requesting an agent update. Tool access is connected separately.</span></label>}{narrationRequest?.purpose==='agent'&&!toolFramesSupported&&<p role="status" className="mt-3 text-sm">Update Desktop to analyze demonstrated tools. Taste analysis is still available.</p>}<button type="button" className="btn-primary mt-5" disabled={!!busy||versionChanged||!recordingSupported||!!agentChange||(narrationRequest?.purpose==='agent'&&!toolFramesSupported)} onClick={()=>void beginNarrationAnalysis()}>{narrationRequest?.purpose==='agent'?'Suggest tool update':'Analyze narration'}</button></Modal>
@@ -1471,7 +1452,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&history&&<section aria-label="Earlier training" className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 className="text-xl font-medium">Learnings</h2>{versionPicker}</header><p className="text-xs text-ink-500">Earlier version · read-only</p>{history.sources.flatMap(source=>source.decisions.map(d=><details key={d.recordId} className="border-b border-ink-800 py-4"><summary className="cursor-pointer text-sm">{['draft','accepted'].includes(d.state)?d.decision.desiredBehavior||d.content.summary:'This teaching is no longer available for use.'}</summary><div className="space-y-3 pt-4 text-sm leading-6 text-ink-400">{source.token&&d.content.derivatives?.[0]?.sha256&&['draft','accepted'].includes(d.state)&&<TrainingImage token={source.token} recordId={d.recordId} recordDigest={d.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy} context={`${history.sessionId}:${history.versionId}`} alt="Earlier teaching example"/>}{['draft','accepted'].includes(d.state)&&<p>{d.content.summary}</p>}<p>{d.state} · {relationLabel(d.content.relation)}</p></div></details>))}{!history.sources.length&&<p className="text-sm text-ink-500">No examples were returned for this version.</p>}</section>}
     {!installationId&&!session&&!busy&&<button type="button" className="text-sm text-ink-300 disabled:opacity-40" disabled={!currentVersion||versionChanged} onClick={()=>{focusChat();}}>Start teaching →</button>}
     {!installationId&&session&&!history&&<TrainingDraftBundle busy={!!busy||changesBusy||versionChanged||!!pendingDemoLink||!!pendingRecordingLink||!!pendingAnswerLinks}
-      drafts={sources.flatMap(source=>source.decisions.filter(decision=>decision.state==='draft'&&![...extractionProgress.current.values()].some(progress=>progress.record?.recordId===decision.recordId&&!progress.linked)&&!!source.token&&!!decision.content.derivatives?.[0]?.sha256&&normalizeTrainingStages(decision.content.applicability?.stages).length>0).map(decision=>({id:decision.recordId,digest:decision.recordDigest,judgment:decision.decision.why||decision.decision.desiredBehavior,appliesWhen:decision.decision.process,example:decision.decision.chosen,category:decision.content.properties.map(property=>property.replaceAll('_',' ')).join(', '),renderEvidence:<TrainingImage token={source.token!} recordId={decision.recordId} recordDigest={decision.recordDigest} frameSha256={decision.content.derivatives![0].sha256} enabled={!busy&&!changesBusy} context={`${session}:${currentVersion}`} alt="Proposed teaching example" expandable/>})))}
+      drafts={sources.flatMap(source=>source.decisions.filter(decision=>decision.state==='draft'&&![...extractionProgress.current.values()].some(progress=>progress.record?.recordId===decision.recordId&&!progress.linked)&&!!source.token&&!!decision.content.derivatives?.[0]?.sha256&&normalizeTrainingStages(decision.content.applicability?.stages).length>0).map(decision=>({id:decision.recordId,digest:decision.recordDigest,judgment:decision.decision.why||decision.decision.desiredBehavior,appliesWhen:decision.decision.process,example:decision.decision.chosen,relation:decision.content.relation,category:decision.content.properties.map(property=>property.replaceAll('_',' ')).join(', '),renderEvidence:<TrainingImage token={source.token!} recordId={decision.recordId} recordDigest={decision.recordDigest} frameSha256={decision.content.derivatives![0].sha256} enabled={!busy&&!changesBusy} context={`${session}:${currentVersion}`} alt="Proposed teaching example" expandable/>})))}
       onExplain={id=>{const record=changes?.records.find(record=>record.recordId===id);if(record)void explainTeaching(record);}}
       explanationFor={id=>{const record=changes?.records.find(record=>record.recordId===id);const explanation=record&&explanations[`${changesIdentity.current}:${id}:${record.recordDigest}`];return explanation?<p role="status" className="mt-3 rounded-lg bg-ink-900/50 p-3 text-xs leading-5 text-ink-300">{explanation.state==='loading'?'Explaining this lesson…':explanation.text}{explanation.state==='ready'&&<span className="mt-2 block text-ink-500">AI explanation · saved training unchanged</span>}</p>:null;}}
       onApply={ids=>void applyVisualDrafts(ids)} onEdit={id=>{const source=sources.find(source=>source.decisions.some(decision=>decision.recordId===id));const decision=source?.decisions.find(decision=>decision.recordId===id);if(source&&decision)void reviewDecision(source,decision);}}/>}

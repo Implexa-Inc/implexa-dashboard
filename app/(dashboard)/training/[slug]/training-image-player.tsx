@@ -9,7 +9,7 @@ export default function TrainingImagePlayer({ownerId,sourceId,image,timeMs,text,
  onChange:(text:string,spatial:DraftSpatial|null)=>void;onDone:()=>void;onVoiceDirtyChange?:(dirty:boolean)=>void;
 }){
  const element=useRef<HTMLImageElement|null>(null),[spatial,setSpatial]=useState<DraftSpatial|null>(null),[voicePending,setVoicePending]=useState(false);
- const region=spatial?.geometry.kind==='rect'?{x:Math.round(spatial.geometry.x*1000000),y:Math.round(spatial.geometry.y*1000000),width:Math.round(spatial.geometry.width!*1000000),height:Math.round(spatial.geometry.height!*1000000)}:{x:0,y:0,width:1000000,height:1000000};
+ const region=spatial?.geometry.kind==='rect'?{x:Math.round(spatial.geometry.x*1000000),y:Math.round(spatial.geometry.y*1000000),width:Math.min(Math.round(spatial.geometry.width!*1000000),1000000-Math.round(spatial.geometry.x*1000000)),height:Math.min(Math.round(spatial.geometry.height!*1000000),1000000-Math.round(spatial.geometry.y*1000000))}:{x:0,y:0,width:1000000,height:1000000};
  return <section aria-label="Teach from an image" className="space-y-4 rounded-xl border border-ink-800 p-4">
   <div className="relative"><img ref={element} src={image} alt="Your training example" className="max-h-[60vh] w-full rounded-lg object-contain"/><ReviewSpatialOverlay mediaKind="image" controlsMode="external" mediaEl={()=>element.current} enabled={!disabled&&!voicePending} pins={[]} draftSpatial={spatial} freezeMedia={()=>null}
    onAnnotate={({spatial})=>{setSpatial(spatial);onChange(text,spatial);}}

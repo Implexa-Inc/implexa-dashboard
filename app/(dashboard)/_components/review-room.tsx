@@ -221,10 +221,11 @@ export default function ReviewRoom(props: ReviewRoomProps) {
   // intentionally retain their predecessor session id; current-session filtering
   // alone would make a successfully carried draft appear empty after reload.
   const carriedIssueIds = new Set(session?.carriedIssueIds ?? []);
+  const scopedIssues=allIssues.filter(issue=>props.trainingMode||issue.purpose!=='training');
   const issues = historicalCandidate
-    ? allIssues.filter((issue) => issue.artifactId === selectedId
+    ? scopedIssues.filter((issue) => issue.artifactId === selectedId
       && (issue.sessionId === session?.id || carriedIssueIds.has(issue.id)))
-    : allIssues;
+    : scopedIssues;
   const [busy, setBusy] = useState(false);
   const [cleanupPrompt, setCleanupPrompt] = useState(false);
   const [cleanupBusy, setCleanupBusy] = useState(false);
@@ -766,7 +767,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       if (editingId) {
         const { body } = await reviewAction({
           action: 'update_issue', issueId: editingId,
-          kind: d!.kind, anchor, body: d!.body.trim(),
+          kind: d!.kind, anchor, body: d!.body.trim(), ...(props.trainingMode?{purpose:'training'}:{}),
         });
         if (!body?.ok) {
           setError(body?.staleAnchor
@@ -799,7 +800,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       const { body } = await reviewAction({
         // The FROZEN file, for the same reason as the digest above.
         action: 'create_issue', sessionId: sid, artifactId: d!.target.artifactId,
-        kind: d!.kind, anchor, body: d!.body.trim(),
+        kind: d!.kind, anchor, body: d!.body.trim(), ...(props.trainingMode?{purpose:'training'}:{}),
       });
       if (!body?.ok) {
         setError(body?.staleAnchor
@@ -814,7 +815,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
       if (body.issue?.id && anchor && isSpatialAnchorV2(anchor)) void requestEvidence(body.issue.id);
     } finally { setBusy(false); }
     // NOT `artifact`: every identity this path writes now comes from the draft.
-  }, [buildAnchor, draft, ensureSession, requestEvidence]);
+  }, [buildAnchor, draft, ensureSession, requestEvidence, props.trainingMode]);
 
   const dismissIssue = useCallback(async (issueId: string) => {
     setBusy(true); setError(null);

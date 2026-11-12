@@ -650,3 +650,23 @@ test('training run voice keeps its frozen mark until explicit insert and then sa
   assert.equal(calls.some(c=>c.body.action==='submit'),false);
  }finally{for(const key of Object.keys(native))delete native[key];Object.assign(native,saved);}
 });
+
+test('training feedback carries purpose while ordinary review writes keep the default revision contract',async()=>{
+ for(const trainingMode of [false,true]){
+  await mount({trainingMode});const state=rigVideo(video(),{currentTime:33});await media(video(),'timeupdate');
+  await clickButton(/Point comment at/);await typeBody(trainingMode?'A future teaching.':'A revision request.');await clickButton(/^Save issue$/);
+  const created=calls.filter(call=>call.body.action==='create_issue').at(-1)!.body;
+  assert.equal(created.purpose,trainingMode?'training':undefined);assert.equal(Object.hasOwn(created,'purpose'),trainingMode);assert.equal(created.body,trainingMode?'A future teaching.':'A revision request.');
+  assert.equal((created.anchor as {timeStartMs:number}).timeStartMs,33000);
+ }
+ assert.equal(calls.some(call=>call.body.action==='submit'),false);
+});
+
+test('ordinary review excludes training-only notes from its rail and revision composition',async()=>{
+ const training={...storedSpatialIssue,id:'dddddddd-2222-4222-8222-222222222222',body:'Future-training-only note.',purpose:'training'};
+ const revision={...storedSpatialIssue,body:'Please revise this output.',purpose:'revision'};
+ await mount({issues:[training,revision]});
+ assert.doesNotMatch(text(),/Future-training-only note/);assert.match(text(),/Please revise this output/);assert.match(sendButton().textContent||'',/^Send 0 unresolved \+ 1 new change$/);
+ assert.equal(calls.some(call=>call.body.action==='submit'),false);
+ await mount({issues:[training],trainingMode:true,onTeachIssue:()=>{}});assert.match(text(),/Future-training-only note/);assert.ok(buttons().find(button=>button.textContent==='Extract training'));
+});

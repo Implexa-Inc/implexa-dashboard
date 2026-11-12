@@ -115,7 +115,7 @@ export function resolveReviewAction(action: string, b: Record<string, unknown>):
         path: `/api/v2/review/sessions/${sessionId}/issues`, method: 'POST',
         // `anchor` is forwarded verbatim to the backend's typed validator. There is
         // deliberately no "any JSON is fine" shortcut on either side.
-        body: { artifactId: id(b.artifactId), kind: b.kind, anchor: b.anchor, body: b.body },
+        body: { artifactId: id(b.artifactId), kind: b.kind, anchor: b.anchor, body: b.body, ...(b.purpose === 'training' ? {purpose:'training'} : {}) },
       };
     }
     case 'update_issue': {
