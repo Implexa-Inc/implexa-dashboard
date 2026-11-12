@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import {useEffect,useRef,useState} from 'react';
-import Modal from '../../_components/modal';
+import {TrainingDialog as Modal} from './training-workspace';
 import {guidedTrainingChanges,type TrainingChangeRecord} from '@/lib/guided-training-changes';
 import {trainingReviewMarkRecord,type TrainingReviewMarkRecord} from '@/lib/training-review-mark';
 

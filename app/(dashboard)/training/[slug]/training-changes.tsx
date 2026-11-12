@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
-import {useState,type ReactNode} from 'react';
+import {createPortal} from 'react-dom';
+import {useEffect,useState,type ReactNode} from 'react';
 import {TrainingInfo} from './training-workspace';
 import {trainingSnapshotReason,type GuidedTrainingChanges,type TrainingChangeRecord} from '@/lib/guided-training-changes';
 import Modal from '../../_components/modal';
@@ -8,7 +9,7 @@ import Modal from '../../_components/modal';
 type Target={eventId:string;eventDigest:string};
 const reasonCopy:Record<string,string>={question:'This was a question; a clear preference has not been supplied.',tentative:'This was a tentative idea, not a settled instruction.',agent_change:'This needs an agent setup change, not a taste teaching.',authority_request:'This needs a separate permission or spending decision.',insufficient:'There was not enough information to prepare a teaching.',not_converted:'This part has not been converted into a saved teaching.',not_guidance:'This proposal did not express a settled preference.',proposal_refused_content:'A proposed teaching could not be safely delivered. Your original feedback is preserved.',proposal_excerpt_unmatched:'The proposal could not be linked to an exact excerpt of your feedback.',proposal_excerpt_ambiguous:'The quoted excerpt was repeated, so its source was ambiguous.',proposal_excerpt_overlap:'This proposed excerpt overlapped another teaching.',proposed_guidance:'Linked to a saved teaching.'};
 const explain=(reason:string)=>reasonCopy[reason]||(/^(training_|publication_)/.test(reason)?trainingSnapshotReason(reason):reason.replaceAll('_',' '));
-export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdit,onRecord,onTest,onPublish,onImport,onWithdraw,onActivate,renderExample,captionFor,versionPicker,hideRunPanel=false,onExplain,onApplySelected,explanationFor,hiddenRecordIds=[]}:{
+export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdit,onRecord,onTest,onPublish,onImport,onWithdraw,onActivate,renderExample,captionFor,versionPicker,hideRunPanel=false,onExplain,onApplySelected,explanationFor,hiddenRecordIds=[],applyContainer,onEligibleCountChange}:{applyContainer?:HTMLElement|null;onEligibleCountChange?:(count:number)=>void;
  hiddenRecordIds?:string[];explanationFor?:(record:TrainingChangeRecord)=>ReactNode;onExplain?:(record:TrainingChangeRecord)=>void;onApplySelected?:(records:TrainingChangeRecord[])=>void|Promise<void>;
  hideRunPanel?:boolean;captionFor?:(record:TrainingChangeRecord)=>string|null;renderExample?:(record:TrainingChangeRecord,index:number)=>ReactNode;versionPicker?:ReactNode;
  value:GuidedTrainingChanges;busy?:boolean;onPolicy:(enabled:boolean,expected:GuidedTrainingChanges['policy'])=>void;onForce:(target:Target)=>void;
@@ -29,6 +30,8 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
  const pendingRecords=visibleRecords.filter(record=>['suggested','candidate'].includes(record.state));
  const savedRecords=visibleRecords.filter(record=>!['suggested','candidate'].includes(record.state));
  const selectedRecords=visibleRecords.filter(selected);
+ const eligibleCount=visibleRecords.filter(selectable).length;
+ useEffect(()=>{onEligibleCountChange?.(eligibleCount);},[eligibleCount,onEligibleCountChange]);
  const stateLabel=(r:TrainingChangeRecord)=>r.included?'Included':r.state==='suggested'?'Suggested':r.state==='removed'?'Removed':r.state==='revoked'?'Permission withdrawn':r.state==='retired'?'Stopped':r.state==='discarded'?'Discarded':'Unavailable';
  const feedbackRows=(rows:GuidedTrainingChanges['feedback'],original=false)=>rows.map(f=><article key={f.eventId} className="rounded-xl border border-ink-800 p-4 text-sm leading-6">
    <p className="mb-2 text-xs text-ink-500">{f.sourceKind==='creation_notes'?'Drafted by Implexa from your creation chat':f.sourceKind==='trainer_feedback'?'Your original feedback':'Saved source text'}</p>
@@ -51,6 +54,7 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
      {r.state==='removed'&&<button type="button" className={button} disabled={busy} onClick={()=>onRecord(r,'undo')}>Undo removal</button>}</div>
    </div></details>
   </article>;})}</div>;
+ const applyAction=onApplySelected&&pendingRecords.some(selectable)?(<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-800 p-4"><p className="text-sm text-ink-300">{selectedRecords.length} selected <span className="text-xs text-ink-500">· proposed, not applied yet</span></p>{selectedRecords.length>0&&<ul aria-label="Selected text teachings" className="w-full space-y-3 text-sm leading-6 text-ink-200">{selectedRecords.map(record=><li key={`${record.recordId}:${record.recordDigest}`} className="whitespace-pre-wrap">{record.summary}</li>)}</ul>}<button type="button" className="btn-primary" disabled={busy||selectedRecords.length===0} onClick={()=>void onApplySelected(selectedRecords)}>{busy?'Applying…':'Apply selected'}</button></div>):null;
  return <section className="space-y-5" aria-label="Your private training update">
   <header className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><h2 className="text-xl font-medium tracking-tight">Learnings</h2><TrainingInfo label="About your training update">{live.length} included · {remaining.length} feedback item{remaining.length===1?'':'s'} not fully converted. Original feedback stays available. Private edits do not change a currently served or published snapshot.</TrainingInfo></div>{versionPicker}</header>
   {onImport&&value.creationImports?.some(i=>i.importedNoteIndices.length<i.noteCount)&&<section className="rounded-xl border border-ink-800 p-4 text-sm" aria-label="Private notes from creation"><h3 className="font-medium">Bring your creation notes into Training</h3>
@@ -60,7 +64,7 @@ export default function TrainingChanges({value,busy=false,onPolicy,onForce,onEdi
   {pendingRecords.length>0&&renderRecords(pendingRecords)}
   {savedRecords.length>0&&<details className="text-sm text-ink-400"><summary className="cursor-pointer">Saved training ({savedRecords.length})</summary><div className="mt-4">{renderRecords(savedRecords)}</div></details>}
   {value.records.length===0&&<p className="text-sm text-ink-500">Your next teaching will appear here. Mark a moment or explain a preference.</p>}
-  {onApplySelected&&pendingRecords.some(selectable)&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-800 p-4"><p className="text-sm text-ink-300">{selectedRecords.length} selected <span className="text-xs text-ink-500">· proposed, not applied yet</span></p><button type="button" className="btn-primary" disabled={busy||selectedRecords.length===0} onClick={()=>void onApplySelected(selectedRecords)}>{busy?'Applying…':'Apply selected'}</button></div>}
+  {applyAction&&(applyContainer===undefined?applyAction:applyContainer?createPortal(applyAction,applyContainer):null)}
   <details className="text-sm text-ink-400"><summary className="cursor-pointer">Feedback history</summary><div className="mt-4 space-y-4">
    <details><summary className="cursor-pointer">Not converted{remaining.length?` (${remaining.length})`:''}</summary><div className="mt-3 space-y-3">{feedbackRows(remaining)}{remaining.length===0&&<p className="text-sm text-ink-500">All analysed feedback is accounted for in saved teachings.</p>}</div></details>
    <details><summary className="cursor-pointer">Original feedback</summary><div className="mt-3 space-y-3">{feedbackRows(value.feedback,true)}</div></details>

@@ -2226,6 +2226,7 @@ test('Done teaching saves exact commentary before scoped extraction and prepares
   assert.equal((draft.args.content as any).relation,'accepted');assert.deepEqual(JSON.parse(JSON.stringify((draft.args.content as any).properties)),['layout_variety']);
   assert.equal(h.calls.some(c=>['accept','recording'].includes(c.operation)),false,'source narration was not analyzed and the suggestion was not admitted');
   assert.match(r.text(),/1 draft ready to review/);assert.match(r.text(),/Nothing is live yet/);assert.equal(r.calls.push.length,0);
+  const steps=[...r.document.querySelectorAll('[aria-label="Training steps"] button')];assert.equal(steps[1].getAttribute('aria-current'),'step');await r.click(steps[0]);await flush();assert.equal(steps[0].getAttribute('aria-current'),'step','new extraction advances once; later refresh never overrides manual navigation');
  }finally{r.cleanup();}
 });
 
@@ -2244,10 +2245,12 @@ test('an uninserted voice transcript blocks source replacement just like typed u
  try{
   await r.click(r.getByText('Add a voice note'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
   assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');
+  const stepButtons=[...r.document.querySelectorAll('[aria-label="Training steps"] button')];const sameTranscript=r.document.querySelector('[aria-label="Voice note transcript"]');await r.click(stepButtons[1]);await r.click(stepButtons[0]);assert.ok(r.document.querySelector('[aria-label="Voice note transcript"]')===sameTranscript,'step navigation does not remount pending voice feedback');
   await r.click(r.getByText('▧ Recent results'));await r.click(r.document.querySelector('button[aria-label="Teach from latest result"]')!);
   assert.ok(r.document.querySelector('#training-run-player')===null,'voice commentary awaiting insertion is unsaved work');
   assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');
   assert.equal(requests.some(x=>String(x.url).includes('/run-review?')),false);assert.equal(nativeCalls.filter(c=>c.op==='transcribeVoiceNote').length,1);
+  await r.click(r.getByText('↑ Upload'));const blocked=r.document.querySelector('[role="dialog"][aria-label="Finish your current note"]')!;assert.ok(blocked);assert.ok(blocked.closest('[hidden]')===null);assert.match(blocked.textContent||'',/Save or cancel your note before uploading/);assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Keep this spoken explanation.');await r.click(r.getByText('Keep editing'));assert.ok(r.document.querySelector('[role="dialog"][aria-label="Finish your current note"]')===null);assert.equal(nativeCalls.filter(c=>c.op==='startVoiceNote').length,1);
  }finally{r.cleanup();}
 });
 
@@ -2303,4 +2306,10 @@ test('video upload requests owner-bound playback only with the advertised contra
    assert.equal(h.calls.some(c=>['recording','annotate','accept','selectRecording'].includes(c.operation)),false);assert.equal(r.calls.push.length,0);
   }finally{r.cleanup();}
  }
+});
+
+test('guided steps preserve draft selection, default to Teach and show visible final confirmation only from Apply',async()=>{
+ const h=harness({previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;h.bridge.trainingLocal=async(operation,args)=>{const result:any=await original(operation,args);if(operation==='list'&&result.sources?.[0]){const first=result.sources[0].decisions[0];first.content.derivatives=[{sha256:DIGEST}];result.sources[0].decisions=[first,{...first,recordId:QUESTION,decision:{...first.decision,why:'A second precise judgment.'}}];}return result;};
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);r.window.Element.prototype.scrollIntoView=()=>{};
+ try{const nav=r.document.querySelector('[aria-label="Training steps"]')!,steps=[...nav.querySelectorAll('button')];assert.equal(steps[0].getAttribute('aria-current'),'step','old saved drafts never auto-advance');assert.match(steps[2].textContent||'',/2 unapplied learnings/);const playing=r.document.createElement('video');let paused=0;Object.defineProperty(playing,'paused',{get:()=>false});playing.pause=()=>{paused++;};r.document.querySelector('#main-content')!.append(playing);await r.click(steps[1]);assert.equal(paused,1,'leaving Teach pauses hidden playback without touching native voice capture');playing.remove();const review=r.document.querySelector('[aria-label="Review proposed visual training"]')!;assert.ok(review.closest('[hidden]')===null);const boxes=[...review.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];assert.equal(boxes.length,2);await r.click(boxes[1]);await r.click(r.getByText('Continue to Apply & Test'));assert.ok(review.closest('[hidden]'));const apply=r.document.querySelector('[aria-label="Selected training to apply"]')!;assert.ok(apply.closest('[hidden]')===null);assert.match(apply.textContent||'',/1 visual lesson selected/);assert.match(steps[2].textContent||'',/2 unapplied learnings/);await r.click([...apply.querySelectorAll('button')].find(button=>button.textContent==='Apply selected lesson')!);const modal=r.document.querySelector('[role="dialog"][aria-label="Apply these lessons?"]')!;assert.ok(modal);assert.ok(modal.closest('[hidden]')===null);assert.equal(modal.querySelectorAll('li').length,1);assert.doesNotMatch(modal.textContent||'',/second precise/);await r.click(r.getByText('Keep reviewing'));await r.click(r.getByText('Review selection'));assert.equal(boxes[1].checked,false);assert.equal(h.calls.some(call=>call.operation==='accept'),false);}finally{r.cleanup();}
 });

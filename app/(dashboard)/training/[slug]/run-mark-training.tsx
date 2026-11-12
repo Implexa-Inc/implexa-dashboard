@@ -1,7 +1,9 @@
 'use client';
 
 import {useEffect,useRef,useState} from 'react';
-import Modal from '../../_components/modal';
+import {createPortal} from 'react-dom';
+import type {TrainingStep} from './training-workspace';
+import {TrainingDialog as Modal} from './training-workspace';
 import TrainingDraftBundle from './training-draft-bundle';
 import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import {deriveTrainingStages,type TrainingPropertyCode} from '@/lib/training-local-ingress';
@@ -57,7 +59,7 @@ function MarkedEvidenceImage({entry,ownerId,sessionId,currentVersionId}:{entry:P
 }
 
 /** One consent and review bundle over the existing per-mark prior-work writers. */
-export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug,requests,onClose,onApplied,onScopeCheck}:{
+export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug,requests,onClose,onApplied,onScopeCheck,applyContainer,onEligibleCountChange,onReviewReady,activeStep}:{activeStep?:TrainingStep;applyContainer?:HTMLElement|null;onEligibleCountChange?:(count:number)=>void;onReviewReady?:()=>void;
  sessionId:string;currentVersionId:string;ownerId:string;slug:string;requests:RunMarkRequest[]|null;
  onClose:()=>void;onApplied:()=>void|Promise<void>;onScopeCheck:()=>void|Promise<void>;
 }){
@@ -106,7 +108,7 @@ export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug
    try{const entry=await extractOne(selected,key,expected);await checked(expected);update(entry);setNextIndex(index+1);}
    catch(caught){if(active.current!==expected)throw caught;let saved:Journal;try{saved=readJournal(key);}catch{saved={version:1,phase:'prepared'};}update({request:selected,key,journal:saved,error:caught instanceof Error?caught.message:'This note could not be analyzed.'});setNextIndex(saved.phase==='drafting'?index+1:index);throw caught;}
    if(pause.current&&index+1<requests.length){setNote('Extraction paused. Your saved notes and proposed lessons are preserved.');return;}
-  }setNote('Your proposed lessons are ready to review. Nothing is live yet.');}
+  }setNote('Your proposed lessons are ready to review. Nothing is live yet.');onReviewReady?.();}
   catch(caught){if(active.current===expected&&generation.current===epoch){setError(caught instanceof Error?caught.message:'Teaching unavailable.');setNote('Completed proposals are preserved. Remaining notes can be resumed.');}}
   finally{flight.current=false;if(active.current===expected&&generation.current===epoch){setBusy(false);setExtracting(false);}}
  }
@@ -151,17 +153,19 @@ export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug
  }
  function edit(entry:Proposal,patch:Partial<Journal>){if(busy||entry.journal.phase==='applying')return;const next={...entry.journal,...patch};writeJournal(entry.key,next);update({...entry,journal:next});}
  const close=()=>{if(!busy)onClose();},pending=entries.filter(entry=>entry.journal.phase!=='applied'&&!entry.journal.conflict&&supported(entry)&&!entry.error),held=entries.filter(entry=>entry.journal.phase!=='applied'&&(!!entry.journal.conflict||!supported(entry)||!!entry.error)),editing=pending.find(entry=>entry.request.issue.id===editingId);
+ useEffect(()=>{onEligibleCountChange?.(requests?.length?pending.length:0);},[pending.length,requests?.length,onEligibleCountChange]);
  if(!requests?.length)return null;
  return <>
+ {activeStep===3&&applyContainer&&createPortal(<div className="space-y-2">{note&&<p role="status" className="text-sm text-ink-300">{note}</p>}{error&&<p role="alert" className="text-sm text-amber-300">{error}</p>}</div>,applyContainer)}
  <Modal open={!consented} onClose={close} title={requests.length===1?'Extract training from this note?':`Extract training from ${requests.length} notes?`} maxWidth="max-w-3xl">
   <p className="text-sm leading-6 text-ink-300">Implexa will use your saved notes and their marked frames to suggest reusable lessons.</p><details className="mt-3 text-xs leading-5 text-ink-500"><summary className="cursor-pointer">What gets analyzed</summary><p className="mt-2">These {requests.length} saved note{requests.length===1?'':'s'} and one saved image per note go to Claude Haiku 5.5, separately. Applying lessons approves these examples for training; it leaves the video’s acceptance and revision unchanged.</p></details><button type="button" className="btn-primary mt-5" disabled={busy} onClick={()=>void extract()}>Extract training</button>
  </Modal>
  {consented&&<section ref={proposalRef} tabIndex={-1} aria-label="Lessons from your marked result" className="space-y-4 outline-none"><div className="flex justify-end"><button type="button" disabled={busy} onClick={close} className="text-xs text-ink-400 underline">Close proposals</button></div>
-  {note&&<p role="status" className="text-sm leading-6 text-ink-300">{note}</p>}
+  {activeStep!==3&&note&&<p role="status" className="text-sm leading-6 text-ink-300">{note}</p>}
   {editing&&<div className="mb-4 grid gap-3 rounded-xl border border-ink-700 p-4">{editing.journal.ownerRelationOverride&&<p className="text-xs leading-5 text-ink-400">Implexa suggested: {relationText(editing.journal.suggestion!.scopeSuggestion!.relation)}. You changed it to: <strong className="text-ink-200">{relationText(editing.journal.ownerRelationOverride)}</strong>.</p>}<label className="text-xs text-ink-400">How to use this example<select aria-label="How to use this example" value={effectiveRelation(editing)} disabled={busy||editing.journal.phase==='applying'} className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-950 p-3 text-sm text-ink-100" onChange={event=>{const value=event.target.value;if(value==='accepted'||value==='rejected')edit(editing,{ownerRelationOverride:value===editing.journal.suggestion!.scopeSuggestion!.relation?undefined:value});}}><option value="accepted">Keep this example</option><option value="rejected">Avoid this example</option></select></label>{TEACHING_FIELDS.map(field=><label key={field} className="text-xs text-ink-400">{fieldLabels[field]}<textarea className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-950 p-3 text-sm text-ink-100" value={editing.journal.fields![field]} maxLength={400} disabled={busy||editing.journal.phase==='applying'} onChange={event=>edit(editing,{fields:{...editing.journal.fields!,[field]:event.target.value}})}/></label>)}</div>}
-  <TrainingDraftBundle drafts={pending.map(entry=>{const saved=entry.journal,fields=saved.fields!,scope=saved.suggestion!.scopeSuggestion!;return {id:entry.request.issue.id,digest:JSON.stringify({fields,binding:saved.context?.binding}),judgment:fields.why,appliesWhen:fields.process,example:fields.chosen,category:scope.property.replaceAll('_',' '),relation:effectiveRelation(entry),relationOrigin:saved.ownerRelationOverride?'owner' as const:'model' as const,sourceNote:{body:entry.request.issue.body,purpose:entry.request.issue.purpose||'revision' as const},renderEvidence:<MarkedEvidenceImage entry={entry} ownerId={ownerId} sessionId={sessionId} currentVersionId={currentVersionId}/>};})} busy={busy} onApply={ids=>void applySelected(ids)} onEdit={id=>setEditingId(value=>value===id?null:id)}/>
+  <TrainingDraftBundle applyContainer={applyContainer} drafts={pending.map(entry=>{const saved=entry.journal,fields=saved.fields!,scope=saved.suggestion!.scopeSuggestion!;return {id:entry.request.issue.id,digest:JSON.stringify({fields,binding:saved.context?.binding}),judgment:fields.why,appliesWhen:fields.process,example:fields.chosen,category:scope.property.replaceAll('_',' '),relation:effectiveRelation(entry),relationOrigin:saved.ownerRelationOverride?'owner' as const:'model' as const,sourceNote:{body:entry.request.issue.body,purpose:entry.request.issue.purpose||'revision' as const},renderEvidence:<MarkedEvidenceImage entry={entry} ownerId={ownerId} sessionId={sessionId} currentVersionId={currentVersionId}/>};})} busy={busy} onApply={ids=>void applySelected(ids)} onEdit={id=>setEditingId(value=>value===id?null:id)}/>
   {held.length>0&&<details className="rounded-xl border border-amber-800/60 p-4 text-sm"><summary className="cursor-pointer">Needs clarification ({held.length})</summary>{held.map(entry=><div key={entry.request.issue.id} className="mt-4 space-y-2"><p>{entry.request.issue.body}</p><p className="text-xs text-ink-400">{entry.error||entry.journal.suggestion?.reason||'This example needs its category or use clarified before it can be applied. Edit its saved note, then extract again.'}</p>{entry.journal.conflict&&<button type="button" className="text-xs text-brand-400 underline" disabled={busy||!entry.journal.conflict.existingRecordId||!entry.journal.conflict.recordDigest} onClick={()=>void retryAfterWithdrawal(entry)}>Retry this Apply after withdrawal</button>}</div>)}</details>}
-  {error&&<p role="alert" className="text-sm leading-6 text-amber-300">{error}</p>}
+  {activeStep!==3&&error&&<p role="alert" className="text-sm leading-6 text-amber-300">{error}</p>}
   {extracting?<button type="button" className="text-xs text-ink-400 underline" onClick={()=>{pause.current=true;}}>Pause after this note</button>:!busy&&nextIndex<requests.length&&<button type="button" className="text-sm text-brand-400" onClick={()=>void extract()}>Resume extraction</button>}
   {!busy&&pending.some(entry=>entry.journal.phase==='applying')&&<button type="button" className="text-sm text-brand-400" onClick={()=>void applySelected(pending.filter(entry=>entry.journal.phase==='applying').map(entry=>entry.request.issue.id))}>Confirm pending Apply</button>}
  </section>}
