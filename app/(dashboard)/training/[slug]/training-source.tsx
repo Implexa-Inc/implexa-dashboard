@@ -1495,7 +1495,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
 
         {group.map(q => <article key={q.id} className="border-t border-ink-800 pt-2 space-y-1">
           <label className="flex gap-2"><input type="checkbox" aria-label={`Select question ${q.questionId}`} checked={questionIds.includes(q.id)} onChange={event => setQuestionIds(ids => event.target.checked ? [...ids, q.id] : ids.filter(id => id !== q.id))} />{q.question}</label>
-          <TrainingDetails title="Question details"><p>question version {shortId(q.questionVersionId)} · {trainingStageLabel(q.stage)}</p><p>{Math.max(...group.map(item=>item.recurrenceCount))} recorded questions for this version, stage and property; {group.length} loaded here. These are not necessarily the same question.</p>
+          <TrainingDetails title="Question details"><p>A returned reference is not proof that it answered the question or was applied.</p><p>question version {shortId(q.questionVersionId)} · {trainingStageLabel(q.stage)}</p><p>{Math.max(...group.map(item=>item.recurrenceCount))} recorded questions for this version, stage and property; {group.length} loaded here. These are not necessarily the same question.</p>
           <p><Link href={`/runs/${q.runId}`}>Run {shortId(q.runId)}</Link> · {q.runState || q.runStatus || 'State not recorded'} · {q.sceneElement}</p>
           <p>{questionOutcomeLabel(q.outcome)}</p>
           <p>Returned reference IDs: {q.returnedReferenceIds.length ? q.returnedReferenceIds.map(shortId).join(', ') : 'none'}.</p>
