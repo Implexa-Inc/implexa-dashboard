@@ -94,7 +94,7 @@ test('source picker selects recent results inline and keeps chat beside source c
   assert.equal(r.document.querySelector('a[href="/training/video-agent/review/run"]'),null);
   await r.click(r.document.querySelector('#training-chat-toggle')!);assert.equal(chatted,1);
   await r.rerender({...props,sourceActive:true});assert.equal((r.document.querySelector('#training-recent-results') as HTMLElement).hidden,true);
-  const recent=[...r.document.querySelectorAll('button')].find(el=>el.textContent?.includes('Recent results'))!;
+  const recent=[...r.document.querySelectorAll('button')].find(el=>el.textContent?.includes('Give feedback on a recent result'))!;
   await r.click(recent);assert.equal((r.document.querySelector('#training-recent-results') as HTMLElement).hidden,false);
  }finally{r.cleanup();}
 });
@@ -106,4 +106,20 @@ test('step navigation selects explicitly, highlights the active step and counts 
 test('explanations render bounded bullet text safely and preserve older prose without losing facts',async()=>{
  const r=await render(component,{text:'- Prefer a meaningful visual.\n- Use it when geography matters.\n- <script>not executable</script>'},{exportName:'TrainingExplanation'});
  try{assert.equal(r.document.querySelectorAll('li').length,3);assert.ok(r.document.querySelector('script')===null);assert.match(r.text(),/<script>not executable<\/script>/);const prior='One exact older response.\nIts full second line stays.';await r.rerender({text:prior});assert.ok(r.document.querySelector('ul')===null);assert.equal(r.document.querySelector('p')?.textContent,prior);}finally{r.cleanup();}
+});
+
+
+test('attention cards group actions, route explicitly and defer without resolving saved work',async()=>{
+ const calls:string[]=[];
+ const review={key:'review:one',title:'Review new training',description:'Two lessons are ready.',label:'Review lessons',optional:true,action:()=>calls.push('review')};
+ const setup={key:'readiness',title:'Check setup',description:'Some lessons need attention.',label:'Check setup',optional:false,action:()=>calls.push('setup')};
+ const r=await render(component,{cards:[review,setup]},{exportName:'TrainingAttention'});
+ try{
+  assert.equal(r.document.querySelectorAll('article').length,2);
+  await r.click([...r.document.querySelectorAll('button')].find(b=>b.textContent==='Review lessons →')!);assert.deepEqual(calls,['review']);
+  await r.click(r.document.querySelector('[aria-label="Later: Review new training"]')!);
+  assert.equal(r.document.querySelectorAll('article').length,1);assert.deepEqual(calls,['review']);
+  assert.equal(r.document.querySelector('[aria-label="Later: Check setup"]'),null);
+  await r.rerender({cards:[]});assert.equal(r.document.querySelector('[aria-label="Your input needed"]'),null);
+ }finally{r.cleanup();}
 });
