@@ -96,7 +96,7 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
    {selected?.questions?.[0]&&!isBuilt&&<ChatChoices question={selected.questions[0]} choices={creationQuestionChoices(selected.questions[0],selected.brief)} disabled={busy||isPending} onChoose={value=>{setText(value);composer.current?.focus();}}/>}
   </ChatFrame></aside>
   <div className="min-w-0 space-y-5">
-   <div className="flex items-center justify-between gap-4"><p className="text-[10px] uppercase tracking-[.18em] text-ink-500">Your agent, prepared with you</p>
+   <div className="flex items-center justify-between gap-4"><p className="text-[10px] uppercase tracking-[.18em] text-ink-500">Your agent, prepared with you{selected?.brief&&!isBuilt&&<span className="ml-3 rounded border border-ink-700 px-2 py-1 normal-case tracking-normal">Draft</span>}</p>
     <button type="button" className="text-xs text-ink-400 underline" disabled={busy} onClick={startNew}>{selected?'Copy to a new draft':'New draft'}</button></div>
    {!selected?.brief&&<div className="rounded-xl border border-ink-800 p-6"><h2 className="text-xl font-medium">{data?.withdrawn?'This draft is withdrawn.':selected?'A few details, then your agent is ready.':'Start with the job you want done.'}</h2>
     <p className="mt-3 text-sm leading-6 text-ink-400">{data?.withdrawn?'Choose New draft to start again. This draft can no longer prepare replies or queue a build.':selected?'Answer the next question in chat. Your goal, tools, input and output will appear here.':'Explain it in chat. Implexa will prepare the goal, tools, input and output for you. Nothing is built until you choose Build.'}</p></div>}
