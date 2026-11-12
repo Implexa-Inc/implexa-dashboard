@@ -59,3 +59,16 @@ test('an owner-corrected relation is attributed to the owner in both card and fr
  const r=await render(component,{drafts:[{...draft,relation:'rejected',relationOrigin:'owner'}],busy:false,onApply:()=>{},onEdit:()=>{}});
  try{assert.match(r.text(),/Your choice: avoid this/);assert.doesNotMatch(r.text(),/Implexa suggests: avoid this/);await r.click(openButton(r));assert.match(dialog(r).textContent||'',/Your choice: avoid this/);assert.doesNotMatch(dialog(r).textContent||'',/Suggested by Implexa/);}finally{r.cleanup();}
 });
+
+for(const purpose of ['revision','training'] as const)test(`final confirmation shows the original ${purpose} note alongside its approved use`,async()=>{
+ const sourceNote={body:'The diagram needs a clearer relationship, not just the word Connected.',purpose},r=await render(component,{drafts:[{...draft,sourceNote}],busy:false,onApply:()=>{},onEdit:()=>{}});
+ try{await r.click(openButton(r));const summary=dialog(r).textContent||'';assert.match(summary,new RegExp(purpose==='revision'?'Sent for revision':'Training note'));assert.match(summary,/diagram needs a clearer relationship/);assert.match(summary,/keep this/);assert.match(summary,/layout variety/);}finally{r.cleanup();}
+});
+for(const change of [{body:'A different original note.'},{purpose:'training' as const}])test(`changed saved-note ${Object.keys(change)[0]} invalidates an already-open final confirmation`,async()=>{
+ const sourceNote={body:'Please change this result.',purpose:'revision' as const},props={drafts:[{...draft,sourceNote}],busy:false,onApply:()=>assert.fail('stale note must not apply'),onEdit:()=>{}},r=await render(component,props);
+ try{await r.click(openButton(r));await r.rerender({...props,drafts:[{...draft,sourceNote:{...sourceNote,...change}}]});assert.equal(confirmButton(r).disabled,true);assert.match(dialog(r).textContent||'',/A selected lesson changed/);assert.match(dialog(r).textContent||'',/Please change this result/);}finally{r.cleanup();}
+});
+test('long source feedback stays readable in the summary with its full original text available',async()=>{
+ const body='A detailed original note. '.repeat(40),r=await render(component,{drafts:[{...draft,sourceNote:{body,purpose:'training'}}],busy:false,onApply:()=>{},onEdit:()=>{}});
+ try{await r.click(openButton(r));const summary=dialog(r);assert.match(summary.textContent||'',/Training note/);assert.match(summary.textContent||'',/Full saved note/);assert.equal(summary.querySelector('details p')?.textContent,body);const label=[...summary.querySelectorAll('p')].find(p=>p.textContent==='Training note');assert.equal(label?.nextElementSibling?.textContent,body.slice(0,240)+'…');}finally{r.cleanup();}
+});
