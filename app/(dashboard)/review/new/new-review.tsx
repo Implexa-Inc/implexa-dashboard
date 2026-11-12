@@ -91,7 +91,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
     if (a.state !== 'ready') return;
     void refresh();
     const off = client.subscribe((change) => {
-      if (change.state === 'start_failed' && change.failure) {
+      if (change.origin!=='voice_note' && change.state === 'start_failed' && change.failure) {
         startedRef.current = null;
         setStartFailure(change.failure);
       }
@@ -121,7 +121,8 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
   const upload = () => work('upload', async () => {
     try {
       const { recordingId } = await client.importVideo();
-      router.push(recordingHref(recordingId));
+      if(presentation==='training'&&onReadyRef.current)onReadyRef.current(recordingId);
+      else router.push(recordingHref(recordingId));
     } finally {
       // A failed copy stays in the library (listed as failed), so show it.
       void refresh();
@@ -132,6 +133,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
 
   const ready = availability?.state === 'ready';
   const recorderBusy = active !== null;
+  const activeLabel=active?.origin==='voice_note'?(active.state==='recording'?'Recording voice note…':active.state==='finalizing'?'Saving voice note…':'Opening voice note…'):active?ACTIVE_STATE_LABELS[active.state]:'';
 
   const startFailureDialog=(<Modal open={startFailure !== null} onClose={() => setStartFailure(null)} title="Recording did not start">
         {startFailure && <>
@@ -142,21 +144,16 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
           </details>
         </>}
       </Modal>);
-  if(presentation==='training')return <section className="space-y-4 border-y border-ink-800 py-6" aria-labelledby="multimodal-training-heading">
+  if(presentation==='training')return <section className="contents" aria-label="Record or upload training">
     {startFailureDialog}
-    <header><h2 id="multimodal-training-heading" className="text-lg font-medium">Multimodal Training</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-ink-400">You can upload a video/image and annotate directly, or record a video describing the training. Implexa extracts suggested learnings for you to review.</p></header>
-    <div className="flex flex-wrap items-center gap-3">
-      <button type="button" disabled={uploadDisabled||uploading} onClick={onTrainingUpload} className="rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 disabled:opacity-40">{uploading?'Opening your example…':'Upload and annotate Video/Image'}</button>
-      <button type="button" disabled={!ready||!ownerId||busy('record')||(recorderBusy&&active?.state!=='permission_required')} onClick={()=>void record()} className="rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 disabled:opacity-40">{busy('record')?'Opening recorder…':active?.state==='permission_required'?'Open permission setup':'Record your training'}</button>
-      <TrainingInfo label="About multimodal training">Select a file you created as a private training source. Originals stay on this Mac. Recording uses your screen and microphone; macOS asks for access when needed. Analysis and including a suggested teaching keep their existing review steps.</TrainingInfo>
-    </div>
-    {availability&&availability.state!=='ready'&&<p className="text-xs text-ink-400">{availability.message}</p>}
-    <p className="text-[11px] leading-5 text-ink-500" data-testid="record-notice">{RECORD_NOTICE}</p>
-    {onRecordingReady?<details className="text-xs text-ink-400"><summary className="cursor-pointer">Saved recordings</summary><ul className="mt-3 space-y-3">{recordings?.map(r=><li key={r.recordingId} className="flex items-center justify-between gap-3"><span>{r.title||'Recording'} · {r.state}</span><button type="button" className="underline underline-offset-4" onClick={()=>onRecordingReady(r.recordingId)}>Open</button></li>)}</ul>{recordings?.length===0&&<p className="mt-3">No recordings yet.</p>}</details>:<Link href={`/review/new?trainingSlug=${encodeURIComponent(trainingSlug||'')}`} className="inline-block text-xs text-ink-400 hover:text-ink-100">Saved recordings</Link>}
-    {trainingRecording&&<div role="status" className="text-sm text-ink-300"><p>{trainingRecording.state==='ready'?'Your recording is ready to annotate.':trainingRecording.state==='failed'?failureMessage(trainingRecording.failureReason):'Recording interrupted. Open it to recover the saved portion.'}</p><Link href={recordingHref(trainingRecording.recordingId)} className="mt-2 inline-block underline underline-offset-4">{trainingRecording.state==='ready'?'Annotate recording':'Open recording'}</Link></div>}
-    {active&&<p role="status" className="text-xs text-ink-400">{ACTIVE_STATE_LABELS[active.state]}</p>}
-    {error&&<p role="alert" className="text-sm text-rose-300">{error}</p>}
-    {loadError&&<p role="status" className="text-sm text-amber-300">{loadError}</p>}
+    <button type="button" disabled={!ready||!ownerId||busy('record')||(recorderBusy&&(active?.origin==='voice_note'||active?.state!=='permission_required'))} onClick={()=>void record()} className="inline-flex items-center gap-2 rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 disabled:opacity-40">{busy('record')?'Opening recorder…':active?.state==='permission_required'?'Open permission setup':'◉ Record'}</button>
+    <button type="button" disabled={uploadDisabled||uploading||busy('upload')||(!onTrainingUpload&&!ready)} onClick={()=>onTrainingUpload?onTrainingUpload():void upload()} className="inline-flex items-center gap-2 rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 disabled:opacity-40">{uploading||busy('upload')?'Opening your example…':'↑ Upload'}</button>
+    <details className="relative text-sm text-ink-400"><summary className="cursor-pointer rounded-lg border border-ink-700 px-4 py-2.5 hover:border-ink-500">Saved recordings</summary><div className="absolute left-0 top-full z-20 mt-2 w-72 max-w-[80vw] rounded-xl border border-ink-700 bg-ink-950 p-3 shadow-xl"><ul className="max-h-64 space-y-1 overflow-y-auto">{recordings?.map(r=><li key={r.recordingId}><button type="button" className="w-full rounded-lg px-3 py-2 text-left hover:bg-ink-800/50" onClick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');if(onRecordingReady)onRecordingReady(r.recordingId);else router.push(recordingHref(r.recordingId));}}><span className="block text-ink-200">{r.title||'Recording'}</span><span className="text-xs text-ink-500">{formatRecordingDuration(r.durationMs)} · {r.state}</span></button></li>)}</ul>{recordings?.length===0&&<p className="px-3 py-2 text-xs">No recordings yet.</p>}{loadError&&<p role="status" className="px-3 py-2 text-xs text-amber-300">{loadError}</p>}</div></details>
+    <TrainingInfo label="About recording and uploads"><span data-testid="record-notice">{RECORD_NOTICE}</span> Recording includes your microphone. The source stays on this Mac; selected feedback and evidence are used to propose training for your review.</TrainingInfo>
+    {availability&&availability.state!=='ready'&&<p className="basis-full text-xs text-ink-400">{availability.message}</p>}
+    {trainingRecording&&<div role="status" className="basis-full text-sm text-ink-300"><p>{trainingRecording.state==='ready'?'Your recording is ready to annotate.':trainingRecording.state==='failed'?failureMessage(trainingRecording.failureReason):'Recording interrupted. Open it to recover the saved portion.'}</p><Link href={recordingHref(trainingRecording.recordingId)} className="mt-2 inline-block underline underline-offset-4">{trainingRecording.state==='ready'?'Annotate recording':'Open recording'}</Link></div>}
+    {active&&<p role="status" className="basis-full text-xs text-ink-400">{activeLabel}</p>}
+    {error&&<p role="alert" className="basis-full text-sm text-rose-300">{error}</p>}
   </section>;
 
   return (
@@ -212,7 +209,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
             </label>
             <button
               type="button"
-              disabled={!ready || busy('record') || (recorderBusy && active?.state !== 'permission_required')}
+              disabled={!ready || busy('record') || (recorderBusy && (active?.origin==='voice_note'||active?.state !== 'permission_required'))}
               onClick={() => void record()}
               className="mt-3 rounded-md bg-rose-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -224,7 +221,7 @@ export default function NewReview({ownerId,trainingSlug,presentation='review',on
 
         {active && (
           <p role="status" className="mt-4 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-200">
-            {ACTIVE_STATE_LABELS[active.state]}
+            {activeLabel}
           </p>
         )}
 

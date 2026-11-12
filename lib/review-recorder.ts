@@ -95,20 +95,20 @@ export type RecordingSummary = {
   momentCount: number;
 };
 export type RecordingDetail = RecordingSummary & { pointerTrack: PointerTrack | null; moments: Moment[] };
-export type ActiveRecording = { recordingId: string; state: ActiveState };
+export type ActiveRecording = { recordingId: string; state: ActiveState; origin?: 'voice_note' };
 export type LibraryUsage = { usedBytes: number; limitBytes: number };
 export type RecordingPreview = { url: string; mime: 'video/mp4'; token: string };
 const START_FAILURE_PHASES = ['display', 'recorder_construct', 'recorder_start', 'started_ack', 'countdown_deadline', 'other'] as const;
 const START_ERROR_NAMES = ['NotAllowedError', 'NotFoundError', 'NotReadableError', 'AbortError', 'NotSupportedError',
   'InvalidStateError', 'SecurityError', 'OverconstrainedError', 'TypeError', 'other'] as const;
 const DISPLAY_FAILURE_REASONS = ['not_armed', 'frame_mismatch', 'phase', 'source_missing', 'sources_failed', 'source_binding_missing',
-  'permission_media_types', 'permission_frame', 'permission_url', 'permission_consumed', 'permission_check', 'not_reported'] as const;
+  'permission_media_types', 'permission_frame', 'permission_url', 'permission_consumed', 'permission_check', 'not_reported', 'microphone_unavailable'] as const;
 export type RecorderStartFailure = {
   phase: typeof START_FAILURE_PHASES[number];
   errorName: typeof START_ERROR_NAMES[number];
   reason: typeof DISPLAY_FAILURE_REASONS[number];
 };
-export type RecorderChange = { ownerId:string; recordingId: string; state: string; failure?: RecorderStartFailure };
+export type RecorderChange = { ownerId:string; recordingId: string; state: string; origin?:'voice_note'; failure?: RecorderStartFailure };
 
 export function recorderStartFailureMessage(failure: RecorderStartFailure): string {
   if (failure.reason === 'source_missing') return 'The selected screen or window disappeared before recording started. No recording was saved.';
@@ -319,19 +319,21 @@ export function isLibraryUsage(v: unknown): v is LibraryUsage {
 }
 
 export function isActiveRecording(v: unknown): v is ActiveRecording {
-  return exact(v, ['recordingId', 'state']) && isRecordingId(v.recordingId)
+  return (exact(v, ['recordingId', 'state']) || exact(v,['recordingId','state','origin']) && v.origin==='voice_note') && isRecordingId(v.recordingId)
     && (ACTIVE_STATES as readonly unknown[]).includes(v.state);
 }
 
 export function isRecorderChange(v: unknown): v is RecorderChange {
-  if (!isObj(v) || !exact(v, v.state === 'start_failed' ? ['ownerId', 'recordingId', 'state', 'failure'] : ['ownerId', 'recordingId', 'state'])
+  if (!isObj(v) || !exact(v, [...(v.state === 'start_failed' ? ['ownerId', 'recordingId', 'state', 'failure'] : ['ownerId', 'recordingId', 'state']),...(v.origin===undefined?[]:['origin'])]) || v.origin!==undefined&&v.origin!=='voice_note'
     || typeof v.ownerId !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v.ownerId)
     || !isRecordingId(v.recordingId) || typeof v.state !== 'string' || v.state.length === 0 || v.state.length > 64) return false;
+  if(v.origin==='voice_note'&&!['choosing','countdown','recording','finalizing','ready','failed','cancelled','discarded','start_failed'].includes(v.state))return false;
   if (v.state !== 'start_failed') return true;
   return exact(v.failure, ['phase', 'errorName', 'reason'])
     && (START_FAILURE_PHASES as readonly unknown[]).includes(v.failure.phase)
     && (START_ERROR_NAMES as readonly unknown[]).includes(v.failure.errorName)
-    && (DISPLAY_FAILURE_REASONS as readonly unknown[]).includes(v.failure.reason);
+    && (DISPLAY_FAILURE_REASONS as readonly unknown[]).includes(v.failure.reason)
+    && (v.failure.reason!=='microphone_unavailable'||v.origin==='voice_note');
 }
 
 // ── per-operation response parsers (pure; exported for tests) ────────────────
@@ -404,6 +406,7 @@ export const parse = {
 
 type RecorderBridge = {
   reviewRecorderContractVersion?: unknown;
+  trainerCommentaryContractVersion?: unknown;
   reviewRecorder?: unknown;
   onReviewRecorderChanged?: unknown;
 };
@@ -444,6 +447,8 @@ export type ReviewRecorderClient = ReturnType<typeof createReviewRecorderClient>
  * the bridge, so the "ids only" rule is enforced in one place (and tested there).
  */
 export function createReviewRecorderClient(win?: unknown, expectedOwnerId?: string) {
+  const voiceOrigins=new Set<string>();
+  const rememberVoice=(id:string)=>{voiceOrigins.add(id);if(voiceOrigins.size>256)voiceOrigins.delete(voiceOrigins.values().next().value!);};
   function invoker(): InvokeFn {
     const availability = recorderAvailability(win);
     if (availability.state !== 'ready') throw new RecorderError(availability.state);
@@ -466,7 +471,20 @@ export function createReviewRecorderClient(win?: unknown, expectedOwnerId?: stri
       if (typeof microphone !== 'boolean') throw new RecorderError('request_invalid');
       return parse.start(await call('start', { microphone }));
     },
-    async status() { return parse.status(await call('status')); },
+    async status() {
+      const parsed=parse.status(await call('status')),active=parsed.active;
+      if(!active)return parsed;
+      // The v2 status wire stays {recordingId,state}. Live voice events identify the
+      // mode; after reload, the existing owner-bound metadata read restores it.
+      if(active.origin==='voice_note')rememberVoice(active.recordingId);
+      if(!voiceOrigins.has(active.recordingId)&&bridgeOf(win)?.trainerCommentaryContractVersion==='1')try{
+        const result=await call('getVoiceNote', {recordingId:active.recordingId});
+        if(isObj(result)&&result.ok===true&&isObj(result.voiceNote)&&result.voiceNote.voiceNoteId===active.recordingId
+          &&isObj(result.voiceNote.attach)&&['recording','upload','run_artifact'].includes(String(result.voiceNote.attach.sourceKind))
+          &&typeof result.voiceNote.attach.sourceRef==='string'&&result.voiceNote.attach.sourceRef.length>0)rememberVoice(active.recordingId);
+      }catch{/* A normal screen recording is not a voice note; its status remains usable. */}
+      return voiceOrigins.has(active.recordingId)?{active:{...active,origin:'voice_note' as const}}:parsed;
+    },
     async list() { return parse.list(await call('list')); },
     async get(recordingId: string) {
       assertRecordingId(recordingId);
@@ -498,7 +516,7 @@ export function createReviewRecorderClient(win?: unknown, expectedOwnerId?: stri
       if (recorderAvailability(win).state !== 'ready' || typeof b?.onReviewRecorderChanged !== 'function') return () => {};
       let off: unknown;
       try {
-        off = (b.onReviewRecorderChanged as (fn: (e: unknown) => void) => unknown)((e) => { if (isRecorderChange(e) && e.ownerId===expectedOwnerId) cb(e); });
+        off = (b.onReviewRecorderChanged as (fn: (e: unknown) => void) => unknown)((e) => { if (isRecorderChange(e) && e.ownerId===expectedOwnerId) {if(e.origin==='voice_note')rememberVoice(e.recordingId);cb(e);} });
       } catch { return () => {}; }
       return () => { if (typeof off === 'function') { try { off(); } catch { /* already gone */ } } };
     },

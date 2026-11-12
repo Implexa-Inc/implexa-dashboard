@@ -24,9 +24,10 @@
 
 import {trainingReviewHref} from '@/lib/training-review-routing';
 import { ReviewAudioEvidence } from './review-audio-evidence';
+import TrainerVoiceNote from './trainer-voice-note';
 import HistoricalReviewCandidateNotice from './historical-review-candidate-notice';
 import type { HistoricalReviewCandidate } from '@/lib/historical-review-candidate';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReviewArtifact, ReviewIssue, ReviewProduction, ReviewSession, ReviewSessionArtifact, SourceState } from '@/lib/review';
 import {
@@ -78,7 +79,14 @@ import {
   type DraftSpatial, type FeedbackDraft, type FrozenTarget, type PendingRange, type RangeAttempt,
 } from '@/lib/review-timestamp-feedback';
 
-type Props = {
+export type ReviewRoomProps = {
+  /** Reuses the same annotation writer; revision controls stay in Review Room. */
+  trainingMode?: boolean;
+  trainingOwnerId?: string;
+  onTeachIssue?: (issue: ReviewIssue, artifact: ReviewArtifact) => void;
+  onDoneTeaching?: (notes:Array<{issue:ReviewIssue;artifact:ReviewArtifact}>)=>void;
+  onDirtyChange?: (dirty: boolean) => void;
+  renderVoiceNote?: (binding: {artifactId:string|null;sha256:string|null;frameMs:number|null}, onText:(text:string)=>void) => ReactNode;
   trainingSlug?:string;
   runId: string;
   agentSlug?: string | null;
@@ -139,7 +147,7 @@ function formatSignedMs(ms: number): string {
   return `${ms < 0 ? '-' : ''}${formatMs(Math.abs(ms))}`;
 }
 
-export default function ReviewRoom(props: Props) {
+export default function ReviewRoom(props: ReviewRoomProps) {
   const router = useRouter();
   const { runId, artifacts, production, sources, isApprovalHold } = props;
   const historicalProvenanceUnavailable = sources.historical_candidates === 'unavailable'
@@ -214,10 +222,11 @@ export default function ReviewRoom(props: Props) {
   // intentionally retain their predecessor session id; current-session filtering
   // alone would make a successfully carried draft appear empty after reload.
   const carriedIssueIds = new Set(session?.carriedIssueIds ?? []);
+  const scopedIssues=allIssues.filter(issue=>props.trainingMode||issue.purpose!=='training');
   const issues = historicalCandidate
-    ? allIssues.filter((issue) => issue.artifactId === selectedId
+    ? scopedIssues.filter((issue) => issue.artifactId === selectedId
       && (issue.sessionId === session?.id || carriedIssueIds.has(issue.id)))
-    : allIssues;
+    : scopedIssues;
   const [busy, setBusy] = useState(false);
   const [cleanupPrompt, setCleanupPrompt] = useState(false);
   const [cleanupBusy, setCleanupBusy] = useState(false);
@@ -294,11 +303,16 @@ export default function ReviewRoom(props: Props) {
   // an open flag separate from the anchor is how a composer ends up on screen with a
   // position nobody snapshotted.
   const [draft, setDraft] = useState<FeedbackDraft | null>(null);
+  const [voiceDirty,setVoiceDirty]=useState(false);
+  const dirtyCallback = useRef(props.onDirtyChange); dirtyCallback.current = props.onDirtyChange;
+  const draftGeneration = useRef(0), draftWasOpen = useRef(false);
+  if (Boolean(draft) !== draftWasOpen.current) { draftGeneration.current++; draftWasOpen.current=Boolean(draft); }
   // A range in progress: START frozen (with its file and digest), END still following
   // the playhead. A separate state from the draft because until the end is taken there
   // is nothing to write yet — and because an abandoned range must be visibly abandoned,
   // not silently become a point comment.
   const [pendingRange, setPendingRange] = useState<PendingRange>(null);
+  useEffect(() => { dirtyCallback.current?.(Boolean(draft || pendingRange)); }, [draft,pendingRange]);
   // ONLY that the user pressed something — never the refusal itself. A stored refusal
   // outlives the state it described: "The end of the range must come after the start."
   // stayed on screen beside `Start 00:00.000 → Set end at 03:42.147`, telling a reviewer
@@ -339,6 +353,7 @@ export default function ReviewRoom(props: Props) {
   // a timeline. `visible` is already filtered, so every group's count is exactly what
   // that group renders.
   const groups = useMemo(() => groupIssuesByArtifact(visible, artifacts), [visible, artifacts]);
+  const teachingNotes=props.trainingMode?visible.flatMap(issue=>{const artifact=artifacts.find(item=>item.id===issue.artifactId);return issue.runId===runId&&artifact?.runId===runId&&artifact.status==='validated'&&artifact.sha256&&isSpatialAnchorV2(issue.anchor)&&!isIssueStale(issue,artifacts)?[{issue,artifact}]:[];}):[];
 
   // ── the send-changes action ───────────────────────────────────────────────
   // Local intent only. The DURABLE session row outranks it, so a reload or a second
@@ -754,7 +769,7 @@ export default function ReviewRoom(props: Props) {
       if (editingId) {
         const { body } = await reviewAction({
           action: 'update_issue', issueId: editingId,
-          kind: d!.kind, anchor, body: d!.body.trim(),
+          kind: d!.kind, anchor, body: d!.body.trim(), ...(props.trainingMode?{purpose:'training'}:{}),
         });
         if (!body?.ok) {
           setError(body?.staleAnchor
@@ -787,7 +802,7 @@ export default function ReviewRoom(props: Props) {
       const { body } = await reviewAction({
         // The FROZEN file, for the same reason as the digest above.
         action: 'create_issue', sessionId: sid, artifactId: d!.target.artifactId,
-        kind: d!.kind, anchor, body: d!.body.trim(),
+        kind: d!.kind, anchor, body: d!.body.trim(), ...(props.trainingMode?{purpose:'training'}:{}),
       });
       if (!body?.ok) {
         setError(body?.staleAnchor
@@ -802,7 +817,7 @@ export default function ReviewRoom(props: Props) {
       if (body.issue?.id && anchor && isSpatialAnchorV2(anchor)) void requestEvidence(body.issue.id);
     } finally { setBusy(false); }
     // NOT `artifact`: every identity this path writes now comes from the draft.
-  }, [buildAnchor, draft, ensureSession, requestEvidence]);
+  }, [buildAnchor, draft, ensureSession, requestEvidence, props.trainingMode]);
 
   const dismissIssue = useCallback(async (issueId: string) => {
     setBusy(true); setError(null);
@@ -946,7 +961,7 @@ export default function ReviewRoom(props: Props) {
   /** A completed click/drag on the picture: open the composer over the frozen mark. */
   const onSpatialAnnotate = useCallback((args: { spatial: DraftSpatial; frozenTimestampMs: number | null }) => {
     setError(null); setRangeAttempt(null);
-    if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+    if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
     setPendingRange(null);
     setOpenedIssueId(null);
     setDraft(openSpatialDraft({
@@ -954,14 +969,15 @@ export default function ReviewRoom(props: Props) {
       frozenTimestampMs: args.frozenTimestampMs,
       spatial: args.spatial,
     }));
-  }, [draft, targetIdentity]);
+  }, [draft, targetIdentity, voiceDirty]);
 
   /** Arrow-key nudge of an unsaved point — the keyboard's half of placement. */
   const onNudgeDraft = useCallback((next: { x: number; y: number }) => {
+    if(voiceDirty)return;
     setDraft((d) => (d?.spatial && d.spatial.geometry.kind === 'point'
       ? { ...d, spatial: { ...d.spatial, geometry: { ...d.spatial.geometry, x: next.x, y: next.y } } }
       : d));
-  }, []);
+  }, [voiceDirty]);
 
   /**
    * Escape cancels an UNSAVED annotation. One with typed text keeps the no-silent-loss
@@ -969,28 +985,28 @@ export default function ReviewRoom(props: Props) {
    * for that.
    */
   const cancelSpatialDraft = useCallback(() => {
-    setDraft((d) => (d?.spatial && d.body.trim() === '' ? null : d));
-  }, []);
+    if(!voiceDirty)setDraft((d) => (d?.spatial && d.body.trim() === '' ? null : d));
+  }, [voiceDirty]);
 
   /** Open a NEW point composer, freezing the current playhead and file into it. */
   const openPointComment = useCallback(() => {
     setError(null); setRangeAttempt(null);
-    if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+    if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
     setPendingRange(null);
     setDraft(openDraft({ target: targetIdentity, playheadMs }));
-  }, [draft, targetIdentity, playheadMs]);
+  }, [draft, targetIdentity, playheadMs, voiceDirty]);
 
   /** Begin a range: the start and its file freeze here, the end follows the playhead. */
   const startRange = useCallback(() => {
     setError(null); setRangeAttempt(null);
-    if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+    if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
     const begun = beginRange({ target: targetIdentity, playheadMs });
     // Record only THAT it was refused. Which refusal to show — if any still applies —
     // is re-decided from live state every render.
     if (begun.error) { setRangeAttempt('begin'); return; }
     setDraft(null);
     setPendingRange(begun.range);
-  }, [draft, targetIdentity, playheadMs]);
+  }, [draft, targetIdentity, playheadMs, voiceDirty]);
 
   /** Take the current playhead as the end. A refusal changes nothing. */
   const finishRange = useCallback(() => {
@@ -1011,10 +1027,10 @@ export default function ReviewRoom(props: Props) {
     // can never be opened against whatever happens to be on screen.
     const next = draftFromIssue(issue as never, targetIdentity);
     if (!next) { setError('Only unsent feedback about the file you are viewing can be edited here.'); return; }
-    if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+    if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
     setPendingRange(null);
     setDraft(next);
-  }, [draft, targetIdentity]);
+  }, [draft, targetIdentity, voiceDirty]);
 
   /**
    * Clicking an issue. If it belongs to another artifact we SWITCH FIRST and seek once
@@ -1261,7 +1277,7 @@ export default function ReviewRoom(props: Props) {
        footer is also sticky. `minmax(0,1fr)` on both axes is what actually permits the
        children to be smaller than their content; without it a grid/flex item's
        automatic minimum size is its content and nothing scrolls internally. */
-    <div className="grid gap-4 lg:h-[calc(100vh-13rem)] lg:min-h-[34rem] lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)]">
+    <div className={props.trainingMode ? 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]' : 'grid gap-4 lg:h-[calc(100vh-13rem)] lg:min-h-[34rem] lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)]'}>
       {/* ── artifact surface ─────────────────────────────────────────────── */}
       <section className="min-h-0 overflow-y-auto rounded-lg border border-ink-800 bg-ink-900/40 p-4">
         <HistoricalReviewCandidateNotice candidate={historicalCandidate} unavailable={historicalProvenanceUnavailable}
@@ -1390,13 +1406,13 @@ export default function ReviewRoom(props: Props) {
           issues={surfaceIssues}
           onPlayhead={onPlayhead}
           onSelectText={(s) => {
-            if (!canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
+            if (voiceDirty || !canReplaceDraft(draft)) { setError(DRAFT_IN_PROGRESS); return; }
             setPendingRange(null);
             setDraft(openDraft({ target: targetIdentity, playheadMs, selection: s }));
           }}
           onSeek={seekTo}
           spatial={{
-            enabled: !frozen && !accepted && artifact?.status === 'validated',
+            enabled: !voiceDirty && !frozen && !accepted && artifact?.status === 'validated',
             pins: overlayPins,
             draftSpatial: draft?.spatial ?? null,
             freezeMedia: freezeMediaForAnnotation,
@@ -1604,9 +1620,15 @@ export default function ReviewRoom(props: Props) {
               placeholder="What should change here?"
               className="w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 text-sm text-ink-100"
             />
+            {props.trainingMode && (()=>{const generation=draftGeneration.current,identity=draft;const insert=(text:string)=>{
+              setDraft(current => current && current.target.artifactId===identity.target.artifactId && current.anchorMs===identity.anchorMs
+                && current.target.sha256===identity.target.sha256 && current.editingIssueId===identity.editingIssueId
+                && generation===draftGeneration.current && JSON.stringify(current.spatial)===JSON.stringify(identity.spatial)
+                && current.rangeEndMs===identity.rangeEndMs ? {...current,body:[current.body.trim(),text].filter(Boolean).join('\n\n')} : current);
+            };return props.renderVoiceNote?props.renderVoiceNote({artifactId:draft.target.artifactId,sha256:draft.target.sha256,frameMs:draft.anchorMs},insert):props.trainingOwnerId&&draft.target.artifactId?<TrainerVoiceNote disabled={busy} onDirtyChange={setVoiceDirty} key={`${generation}:${draft.target.artifactId}:${draft.anchorMs}:${JSON.stringify(draft.spatial)}`} ownerId={props.trainingOwnerId} attach={{sourceKind:'run_artifact',sourceRef:`${runId}:${draft.target.artifactId}`,mark:draft.anchorMs!==null&&draft.rangeEndMs!==null&&draft.rangeEndMs>draft.anchorMs?{startMs:draft.anchorMs,endMs:draft.rangeEndMs}:{frameMs:draft.anchorMs||0,region:draft.spatial?.geometry.kind==='rect'?{x:Math.round(draft.spatial.geometry.x*1000000),y:Math.round(draft.spatial.geometry.y*1000000),width:Math.round(draft.spatial.geometry.width!*1000000),height:Math.round(draft.spatial.geometry.height!*1000000)}:{x:0,y:0,width:1000000,height:1000000}}}} maxLength={Math.max(0,4000-draft.body.trim().length-(draft.body.trim()?2:0))} onInsert={insert}/>:null;})()}
             <div className="mt-2 flex gap-2">
               <button
-                type="button" disabled={busy} onClick={submitIssue}
+                type="button" disabled={busy||voiceDirty} onClick={submitIssue}
                 className="rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-950 disabled:opacity-50"
               >
                 {saveDraftLabel(draft)}
@@ -1615,7 +1637,7 @@ export default function ReviewRoom(props: Props) {
                 type="button"
                 // Cancelling clears the frozen anchor with the draft. Leaving it behind
                 // would silently anchor the NEXT comment to the abandoned moment.
-                onClick={() => { setDraft(null); setRangeAttempt(null); }}
+                disabled={voiceDirty} onClick={() => { setDraft(null); setRangeAttempt(null); }}
                 className="rounded-md border border-ink-700 px-3 py-1.5 text-sm text-ink-300"
               >
                 Cancel
@@ -1637,7 +1659,7 @@ export default function ReviewRoom(props: Props) {
       <aside className="flex max-h-[70vh] min-h-0 flex-col rounded-lg border border-ink-800 bg-ink-900/40 lg:max-h-none">
         <div className="shrink-0 border-b border-ink-800 px-4 py-3">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-sm font-medium text-ink-200">Review issues</h2>
+            <h2 className="text-sm font-medium text-ink-200">{props.trainingMode?'Your teaching notes':'Review issues'}</h2>
             {!issuesUnavailable && !resolutionsUnavailable && visible.length > 0 && (
               <span className="shrink-0 text-xs tabular-nums text-ink-500">{groupCountLabel(visible.length)}</span>
             )}
@@ -1731,7 +1753,8 @@ export default function ReviewRoom(props: Props) {
                     <p className="mt-0.5 text-[11px] text-sky-400">Opens another file</p>
                   )}
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink-200">{i.body}</p>
-                  {submitView.mode === 'send_changes' && patternEligibleIssueIds.has(i.id) && (
+                  {props.trainingMode && props.onTeachIssue && group.artifact && !stale && teachingNotes.some(note=>note.issue.id===i.id) && <button type="button" disabled={busy} className="mt-3 text-xs text-brand-400 hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>Extract training</button>}
+                  {!props.trainingMode && submitView.mode === 'send_changes' && patternEligibleIssueIds.has(i.id) && (
                     <label className="mt-2 flex items-start gap-2 rounded border border-violet-500/20 bg-violet-500/5 px-2 py-1.5 text-[11px] text-ink-300">
                       <input
                         type="checkbox"
@@ -1824,7 +1847,16 @@ export default function ReviewRoom(props: Props) {
             list is long; `sticky bottom-0` keeps it against the viewport edge on short
             screens and at high zoom, where the rail itself outgrows the window and the
             page scrolls. Opaque, because the issue list slides underneath it. */}
-        <div className="sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3">
+        {props.trainingMode && <div className="shrink-0 space-y-3 border-t border-ink-800 p-4">
+          {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
+          {notice && <p role="status" className="text-xs text-ink-300">{notice}</p>}
+          {accepted && <button type="button" disabled={busy} onClick={()=>void addMoreFeedback()} className="text-sm text-brand-400">Add teaching notes</button>}
+          {props.onDoneTeaching&&<button type="button" className="btn-primary" disabled={busy||!!draft||!!pendingRange||voiceDirty||!teachingNotes.length} onClick={()=>props.onDoneTeaching?.(teachingNotes)}>Done teaching</button>}
+          <p className="text-xs text-ink-500">Your saved notes become lessons you can review before applying.</p>
+          {visible.length>teachingNotes.length&&<p className="text-xs text-ink-400">{visible.length-teachingNotes.length} note(s) need a fresh visual mark before extraction.</p>}
+          <a href={props.trainingSlug?trainingReviewHref(props.trainingSlug,runId):`/review/${encodeURIComponent(runId)}`} className="inline-block text-xs text-ink-400 underline underline-offset-4">Revise this result →</a>
+        </div>}
+        <div className={`${props.trainingMode?'hidden ':''}sticky bottom-0 shrink-0 space-y-2 border-t border-ink-800 bg-ink-900 px-4 py-3`}>
           {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
           {notice && <p role="status" className="text-xs text-emerald-300">{notice}</p>}
 

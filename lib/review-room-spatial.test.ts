@@ -614,3 +614,87 @@ test('audio clarification in the real ReviewRoom saves explicit evidence on the 
   assert.equal((String(saved.body).match(/Audio clarification for/g) || []).length, 1);
   assert.equal(calls.some(c => c.body.action === 'submit'), false, 'saving context cannot start a revision');
 });
+
+test('training voice note converts a frozen normalized rectangle to native integer coordinates', async () => {
+ const native=(dom.window as unknown as {implexaDesktop:Record<string,unknown>}).implexaDesktop;
+ const saved={...native},captured:any[]=[];
+ Object.assign(native,{trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string,args:any)=>{
+  captured.push({op,args});if(op==='startVoiceNote')return {ok:true,voiceNoteId:ISSUE_ID};
+  return {ok:true,voiceNote:{voiceNoteId:ISSUE_ID,state:'cancelled',attach:captured.find(call=>call.op==='startVoiceNote')?.args.attach,sha256:null,durationMs:null,failureReason:null}};
+ }});
+ try{
+  await mount({trainingMode:true,trainingOwnerId:SESSION_ID});rigVideo(video());await media(video(),'loadedmetadata');
+  await fire(overlay(),'pointerdown',{clientX:210,clientY:207.5});await fire(overlay(),'pointermove',{clientX:610,clientY:432.5});await fire(overlay(),'pointerup',{clientX:610,clientY:432.5});
+  await clickButton(/Add a voice note/);
+  const start=captured.find(call=>call.op==='startVoiceNote');assert.ok(start);assert.deepEqual(start.args.attach.mark.region,{x:250000,y:250000,width:500000,height:500000});
+  assert.equal(start.args.attach.mark.frameMs,1656);assert.equal(start.args.expectedOwnerId,SESSION_ID);assert.equal(calls.some(c=>c.body.action==='create_issue'),false);
+ }finally{for(const key of Object.keys(native))delete native[key];Object.assign(native,saved);}
+});
+
+test('training run voice keeps its frozen mark until explicit insert and then saves ordinary feedback', async () => {
+ const native=(dom.window as unknown as {implexaDesktop:Record<string,unknown>}).implexaDesktop,saved={...native},captured:any[]=[];
+ Object.assign(native,{trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string,args:any)=>{
+  captured.push({op,args});if(op==='startVoiceNote')return {ok:true,voiceNoteId:ISSUE_ID};
+  if(op==='getVoiceNote')return {ok:true,voiceNote:{voiceNoteId:ISSUE_ID,state:'ready',attach:captured.find(call=>call.op==='startVoiceNote').args.attach,sha256:SHA_V,durationMs:1000,failureReason:null}};
+  return {ok:true,transcript:{text:'Use a more meaningful visual here.',voiceNoteSha256:SHA_V,digest:SHA_V}};
+ }});
+ try{
+  await mount({trainingMode:true,trainingOwnerId:SESSION_ID});const state=rigVideo(video());await media(video(),'loadedmetadata');
+  await fire(overlay(),'pointerdown',{clientX:410,clientY:320});await fire(overlay(),'pointerup',{clientX:410,clientY:320});await clickButton(/Add a voice note/);
+  assert.equal((container.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Use a more meaningful visual here.');
+  assert.equal(buttons().find(b=>b.textContent==='Save issue')!.disabled,true);assert.equal(buttons().find(b=>b.textContent==='Cancel')!.disabled,true);
+  state.currentTime=8;await fire(overlay(),'pointerdown',{clientX:210,clientY:207.5});await fire(overlay(),'pointerup',{clientX:210,clientY:207.5});
+  assert.match(text(),/Pin · 00:01\.656 · \(50%, 50%\)/);assert.equal((container.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement)?.value,'Use a more meaningful visual here.');
+  await clickButton(/^Add to this note$/);await clickButton(/^Save issue$/);
+  const issue=calls.find(c=>c.body.action==='create_issue')!.body;assert.equal(issue.body,'Use a more meaningful visual here.');assert.equal((issue.anchor as typeof storedSpatialAnchor).temporal.startMs,1656);
+  assert.equal(calls.some(c=>c.body.action==='submit'),false);
+ }finally{for(const key of Object.keys(native))delete native[key];Object.assign(native,saved);}
+});
+
+test('training feedback carries purpose while ordinary review writes keep the default revision contract',async()=>{
+ for(const trainingMode of [false,true]){
+  await mount({trainingMode});const state=rigVideo(video(),{currentTime:33});await media(video(),'timeupdate');
+  await clickButton(/Point comment at/);await typeBody(trainingMode?'A future teaching.':'A revision request.');await clickButton(/^Save issue$/);
+  const created=calls.filter(call=>call.body.action==='create_issue').at(-1)!.body;
+  assert.equal(created.purpose,trainingMode?'training':undefined);assert.equal(Object.hasOwn(created,'purpose'),trainingMode);assert.equal(created.body,trainingMode?'A future teaching.':'A revision request.');
+  assert.equal((created.anchor as {timeStartMs:number}).timeStartMs,33000);
+ }
+ assert.equal(calls.some(call=>call.body.action==='submit'),false);
+});
+
+test('ordinary review excludes training-only notes from its rail and revision composition',async()=>{
+ const training={...storedSpatialIssue,id:'dddddddd-2222-4222-8222-222222222222',body:'Future-training-only note.',purpose:'training'};
+ const revision={...storedSpatialIssue,body:'Please revise this output.',purpose:'revision'};
+ await mount({issues:[training,revision]});
+ assert.doesNotMatch(text(),/Future-training-only note/);assert.match(text(),/Please revise this output/);assert.match(sendButton().textContent||'',/^Send 0 unresolved \+ 1 new change$/);
+ assert.equal(calls.some(call=>call.body.action==='submit'),false);
+ await mount({issues:[training],trainingMode:true,onTeachIssue:()=>{}});assert.match(text(),/Future-training-only note/);assert.ok(buttons().find(button=>button.textContent==='Extract training'));
+});
+
+test('Done teaching sends only exact active current-run visual pairs and waits for draft or voice completion',async()=>{
+ const secondId='dddddddd-3333-4333-8333-333333333333',dismissedId='dddddddd-4444-4444-8444-444444444444',textId='dddddddd-5555-4555-8555-555555555555',foreignId='dddddddd-6666-4666-8666-666666666666',previousRun='11111111-2222-4222-8222-222222222222';
+ const first={...storedSpatialIssue,purpose:'training',body:'First exact visual note.'};
+ const second={...storedSpatialIssue,id:secondId,artifactId:IMG,purpose:'training',body:'Second exact visual note.',anchor:{...storedSpatialAnchor,observedArtifactId:IMG,observedArtifactSha256:SHA_I,temporal:null,sourceFrame:{visualWidth:1080,visualHeight:1920}}};
+ const dismissed={...first,id:dismissedId,status:'dismissed',body:'Do not extract this dismissed note.'};
+ const nonvisual={...first,id:textId,body:'Nonvisual note needs a fresh mark.',anchor:{version:1,type:'artifact',artifactSha256:SHA_V}};
+ const foreign={...first,id:foreignId,runId:previousRun,sessionId:SESSION_ID,body:'Carried note from a previous run.'};
+ const stale={...first,id:'dddddddd-7777-4777-8777-777777777777',body:'Stale visual note.',anchor:{...storedSpatialAnchor,observedArtifactSha256:'0'.repeat(64)}};
+ const batches:any[]=[];let release:(value:any)=>void=()=>{};
+ const native=(dom.window as unknown as {implexaDesktop:Record<string,unknown>}).implexaDesktop,saved={...native};
+ Object.assign(native,{trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string)=>op==='listVoiceNotes'?{ok:true,voiceNotes:[]}:op==='startVoiceNote'?{ok:true,voiceNoteId:secondId}:op==='getVoiceNote'?new Promise(resolve=>release=resolve):{ok:false}});
+ try{
+  await mount({trainingMode:true,trainingOwnerId:SESSION_ID,issues:[first,second,dismissed,nonvisual,foreign,stale],session:{id:SESSION_ID,runId:RUN_ID,selectedArtifactId:null,state:'draft',submittedRequestId:null,submittedIssueIds:null,compiledBrief:null,acceptedAt:null,carriedIssueIds:[foreignId]},onDoneTeaching:(pairs:any[])=>batches.push(pairs)});
+  const state=rigVideo(video());await media(video(),'loadedmetadata');
+  const done=()=>buttons().find(button=>button.textContent==='Done teaching')!;
+  assert.equal(done().disabled,false);await fire(done(),'click');assert.equal(batches.length,1);
+  assert.deepEqual(batches[0].map((pair:any)=>pair.issue.id).sort(),[ISSUE_ID,secondId].sort());
+  assert.equal(batches[0].find((pair:any)=>pair.issue.id===ISSUE_ID).issue,first);assert.equal(batches[0].find((pair:any)=>pair.issue.id===ISSUE_ID).artifact,artifacts[0]);
+  assert.equal(batches[0].find((pair:any)=>pair.issue.id===secondId).issue,second);assert.equal(batches[0].find((pair:any)=>pair.issue.id===secondId).artifact,artifacts[1]);
+  assert.equal(calls.some(call=>call.body.action==='submit'||call.body.action==='create_issue'),false,'batch selection does not launch a revision or save another note');
+  await fire(overlay(),'pointerdown',{clientX:410,clientY:320});await fire(overlay(),'pointerup',{clientX:410,clientY:320});assert.equal(done().disabled,true,'finish the open mark before extracting saved notes');
+  await clickButton(/^Cancel$/);assert.equal(done().disabled,false);
+  await fire(overlay(),'pointerdown',{clientX:410,clientY:320});await fire(overlay(),'pointerup',{clientX:410,clientY:320});await clickButton(/Add a voice note/);
+  assert.equal(done().disabled,true,'pending voice cannot be skipped by the batch action');assert.equal(buttons().find(button=>button.textContent==='Cancel')!.disabled,true);assert.equal(batches.length,1);
+  state.currentTime=9;await media(video(),'timeupdate');assert.equal(batches[0].find((pair:any)=>pair.issue.id===ISSUE_ID).issue.anchor.temporal.startMs,3000,'saved note pairs retain their own anchors');
+ }finally{await act(async()=>release({ok:false,reason:'recording_not_found'}));for(const key of Object.keys(native))delete native[key];Object.assign(native,saved);}
+});

@@ -1,7 +1,7 @@
 /** Owner-private projection. Server receipts establish inclusion and test status;
  * a model statement is never evidence that a teaching was saved or applied. */
 export type FeedbackOutcome='not_analysed'|'not_converted'|'partly'|'added';
-export type TrainingChangeRecord={recordId:string;recordDigest:string;summary:string|null;state:'suggested'|'candidate'|'human_accepted'|'retired'|'revoked'|'discarded'|'unavailable'|'removed';included:boolean;admissionOrigin:'none'|'standing_policy'|'owner_candidate'|'human_decision';category:'taste'|'method_preference'|null;sourceKind:'trainer_feedback'|'creation_notes'|'legacy_evidence';policyReceiptId:string|null;policyReceiptDigest:string|null;sourceEventId:string|null;sourceEventDigest:string|null;model:string|null};
+export type TrainingChangeRecord={recordId:string;recordDigest:string;summary:string|null;state:'suggested'|'candidate'|'human_accepted'|'retired'|'revoked'|'discarded'|'unavailable'|'removed';included:boolean;admissionOrigin:'none'|'standing_policy'|'owner_candidate'|'human_decision';category:'taste'|'method_preference'|null;sourceKind:'trainer_feedback'|'creation_notes'|'legacy_evidence';policyReceiptId:string|null;policyReceiptDigest:string|null;sourceEventId:string|null;sourceEventDigest:string|null;model:string|null;reviewMark?:{acknowledgmentId:string}};
 export type GuidedTrainingChanges={ok:true;contractVersion:'guided-training-changes.v1';
  binding:{sessionId:string;agentFamilyId:string;workflowVersionId:string;snapshotDigest:string};
  policy:{policyId:string|null;policyDigest:string|null;revision:number;enabled:boolean};
@@ -27,7 +27,8 @@ export function guidedTrainingChanges(v:any,expected:{sessionId:string;workflowV
   ||![null,'taste','method_preference'].includes(r.category)||!['trainer_feedback','creation_notes','legacy_evidence'].includes(r.sourceKind)
   ||!(r.policyReceiptId===null&&r.policyReceiptDigest===null||id(r.policyReceiptId)&&sha(r.policyReceiptDigest))
   ||r.included&&r.admissionOrigin==='none'||r.state==='human_accepted'&&r.admissionOrigin!=='human_decision'
-  ||!['suggested','candidate','human_accepted','retired','revoked','discarded','unavailable','removed'].includes(r.state)||!(r.sourceKind==='legacy_evidence'&&r.sourceEventId===null&&r.sourceEventDigest===null||id(r.sourceEventId)&&sha(r.sourceEventDigest))||!(r.model===null||text(r.model,100)))return false;seen.add(r.recordId);}
+  ||!['suggested','candidate','human_accepted','retired','revoked','discarded','unavailable','removed'].includes(r.state)||!(r.sourceKind==='legacy_evidence'&&r.sourceEventId===null&&r.sourceEventDigest===null||id(r.sourceEventId)&&sha(r.sourceEventDigest))||!(r.model===null||text(r.model,100))
+  ||r.reviewMark!==undefined&&(r.sourceKind!=='legacy_evidence'||!r.reviewMark||typeof r.reviewMark!=='object'||Array.isArray(r.reviewMark)||Object.keys(r.reviewMark).length!==1||!id(r.reviewMark.acknowledgmentId)))return false;seen.add(r.recordId);}
  const feedbackSeen=new Set();for(const f of v.feedback){if(!id(f.eventId)||feedbackSeen.has(f.eventId)||!sha(f.eventDigest)||!(f.text===null&&f.analysisStatus==='unavailable'||text(f.text,20000))
   ||!['not_requested','pending','answered','failed','unavailable'].includes(f.analysisStatus)||!['not_analysed','not_converted','partly','added'].includes(f.outcome)||!text(f.reason,2000)||!strings(f.uncoveredText,20000,20)||!Array.isArray(f.recordIds)||f.recordIds.length>20
   ||new Set(f.recordIds).size!==f.recordIds.length||f.recordIds.some((rid:any)=>!v.records.some((r:any)=>r.recordId===rid&&r.sourceEventId===f.eventId&&r.sourceEventDigest===f.eventDigest))

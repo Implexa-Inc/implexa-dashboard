@@ -78,19 +78,29 @@ export function TrainingImage({token,recordId,recordDigest,frameSha256,alt,enabl
  </>)}</span>;
 }
 
-/** Presentation only: existing Training, recorder and Review Room own all actions. */
-export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,actions,onChat,chatExpanded=false,chatDisabled=false}:{slug:string;lastRunId?:string|null;runs?:TrainingRun[];runsUnavailable?:boolean;actions?:ReactNode;onChat?:()=>void;chatExpanded?:boolean;chatDisabled?:boolean}){
- return <section className="space-y-8 py-3" aria-label="Teach this agent">
-  <div>
-   <div className="mb-4 flex items-baseline justify-between gap-4"><h2 className="text-lg font-medium">Give feedback on recent runs</h2><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/training/${encodeURIComponent(slug)}/runs`}>All runs →</Link></div>
-   {runs.length?<div className="flex snap-x gap-5 overflow-x-auto pb-2">{runs.map((run,index)=><Link key={run.id} href={`/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(run.id)}`} className="w-52 shrink-0 snap-start space-y-3 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 sm:w-60">
-    {run.artifact&&<RunImage artifact={run.artifact}/>}
-    <span className="flex items-baseline justify-between gap-2 text-sm"><span>{index===0?'Latest result':`Result ${index+1}`}</span><span className="text-xs text-ink-500">{run.status}</span></span>
-    <time dateTime={run.date} className="block text-xs text-ink-500">{new Date(run.date).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}</time>
-   </Link>)}</div>:<p className="text-sm text-ink-500">{runsUnavailable?'Recent results couldn’t load. ':lastRunId?'Open your latest result to give feedback. ':'Teach with an example, or run your agent to review its work. '}{lastRunId&&<Link href={`/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(lastRunId)}`} className="text-ink-300 underline underline-offset-4">Latest result →</Link>}</p>}
+/** One source picker. Existing Training, recorder and Review Room still own each action. */
+export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,actions,onChat,chatExpanded=false,chatDisabled=false,onSelectRun,selectedRunId,sourceActive=false}:{slug:string;lastRunId?:string|null;runs?:TrainingRun[];runsUnavailable?:boolean;actions?:ReactNode;onChat?:()=>void;chatExpanded?:boolean;chatDisabled?:boolean;onSelectRun?:(run:TrainingRun)=>void;selectedRunId?:string|null;sourceActive?:boolean}){
+ const [resultsOpen,setResultsOpen]=useState(!sourceActive);
+ useEffect(()=>{if(sourceActive)setResultsOpen(false);},[sourceActive,selectedRunId]);
+ const pickerClass='inline-flex items-center gap-2 rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-40';
+ return <section className="space-y-4 py-3" aria-label="Teach this agent">
+  <div className="flex flex-wrap items-start gap-2" aria-label="Choose a training source">
+   {actions}
+   <button type="button" aria-expanded={resultsOpen} aria-controls="training-recent-results" onClick={()=>setResultsOpen(!resultsOpen)} className={pickerClass}>▧ Recent results</button>
+   {onChat&&<button id="training-chat-toggle" type="button" className={`${pickerClass} sm:ml-auto`} disabled={chatDisabled} aria-expanded={chatExpanded} aria-controls="training-companion" onClick={onChat}>✧ {chatExpanded?'Close chat':'Chat with Implexa'}</button>}
   </div>
-  {actions}
-  {onChat&&<section className="space-y-3 border-b border-ink-800 pb-6" aria-labelledby="training-conversation-heading"><h2 id="training-conversation-heading" className="text-lg font-medium">Chat with Implexa</h2><p className="max-w-2xl text-sm leading-6 text-ink-400">Discuss an idea, ask a question, or describe what you’d change.</p><button id="training-chat-toggle" type="button" className="rounded-lg border border-ink-700 px-4 py-2.5 text-sm text-ink-200 hover:border-ink-500 disabled:opacity-40" disabled={chatDisabled} aria-expanded={chatExpanded} aria-controls="training-companion" onClick={onChat}>{chatExpanded?'Close chat':'Start chatting'}</button></section>}
+  <div id="training-recent-results" hidden={!resultsOpen} className="rounded-xl border border-ink-800 bg-ink-900/20 p-4">
+   {resultsOpen&&<><div className="mb-3 flex items-baseline justify-between gap-4"><h2 className="text-sm font-medium text-ink-200">Choose a result</h2><Link className="text-xs text-ink-400 hover:text-ink-100" href={`/training/${encodeURIComponent(slug)}/runs`}>All runs →</Link></div>
+   {runs.length?<div className="flex snap-x gap-3 overflow-x-auto pb-1">{runs.map((run,index)=>{
+    const content=<>
+     {run.artifact?<RunImage artifact={run.artifact}/>:<span className="flex aspect-video items-center justify-center rounded-lg bg-ink-900 text-xs text-ink-500">No preview</span>}
+     <span className="flex items-baseline justify-between gap-2 text-xs"><span>{index===0?'Latest result':`Result ${index+1}`}</span><span className="text-ink-500">{run.status}</span></span>
+     <time dateTime={run.date} className="block text-[11px] text-ink-500">{new Date(run.date).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}</time>
+    </>;
+    const className=`w-40 shrink-0 snap-start space-y-2 rounded-xl p-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 sm:w-44 ${selectedRunId===run.id?'ring-1 ring-brand-500':'hover:bg-ink-800/30'}`;
+    return onSelectRun?<button key={run.id} type="button" aria-pressed={selectedRunId===run.id} aria-label={`Teach from ${index===0?'latest result':`result ${index+1}`}`} className={className} onClick={()=>onSelectRun(run)}>{content}</button>:<Link key={run.id} href={`/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(run.id)}`} className={className}>{content}</Link>;
+   })}</div>:<p className="text-sm text-ink-500">{runsUnavailable?'Recent results couldn’t load. ':lastRunId?'Open your latest result to give feedback. ':'Record or upload an example, or run your agent to review its work. '}{lastRunId&&<Link href={`/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(lastRunId)}`} className="text-ink-300 underline underline-offset-4">Latest result →</Link>}</p>}</>}
+  </div>
  </section>;
 }
 

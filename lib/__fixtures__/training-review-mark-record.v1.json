@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "contractVersion": "training-review-mark-record.v1",
+  "recordId": "00000000-0000-4000-8000-000000000001",
+  "recordDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "relation": "accepted",
+  "properties": [
+    "layout_variety"
+  ],
+  "summary": "An approved spatial-explanation lesson.",
+  "fields": {
+    "chosen": "The example uses a map to explain the location.",
+    "why": "Prefer a spatial explanation when geography matters.",
+    "process": "When location explains the comparison.",
+    "desiredBehavior": "Use a meaningful visual relationship rather than repeating a list."
+  },
+  "sourceMark": {
+    "issueId": "00000000-0000-4000-8000-000000000004",
+    "artifactId": "00000000-0000-4000-8000-000000000005",
+    "kind": "visual",
+    "body": "Use a map here, not another list.",
+    "anchor": {
+      "version": 2,
+      "type": "visual_spatial",
+      "observedArtifactId": "00000000-0000-4000-8000-000000000005",
+      "observedArtifactSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "intent": {
+        "mode": "change_observed_artifact"
+      },
+      "temporal": {
+        "startMs": 2000,
+        "endMs": null
+      },
+      "geometry": {
+        "kind": "rect",
+        "coordinateSpace": "normalized_visual_content_v1",
+        "x": 0.2,
+        "y": 0.2,
+        "width": 0.3,
+        "height": 0.2
+      },
+      "sourceFrame": {
+        "visualWidth": 1920,
+        "visualHeight": 1080
+      }
+    },
+    "anchorDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "purpose": "training"
+  },
+  "runId": "00000000-0000-4000-8000-000000000007",
+  "reviewSessionId": "00000000-0000-4000-8000-000000000008",
+  "appliedAt": "2026-11-11T12:00:00.000Z",
+  "availability": "available",
+  "trainingSessionId": "00000000-0000-4000-8000-000000000003"
+}

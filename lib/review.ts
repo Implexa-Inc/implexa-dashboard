@@ -109,6 +109,7 @@ export type ReviewSessionArtifact = {
 };
 
 export type ReviewIssue = {
+  purpose?: 'revision' | 'training';
   id: string;
   sessionId: string;
   runId: string;
