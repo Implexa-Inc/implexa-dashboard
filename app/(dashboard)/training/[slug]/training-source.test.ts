@@ -31,7 +31,7 @@ test('Training chat enters the existing recording flow only after its separate c
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
  try{
   await r.click(r.getByText('Annotate source')); // Conversation is now embedded and already open.
-  const area=r.getByText('Message Implexa').closest('label')!.querySelector('textarea')!;await setTextarea(r,area,'Please analyze this tool method.');
+  const area=r.getByText('Message AI').closest('label')!.querySelector('textarea')!;await setTextarea(r,area,'Please analyze this tool method.');
   await r.click(Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Send')!);await flush();
   const action=()=>Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Analyze the recording’s tool method')!;
   await r.click(action());await flush();assert.equal(recordings,0);assert.equal(requests.length,1);
@@ -1669,6 +1669,7 @@ test('the existing Training controller sends the exact reviewed public preparati
 });
 test('owner workspace is one page with closed chat, direct teaching actions and unchanged consents',async()=>{
  const h=await renderedWith(),r=h.rendered;
+ r.window.Element.prototype.scrollIntoView=()=>{};
  const visible=(el:Element)=>!el.closest('[hidden]');
  r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);
  try{
@@ -1990,7 +1991,7 @@ for(const initialDraft of ['suggested','insufficient','error','chat','no_tool_ca
    await r.click(r.getByText('Find learnings in my narration'));await r.click(r.getByText('Analyze narration'));await flush();
    // The first analysis commits this recording's source without granting tool-analysis consent.
    await r.click(r.document.getElementById('training-chat-toggle')!);await flush();
-   const area=r.getByText('Message Implexa').closest('label')!.querySelector('textarea')!;await setTextarea(r,area,'Analyze the tool in this recording.');
+   const area=r.getByText('Message AI').closest('label')!.querySelector('textarea')!;await setTextarea(r,area,'Analyze the tool in this recording.');
    await r.click(Array.from(r.document.querySelectorAll('button')).find(button=>button.textContent==='Send')!);await flush();
    await r.click(r.getByText('Analyze the recording’s tool method'));await flush();
   }else await r.click(r.getByText('Teach a tool or method'));

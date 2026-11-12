@@ -119,7 +119,7 @@ export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,acti
   <h3 className="text-sm font-medium text-ink-300">Show an example</h3>
   <div className="flex flex-wrap items-start gap-2" aria-label="Choose a training source">
    {actions}
-   {onChat&&<button id="training-chat-toggle" type="button" className={`${pickerClass} sm:ml-auto`} disabled={chatDisabled} aria-expanded={chatExpanded} aria-controls="training-companion" onClick={onChat}>✧ {chatExpanded?'Close chat':'Chat with Implexa'}</button>}
+   {onChat&&<button id="training-chat-toggle" type="button" className={`${pickerClass} sm:ml-auto`} disabled={chatDisabled} aria-expanded={chatExpanded} aria-controls="training-companion" onClick={onChat}>✧ {chatExpanded?'Close chat':'Chat with AI'}</button>}
   </div>
   <div className="flex flex-wrap items-center gap-3 pt-2"><span className="text-xs text-ink-500">Or</span>
    <button type="button" aria-expanded={resultsOpen} aria-controls="training-recent-results" onClick={()=>setResultsOpen(!resultsOpen)} className={pickerClass}>Give feedback on a recent result</button>

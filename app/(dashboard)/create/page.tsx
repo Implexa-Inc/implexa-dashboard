@@ -1,89 +1,14 @@
-/**
- * /create — the one place to START an agent. Two paths, one page:
- *   1. Describe it (the build box) → your own Claude builds it.
- *   2. Pick a proven one (the community catalog) → activate it as-is.
- *
- * This closes the new-user dead end: before, a user with zero agents had no
- * discovery surface inside the dashboard — only the build box on Home. Now
- * "Create agent" (the button on /workflows) lands here, with the community
- * catalog + search + activity signals, mirroring the public website catalog.
- *
- * Server-rendered, RLS-scoped. Reuses the same building blocks as Home
- * (TalkToImplexa, listWorkflows) so there's one source of truth, not a fork.
- */
-
-import {AGENTS_MANAGE_HREF} from '@/lib/navigation';
-import { redirect } from 'next/navigation';
+import {redirect} from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
-import { readUserProfile } from '@/lib/profile-read';
-import { isExecutorConnected } from '@/lib/connection';
-import { getProficiency, isGuided } from '@/lib/proficiency';
-import { listSuggestedAgents } from '@/lib/workflow-catalog';
-import { listAgentDiscovery } from '@/lib/agent-discovery';
-import TalkToImplexa from '../_components/talk-to-implexa';
-import BuildingAgents from '../_components/building-agents';
-import AgentDiscoveryCatalog from '../_components/agent-discovery-catalog';
-import OutcomeEntry from '../_components/outcome-entry';
+import {createClient} from '@/lib/supabase/server';
+import {readUserProfile} from '@/lib/profile-read';
 import GuidedAgentCreation from '../_components/guided-agent-creation';
+import BuildingAgents from '../_components/building-agents';
 
-export const dynamic = 'force-dynamic';
-
-export default async function CreatePage({searchParams}:{searchParams?:{from?:string}}) {
-  const fromTraining=searchParams?.from==='training';
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) redirect('/login');
-  const profile = await readUserProfile(supabase
-    .from('users').select('id, organization_id, last_mcp_call_at, last_hook_event_at').eq('id', session.user.id));
-  if (!profile?.organization_id) redirect('/onboarding');
-
-  const [discovery, suggested, proficiency] = await Promise.all([
-    fromTraining?Promise.resolve({status:'ready' as const,agents:[]}):listAgentDiscovery(session.access_token),
-    listSuggestedAgents(6),
-    getProficiency(supabase, session.user.id),
-  ]);
-  const guided = isGuided(proficiency);
-  const connected = await isExecutorConnected(supabase, profile.id, {
-    lastMcpCallAt: profile.last_mcp_call_at, lastHookEventAt: profile.last_hook_event_at,
-  });
-
-  return (
-    <main className="min-h-screen px-6 lg:px-12 py-14">
-      <div className={`${fromTraining?'max-w-6xl':'max-w-3xl'} mx-auto`}>
-        <div className="mb-6">
-          <Link href={fromTraining?'/training':AGENTS_MANAGE_HREF} className="text-xs text-ink-400 hover:text-ink-200 hover:underline">{fromTraining?'← Training':'← Your agents'}</Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-50 mt-2">Create an agent</h1>
-          <p className="text-sm text-ink-400 mt-1">
-            {fromTraining?'Describe what this agent should do, any required tools, and the input and output you expect. Once it is built, train it with your demonstrations and feedback.':'Describe what you want and your connected engine builds it — or start from one the community already runs.'}
-          </p>
-        </div>
-
-        {/* 0) Outcome-first: state the result, the control plane picks the agent */}
-        {!fromTraining&&<OutcomeEntry />}
-
-        {/* divider */}
-        {!fromTraining&&<div className="relative my-10 text-center">
-          <span className="bg-ink-950 px-3 relative z-10 text-xs uppercase tracking-wide text-ink-500">or build an agent yourself</span>
-          <div className="absolute top-1/2 left-0 right-0 h-px bg-ink-800" />
-        </div>}
-
-        {/* 1) Describe it */}
-        {fromTraining?<GuidedAgentCreation key={session.user.id} ownerId={session.user.id}/>:<TalkToImplexa hasAgents guided={guided} suggestions={suggested} connected={connected} />}
-        <BuildingAgents />
-
-        {/* divider */}
-        {!fromTraining&&<div className="relative my-10 text-center">
-          <span className="bg-ink-950 px-3 relative z-10 text-xs uppercase tracking-wide text-ink-500">or pick a proven one</span>
-          <div className="absolute top-1/2 left-0 right-0 h-px bg-ink-800" />
-        </div>}
-
-        {/* 2) Pick a proven one */}
-        {!fromTraining&&<AgentDiscoveryCatalog
-          agents={discovery.agents}
-          unavailable={discovery.status === 'unavailable' ? discovery.reason : null}
-        />}
-      </div>
-    </main>
-  );
+export const dynamic='force-dynamic';
+/** One saved creation conversation, shared with the Rent/Build entry. */
+export default async function CreatePage({searchParams}:{searchParams?:{from?:string}}){
+ const supabase=createClient();const {data:{session}}=await supabase.auth.getSession();if(!session?.user)redirect('/login');
+ const profile=await readUserProfile(supabase.from('users').select('id,organization_id').eq('id',session.user.id));if(!profile?.organization_id)redirect('/onboarding');
+ return <main className="min-h-screen px-6 py-10 lg:px-12"><div className="mx-auto max-w-6xl"><Link href={searchParams?.from==='training'?'/training':'/workflows'} className="text-xs text-ink-400 hover:text-ink-100">← Back</Link><header className="my-6"><h1 className="text-3xl font-medium tracking-tight">Build an agent</h1><p className="mt-2 text-sm text-ink-400">Start with a goal. We’ll work out the tools, inputs and outputs together.</p></header><GuidedAgentCreation key={session.user.id} ownerId={session.user.id}/><BuildingAgents/></div></main>;
 }

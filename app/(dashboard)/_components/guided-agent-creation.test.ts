@@ -48,3 +48,12 @@ test('Undo from a new branch selects its actual base, not the abandoned precedin
  await r.click(r.getByText('Undo last change'));await type(r,'Revise the restored draft.');await r.click(r.getByText('Send'));
  const post=calls.find(c=>c.url==='/api/agents/creation-draft'&&c.init.method==='POST');assert.equal(JSON.parse(post.init.body).baseReplyId,id(102));
 });
+
+
+test('a follow-up question offers choices without building or silently sending the selected answer',async t=>{
+ const q=turn(3,{brief:null,questions:['Which tools would you like to use?'],reply:'Let’s choose your tools.',buildIntent:null,trainingNotes:[],tools:[],toolPreferences:[]});
+ const {r,calls}=await setup(t,[turn(2),q]);
+ assert.equal(r.queryByText('Build this agent'),null);
+ await r.click(r.getByText('Recommend tools'));assert.match(r.document.querySelector('textarea')!.value,/Please recommend suitable tools/);assert.equal(calls.some(c=>c.init.method==='POST'),false);
+ await r.click(r.getByText('Send'));const post=calls.find(c=>c.init.method==='POST');assert.equal(JSON.parse(post.init.body).baseReplyId,q.replyId);assert.equal(calls.some(c=>c.url==='/api/agents/create'),false);
+});

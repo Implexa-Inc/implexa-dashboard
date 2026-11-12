@@ -17,3 +17,12 @@ export function isCreationDraftRead(v:any,draftId:string):v is CreationDraftRead
   &&(t.status!=='answered'||(id(t.replyId)&&typeof t.replyDigest==='string'&&/^[a-f0-9]{64}$/.test(t.replyDigest)&&text(t.reply,2000)
    &&t.model==='claude-haiku-5-5'&&(t.brief===null||(text(t.buildIntent,12000)&&t.buildIntent.trim().length>0)))));
 }
+
+
+/** Suggestions fill the composer; only the normal Send stores an answer. */
+export function creationQuestionChoices(question:string,brief:CreationBrief|null){
+ const q=question.toLowerCase();
+ if(/tool|software|app\b|service|platform/.test(q))return [{label:'Recommend tools',value:'Please recommend suitable tools for this agent. Treat them as preferences unless I explicitly require one.'},{label:'I’ll choose the tools',value:'The tools I want to use are: '}];
+ if(/input|output|receiv|deliver|provide|file|result/.test(q))return [{label:'Use your recommendation',value:brief?`Use the suggested inputs: ${brief.inputs.join('; ')}. Deliver: ${brief.outputs.join('; ')}.`:'Please recommend the simplest input and the finished output for this goal.'},{label:'Let me describe it',value:'For the input and output, I want: '}];
+ return [{label:'Recommend an approach',value:'Please recommend an approach for this question and explain it briefly.'},{label:'I’ll explain',value:''}];
+}
