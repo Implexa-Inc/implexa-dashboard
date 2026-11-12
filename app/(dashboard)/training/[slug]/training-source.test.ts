@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { render, type Rendered } from '../../../../lib/test/render.ts';
 import { isTrainingEvidenceStorage, deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
 import {toolSuggestionFrame,TOOL_FRAME_RECIPE_DIGEST} from '../../../../lib/training-teaching-draft.ts';
-import { questionsPage, questionOutcomeLabel, validAnswerBody, answerReceipt } from '../../../../lib/trainer-questions.ts';
+import { questionsPage, questionOutcomeLabel, questionExcerpt, validAnswerBody, answerReceipt } from '../../../../lib/trainer-questions.ts';
 
 test('Training chat enters the existing recording flow only after its separate consent, never auto-edits or admits',async()=>{
  const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal,requests:any[]=[];
@@ -371,7 +371,7 @@ async function prepareAnswer(rendered: Rendered) {
   await rendered.click(rendered.getByText('Load recorded questions'));
   await rendered.click(rendered.document.querySelector('input[aria-label="Select question visual-choice"]')!);
   await setTextarea(rendered, rendered.getByText('Your guidance').closest('label')!.querySelector('textarea')!, 'Use the visual example to explain the comparison clearly.');
-  await rendered.click(rendered.getByText('Create a suggested lesson'));
+  await rendered.click(rendered.getByText('Use this answer'));
 }
 
 async function fillManualTeaching(rendered: Rendered) {
@@ -422,7 +422,7 @@ test('an answered question becomes an actual evidence draft link, not automatic 
   try {
     const requests = questionTransport(rendered, calls);
     await prepareAnswer(rendered);
-    assert.match(rendered.text(), /Worker-visible draft guidance/);
+    assert.match(rendered.text(), /Choose an example for your answer/);
     assert.equal(calls.some(c => c.operation === 'annotate' || c.operation === 'accept'), false);
     await rendered.click(rendered.getByText('Annotate source'));
     await rendered.click(rendered.getByText('Preview this exact frame'));
@@ -467,7 +467,6 @@ test('a fresh Training page can link the same existing draft to several recorded
       questionId: 'related-choice', question: 'How should the related comparison be shown?', recurrenceCount: 2 })]) });
     await prepareAnswer(rendered);
     await rendered.click(rendered.document.querySelector('input[aria-label="Select question related-choice"]')!);
-    await rendered.click(rendered.getByText('Create a suggested lesson'));
     const select = rendered.getByText('Or link an existing teaching that already expresses this answer').closest('label')!.querySelector('select')!;
     await setSelect(rendered, select, RECORD); await rendered.click(rendered.getByText('Link answer to selected teaching'));
     assert.equal(calls.some(c => c.operation === 'annotate' || c.operation === 'accept' || c.operation === 'preview'), false);
@@ -606,7 +605,7 @@ test('malformed or stale active-version training requirements fail closed before
 test('source and session identities, exact time input and accessible range value are visible', async () => {
   const { rendered } = await renderedWith();
   try {
-    assert.match(rendered.text(), /Train your agent/);assert.match(rendered.text(), /Video craft/);
+    assert.match(rendered.text(), /Edit & train your agent/);assert.match(rendered.text(), /Video craft/);
     assert.match(rendered.text(), /Active version: 11111111 · Session version: 11111111/);
     assert.match(rendered.text(), /approved-edit.mp4Video · 11:50.667Annotate sourceSource details1920×1080 · SHA-256 bbbbbbbb/);
     await rendered.click(rendered.getByText('Annotate source'));
@@ -1409,7 +1408,7 @@ test('long raw answers are shown in full and are never copied with silent 400-ch
     await r.click(r.document.querySelector('input[aria-label="Select question visual-choice"]')!);
     const text = 'A'.repeat(450) + ' preserve this exact ending.';
     await setTextarea(r, r.getByText('Your guidance').closest('label')!.querySelector('textarea')!, text);
-    await r.click(r.getByText('Create a suggested lesson')); assert.ok(r.text().includes(text));
+    await r.click(r.getByText('Use this answer')); assert.ok(r.text().includes(text));
     await r.click(r.getByText('Annotate source'));
     for (const field of Array.from(r.document.querySelectorAll<HTMLTextAreaElement>('textarea[maxlength="400"]'))) assert.equal(field.value, '');
     assert.equal((r.getByText('Save decision draft') as HTMLButtonElement).disabled, true);
@@ -2374,5 +2373,111 @@ test('readiness warning links directly to earlier training without recreating or
   assert.equal(r.document.getElementById('training-history')!.hidden,false);
   assert.equal(r.getByText('Training from earlier versions').closest('details')!.open,true);
   assert.equal(calls.some(call=>['annotate','accept'].includes(call.operation)),false);
+ }finally{r.cleanup();}
+});
+
+
+test('question excerpts keep exact words and never guess a summary without an explicit marker',()=>{
+ assert.equal(questionExcerpt('Context. Uncertain: close-up or a wider shot?'),'close-up or a wider shot?');
+ assert.equal(questionExcerpt('Context. UNCERTAINTY: Use two panels?\nOther notes.'),'Use two panels?');
+ const original='Do not remove the map. Should it appear beside the presenter?';
+ assert.equal(questionExcerpt(original),original);
+});
+
+test('Answer opens a focused inline field and keeps separate unsent drafts when switching questions',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{
+  const requests=questionTransport(r,h.calls,{page:questionPage([questionRow(),questionRow({id:SOURCE_ID,questionId:'related-choice',question:'Should the presenter stay larger?'})])});
+  r.window.Element.prototype.scrollIntoView=()=>{};
+  r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);
+  await r.click(r.getByText('Load recorded questions'));await r.click(r.getByText('Questions from your agent →'));
+  const button=(id:string)=>r.document.getElementById(`answer-question-${id}`)!;
+  const area=(id:string)=>r.document.getElementById(`question-answer-${id}`) as HTMLTextAreaElement;
+  await r.click(button(QUESTION));assert.equal(r.document.activeElement,area(QUESTION));
+  assert.equal(area(QUESTION).closest('[hidden]'),null);
+  await setTextarea(r,area(QUESTION),'Keep the presenter close up.');
+  await r.click(button(SOURCE_ID));assert.equal(area(SOURCE_ID).value,'');
+  await setTextarea(r,area(SOURCE_ID),'Use a wider shot here.');
+  await r.click(button(QUESTION));assert.equal(area(QUESTION).value,'Keep the presenter close up.');
+  assert.equal(requests.some(request=>request.body),false);
+  await r.click(r.getByText('Use this answer'));assert.match(r.text(),/Choose an example for your answer/);
+  assert.equal((button(SOURCE_ID) as HTMLButtonElement).disabled,true);
+  await r.click(r.getByText('Cancel lesson draft'));await r.click(button(QUESTION));
+  assert.equal(area(QUESTION).value,'Keep the presenter close up.');
+  assert.equal(h.calls.some(call=>call.operation==='annotate'||call.operation==='accept'),false);
+ }finally{r.cleanup();}
+});
+
+test('a failed answer link is retryable on its own card without creating or accepting a second lesson',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{
+  const requests=questionTransport(r,h.calls,{firstFailure:true});
+  await prepareAnswer(r);
+  r.window.Element.prototype.scrollIntoView=()=>{};
+  r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);
+  await r.click(r.getByText('Questions from your agent →'));
+  await r.click(r.getByText('Annotate source'));await r.click(r.getByText('Preview this exact frame'));
+  await fillManualTeaching(r);await r.click(r.getByText('Save decision draft'));
+  const retry=r.getByText('Retry saving this answer');assert.equal(retry.closest('[hidden]'),null);
+  await r.click(retry);
+  assert.equal(requests.filter(request=>request.body).length,2);
+  assert.equal(h.calls.filter(call=>call.operation==='annotate').length,1);
+  assert.equal(h.calls.some(call=>call.operation==='accept'),false);
+ }finally{r.cleanup();}
+});
+
+test('refresh can replace the owning question without stranding a prepared answer',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{
+  const page=questionPage([questionRow(),questionRow({id:SOURCE_ID,questionId:'older-choice',question:'Should the presenter stay wider?'})]);
+  const requests=questionTransport(r,h.calls,{page});
+  r.window.Element.prototype.scrollIntoView=()=>{};r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);
+  await r.click(r.getByText('Load recorded questions'));await r.click(r.getByText('Questions from your agent →'));
+  await r.click(r.document.getElementById(`answer-question-${SOURCE_ID}`)!);
+  await setTextarea(r,r.document.getElementById(`question-answer-${SOURCE_ID}`)!,'Use a wider view.');
+  await r.click(r.getByText('Use this answer'));
+  page.items=[questionRow()];await r.click(r.getByText('Refresh recorded questions'));
+  const pending=r.document.querySelector('[aria-label="Your answer in progress"]')!;
+  assert.ok(pending);assert.equal(pending.closest('[hidden]'),null);assert.match(pending.textContent!,/Use a wider view/);
+  await r.click(r.getByText('Cancel lesson draft'));
+  assert.equal((r.document.getElementById(`answer-question-${QUESTION}`) as HTMLButtonElement).disabled,false);
+  assert.equal(requests.some(request=>request.body),false);
+ }finally{r.cleanup();}
+});
+
+test('version changes clear open answer state and do not rekey old wording into the new version',async()=>{
+ for(const prepared of [false,true]){
+  const h=await renderedWith(),r=h.rendered;
+  try{
+   const page=questionPage();const requests=questionTransport(r,h.calls,{page});
+   await r.click(r.getByText('Load recorded questions'));
+   await r.click(r.document.getElementById(`answer-question-${QUESTION}`)!);
+   await setTextarea(r,r.document.getElementById(`question-answer-${QUESTION}`)!,'This is wording for the old version.');
+   if(prepared)await r.click(r.getByText('Use this answer'));
+   h.setCurrentVersion(VERSION_B);page.activeVersionId=VERSION_B;
+   await r.click(r.getByText('Annotate source'));await r.click(r.getByText('Preview this exact frame'));
+   assert.equal(r.document.getElementById(`question-answer-${QUESTION}`),null);
+   assert.equal(r.queryByText('Cancel lesson draft'),null);
+   await r.click(r.getByText('Load recorded questions'));
+   await r.click(r.document.getElementById(`answer-question-${QUESTION}`)!);
+   assert.equal((r.document.getElementById(`question-answer-${QUESTION}`) as HTMLTextAreaElement).value,'');
+   assert.equal(requests.some(request=>request.body),false);
+  }finally{r.cleanup();}
+ }
+});
+
+test('a pending answer link stays visible with an explanation when its agent version changes',async()=>{
+ const h=await renderedWith(),r=h.rendered;
+ try{
+  const page=questionPage();questionTransport(r,h.calls,{page,firstFailure:true});await prepareAnswer(r);
+  await r.click(r.getByText('Annotate source'));await r.click(r.getByText('Preview this exact frame'));
+  await fillManualTeaching(r);await r.click(r.getByText('Save decision draft'));
+  h.setCurrentVersion(VERSION_B);page.activeVersionId=VERSION_B;
+  await r.click(r.getByText('Preview this exact frame'));
+  const pending=r.document.querySelector('[aria-label="Your answer in progress"]')!;
+  assert.ok(pending);assert.equal(pending.closest('[hidden]'),null);
+  assert.match(pending.textContent!,/agent changed after this lesson draft was saved/i);
+  assert.equal((r.getByText('Retry saving this answer') as HTMLButtonElement).disabled,true);
+  assert.equal(h.calls.filter(call=>call.operation==='annotate').length,1);
  }finally{r.cleanup();}
 });
