@@ -11,7 +11,7 @@ import {reviewMarkApplied,reviewMarkContext,reviewMarkFrame,reviewMarkSuggestion
 
 type Request={issue:ReviewIssue;artifact:ReviewArtifact};
 type Journal={version:1;sourceId?:string;phase:'prepared'|'drafting'|'ready'|'applying'|'applied';context?:ReviewMarkContext;suggestion?:ReviewMarkSuggestion;
- fields?:TeachingFields;retentionUntil?:string;applyKey?:string;receipt?:{recordId:string;recordDigest:string}};
+ ownerRelationOverride?:'accepted'|'rejected';fields?:TeachingFields;retentionUntil?:string;applyKey?:string;receipt?:{recordId:string;recordDigest:string}};
 const PREFIX='implexa:review-mark-draft:v1:';
 const fieldLabels={chosen:'Example details',why:'General judgment',process:'Applies when',desiredBehavior:'For new work'};
 function readJournal(key:string):Journal{
@@ -34,11 +34,13 @@ export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug
  sessionId:string;currentVersionId:string;ownerId:string;slug:string;request:Request|null;
  onClose:()=>void;onApplied:()=>void|Promise<void>;onScopeCheck:()=>void|Promise<void>;
 }){
+ const proposalRef=useRef<HTMLElement|null>(null);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[journal,setJournal]=useState<Journal|null>(null),[image,setImage]=useState(''),[editing,setEditing]=useState(false),[note,setNote]=useState('');
  const active=useRef(''),generation=useRef(0),flight=useRef(false),journalKey=useRef('');
  const identity=JSON.stringify({ownerId,sessionId,currentVersionId,slug,issueId:request?.issue.id,body:request?.issue.body,anchor:request?.issue.anchor,artifactId:request?.artifact.id,sha256:request?.artifact.sha256});
  active.current=identity;
  useEffect(()=>{generation.current++;setBusy(false);setError('');setJournal(null);setImage('');setEditing(false);setNote('');journalKey.current='';},[identity]);
+ useEffect(()=>{if(!request||!journal||journal.phase==='applied')return;proposalRef.current?.scrollIntoView?.({block:'nearest',behavior:'smooth'});proposalRef.current?.focus();},[journal?.phase,request?.issue.id]);
  async function checked(expected:string){if(active.current!==expected)throw Error('The selected teaching changed.');await onScopeCheck();if(active.current!==expected)throw Error('The selected teaching changed.');}
  async function post(operation:'source'|'apply',body:unknown,key?:string){
   const response=await fetch(`/api/agent-training/review-mark?${new URLSearchParams({sessionId,operation})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(body)});
@@ -85,7 +87,7 @@ export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug
  }
  async function apply(){
   if(!journal?.context||!journal.suggestion?.scopeSuggestion||!journal.fields||flight.current||!['ready','applying'].includes(journal.phase))return;
-  const saved=journal,scope=journal.suggestion.scopeSuggestion,expected=identity,epoch=generation.current;
+  const saved=journal,scope={...journal.suggestion.scopeSuggestion,relation:journal.ownerRelationOverride||journal.suggestion.scopeSuggestion.relation},expected=identity,epoch=generation.current;
   if(!['accepted','rejected'].includes(scope.relation))return;
   flight.current=true;setBusy(true);setError('');
   try{
@@ -102,15 +104,23 @@ export default function RunMarkTraining({sessionId,currentVersionId,ownerId,slug
   }catch(caught){if(active.current===expected&&generation.current===epoch)setError(caught instanceof Error?caught.message:'Teaching could not be confirmed.');}
   finally{flight.current=false;if(active.current===expected&&generation.current===epoch)setBusy(false);}
  }
- const proposal=journal?.suggestion,scope=proposal?.scopeSuggestion,fields=journal?.fields,supported=scope&&['accepted','rejected'].includes(scope.relation);
+ const proposal=journal?.suggestion,originalScope=proposal?.scopeSuggestion,scope=originalScope&&{...originalScope,relation:journal?.ownerRelationOverride||originalScope.relation},fields=journal?.fields,supported=originalScope&&['accepted','rejected'].includes(originalScope.relation);
+ const relationText=(value:string)=>value==='accepted'?'keep this example':value==='rejected'?'avoid this example':value;
  const close=()=>{if(!busy)onClose();};
- return <Modal open={!!request} onClose={close} title={journal?'Review this lesson':'Extract training from this note?'} maxWidth="max-w-3xl">
+ if(!request)return null;
+ return <>
+ <Modal open={!journal} onClose={close} title="Extract training from this note?" maxWidth="max-w-3xl">
   {!journal&&<><p className="text-sm leading-6 text-ink-300">Implexa will use your saved note and its marked frame to suggest a reusable lesson.</p><details className="mt-3 text-xs leading-5 text-ink-500"><summary className="cursor-pointer">What gets analyzed</summary><p className="mt-2">This note and its saved image go to Claude Haiku 5.5. Applying a lesson approves this example for training; it leaves the video’s acceptance and revision unchanged.</p></details><button type="button" className="btn-primary mt-5" disabled={busy} onClick={()=>void extract()}>{busy?'Finding the lesson…':'Extract training'}</button></>}
-  {journal?.phase==='applied'?<p role="status" className="text-sm leading-6 text-ink-200">{note}</p>:journal&&proposal?.status==='suggested'&&fields&&scope&&supported?<>
-   {editing&&<div className="mb-4 grid gap-3 rounded-xl border border-ink-700 p-4">{TEACHING_FIELDS.map(field=><label key={field} className="text-xs text-ink-400">{fieldLabels[field]}<textarea className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-950 p-3 text-sm text-ink-100" value={fields[field]} maxLength={400} disabled={busy||journal.phase==='applying'} onChange={event=>{const next={...journal,fields:{...fields,[field]:event.target.value}};writeJournal(journalKey.current,next);setJournal(next);}}/></label>)}</div>}
-   <TrainingDraftBundle drafts={[{id:request!.issue.id,digest:JSON.stringify(fields),judgment:fields.why,appliesWhen:fields.process,example:fields.chosen,category:scope.property.replaceAll('_',' '),relation:scope.relation,renderEvidence:<img src={image} alt="Exact marked result used for this lesson" className="max-h-40 max-w-[75%] rounded-lg object-contain"/>}]} busy={busy} onApply={()=>void apply()} onEdit={()=>setEditing(value=>!value)}/>
+  {!journal&&error&&<p role="alert" className="mt-4 text-sm leading-6 text-amber-300">{error}</p>}
+ </Modal>
+ {journal&&<section ref={proposalRef} tabIndex={-1} aria-label="Lesson from your marked result" className="space-y-4 outline-none"><div className="flex justify-end"><button type="button" disabled={busy} onClick={close} className="text-xs text-ink-400 underline">Close proposal</button></div>
+  {journal.phase==='applied'?<p role="status" className="text-sm leading-6 text-ink-200">{note}</p>:journal&&proposal?.status==='suggested'&&fields&&scope&&supported?<>
+   {journal.ownerRelationOverride&&<p className="text-xs leading-5 text-ink-400">Implexa suggested: {relationText(originalScope!.relation)}. You changed it to: <strong className="text-ink-200">{relationText(journal.ownerRelationOverride)}</strong>.</p>}
+   {editing&&<div className="mb-4 grid gap-3 rounded-xl border border-ink-700 p-4"><label className="text-xs text-ink-400">How to use this example<select aria-label="How to use this example" value={scope.relation} disabled={busy||journal.phase==='applying'} className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-950 p-3 text-sm text-ink-100" onChange={event=>{const value=event.target.value;if(value!=='accepted'&&value!=='rejected')return;const next:Journal={...journal,ownerRelationOverride:value===originalScope!.relation?undefined:value};writeJournal(journalKey.current,next);setJournal(next);}}><option value="accepted">Keep this example</option><option value="rejected">Avoid this example</option></select></label>{TEACHING_FIELDS.map(field=><label key={field} className="text-xs text-ink-400">{fieldLabels[field]}<textarea className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-950 p-3 text-sm text-ink-100" value={fields[field]} maxLength={400} disabled={busy||journal.phase==='applying'} onChange={event=>{const next={...journal,fields:{...fields,[field]:event.target.value}};writeJournal(journalKey.current,next);setJournal(next);}}/></label>)}</div>}
+   <TrainingDraftBundle drafts={[{id:request!.issue.id,digest:JSON.stringify(fields),judgment:fields.why,appliesWhen:fields.process,example:fields.chosen,category:scope.property.replaceAll('_',' '),relation:scope.relation,relationOrigin:journal.ownerRelationOverride?'owner':'model',renderEvidence:<img src={image} alt="Exact marked result used for this lesson" className="max-h-40 max-w-[75%] rounded-lg object-contain"/>}]} busy={busy} onApply={()=>void apply()} onEdit={()=>setEditing(value=>!value)}/>
   </>:journal&&<p role="status" className="text-sm leading-6 text-ink-300">{proposal?.reason||(!supported?'This example needs its category or use clarified before it can be applied. Edit the saved note, then extract the lesson again.':'Review this teaching before applying.')}</p>}
   {error&&<p role="alert" className="mt-4 text-sm leading-6 text-amber-300">{error}</p>}
   {journal?.phase==='applying'&&!busy&&<button type="button" className="mt-4 text-sm text-brand-400" onClick={()=>void apply()}>Confirm the same Apply</button>}
- </Modal>;
+ </section>}
+ </>;
 }

@@ -22,12 +22,12 @@ async function setup({native=context,reply=suggestion,providerFails=false,applyF
  await r.act(()=>{Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});if(initialJournal)for(const [key,value] of initialJournal)r.window.localStorage.setItem(key,value);});
  return {r,calls,nativeCalls,applied,props};
 }
-test('marked-frame teaching preserves run provenance and requires visible relation confirmation before Apply',async()=>{
+test('marked-frame teaching preserves run provenance and uses one visible batch confirmation before Apply',async()=>{
  const {r,calls,nativeCalls,applied}=await setup();try{
   await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Implexa suggests: avoid this'));
   assert.equal(nativeCalls[0].operation,'readReviewMarkEvidence');assert.equal(nativeCalls[0].args.issueId,issue.id);assert.equal(nativeCalls[0].args.reviewSessionId,issue.sessionId);
-  assert.equal(button(r,'Apply selected lesson').disabled,true);assert.equal(calls.some(c=>c.url.includes('operation=apply')),false);
-  await r.click(r.document.querySelector('[aria-label="Confirm example use: avoid this"]')!);await r.click(button(r,'Apply selected lesson'));await flush(r,()=>applied.length===1);
+  assert.equal(button(r,'Apply selected lesson').disabled,false);assert.equal(calls.some(c=>c.url.includes('operation=apply')),false);
+  await r.click(button(r,'Apply selected lesson'));assert.equal(r.document.querySelectorAll('[role="dialog"]').length,1);assert.equal(calls.some(c=>c.url.includes('operation=apply')),false);await r.click(button(r,'Apply these lessons as shown'));await flush(r,()=>applied.length===1);
   const write=calls.find(c=>c.url.includes('operation=apply'));assert.deepEqual(write.body.fields,fields);assert.equal(write.body.relation,'rejected');assert.equal(write.body.issueDigest,binding.issueDigest);assert.equal(write.body.artifactSha256,binding.artifactSha256);assert.match(write.init.headers['Idempotency-Key'],/^review-mark:[a-f0-9]{64}$/);
   assert.equal(calls.some(c=>/accept|submit|revision|demo-annotation/.test(c.url)),false);assert.match(r.text(),/Your lesson is saved/);
  }finally{r.cleanup();}
@@ -45,5 +45,27 @@ test('an interrupted extraction is not silently re-sent after reopening',async()
  const {r,calls,props}=await setup({providerFails:true});try{await r.click(button(r,'Extract training'));await flush(r,()=>!!r.document.querySelector('[role="alert"]'));await r.rerender({...props,request:null});await r.rerender(props);await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Drafting was interrupted'));assert.equal(calls.filter(c=>c.url.includes('teaching-suggestion')).length,1);}finally{r.cleanup();}
 });
 test('uncertain Apply retries the exact same receipt identity and cannot change its fields',async()=>{
- const {r,calls,applied}=await setup({applyFails:true});try{await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Implexa suggests: avoid this'));await r.click(r.document.querySelector('[aria-label="Confirm example use: avoid this"]')!);await r.click(button(r,'Apply selected lesson'));await flush(r,()=>!!button(r,'Confirm the same Apply'));await r.click(button(r,'Confirm the same Apply'));await flush(r,()=>applied.length===1);const writes=calls.filter(c=>c.url.includes('operation=apply'));assert.equal(writes.length,2);assert.deepEqual(writes[0].body,writes[1].body);assert.equal(writes[0].init.headers['Idempotency-Key'],writes[1].init.headers['Idempotency-Key']);}finally{r.cleanup();}
+ const {r,calls,applied}=await setup({applyFails:true});try{await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Implexa suggests: avoid this'));await r.click(button(r,'Apply selected lesson'));await r.click(button(r,'Apply these lessons as shown'));await flush(r,()=>!!button(r,'Confirm the same Apply'));await r.click(button(r,'Confirm the same Apply'));await flush(r,()=>applied.length===1);const writes=calls.filter(c=>c.url.includes('operation=apply'));assert.equal(writes.length,2);assert.deepEqual(writes[0].body,writes[1].body);assert.equal(writes[0].init.headers['Idempotency-Key'],writes[1].init.headers['Idempotency-Key']);}finally{r.cleanup();}
+});
+
+test('owner can correct the example relation without rewriting the model proposal',async()=>{
+ const {r,calls,applied}=await setup();try{
+  await r.click(button(r,'Extract training'));await flush(r,()=>r.text().includes('Implexa suggests: avoid this'));
+  await r.click(button(r,'Review'));
+  const selector=r.document.querySelector('[aria-label="How to use this example"]') as HTMLSelectElement;
+  await r.act(()=>{selector.value='accepted';selector.dispatchEvent(new r.window.Event('change',{bubbles:true}));});
+  assert.match(r.text(),/Implexa suggested: avoid this example. You changed it to: keep this example/);assert.match(r.text(),/Your choice: keep this/);
+  const stored=JSON.parse(Object.values(r.window.localStorage)[0] as string);assert.equal(stored.suggestion.scopeSuggestion.relation,'rejected');assert.equal(stored.ownerRelationOverride,'accepted');
+  await r.click(button(r,'Apply selected lesson'));assert.match(r.text(),/Your choice: keep this/);await r.click(button(r,'Apply these lessons as shown'));await flush(r,()=>applied.length===1);
+  assert.equal(calls.find(c=>c.url.includes('operation=apply')).body.relation,'accepted');
+ }finally{r.cleanup();}
+});
+test('a late frame read from the previous note cannot draft into a newly selected request',async()=>{
+ let resolveNative!:(v:any)=>void;const pending=new Promise(resolve=>resolveNative=resolve),calls:any[]=[];
+ const props={sessionId:U(1),currentVersionId:U(2),ownerId:U(11),slug:'video-studio',request:{issue,artifact},onClose:()=>{},onApplied:()=>{},onScopeCheck:async()=>{}};
+ const r=await render('../training/[slug]/run-mark-training.tsx',props,{bridge:{trainingReviewMarkContractVersion:'1',trainingLocal:async()=>pending},fetch:async(url:any)=>{calls.push(String(url));return {ok:true,json:async()=>({ok:true,sourceId:U(5)})} as Response;}});
+ try{await r.act(()=>{Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});});await r.click(button(r,'Extract training'));await flush(r,()=>calls.length===1);
+  await r.rerender({...props,request:{issue:{...issue,id:U(12),body:'A different note'},artifact}});await r.act(()=>resolveNative(context));
+  assert.equal(calls.some(url=>url.includes('teaching-suggestion')),false);assert.equal(r.text().includes('Your agent will learn'),false);assert.equal(button(r,'Apply selected lesson'),undefined);
+ }finally{r.cleanup();}
 });
