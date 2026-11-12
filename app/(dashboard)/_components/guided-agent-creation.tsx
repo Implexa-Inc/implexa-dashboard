@@ -9,6 +9,8 @@ import {createAgentBuild} from '@/lib/plan-review';
 import {AttachFiles,composeNoteWithFiles,useRunAttachments,ATTACH_BUILD_MARKER} from './run-attachments';
 import {isCreationDraftRead,type CreationDraftRead,type CreationTurn} from '@/lib/agent-creation-brief';
 
+const VIDEO_AGENT_EXAMPLE='Turn a raw recording into a finished YouTube video. Edit the footage, add B-roll with Higgsfield, and create animations and render with Remotion.';
+
 /** Prepared cards over the existing plan/build gate. This component grants no
  * tools, starts no runs and stores no private conversation in a definition. */
 export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:string;connected?:boolean}){
@@ -41,6 +43,12 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
  const prepared=data?.turns.filter(t=>t.status==='answered'&&t.brief&&t.replyId)||[];
  const isPending=data?.turns.some(t=>t.status==='pending')===true;
  const isBuilt=queued||!!data?.buildRequestId||data?.withdrawn===true;
+ const focusedDraft=useRef('');
+ useEffect(()=>{
+  const area=composer.current;
+  if(!draftId||data?.draftId!==draftId||busy||isBuilt||isPending||focusedDraft.current===draftId||!area||area.disabled||area.closest('details:not([open])'))return;
+  area.focus({preventScroll:true});focusedDraft.current=draftId;
+ },[draftId,data?.draftId,busy,isBuilt,isPending]);
  const choose=(turn:CreationTurn)=>{setSelectedId(turn.replyId);try{sessionStorage.setItem(selectionKey(draftId),turn.replyId!);}catch{}};
  const send=async()=>{
   if(busy||isBuilt||isPending||!draftId||!text.trim())return;
@@ -77,7 +85,7 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
   finally{if(active.current===identity)setBusy(false);}
  };
  return <section className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-  <aside className="min-w-0 lg:sticky lg:top-6"><ChatFrame scrollKey={data?.turns.at(-1)?.turnId+':'+data?.turns.at(-1)?.status} title="Chat with AI" subtitle="Build your agent" details={<div className="space-y-3">
+  <aside className="min-w-0 lg:sticky lg:top-6"><ChatFrame contentSized scrollKey={data?.turns.at(-1)?.turnId+':'+data?.turns.at(-1)?.status} title="Chat with AI" subtitle="Build your agent" details={<div className="space-y-3">
    <p>Send shares this conversation and the prepared draft with Claude Haiku 5.5. Attachments stay local until Build.</p>
    <button type="button" className="underline" disabled={!draftId||busy} onClick={()=>load(draftId)}>Refresh saved draft</button>
    {!!data?.recentDrafts?.length&&<label className="block">Private draft history<select aria-label="Private draft history" className="mt-1 w-full rounded border border-ink-700 bg-ink-950 p-2" disabled={busy} value={draftId} onChange={e=>{active.current=e.target.value;setDraftId(e.target.value);setData(null);setSelectedId(null);setQueued(false);setText('');pending.current=null;seed.current=null;resetFiles();try{sessionStorage.setItem(storageKey,e.target.value);}catch{}}}>
@@ -85,7 +93,9 @@ export default function GuidedAgentCreation({ownerId,connected=false}:{ownerId:s
    </select></label>}
    <p>Messages stay in your private history. Withdrawal stops further preparation and builds from this draft; it does not cancel queued work.</p><button type="button" className="underline" disabled={busy||data?.withdrawn||!data?.turns.length} onClick={withdraw}>Withdraw this draft from further use</button>
   </div>} composer={<ChatComposer value={text} onChange={setText} onSend={()=>void send()} disabled={isBuilt||isPending} sending={busy} sendDisabled={!draftId} textareaRef={composer} placeholder="Tell me what you’d like your agent to do…" attachments={<fieldset disabled={busy||isBuilt}><AttachFiles files={files} canAttach={canAttach} canAttachFolder={canAttachFolder} onAttach={()=>attachFile()} onAttachFolder={()=>attachFolder()} onRemove={removeFile} error={attachError}/></fieldset>}/> }>
-   {!data?.turns.length&&<ChatMessage role="assistant"><p>What would you like your agent to do? Start with the goal—we’ll work out the tools and what it needs together.</p></ChatMessage>}
+   {!data?.turns.length&&<ChatMessage role="assistant"><p>What would you like your agent to do? We’ll work out the tools, inputs and outputs together.</p>
+    <button type="button" disabled={busy||isBuilt} onClick={()=>{setText(VIDEO_AGENT_EXAMPLE);composer.current?.focus();}} className="block w-full rounded-xl border border-ink-800 px-4 py-3 text-left text-ink-400 hover:border-ink-600 hover:text-ink-200 disabled:opacity-50"><span className="mb-1 block text-xs text-ink-500">Try an example</span>{VIDEO_AGENT_EXAMPLE}</button>
+   </ChatMessage>}
    {data&&!data.withdrawn&&data.totalTurns>data.turns.length&&<p className="text-xs text-ink-500">Showing recent exchanges. Earlier messages are saved in this draft.</p>}
    <ol aria-label="Agent creation conversation" className="space-y-6">{data?.turns.map(t=><li key={t.turnId} className="space-y-3">
     <ChatMessage role="user"><p className="whitespace-pre-wrap">{t.message}</p></ChatMessage>{t.reply&&<ChatMessage role="assistant"><p className="whitespace-pre-wrap">{t.reply}</p></ChatMessage>}

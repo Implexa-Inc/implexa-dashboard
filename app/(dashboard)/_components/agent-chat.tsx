@@ -3,10 +3,10 @@
 import {useEffect,useRef,type ReactNode,type RefObject} from 'react';
 
 /** Shared conversation presentation; each caller retains its own saved context and actions. */
-export function ChatFrame({children,composer,title='Chat with AI',subtitle,onClose,details,embedded=false,scrollKey}:{scrollKey?:string|number;children:ReactNode;composer:ReactNode;title?:string;subtitle?:string;onClose?:()=>void;details?:ReactNode;embedded?:boolean}){
+export function ChatFrame({children,composer,title='Chat with AI',subtitle,onClose,details,embedded=false,contentSized=false,scrollKey}:{contentSized?:boolean;scrollKey?:string|number;children:ReactNode;composer:ReactNode;title?:string;subtitle?:string;onClose?:()=>void;details?:ReactNode;embedded?:boolean}){
  const messages=useRef<HTMLDivElement>(null);
  useEffect(()=>{const box=messages.current;if(box)box.scrollTop=box.scrollHeight;},[scrollKey]);
- return <section aria-label={title} className={`flex min-h-[420px] flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-950 ${embedded?'h-[min(720px,calc(100dvh-7rem))]':'h-[min(760px,calc(100dvh-10rem))]'}`}>
+ return <section aria-label={title} className={`flex flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-950 ${contentSized?'max-h-[max(420px,min(760px,calc(100dvh-6rem)))]':`min-h-[420px] ${embedded?'h-[min(720px,calc(100dvh-7rem))]':'h-[min(760px,calc(100dvh-10rem))]'}`}`}>
   <header className="flex shrink-0 items-start justify-between gap-3 border-b border-ink-800 px-5 py-4"><div><h2 className="text-base font-medium">✦ {title}</h2>{subtitle&&<p className="mt-1 text-xs text-ink-500">{subtitle}</p>}</div><div className="flex items-center gap-2">{details&&<details className="relative text-xs text-ink-400"><summary aria-label="Chat details" className="cursor-pointer list-none rounded-full px-2 py-1">ⓘ</summary><div className="absolute right-0 top-8 z-10 max-h-80 w-72 overflow-y-auto rounded-xl border border-ink-700 bg-ink-900 p-4 leading-5 shadow-xl">{details}</div></details>}{onClose&&<button type="button" aria-label="Close chat" onClick={onClose} className="rounded-lg px-2 py-1 text-ink-500 hover:text-ink-100">×</button>}</div></header>
   <div ref={messages} className="min-h-20 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5 text-sm leading-6">{children}</div>
   <div className="shrink-0 border-t border-ink-800 bg-ink-900/20 p-3">{composer}</div>
