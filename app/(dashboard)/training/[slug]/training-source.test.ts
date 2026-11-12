@@ -2262,6 +2262,7 @@ test('image voice commentary can be inserted while its own pending state guards 
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
  try{
   await chooseDirectUpload(r);await r.click(r.getByText('Add a voice note'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+  const slider=r.document.querySelector('[aria-label="Training video frame"]') as HTMLInputElement,openFrame=r.getByText('Open this frame') as HTMLButtonElement;assert.ok(slider);assert.equal(slider.disabled,true,'the selected frame cannot unmount pending voice feedback');assert.equal(openFrame.disabled,true);const previews=h.calls.filter(call=>call.operation==='preview').length;await r.click(openFrame);assert.equal(h.calls.filter(call=>call.operation==='preview').length,previews);assert.equal((r.document.querySelector('[aria-label="Voice note transcript"]') as HTMLTextAreaElement).value,'Show the relationship clearly.');
   const insert=[...r.document.querySelectorAll('button')].find(button=>button.textContent==='Add to this note')!;assert.ok(insert);assert.equal(insert.disabled,false,'voice pending guards navigation, not its own insertion');
   await r.click(insert);assert.equal((r.document.querySelector('[aria-label="Your feedback on this image"]') as HTMLTextAreaElement).value,'Show the relationship clearly.');
   assert.equal(h.calls.some(c=>['recording','annotate','accept'].includes(c.operation)),false);

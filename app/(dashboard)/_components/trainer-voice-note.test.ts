@@ -86,3 +86,20 @@ test('voice rectangle rounding stays inside native coordinate bounds',async()=>{
  const r=await render('trainer-voice-note.tsx',{ownerId:owner,attach:edge,onInsert:()=>{}},{bridge});
  try{await r.click(r.getByText('Add a voice note'));assert.deepEqual(JSON.parse(JSON.stringify(calls.find(call=>call.op==='startVoiceNote').args.attach.mark.region)),{x:999999,y:0,width:1,height:1000000});}finally{r.cleanup();}
 });
+
+
+test('an uninserted transcript cannot be replaced by starting another voice note',async()=>{
+ let starts=0;const inserted:string[]=[];
+ const bridge={trainerCommentaryContractVersion:'1',reviewRecorder:async(op:string)=>{
+  if(op==='listVoiceNotes')return {ok:true,voiceNotes:[]};
+  if(op==='startVoiceNote'){starts++;return {ok:true,voiceNoteId:note};}
+  if(op==='getVoiceNote')return {ok:true,voiceNote:{voiceNoteId:note,state:'ready',attach,sha256:sha,durationMs:1000,failureReason:null}};
+  if(op==='transcribeVoiceNote')return {ok:true,transcript:{text:'Keep this unsaved voice feedback.',voiceNoteSha256:sha,digest:sha}};
+  throw Error(op);
+ }};
+ const r=await render('trainer-voice-note.tsx',{ownerId:owner,attach,onInsert:(text:string)=>inserted.push(text)},{bridge});
+ try{
+  await r.click(r.getByText('Add a voice note'));assert.equal(starts,1);const add=r.getByText('Add a voice note') as HTMLButtonElement;assert.equal(add.disabled,true);await r.click(add);assert.equal(starts,1);assert.equal((r.document.querySelector('textarea') as HTMLTextAreaElement).value,'Keep this unsaved voice feedback.');assert.equal(inserted.length,0);
+  await r.click(r.getByText('Dismiss voice note'));assert.equal((r.getByText('Add a voice note') as HTMLButtonElement).disabled,false);await r.click(r.getByText('Add a voice note'));assert.equal(starts,2,'an explicit dismissal allows a new capture');
+ }finally{r.cleanup();}
+});

@@ -920,7 +920,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setDecisionKey(crypto.randomUUID());
   }
   function changeTime(next: number) {
-    if (!selected || !Number.isFinite(next)) return;
+    if (directVoiceDirty || !selected || !Number.isFinite(next)) return;
     setTime(Math.min(Math.max(0, Math.round(next)), Math.max(0, selected.metadata.durationMs - 1)));
     setPreview(null); setDecisionKey(crypto.randomUUID());
   }
@@ -932,7 +932,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
 
   async function showPreview() {
-    if (!selected?.token) return;
+    if (directVoiceDirty || !selected?.token) return;
     const source = selected; const requestedTime = time;
     await work('Verifying and extracting this frame', async () => {
       await requireCurrentScope();
@@ -1395,7 +1395,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         onChange={(text,spatial)=>{setDirectNote(text);setDemoText(text.trim()||spatial?JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:selected.sourceId,timeMs:time,spatial,feedback:text}):'');}}
         onDone={()=>setDirectExtractionRequested(true)}/>
       {playbackFallback&&<p role="status" className="text-xs text-ink-400">{playbackFallback}</p>}
-      {selected.metadata.durationMs>0&&<details className="text-xs text-ink-400"><summary className="cursor-pointer">Choose a different frame</summary><input aria-label="Training video frame" className="mt-3 w-full" type="range" min="0" max={selected.metadata.durationMs-1} value={time} disabled={!!busy||!!directNote.trim()} onChange={event=>changeTime(Number(event.target.value))}/><button type="button" disabled={!!busy||!!directNote.trim()} onClick={()=>void showPreview()}>Open this frame</button></details>}
+      {selected.metadata.durationMs>0&&<details className="text-xs text-ink-400"><summary className="cursor-pointer">Choose a different frame</summary><input aria-label="Training video frame" className="mt-3 w-full" type="range" min="0" max={selected.metadata.durationMs-1} value={time} disabled={!!busy||directVoiceDirty||!!directNote.trim()} onChange={event=>changeTime(Number(event.target.value))}/><button type="button" disabled={!!busy||directVoiceDirty||!!directNote.trim()} onClick={()=>void showPreview()}>Open this frame</button></details>}
     </>}
     {!installationId&&activeRunId&&<TrainingRunPlayer key={activeRunId} slug={slug} runId={activeRunId} ownerId={ownerId} onTeach={(issue,artifact)=>void prepareRunTeaching([{issue,artifact}])} onDoneTeaching={notes=>void prepareRunTeaching(notes)} onDirtyChange={setRunDirty}/>}
     {!installationId&&activeRecordingId&&<RecordingPlayer key={activeRecordingId} recordingId={activeRecordingId} ownerId={ownerId||''} trainingSlug={slug} embedded trainerNarration={trainerNarration} onTrainerNarrationChange={setTrainerNarration} onDirtyChange={setRecordingDirty} onRecordingLoaded={setActiveRecordingDetail} onUseFeedback={(recordingId,moment)=>setFeedbackRequest({recordingId,moment})} onDoneTeaching={(recordingId,moments)=>setBatchFeedbackRequest({recordingId,moments})} onAnalyzeNarration={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'taste'})} onAnalyzeTool={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'agent'})} narrationUnavailable={pendingRecordingLink||pendingDemoLink||suggesting?"Finish the current teaching or pending link first.":!activeRecordingDetail?"Loading your recording…":!trainerNarration&&activeRecordingDetail.origin==='imported'?"Add voice notes, or mark this video as your narrated demonstration in More options.":!activeRecordingDetail.hasMicrophone?"This recording has no microphone narration. You can still leave feedback on the video.":!recordingSupported?"Update Desktop to find learnings in your narration.":(activeRecordingDetail.durationMs||0)>600000?"Narration analysis supports recordings up to 10 minutes. Your visual feedback is still available.":undefined} onClose={()=>{if(recordingDirty){setClosingRecording(true);setReplaceRecordingOpen(true);}else{setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(null);setActiveRecordingDetail(null);}}}/>}

@@ -87,7 +87,7 @@ export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,
   // eslint-disable-next-line react-hooks/exhaustive-deps
  },[noteId,identity]);
  async function start(){
-  if(action.current||disabled)return;action.current=true;++sequence.current;setStarting(true);const captured=identity;setError('');
+  if(action.current||disabled||noteId&&state==='ready')return;action.current=true;++sequence.current;setStarting(true);const captured=identity;setError('');
   try{const value=await call('startVoiceNote',{attach:bound});if(!uuid(value.voiceNoteId))throw Error('Voice note could not be started.');if(live.current&&latest.current===captured){setNoteId(value.voiceNoteId);setState('recording');setText('');}}
   catch(caught){if(latest.current===captured)setError(caught instanceof Error?caught.message:'Voice note unavailable.');}
   finally{action.current=false;if(live.current)setStarting(false);}
@@ -101,7 +101,7 @@ export default function TrainerVoiceNote({ownerId,attach,onInsert,maxLength=600,
  }
  const active=starting||noteId&&!['ready','failed','cancelled','discarded'].includes(state);
  return <div className="mt-2 space-y-2 text-xs">
-  <button type="button" disabled={disabled||!available||!!active} className="text-ink-400 hover:text-ink-100 disabled:opacity-40" onClick={()=>void start()}>{active?state==='transcribing'?'Transcribing on this Mac…':'Recording in the voice-note bar…':'◉ Add a voice note'}</button>
+  <button type="button" disabled={disabled||!available||!!active||!!noteId&&state==='ready'} className="text-ink-400 hover:text-ink-100 disabled:opacity-40" onClick={()=>void start()}>{active?state==='transcribing'?'Transcribing on this Mac…':'Recording in the voice-note bar…':'◉ Add a voice note'}</button>
   {!available&&<span className="ml-2 text-ink-500">Update Desktop for voice notes</span>}
   {!noteId&&recoverable.length>0&&<details className="text-ink-400"><summary className="cursor-pointer">Saved voice notes for this mark ({recoverable.length})</summary>{recoverable.map(note=><button key={note.voiceNoteId} type="button" disabled={disabled||starting} className="mt-2 block underline underline-offset-4" onClick={()=>{++sequence.current;transcribed.current.delete(note.voiceNoteId);setNoteId(note.voiceNoteId);setState('recovering');setError('');}}>Recover voice note{note.createdAt?` · ${new Date(note.createdAt).toLocaleString()}`:''}</button>)}</details>}
   {state==='ready'&&<div className="rounded-lg border border-ink-700 p-3"><label className="block text-ink-400">Your voice note<textarea aria-label="Voice note transcript" value={text} onChange={event=>setText(event.target.value)} rows={3} className="mt-2 w-full rounded-md border border-ink-700 bg-ink-950 p-2 text-sm text-ink-100"/></label>
