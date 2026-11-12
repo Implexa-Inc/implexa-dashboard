@@ -35,7 +35,11 @@ export default function ChatDictation({scope,disabled,onInsert,onBusy}:{scope:st
     if(['failed','cancelled','discarded','interrupted'].includes(note.state))throw Error(note.state==='cancelled'?'Recording cancelled.':'Could not finish recording. Check the microphone.');
    }
    if(current())throw Error('Recording timed out. You can keep typing.');
-  }catch(e){if(current())setError((e instanceof Error?e.message:'Voice unavailable.').replaceAll('_',' '));}
+  }catch(e){if(current()){
+   const reason=e instanceof Error?e.message:'Voice unavailable.';
+   if(['recording_not_found','voice_note_not_found'].includes(reason)){setError('');setState('Dictation ended without changing your message.');}
+   else setError(reason==='no_speech'?'No speech was heard. Check your microphone and try again.':reason.replaceAll('_',' '));
+  }}
   finally{if(current()){discard();active.current=false;busy.current(false);}}
  }
  if(!available)return null;
