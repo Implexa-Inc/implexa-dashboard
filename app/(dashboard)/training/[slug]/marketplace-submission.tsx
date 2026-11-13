@@ -9,7 +9,7 @@ type Price={creditsPerClip:number;centsPerCredit:number;currency:string;model:st
 type Context={ok:true;contractVersion:string;agent:{id:string;versionId:string;name:string};bindingDigest:string;canSubmit:boolean;
  tools:{id:string;name:string;required:boolean;provider:string|null;canInclude:boolean;canCustomerConnect:boolean;origin:string;accessMode:string}[];
  samples:(ReviewArtifact&{date:string})[];engines:string[];defaults:Listing;runwayPrice:Price;
- draft:{id:string;revision:number;state:string;version_id:string;payload:{listing:Listing};created_at:string}|null};
+ draft:{id:string;revision:number;state:string;version_id:string;payload:{listing:Listing;bindingDigest:string};created_at:string}|null};
 const money=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
 const field='mt-2 w-full rounded-xl border border-ink-700 bg-ink-950 p-3 text-sm text-ink-100';
 const errors:Record<string,string>={listing_changed:'Your agent changed. Close and reopen this draft to use its current setup.',listing_revision_changed:'This draft was saved elsewhere. Close and reopen it before editing.',tested_publication_required:'Test and publish this version’s training before submitting.',sample_release_required:'Choose a sample and confirm you can show it.',tool_price_needs_refresh:'The tool rate needs a fresh check before this offer can be saved.',marketplace_submission_unavailable:'The listing could not be loaded or saved. Try again.',invalid_listing:'Check the listing fields and tool limits.',invalid_tool_price:'Use 60–10,000 whole API credits and 0–20% markup.'};
@@ -25,8 +25,11 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
    if(!response.ok||c.ok!==true||c.contractVersion!=='marketplace-submission.v1'||c.agent?.versionId!==versionId)throw Error(c.reason||'listing_changed');
    setContext(c);setRevision(c.draft?.revision||0);
    const same=c.draft?.version_id===versionId;
-   setListing(same?{...c.draft.payload.listing,tools:c.draft.payload.listing.tools.map((t:ToolOffer)=>({id:t.id,mode:t.mode,credits:t.credits||60,markupPercent:t.markupPercent||0}))}:c.defaults);
-   if(same&&c.draft.state==='submitted')setNote('Submitted for review. Your listing is private until approved.');
+   const prior=same?c.draft.payload.listing:null;
+   setListing(prior?{...prior,sampleIds:prior.sampleIds.filter((id:string)=>c.samples.some((s:ReviewArtifact)=>s.id===id)),
+    tools:c.defaults.tools.map((t:ToolOffer)=>{const saved=prior.tools.find((p:ToolOffer)=>p.id===t.id);return saved?{id:saved.id,mode:saved.mode,credits:saved.credits||60,markupPercent:saved.markupPercent||0}:t;})}:c.defaults);
+   if(same&&c.draft.payload.bindingDigest!==c.bindingDigest)setNote('Your agent’s setup changed. Review this draft before saving it again.');
+   else if(same&&c.draft.state==='submitted')setNote('Submitted for review. Your listing is private until approved.');
   }catch(e){if(captured===scope.current)setError(errors[(e as Error).message]||errors.marketplace_submission_unavailable);}
   finally{if(captured===scope.current)setBusy(false);}
  }
