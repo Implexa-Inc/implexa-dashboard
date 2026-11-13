@@ -1659,7 +1659,14 @@ test('the existing Training controller sends the exact reviewed public preparati
  }) as typeof globalThis.fetch;
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,fetch:fetcher});
  try{
-  await r.click(r.getByText('Review publication'));await r.click(r.getByText('Prepare exact public preview'));
+  const review=r.getByText('Review public version');assert.ok(review.closest('[hidden]'),'sharing action starts out of the teaching workspace');
+  await r.click(r.getByText('Sharing & settings'));
+  assert.equal(review.closest('[hidden]'),null,'public review is reachable with no pending lesson or local source');
+  assert.equal(requests.length,0,'opening settings does not prepare or publish anything');
+  await r.click(review);const prepare=r.getByText('Prepare exact public preview');
+  assert.equal(prepare.closest('[hidden]'),null,'public review dialog is visible from settings');
+  assert.equal(requests.length,0,'opening public review does not prepare or publish anything');
+  await r.click(prepare);
   assert.match(r.text(),/0 added · 1 removed/);await r.click(r.getByText('Test this public version'));
   assert.deepEqual(JSON.parse(JSON.stringify(requests.at(-1).body)),{expectedActiveVersionId:VERSION_A,expectedSnapshotDigest:H,scope:'public_projection',publicationPreparationId:QUESTION,preparationDigest:preparation});
   assert.equal(r.calls.push.length,0,'public preparation stays on Training');
