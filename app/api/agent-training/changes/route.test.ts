@@ -25,7 +25,9 @@ const request=(operation?:string,signal?:AbortSignal)=>new Request(`https://dash
 
 test('a slow Training read survives the former deadline and remains bounded',async()=>{
  const p=proxy();let settled=false;const response=p.GET(request()).then((value:any)=>{settled=true;return value;});await tick();
- assert.equal(p.calls.length,1);p.advance(35000);await tick();assert.equal(settled,false);
+ assert.equal(p.calls.length,1);assert.equal(p.maxDuration,65);
+ assert.equal(p.calls[0].url,`https://core.implexa.ai/api/v2/agent-training/sessions/${SESSION}/changes`);
+ assert.equal(p.calls[0].init.method,'GET');p.advance(54999);await tick();assert.equal(settled,false);
  p.advance(55000);const result=await response;assert.equal(result.status,503);assert.equal(p.calls.length,1);
  assert.equal(result.value.reason,'training_changes_unavailable');assert.doesNotMatch(JSON.stringify(result),/private upstream/);
 });
@@ -33,19 +35,23 @@ test('only public preparation, publication and test preparation can finish beyon
  for(const operation of ['publication/prepare','publication/publish','tests/prepare']){
   const p=proxy();let settled=false;const response=p.POST(request(operation)).then((value:any)=>{settled=true;return value;});await tick();
   assert.equal(p.calls.length,1);p.advance(35000);await tick();assert.equal(settled,false,operation);
+  assert.equal(p.calls[0].url,`https://core.implexa.ai/api/v2/agent-training/sessions/${SESSION}/changes/${operation}`);
+  assert.equal(p.calls[0].init.method,'POST');assert.equal(p.maxDuration,65);
   assert.equal(p.calls[0].init.headers['Idempotency-Key'],'same-reviewed-intent');
   assert.equal(p.calls[0].init.headers.authorization,'Bearer server-session');
   assert.equal(p.calls[0].init.body,'{"selection":"reviewed"}');
   p.calls[0].finish();assert.equal((await response).status,200);assert.equal(p.calls.length,1);
+  const bounded=proxy();let ended=false;const expiry=bounded.POST(request(operation)).then((value:any)=>{ended=true;return value;});await tick();
+  bounded.advance(59999);await tick();assert.equal(ended,false,operation);
+  bounded.advance(60000);assert.equal((await expiry).status,503,operation);assert.equal(bounded.calls.length,1);
  }
 });
 test('ordinary writes retain their existing deadline and never retry after an uncertain response',async()=>{
  for(const operation of ['policy','records','withdraw','creation-import','activate']){
-  const p=proxy();const response=p.POST(request(operation));await tick();assert.equal(p.calls.length,1);
+  const p=proxy();let ended=false;const response=p.POST(request(operation)).then((value:any)=>{ended=true;return value;});await tick();assert.equal(p.calls.length,1);
+  p.advance(9999);await tick();assert.equal(ended,false,operation);
   p.advance(10000);assert.equal((await response).status,503,operation);assert.equal(p.calls.length,1);
  }
- const p=proxy();const response=p.POST(request('publication/prepare'));await tick();p.advance(60000);
- assert.equal((await response).status,503);assert.equal(p.calls.length,1);
 });
 test('caller cancellation still cuts off long requests and invalid targets never reach the backend',async()=>{
  for(const operation of [undefined,'publication/prepare']){
@@ -55,4 +61,6 @@ test('caller cancellation still cuts off long requests and invalid targets never
  const signedOut=proxy(false);assert.equal((await signedOut.GET(request())).status,401);assert.equal(signedOut.calls.length,0);
  const invalid=proxy();assert.equal((await invalid.GET(new Request(`https://dashboard.test/api/agent-training/changes?sessionId=${SESSION}&ownerId=foreign`))).status,400);
  assert.equal(invalid.calls.length,0);
+ const unknown=proxy();assert.equal((await unknown.POST(request('unknown'))).status,400);assert.equal(unknown.calls.length,0);
+ const malformed=proxy();assert.equal((await malformed.GET(new Request('https://dashboard.test/api/agent-training/changes?sessionId=bad'))).status,400);assert.equal(malformed.calls.length,0);
 });
