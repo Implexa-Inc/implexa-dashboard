@@ -2481,3 +2481,20 @@ test('a pending answer link stays visible with an explanation when its agent ver
   assert.equal(h.calls.filter(call=>call.operation==='annotate').length,1);
  }finally{r.cleanup();}
 });
+
+
+test('initial suggestions read failure stays visible and retry recovers without an empty section',async()=>{
+ const h=harness();let reads=0;
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:any)=>{
+  if(String(url).includes('/agent-training/questions?')){reads++;return {ok:reads>1,json:async()=>reads>1?questionPage([]):{ok:false}};}
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+ }) as typeof fetch});
+ try{
+  const retry=r.getByText('Retry training suggestions');assert.equal(retry.closest('[hidden]'),null);
+  assert.ok(r.getByText('Training suggestions couldn’t load.'));assert.equal(reads,1);
+  assert.equal(r.document.querySelector('[aria-labelledby=training-opportunities-heading]'),null);
+  await r.click(retry);assert.equal(reads,2);assert.equal(r.queryByText('Retry training suggestions'),null);
+  assert.equal(r.document.querySelector('[aria-labelledby=training-opportunities-heading]'),null);
+  assert.equal(h.calls.some(c=>['annotate','accept','delivery'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
