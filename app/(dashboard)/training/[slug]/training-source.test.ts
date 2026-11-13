@@ -2322,7 +2322,7 @@ test('video upload requests owner-bound playback only with the advertised contra
 test('contextual review preserves draft selection and requires final Apply confirmation',async()=>{
  const h=harness({previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;h.bridge.trainingLocal=async(operation,args)=>{const result:any=await original(operation,args);if(operation==='list'&&result.sources?.[0]){const first=result.sources[0].decisions[0];first.content.derivatives=[{sha256:DIGEST}];result.sources[0].decisions=[first,{...first,recordId:QUESTION,decision:{...first.decision,why:'A second precise judgment.'}}];}return result;};
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});r.window.requestAnimationFrame=callback=>r.window.setTimeout(()=>callback(0),0);r.window.Element.prototype.scrollIntoView=()=>{};
- try{assert.equal(r.document.querySelector('[aria-label="Training steps"]'),null);assert.ok(r.getByText('Ways to train'));const playing=r.document.createElement('video');let paused=0;Object.defineProperty(playing,'paused',{get:()=>false});playing.pause=()=>{paused++;};r.document.querySelector('#main-content')!.append(playing);await r.click(r.getByText('Review proposed changes →'));assert.equal(paused,1,'leaving Teach pauses hidden playback without touching native voice capture');playing.remove();const review=r.document.querySelector('[aria-label="Review proposed visual training"]')!;assert.ok(review.closest('[hidden]')===null);const boxes=[...review.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];assert.equal(boxes.length,2);await r.click(boxes[1]);await r.click(r.getByText('Continue to Apply & Test'));assert.ok(review.closest('[hidden]'));const apply=r.document.querySelector('[aria-label="Selected training to apply"]')!;assert.ok(apply.closest('[hidden]')===null);assert.match(apply.textContent||'',/1 visual lesson selected/);await r.click([...apply.querySelectorAll('button')].find(button=>button.textContent==='Apply selected lesson')!);const modal=r.document.querySelector('[role="dialog"][aria-label="Apply these lessons?"]')!;assert.ok(modal);assert.ok(modal.closest('[hidden]')===null);assert.equal(modal.querySelectorAll('li').length,1);assert.doesNotMatch(modal.textContent||'',/second precise/);await r.click(r.getByText('Keep reviewing'));await r.click(r.getByText('Review selection'));assert.equal(boxes[1].checked,false);assert.equal(h.calls.some(call=>call.operation==='accept'),false);}finally{r.cleanup();}
+ try{assert.equal(r.document.querySelector('[aria-label="Training steps"]'),null);assert.ok(r.getByText('Ways to train'));const playing=r.document.createElement('video');let paused=0;Object.defineProperty(playing,'paused',{get:()=>false});playing.pause=()=>{paused++;};r.document.querySelector('#main-content')!.append(playing);assert.ok(r.getByText('Review training →').closest('[aria-labelledby=training-opportunities-heading]'),'ready teachings share the AI suggestions section');await r.click(r.getByText('Review training →'));assert.equal(paused,1,'leaving Teach pauses hidden playback without touching native voice capture');playing.remove();const review=r.document.querySelector('[aria-label="Review proposed visual training"]')!;assert.ok(review.closest('[hidden]')===null);const boxes=[...review.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];assert.equal(boxes.length,2);await r.click(boxes[1]);await r.click(r.getByText('Continue to Apply & Test'));assert.ok(review.closest('[hidden]'));const apply=r.document.querySelector('[aria-label="Selected training to apply"]')!;assert.ok(apply.closest('[hidden]')===null);assert.match(apply.textContent||'',/1 visual lesson selected/);await r.click([...apply.querySelectorAll('button')].find(button=>button.textContent==='Apply selected lesson')!);const modal=r.document.querySelector('[role="dialog"][aria-label="Apply these lessons?"]')!;assert.ok(modal);assert.ok(modal.closest('[hidden]')===null);assert.equal(modal.querySelectorAll('li').length,1);assert.doesNotMatch(modal.textContent||'',/second precise/);await r.click(r.getByText('Keep reviewing'));await r.click(r.getByText('Review selection'));assert.equal(boxes[1].checked,false);assert.equal(h.calls.some(call=>call.operation==='accept'),false);}finally{r.cleanup();}
 });
 
 test('Upload refuses an open marked-result proposal before file selection and returns to its mounted review',async()=>{
@@ -2479,5 +2479,22 @@ test('a pending answer link stays visible with an explanation when its agent ver
   assert.match(pending.textContent!,/agent changed after this lesson draft was saved/i);
   assert.equal((r.getByText('Retry saving this answer') as HTMLButtonElement).disabled,true);
   assert.equal(h.calls.filter(call=>call.operation==='annotate').length,1);
+ }finally{r.cleanup();}
+});
+
+
+test('initial suggestions read failure stays visible and retry recovers without an empty section',async()=>{
+ const h=harness();let reads=0;
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:SOURCE_ID},{bridge:h.bridge,fetch:(async(url:any)=>{
+  if(String(url).includes('/agent-training/questions?')){reads++;return {ok:reads>1,json:async()=>reads>1?questionPage([]):{ok:false}};}
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+ }) as typeof fetch});
+ try{
+  const retry=r.getByText('Retry training suggestions');assert.equal(retry.closest('[hidden]'),null);
+  assert.ok(r.getByText('Training suggestions couldn’t load.'));assert.equal(reads,1);
+  assert.equal(r.document.querySelector('[aria-labelledby=training-opportunities-heading]'),null);
+  await r.click(retry);assert.equal(reads,2);assert.equal(r.queryByText('Retry training suggestions'),null);
+  assert.equal(r.document.querySelector('[aria-labelledby=training-opportunities-heading]'),null);
+  assert.equal(h.calls.some(c=>['annotate','accept','delivery'].includes(c.operation)),false);
  }finally{r.cleanup();}
 });
