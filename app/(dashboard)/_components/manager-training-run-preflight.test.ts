@@ -242,19 +242,26 @@ test('ancestor carryover confirms the exact plan in the existing action before o
   } finally { r.cleanup(); }
 });
 
-test('an unconfirmed ancestor-plan receipt cannot open inputs or silently retry the carryover', async () => {
-  let posts = 0, setups = 0;
+test('an unconfirmed ancestor reply waits for a fresh read and never repeats a committed carryover', async () => {
+  let posts = 0, setups = 0, committed = false, reads = 0;
   const ids = Array.from({ length: 5 }, (_, i) => `${String(i+1).repeat(8)}-${String(i+1).repeat(4)}-4${String(i+1).repeat(3)}-8${String(i+1).repeat(3)}-${String(i+1).repeat(12)}`);
   const r = await render('agent-actions.tsx', props, { backend: (path: string) => {
     if (path.endsWith('/adopt-successor')) {
-      posts++;
+      posts++; committed = true;
       return { ok: true, contractVersion: 'manager-training-successor-adoption.v2', created: true,
         agentSlug: 'visual-compositor', targetWorkflowVersionId: VERSION, sourceWorkflowVersionId: PREVIOUS,
         adoptedRecordCount: 5, adoptionReceiptIds: ids, eligibleRouteCount: 4, adoptionSetDigest: 'd'.repeat(64),
         expectedAdoptionDigest: 'f'.repeat(64), managerTrainingRequirements: optionalTrainingHome(true).home.managerTrainingRequirements };
     }
-    if (path.startsWith('/api/v2/agent-training/agents/')) return ancestorTrainingHome();
-    if (path.includes('/setup')) { setups++; throw Error('No setup after an unconfirmed receipt'); }
+    if (path.startsWith('/api/v2/agent-training/agents/')) {
+      reads++;
+      const value = ancestorTrainingHome();
+      if (committed) Object.assign(value.home.successorAdoption, {
+        alreadyAdoptedRecordCount: 5, newlyAdoptableRecordCount: 0, readiness: 'already_adopted',
+      });
+      return value;
+    }
+    if (path.includes('/setup')) { setups++; return { schema: [], answers: {}, note: '', runInputDefaults: {} }; }
     throw Error(`Unexpected operation: ${path}`);
   } });
   try {
@@ -264,6 +271,9 @@ test('an unconfirmed ancestor-plan receipt cannot open inputs or silently retry 
     assert.equal(posts, 1); assert.equal(setups, 0);
     assert.match(r.text(), /could not verify the training adoption receipt/);
     assert.equal(r.queryByText('Run inputs'), null);
+    await r.click(r.getByText('Refresh training'));
+    assert.equal(posts, 1); assert.equal(reads, 2); assert.equal(setups, 1);
+    assert.ok(r.queryByText('Run inputs'));
   } finally { r.cleanup(); }
 });
 
