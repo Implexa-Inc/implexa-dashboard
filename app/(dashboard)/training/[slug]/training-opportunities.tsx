@@ -7,7 +7,7 @@ import {TrainingInfo,RunImage,type TrainingRun} from './training-workspace';
 class AnswerError extends Error{constructor(message:string,readonly editable=false){super(message);}}
 
 /** Presentation and submission use exact recorded identities; no inferred acceptance. */
-export default function TrainingOpportunities({questions,sessionId,versionId,disabled,onSaved,onStart,runs=[],unavailable=false}:{runs?:TrainingRun[];unavailable?:boolean;questions:QuestionsPage|null;sessionId:string|null;versionId:string|null;disabled:boolean;onSaved:()=>void;onStart:()=>Promise<void>}){
+export default function TrainingOpportunities({questions,sessionId,versionId,disabled,onSaved,onStart,runs=[],pendingCount=0,onReview}:{runs?:TrainingRun[];pendingCount?:number;onReview?:()=>void;questions:QuestionsPage|null;sessionId:string|null;versionId:string|null;disabled:boolean;onSaved:()=>void;onStart:()=>Promise<void>}){
  const identity=`${sessionId}:${versionId}`,latest=useRef(identity);latest.current=identity;
  const [opened,setOpened]=useState<string|null>(null),[skipped,setSkipped]=useState<string[]>([]),[saved,setSaved]=useState<string[]>([]);
  const [presentations,setPresentations]=useState<Record<string,QuestionPresentation>>({}),[answer,setAnswer]=useState(''),[option,setOption]=useState<number|null>(null),[custom,setCustom]=useState(false),[working,setWorking]=useState(''),[error,setError]=useState('');
@@ -29,10 +29,12 @@ export default function TrainingOpportunities({questions,sessionId,versionId,dis
   try{const value=await request(pending.current.body,pending.current.key);if(latest.current!==captured)return;if(value.contractVersion!=='training-question-teaching.v1'||value.questionReceiptId!==id||!UUID.test(value.recordId||'')||!/^[a-f0-9]{64}$/.test(value.recordDigest||''))throw Error('Save could not be confirmed. Retry the same answer.');pending.current=null;setSaved(ids=>[...ids,id]);setOpened(null);setAnswer('');onSaved();}
   catch(e){if(latest.current===captured){if(e instanceof AnswerError&&e.editable)pending.current=null;setError(e instanceof Error?e.message:'Save could not be confirmed. Retry.');}}finally{if(latest.current===captured)setWorking('');}
  }
+ if(!items.length&&!pendingCount)return null;
  return <section aria-labelledby="training-opportunities-heading" className="space-y-4">
-  <div><h3 id="training-opportunities-heading" className="text-lg font-medium">Help your agent improve</h3><p className="mt-1 text-sm text-ink-400">A few quick answers can guide its next run.</p></div>
+  <div><h3 id="training-opportunities-heading" className="text-lg font-medium">AI suggested Training improvements</h3></div>
   {saved.length>0&&<p role="status" className="text-sm text-emerald-400">Answer saved as a teaching suggestion. Review it before including it.</p>}
-  {!questions?<p className="text-sm text-ink-500">{unavailable?'Suggestions couldn’t load. You can still teach in the ways below.':'Checking recent runs…'}</p>:!items.length?<p className="text-sm text-ink-500">No new questions need your guidance. You can teach in any of the ways below.</p>:<div className="grid items-start gap-3 xl:grid-cols-3">{items.map(q=>{const p=presentations[q.id],isOpen=opened===q.id,artifact=runs.find(run=>run.id===q.runId)?.artifact;return <article key={q.id} className={`space-y-3 rounded-xl border p-4 ${isOpen?'border-brand-500':'border-ink-700'}`}>
+  {pendingCount>0&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-500/40 bg-brand-500/5 px-4 py-3"><p className="text-sm">{pendingCount} new teaching{pendingCount===1?'':'s'} ready to review</p><button type="button" onClick={onReview} className="text-sm font-medium text-brand-400">Review training →</button></div>}
+  {items.length>0&&<div className="grid items-start gap-3 xl:grid-cols-3">{items.map(q=>{const p=presentations[q.id],isOpen=opened===q.id,artifact=runs.find(run=>run.id===q.runId)?.artifact;return <article key={q.id} className={`space-y-3 rounded-xl border p-4 ${isOpen?'border-brand-500':'border-ink-700'}`}>
    {artifact&&<figure><RunImage artifact={artifact}/><figcaption className="mt-1 text-[11px] text-ink-500">Final output from this run</figcaption></figure>}
    <p className="text-xs text-ink-500">{trainingPropertyLabel(q.property)} · {q.opportunityReason==='review_finding'?'A related result needs improvement':'No matching guidance was found'}</p>
    <p className="text-sm leading-6">{p?.value.question||questionExcerpt(q.question)}</p>
@@ -44,6 +46,6 @@ export default function TrainingOpportunities({questions,sessionId,versionId,dis
    </>}
    <details className="text-xs text-ink-500"><summary className="cursor-pointer">Context</summary><p className="mt-2 whitespace-pre-wrap">{q.question}</p><p className="mt-2">{q.sceneElement}</p></details>
   </article>;})}</div>}
-  <TrainingInfo label="About these suggestions">Answer sends this recorded question, scene description, stage and topic to Claude Haiku 5.5 to suggest choices. No video, images or other training are sent. Your submitted answer becomes a private suggestion for review. Finding guidance does not establish that it was applied.</TrainingInfo>
+  {items.length>0&&<TrainingInfo label="About these suggestions">Answer sends this recorded question, scene description, stage and topic to Claude Haiku 5.5 to suggest choices. No video, images or other training are sent. Your submitted answer becomes a private suggestion for review. Finding guidance does not establish that it was applied.</TrainingInfo>}
  </section>;
 }
