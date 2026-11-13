@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { managerTrainingRunPreflight, trainingSuccessorAdoptionActionAvailable, trainingSuccessorAdoptionPreview,
   trainingSuccessorAdoptionReceipt, trainingProposedAdoptionPreview, preparedTrainingTestQuery } from './manager-training-run-preflight.ts';
 
@@ -239,4 +240,27 @@ test('ancestor receipt must acknowledge the exact reviewed plan, not a direct or
   ]) assert.equal(trainingSuccessorAdoptionReceipt(malformed, 'visual-compositor', preview), null);
   const legacy = trainingSuccessorAdoptionPreview(optionalHome().home.successorAdoption, TARGET)!;
   assert.equal(trainingSuccessorAdoptionReceipt(receipt, 'visual-compositor', legacy), null);
+});
+
+test('actual PostgreSQL ancestor producer bytes pass the public consumer boundary', () => {
+  // Backend ceaa8804: existing optional-taste PostgreSQL harness capture.
+  // Only the existing service projections are applied: remove internal `ok`
+  // from preview/requirements and add the authenticated agent slug to receipt.
+  const fixture = JSON.parse(readFileSync(new URL('../test/fixtures/manager-training-ancestor-adoption.v2.json', import.meta.url), 'utf8'));
+  const { ok: _previewOk, ...wirePreview } = fixture.rpcPreview;
+  const { ok: _requirementsOk, ...requirements } = fixture.rpcReceipt.managerTrainingRequirements;
+  const target = wirePreview.targetWorkflowVersionId;
+  const preview = trainingSuccessorAdoptionPreview(wirePreview, target, requirements);
+  assert.ok(preview);
+  assert.ok(trainingSuccessorAdoptionActionAvailable(preview));
+  assert.equal(preview.eligibleRecordCount, 3);
+  assert.equal(preview.contractVersion, 'manager-training-successor-adoption-preview.v2');
+  const receipt = { ...fixture.rpcReceipt, agentSlug: 'synthetic-hiking-notes', managerTrainingRequirements: requirements };
+  assert.deepEqual(trainingSuccessorAdoptionReceipt(receipt, receipt.agentSlug, preview), receipt);
+  const { ok: _postOk, ...post } = fixture.postAdoptionPreview;
+  const after = trainingSuccessorAdoptionPreview(post, target, requirements);
+  assert.ok(after);
+  assert.equal(trainingSuccessorAdoptionActionAvailable(after), false);
+  assert.equal(after.readiness, 'already_adopted');
+  assert.equal(trainingSuccessorAdoptionReceipt({ ...receipt, expectedAdoptionDigest: 'f'.repeat(64) }, receipt.agentSlug, preview), null);
 });

@@ -739,7 +739,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       const reason = error instanceof BackendError ? error.body?.reason : null;
       setAdoptionError(reason === 'agent_active_version_changed'
         ? 'The active Agent version changed. Reload before carrying training forward.'
-        : reason === 'training_successor_adoption_plan_changed'
+        : reason === 'training_successor_plan_changed' || reason === 'training_successor_plan_confirmation_required'
           ? 'The saved training changed. Refresh to review the current lessons before carrying them forward.'
         : reason === 'training_successor_not_compatible'
           ? 'These versions are no longer compatible for direct adoption. Use full successor training instead.'
