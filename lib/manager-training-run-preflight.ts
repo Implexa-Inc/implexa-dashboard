@@ -107,6 +107,11 @@ export function trainingSuccessorAdoptionPreview(
       || Number(value.eligibleRecordCount) < 1 || Number(value.eligibleRouteCount) < 1
       || Number(value.alreadyAdoptedRecordCount) > Number(value.eligibleRecordCount)
       || value.reason !== null || value.readiness === 'not_compatible') return null;
+    if (value.readiness === 'already_adopted' && (!requirements
+      || requirements.workflowVersionId !== targetWorkflowVersionId || requirements.reason !== null
+      || !(requirements.readiness === 'reference_training_ready'
+        || (requirements.readiness === 'not_applicable' && requirements.requiredPairs.length === 0
+          && requirements.fulfilledPairs.length === 0 && requirements.missingPairs.length === 0)))) return null;
   }
   if (value.readiness === 'adoption_available') {
     if (value.reason !== null || value.sourceWorkflowVersionId === null

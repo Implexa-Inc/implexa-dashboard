@@ -212,6 +212,10 @@ test('ancestor preview refuses unbound plans, reordered endpoints, cycles and le
   }
   const adopted = { ...preview, alreadyAdoptedRecordCount: 5, newlyAdoptableRecordCount: 0, readiness: 'already_adopted' };
   assert.equal(managerTrainingRunPreflight({ ...value, home: { ...value.home, successorAdoption: adopted } }, TARGET).state, 'ready');
+  assert.equal(managerTrainingRunPreflight({ ...home(), home: { ...home().home, successorAdoption: adopted } }, TARGET).state, 'unavailable',
+    'positive adoption counts cannot hide a missing mandatory teaching');
+  assert.equal(trainingSuccessorAdoptionPreview(adopted, TARGET), null,
+    'ancestor already-adopted status needs independently verified ready or zero requirements');
   assert.equal(trainingProposedAdoptionPreview({ ok: true, ...preview,
     expectedAdoptionDigest: preview.ancestorRecovery.planDigest, managerPolicyRemap: null,
     managerTrainingRequirements: value.home.managerTrainingRequirements }, SOURCE, TARGET), null,
