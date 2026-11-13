@@ -1,0 +1,79 @@
+{
+  "contractVersion": "manager-training-ancestor-producer-fixture.v1",
+  "ownerId": "00000000-0000-4000-8000-000000000001",
+  "familyId": "00000000-0000-4000-8000-000000000002",
+  "rpcPreview": {
+    "ok": true,
+    "reason": null,
+    "readiness": "adoption_available",
+    "contractVersion": "manager-training-successor-adoption-preview.v2",
+    "ancestorRecovery": {
+      "planDigest": "068486f6b3ab0ff3efb139dad4c11324ff67d2e04fe84f09ffb380266a5dc0db",
+      "versionIds": [
+        "00000000-0000-4000-8000-000000000003",
+        "00000000-0000-4000-8000-000000009000",
+        "00000000-0000-4000-8000-000000009001",
+        "00000000-0000-4000-8000-000000009002",
+        "00000000-0000-4000-8000-000000009003",
+        "00000000-0000-4000-8000-000000009004"
+      ]
+    },
+    "eligibleRouteCount": 2,
+    "eligibleRecordCount": 3,
+    "sourceWorkflowVersionId": "00000000-0000-4000-8000-000000000003",
+    "targetWorkflowVersionId": "00000000-0000-4000-8000-000000009004",
+    "alreadyAdoptedRecordCount": 0,
+    "newlyAdoptableRecordCount": 3
+  },
+  "rpcReceipt": {
+    "ok": true,
+    "created": true,
+    "contractVersion": "manager-training-successor-adoption.v2",
+    "adoptionSetDigest": "f1770c7267632affccbd40940af35f1a694ed85d55f0b9acb3379f23786c2bd1",
+    "adoptedRecordCount": 3,
+    "adoptionReceiptIds": [
+      "26da5f81-8c79-4aee-ada9-2c78fbc69bd7",
+      "7809b091-18d4-4b22-a544-254bb0c3ae5f",
+      "c8e68396-603e-4841-8e65-48140b200d30"
+    ],
+    "eligibleRouteCount": 2,
+    "expectedAdoptionDigest": "068486f6b3ab0ff3efb139dad4c11324ff67d2e04fe84f09ffb380266a5dc0db",
+    "sourceWorkflowVersionId": "00000000-0000-4000-8000-000000000003",
+    "targetWorkflowVersionId": "00000000-0000-4000-8000-000000009004",
+    "managerTrainingRequirements": {
+      "ok": true,
+      "scope": "workflow_version_quality_references",
+      "reason": null,
+      "readiness": "not_applicable",
+      "classified": true,
+      "missingPairs": [],
+      "requiredPairs": [],
+      "fulfilledPairs": [],
+      "contractVersion": "manager-reference-training-readiness.v1",
+      "workflowVersionId": "00000000-0000-4000-8000-000000009004"
+    }
+  },
+  "postAdoptionPreview": {
+    "ok": true,
+    "reason": null,
+    "readiness": "already_adopted",
+    "contractVersion": "manager-training-successor-adoption-preview.v2",
+    "ancestorRecovery": {
+      "planDigest": "068486f6b3ab0ff3efb139dad4c11324ff67d2e04fe84f09ffb380266a5dc0db",
+      "versionIds": [
+        "00000000-0000-4000-8000-000000000003",
+        "00000000-0000-4000-8000-000000009000",
+        "00000000-0000-4000-8000-000000009001",
+        "00000000-0000-4000-8000-000000009002",
+        "00000000-0000-4000-8000-000000009003",
+        "00000000-0000-4000-8000-000000009004"
+      ]
+    },
+    "eligibleRouteCount": 2,
+    "eligibleRecordCount": 3,
+    "sourceWorkflowVersionId": "00000000-0000-4000-8000-000000000003",
+    "targetWorkflowVersionId": "00000000-0000-4000-8000-000000009004",
+    "alreadyAdoptedRecordCount": 3,
+    "newlyAdoptableRecordCount": 0
+  }
+}

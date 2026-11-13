@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { managerTrainingRunPreflight, trainingSuccessorAdoptionActionAvailable, trainingSuccessorAdoptionPreview,
-  trainingSuccessorAdoptionReceipt,preparedTrainingTestQuery } from './manager-training-run-preflight.ts';
+  trainingSuccessorAdoptionReceipt, trainingProposedAdoptionPreview, preparedTrainingTestQuery } from './manager-training-run-preflight.ts';
 
 const TARGET = '33333333-3333-4333-8333-333333333333';
 const SOURCE = '22222222-2222-4222-8222-222222222222';
@@ -172,4 +173,98 @@ test('optional adoption receipt proves the same exact counts and genuine zero re
     { ...receipt, managerTrainingRequirements: { ...receipt.managerTrainingRequirements, workflowVersionId: SOURCE } }]) {
     assert.equal(trainingSuccessorAdoptionReceipt(invalid, 'visual-compositor', preview), null);
   }
+});
+
+const INTERMEDIATE = '44444444-4444-4444-8444-444444444444';
+function ancestorHome() {
+  const value = optionalHome();
+  return { ...value, home: { ...value.home, successorAdoption: {
+    ...value.home.successorAdoption, contractVersion: 'manager-training-successor-adoption-preview.v2',
+    ancestorRecovery: { planDigest: 'b'.repeat(64), versionIds: [SOURCE, INTERMEDIATE, TARGET] },
+  } } };
+}
+
+test('compatible ancestor training is offered before inputs even when no references are mandatory', () => {
+  const value = ancestorHome();
+  const gate = managerTrainingRunPreflight(value, TARGET);
+  assert.equal(gate.state, 'training_required');
+  assert.ok(gate.state === 'training_required' && gate.optional);
+  assert.deepEqual(gate.state === 'training_required' && gate.successorAdoption, value.home.successorAdoption);
+  assert.ok(trainingSuccessorAdoptionActionAvailable(gate.state === 'training_required' ? gate.successorAdoption : null));
+});
+
+test('ancestor preview refuses unbound plans, reordered endpoints, cycles and legacy contract smuggling', () => {
+  const value = ancestorHome(), preview = value.home.successorAdoption;
+  const invalid = [
+    { ...preview, ancestorRecovery: undefined },
+    { ...preview, ancestorRecovery: { ...preview.ancestorRecovery, extra: true } },
+    { ...preview, ancestorRecovery: { ...preview.ancestorRecovery, planDigest: 'not-a-digest' } },
+    ...[[SOURCE, TARGET], [TARGET, INTERMEDIATE, SOURCE], [SOURCE, TARGET, TARGET],
+      [SOURCE, 'not-a-version', TARGET], [SOURCE, ...Array(64).fill(INTERMEDIATE), TARGET]]
+      .map(versionIds => ({ ...preview, ancestorRecovery: { ...preview.ancestorRecovery, versionIds } })),
+    { ...preview, contractVersion: 'manager-training-successor-adoption-preview.v1' },
+    { ...preview, alreadyAdoptedRecordCount: 6, newlyAdoptableRecordCount: 0, readiness: 'already_adopted' },
+    { ...preview, eligibleRecordCount: 0, newlyAdoptableRecordCount: 0, eligibleRouteCount: 0, readiness: 'already_adopted' },
+  ];
+  for (const malformed of invalid) {
+    assert.equal(trainingSuccessorAdoptionPreview(malformed, TARGET), null);
+    assert.equal(managerTrainingRunPreflight({ ...value, home: { ...value.home, successorAdoption: malformed } }, TARGET).state, 'unavailable');
+  }
+  const adopted = { ...preview, alreadyAdoptedRecordCount: 5, newlyAdoptableRecordCount: 0, readiness: 'already_adopted' };
+  assert.equal(managerTrainingRunPreflight({ ...value, home: { ...value.home, successorAdoption: adopted } }, TARGET).state, 'ready');
+  assert.equal(managerTrainingRunPreflight({ ...home(), home: { ...home().home, successorAdoption: adopted } }, TARGET).state, 'unavailable',
+    'positive adoption counts cannot hide a missing mandatory teaching');
+  assert.equal(trainingSuccessorAdoptionPreview(adopted, TARGET), null,
+    'ancestor already-adopted status needs independently verified ready or zero requirements');
+  assert.equal(trainingProposedAdoptionPreview({ ok: true, ...preview,
+    expectedAdoptionDigest: preview.ancestorRecovery.planDigest, managerPolicyRemap: null,
+    managerTrainingRequirements: value.home.managerTrainingRequirements }, SOURCE, TARGET), null,
+  'active-target recovery must not become a proposed-revision adoption authority');
+});
+
+test('ancestor receipt must acknowledge the exact reviewed plan, not a direct or stale carryover', () => {
+  const value = ancestorHome();
+  const preview = trainingSuccessorAdoptionPreview(value.home.successorAdoption, TARGET)!;
+  const receipt = {
+    ok: true, contractVersion: 'manager-training-successor-adoption.v2', created: true,
+    agentSlug: 'visual-compositor', targetWorkflowVersionId: TARGET, sourceWorkflowVersionId: SOURCE,
+    adoptedRecordCount: 5, adoptionReceiptIds: Array.from({ length: 5 }, (_, i) => `${String(i+1).repeat(8)}-${String(i+1).repeat(4)}-4${String(i+1).repeat(3)}-8${String(i+1).repeat(3)}-${String(i+1).repeat(12)}`),
+    eligibleRouteCount: 10, adoptionSetDigest: 'a'.repeat(64), expectedAdoptionDigest: 'b'.repeat(64),
+    managerTrainingRequirements: value.home.managerTrainingRequirements,
+  };
+  assert.deepEqual(trainingSuccessorAdoptionReceipt(receipt, 'visual-compositor', preview), receipt);
+  for (const malformed of [
+    { ...receipt, expectedAdoptionDigest: 'c'.repeat(64) },
+    { ...receipt, expectedAdoptionDigest: undefined },
+    { ...receipt, contractVersion: 'manager-training-successor-adoption.v1' },
+    { ...receipt, sourceWorkflowVersionId: INTERMEDIATE },
+    { ...receipt, adoptedRecordCount: 4 },
+    { ...receipt, targetWorkflowVersionId: INTERMEDIATE },
+    { ...receipt, extra: true },
+  ]) assert.equal(trainingSuccessorAdoptionReceipt(malformed, 'visual-compositor', preview), null);
+  const legacy = trainingSuccessorAdoptionPreview(optionalHome().home.successorAdoption, TARGET)!;
+  assert.equal(trainingSuccessorAdoptionReceipt(receipt, 'visual-compositor', legacy), null);
+});
+
+test('actual PostgreSQL ancestor producer bytes pass the public consumer boundary', () => {
+  // Backend ceaa8804: existing optional-taste PostgreSQL harness capture.
+  // Only the existing service projections are applied: remove internal `ok`
+  // from preview/requirements and add the authenticated agent slug to receipt.
+  const fixture = JSON.parse(readFileSync(new URL('../test/fixtures/manager-training-ancestor-adoption.v2.json', import.meta.url), 'utf8'));
+  const { ok: _previewOk, ...wirePreview } = fixture.rpcPreview;
+  const { ok: _requirementsOk, ...requirements } = fixture.rpcReceipt.managerTrainingRequirements;
+  const target = wirePreview.targetWorkflowVersionId;
+  const preview = trainingSuccessorAdoptionPreview(wirePreview, target, requirements);
+  assert.ok(preview);
+  assert.ok(trainingSuccessorAdoptionActionAvailable(preview));
+  assert.equal(preview.eligibleRecordCount, 3);
+  assert.equal(preview.contractVersion, 'manager-training-successor-adoption-preview.v2');
+  const receipt = { ...fixture.rpcReceipt, agentSlug: 'synthetic-hiking-notes', managerTrainingRequirements: requirements };
+  assert.deepEqual(trainingSuccessorAdoptionReceipt(receipt, receipt.agentSlug, preview), receipt);
+  const { ok: _postOk, ...post } = fixture.postAdoptionPreview;
+  const after = trainingSuccessorAdoptionPreview(post, target, requirements);
+  assert.ok(after);
+  assert.equal(trainingSuccessorAdoptionActionAvailable(after), false);
+  assert.equal(after.readiness, 'already_adopted');
+  assert.equal(trainingSuccessorAdoptionReceipt({ ...receipt, expectedAdoptionDigest: 'f'.repeat(64) }, receipt.agentSlug, preview), null);
 });

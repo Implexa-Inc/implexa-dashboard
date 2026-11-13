@@ -712,7 +712,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     setAdoptionError('');
     const fingerprint = [preview.targetWorkflowVersionId, preview.sourceWorkflowVersionId,
       preview.eligibleRecordCount, preview.alreadyAdoptedRecordCount,
-      preview.newlyAdoptableRecordCount, preview.eligibleRouteCount].join(':');
+      preview.newlyAdoptableRecordCount, preview.eligibleRouteCount,
+      preview.contractVersion === 'manager-training-successor-adoption-preview.v2'
+        ? preview.ancestorRecovery.planDigest : ''].join(':');
     let operation = adoptionOperationRef.current;
     if (!operation || operation.fingerprint !== fingerprint) {
       operation = { fingerprint, key: crypto.randomUUID() };
@@ -722,7 +724,9 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       const { data: { session } } = await supabase.auth.getSession();
       const response = await callBackend(`/api/v2/agent-training/agents/${encodeURIComponent(slug)}/adopt-successor`, {
         jwt: session?.access_token, method: 'POST', idempotencyKey: operation.key,
-        body: { expectedActiveVersionId: preview.targetWorkflowVersionId },
+        body: { expectedActiveVersionId: preview.targetWorkflowVersionId,
+          ...(preview.contractVersion === 'manager-training-successor-adoption-preview.v2'
+            ? { expectedAdoptionDigest: preview.ancestorRecovery.planDigest } : {}) },
       });
       const receipt = trainingSuccessorAdoptionReceipt(response, slug, preview);
       if (!receipt) throw new Error('Implexa could not verify the training adoption receipt. Nothing is being treated as ready.');
@@ -735,6 +739,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       const reason = error instanceof BackendError ? error.body?.reason : null;
       setAdoptionError(reason === 'agent_active_version_changed'
         ? 'The active Agent version changed. Reload before carrying training forward.'
+        : reason === 'training_successor_plan_changed' || reason === 'training_successor_plan_confirmation_required'
+          ? 'The saved training changed. Refresh to review the current lessons before carrying them forward.'
         : reason === 'training_successor_not_compatible'
           ? 'These versions are no longer compatible for direct adoption. Use full successor training instead.'
           : reason === 'training_successor_no_eligible_records'
@@ -1415,10 +1421,19 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
             </>}
             {trainingSuccessorAdoptionActionAvailable(trainingGate.successorAdoption) && trainingGate.successorAdoption && (
               <section className="rounded-md border border-brand-500/50 bg-brand-500/5 p-3 space-y-3">
-                <h3 className="font-semibold text-ink-100">Compatible training can be carried forward</h3>
+                <h3 className="font-semibold text-ink-100">{trainingGate.successorAdoption.contractVersion === 'manager-training-successor-adoption-preview.v2'
+                  ? 'Bring your saved training forward' : 'Compatible training can be carried forward'}</h3>
                 <p>
-                  Implexa verified the same Agent task identity and unchanged Manager policy between these consecutive versions. You can carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} accepted decision{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} spanning {trainingGate.successorAdoption.eligibleRouteCount} compatible reference route{trainingGate.successorAdoption.eligibleRouteCount === 1 ? '' : 's'}.
+                  {trainingGate.successorAdoption.contractVersion === 'manager-training-successor-adoption-preview.v2'
+                    ? <>Your training from earlier versions is available for this version. Carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} saved lesson{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} with their original examples. Earlier versions and runs stay unchanged.</>
+                    : <>Implexa verified the same Agent task identity and unchanged Manager policy between these consecutive versions. You can carry {trainingGate.successorAdoption.newlyAdoptableRecordCount} accepted decision{trainingGate.successorAdoption.newlyAdoptableRecordCount === 1 ? '' : 's'} spanning {trainingGate.successorAdoption.eligibleRouteCount} compatible reference route{trainingGate.successorAdoption.eligibleRouteCount === 1 ? '' : 's'}.</>}
                 </p>
+                {trainingGate.successorAdoption.contractVersion === 'manager-training-successor-adoption-preview.v2' && (
+                  <details className="text-xs text-ink-400">
+                    <summary>Transfer details</summary>
+                    <p className="mt-2">Compatible versions: {trainingGate.successorAdoption.ancestorRecovery.versionIds.map(id => id.slice(0, 8)).join(' → ')}. Training is added only to the current version.</p>
+                  </details>
+                )}
                 <p>Each decision keeps its original immutable evidence and receives a separate adoption receipt for version {trainingGate.successorAdoption.targetWorkflowVersionId.slice(0, 8)}. Nothing is copied, widened, or silently accepted.</p>
                 <label className="flex items-start gap-2">
                   <input type="checkbox" checked={adoptionConfirmed} disabled={adoptionBusy}
@@ -1431,7 +1446,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 </button>
               </section>
             )}
-            {adoptionError && <p role="alert" className="text-rose-300">{adoptionError}</p>}
+            {adoptionError && <div role="alert" className="space-y-2 text-rose-300"><p>{adoptionError}</p>
+              <button type="button" className="btn-outline" disabled={adoptionBusy}
+                onClick={() => { setTrainingGate(null); void openPreRun(preRunMode); }}>Refresh training</button>
+            </div>}
             <div className="flex justify-end gap-3">
               <button type="button" className="btn-outline" onClick={() => setTrainingGate(null)}>Cancel</button>
               {trainingGate.optional && <button type="button" className="btn-outline" disabled={adoptionBusy}

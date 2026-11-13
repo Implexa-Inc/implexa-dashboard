@@ -16,8 +16,7 @@ export type ManagerTrainingRunPreflight =
   }
   | { state: 'unavailable';reason?:'training_served_snapshot_version_mismatch' };
 
-export type TrainingSuccessorAdoptionPreview = {
-  contractVersion: 'manager-training-successor-adoption-preview.v1';
+type AdoptionPreviewFields = {
   targetWorkflowVersionId: string;
   sourceWorkflowVersionId: string | null;
   eligibleRecordCount: number;
@@ -30,9 +29,14 @@ export type TrainingSuccessorAdoptionPreview = {
     | 'training_successor_adoption_incomplete';
 };
 
-export type TrainingSuccessorAdoptionReceipt = {
+export type TrainingSuccessorAdoptionPreview = AdoptionPreviewFields & (
+  | { contractVersion: 'manager-training-successor-adoption-preview.v1' }
+  | { contractVersion: 'manager-training-successor-adoption-preview.v2';
+      ancestorRecovery: { planDigest: string; versionIds: string[] } }
+);
+
+type AdoptionReceiptFields = {
   ok: true;
-  contractVersion: 'manager-training-successor-adoption.v1';
   created: boolean;
   agentSlug: string;
   targetWorkflowVersionId: string;
@@ -43,6 +47,11 @@ export type TrainingSuccessorAdoptionReceipt = {
   adoptionSetDigest: string;
   managerTrainingRequirements: ManagerTrainingRequirements;
 };
+
+export type TrainingSuccessorAdoptionReceipt = AdoptionReceiptFields & (
+  | { contractVersion: 'manager-training-successor-adoption.v1' }
+  | { contractVersion: 'manager-training-successor-adoption.v2'; expectedAdoptionDigest: string }
+);
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 export type PreparedTrainingTest={testPreparationId:string;preparationDigest:string};
@@ -71,10 +80,12 @@ export function trainingSuccessorAdoptionPreview(
   targetWorkflowVersionId: string,
   requirements: ManagerTrainingRequirements | null = null,
 ): TrainingSuccessorAdoptionPreview | null {
+  const ancestor = Boolean(value && typeof value === 'object' && !Array.isArray(value)
+    && (value as Record<string, unknown>).contractVersion === 'manager-training-successor-adoption-preview.v2');
   if (!exact(value, ['contractVersion', 'targetWorkflowVersionId', 'sourceWorkflowVersionId',
     'eligibleRecordCount', 'alreadyAdoptedRecordCount', 'newlyAdoptableRecordCount',
-    'eligibleRouteCount', 'readiness', 'reason'])
-    || value.contractVersion !== 'manager-training-successor-adoption-preview.v1'
+    'eligibleRouteCount', 'readiness', 'reason', ...(ancestor ? ['ancestorRecovery'] : [])])
+    || (!ancestor && value.contractVersion !== 'manager-training-successor-adoption-preview.v1')
     || value.targetWorkflowVersionId !== targetWorkflowVersionId
     || (value.sourceWorkflowVersionId !== null
       && (typeof value.sourceWorkflowVersionId !== 'string' || !UUID.test(value.sourceWorkflowVersionId)
@@ -84,6 +95,24 @@ export function trainingSuccessorAdoptionPreview(
     || Number(value.newlyAdoptableRecordCount) !== Math.max(Number(value.eligibleRecordCount) - Number(value.alreadyAdoptedRecordCount), 0)
     || !['adoption_available', 'already_adopted', 'not_compatible'].includes(String(value.readiness))
     || (value.reason !== null && (typeof value.reason !== 'string' || !ADOPTION_REASONS.has(value.reason)))) return null;
+  if (ancestor) {
+    const recovery = value.ancestorRecovery;
+    if (!exact(recovery, ['planDigest', 'versionIds'])
+      || typeof recovery.planDigest !== 'string' || !/^[a-f0-9]{64}$/.test(recovery.planDigest)
+      || !Array.isArray(recovery.versionIds) || recovery.versionIds.length < 3 || recovery.versionIds.length > 65
+      || recovery.versionIds.some(id => typeof id !== 'string' || !UUID.test(id))
+      || new Set(recovery.versionIds).size !== recovery.versionIds.length
+      || recovery.versionIds[0] !== value.sourceWorkflowVersionId
+      || recovery.versionIds.at(-1) !== targetWorkflowVersionId
+      || Number(value.eligibleRecordCount) < 1 || Number(value.eligibleRouteCount) < 1
+      || Number(value.alreadyAdoptedRecordCount) > Number(value.eligibleRecordCount)
+      || value.reason !== null || value.readiness === 'not_compatible') return null;
+    if (value.readiness === 'already_adopted' && (!requirements
+      || requirements.workflowVersionId !== targetWorkflowVersionId || requirements.reason !== null
+      || !(requirements.readiness === 'reference_training_ready'
+        || (requirements.readiness === 'not_applicable' && requirements.requiredPairs.length === 0
+          && requirements.fulfilledPairs.length === 0 && requirements.missingPairs.length === 0)))) return null;
+  }
   if (value.readiness === 'adoption_available') {
     if (value.reason !== null || value.sourceWorkflowVersionId === null
       || Number(value.newlyAdoptableRecordCount) < 1) return null;
@@ -117,6 +146,9 @@ export function trainingProposedAdoptionPreview(value: unknown, sourceId: string
   // Zero is accepted only with the server's separately verified, genuinely
   // not-applicable requirements. It is never counted as positive coverage.
   const preview = trainingSuccessorAdoptionPreview(projection, targetId, requirements);
+  // Ancestor recovery is an explicit active-version action, never proposed
+  // revision adoption. Keep the existing proposed contract unchanged.
+  if (preview?.contractVersion === 'manager-training-successor-adoption-preview.v2') return null;
   const remap = managerPolicyRemap === null || managerPolicyRemap === undefined ? null
     : managerPolicyRemapReview(managerPolicyRemap, sourceId, targetId);
   if (details && managerPolicyRemap !== null && !remap) return null;
@@ -191,10 +223,13 @@ export function trainingSuccessorAdoptionReceipt(
   agentSlug: string,
   preview: TrainingSuccessorAdoptionPreview,
 ): TrainingSuccessorAdoptionReceipt | null {
+  const ancestor = preview.contractVersion === 'manager-training-successor-adoption-preview.v2';
   if (!exact(value, ['ok', 'contractVersion', 'created', 'agentSlug', 'targetWorkflowVersionId',
     'sourceWorkflowVersionId', 'adoptedRecordCount', 'adoptionReceiptIds', 'eligibleRouteCount',
-    'adoptionSetDigest', 'managerTrainingRequirements'])
-    || value.ok !== true || value.contractVersion !== 'manager-training-successor-adoption.v1'
+    'adoptionSetDigest', 'managerTrainingRequirements', ...(ancestor ? ['expectedAdoptionDigest'] : [])])
+    || value.ok !== true || value.contractVersion !== (ancestor
+      ? 'manager-training-successor-adoption.v2' : 'manager-training-successor-adoption.v1')
+    || (ancestor && value.expectedAdoptionDigest !== preview.ancestorRecovery.planDigest)
     || typeof value.created !== 'boolean' || value.agentSlug !== agentSlug
     || value.targetWorkflowVersionId !== preview.targetWorkflowVersionId
     || value.sourceWorkflowVersionId !== preview.sourceWorkflowVersionId
