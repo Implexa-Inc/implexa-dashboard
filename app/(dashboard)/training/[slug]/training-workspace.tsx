@@ -122,7 +122,7 @@ export function TrainingEntry({slug,lastRunId,runs=[],runsUnavailable=false,acti
     return onSelectRun?<button key={run.id} type="button" aria-pressed={selectedRunId===run.id} aria-label={`Teach from ${index===0?'latest result':`result ${index+1}`}`} className={className} onClick={()=>onSelectRun(run)}>{content}</button>:<Link key={run.id} href={`/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(run.id)}`} className={className}>{content}</Link>;
    })}</div>:<p className="text-sm text-ink-500">{runsUnavailable?'Recent results couldn’t load. ':lastRunId?'Open your latest result to give feedback. ':'Record or upload an example, or run your agent to review its work. '}{lastRunId&&<Link href={`/training/${encodeURIComponent(slug)}/review/${encodeURIComponent(lastRunId)}`} className="text-ink-300 underline underline-offset-4">Latest result →</Link>}</p>}</>}
   </div>
-  <div className="space-y-3 border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Show how you work</h3><div className="flex flex-wrap items-center gap-2" aria-label="Choose a training source">{actions}</div></div>
+  <div className="space-y-3 border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Or just record your screen while you work</h3><div className="flex flex-wrap items-center gap-2" aria-label="Choose a training source">{actions}</div></div>
  </section>;
 }
 
