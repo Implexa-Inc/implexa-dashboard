@@ -87,7 +87,7 @@ test('recent results stay visible while demonstration actions have their own hea
  const chosen:any[]=[],run={id:'run',date:'2026-11-11T12:00:00Z',status:'Done',artifact:null};
  const props={slug:'video-agent',runs:[run],onSelectRun:(value:any)=>chosen.push(value),selectedRunId:'run',sourceActive:true};
  const r=await render(component,props,{exportName:'TrainingEntry'});
- try{const pick=r.document.querySelector('button[aria-label="Teach from latest result"]')!;await r.click(pick);assert.deepEqual(chosen,[run]);assert.equal(r.document.querySelector('#training-recent-results')?.hasAttribute('hidden'),false);assert.ok(r.getByText('Show how you work'));assert.equal(r.document.querySelector('[aria-label="Training steps"]'),null);assert.equal(r.calls.push.length,0);}finally{r.cleanup();}
+ try{const pick=r.document.querySelector('button[aria-label="Teach from latest result"]')!;await r.click(pick);assert.deepEqual(chosen,[run]);assert.equal(r.document.querySelector('#training-recent-results')?.hasAttribute('hidden'),false);assert.ok(r.getByText('Or just record your screen while you work'));assert.equal(r.document.querySelector('[aria-label="Training steps"]'),null);assert.equal(r.calls.push.length,0);}finally{r.cleanup();}
 });
 
 test('explanations render bounded bullet text safely and preserve older prose without losing facts',async()=>{
