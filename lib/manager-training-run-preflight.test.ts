@@ -173,3 +173,66 @@ test('optional adoption receipt proves the same exact counts and genuine zero re
     assert.equal(trainingSuccessorAdoptionReceipt(invalid, 'visual-compositor', preview), null);
   }
 });
+
+const INTERMEDIATE = '44444444-4444-4444-8444-444444444444';
+function ancestorHome() {
+  const value = optionalHome();
+  return { ...value, home: { ...value.home, successorAdoption: {
+    ...value.home.successorAdoption, contractVersion: 'manager-training-successor-adoption-preview.v2',
+    ancestorRecovery: { planDigest: 'b'.repeat(64), versionIds: [SOURCE, INTERMEDIATE, TARGET] },
+  } } };
+}
+
+test('compatible ancestor training is offered before inputs even when no references are mandatory', () => {
+  const value = ancestorHome();
+  const gate = managerTrainingRunPreflight(value, TARGET);
+  assert.equal(gate.state, 'training_required');
+  assert.ok(gate.state === 'training_required' && gate.optional);
+  assert.deepEqual(gate.state === 'training_required' && gate.successorAdoption, value.home.successorAdoption);
+  assert.ok(trainingSuccessorAdoptionActionAvailable(gate.state === 'training_required' ? gate.successorAdoption : null));
+});
+
+test('ancestor preview refuses unbound plans, reordered endpoints, cycles and legacy contract smuggling', () => {
+  const value = ancestorHome(), preview = value.home.successorAdoption;
+  const invalid = [
+    { ...preview, ancestorRecovery: undefined },
+    { ...preview, ancestorRecovery: { ...preview.ancestorRecovery, extra: true } },
+    { ...preview, ancestorRecovery: { ...preview.ancestorRecovery, planDigest: 'not-a-digest' } },
+    ...[[SOURCE, TARGET], [TARGET, INTERMEDIATE, SOURCE], [SOURCE, TARGET, TARGET],
+      [SOURCE, 'not-a-version', TARGET], [SOURCE, ...Array(64).fill(INTERMEDIATE), TARGET]]
+      .map(versionIds => ({ ...preview, ancestorRecovery: { ...preview.ancestorRecovery, versionIds } })),
+    { ...preview, contractVersion: 'manager-training-successor-adoption-preview.v1' },
+    { ...preview, alreadyAdoptedRecordCount: 6, newlyAdoptableRecordCount: 0, readiness: 'already_adopted' },
+    { ...preview, eligibleRecordCount: 0, newlyAdoptableRecordCount: 0, eligibleRouteCount: 0, readiness: 'already_adopted' },
+  ];
+  for (const malformed of invalid) {
+    assert.equal(trainingSuccessorAdoptionPreview(malformed, TARGET), null);
+    assert.equal(managerTrainingRunPreflight({ ...value, home: { ...value.home, successorAdoption: malformed } }, TARGET).state, 'unavailable');
+  }
+  const adopted = { ...preview, alreadyAdoptedRecordCount: 5, newlyAdoptableRecordCount: 0, readiness: 'already_adopted' };
+  assert.equal(managerTrainingRunPreflight({ ...value, home: { ...value.home, successorAdoption: adopted } }, TARGET).state, 'ready');
+});
+
+test('ancestor receipt must acknowledge the exact reviewed plan, not a direct or stale carryover', () => {
+  const value = ancestorHome();
+  const preview = trainingSuccessorAdoptionPreview(value.home.successorAdoption, TARGET)!;
+  const receipt = {
+    ok: true, contractVersion: 'manager-training-successor-adoption.v2', created: true,
+    agentSlug: 'visual-compositor', targetWorkflowVersionId: TARGET, sourceWorkflowVersionId: SOURCE,
+    adoptedRecordCount: 5, adoptionReceiptIds: Array.from({ length: 5 }, (_, i) => `${String(i+1).repeat(8)}-${String(i+1).repeat(4)}-4${String(i+1).repeat(3)}-8${String(i+1).repeat(3)}-${String(i+1).repeat(12)}`),
+    eligibleRouteCount: 10, adoptionSetDigest: 'a'.repeat(64), expectedAdoptionDigest: 'b'.repeat(64),
+    managerTrainingRequirements: value.home.managerTrainingRequirements,
+  };
+  assert.deepEqual(trainingSuccessorAdoptionReceipt(receipt, 'visual-compositor', preview), receipt);
+  for (const malformed of [
+    { ...receipt, expectedAdoptionDigest: 'c'.repeat(64) },
+    { ...receipt, expectedAdoptionDigest: undefined },
+    { ...receipt, contractVersion: 'manager-training-successor-adoption.v1' },
+    { ...receipt, sourceWorkflowVersionId: INTERMEDIATE },
+    { ...receipt, adoptedRecordCount: 4 },
+    { ...receipt, targetWorkflowVersionId: INTERMEDIATE },
+    { ...receipt, extra: true },
+  ]) assert.equal(trainingSuccessorAdoptionReceipt(malformed, 'visual-compositor', preview), null);
+  const legacy = trainingSuccessorAdoptionPreview(optionalHome().home.successorAdoption, TARGET)!;
+  assert.equal(trainingSuccessorAdoptionReceipt(receipt, 'visual-compositor', legacy), null);
+});

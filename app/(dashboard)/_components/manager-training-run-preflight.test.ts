@@ -198,6 +198,75 @@ function optionalTrainingHome(adopted = false) {
   return value;
 }
 
+function ancestorTrainingHome() {
+  const value = optionalTrainingHome();
+  return { ...value, home: { ...value.home, successorAdoption: {
+    ...value.home.successorAdoption,
+    contractVersion: 'manager-training-successor-adoption-preview.v2',
+    ancestorRecovery: { planDigest: 'e'.repeat(64),
+      versionIds: [PREVIOUS, '44444444-4444-4444-8444-444444444444', VERSION] },
+  } } };
+}
+
+test('ancestor carryover confirms the exact plan in the existing action before opening run inputs', async () => {
+  let adopted = false, reads = 0, setups = 0;
+  const posts: Array<{ body?: Record<string, unknown>; idempotencyKey?: string }> = [];
+  const ids = Array.from({ length: 5 }, (_, i) => `${String(i+1).repeat(8)}-${String(i+1).repeat(4)}-4${String(i+1).repeat(3)}-8${String(i+1).repeat(3)}-${String(i+1).repeat(12)}`);
+  const r = await render('agent-actions.tsx', props, { backend: (path: string, init: { body?: Record<string, unknown>; idempotencyKey?: string }) => {
+    if (path.endsWith('/adopt-successor')) {
+      posts.push(init); adopted = true;
+      return { ok: true, contractVersion: 'manager-training-successor-adoption.v2', created: true,
+        agentSlug: 'visual-compositor', targetWorkflowVersionId: VERSION, sourceWorkflowVersionId: PREVIOUS,
+        adoptedRecordCount: 5, adoptionReceiptIds: ids, eligibleRouteCount: 4, adoptionSetDigest: 'd'.repeat(64),
+        expectedAdoptionDigest: 'e'.repeat(64), managerTrainingRequirements: optionalTrainingHome(true).home.managerTrainingRequirements };
+    }
+    if (path.startsWith('/api/v2/agent-training/agents/')) { reads++; return adopted ? optionalTrainingHome(true) : ancestorTrainingHome(); }
+    if (path.includes('/setup')) { setups++; return { schema: [], answers: {}, note: '', runInputDefaults: {} }; }
+    throw Error(`Unexpected operation: ${path}`);
+  } });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    assert.match(r.text(), /Bring your saved training forward/);
+    assert.match(r.text(), /Earlier versions and runs stay unchanged/);
+    assert.doesNotMatch(r.text(), /between these consecutive versions/);
+    const carry = r.getByText('Carry 3 accepted decisions') as HTMLButtonElement;
+    assert.ok(carry.disabled);
+    assert.equal(posts.length, 0); assert.equal(setups, 0);
+    await r.click(r.getByText('I want to carry these exact accepted decisions'));
+    await r.click(carry);
+    assert.equal(posts.length, 1);
+    assert.deepEqual(JSON.parse(JSON.stringify(posts[0].body)), { expectedActiveVersionId: VERSION, expectedAdoptionDigest: 'e'.repeat(64) });
+    assert.match(posts[0].idempotencyKey || '', /^[0-9a-f-]{36}$/);
+    assert.equal(reads, 2); assert.equal(setups, 1);
+    assert.ok(r.queryByText('Run inputs'));
+  } finally { r.cleanup(); }
+});
+
+test('an unconfirmed ancestor-plan receipt cannot open inputs or silently retry the carryover', async () => {
+  let posts = 0, setups = 0;
+  const ids = Array.from({ length: 5 }, (_, i) => `${String(i+1).repeat(8)}-${String(i+1).repeat(4)}-4${String(i+1).repeat(3)}-8${String(i+1).repeat(3)}-${String(i+1).repeat(12)}`);
+  const r = await render('agent-actions.tsx', props, { backend: (path: string) => {
+    if (path.endsWith('/adopt-successor')) {
+      posts++;
+      return { ok: true, contractVersion: 'manager-training-successor-adoption.v2', created: true,
+        agentSlug: 'visual-compositor', targetWorkflowVersionId: VERSION, sourceWorkflowVersionId: PREVIOUS,
+        adoptedRecordCount: 5, adoptionReceiptIds: ids, eligibleRouteCount: 4, adoptionSetDigest: 'd'.repeat(64),
+        expectedAdoptionDigest: 'f'.repeat(64), managerTrainingRequirements: optionalTrainingHome(true).home.managerTrainingRequirements };
+    }
+    if (path.startsWith('/api/v2/agent-training/agents/')) return ancestorTrainingHome();
+    if (path.includes('/setup')) { setups++; throw Error('No setup after an unconfirmed receipt'); }
+    throw Error(`Unexpected operation: ${path}`);
+  } });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    await r.click(r.getByText('I want to carry these exact accepted decisions'));
+    await r.click(r.getByText('Carry 3 accepted decisions'));
+    assert.equal(posts, 1); assert.equal(setups, 0);
+    assert.match(r.text(), /could not verify the training adoption receipt/);
+    assert.equal(r.queryByText('Run inputs'), null);
+  } finally { r.cleanup(); }
+});
+
 test('optional carryover uses the same acknowledged adoption action and opens inputs only after a fresh read', async () => {
   let adopted = false; let posts = 0; let reads = 0;
   const ids = Array.from({ length: 5 }, (_, i) => `${String(i+1).repeat(8)}-${String(i+1).repeat(4)}-4${String(i+1).repeat(3)}-8${String(i+1).repeat(3)}-${String(i+1).repeat(12)}`);
