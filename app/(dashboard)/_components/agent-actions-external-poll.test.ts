@@ -77,13 +77,13 @@ test('a run-request started from THIS component still defers to its own dedicate
 });
 
 const VERSION = '33333333-3333-4333-8333-333333333333';
-async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, statusUnavailable = false,trainingTest:{testPreparationId:string;preparationDigest:string}|null=null,extra:Record<string,unknown>={},control:{readStatus?:()=>string;loadSetup?:()=>unknown}={}) {
+async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, statusUnavailable = false,trainingTest:{testPreparationId:string;preparationDigest:string}|null=null,extra:Record<string,unknown>={},control:{readStatus?:()=>string;loadSetup?:()=>unknown;deferred?:boolean;preparationState?:()=>string;preparationId?:()=>string;preparedRequestId?:()=>string|null;requestFailure?:boolean}={}) {
   return render('agent-actions.tsx', {
     slug: 'video-agent', isActive: true, inFlight, statusUnavailable,trainingTest,
     workflowVersionId: VERSION, inputContractDigest: 'c'.repeat(64),
     inputContract: { version: 1, fields: [{ key: 'brief', label: 'Brief', kind: 'text',
       cardinality: 'one', required: true, order: 1 }] },...extra,
-  }, { backend: path => {
+  }, { ...(control.deferred?{bridge:{executionMachineId:async()=>'synthetic-machine',pickRunInput:async()=>({ok:false,canceled:true}),pickDeferredRunInput:async(input:any)=>({ok:true,...input,selectionId:'44444444-4444-4444-8444-444444444444',displayName:'presenter.mp4',sizeBytes:1024,mediaType:'video/mp4',fileExtension:'.mp4',requiredMachineId:'synthetic-machine'}),startRunInputPreparation:async()=>({ok:true})}}:{}),backend: path => {
     if (path.startsWith('/api/v2/agent-training/agents/')) {const value={ ok: true, home: {
       agent: { currentVersionId: VERSION },
       successorProjection: { contractVersion: 'agent-training-successor-projection.v1',
@@ -95,16 +95,44 @@ async function renderAnother(inFlight: 'running' | 'queued', duplicate = false, 
     } };const query=new URL(path,'https://fixture.invalid').searchParams;const selected=query.has('testPreparationId')?{testPreparationId:query.get('testPreparationId'),preparationDigest:query.get('preparationDigest')}:trainingTest;return selected?{ok:true,contractVersion:'prepared-agent-training-preflight.v1',agentFamilyId:'11111111-1111-4111-8111-111111111111',workflowVersionId:VERSION,
       managerTrainingRequirements:value.home.managerTrainingRequirements,trainingTest:selected}:value;}
     if (path.includes('/setup')&&control.loadSetup)return control.loadSetup();
-    if (path==='/api/v2/me/run-requests/fresh-request')return {request:{status:control.readStatus?.()||'pending'}};
+    if (path==='/api/v2/me/run-input-preparations/fresh-request')return {ok:true,preparation:{id:control.preparationId?.()||'fresh-request',state:control.preparationState?.()||'working',runRequestId:control.preparedRequestId?control.preparedRequestId():'fresh-request'}};
+    if (path==='/api/v2/me/run-requests/fresh-request')return {request:{status:control.readStatus?.()||'pending',...(control.requestFailure?{failure_reason:'prelaunch_refused'}:{})}};
     if (path.includes('/setup')) return { schema: [{ key: 'format', question: 'Format', kind: 'text', optional: true }],
       answers: { format: '16:9' }, note: '', runInputDefaults: { brief: 'same preserved input' } };
     if (path.includes('/run-precheck')) return { ok: true, fingerprint: 'same-fingerprint',
       duplicate: duplicate ? { message: 'The same input has an open run.', runId: 'existing-run' } : null };
     if (path === '/api/v2/me/run-admission') return { ok: true, admitted: true };
-    if (path === '/api/v2/me/run-requests') return { ok: true, request: { id: 'fresh-request' } };
+    if (path === '/api/v2/me/run-requests') return control.deferred?{ok:true,preparing:true,preparation:{id:'fresh-request'}}:{ ok: true, request: { id: 'fresh-request' } };
     return { ok: true };
   } });
 }
+
+test('Training follows deferred file preparation into the same request and reports terminal attention without another birth',async()=>{
+ for(const outcome of ['completed','failed','cancelled','expired']){
+  let refreshed=0,tick:()=>Promise<void>=async()=>{},phase='working',preparationId='fresh-request',preparedRequestId:string|null='fresh-request';
+  const binding={testPreparationId:'11111111-1111-4111-8111-111111111111',preparationDigest:'b'.repeat(64)};
+  const props={presentation:'training',onQueued:()=>refreshed++,inputContract:{version:1,fields:[{key:'brief',label:'Presenter video',kind:'file',cardinality:'one',required:true,order:1}]},trainingChoices:{pending:false,canTest:true,delivered:false,savedAvailable:true,busy:false,onPending:()=>{},onSaved:()=>{}}};
+  const r=await renderAnother('running',false,false,null,props,{deferred:true,preparationState:()=>phase,preparationId:()=>preparationId,preparedRequestId:()=>preparedRequestId,readStatus:()=> 'done',requestFailure:true,loadSetup:()=>({schema:[],answers:{},note:'',runInputDefaults:{}})});
+  try{
+   r.window.setInterval=((f:()=>Promise<void>)=>{tick=f;return 123;}) as any;
+   await r.rerender({...props,slug:'video-agent',isActive:true,workflowVersionId:VERSION,inputContractDigest:'c'.repeat(64),runRequest:{nonce:outcome,binding}});
+   await r.click(r.getByText('Choose file'));await r.click(r.getByText('▶ Run now'));
+   assert.match(r.text(),/Preparing your file in the background/);
+   await r.act(()=>tick());assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests/fresh-request'),false);
+   if(outcome==='completed'){
+    phase='completed';preparationId='another-preparation';await r.act(()=>tick());
+    preparationId='fresh-request';for(const linked of [null,'another-request']){preparedRequestId=linked;await r.act(()=>tick());assert.match(r.text(),/Preparing your file in the background/);}
+    assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests/fresh-request'),false,'mismatched preparation links cannot switch the followed request');preparedRequestId='fresh-request';
+   }
+   phase=outcome;await r.act(()=>tick());
+   if(outcome==='completed'){assert.match(r.text(),/File verified/);await r.act(()=>tick());assert.match(r.text(),/run needs attention/);assert.doesNotMatch(r.text(),/Run finished/);}
+   else assert.match(r.text(),outcome==='cancelled'?/File preparation was cancelled/:/File preparation needs attention/);
+   assert.equal(refreshed,2,'one queue notification and one terminal refresh');
+   const births=r.calls.backend.filter(c=>c.path==='/api/v2/me/run-requests');assert.equal(births.length,1);assert.deepEqual(JSON.parse(JSON.stringify((births[0].init as any).body.trainingTest)),binding);
+   assert.equal((r.getByText('Run with latest saved learnings') as HTMLButtonElement).disabled,false);assert.equal(r.calls.push.length,0);
+  }finally{r.cleanup();}
+ }
+});
 
 test('a prepared Training test keeps the ordinary inputs and admission, and carries its exact binding at birth',async()=>{
  const binding={testPreparationId:'11111111-1111-4111-8111-111111111111',preparationDigest:'b'.repeat(64)};
