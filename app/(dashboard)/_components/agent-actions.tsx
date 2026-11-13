@@ -489,7 +489,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
 
   // Poll the queued request until the plugin marks it done (run_id linked).
   useEffect(() => {
-    if (state !== 'queued' && state !== 'running') return;
+    if (state !== 'queued' && state !== 'running' && !(presentation==='training'&&state==='preparing')) return;
     const t = setInterval(async () => {
       if (!requestId.current) return;
       if (Date.now() - pollStart.current > POLL_MAX_MS) {
@@ -501,10 +501,20 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const polledRequestId=requestId.current;
+        if(state==='preparing'){
+          const prepared=await callBackend(`/api/v2/me/run-input-preparations/${polledRequestId}`,{jwt:session?.access_token});
+          if(requestId.current!==polledRequestId)return;
+          const preparation=prepared?.preparation;
+          if(preparation?.id!==polledRequestId)return;
+          // The existing finalizer births requestId=preparation.id; never follow a substituted link.
+          if(preparation.state==='completed'&&preparation.runRequestId===polledRequestId){setState('queued');setMsg('File verified. Waiting for the agent to start…');}
+          else if(['failed','cancelled','expired'].includes(preparation.state)){clearInterval(t);requestId.current=null;setState('error');setMsg(preparation.state==='cancelled'?'File preparation was cancelled.':'File preparation needs attention. Its history is preserved.');onQueuedRef.current?.();}
+          return;
+        }
         const res = await callBackend(`/api/v2/me/run-requests/${polledRequestId}`, { jwt: session?.access_token });
         if(requestId.current!==polledRequestId)return;
         const status = res?.request?.status;
-        if(presentation==='training'&&['done','cancelled','failed'].includes(status)){clearInterval(t);requestId.current=null;setState('idle');setMsg(status==='done'?'Run finished. Saved training status refreshed.':status==='failed'?'The run needs attention. Its history is preserved.':'The run was cancelled.');onQueuedRef.current?.();return;}
+        if(presentation==='training'&&['done','cancelled','failed'].includes(status)){clearInterval(t);requestId.current=null;setState('idle');setMsg(status==='done'&&res?.request?.failure_reason?'The run needs attention. Its history is preserved.':status==='done'?'Run finished. Saved training status refreshed.':status==='failed'?'The run needs attention. Its history is preserved.':'The run was cancelled.');onQueuedRef.current?.();return;}
         if (status === 'consumed') { setState('running'); setMsg('Running in Claude Code…'); }
         else if (status === 'done') { clearInterval(t); setState('done'); setMsg(''); }
         else if (status === 'cancelled') { clearInterval(t); setState('error'); setMsg('The run was cancelled.'); }
