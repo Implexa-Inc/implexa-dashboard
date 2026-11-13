@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { managerTrainingRunPreflight, trainingSuccessorAdoptionActionAvailable, trainingSuccessorAdoptionPreview,
-  trainingSuccessorAdoptionReceipt,preparedTrainingTestQuery } from './manager-training-run-preflight.ts';
+  trainingSuccessorAdoptionReceipt, trainingProposedAdoptionPreview, preparedTrainingTestQuery } from './manager-training-run-preflight.ts';
 
 const TARGET = '33333333-3333-4333-8333-333333333333';
 const SOURCE = '22222222-2222-4222-8222-222222222222';
@@ -211,6 +211,10 @@ test('ancestor preview refuses unbound plans, reordered endpoints, cycles and le
   }
   const adopted = { ...preview, alreadyAdoptedRecordCount: 5, newlyAdoptableRecordCount: 0, readiness: 'already_adopted' };
   assert.equal(managerTrainingRunPreflight({ ...value, home: { ...value.home, successorAdoption: adopted } }, TARGET).state, 'ready');
+  assert.equal(trainingProposedAdoptionPreview({ ok: true, ...preview,
+    expectedAdoptionDigest: preview.ancestorRecovery.planDigest, managerPolicyRemap: null,
+    managerTrainingRequirements: value.home.managerTrainingRequirements }, SOURCE, TARGET), null,
+  'active-target recovery must not become a proposed-revision adoption authority');
 });
 
 test('ancestor receipt must acknowledge the exact reviewed plan, not a direct or stale carryover', () => {
