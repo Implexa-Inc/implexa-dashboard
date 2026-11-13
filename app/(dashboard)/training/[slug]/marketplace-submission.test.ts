@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {render,type Rendered} from '../../../../lib/test/render.ts';
 const V='12000000-0000-4000-8000-000000000001';
 function fixture(){return {ok:true,contractVersion:'marketplace-submission.v1',agent:{id:'family',versionId:V,name:'Studio'},bindingDigest:'b'.repeat(64),canSubmit:true,
@@ -11,7 +12,7 @@ async function setup(t:any,options:{canSubmit?:boolean;postFailure?:boolean}={})
  const calls:any[]=[];const c=fixture();if(options.canSubmit!==undefined)c.canSubmit=options.canSubmit;
  const props={slug:'studio',versionId:V};
  const r=await render('../training/[slug]/marketplace-submission.tsx',props,{fetch:(async(url:string,init:any={})=>{
-  calls.push({url,init});if(init.method==='POST')return {ok:!options.postFailure,json:async()=>options.postFailure?{ok:false,reason:'listing_revision_changed'}:{ok:true,submission:{revision:JSON.parse(init.body).expectedRevision+1,state:'submitted'}}};
+  calls.push({url,init});if(init.method==='POST')return {ok:!options.postFailure,json:async()=>options.postFailure?{ok:false,reason:'listing_revision_changed'}:JSON.parse(init.body).action==='suggest'?{ok:true,bindingDigest:c.bindingDigest,copy:{name:'AI video wording',category:'Video',input:'Your raw video',output:'A finished edit'}}:{ok:true,submission:{revision:JSON.parse(init.body).expectedRevision+1,state:'submitted'}}};
   return {ok:true,json:async()=>c};
  }) as typeof fetch});t.after(()=>r.cleanup());return {r,calls,props};
 }
@@ -36,7 +37,7 @@ test('sample consent gates a single version-pinned review submission, not public
  const checks=Array.from(r.document.querySelectorAll('input[type="checkbox"]'));await r.click(checks[0]);await r.click(checks.at(-1)!);
  await r.click(r.getByText('Submit for review'));const posts=calls.filter(c=>c.init.method==='POST');assert.equal(posts.length,1);
  const b=JSON.parse(posts[0].init.body);assert.equal(b.action,'submit');assert.equal(b.expectedRevision,0);assert.equal(b.bindingDigest,'b'.repeat(64));assert.equal(b.listing.sampleReleaseConsent,true);
- assert.match(r.text(),/private until approved/);assert.equal(calls.some(c=>/publication|sponsored|generate|credential/.test(c.url)),false);
+ assert.match(r.text(),/Publication is a separate step/);assert.equal(calls.some(c=>/publication|sponsored|generate|credential/.test(c.url)),false);
 });
 test('an untested version can save a draft but cannot submit',async t=>{
  const {r,calls}=await setup(t,{canSubmit:false});await r.click(r.getByText('Prepare marketplace listing'));assert.match(r.text(),/Test and publish this version/);
@@ -46,4 +47,31 @@ test('conflict retains edits and switching versions closes the prior offer',asyn
  const {r,props}=await setup(t,{postFailure:true});await r.click(r.getByText('Prepare marketplace listing'));
  await r.click(r.getByText('Save draft'));assert.match(r.text(),/saved elsewhere/);assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'Video studio');
  await r.rerender({...props,versionId:'12000000-0000-4000-8000-000000000002'});assert.equal(r.document.querySelector('[role="dialog"]'),null);
+});
+test('AI suggests editable wording without saving, changing price or granting a tool',async t=>{
+ const {r,calls}=await setup(t);await r.click(r.getByText('Prepare marketplace listing'));await r.click(r.getByText('✨ Suggest wording with AI'));
+ assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'AI video wording');assert.equal((r.document.querySelector('input[type="number"]') as HTMLInputElement).value,'50');
+ assert.equal((r.document.querySelector('[aria-label="Runway access"]') as HTMLSelectElement).value,'customer_connects');
+ assert.deepEqual(calls.filter(c=>c.init.method==='POST').map(c=>JSON.parse(c.init.body)),[{action:'suggest',bindingDigest:'b'.repeat(64)}]);
+ assert.match(r.text(),/Review it before saving/);
+});
+test('invalid tool prices stay unavailable in both editor and preview',async t=>{
+ const {r}=await setup(t);await r.click(r.getByText('Prepare marketplace listing'));await input(r,r.document.querySelector('[aria-label="Runway access"]') as HTMLSelectElement,'included');
+ const number=r.document.querySelectorAll('input[type="number"]')[1] as HTMLInputElement;await input(r,number,'0');assert.match(r.text(),/Unavailable/);
+ await r.click(r.getByText('Preview listing'));assert.match(r.text(),/price unavailable/);assert.doesNotMatch(r.text(),/\$0\.00 per run|NaN/);
+});
+
+test('actual published producer exposes historical funding separately and requires renewed sample consent',async t=>{
+ const actual=JSON.parse(readFileSync(new URL('../../../../lib/__fixtures__/marketplace-submission-producer.v1.json',import.meta.url),'utf8')).context;
+ const calls:any[]=[];const saved={...actual.defaults,sampleIds:[actual.samples[0].id],sampleReleaseConsent:true};
+ actual.draft={id:'draft',revision:2,state:'draft',version_id:actual.agent.versionId,payload:{listing:saved,bindingDigest:actual.bindingDigest}};
+ actual.submission={id:'submitted',revision:1,state:'submitted',version_id:actual.agent.versionId};
+ const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'fixture',versionId:actual.agent.versionId},{fetch:(async(url:string,init:any={})=>{calls.push({url,init});return {ok:true,json:async()=>actual};}) as typeof fetch});t.after(()=>r.cleanup());
+ await r.click(r.getByText('Prepare marketplace listing'));assert.match(r.text(),/Revision 1 is submitted/);assert.match(r.text(),/Later edits are drafts/);
+ const funded=actual.tools.find((t:any)=>t.origin==='funded_pilot_reference');const select=r.document.querySelector(`[aria-label="${funded.name} access"]`) as HTMLSelectElement;
+ assert.equal(select.value,'not_offered');assert.equal(Array.from(select.options).some(o=>o.value==='customer_connects'),false);
+ const consent=Array.from(r.document.querySelectorAll('input[type="checkbox"]')).at(-1) as HTMLInputElement;assert.equal(consent.checked,false);
+ assert.equal((r.getByText('Submit for review') as HTMLButtonElement).disabled,true);await r.click(consent);assert.equal(consent.checked,true);
+ const sample=r.document.querySelector('input[type="checkbox"]')!;await r.click(sample);assert.equal(consent.checked,false);
+ assert.equal(calls.some(c=>c.init.method==='POST'),false);
 });
