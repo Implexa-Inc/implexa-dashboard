@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend } from '@/lib/api';
+import { ensureScheduleReadinessAfterSave } from '@/lib/schedule-readiness';
 import AgentActions from './agent-actions';
 import AgentSetupCard from './agent-setup-card';
 import { ActivationRequirements, DeclaredMachineTools } from './activation-requirements';
@@ -489,6 +490,10 @@ export function SchedulePicker({ slug, onSaved, initial }: { slug: string; onSav
       await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/schedule`, {
         jwt, method: 'POST', body,
       });
+      // The backend mutation is already complete. Ask the local desktop to
+      // explain pre-run power readiness without making schedule creation depend
+      // on an installed/new-enough desktop.
+      void ensureScheduleReadinessAfterSave();
       onSaved();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not set the schedule. Try again.');
