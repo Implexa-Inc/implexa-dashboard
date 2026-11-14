@@ -143,6 +143,9 @@ function harness(options: {
   stages?: string[];
   managerCoverage?: Record<string, unknown>;
   managerTrainingRequirements?: Record<string, unknown> | null;
+  activeRequirements?: Record<string, unknown> | null;
+  sessionRequirements?: Record<string, unknown> | null;
+  successorAdoption?: unknown;
   successorSha?: string;
   successorBaseVersion?: string;
   successorCreatedBaseVersion?: string;
@@ -187,8 +190,11 @@ function harness(options: {
             ...(currentVersion === VERSION_A ? [{ sessionId: SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_A } }] : []),
           ],
           successorProjection: projection,
+          successorAdoption: options.successorAdoption === undefined ? {contractVersion:'manager-training-successor-adoption-preview.v1',
+            sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:currentVersion,eligibleRecordCount:1,
+            alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:1,eligibleRouteCount:0,readiness:'not_compatible',reason:'training_successor_adoption_incomplete'} : options.successorAdoption,
           managerTrainingRequirements: currentVersion
-            ? (options.managerTrainingRequirements === undefined ? requirements(currentVersion) : options.managerTrainingRequirements)
+            ? (options.activeRequirements === undefined ? (options.managerTrainingRequirements === undefined ? requirements(currentVersion) : options.managerTrainingRequirements) : options.activeRequirements)
             : null,
         } };
       }
@@ -223,7 +229,7 @@ function harness(options: {
           pendingDecisions: options.pendingDecisions || [],
           managerCoverage: options.managerCoverage,
           managerTrainingRequirements: listedVersion
-            ? (options.managerTrainingRequirements === undefined ? requirements(listedVersion) : options.managerTrainingRequirements)
+            ? (options.sessionRequirements === undefined ? (options.managerTrainingRequirements === undefined ? requirements(listedVersion) : options.managerTrainingRequirements) : options.sessionRequirements)
             : null,
         };
       }
@@ -625,7 +631,7 @@ test('active-version drift is detected before evidence access and blocks the old
     setCurrentVersion(VERSION_B);
     await rendered.click(rendered.getByText('Preview this exact frame'));
     assert.match(rendered.text(), /active agent version changed/i);
-    assert.match(rendered.text(), /remain immutable on 11111111/);
+    assert.match(rendered.text(), /Your saved training is preserved/);
     assert.equal(calls.some((call) => call.operation === 'preview'), false, 'no local frame is disclosed after version drift');
     assert.equal((rendered.getByText('Add training source') as HTMLButtonElement).disabled, true);
   } finally { rendered.cleanup(); }
@@ -636,10 +642,12 @@ test('version transition requires coach confirmation, exact-source re-selection,
   try {
     setCurrentVersion(VERSION_B);
     await rendered.click(rendered.getByText('Review accepted evidence'));
-    assert.match(rendered.text(), /session and its accepted decisions remain immutable on 11111111/i);
+    assert.match(rendered.text(), /Earlier training status needs checking/);
+    await rendered.click(rendered.getByText('Check training status'));
+    assert.match(rendered.text(), /The update needs a training review/);
     const start = rendered.getByText('Start successor training session') as HTMLButtonElement;
     assert.equal(start.disabled, true);
-    const confirmation = rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!;
+    const confirmation = rendered.getByText(/Start a new training session for the updated agent/).closest('label')!.querySelector('input')!;
     await rendered.click(confirmation);
     assert.equal((rendered.getByText('Start successor training session') as HTMLButtonElement).disabled, false);
     await rendered.click(rendered.getByText('Start successor training session'));
@@ -677,12 +685,14 @@ test('an adopted ready active version does not ask the coach to recreate immutab
     currentVersion: VERSION_B,
     state: 'accepted',
     stages: ['planning'],
-    managerTrainingRequirements: requirements(VERSION_B),
+    activeRequirements: requirements(VERSION_B), sessionRequirements: requirements(VERSION_A),
+    successorAdoption: {contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
+      eligibleRecordCount:1,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,eligibleRouteCount:2,readiness:'already_adopted',reason:null},
   });
   try {
-    assert.match(rendered.text(), /Active-version Manager training is ready/);
-    assert.match(rendered.text(), /active version 22222222 can select the same evidence through explicit immutable adoption receipts/i);
-    assert.match(rendered.text(), /No new successor training session is required to run this Agent/);
+    assert.match(rendered.text(), /Earlier training carried forward/);
+    assert.match(rendered.text(), /1 compatible lesson is available to this version/);
+    assert.match(rendered.text(), /You do not need to upload or approve it again/);
     assert.doesNotMatch(rendered.text(), /active version is 22222222 and cannot select those records/i);
     assert.equal(rendered.queryByText('Start successor training session'), null);
     assert.doesNotMatch(rendered.text(), /Manager reference training readiness unavailable/);
@@ -693,9 +703,9 @@ test('version transition is restart-durable and retains explicit parent lineage'
   const { rendered, calls } = await renderedWith({ currentVersion: VERSION_B, state: 'accepted', stages: ['planning', 'build', 'preview', 'qa'], managerCoverage: coverage() });
   try {
     assert.match(rendered.text(), /Active version: 22222222 · Session version: 11111111/);
-    assert.match(rendered.text(), /Move reviewed evidence to the active version explicitly/);
+    assert.match(rendered.text(), /Review training for this update/);
     assert.equal((rendered.getByText('Add training source') as HTMLButtonElement).disabled, true);
-    await rendered.click(rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await rendered.click(rendered.getByText(/Start a new training session for the updated agent/).closest('label')!.querySelector('input')!);
     await rendered.click(rendered.getByText('Start successor training session'));
     const create = calls.find((call) => call.operation === 'create')!;
     assert.deepEqual(create.args.parentSessionId, SESSION);
@@ -708,7 +718,7 @@ test('fresh reload discovers a server-owned accepted predecessor outside the cap
   const { rendered, calls } = await renderedWith({ currentVersion: VERSION_B, state: 'accepted', predecessorTerminal: true });
   try {
     assert.match(rendered.text(), /Active version: 22222222 · Session version: 11111111/);
-    assert.match(rendered.text(), /Move reviewed evidence to the active version explicitly/);
+    assert.match(rendered.text(), /Review training for this update/);
     assert.equal(calls.some((call) => call.operation === 'scope' && call.args.sessionId === SESSION), true);
     assert.equal(calls.some((call) => call.operation === 'list' && call.args.sessionId === SESSION), true);
     assert.equal(calls.some((call) => call.operation === 'create'), false);
@@ -718,7 +728,7 @@ test('fresh reload discovers a server-owned accepted predecessor outside the cap
 test('lost successor response retries with the same idempotency key and exact predecessor', async () => {
   const { rendered, calls } = await renderedWith({ currentVersion: VERSION_B, state: 'accepted', loseFirstSuccessorResponse: true });
   try {
-    await rendered.click(rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await rendered.click(rendered.getByText(/Start a new training session for the updated agent/).closest('label')!.querySelector('input')!);
     await rendered.click(rendered.getByText('Start successor training session'));
     assert.match(rendered.text(), /training unavailable/i);
     await rendered.click(rendered.getByText('Start successor training session'));
@@ -751,7 +761,7 @@ test('reload discovers accepted predecessor evidence behind an existing linked a
   const { rendered, calls } = await renderedWith({ currentVersion: VERSION_B, state: 'accepted', includeCurrentSession: true });
   try {
     assert.match(rendered.text(), /Active version: 22222222 · Session version: 22222222/);
-    assert.doesNotMatch(rendered.text(), /Move reviewed evidence to the active version explicitly/);
+    assert.doesNotMatch(rendered.text(), /Review training for this update/);
     assert.match(rendered.text(), /Training from earlier versions/);
     assert.match(rendered.text(), /Earlier version 11111111 · Current version 22222222/);
     assert.match(rendered.text(), /Source SHA-256 bbbbbbbb/);
@@ -765,7 +775,7 @@ test('reload never treats an unrelated active-version session as the evidence su
   const { rendered } = await renderedWith({ currentVersion: VERSION_B, state: 'accepted', includeCurrentSession: true, successorParentSessionId: null });
   try {
     assert.match(rendered.text(), /Active version: 22222222 · Session version: 11111111/);
-    assert.match(rendered.text(), /Move reviewed evidence to the active version explicitly/);
+    assert.match(rendered.text(), /Review training for this update/);
     assert.doesNotMatch(rendered.text(), /Training from earlier versions/);
   } finally { rendered.cleanup(); }
 });
@@ -775,7 +785,8 @@ test('version successor refuses a raced version binding and never enables a diff
   try {
     raced.setCurrentVersion(VERSION_B);
     await raced.rendered.click(raced.rendered.getByText('Review accepted evidence'));
-    await raced.rendered.click(raced.rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await raced.rendered.click(raced.rendered.getByText('Check training status'));
+    await raced.rendered.click(raced.rendered.getByText(/Start a new training session for the updated agent/).closest('label')!.querySelector('input')!);
     await raced.rendered.click(raced.rendered.getByText('Start successor training session'));
     assert.match(raced.rendered.text(), /successor session was not bound to the active immutable version/i);
     assert.match(raced.rendered.text(), /Session version: 11111111/);
@@ -785,7 +796,8 @@ test('version successor refuses a raced version binding and never enables a diff
   try {
     mismatched.setCurrentVersion(VERSION_B);
     await mismatched.rendered.click(mismatched.rendered.getByText('Review accepted evidence'));
-    await mismatched.rendered.click(mismatched.rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await mismatched.rendered.click(mismatched.rendered.getByText('Check training status'));
+    await mismatched.rendered.click(mismatched.rendered.getByText(/Start a new training session for the updated agent/).closest('label')!.querySelector('input')!);
     await mismatched.rendered.click(mismatched.rendered.getByText('Start successor training session'));
     await mismatched.rendered.click(mismatched.rendered.getByText(/I created this source and consent/).closest('label')!.querySelector('input')!);
     await mismatched.rendered.click(mismatched.rendered.getByText('Add training source'));
@@ -798,7 +810,8 @@ test('version successor refuses a raced version binding and never enables a diff
   try {
     unbound.setCurrentVersion(VERSION_B);
     await unbound.rendered.click(unbound.rendered.getByText('Review accepted evidence'));
-    await unbound.rendered.click(unbound.rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await unbound.rendered.click(unbound.rendered.getByText('Check training status'));
+    await unbound.rendered.click(unbound.rendered.getByText(/Start a new training session for the updated agent/).closest('label')!.querySelector('input')!);
     await unbound.rendered.click(unbound.rendered.getByText('Start successor training session'));
     assert.match(unbound.rendered.text(), /could not prove the successor session is linked/i);
     assert.equal(unbound.calls.some((call) => call.operation === 'select' || call.operation === 'annotate'), false);
@@ -808,7 +821,8 @@ test('version successor refuses a raced version binding and never enables a diff
   try {
     staleCreate.setCurrentVersion(VERSION_B);
     await staleCreate.rendered.click(staleCreate.rendered.getByText('Review accepted evidence'));
-    await staleCreate.rendered.click(staleCreate.rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await staleCreate.rendered.click(staleCreate.rendered.getByText('Check training status'));
+    await staleCreate.rendered.click(staleCreate.rendered.getByText(/Start a new training session for the updated agent/).closest('label')!.querySelector('input')!);
     await staleCreate.rendered.click(staleCreate.rendered.getByText('Start successor training session'));
     assert.match(staleCreate.rendered.text(), /could not prove the successor session is linked/i);
     assert.equal(staleCreate.calls.some((call) => call.operation === 'select' || call.operation === 'annotate'), false);
@@ -1109,7 +1123,7 @@ test('successor preserves prior stages and expands required routes only after ex
     managerTrainingRequirements: missingRequirements,
   });
   try {
-    await rendered.click(rendered.getByText(/I understand this creates new evidence records/).closest('label')!.querySelector('input')!);
+    await rendered.click(rendered.getByText(/Start a new training session for the updated agent/).closest('label')!.querySelector('input')!);
     await rendered.click(rendered.getByText('Start successor training session'));
     await rendered.click(rendered.getByText(/I created this source and consent/).closest('label')!.querySelector('input')!);
     await rendered.click(rendered.getByText('Add training source'));
@@ -2504,4 +2518,52 @@ test('initial suggestions read failure stays visible and retry recovers without 
   assert.equal(r.document.querySelector('[aria-labelledby=training-opportunities-heading]'),null);
   assert.equal(h.calls.some(c=>['annotate','accept','delivery'].includes(c.operation)),false);
  }finally{r.cleanup();}
+});
+
+
+test('historical list cannot replace active training continuity or create an unneeded session', async () => {
+  const adopted={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
+    eligibleRecordCount:1,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,eligibleRouteCount:2,readiness:'already_adopted',reason:null};
+  const { rendered, calls }=await renderedWith({currentVersion:VERSION_B,state:'accepted',activeRequirements:requirements(VERSION_B),
+    sessionRequirements:requirements(VERSION_A),successorAdoption:adopted});
+  try {
+    assert.match(rendered.text(),/Earlier training carried forward/);
+    assert.doesNotMatch(rendered.text(),/cannot select those records|re-select the exact source|Review training for this update/);
+    assert.equal(rendered.queryByText('Start successor training session'),null);
+    assert.equal(calls.some(call=>['create','accept','annotate','revoke'].includes(call.operation)),false);
+  } finally {rendered.cleanup();}
+});
+
+test('missing or malformed carry-forward proof is unknown rather than lost or carried training', async () => {
+  const adopted={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
+    eligibleRecordCount:1,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,eligibleRouteCount:2,readiness:'already_adopted',reason:null};
+  for(const proof of [null,{}, {...adopted,targetWorkflowVersionId:VERSION_A}, {...adopted,alreadyAdoptedRecordCount:0}]) {
+    const {rendered,calls}=await renderedWith({currentVersion:VERSION_B,state:'accepted',activeRequirements:requirements(VERSION_B),
+      sessionRequirements:requirements(VERSION_A),successorAdoption:proof});
+    try {
+      assert.match(rendered.text(),/Earlier training status needs checking/);
+      assert.doesNotMatch(rendered.text(),/Earlier training carried forward|cannot select those records/);
+      assert.equal(rendered.queryByText('Start successor training session'),null);
+      await rendered.click(rendered.getByText('Check training status'));
+      assert.equal(calls.filter(call=>call.operation==='home').length,2);
+      assert.equal(calls.some(call=>['create','accept','annotate'].includes(call.operation)),false);
+    } finally {rendered.cleanup();}
+  }
+});
+
+
+test('a delayed historical coverage response cannot erase current adoption proof',async()=>{
+ const proof={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
+  eligibleRecordCount:1,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,eligibleRouteCount:2,readiness:'already_adopted',reason:null};
+ const h=harness({currentVersion:VERSION_B,state:'accepted',activeRequirements:requirements(VERSION_B),sessionRequirements:requirements(VERSION_A),successorAdoption:proof});
+ let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:{...h.bridge,trainingLocal:async(operation:string,args:unknown)=>{
+   if(operation==='list')await gate;return h.bridge.trainingLocal(operation,args);
+ }}});
+ try {
+  await r.act(async()=>{release();await gate;});
+  assert.match(r.text(),/Earlier training carried forward/);
+  assert.equal(r.queryByText('Start successor training session'),null);
+  assert.equal(h.calls.some(call=>call.operation==='create'),false);
+ }finally{release();r.cleanup();}
 });

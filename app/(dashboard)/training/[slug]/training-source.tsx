@@ -10,7 +10,7 @@ import TrainingOpportunities from './training-opportunities';
 import TrainingChanges,{TrainingRunPanel,trainingTextSelectable} from './training-changes';
 import AgentActions from '../../_components/agent-actions';
 import type {AgentActionContext} from '@/lib/agent-detail';
-import type {PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
+import {trainingContinuityStatus,type PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
 import NewReview from '../../review/new/new-review';
 import RecordingPlayer from '../../review/recordings/[recordingId]/recording-player';
 import TrainingRunPlayer from './training-run-player';
@@ -82,6 +82,7 @@ type Home = {
   recentSessions: Array<{ sessionId: string; sourceMode: string; terminal: boolean; agent: { baseVersionId: string } }>;
   successorProjection: TrainingSuccessorProjection;
   managerTrainingRequirements?: ManagerTrainingRequirements;
+  successorAdoption?: unknown;
 };
 type Scope = {
   installationId?: string;
@@ -208,6 +209,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const reportRunPending=useCallback((count:number)=>{const identity=`${session}:${currentVersion}`;setRunPending(previous=>previous.identity===identity&&previous.count===count?previous:{identity,count});},[session,currentVersion]);
   const [agentName, setAgentName] = useState(slug);
   const [versionChanged, setVersionChanged] = useState(false);
+  const [activeTraining, setActiveTraining] = useState<{requirements:ManagerTrainingRequirements;adoption:unknown}|null>(null);
+  const [trainingStatusRefresh,setTrainingStatusRefresh] = useState(0);
   const [publication,setPublication]=useState<{versionId:string;shared:boolean;publicUrl:string}|null>(null);
   const [publishConfirmed,setPublishConfirmed]=useState(false);
   useEffect(()=>{setPublication(null);setPublishConfirmed(false);},[slug,currentVersion]);
@@ -484,9 +487,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   );
   const coverageNeedsUpdate = Boolean(coverageIsCurrent && managerCoverage?.readiness === 'agent_update_required' && managerCoverage.reason);
   const requirementsAreCurrent = isManagerTrainingRequirements(managerTrainingRequirements, sessionVersion || currentVersion);
-  const activeRequirementsAreCurrent = isManagerTrainingRequirements(managerTrainingRequirements, currentVersion);
-  const activeVersionTrainingIsReady = Boolean(versionChanged && activeRequirementsAreCurrent && managerTrainingRequirements
-    && (managerTrainingRequirements.readiness === 'reference_training_ready' || managerTrainingRequirements.readiness === 'not_applicable'));
+  const continuity = trainingContinuityStatus(activeTraining?.adoption, activeTraining?.requirements || null, currentVersion, sessionVersion);
+  const activeVersionTrainingIsReady = versionChanged && continuity.state === 'carried';
   const trainingIsReady = Boolean(!versionChanged && requirementsAreCurrent && managerTrainingRequirements
     && (managerTrainingRequirements.readiness === 'reference_training_ready' || managerTrainingRequirements.readiness === 'not_applicable'));
   const trainingNeedsCoach = Boolean(!versionChanged && requirementsAreCurrent && managerTrainingRequirements?.readiness === 'coach_reference_training_required');
@@ -669,7 +671,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
           throw new TrainingError('manager_training_requirements_unavailable', 'Implexa cannot verify the active version’s required visual-reference training coverage. Reload after the backend and Dashboard are updated.');
         }
         setManagerTrainingRequirements(home.managerTrainingRequirements);
-      } else setManagerTrainingRequirements(null);
+        setActiveTraining({requirements:home.managerTrainingRequirements!,adoption:home.successorAdoption});
+      } else {setManagerTrainingRequirements(null);setActiveTraining(null);}
       setAgentName(home.agent.name || slug); setCurrentVersion(projection.activeVersionId);
       const predecessor = projection.eligiblePredecessor;
       const open = home.recentSessions.filter((item) => item.sourceMode === 'raw_input' && !item.terminal);
@@ -713,7 +716,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     return () => { live = false; };
     // The slug is the route identity. A new slug remounts the authoritative scope.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug,installationId]);
+  }, [slug,installationId,trainingStatusRefresh]);
 
   useEffect(() => { if (reviewed) reviewHeadingRef.current?.focus(); }, [reviewed]);
   useEffect(()=>{if(!installationId&&view==='teach')document.getElementById(questionAnswer&&selected?'recording-analysis':directSource?'recording-analysis':'training-demonstration')?.scrollIntoView?.({block:'nearest',behavior:'smooth'});},[view,installationId,directSource,selected?.sourceId,!!questionAnswer]);
@@ -972,6 +975,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     });
   }
   function prepareVersionSuccessor(source: Source, decision: Decision) {
+    const targetRequirements = isManagerTrainingRequirements(activeTraining?.requirements,currentVersion)
+      ? activeTraining!.requirements : isManagerTrainingRequirements(managerTrainingRequirements,currentVersion) ? managerTrainingRequirements : null;
+    if (!targetRequirements) {setError('Check the updated agent’s training requirements before reviewing earlier lessons.');return;}
     showTeaching();
     const nextProperty = decision.content.properties[0] || 'motion_rhythm';
     setSelected(source); setTime(decision.content.anchor.startMs); setPreview(null); setReviewed(null);
@@ -979,7 +985,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior); setCopiedTeachingWording(true);
     setSelectionPriority(String(decision.content.applicability?.priority ?? 50));
     const preserved = normalizeTrainingStages(decision.content.applicability?.stages);
-    const required = requiredStagesForDecision(managerTrainingRequirements, nextProperty, decision.content.relation);
+    const required = requiredStagesForDecision(targetRequirements, nextProperty, decision.content.relation);
     setStages(preserved);
     setSuccessorStageExpansion({ required, missing: required.filter((stage) => !preserved.includes(stage)) });
     setDecisionKey(crypto.randomUUID());
@@ -1641,7 +1647,13 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </div></div>
     {installationId && versionChanged && <p role="alert">This preference session belongs to another installed version. Reopen your agent’s private preferences; no teaching is moved automatically.</p>}
     {installationId && pendingDemoLink && <button disabled={!!busy} onClick={() => work("Linking the preserved preference feedback", () => linkDemoAnnotation(pendingDemoLink))}>Retry feedback link</button>}
-    {!installationId && versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded border p-4 space-y-3 ${legacyControls} ${activeVersionTrainingIsReady ? 'border-emerald-600' : 'border-amber-500'}`}><h2 className="font-semibold">{activeVersionTrainingIsReady ? 'Active-version Manager training is ready' : 'Move reviewed evidence to the active version explicitly'}</h2>{activeVersionTrainingIsReady ? <><p>This historical session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version {shortId(currentVersion)} can select the same evidence through explicit immutable adoption receipts; all {managerTrainingRequirements?.requiredPairs.length || 0} critical request-admission visual-reference routes are fulfilled. First launch still verifies every declared reference.</p><p>No new successor training session is required to run this Agent. Start one only when you want to change or add training evidence for the active version.</p></> : <><p>This session and its accepted decisions remain immutable on {shortId(sessionVersion)}. The active version is {shortId(currentVersion)} and cannot select those records. Start a separate successor session, re-select the exact source, and review each new decision before accepting it.</p><label className="flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event) => setTransitionConfirmed(event.target.checked)} />I understand this creates new evidence records for the active version and does not change or automatically accept the existing records.</label><button disabled={!!busy || !transitionConfirmed || !currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></>}</section>}
+    {!installationId && versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded-xl border p-4 space-y-3 ${legacyControls} ${activeVersionTrainingIsReady ? 'border-emerald-800' : 'border-ink-700'}`}>
+      <h2 className="font-semibold">{continuity.state==='carried'?'Earlier training carried forward':continuity.state==='available'?'Earlier training can be reused':continuity.state==='review'?'Review training for this update':'Earlier training status needs checking'}</h2>
+      {continuity.state==='carried'?<p>{continuity.count} compatible {continuity.count===1?'lesson is':'lessons are'} available to this version. You do not need to upload or approve {continuity.count===1?'it':'them'} again.</p>
+        :continuity.state==='available'?<p>{continuity.count} compatible {continuity.count===1?'lesson can':'lessons can'} carry forward without recreating the examples. Use Run your agent to review the existing carry-forward action.</p>
+        :continuity.state==='unknown'?<><p>Your saved training is preserved. We could not confirm which earlier lessons this version can use.</p><button disabled={!!busy} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Check training status</button></>
+        :<><p>The update needs a training review. Keep your earlier examples; review what has changed before adding or changing lessons.</p><details><summary>Review earlier training</summary><p className="mt-3">Start a session for this version to add or revise the affected lessons. Existing lessons and their history stay saved.</p><label className="mt-3 flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event)=>setTransitionConfirmed(event.target.checked)}/>Start a new training session for the updated agent.</label><button disabled={!!busy||!transitionConfirmed||!currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></details></>}
+    </section>}
     <div id="training-demonstration" hidden={!installationId&&(view!=='teach'||directSource)} className={`space-y-4 rounded-xl border border-ink-800 p-5 ${legacyControls}`}>
     {!installationId&&<div><h2 className="text-lg font-medium">Your demonstration</h2><p className="mt-2 text-sm text-ink-400">Choose a recording or image, then select the moment you want to teach.</p></div>}
     <label className="flex gap-3 text-sm leading-6"><input type="checkbox" checked={consent} disabled={!!busy || versionChanged} onChange={(event) => setConsent(event.target.checked)} />{installationId?"I have permission to use this output and save bounded private preference evidence for one year":OWNER_SOURCE_CONSENT}{installationId&&" The original stays on this computer. I can stop future selection or withdraw permission below."}</label>

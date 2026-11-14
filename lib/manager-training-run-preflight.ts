@@ -127,6 +127,27 @@ export function trainingSuccessorAdoptionPreview(
   return value as TrainingSuccessorAdoptionPreview;
 }
 
+/** The active-version projection, never a historical session's coverage. */
+export function trainingContinuityStatus(preview: unknown, requirements: ManagerTrainingRequirements | null,
+  targetVersionId: string | null, sourceVersionId: string | null): { state: 'carried' | 'available'; count: number } | { state: 'review'; reason: string } | { state: 'unknown' } {
+  if (!targetVersionId || !isManagerTrainingRequirements(requirements, targetVersionId)) return { state: 'unknown' };
+  const checked = trainingSuccessorAdoptionPreview(preview, targetVersionId, requirements);
+  if (!checked || !sourceVersionId || (checked.contractVersion === 'manager-training-successor-adoption-preview.v2'
+    ? !checked.ancestorRecovery.versionIds.slice(0,-1).includes(sourceVersionId)
+    : checked.sourceWorkflowVersionId !== sourceVersionId)) return { state: 'unknown' };
+  if (checked.readiness === 'not_compatible') return { state: 'review', reason: checked.reason! };
+  if (checked.readiness === 'adoption_available' && checked.newlyAdoptableRecordCount > 0 && checked.eligibleRouteCount > 0) {
+    return { state: 'available', count: checked.newlyAdoptableRecordCount };
+  }
+  if (checked.readiness === 'already_adopted' && checked.eligibleRecordCount > 0
+    && checked.alreadyAdoptedRecordCount === checked.eligibleRecordCount
+    && checked.newlyAdoptableRecordCount === 0 && checked.eligibleRouteCount > 0
+    && (requirements!.readiness === 'reference_training_ready' || requirements!.readiness === 'not_applicable')) {
+    return { state: 'carried', count: checked.alreadyAdoptedRecordCount };
+  }
+  return { state: 'unknown' };
+}
+
 export function trainingSuccessorAdoptionActionAvailable(
   value: TrainingSuccessorAdoptionPreview | null,
 ): value is TrainingSuccessorAdoptionPreview {

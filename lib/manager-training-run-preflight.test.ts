@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { managerTrainingRunPreflight, trainingSuccessorAdoptionActionAvailable, trainingSuccessorAdoptionPreview,
+import { trainingContinuityStatus, managerTrainingRunPreflight, trainingSuccessorAdoptionActionAvailable, trainingSuccessorAdoptionPreview,
   trainingSuccessorAdoptionReceipt, trainingProposedAdoptionPreview, preparedTrainingTestQuery } from './manager-training-run-preflight.ts';
 
 const TARGET = '33333333-3333-4333-8333-333333333333';
@@ -267,4 +267,19 @@ test('actual PostgreSQL ancestor producer bytes pass the public consumer boundar
   assert.equal(trainingSuccessorAdoptionActionAvailable(after), false);
   assert.equal(after.readiness, 'already_adopted');
   assert.equal(trainingSuccessorAdoptionReceipt({ ...receipt, expectedAdoptionDigest: 'f'.repeat(64) }, receipt.agentSlug, preview), null);
+});
+
+
+test('continuity needs complete positive target-bound adoption, separate from mandatory readiness',()=>{
+ const req=home('reference_training_ready').home.managerTrainingRequirements;
+ const adopted={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:SOURCE,targetWorkflowVersionId:TARGET,
+  eligibleRecordCount:1,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,eligibleRouteCount:2,readiness:'already_adopted',reason:null};
+ assert.deepEqual(trainingContinuityStatus(adopted,req,TARGET,SOURCE),{state:'carried',count:1});
+ assert.deepEqual(trainingContinuityStatus(adopted,req,TARGET,TARGET),{state:'unknown'});
+ for(const [proof,requirements] of [[undefined,req],[adopted,null],[{...adopted,eligibleRouteCount:0},req],
+  [{...adopted,eligibleRecordCount:0,alreadyAdoptedRecordCount:0,eligibleRouteCount:0},req],
+  [{...adopted,eligibleRecordCount:2,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:1},req],
+  [adopted,{...req,workflowVersionId:SOURCE}]]) {
+   assert.deepEqual(trainingContinuityStatus(proof,requirements as typeof req,TARGET,SOURCE),{state:'unknown'});
+ }
 });
