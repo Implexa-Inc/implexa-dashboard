@@ -323,6 +323,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         // Existing prepared/queued/publication tests returned above untouched.
         fresh=await loadChanges();if(changesIdentity.current!==identity||!fresh)return;
         snapshotDigest=fresh.binding.snapshotDigest;resultSnapshotDigest=snapshotDigest;
+        if(fresh.test.snapshotDigest===snapshotDigest&&['queued','running'].includes(fresh.test.status)){setChangesError('This training test is already queued or running. Open its result instead of starting it again.');return;}
+        if(fresh.test.status==='delivered'&&fresh.test.snapshotDigest===snapshotDigest){revealTrainingElement('training-activation');return;}
         preparationKey=`${session}:${currentVersion}:${scope}:${resultSnapshotDigest}:`;
       }catch(e){setChangesError(e instanceof Error?e.message:'Training carry-forward is unconfirmed.');return;}
     }
@@ -980,11 +982,14 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     invalidateTrainingContinuity();
     const {data:{session:auth}}=await createClient().auth.getSession();
     if(!auth?.access_token)throw new TrainingError('training_sign_in_required','Sign in before continuing Training.');
+    let freshHome:any;
     const result=await prepareTrainingRun({slug,workflowVersionId:currentVersion,
-      read:()=>call('home',{slug}),
+      read:async()=>{freshHome=await call('home',{slug});return freshHome;},
       adopt:(body,key)=>callBackend(`/api/v2/agent-training/agents/${encodeURIComponent(slug)}/adopt-successor`,{
         jwt:auth.access_token,method:'POST',body,idempotencyKey:key})});
-    if(result.carryError||result.preflight.state!=='ready')throw new TrainingError('training_continuity_unconfirmed',result.carryError||'Check the current training before continuing.');
+    const proof=freshHome?.ok===true&&freshHome.home?.agent?.currentVersionId===currentVersion
+      ?trainingContinuityStatus(freshHome.home.successorAdoption,freshHome.home.managerTrainingRequirements,currentVersion,sessionVersion):null;
+    if(result.carryError||result.preflight.state!=='ready'||(!result.carried&&proof?.state!=='carried'))throw new TrainingError('training_continuity_unconfirmed',result.carryError||'Check the current training before continuing.');
     return result;
   }
   async function beginVersionSuccessor(compatible=false) {

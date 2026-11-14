@@ -2588,6 +2588,22 @@ test('Continue training opens a current parent-linked session without recreating
  }
 });
 
+test('Continue training refuses stale compatibility even when mandatory coverage is ready',async()=>{
+ for(const mode of ['incompatible','empty','unknown']){
+  const proof:any={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
+   eligibleRecordCount:1,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:1,eligibleRouteCount:2,readiness:'adoption_available',reason:null};
+  const h=await renderedWith({currentVersion:VERSION_B,state:'accepted',activeRequirements:requirements(VERSION_B),sessionRequirements:requirements(VERSION_A),successorAdoption:proof});
+  const r=h.rendered;let posts=0;(r.window as any).__implexaBackend=()=>{posts++;throw Error('must not adopt stale proof');};
+  try{
+   const continueButton=r.getByText('Continue training');
+   Object.assign(proof,mode==='unknown'?{readiness:'broken'}:{readiness:'not_compatible',reason:mode==='empty'?'training_successor_no_eligible_records':'task_identity_changed',eligibleRecordCount:0,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0});
+   await r.click(continueButton);
+   assert.equal(h.calls.some(c=>c.operation==='create'),false);assert.equal(posts,0);
+   assert.equal(r.queryByText('Earlier training carried forward'),null);assert.ok(r.queryByText('Check training status'));
+  }finally{r.cleanup();}
+ }
+});
+
 test('acknowledged retirement and withdrawal invalidate cached carried-training availability',async()=>{
  for(const operation of ['retire','revoke'] as const){
   const adopted={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
