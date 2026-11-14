@@ -157,6 +157,7 @@ export default async function ReviewRoomPage({ params, searchParams,trainingSlug
 
       <ReviewRoom
         trainingSlug={trainingSlug}
+        customerOwnerId={!ownerSlug?session.user.id:undefined}
         runId={packet.run.id}
         agentSlug={packet.run.slug}
         agentName={agentName}

@@ -41,6 +41,8 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
   const canActivate = (freshPurpose && (preview.managerTrainingRequirements?.readiness === 'reference_training_ready'
     || preview.managerTrainingRequirements?.readiness === 'not_applicable')) || !!receipt || (preview?.readiness === 'already_adopted'
     && (preview.eligibleRouteCount > 0 || preview.managerTrainingRequirements?.readiness === 'not_applicable'));
+  const carryOnApply=!!preview&&!preview.managerPolicyRemap&&!freshPurpose
+    &&trainingSuccessorAdoptionActionAvailable(preview);
   const supabase = createClient();
   async function call(path: string, body?: unknown, idempotencyKey?: string) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -101,9 +103,26 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
     finally { busyRef.current = false; setBusy(false); }
   }
   async function apply() {
-    if (busyRef.current || !confirmed || !canActivate || applied) return;
+    if (busyRef.current || !confirmed || !(canActivate||carryOnApply) || applied) return;
     busyRef.current = true; setBusy(true); setMessage('');
     try {
+      if(carryOnApply&&!receipt&&preview){
+        // These are already accepted visual references, not method procedures.
+        // Applying the reviewed definition also preserves compatible guidance;
+        // the existing writer owns task/policy/record authority under its locks.
+        const result=await call(`${endpoint}/adopt-proposed`,{sourceVersionId:baseVersionId,
+          targetVersionId:targetId,expectedAdoptionDigest:preview.expectedAdoptionDigest},
+          `training-continuity-proposed:v1:${baseVersionId}:${targetId}`);
+        const checked=trainingProposedAdoptionReceipt(result,slug,preview);
+        if(!checked)throw Error('Training carry-forward was not confirmed. Check this same update again.');
+        const fresh=trainingProposedAdoptionPreview(await call(`${endpoint}/preview-proposed-adoption`,{
+          sourceVersionId:baseVersionId,targetVersionId:targetId}),baseVersionId,targetId);
+        if(!fresh||fresh.readiness!=='already_adopted'||fresh.managerPolicyRemap||fresh.taskIdentityRepurpose
+          ||fresh.alreadyAdoptedRecordCount<checked.adoptedRecordCount||fresh.newlyAdoptableRecordCount!==0)
+          throw Error('Training was carried, but this update needs a fresh review before activation.');
+        setReceipt(checked);
+        setPreview(fresh);
+      }
       const result = await call(`/api/v2/agents/${encodeURIComponent(slug)}/revisions/${encodeURIComponent(targetId)}/apply`,
         { expectedBaseVersionId: baseVersionId,
           ...(freshPurpose ? { taskIdentityRepurposeAcknowledgement: freshPurpose.acknowledgement }
@@ -152,12 +171,12 @@ export function ProposedAgentUpdateGate({ slug, baseVersionId }: { slug: string;
       </section>}
       {preview && !applied && (canActivate || trainingSuccessorAdoptionActionAvailable(preview)) && <>
         <label className="mt-3 block text-sm"><input type="checkbox" checked={confirmed} disabled={busy}
-          onChange={e => setConfirmed(e.target.checked)} /> {canActivate
+          onChange={e => setConfirmed(e.target.checked)} /> {canActivate||carryOnApply
             ? freshPurpose ? 'I approve changing this exact version to a new job, with fresh training and no teaching or private preferences carried forward.'
-              : preview?.managerPolicyRemap ? 'I reviewed this exact policy remap and version pair and approve activating it.' : 'I reviewed this exact proposal and approve activating it.'
+              : preview?.managerPolicyRemap ? 'I reviewed this exact policy remap and version pair and approve activating it.' : 'I approve this update. Compatible saved training will carry forward.'
             : 'Carry these existing accepted same-label references to this exact proposal.'}</label>
         <button type="button" className="btn-primary mt-3" disabled={busy || !confirmed}
-          onClick={() => void (canActivate ? apply() : adopt())}>{busy ? 'Working…' : canActivate ? 'Activate reviewed proposal' : uncertain ? 'Confirm same carry-forward' : 'Carry accepted references'}</button>
+          onClick={() => void (canActivate||carryOnApply ? apply() : adopt())}>{busy ? 'Working…' : canActivate||carryOnApply ? 'Activate reviewed proposal' : uncertain ? 'Confirm same carry-forward' : 'Carry accepted references'}</button>
       </>}
       {message && <p role="status" className="mt-3 text-sm">{message}</p>}
     </Modal>

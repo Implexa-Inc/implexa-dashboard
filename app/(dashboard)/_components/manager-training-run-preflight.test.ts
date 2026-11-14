@@ -146,7 +146,7 @@ test('retrying an unavailable check preserves the chosen watch path', async () =
   } finally { r.cleanup(); }
 });
 
-test('compatible adoption is explicit, count-disclosed, idempotent, and rechecks readiness before inputs', async () => {
+test('the normal Run action carries compatible training and rechecks readiness before inputs', async () => {
   let homeReads = 0;
   const posts: Array<{ body?: Record<string, unknown>; idempotencyKey?: string }> = [];
   const receiptIds = Array.from({ length: 5 }, (_, index) => `${String(index + 1).repeat(8)}-${String(index + 1).repeat(4)}-4${String(index + 1).repeat(3)}-8${String(index + 1).repeat(3)}-${String(index + 1).repeat(12)}`);
@@ -164,7 +164,10 @@ test('compatible adoption is explicit, count-disclosed, idempotent, and rechecks
       }
       if (path.startsWith('/api/v2/agent-training/agents/')) {
         homeReads += 1;
-        return homeReads === 1 ? trainingHome('coach_reference_training_required', true) : trainingHome('reference_training_ready');
+        if(homeReads===1)return trainingHome('coach_reference_training_required',true);
+        const ready=trainingHome('reference_training_ready',true);
+        Object.assign(ready.home.successorAdoption!,{readiness:'already_adopted',alreadyAdoptedRecordCount:5,newlyAdoptableRecordCount:0});
+        return ready;
       }
       if (path.includes('/setup')) return { schema: [], answers: {}, note: '', runInputDefaults: {} };
       return { ok: true };
@@ -172,16 +175,11 @@ test('compatible adoption is explicit, count-disclosed, idempotent, and rechecks
   });
   try {
     await r.click(r.getByText('▶ Run now'));
-    assert.match(r.text(), /carry 3 accepted decisions spanning 4 compatible reference routes/i);
-    const action = r.getByText('Carry 3 accepted decisions') as HTMLButtonElement;
-    assert.ok(action.disabled, 'no adoption without explicit consent');
-    await r.click(r.getByText('I want to carry these exact accepted decisions'));
-    assert.equal(action.disabled, false);
-    await r.click(action);
+    assert.equal(r.queryByText('I want to carry these exact accepted decisions'),null);
     assert.equal(posts.length, 1);
     assert.deepEqual(Object.keys(posts[0].body || {}), ['expectedActiveVersionId']);
     assert.equal(posts[0].body?.expectedActiveVersionId, VERSION);
-    assert.match(posts[0].idempotencyKey || '', /^[0-9a-f-]{36}$/);
+    assert.equal(posts[0].idempotencyKey,`training-continuity:v1:${VERSION}`);
     assert.equal(homeReads, 2, 'receipt success is followed by a fresh active-version readiness read');
     assert.ok(r.queryByText('Run inputs'));
   } finally { r.cleanup(); }
@@ -226,17 +224,10 @@ test('ancestor carryover confirms the exact plan in the existing action before o
   } });
   try {
     await r.click(r.getByText('▶ Run now'));
-    assert.match(r.text(), /Bring your saved training forward/);
-    assert.match(r.text(), /Earlier versions and runs stay unchanged/);
-    assert.doesNotMatch(r.text(), /between these consecutive versions/);
-    const carry = r.getByText('Carry 3 accepted decisions') as HTMLButtonElement;
-    assert.ok(carry.disabled);
-    assert.equal(posts.length, 0); assert.equal(setups, 0);
-    await r.click(r.getByText('I want to carry these exact accepted decisions'));
-    await r.click(carry);
+    assert.equal(r.queryByText('I want to carry these exact accepted decisions'),null);
     assert.equal(posts.length, 1);
     assert.deepEqual(JSON.parse(JSON.stringify(posts[0].body)), { expectedActiveVersionId: VERSION, expectedAdoptionDigest: 'e'.repeat(64) });
-    assert.match(posts[0].idempotencyKey || '', /^[0-9a-f-]{36}$/);
+    assert.equal(posts[0].idempotencyKey,`training-continuity:v1:${VERSION}`);
     assert.equal(reads, 2); assert.equal(setups, 1);
     assert.ok(r.queryByText('Run inputs'));
   } finally { r.cleanup(); }
@@ -266,10 +257,8 @@ test('an unconfirmed ancestor reply waits for a fresh read and never repeats a c
   } });
   try {
     await r.click(r.getByText('▶ Run now'));
-    await r.click(r.getByText('I want to carry these exact accepted decisions'));
-    await r.click(r.getByText('Carry 3 accepted decisions'));
     assert.equal(posts, 1); assert.equal(setups, 0);
-    assert.match(r.text(), /could not verify the training adoption receipt/);
+    assert.match(r.text(), /carry-forward was not confirmed/);
     assert.equal(r.queryByText('Run inputs'), null);
     await r.click(r.getByText('Refresh training'));
     assert.equal(posts, 1); assert.equal(reads, 2); assert.equal(setups, 1);
@@ -294,13 +283,8 @@ test('optional carryover uses the same acknowledged adoption action and opens in
   } });
   try {
     await r.click(r.getByText('▶ Run now'));
-    assert.match(r.text(), /Carry your accepted training forward/);
+    assert.equal(r.queryByText('Carry your accepted training forward'),null);
     assert.doesNotMatch(r.text(), /missing 0 required/);
-    assert.ok(r.queryByText('Continue without carrying'));
-    const carry = r.getByText('Carry 3 accepted decisions') as HTMLButtonElement;
-    assert.ok(carry.disabled);
-    await r.click(r.getByText('I want to carry these exact accepted decisions'));
-    await r.click(carry);
     assert.equal(posts, 1); assert.equal(reads, 2);
     assert.ok(r.queryByText('Run inputs'));
   } finally { r.cleanup(); }
@@ -310,7 +294,7 @@ test('skipping optional carryover rechecks authority and never bypasses new mand
   for (const mandatory of [false, true]) {
     let reads = 0; let posts = 0; let setups = 0;
     const r = await render('agent-actions.tsx', props, { backend: (path: string) => {
-      if (path.endsWith('/adopt-successor')) { posts++; throw Error('must not adopt on skip'); }
+      if (path.endsWith('/adopt-successor')) { posts++; throw Error('carry temporarily unavailable'); }
       if (path.startsWith('/api/v2/agent-training/agents/')) {
         reads++; return reads === 1 || !mandatory ? optionalTrainingHome() : trainingHome('coach_reference_training_required');
       }
@@ -320,7 +304,7 @@ test('skipping optional carryover rechecks authority and never bypasses new mand
     try {
       await r.click(r.getByText('▶ Run now'));
       await r.click(r.getByText('Continue without carrying'));
-      assert.equal(reads, 2); assert.equal(posts, 0);
+      assert.equal(reads, 2); assert.equal(posts, 1,'only the initial Run tries carry; explicit skip never posts');
       if (mandatory) {
         assert.match(r.text(), /Reference training needed before this run/);
         assert.equal(r.queryByText('Continue without carrying'), null);

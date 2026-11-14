@@ -29,21 +29,38 @@ async function mount(handler:(path:string,options:any)=>unknown, baseVersionId=S
   return{host,click:async(name:string)=>React.act(async()=>Array.from(document.querySelectorAll('button')).find(b=>b.textContent===name)!.click()),confirm:async()=>React.act(async()=>{const c=document.querySelector<HTMLInputElement>('input[type=checkbox]')!;c.click();}),text:()=>document.body.textContent!,close:async()=>{await React.act(async()=>root.unmount());dom.window.close();delete(globalThis as any).__IMPLEXA_TEST_BACKEND__;}};
 }
 const hardening=()=>({ok:true,slug:'compositor',activeVersion:{id:SOURCE},latestCandidate:{workflowVersionId:TARGET,versionStatus:'proposed',result:'hardening_passed',activationEligible:true,manifestDigest:'c'.repeat(64)}});
-test('owner separately confirms exact reference carry-forward and activation; no run API is called',async()=>{
-  const calls:any[]=[];let lost=true;
-  const ui=await mount((path,options)=>{calls.push({path,options});if(path.endsWith('/hardening'))return hardening();if(path.endsWith('/preview-proposed-adoption'))return preview();if(path.endsWith('/adopt-proposed')){if(lost){lost=false;throw Error('lost reply');}return receipt();}if(path.endsWith('/apply'))return{ok:true,version_id:TARGET,status:'applied',version_number:37};throw Error('unexpected route');});
+test('one confirmed owner Apply carries compatible visual training before activation; retry uses the same key',async()=>{
+  const calls:any[]=[];let lost=true,carried=false;
+  const ui=await mount((path,options)=>{calls.push({path,options});if(path.endsWith('/hardening'))return hardening();
+    if(path.endsWith('/preview-proposed-adoption'))return carried?{...preview(),readiness:'already_adopted',alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0}:preview();
+    if(path.endsWith('/adopt-proposed')){if(lost){lost=false;throw Error('lost reply');}carried=true;return receipt();}
+    if(path.endsWith('/apply'))return{ok:true,version_id:TARGET,status:'applied',version_number:37};throw Error('unexpected route');});
   try{
     assert.equal(calls.length,0);await ui.click('Review proposed update');assert.equal(calls.length,2);
     assert.equal(document.querySelector<HTMLButtonElement>('button.btn-primary')!.disabled,true);
-    await ui.confirm();await ui.click('Carry accepted references');assert.match(ui.text(),/not confirmed/);
-    await ui.click('Confirm same carry-forward');
+    await ui.confirm();await ui.click('Activate reviewed proposal');assert.match(ui.text(),/lost reply/);
+    assert.equal(calls.some(x=>x.path.endsWith('/apply')),false);
+    await ui.click('Activate reviewed proposal');
     const writes=calls.filter(x=>x.path.endsWith('/adopt-proposed'));assert.equal(writes.length,2);
+    assert.equal(writes[0].options.idempotencyKey,`training-continuity-proposed:v1:${SOURCE}:${TARGET}`);
     assert.equal(writes[0].options.idempotencyKey,writes[1].options.idempotencyKey);
     assert.deepEqual(writes[0].options.body,{sourceVersionId:SOURCE,targetVersionId:TARGET,expectedAdoptionDigest:'a'.repeat(64)});
-    assert.equal(calls.some(x=>x.path.endsWith('/apply')),false);assert.equal(document.querySelector<HTMLButtonElement>('button.btn-primary')!.disabled,true);
-    await ui.confirm();await ui.click('Activate reviewed proposal');assert.match(ui.text(),/Definition v37 applied/);
+    assert.match(ui.text(),/Definition v37 applied/);
     assert.deepEqual(calls.at(-1).options.body,{expectedBaseVersionId:SOURCE});assert.equal(calls.at(-1).path,`/api/v2/agents/compositor/revisions/${TARGET}/apply`);
+    assert.equal(calls.some(x=>x.path.includes('/run-requests')),false);
   }finally{await ui.close();}
+});
+test('a missing or stale post-adoption projection never activates the proposed definition',async()=>{
+ for(const fresh of [preview(),{ok:true}]){
+  let reads=0;const calls:string[]=[];
+  const ui=await mount(path=>{calls.push(path);if(path.endsWith('/hardening'))return hardening();
+   if(path.endsWith('/preview-proposed-adoption'))return reads++?fresh:preview();
+   if(path.endsWith('/adopt-proposed'))return receipt();throw Error('must not apply');});
+  try{await ui.click('Review proposed update');await ui.confirm();await ui.click('Activate reviewed proposal');
+   assert.equal(calls.filter(p=>p.endsWith('/adopt-proposed')).length,1);
+   assert.equal(calls.some(p=>p.endsWith('/apply')),false);assert.match(ui.text(),/needs a fresh review/);
+  }finally{await ui.close();}
+ }
 });
 test('stale or failed compiler projection offers no adoption or activation',async()=>{
   for(const bad of [{...hardening(),activeVersion:{id:TARGET}},{...hardening(),latestCandidate:{...hardening().latestCandidate,result:'hardening_failed'}}]){

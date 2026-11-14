@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { managerTrainingRunPreflight, trainingSuccessorAdoptionActionAvailable, trainingSuccessorAdoptionPreview,
+import { trainingContinuityStatus, prepareTrainingRun, managerTrainingRunPreflight, trainingSuccessorAdoptionActionAvailable, trainingSuccessorAdoptionPreview,
   trainingSuccessorAdoptionReceipt, trainingProposedAdoptionPreview, preparedTrainingTestQuery } from './manager-training-run-preflight.ts';
 
 const TARGET = '33333333-3333-4333-8333-333333333333';
@@ -267,4 +267,84 @@ test('actual PostgreSQL ancestor producer bytes pass the public consumer boundar
   assert.equal(trainingSuccessorAdoptionActionAvailable(after), false);
   assert.equal(after.readiness, 'already_adopted');
   assert.equal(trainingSuccessorAdoptionReceipt({ ...receipt, expectedAdoptionDigest: 'f'.repeat(64) }, receipt.agentSlug, preview), null);
+});
+
+
+test('continuity needs complete positive target-bound adoption, separate from mandatory readiness',()=>{
+ const req=home('reference_training_ready').home.managerTrainingRequirements;
+ const adopted={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:SOURCE,targetWorkflowVersionId:TARGET,
+  eligibleRecordCount:1,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,eligibleRouteCount:2,readiness:'already_adopted',reason:null};
+ assert.deepEqual(trainingContinuityStatus(adopted,req,TARGET,SOURCE),{state:'carried',count:1});
+ assert.deepEqual(trainingContinuityStatus(adopted,req,TARGET,TARGET),{state:'unknown'});
+ for(const [proof,requirements] of [[undefined,req],[adopted,null],[{...adopted,eligibleRouteCount:0},req],
+  [{...adopted,eligibleRecordCount:0,alreadyAdoptedRecordCount:0,eligibleRouteCount:0},req],
+  [{...adopted,eligibleRecordCount:2,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:1},req],
+  [adopted,{...req,workflowVersionId:SOURCE}]]) {
+   assert.deepEqual(trainingContinuityStatus(proof,requirements as typeof req,TARGET,SOURCE),{state:'unknown'});
+ }
+});
+
+test('stale authority is unknown, while actual teaching incompatibility needs review',()=>{
+ const req=home('reference_training_ready').home.managerTrainingRequirements;
+ const refusal={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:SOURCE,targetWorkflowVersionId:TARGET,
+  eligibleRecordCount:0,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0,readiness:'not_compatible'};
+ for(const reason of ['agent_active_version_changed','agent_not_owned']) {
+  assert.deepEqual(trainingContinuityStatus({...refusal,reason},req,TARGET,SOURCE),{state:'unknown'});
+ }
+ for(const reason of ['task_identity_changed','manager_policy_changed','version_lineage_incompatible']) {
+  assert.deepEqual(trainingContinuityStatus({...refusal,reason},req,TARGET,SOURCE),{state:'review',reason});
+ }
+});
+
+function automaticCarryFixture(){
+ const before=optionalHome();
+ const after=structuredClone(before);
+ Object.assign(after.home.successorAdoption,{readiness:'already_adopted',alreadyAdoptedRecordCount:5,newlyAdoptableRecordCount:0});
+ const ids=Array.from({length:5},(_,i)=>`${String(i+1).repeat(8)}-${String(i+1).repeat(4)}-4${String(i+1).repeat(3)}-8${String(i+1).repeat(3)}-${String(i+1).repeat(12)}`);
+ const receipt={ok:true,contractVersion:'manager-training-successor-adoption.v1',created:true,agentSlug:'video-craft',
+  sourceWorkflowVersionId:SOURCE,targetWorkflowVersionId:TARGET,adoptedRecordCount:5,adoptionReceiptIds:ids,eligibleRouteCount:10,
+  adoptionSetDigest:'a'.repeat(64),managerTrainingRequirements:before.home.managerTrainingRequirements};
+ return {before,after,receipt};
+}
+test('normal owner Run carries existing compatible taste once, then rechecks before inputs',async()=>{
+ const f=automaticCarryFixture(),events:string[]=[];let reads=0;
+ const result=await prepareTrainingRun({slug:'video-craft',workflowVersionId:TARGET,
+  read:async()=>{events.push('read');return reads++?f.after:f.before;},adopt:async(body,key)=>{
+   events.push('write');assert.deepEqual(body,{expectedActiveVersionId:TARGET});
+   assert.equal(key,`training-continuity:v1:${TARGET}`);return f.receipt;
+  }});
+ assert.equal(result.preflight.state,'ready');assert.equal(result.carryError,undefined);
+ assert.deepEqual(events,['read','write','read']);
+});
+test('carry retries retain the same durable identity after an uncertain response and reload',async()=>{
+ const f=automaticCarryFixture(),keys:string[]=[];
+ for(const malformed of [false,true]){
+  const result=await prepareTrainingRun({slug:'video-craft',workflowVersionId:TARGET,read:async()=>f.before,
+   adopt:async(_body,key)=>{keys.push(key);if(!malformed)throw Error('response lost');return {...f.receipt,adoptedRecordCount:4};}});
+  assert.equal(result.preflight.state,'training_required');assert.ok(result.carryError);
+ }
+ assert.equal(keys.length,2);assert.equal(keys[0],keys[1]);
+});
+test('ready, incompatible, installed, prepared and explicitly skipped optional runs do not write',async()=>{
+ const f=automaticCarryFixture();
+ const incompatible=structuredClone(f.before);
+ Object.assign(incompatible.home.successorAdoption,{readiness:'not_compatible',reason:'manager_policy_changed'});
+ const installed={ok:true,contractVersion:'installed-agent-training-preflight.v1',agentFamilyId:SOURCE,workflowVersionId:TARGET,
+  managerTrainingRequirements:f.before.home.managerTrainingRequirements};
+ const binding={testPreparationId:SOURCE,preparationDigest:'a'.repeat(64)};
+ const prepared={...installed,contractVersion:'prepared-agent-training-preflight.v1',trainingTest:binding};
+ for(const [value,options] of [[f.after,{}],[incompatible,{}],[installed,{}],[prepared,{trainingTest:binding}],
+  [f.before,{skipOptionalCarry:true}]] as const){
+  let posts=0;await prepareTrainingRun({slug:'video-craft',workflowVersionId:TARGET,...options,
+   read:async()=>value,adopt:async()=>{posts++;return f.receipt;}});assert.equal(posts,0);
+ }
+});
+test('a successful carry cannot loop, ignore a moved version or rely on a missing fresh proof',async()=>{
+ const f=automaticCarryFixture();
+ for(const fresh of [f.before,{...f.after,home:{...f.after.home,successorAdoption:undefined}},
+  {...f.after,home:{...f.after.home,agent:{currentVersionId:SOURCE}}}]){
+  let reads=0,posts=0;const result=await prepareTrainingRun({slug:'video-craft',workflowVersionId:TARGET,
+   read:async()=>reads++?fresh:f.before,adopt:async()=>{posts++;return f.receipt;}});
+  assert.notEqual(result.preflight.state,'ready');assert.ok(result.carryError);assert.equal(posts,1);assert.equal(reads,2);
+ }
 });

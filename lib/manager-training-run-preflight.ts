@@ -127,6 +127,32 @@ export function trainingSuccessorAdoptionPreview(
   return value as TrainingSuccessorAdoptionPreview;
 }
 
+/** The active-version projection, never a historical session's coverage. */
+export function trainingContinuityStatus(preview: unknown, requirements: ManagerTrainingRequirements | null,
+  targetVersionId: string | null, sourceVersionId: string | null): { state: 'carried' | 'available'; count: number } | { state: 'review'; reason: string } | { state: 'unknown' } {
+  if (!targetVersionId || !isManagerTrainingRequirements(requirements, targetVersionId)) return { state: 'unknown' };
+  const checked = trainingSuccessorAdoptionPreview(preview, targetVersionId, requirements);
+  if (!checked || !sourceVersionId || (checked.contractVersion === 'manager-training-successor-adoption-preview.v2'
+    ? !checked.ancestorRecovery.versionIds.slice(0,-1).includes(sourceVersionId)
+    : checked.sourceWorkflowVersionId !== sourceVersionId)) return { state: 'unknown' };
+  if (checked.readiness === 'not_compatible') {
+    // A moved version or lost ownership invalidates this read; it says nothing
+    // about whether the teaching needs review.
+    return checked.reason === 'agent_active_version_changed' || checked.reason === 'agent_not_owned'
+      ? { state: 'unknown' } : { state: 'review', reason: checked.reason! };
+  }
+  if (checked.readiness === 'adoption_available' && checked.newlyAdoptableRecordCount > 0 && checked.eligibleRouteCount > 0) {
+    return { state: 'available', count: checked.newlyAdoptableRecordCount };
+  }
+  if (checked.readiness === 'already_adopted' && checked.eligibleRecordCount > 0
+    && checked.alreadyAdoptedRecordCount === checked.eligibleRecordCount
+    && checked.newlyAdoptableRecordCount === 0 && checked.eligibleRouteCount > 0
+    && (requirements!.readiness === 'reference_training_ready' || requirements!.readiness === 'not_applicable')) {
+    return { state: 'carried', count: checked.alreadyAdoptedRecordCount };
+  }
+  return { state: 'unknown' };
+}
+
 export function trainingSuccessorAdoptionActionAvailable(
   value: TrainingSuccessorAdoptionPreview | null,
 ): value is TrainingSuccessorAdoptionPreview {
@@ -313,4 +339,38 @@ export function managerTrainingRunPreflight(
       hasEligiblePredecessor: home.successorProjection.eligiblePredecessor !== null, successorAdoption };
   }
   return { state: 'ready', requirements };
+}
+
+/** The owner's Run action carries already-accepted compatible guidance,
+ * not capability procedures or new permissions. SQL owns compatibility and the
+ * immutable adoption ledger. One write at most; an uncertain delivery retries
+ * with the same owner/target operation identity, including after a reload. */
+export async function prepareTrainingRun({slug,workflowVersionId,trainingTest=null,skipOptionalCarry=false,read,adopt}: {
+  slug:string;workflowVersionId:string|null;trainingTest?:PreparedTrainingTest|null;skipOptionalCarry?:boolean;
+  read:()=>Promise<unknown>;
+  adopt:(body:{expectedActiveVersionId:string;expectedAdoptionDigest?:string},key:string)=>Promise<unknown>;
+}):Promise<{preflight:ManagerTrainingRunPreflight;carryError?:string;carried?:true}> {
+  const before=managerTrainingRunPreflight(await read(),workflowVersionId,trainingTest);
+  if(trainingTest||before.state!=='training_required'||before.installedCustomer
+    ||(before.optional&&skipOptionalCarry)||!trainingSuccessorAdoptionActionAvailable(before.successorAdoption))
+    return {preflight:before};
+  const preview=before.successorAdoption;
+  try{
+    const result=await adopt({expectedActiveVersionId:preview.targetWorkflowVersionId,
+      ...(preview.contractVersion==='manager-training-successor-adoption-preview.v2'
+        ?{expectedAdoptionDigest:preview.ancestorRecovery.planDigest}:{})},
+      `training-continuity:v1:${preview.targetWorkflowVersionId}`);
+    if(!trainingSuccessorAdoptionReceipt(result,slug,preview))
+      throw Error('Training carry-forward was not confirmed. Check again to verify the same operation.');
+    const fresh=await read();
+    const preflight=managerTrainingRunPreflight(fresh,workflowVersionId,trainingTest);
+    const home=(fresh as {home?:{successorAdoption?:unknown}})?.home;
+    const proof=preflight.state==='ready'&&workflowVersionId
+      ?trainingSuccessorAdoptionPreview(home?.successorAdoption,workflowVersionId,preflight.requirements):null;
+    if(!proof||proof.readiness!=='already_adopted'||proof.eligibleRecordCount<preview.eligibleRecordCount
+      ||proof.alreadyAdoptedRecordCount!==proof.eligibleRecordCount||proof.eligibleRouteCount<1)
+      return {preflight:preflight.state==='ready'?{state:'unavailable'}:preflight,
+        carryError:'Training was carried, but its current availability needs checking. No run has started.'};
+    return {preflight,carried:true};
+  }catch(error){return {preflight:before,carryError:error instanceof Error?error.message:'Training carry-forward could not be confirmed.'};}
 }
