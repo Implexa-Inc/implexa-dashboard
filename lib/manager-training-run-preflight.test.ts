@@ -283,3 +283,15 @@ test('continuity needs complete positive target-bound adoption, separate from ma
    assert.deepEqual(trainingContinuityStatus(proof,requirements as typeof req,TARGET,SOURCE),{state:'unknown'});
  }
 });
+
+test('stale authority is unknown, while actual teaching incompatibility needs review',()=>{
+ const req=home('reference_training_ready').home.managerTrainingRequirements;
+ const refusal={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:SOURCE,targetWorkflowVersionId:TARGET,
+  eligibleRecordCount:0,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0,readiness:'not_compatible'};
+ for(const reason of ['agent_active_version_changed','agent_not_owned']) {
+  assert.deepEqual(trainingContinuityStatus({...refusal,reason},req,TARGET,SOURCE),{state:'unknown'});
+ }
+ for(const reason of ['task_identity_changed','manager_policy_changed','version_lineage_incompatible']) {
+  assert.deepEqual(trainingContinuityStatus({...refusal,reason},req,TARGET,SOURCE),{state:'review',reason});
+ }
+});

@@ -135,7 +135,12 @@ export function trainingContinuityStatus(preview: unknown, requirements: Manager
   if (!checked || !sourceVersionId || (checked.contractVersion === 'manager-training-successor-adoption-preview.v2'
     ? !checked.ancestorRecovery.versionIds.slice(0,-1).includes(sourceVersionId)
     : checked.sourceWorkflowVersionId !== sourceVersionId)) return { state: 'unknown' };
-  if (checked.readiness === 'not_compatible') return { state: 'review', reason: checked.reason! };
+  if (checked.readiness === 'not_compatible') {
+    // A moved version or lost ownership invalidates this read; it says nothing
+    // about whether the teaching needs review.
+    return checked.reason === 'agent_active_version_changed' || checked.reason === 'agent_not_owned'
+      ? { state: 'unknown' } : { state: 'review', reason: checked.reason! };
+  }
   if (checked.readiness === 'adoption_available' && checked.newlyAdoptableRecordCount > 0 && checked.eligibleRouteCount > 0) {
     return { state: 'available', count: checked.newlyAdoptableRecordCount };
   }
