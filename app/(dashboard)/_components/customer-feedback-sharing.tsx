@@ -17,6 +17,7 @@ export default function CustomerFeedbackSharing({issue,ownerId}:{issue:ReviewIss
   const bridge=(window as any).implexaDesktop;
   if(bridge?.customerContributionEvidenceContractVersion!=='1')throw Error('Update Implexa Desktop to share this saved frame. Your feedback stays private.');
   const value=await bridge.trainingLocal('readCustomerContributionEvidence',{issueId:issue.id,excerpt,expectedOwnerId:ownerId});
+  if(!value?.ok)throw Error(value?.reason==='customer_feedback_frame_unavailable'?'The saved frame is not ready yet. Wait a moment, then review again.':'This result has no verified trainer-linked frame to share. Your note stays private.');
   const receipt=value?.receipt,e=receipt?.evidence;
   if(!value?.ok||value.contractVersion!=='customer-feedback-share-context.v1'||receipt.customerId!==ownerId||receipt.issueId!==issue.id||receipt.excerpt!==excerpt
    ||typeof value.image!=='string'||!value.image.startsWith('data:image/png;base64,')||value.image.length>2800000||!e||await teachingDigest(Uint8Array.from(atob(value.image.slice(22)),c=>c.charCodeAt(0)))!==e.sha256)throw Error('The saved frame could not be verified. Reopen this note and try again.');

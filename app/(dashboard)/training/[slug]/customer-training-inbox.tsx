@@ -2,16 +2,18 @@
 import {useEffect,useRef,useState} from 'react';
 import {contributionRequest,isContribution,type Contribution,UUID} from '@/lib/customer-training-contributions';
 import {teachingDigest} from '@/lib/training-teaching-draft';
+import {TrainingInfo} from './training-workspace';
 import {deriveTrainingStages,type TrainingPropertyCode} from '@/lib/training-local-ingress';
 
 type Draft={status:string;fields?:{chosen:string;why:string;process:string;desiredBehavior:string};scopeSuggestion?:{property:TrainingPropertyCode;relation:string}|null};
 export default function CustomerTrainingInbox({slug,ownerId,sessionId,versionId,disabled,onStart,onSaved,onOwnExample}:{slug:string;ownerId:string;sessionId:string|null;versionId:string|null;disabled:boolean;onStart:()=>Promise<void>;onSaved:()=>void;onOwnExample:()=>void}){
  const identity=`${ownerId}:${slug}:${sessionId}:${versionId}`,live=useRef(identity);live.current=identity;
+ const [refresh,setRefresh]=useState(0);
  const [items,setItems]=useState<Contribution[]>([]),[loaded,setLoaded]=useState(false),[opened,setOpened]=useState<string|null>(null),[image,setImage]=useState(''),[draft,setDraft]=useState<Draft|null>(null),[instruction,setInstruction]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const flight=useRef(false),pending=useRef<{key:string;body:Record<string,unknown>}|null>(null);
  useEffect(()=>{let active=true;setLoaded(false);setItems([]);setOpened(null);setImage('');setDraft(null);setError('');pending.current=null;
   if(!UUID.test(ownerId)||!UUID.test(versionId||'')){setLoaded(true);return()=>{active=false;};}
-  void contributionRequest({action:'list',slug}).then(value=>{if(!active)return;if(value.contractVersion!=='customer-training-inbox.v1'||!Array.isArray(value.items)||!value.items.every(isContribution))throw Error('Customer suggestions could not be verified.');setItems(value.items);setLoaded(true);}).catch(()=>{if(active)setError('Customer suggestions couldn’t load.');});return()=>{active=false;};},[identity]);
+  void contributionRequest({action:'list',slug}).then(value=>{if(!active)return;if(value.contractVersion!=='customer-training-inbox.v1'||!Array.isArray(value.items)||!value.items.every(isContribution))throw Error('Customer suggestions could not be verified.');setItems(value.items);setLoaded(true);}).catch(()=>{if(active)setError('Customer suggestions couldn’t load.');});return()=>{active=false;};},[identity,refresh]);
  async function work(fn:(expected:string)=>Promise<void>){if(flight.current)return;flight.current=true;setBusy(true);setError('');const expected=identity;try{await fn(expected);}catch(e){if(live.current===expected)setError(e instanceof Error?e.message:'Please try again.');}finally{flight.current=false;if(live.current===expected)setBusy(false);}}
  async function review(c:Contribution){await work(async expected=>{
   setOpened(c.id);setImage('');setDraft(null);setInstruction('');
@@ -38,7 +40,7 @@ export default function CustomerTrainingInbox({slug,ownerId,sessionId,versionId,
  return <section aria-label="Customer training suggestions" className="space-y-3">
   {(items.length>0||error)&&<h3 className="text-lg font-medium">Suggestions from customers</h3>}
   {items.map(c=><article key={c.id} className="space-y-3 rounded-xl border border-ink-700 p-4">
-   <p className="text-xs text-ink-500">Customer feedback · Reference only</p><p className="text-sm leading-6">{c.excerpt}</p>{c.teaching&&<p className="text-xs text-ink-400">Teaching suggestion saved · Original customer reference</p>}
+   <p className="text-xs text-ink-500">Customer feedback · Reference only <TrainingInfo label="About customer suggestions">Drafting sends this shared note and frame to Claude Haiku 5.5. You review the proposed guidance before applying it. The frame stays a reference, not output footage.</TrainingInfo></p><p className="text-sm leading-6">{c.excerpt}</p>{c.teaching&&<p className="text-xs text-ink-400">Teaching suggestion saved · Original customer reference</p>}
    {opened!==c.id?<button type="button" className="text-sm text-brand-400" disabled={busy||disabled} onClick={()=>void review(c)}>Review suggestion →</button>:<>
     {image&&<img src={image} alt="Customer-shared reference frame, not approved training" className="max-h-56 rounded-lg object-contain"/>}
     {c.teaching?<button type="button" className="text-sm text-brand-400" onClick={onSaved}>Review saved training →</button>:!draft?<button type="button" disabled={busy||!image} className="text-sm text-brand-400" onClick={()=>void suggest(c)}>Suggest a reusable lesson</button>:draft.status==='suggested'&&draft.fields&&draft.scopeSuggestion?<>
@@ -47,9 +49,9 @@ export default function CustomerTrainingInbox({slug,ownerId,sessionId,versionId,
      <button type="button" className="btn-primary" disabled={busy||disabled||!instruction.trim()} onClick={()=>void save(c)}>{sessionId?'Review as training':'Continue to training'}</button>
     </>:<p className="text-sm text-ink-400">This needs your judgment. Chat or record your own example to teach it.</p>}
     <div className="flex gap-4">{!c.teaching&&<button type="button" disabled={busy||disabled||!!pending.current} className="text-xs text-ink-400 underline" onClick={()=>void work(async expected=>{await contributionRequest({action:'dismiss',id:c.id,shareDigest:c.shareDigest});if(live.current!==expected)return;setItems(xs=>xs.filter(x=>x.id!==c.id));onOwnExample();})}>Teach with my own example instead</button>}
-     <button type="button" disabled={busy||!!pending.current} className="text-xs text-ink-500" onClick={()=>void work(async expected=>{await contributionRequest({action:'dismiss',id:c.id,shareDigest:c.shareDigest});if(live.current===expected)setItems(xs=>xs.filter(x=>x.id!==c.id));})}>Dismiss</button></div>
+     <button type="button" disabled={busy||!!pending.current} className="text-xs text-ink-500" onClick={()=>void work(async expected=>{await contributionRequest({action:'dismiss',id:c.id,shareDigest:c.shareDigest});if(live.current===expected)setItems(xs=>xs.filter(x=>x.id!==c.id));})}>{c.teaching?'Hide reference':'Dismiss'}</button></div>
    </>}
   </article>)}
-  {busy&&<p role="status" className="text-xs text-ink-400">Working…</p>}{error&&<p role="alert" className="text-sm text-amber-300">{error}</p>}
+  {busy&&<p role="status" className="text-xs text-ink-400">Working…</p>}{error&&<div role="alert" className="text-sm text-amber-300"><p>{error}</p>{!loaded&&<button type="button" disabled={busy} className="text-xs underline" onClick={()=>setRefresh(v=>v+1)}>Retry customer suggestions</button>}</div>}
  </section>;
 }
