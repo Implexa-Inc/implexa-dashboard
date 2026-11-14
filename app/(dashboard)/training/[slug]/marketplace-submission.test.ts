@@ -80,3 +80,11 @@ test('listing metadata works in the web app without a local recording bridge or 
  const c=fixture();const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:null},{fetch:(async()=>({ok:true,json:async()=>c})) as typeof fetch});t.after(()=>r.cleanup());
  const open=r.getByText('Prepare marketplace listing') as HTMLButtonElement;assert.equal(open.disabled,false);await r.click(open);assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'Video studio');
 });
+
+test('owner can retract the approved beta listing without changing publication, training or sample consent',async()=>{
+ const c:any=fixture();c.submission={id:'submission',revision:5};c.review={status:'ready',id:'review',submissionId:'submission',decision:'approved'};
+ const calls:any[]=[];const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:V},{fetch:(async(url:string,init:any={})=>{calls.push({url,init});return {ok:true,json:async()=>init.method==='POST'?{ok:true,reviewId:'retracted',decision:'owner_retracted'}:c};}) as typeof fetch});
+ try{await r.click(r.getByText('Prepare marketplace listing'));assert.match(r.text(),/approved for the beta marketplace/);await r.click(r.getByText('Remove beta listing'));
+  const posts=calls.filter(x=>x.init.method==='POST');assert.equal(posts.length,1);assert.deepEqual(JSON.parse(posts[0].init.body),{action:'retract',submissionId:'submission',expectedReviewId:'review'});assert.match(r.text(),/Removed from the beta marketplace/);assert.equal(calls.some(x=>/publication|generate|training-changes/.test(x.url)),false);
+ }finally{r.cleanup();}
+});

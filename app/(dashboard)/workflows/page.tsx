@@ -20,7 +20,7 @@ import {RentBuildHome} from '../_components/agent-home-frame';
 import GuidedAgentCreation from '../_components/guided-agent-creation';
 import {isExecutorConnected} from '@/lib/connection';
 import BuildingAgents from '../_components/building-agents';
-import {getMarketplaceSamples} from '@/lib/agent-marketplace-samples-server';
+import {getMarketplaceSamples,getApprovedMarketplaceListings} from '@/lib/agent-marketplace-samples-server';
 import MarketplaceSampleGallery from '../_components/marketplace-sample-gallery';
 import {agentHomeView} from '@/lib/agent-marketplace-samples';
 
@@ -41,7 +41,7 @@ export default async function WorkflowsPage({searchParams}:{searchParams?:{tab?:
   if(view==='rent'){
     const connected=await isExecutorConnected(supabase,session.user.id,{lastMcpCallAt:profile.last_mcp_call_at,lastHookEventAt:profile.last_hook_event_at});
     return <RentBuildHome build={<GuidedAgentCreation ownerId={session.user.id} connected={connected}/>} status={<BuildingAgents/>}>
-      <MarketplaceSampleGallery listings={samples.listings}/>
+      <MarketplaceSampleGallery listings={samples.listings} approved={await getApprovedMarketplaceListings(session.access_token)}/>
     </RentBuildHome>;
   }
 

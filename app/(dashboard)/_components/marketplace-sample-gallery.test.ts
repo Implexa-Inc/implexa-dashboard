@@ -32,3 +32,18 @@ test('the sketch layout starts with a collapsed Build row above the full-width r
   assert.equal(r.calls.backend.length,0);assert.equal(r.calls.push.length,0);
  }finally{r.cleanup();}
 });
+
+test('real approved card replaces only the fictional video and uses normal setup without billing or invented metrics',async()=>{
+ const actual={id:'12000000-0000-4000-8000-000000000001',slug:'trained-studio',versionId:'12000000-0000-4000-8000-000000000002',revision:5,name:'Real trained studio',studioName:'Actual studio',category:'Video',input:'A raw video',output:'An edited video',servicePriceCents:5000,pricePeriod:'per_run',engines:['claude','codex'],sampleCount:1,samplePlayback:'not_hosted',billing:'not_enabled',funding:'not_activated',tools:[{id:'runway_media',mode:'included',maximumChargeCents:120,validUntil:'2099-01-01'}]};
+ const r=await render('marketplace-sample-gallery.tsx',{listings:[video,marketing],approved:{status:'ready',listings:[actual]}});
+ try{
+  assert.equal(r.document.querySelectorAll('article').length,2);assert.doesNotMatch(r.text(),/The Video Studio/);assert.match(r.text(),/Real trained studio/);assert.match(r.text(),/planned service price/);
+  const real=r.document.querySelector('article')!;assert.doesNotMatch(real.textContent||'',/140|89%|86\/100|Juju8080|Try for free/);
+  await r.click(r.getByText('View agent'));assert.match(r.text(),/Playback is not hosted yet/);assert.match(r.text(),/funding setup required/);
+  assert.equal(r.document.querySelector('a')?.getAttribute('href'),'/workflows/trained-studio?source=generated');assert.equal(r.calls.backend.length,0);
+ }finally{r.cleanup();}
+});
+test('approved-read failure remains visible and never restores the fictional video',async()=>{
+ const r=await render('marketplace-sample-gallery.tsx',{listings:[video,marketing],approved:{status:'unavailable',listings:[]}});
+ try{assert.match(r.text(),/Approved listings could not be loaded/);assert.doesNotMatch(r.text(),/The Video Studio/);assert.match(r.text(),/The Performance Marketer/);}finally{r.cleanup();}
+});

@@ -123,6 +123,7 @@ export default async function AdminPage() {
             </p>
           </div>
         </header>
+        <Link href="/admin/marketplace" className="btn-secondary mb-8 inline-block">Review marketplace listings</Link>
 
         {error && (
           <div className="card !border-red-500/40 !bg-red-500/5 mb-8">
