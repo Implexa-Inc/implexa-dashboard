@@ -7,14 +7,19 @@ import {deriveTrainingStages,type TrainingPropertyCode} from '@/lib/training-loc
 
 type Draft={status:string;fields?:{chosen:string;why:string;process:string;desiredBehavior:string};scopeSuggestion?:{property:TrainingPropertyCode;relation:string}|null};
 export default function CustomerTrainingInbox({slug,ownerId,sessionId,versionId,disabled,onStart,onSaved,onOwnExample}:{slug:string;ownerId:string;sessionId:string|null;versionId:string|null;disabled:boolean;onStart:()=>Promise<void>;onSaved:()=>void;onOwnExample:()=>void}){
- const identity=`${ownerId}:${slug}:${sessionId}:${versionId}`,live=useRef(identity);live.current=identity;
+ const base=`${ownerId}:${slug}:${versionId}`,scope=useRef({base,sessionId,epoch:0});
+ // Starting the first session is a handoff, not a new teaching context.
+ // A different existing session or owner/version invalidates pending work.
+ if(scope.current.base!==base||(scope.current.sessionId!==sessionId&&scope.current.sessionId!==null))scope.current.epoch++;
+ scope.current.base=base;scope.current.sessionId=sessionId;
  const [refresh,setRefresh]=useState(0);
+ const identity=`${base}:${scope.current.epoch}:${refresh}`,live=useRef(identity);live.current=identity;
  const [items,setItems]=useState<Contribution[]>([]),[loaded,setLoaded]=useState(false),[opened,setOpened]=useState<string|null>(null),[image,setImage]=useState(''),[draft,setDraft]=useState<Draft|null>(null),[instruction,setInstruction]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const flight=useRef(false),pending=useRef<{key:string;body:Record<string,unknown>}|null>(null);
- useEffect(()=>{let active=true;setLoaded(false);setItems([]);setOpened(null);setImage('');setDraft(null);setError('');pending.current=null;
+ const flight=useRef<symbol|null>(null),pending=useRef<{key:string;body:Record<string,unknown>}|null>(null);
+ useEffect(()=>{let active=true;flight.current=null;setBusy(false);setLoaded(false);setItems([]);setOpened(null);setImage('');setDraft(null);setError('');pending.current=null;
   if(!UUID.test(ownerId)||!UUID.test(versionId||'')){setLoaded(true);return()=>{active=false;};}
-  void contributionRequest({action:'list',slug}).then(value=>{if(!active)return;if(value.contractVersion!=='customer-training-inbox.v1'||!Array.isArray(value.items)||!value.items.every(isContribution))throw Error('Customer suggestions could not be verified.');setItems(value.items);setLoaded(true);}).catch(()=>{if(active)setError('Customer suggestions couldn’t load.');});return()=>{active=false;};},[identity,refresh]);
- async function work(fn:(expected:string)=>Promise<void>){if(flight.current)return;flight.current=true;setBusy(true);setError('');const expected=identity;try{await fn(expected);}catch(e){if(live.current===expected)setError(e instanceof Error?e.message:'Please try again.');}finally{flight.current=false;if(live.current===expected)setBusy(false);}}
+  void contributionRequest({action:'list',slug}).then(value=>{if(!active)return;if(value.contractVersion!=='customer-training-inbox.v1'||!Array.isArray(value.items)||!value.items.every(isContribution))throw Error('Customer suggestions could not be verified.');setItems(value.items);setLoaded(true);}).catch(()=>{if(active)setError('Customer suggestions couldn’t load.');});return()=>{active=false;};},[identity]);
+ async function work(fn:(expected:string)=>Promise<void>){if(flight.current)return;const token=Symbol();flight.current=token;setBusy(true);setError('');const expected=identity;try{await fn(expected);}catch(e){if(live.current===expected)setError(e instanceof Error?e.message:'Please try again.');}finally{if(flight.current===token){flight.current=null;if(live.current===expected)setBusy(false);}}}
  async function review(c:Contribution){await work(async expected=>{
   setOpened(c.id);setImage('');setDraft(null);setInstruction('');
   const value=await contributionRequest({action:'read',id:c.id,shareDigest:c.shareDigest});
@@ -27,7 +32,7 @@ export default function CustomerTrainingInbox({slug,ownerId,sessionId,versionId,
   if(value.contractVersion!=='customer-contribution-draft.v1'||value.id!==c.id||value.shareDigest!==c.shareDigest)throw Error('The suggestion could not be verified.');
   setDraft(value);setInstruction(value.fields?[value.fields.why,value.fields.process,value.fields.desiredBehavior].join(' '):'');
  });}
- async function save(c:Contribution){if(!sessionId){await onStart();return;}await work(async expected=>{
+ async function save(c:Contribution){if(!sessionId){await work(async()=>{await onStart();});return;}await work(async expected=>{
   if(!versionId||!instruction.trim()||!draft?.scopeSuggestion||pending.current&&pending.current.body.id!==c.id)return;
   const property=draft.scopeSuggestion.property,body={action:'prepare',id:c.id,shareDigest:c.shareDigest,sessionId,expectedActiveVersionId:versionId,
    content:{contractVersion:'agent-text-teaching.v1',category:'taste',instruction,properties:[property],applicability:{stages:deriveTrainingStages(property),taskFacts:[],exceptions:[],priority:50}}};

@@ -1,7 +1,7 @@
 export const UUID=/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
 const DIGEST=/^[a-f0-9]{64}$/;
 export type Contribution={id:string;agentFamilyId:string;producingVersionId:string;shareDigest:string;excerpt:string;
- evidence:{evidenceId:string;sha256:string;sizeBytes:number;width:number;height:number;mediaType:'image/png';timeMs:number};
+ evidence:{evidenceId:string;sha256:string;sizeBytes:number;width:number;height:number;mediaType:'image/png';timeMs:number|null};
  teaching?:{recordId:string;recordDigest:string}|null;createdAt:string;expiresAt:string;storedAt:string|null;withdrawnAt:string|null;dismissedAt:string|null;referenceOnly:true};
 export function isContribution(v:any):v is Contribution{return !!v&&UUID.test(v.id||'')&&UUID.test(v.agentFamilyId||'')&&UUID.test(v.producingVersionId||'')
  &&DIGEST.test(v.shareDigest||'')&&typeof v.excerpt==='string'&&!!v.excerpt.trim()&&v.excerpt.length<=2000&&v.referenceOnly===true
