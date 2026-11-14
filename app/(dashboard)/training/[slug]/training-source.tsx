@@ -10,7 +10,7 @@ import TrainingOpportunities from './training-opportunities';
 import TrainingChanges,{TrainingRunPanel,trainingTextSelectable} from './training-changes';
 import AgentActions from '../../_components/agent-actions';
 import type {AgentActionContext} from '@/lib/agent-detail';
-import {trainingContinuityStatus,prepareTrainingRun,trainingSuccessorAdoptionPreview,trainingSuccessorAdoptionActionAvailable,type PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
+import {trainingContinuityStatus,prepareTrainingRun,type PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
 import {createClient} from '@/lib/supabase/client';
 import {callBackend} from '@/lib/api';
 import NewReview from '../../review/new/new-review';
@@ -315,8 +315,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     const held=preparedRuns.current.get(preparationKey);
     if(held){setPublicationReviewOpen(false);setRunRequest({nonce:crypto.randomUUID(),binding:held});return;}
     if(scope==='public_projection'&&(!publicationPreview||publicationPreview.snapshotDigest!==resultSnapshotDigest||publicationPreview.candidateSnapshotDigest!==snapshotDigest))return;
-    const available=activeTraining&&trainingSuccessorAdoptionPreview(activeTraining.adoption,currentVersion,activeTraining.requirements);
-    if(scope==='private_candidate'&&trainingSuccessorAdoptionActionAvailable(available||null)){
+    if(scope==='private_candidate'){
       try{
         await preserveCompatibleTraining();
         // The new test freezes the material AFTER compatible taste is carried.
@@ -978,7 +977,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setSelectionPriority(String(decision.content.applicability?.priority ?? 50));
     setStages(deriveTrainingStages(nextProperty)); setDecisionKey(crypto.randomUUID());
   }
-  async function preserveCompatibleTraining(){
+  async function preserveCompatibleTraining(historical=false){
     invalidateTrainingContinuity();
     const {data:{session:auth}}=await createClient().auth.getSession();
     if(!auth?.access_token)throw new TrainingError('training_sign_in_required','Sign in before continuing Training.');
@@ -989,14 +988,14 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         jwt:auth.access_token,method:'POST',body,idempotencyKey:key})});
     const proof=freshHome?.ok===true&&freshHome.home?.agent?.currentVersionId===currentVersion
       ?trainingContinuityStatus(freshHome.home.successorAdoption,freshHome.home.managerTrainingRequirements,currentVersion,sessionVersion):null;
-    if(result.carryError||result.preflight.state!=='ready'||(!result.carried&&proof?.state!=='carried'))throw new TrainingError('training_continuity_unconfirmed',result.carryError||'Check the current training before continuing.');
+    if(result.carryError||(historical?(result.preflight.state!=='ready'||(!result.carried&&proof?.state!=='carried')):result.preflight.state==='unavailable'))throw new TrainingError('training_continuity_unconfirmed',result.carryError||'Check the current training before continuing.');
     return result;
   }
   async function beginVersionSuccessor(compatible=false) {
     if (!versionChanged || (!transitionConfirmed&&!(compatible&&['carried','available'].includes(continuity.state))) || !currentVersion || !sessionVersion) return;
     const predecessor = { fromVersion: sessionVersion, sources };
     await work('Starting a successor training session for the active version', async () => {
-      if(compatible)await preserveCompatibleTraining();
+      if(compatible)await preserveCompatibleTraining(true);
       const active = await call('scope', { slug });
       if (!active.scope?.agent.currentVersionId || active.scope.agent.currentVersionId !== currentVersion) throw new TrainingError('training_version_changed', 'The active version changed again. Reload before starting the successor session.');
       const predecessorSessionId = session;
