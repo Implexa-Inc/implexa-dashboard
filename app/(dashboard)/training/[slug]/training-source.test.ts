@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { transformSync } from 'esbuild';
+import { guidedTrainingChanges } from '../../../../lib/guided-training-changes.ts';
 import { render, type Rendered } from '../../../../lib/test/render.ts';
 import { isTrainingEvidenceStorage, deriveTrainingStages, formatTrainingTime, isManagerTrainingCoverage, isManagerTrainingRequirements, isTrainingSuccessorProjection, normalizeTrainingStages, previewMatches, requiredStagesForDecision, TRAINING_LOCAL_CONTRACT_VERSION, TRAINING_PROPERTY_CODES, TRAINING_RELATIONS, TRAINING_STAGE_ROUTING_VERSION } from '../../../../lib/training-local-ingress.ts';
 import {toolSuggestionFrame,TOOL_FRAME_RECIPE_DIGEST} from '../../../../lib/training-teaching-draft.ts';
@@ -2697,13 +2700,23 @@ test('a delayed historical coverage response cannot erase current adoption proof
  }finally{release();r.cleanup();}
 });
 
+// Genuine SQL producer envelope, reduced to one existing suggested text record.
+// Scenarios below explicitly perturb inclusion, digest or scope; no second wire
+// schema is handwritten. Original source-event lineage is retained.
+function textApplyProducerProjection(){
+ const fixture=JSON.parse(readFileSync(new URL('../../../../lib/__fixtures__/guided-training-changes-sql.v1.json',import.meta.url),'utf8'));
+ assert.equal(fixture.provenance.capturedWithoutTranslation,true);
+ const value=fixture.result,record=value.records.find((item:any)=>item.state==='suggested'&&item.sourceKind==='trainer_feedback');
+ assert.ok(record);value.records=[record];
+ value.feedback=value.feedback.filter((item:any)=>item.eventId===record.sourceEventId).map((item:any)=>({...item,recordIds:[record.recordId]}));
+ Object.assign(value.binding,{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A});
+ return value;
+}
+
 test('Apply reconciles a lost acknowledgement from fresh exact inclusion without another write',async()=>{
  for(const acknowledgment of ['ok','lost','malformed']){
-  const h=harness(),textId='99999999-9999-4999-8999-999999999991',requests:any[]=[];let included=false,reads=0;
-  const changes=()=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},
-   policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[{recordId:textId,recordDigest:DIGEST,summary:'Carry a meaningful visual anchor between related scenes.',
-    state:included?'candidate':'suggested',included,admissionOrigin:included?'owner_candidate':'none',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:null,policyReceiptDigest:null,sourceEventId:RECORD,sourceEventDigest:DIGEST,model:'claude-haiku-5-5'}],
-   test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:false},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}});
+  const h=harness(),requests:any[]=[];let included=false,reads=0;
+  const changes=()=>{const value=textApplyProducerProjection();Object.assign(value.records[0],{state:included?'candidate':'suggested',included,admissionOrigin:included?'owner_candidate':'none'});return value;};
   const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
    if(String(url).includes('/changes?')){
     if(init.method==='POST'){requests.push(init);included=true;if(acknowledgment==='lost')throw Error('synthetic response lost after commit');return {ok:true,json:async()=>acknowledgment==='malformed'?{}:{ok:true}};}
@@ -2724,11 +2737,13 @@ test('Apply reconciles a lost acknowledgement from fresh exact inclusion without
 
 test('unconfirmed Apply remains unknown until same-session exact-digest inclusion is freshly read',async()=>{
  for(const refreshed of ['included','different-digest','foreign-session','excluded','unavailable']){
-  const h=harness(),textId='99999999-9999-4999-8999-999999999992';let posts=0,afterWrite=false,allowRefresh=false;
-  const changes=()=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:allowRefresh&&refreshed==='foreign-session'?NEW_SESSION:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},
-   policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[{recordId:textId,recordDigest:allowRefresh&&refreshed==='different-digest'?'e'.repeat(64):DIGEST,summary:'Carry the visual relationship forward.',
-    state:afterWrite?'candidate':'suggested',included:afterWrite&&refreshed!=='excluded',admissionOrigin:afterWrite?'owner_candidate':'none',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:null,policyReceiptDigest:null,sourceEventId:RECORD,sourceEventDigest:DIGEST,model:'claude-haiku-5-5'}],
-   test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:false},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}});
+  const h=harness();let posts=0,afterWrite=false,allowRefresh=false;
+  const changes=()=>{const value=textApplyProducerProjection();
+   if(allowRefresh&&refreshed==='foreign-session')value.binding.sessionId=NEW_SESSION;
+   if(allowRefresh&&refreshed==='different-digest')value.records[0].recordDigest='e'.repeat(64);
+   if(afterWrite)Object.assign(value.records[0],{state:refreshed==='excluded'?'removed':'candidate',included:refreshed!=='excluded',admissionOrigin:'owner_candidate'});
+   return value;
+  };
   const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
    if(String(url).includes('/changes?')){
     if(init.method==='POST'){posts++;afterWrite=true;throw Error('synthetic acknowledgement lost');}
@@ -2748,5 +2763,41 @@ test('unconfirmed Apply remains unknown until same-session exact-digest inclusio
     assert.doesNotMatch(r.text(),/could not be confirmed|0 of 1/,'the owned stale Apply error is reconciled');
    }else assert.doesNotMatch(r.text(),/1 lesson saved\. Test this update/,'other records, contexts and unknown reads cannot confirm this intent');
   }finally{r.cleanup();}
+ }
+});
+
+test('delayed Apply and saved-change reads cannot overwrite a newer session or version',async()=>{
+ // Execute the actual controller closures to switch scope at an exact await.
+ // DOM tests above cover normal rendered interactions and genuine DTO parsing.
+ const source=readFileSync(new URL('./training-source.tsx',import.meta.url),'utf8');
+ const block=(start:string,end:string)=>{const at=source.indexOf(start);assert.ok(at>=0);const until=source.indexOf(end,at);assert.ok(until>at);return source.slice(at,until);};
+ const code=transformSync(`function controller(){
+  ${block('  async function loadChanges(','  useEffect(()=>{setChanges(null);')}
+  ${block('  async function mutateChanges(','  function requestLearning(')}
+  ${block('  async function work(','  async function changePublication(')}
+  ${block('  async function applyTextDrafts(','  async function applyVisualDrafts(')}
+  return {loadChanges,applyTextDrafts};
+ }`,{loader:'ts',target:'es2022'}).code;
+ for(const phase of ['post-ok','post-lost','read']){
+  const value=textApplyProducerProjection(),writes:any[]=[],live={current:`${SESSION}:${VERSION_A}`},pending={current:null as any};
+  let reads=0,posts=0,release!:()=>void,started!:()=>void;
+  const gate=new Promise<void>(resolve=>{release=resolve;}),began=new Promise<void>(resolve=>{started=resolve;});
+  const dependencies={session:SESSION,currentVersion:VERSION_A,installationId:null,changesIdentity:live,unconfirmedTextApply:pending,changes:value,
+   changesInFlight:{current:false},changeIntent:{current:null},changesBusy:false,versionChanged:false,busyRef:{current:false},crypto:globalThis.crypto,guidedTrainingChanges,
+   invalidateTrainingContinuity:()=>{},setBusy:()=>{},setChangesBusy:()=>{},setChanges:(v:any)=>writes.push(['changes',v]),setChangesError:(v:any)=>writes.push(['error',v]),setApplyNote:(v:any)=>writes.push(['note',v]),setError:(v:any)=>writes.push(['page-error',v]),
+   fetch:async(_url:string,init:any={})=>{
+    if(init.method==='POST'){posts++;started();await gate;if(phase==='post-lost')throw Error('synthetic lost POST');return {ok:true,json:async()=>({ok:true})};}
+    reads++;if(phase==='read'){started();await gate;}return {ok:true,json:async()=>structuredClone(value)};
+   }};
+  const factory=new Function(...Object.keys(dependencies),`${code};return controller();`),controller=factory(...Object.values(dependencies));
+  const running=phase==='read'?controller.loadChanges():controller.applyTextDrafts(value.records);
+  await began;live.current=`${NEW_SESSION}:${VERSION_B}`;
+  pending.current={identity:live.current,records:[{recordId:value.records[0].recordId,recordDigest:value.records[0].recordDigest}],error:'new scope error'};
+  writes.length=0;release();await running;
+  assert.equal(reads,1,'old Apply never starts a confirmation read after scope changes');
+  assert.equal(posts,phase==='read'?0:1);
+  assert.equal(writes.some(([kind])=>['changes','note','page-error'].includes(kind)),false,'late responses cannot contaminate the new context');
+  assert.equal(pending.current.identity,live.current);
+  await controller.loadChanges();assert.equal(reads,1,'an obsolete read closure refuses before fetching');
  }
 });

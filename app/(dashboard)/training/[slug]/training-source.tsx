@@ -266,8 +266,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const unconfirmedTextApply=useRef<{identity:string;records:Array<{recordId:string;recordDigest:string}>;error:string}|null>(null);
   const changesIdentity=useRef('');changesIdentity.current=`${session}:${currentVersion}`;
   async function loadChanges(signal?:AbortSignal){
-    if(!session||!currentVersion||installationId)return;
-    const captured=changesIdentity.current;
+    const captured=`${session}:${currentVersion}`;
+    if(!session||!currentVersion||installationId||changesIdentity.current!==captured)return;
     try{const response=await fetch(`/api/agent-training/changes?sessionId=${encodeURIComponent(session)}`,{cache:'no-store',signal});
       const value=await response.json();if(signal?.aborted||changesIdentity.current!==captured)return;
       if(!response.ok||!guidedTrainingChanges(value,{sessionId:session,workflowVersionId:currentVersion}))throw Error(value.reason||'training_changes_unavailable');
@@ -1359,6 +1359,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         await mutateChanges('records',{expectedActiveVersionId:currentVersion,recordId:record.recordId,expectedRecordDigest:record.recordDigest,expectedSnapshotDigest:fresh.binding.snapshotDigest,action:'admit'},false);
         // A lost acknowledgement does not establish rollback. Read once and
         // confirm only this exact record/digest in the unchanged session.
+        if(changesIdentity.current!==identity)return;
         const saved=await loadChanges();if(changesIdentity.current!==identity)return;
         if(!saved?.records.some((item:TrainingChangeRecord)=>item.recordId===record.recordId&&item.recordDigest===record.recordDigest&&item.included))throw Error('A teaching could not be confirmed saved. Refresh to check before retrying.');
         completed++;
