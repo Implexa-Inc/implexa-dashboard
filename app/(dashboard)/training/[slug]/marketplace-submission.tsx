@@ -11,7 +11,8 @@ type Context={ok:true;contractVersion:string;agent:{id:string;versionId:string;n
  samples:(ReviewArtifact&{date:string})[];engines:string[];defaults:Listing;runwayPrice:Price;
  draft:{id:string;revision:number;state:string;version_id:string;payload:{listing:Listing;bindingDigest:string};created_at:string}|null;
  submission:{id:string;revision:number;state:string;version_id:string;created_at:string}|null;
- review?:{status:string;id?:string;submissionId?:string;decision?:string|null}};
+ submissionReview?:{status:string;decision?:string|null};
+ review?:{status:string;id?:string;submissionId?:string;decision?:string|null;visibility?:string;hiddenReason?:string|null}};
 const money=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
 const field='mt-2 w-full rounded-xl border border-ink-700 bg-ink-950 p-3 text-sm text-ink-100';
 const errors:Record<string,string>={listing_changed:'Your agent changed. Close and reopen this draft to use its current setup.',listing_revision_changed:'This draft was saved elsewhere. Close and reopen it before editing.',tested_publication_required:'Test and publish this version’s training before submitting.',sample_release_required:'Choose a sample and confirm you can show it.',tool_price_needs_refresh:'The tool rate needs a fresh check before this offer can be saved.',marketplace_submission_unavailable:'The listing could not be loaded or saved. Try again.',invalid_listing:'Check the listing fields and tool limits.',invalid_tool_price:'Use 60–10,000 whole API credits and 0–20% markup.'};
@@ -42,14 +43,14 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
   try{const response=await fetch(`/api/agent-training/marketplace-submission?slug=${encodeURIComponent(slug)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,expectedRevision:revision,bindingDigest:context.bindingDigest,listing})});const result=await response.json();
    if(captured!==scope.current)return;
    if(!response.ok||result.ok!==true||!result.submission||result.submission.revision!==revision+1)throw Error(result.reason||'marketplace_submission_unavailable');
-   setRevision(result.submission.revision);if(action==='submit')setSubmittedRevision(result.submission.revision);setNote(action==='submit'?'Submitted for review. Publication is a separate step.':'Draft saved.');
+   setRevision(result.submission.revision);if(action==='submit'){setSubmittedRevision(result.submission.revision);setContext({...context,submission:{...result.submission},submissionReview:{status:'ready',decision:null}});}setNote(action==='submit'?'Submitted for review. Publication is a separate step.':'Draft saved.');
   }catch(e){if(captured===scope.current)setError(errors[(e as Error).message]||errors.marketplace_submission_unavailable);}
   finally{if(captured===scope.current)setBusy(false);}
  }
  async function retract(){
   if(!context?.review?.id||!context.review.submissionId)return;const captured=scope.current;setBusy(true);setError('');
   try{const r=await fetch(`/api/agent-training/marketplace-submission?slug=${encodeURIComponent(slug)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'retract',submissionId:context.review.submissionId,expectedReviewId:context.review.id})});const v=await r.json();
-   if(captured!==scope.current)return;if(!r.ok||!v.ok)throw Error();setContext({...context,review:{...context.review,id:v.reviewId,decision:'owner_retracted'}});setNote('Removed from the beta marketplace. Your agent and training are unchanged.');
+   if(captured!==scope.current)return;if(!r.ok||!v.ok)throw Error();setContext({...context,submissionReview:context.review.submissionId===context.submission?.id?{status:'ready',decision:'owner_retracted'}:context.submissionReview,review:{...context.review,id:v.reviewId,decision:'owner_retracted',visibility:undefined,hiddenReason:null}});setNote('Removed from the beta marketplace. Your agent and training are unchanged.');
   }catch{if(captured===scope.current)setError('Could not remove the listing. Reopen it to check the result.');}finally{if(captured===scope.current)setBusy(false);}
  }
  async function polish(){
@@ -70,7 +71,9 @@ export default function MarketplaceSubmission({slug,versionId}:{slug:string;vers
    {error&&<p role="alert" className="mb-4 text-sm text-amber-300">{error}</p>}
    {note&&<p role="status" className="mb-4 text-sm text-emerald-400">{note}</p>}
    {context&&listing&&<fieldset disabled={busy} className="space-y-6">
-    {submittedRevision!==null&&<aside className="rounded-xl border border-ink-700 p-4 text-sm text-ink-300">Revision {submittedRevision} {context.review?.submissionId===context.submission?.id&&context.review?.decision==='approved'?'is approved for the beta marketplace':context.review?.submissionId===context.submission?.id&&['rejected','revoked','owner_retracted'].includes(context.review?.decision||'')?'is kept off the marketplace':'is submitted for review'}.{revision>submittedRevision?' Later edits are drafts until you submit again.':''} This does not publish your agent.{context.review?.status==='unavailable'?' Review status is temporarily unavailable.':''}</aside>}
+    {submittedRevision!==null&&<aside className="rounded-xl border border-ink-700 p-4 text-sm text-ink-300">Revision {submittedRevision} {context.review?.submissionId===context.submission?.id&&context.review?.decision==='approved'?(context.review.visibility==='visible'?'is approved for the beta marketplace':context.review.visibility==='hidden'?'is approved but currently hidden':'is approved; current visibility is unavailable'):['rejected','revoked','owner_retracted'].includes(context.submissionReview?.decision||'')?'is kept off the marketplace':'is submitted for review'}.{revision>submittedRevision?' Later edits are drafts until you submit again.':''} This does not publish your agent.{context.review?.status==='unavailable'?' Review status is temporarily unavailable.':''}</aside>}
+    {context.review?.decision==='approved'&&context.review.submissionId!==context.submission?.id&&<p className="text-sm text-ink-300">Your earlier approved listing {context.review.visibility==='visible'?'remains visible':context.review.visibility==='hidden'?'is currently hidden':'has unavailable visibility'}.</p>}
+    {context.review?.visibility==='hidden'&&<p className="text-sm text-amber-300">{context.review.hiddenReason==='agent_not_shared'?'This agent is private. Use the agent’s sharing settings before offering it to customers.':context.review.hiddenReason==='agent_or_sample_changed'?'The published agent or selected sample changed. Test and submit its current version for review.':'This listing is not currently available in the beta marketplace.'}</p>}
     {context.review?.decision==='approved'&&<button type="button" className="text-sm text-ink-400 underline" onClick={()=>void retract()}>Remove beta listing</button>}
     <p className="text-xs text-ink-500">{preview?'Private preview':'Drafted from your agent’s setup. Edit anything below.'}</p>
     {preview?<><h3 className="text-2xl font-medium">{listing.name}</h3><p className="text-sm text-ink-400">{listing.studioName} · {listing.category}</p><p className="text-sm leading-6">{listing.input} → {listing.output}</p><p className="font-medium">{money(listing.servicePriceCents)} {listing.pricePeriod==='per_run'?'per run':'per month'} <span className="text-xs text-ink-500">service price</span></p></>:<>
