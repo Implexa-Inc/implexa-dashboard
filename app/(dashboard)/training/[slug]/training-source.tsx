@@ -263,18 +263,28 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [changesBusy,setChangesBusy]=useState(false),[chatRequest,setChatRequest]=useState<TrainingChatRequest|null>(null);
   const [publicationReviewOpen,setPublicationReviewOpen]=useState(false);
   const changesInFlight=useRef(false),changeIntent=useRef<{fingerprint:string;key:string}|null>(null);
+  const unconfirmedTextApply=useRef<{identity:string;records:Array<{recordId:string;recordDigest:string}>;error:string}|null>(null);
   const changesIdentity=useRef('');changesIdentity.current=`${session}:${currentVersion}`;
   async function loadChanges(signal?:AbortSignal){
-    if(!session||!currentVersion||installationId)return;
-    const captured=changesIdentity.current;
+    const captured=`${session}:${currentVersion}`;
+    if(!session||!currentVersion||installationId||changesIdentity.current!==captured)return;
     try{const response=await fetch(`/api/agent-training/changes?sessionId=${encodeURIComponent(session)}`,{cache:'no-store',signal});
       const value=await response.json();if(signal?.aborted||changesIdentity.current!==captured)return;
       if(!response.ok||!guidedTrainingChanges(value,{sessionId:session,workflowVersionId:currentVersion}))throw Error(value.reason||'training_changes_unavailable');
-      setChanges(value);setChangesError('');return value;
+      setChanges(value);setChangesError('');
+      const pending=unconfirmedTextApply.current;
+      if(pending?.identity===captured){
+        const confirmed=pending.records.filter(record=>value.records.some((item:TrainingChangeRecord)=>item.recordId===record.recordId&&item.recordDigest===record.recordDigest&&item.included)).length;
+        if(confirmed===pending.records.length){
+          setApplyNote(`${confirmed} lesson${confirmed===1?'':'s'} saved. Test this update before making it live.`);
+          setError(previous=>previous===pending.error?'':previous);unconfirmedTextApply.current=null;
+        }else setApplyNote(`${confirmed} of ${pending.records.length} selected lessons confirmed saved. Refresh to check the remaining lessons before retrying.`);
+      }
+      return value;
     }catch(e){if(!signal?.aborted&&changesIdentity.current===captured){setChanges(null);setChangesError(e instanceof Error?e.message:'training_changes_unavailable');}}
   }
-  useEffect(()=>{setChanges(null);setChangesError('');setChatRequest(null);changeIntent.current=null;const controller=new AbortController();void loadChanges(controller.signal);return()=>controller.abort();},[session,currentVersion,installationId]);
-  async function mutateChanges(operation:'policy'|'records'|'creation-import'|'withdraw'|'tests/prepare'|'activate'|'publication/prepare'|'publication/publish',body:unknown){
+  useEffect(()=>{setChanges(null);setChangesError('');setChatRequest(null);changeIntent.current=null;unconfirmedTextApply.current=null;setApplyNote('');const controller=new AbortController();void loadChanges(controller.signal);return()=>controller.abort();},[session,currentVersion,installationId]);
+  async function mutateChanges(operation:'policy'|'records'|'creation-import'|'withdraw'|'tests/prepare'|'activate'|'publication/prepare'|'publication/publish',body:unknown,refresh=true){
     if(changesInFlight.current||!session||!changes)return;const captured=changesIdentity.current;
     const fingerprint=JSON.stringify({identity:captured,operation,body});
     if(changeIntent.current?.fingerprint!==fingerprint)changeIntent.current={fingerprint,key:crypto.randomUUID()};
@@ -284,7 +294,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':changeIntent.current.key},body:JSON.stringify(body)});
       const value=await response.json();if(changesIdentity.current!==captured)return;
       if(!response.ok||value.ok!==true)throw Error(value.reason||'training_change_unconfirmed');
-      changeIntent.current=null;await loadChanges();return value;
+      changeIntent.current=null;if(refresh)await loadChanges();return value;
     }catch(e){if(changesIdentity.current===captured)setChangesError(e instanceof Error?e.message:'training_change_unconfirmed');}
     finally{changesInFlight.current=false;setChangesBusy(false);}
   }
@@ -1340,17 +1350,23 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(!session||!currentVersion||versionChanged||changesBusy||!records.length)return;
     const identity=changesIdentity.current;
     await work('Applying selected training',async()=>{
-      let completed=0;setApplyNote('');
+      let completed=0;setApplyNote('');unconfirmedTextApply.current=null;
       try{for(const record of records){
         if(changesIdentity.current!==identity)throw Error('The agent or training session changed.');
         const fresh=await loadChanges(),current=fresh?.records.find((item:TrainingChangeRecord)=>item.recordId===record.recordId&&item.recordDigest===record.recordDigest);
+        if(current?.included){completed++;continue;}
         if(!fresh||!current||current.state!=='suggested'||current.sourceKind==='legacy_evidence'||!current.summary||!['taste','method_preference'].includes(current.category||''))throw Error('A selected teaching changed. Review the current suggestions before applying again.');
-        const result=await mutateChanges('records',{expectedActiveVersionId:currentVersion,recordId:record.recordId,expectedRecordDigest:record.recordDigest,expectedSnapshotDigest:fresh.binding.snapshotDigest,action:'admit'});
-        if(!result)throw Error('A teaching could not be confirmed saved. Refresh before retrying.');
-        const saved=await loadChanges();if(!saved?.records.some((item:TrainingChangeRecord)=>item.recordId===record.recordId&&item.recordDigest===record.recordDigest&&item.included))throw Error('The saved teaching could not be confirmed.');
+        await mutateChanges('records',{expectedActiveVersionId:currentVersion,recordId:record.recordId,expectedRecordDigest:record.recordDigest,expectedSnapshotDigest:fresh.binding.snapshotDigest,action:'admit'},false);
+        // A lost acknowledgement does not establish rollback. Read once and
+        // confirm only this exact record/digest in the unchanged session.
+        if(changesIdentity.current!==identity)return;
+        const saved=await loadChanges();if(changesIdentity.current!==identity)return;
+        if(!saved?.records.some((item:TrainingChangeRecord)=>item.recordId===record.recordId&&item.recordDigest===record.recordDigest&&item.included))throw Error('A teaching could not be confirmed saved. Refresh to check before retrying.');
         completed++;
       }setApplyNote(`${completed} lesson${completed===1?'':'s'} saved. Test this update before making it live.`);
-      }catch(caught){setApplyNote(`${completed} of ${records.length} selected lessons confirmed saved. Remaining suggestions are preserved; nothing was made live.`);throw caught;}
+      }catch(caught){if(changesIdentity.current!==identity)return;
+        unconfirmedTextApply.current={identity,records:records.map(({recordId,recordDigest})=>({recordId,recordDigest})),error:caught instanceof Error?caught.message:'Training is unavailable.'};
+        setApplyNote(`${completed} of ${records.length} selected lessons confirmed saved. Refresh to check the remaining lessons before retrying.`);throw caught;}
     });
   }
   async function applyVisualDrafts(ids:string[]){
