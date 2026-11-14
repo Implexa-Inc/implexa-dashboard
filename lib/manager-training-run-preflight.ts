@@ -349,7 +349,7 @@ export async function prepareTrainingRun({slug,workflowVersionId,trainingTest=nu
   slug:string;workflowVersionId:string|null;trainingTest?:PreparedTrainingTest|null;skipOptionalCarry?:boolean;
   read:()=>Promise<unknown>;
   adopt:(body:{expectedActiveVersionId:string;expectedAdoptionDigest?:string},key:string)=>Promise<unknown>;
-}):Promise<{preflight:ManagerTrainingRunPreflight;carryError?:string}> {
+}):Promise<{preflight:ManagerTrainingRunPreflight;carryError?:string;carried?:true}> {
   const before=managerTrainingRunPreflight(await read(),workflowVersionId,trainingTest);
   if(trainingTest||before.state!=='training_required'||before.installedCustomer
     ||(before.optional&&skipOptionalCarry)||!trainingSuccessorAdoptionActionAvailable(before.successorAdoption))
@@ -371,6 +371,6 @@ export async function prepareTrainingRun({slug,workflowVersionId,trainingTest=nu
       ||proof.alreadyAdoptedRecordCount!==proof.eligibleRecordCount||proof.eligibleRouteCount<1)
       return {preflight:preflight.state==='ready'?{state:'unavailable'}:preflight,
         carryError:'Training was carried, but its current availability needs checking. No run has started.'};
-    return {preflight};
+    return {preflight,carried:true};
   }catch(error){return {preflight:before,carryError:error instanceof Error?error.message:'Training carry-forward could not be confirmed.'};}
 }

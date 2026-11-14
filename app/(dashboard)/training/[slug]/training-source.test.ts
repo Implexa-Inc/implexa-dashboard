@@ -1923,6 +1923,32 @@ test('same-page pending test reuses its held preparation after cancellation and 
  }finally{r.cleanup();}
 });
 
+test('a new Training test carries compatible taste before freezing its fresh snapshot',async()=>{
+ const proof={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_B,targetWorkflowVersionId:VERSION_A,
+  eligibleRecordCount:1,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:1,eligibleRouteCount:1,readiness:'adoption_available',reason:null};
+ const h=harness({successorAdoption:proof}),events:string[]=[],nextDigest='c'.repeat(64);
+ const changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},
+  policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:true},
+  activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
+ const runContext={slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null};
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext},{bridge:h.bridge,
+  backend:(path:string)=>{if(!path.endsWith('/adopt-successor'))return {ok:true};events.push('carry');changes.binding.snapshotDigest=nextDigest;
+   Object.assign(proof,{readiness:'already_adopted',alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0});
+   return {ok:true,contractVersion:'manager-training-successor-adoption.v1',created:true,agentSlug:'video-craft',sourceWorkflowVersionId:VERSION_B,targetWorkflowVersionId:VERSION_A,
+    adoptedRecordCount:1,adoptionReceiptIds:[SOURCE_ID],eligibleRouteCount:1,adoptionSetDigest:DIGEST,managerTrainingRequirements:requirements(VERSION_A)};},
+  fetch:(async(url:any,init:any={})=>{
+   if(init.method==='POST'){const body=JSON.parse(init.body);events.push('prepare');assert.equal(body.expectedSnapshotDigest,nextDigest);
+    return {ok:true,json:async()=>({ok:true,testPreparationId:SOURCE_ID,preparationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:nextDigest,scope:'private_candidate'})};}
+   return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
+  }) as typeof fetch});
+ try{
+  await r.click(r.getByText('Run with new training (pending)'));assert.deepEqual(events,['carry','prepare']);
+  assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);
+  await r.click(r.document.querySelector('[role=dialog] [aria-label=Close]')!);
+  await r.click(r.getByText('Run with new training (pending)'));assert.deepEqual(events,['carry','prepare'],'held frozen preparation is reused without another carry');
+ }finally{r.cleanup();}
+});
+
 test('a lost test-preparation response retries the same intent key rather than creating a new test',async()=>{
  const h=harness(),keys:string[]=[],changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null as string|null,snapshotDigest:null as string|null,requestId:null,runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext:{slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null}},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
@@ -2532,6 +2558,34 @@ test('historical list cannot replace active training continuity or create an unn
     assert.equal(rendered.queryByText('Start successor training session'),null);
     assert.equal(calls.some(call=>['create','accept','annotate','revoke'].includes(call.operation)),false);
   } finally {rendered.cleanup();}
+});
+
+test('Continue training opens a current parent-linked session without recreating compatible examples',async()=>{
+ for(const carried of [true,false]){
+  const proof={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
+   eligibleRecordCount:1,alreadyAdoptedRecordCount:carried?1:0,newlyAdoptableRecordCount:carried?0:1,eligibleRouteCount:2,
+   readiness:carried?'already_adopted':'adoption_available',reason:null};
+  const h=await renderedWith({currentVersion:VERSION_B,state:'accepted',activeRequirements:requirements(VERSION_B),
+   sessionRequirements:requirements(VERSION_A),successorAdoption:proof});
+  const r=h.rendered,original=h.bridge.trainingLocal,posts:any[]=[];
+  h.bridge.trainingLocal=async(op,args)=>{const result:any=await original(op,args);
+   if(op==='list'&&(args as any).sessionId===NEW_SESSION)result.managerTrainingRequirements=requirements(VERSION_B);return result;};
+  (r.window as any).__implexaBackend=(_path:string,init:any)=>{posts.push(init);
+   Object.assign(proof,{readiness:'already_adopted',alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0});
+   return {ok:true,contractVersion:'manager-training-successor-adoption.v1',created:true,agentSlug:'video-craft',
+    sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,adoptedRecordCount:1,adoptionReceiptIds:[SOURCE_ID],
+    eligibleRouteCount:2,adoptionSetDigest:DIGEST,managerTrainingRequirements:requirements(VERSION_B)};};
+  try{
+   assert.ok(r.getByText('Continue training'));assert.equal(h.calls.some(c=>c.operation==='create'),false);
+   await r.click(r.getByText('Continue training'));
+   const creates=h.calls.filter(c=>c.operation==='create');assert.equal(creates.length,1);
+   assert.equal(creates[0].args.parentSessionId,SESSION);assert.equal(posts.length,carried?0:1);
+   if(!carried)assert.equal(posts[0].idempotencyKey,`training-continuity:v1:${VERSION_B}`);
+   assert.equal(r.queryByText('Continue training'),null);
+   assert.doesNotMatch(r.text(),/Recreate reviewed decisions|Start a new training session for the updated agent/);
+   assert.equal(h.calls.some(c=>['select','annotate','accept'].includes(c.operation)),false);
+  }finally{r.cleanup();}
+ }
 });
 
 test('acknowledged retirement and withdrawal invalidate cached carried-training availability',async()=>{

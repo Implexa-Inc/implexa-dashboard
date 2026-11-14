@@ -10,7 +10,9 @@ import TrainingOpportunities from './training-opportunities';
 import TrainingChanges,{TrainingRunPanel,trainingTextSelectable} from './training-changes';
 import AgentActions from '../../_components/agent-actions';
 import type {AgentActionContext} from '@/lib/agent-detail';
-import {trainingContinuityStatus,type PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
+import {trainingContinuityStatus,prepareTrainingRun,trainingSuccessorAdoptionPreview,trainingSuccessorAdoptionActionAvailable,type PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
+import {createClient} from '@/lib/supabase/client';
+import {callBackend} from '@/lib/api';
 import NewReview from '../../review/new/new-review';
 import RecordingPlayer from '../../review/recordings/[recordingId]/recording-player';
 import TrainingRunPlayer from './training-run-player';
@@ -199,6 +201,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [closingRecording,setClosingRecording]=useState(false),[feedbackRetry,setFeedbackRetry]=useState(false);
   const [runRequest,setRunRequest]=useState<{nonce:string;binding:PreparedTrainingTest|null}|null>(null);
   const preparedRuns=useRef(new Map<string,PreparedTrainingTest>());
+  const preparingTest=useRef(false);
   const showTeaching=()=>{selectTrainingStep(1);setView('teach');};
   const openTrainingHistory=(id='training-history')=>{selectTrainingStep(1);setView('history');window.requestAnimationFrame?.(()=>revealTrainingElement(id));};
   const focusChat=()=>{setChatExpanded(true);requestAnimationFrame(()=>document.getElementById('training-chat-message')?.focus());};
@@ -301,15 +304,28 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
   async function prepareCandidateTest(snapshotDigest:string,scope:'private_candidate'|'public_projection'='private_candidate',resultSnapshotDigest=snapshotDigest,publicationPreview?:TrainingPublicationPreview){
     selectTrainingStep(3);
-    if(!changes||snapshotDigest!==changes.binding.snapshotDigest||!currentVersion)return;
-    const fresh=await loadChanges();if(!fresh||fresh.binding.snapshotDigest!==snapshotDigest)return;
+    if(preparingTest.current||!changes||snapshotDigest!==changes.binding.snapshotDigest||!currentVersion)return;
+    preparingTest.current=true;setChangesBusy(true);const identity=changesIdentity.current;
+    try{
+    let fresh=await loadChanges();if(changesIdentity.current!==identity||!fresh||fresh.binding.snapshotDigest!==snapshotDigest)return;
     if(fresh.test.snapshotDigest===resultSnapshotDigest&&['queued','running'].includes(fresh.test.status)){setChangesError('This training test is already queued or running. Open its result instead of starting it again.');return;}
     if(scope==='private_candidate'&&fresh.test.status==='delivered'&&fresh.test.snapshotDigest===snapshotDigest){revealTrainingElement('training-activation');return;}
-    const preparationKey=`${session}:${currentVersion}:${scope}:${resultSnapshotDigest}:${publicationPreview?.publicationPreparationId||''}`;
+    let preparationKey=`${session}:${currentVersion}:${scope}:${resultSnapshotDigest}:${publicationPreview?.publicationPreparationId||''}`;
     if(fresh.test.requestId&&fresh.test.snapshotDigest===resultSnapshotDigest&&fresh.test.scope===scope)preparedRuns.current.delete(preparationKey);
     const held=preparedRuns.current.get(preparationKey);
     if(held){setPublicationReviewOpen(false);setRunRequest({nonce:crypto.randomUUID(),binding:held});return;}
     if(scope==='public_projection'&&(!publicationPreview||publicationPreview.snapshotDigest!==resultSnapshotDigest||publicationPreview.candidateSnapshotDigest!==snapshotDigest))return;
+    const available=activeTraining&&trainingSuccessorAdoptionPreview(activeTraining.adoption,currentVersion,activeTraining.requirements);
+    if(scope==='private_candidate'&&trainingSuccessorAdoptionActionAvailable(available||null)){
+      try{
+        await preserveCompatibleTraining();
+        // The new test freezes the material AFTER compatible taste is carried.
+        // Existing prepared/queued/publication tests returned above untouched.
+        fresh=await loadChanges();if(changesIdentity.current!==identity||!fresh)return;
+        snapshotDigest=fresh.binding.snapshotDigest;resultSnapshotDigest=snapshotDigest;
+        preparationKey=`${session}:${currentVersion}:${scope}:${resultSnapshotDigest}:`;
+      }catch(e){setChangesError(e instanceof Error?e.message:'Training carry-forward is unconfirmed.');return;}
+    }
     const prepared=await mutateChanges('tests/prepare',{expectedActiveVersionId:currentVersion,expectedSnapshotDigest:snapshotDigest,scope,
       ...(scope==='public_projection'?{publicationPreparationId:publicationPreview!.publicationPreparationId,preparationDigest:publicationPreview!.preparationDigest}:{})});
     if(!prepared)return;
@@ -320,6 +336,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     }
     const binding={testPreparationId:prepared.testPreparationId,preparationDigest:prepared.preparationDigest};
     preparedRuns.current.set(preparationKey,binding);setPublicationReviewOpen(false);setRunRequest({nonce:crypto.randomUUID(),binding});
+    }finally{preparingTest.current=false;setChangesBusy(false);}
   }
   async function activateCandidate(snapshotDigest:string,testRequestId:string){
     if(!changes||!currentVersion||snapshotDigest!==changes.binding.snapshotDigest||!changes.activation?.canActivate||testRequestId!==changes.activation.testRequestId)return;
@@ -959,10 +976,22 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setSelectionPriority(String(decision.content.applicability?.priority ?? 50));
     setStages(deriveTrainingStages(nextProperty)); setDecisionKey(crypto.randomUUID());
   }
-  async function beginVersionSuccessor() {
-    if (!versionChanged || !transitionConfirmed || !currentVersion || !sessionVersion) return;
+  async function preserveCompatibleTraining(){
+    invalidateTrainingContinuity();
+    const {data:{session:auth}}=await createClient().auth.getSession();
+    if(!auth?.access_token)throw new TrainingError('training_sign_in_required','Sign in before continuing Training.');
+    const result=await prepareTrainingRun({slug,workflowVersionId:currentVersion,
+      read:()=>call('home',{slug}),
+      adopt:(body,key)=>callBackend(`/api/v2/agent-training/agents/${encodeURIComponent(slug)}/adopt-successor`,{
+        jwt:auth.access_token,method:'POST',body,idempotencyKey:key})});
+    if(result.carryError||result.preflight.state!=='ready')throw new TrainingError('training_continuity_unconfirmed',result.carryError||'Check the current training before continuing.');
+    return result;
+  }
+  async function beginVersionSuccessor(compatible=false) {
+    if (!versionChanged || (!transitionConfirmed&&!(compatible&&['carried','available'].includes(continuity.state))) || !currentVersion || !sessionVersion) return;
     const predecessor = { fromVersion: sessionVersion, sources };
     await work('Starting a successor training session for the active version', async () => {
+      if(compatible)await preserveCompatibleTraining();
       const active = await call('scope', { slug });
       if (!active.scope?.agent.currentVersionId || active.scope.agent.currentVersionId !== currentVersion) throw new TrainingError('training_version_changed', 'The active version changed again. Reload before starting the successor session.');
       const predecessorSessionId = session;
@@ -973,7 +1002,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       const scoped = await call('scope', { slug, sessionId: created.sessionId });
       if (!scoped.scope?.session || scoped.scope.session.sessionId !== created.sessionId || scoped.scope.session.terminal
         || scoped.scope.session.baseVersionId !== active.scope.agent.currentVersionId) throw new TrainingError('training_version_changed', 'The successor session was not bound to the active immutable version.');
-      setVersionTransition(predecessor); setSession(created.sessionId); rememberScope(scoped.scope);
+      setVersionTransition(compatible?null:predecessor); setSession(created.sessionId); rememberScope(scoped.scope);
       setSources([]); setSelected(null); setPreview(null); setReviewed(null); setManagerCoverage(null); setPending([]); setFailed([]); setSuccessorStageExpansion(null);
       setConsent(false); setTransitionConfirmed(false); setVersionChanged(false);
       await load(created.sessionId);
@@ -1659,7 +1688,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       {continuity.state==='carried'?<p>{continuity.count} compatible {continuity.count===1?'lesson is':'lessons are'} available to this version. You do not need to upload or approve {continuity.count===1?'it':'them'} again.</p>
         :continuity.state==='available'?<p>{continuity.count} compatible visual {continuity.count===1?'lesson will':'lessons will'} carry forward when you run your agent. You do not need to recreate the examples.</p>
         :continuity.state==='unknown'?<><p>Your saved training is preserved. We could not confirm which earlier lessons this version can use.</p><button disabled={!!busy} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Check training status</button></>
-        :<><p>The update needs a training review. Keep your earlier examples; review what has changed before adding or changing lessons.</p><details><summary>Review earlier training</summary><p className="mt-3">Start a session for this version to add or revise the affected lessons. Existing lessons and their history stay saved.</p><label className="mt-3 flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event)=>setTransitionConfirmed(event.target.checked)}/>Start a new training session for the updated agent.</label><button disabled={!!busy||!transitionConfirmed||!currentVersion} onClick={beginVersionSuccessor}>Start successor training session</button></details></>}
+        :<><p>The update needs a training review. Keep your earlier examples; review what has changed before adding or changing lessons.</p><details><summary>Review earlier training</summary><p className="mt-3">Start a session for this version to add or revise the affected lessons. Existing lessons and their history stay saved.</p><label className="mt-3 flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event)=>setTransitionConfirmed(event.target.checked)}/>Start a new training session for the updated agent.</label><button disabled={!!busy||!transitionConfirmed||!currentVersion} onClick={()=>void beginVersionSuccessor()}>Start successor training session</button></details></>}
+      {['carried','available'].includes(continuity.state)&&<button type="button" className="btn-primary" disabled={!!busy} onClick={()=>void beginVersionSuccessor(true)}>Continue training</button>}
     </section>}
     <div id="training-demonstration" hidden={!installationId&&(view!=='teach'||directSource)} className={`space-y-4 rounded-xl border border-ink-800 p-5 ${legacyControls}`}>
     {!installationId&&<div><h2 className="text-lg font-medium">Your demonstration</h2><p className="mt-2 text-sm text-ink-400">Choose a recording or image, then select the moment you want to teach.</p></div>}
