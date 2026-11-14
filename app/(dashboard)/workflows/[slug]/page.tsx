@@ -606,12 +606,13 @@ export default async function WorkflowDetailPage({
         </div>
       </div>
 
-      {/* The private per-(user, agent) learnings that accumulate as it runs
-       * (backend migration 0105) — durable preferences injected into every run.
-       * Private to this user; never edits the shared agent definition. */}
-      <div id="agent-learnings" className="mb-6 scroll-mt-20">
-        <AgentLearningsCard slug={workflow.slug} />
-      </div>
+      {/* Author-only Learning Influence v1 rule management. Selected publisher
+          teachings and customer-private preferences use separate runtime paths. */}
+      {detail!.canInspectOwnLearningInfluence === true && (
+        <div id="agent-learnings" className="mb-6 scroll-mt-20">
+          <AgentLearningsCard slug={workflow.slug} canInspectOwnLearningInfluence={detail!.canInspectOwnLearningInfluence} />
+        </div>
+      )}
 
       {/* "Edit what the agent DOES" now lives in the header's Edit Agent pop-up
           (<AgentEditButton/>) instead of a card here — one place, opened right

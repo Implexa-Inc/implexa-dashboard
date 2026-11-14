@@ -84,9 +84,19 @@ function canApproveLowEvidence(item: Candidate) {
     && item.scope.toolIdentity == null;
 }
 
-export default function AgentLearningsCard({ slug, initialPayload = null, initialSource = 'loading' }: {
+type Props = {
   slug: string; initialPayload?: Payload | null; initialSource?: SourceState;
-}) {
+  canInspectOwnLearningInfluence?: boolean | null;
+};
+
+export default function AgentLearningsCard(props: Props) {
+  // This legacy rule-management API is author-only. Do not mount its fetch or
+  // controls for customers, or interpret a hidden panel as runtime readiness.
+  if (props.canInspectOwnLearningInfluence !== true) return null;
+  return <AuthorAgentLearningsCard key={props.slug} {...props} />;
+}
+
+function AuthorAgentLearningsCard({ slug, initialPayload = null, initialSource = 'loading' }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const [payload, setPayload] = useState<Payload | null>(initialPayload);
   const [source, setSource] = useState<SourceState>(initialSource);

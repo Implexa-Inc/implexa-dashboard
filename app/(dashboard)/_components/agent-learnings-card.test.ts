@@ -12,7 +12,7 @@ test('only the latest explicitly disabled rule can be enabled through its exact 
     suggestedAt: null, approvedAt: null, runs: [] };
   const payload = { ...ready, history: [item] };
   const rendered = await render('agent-learnings-card.tsx', {
-    slug: 'video/agent', initialPayload: payload, initialSource: 'ready',
+    canInspectOwnLearningInfluence: true, slug: 'video/agent', initialPayload: payload, initialSource: 'ready',
   }, { backend() { return payload; } });
   try {
     await rendered.click(rendered.getByText('Enable rule'));
@@ -26,7 +26,7 @@ test('only the latest explicitly disabled rule can be enabled through its exact 
     { action: 'undo' }, { versionDigest: null }, { versionDigest: 'bad' }]) {
     const p = { ...ready, history: [{ ...item, ...change }] };
     const r = await render('agent-learnings-card.tsx', {
-      slug: 'video-agent', initialPayload: p, initialSource: 'ready',
+      canInspectOwnLearningInfluence: true, slug: 'video-agent', initialPayload: p, initialSource: 'ready',
     }, { backend() { return p; } });
     try { assert.equal(r.queryByText('Enable rule'), null); }
     finally { r.cleanup(); }
@@ -72,7 +72,7 @@ test('owner proposal records only an inert suggestion through the agent-bound AP
   for (const created of [true, false]) {
     const calls: Array<{ path: string; body?: unknown; method?: string; jwt?: string }> = [];
     const rendered = await render('agent-learnings-card.tsx', {
-      slug: 'video/agent', initialPayload: ready, initialSource: 'ready',
+      canInspectOwnLearningInfluence: true, slug: 'video/agent', initialPayload: ready, initialSource: 'ready',
     }, { backend(path, init) {
       calls.push({ path, ...(init as object) });
       return path.endsWith('/propose') ? { ...proposalReceipt, created } : ready;
@@ -96,7 +96,7 @@ test('owner proposal refuses unverifiable or active responses without showing su
   for (const result of [{ ok: false, error: 'wrong owner' }, { ...proposalReceipt, active: true },
     { ...proposalReceipt, candidateId: null }, { ...proposalReceipt, candidateKey: '' }]) {
     const rendered = await render('agent-learnings-card.tsx', {
-      slug: 'video-agent', initialPayload: ready, initialSource: 'ready',
+      canInspectOwnLearningInfluence: true, slug: 'video-agent', initialPayload: ready, initialSource: 'ready',
     }, { backend(path) { return path.endsWith('/propose') ? result : ready; } });
     try {
       await fillProposal(rendered); await submitProposal(rendered);
@@ -110,7 +110,7 @@ test('owner proposal refuses unverifiable or active responses without showing su
 test('owner proposal validates IDs and general rule before a write; unavailable source exposes no action', async () => {
   for (const values of [{ ...proposal, requestId: 'not-an-id' }, { ...proposal, rule: 'short' }]) {
     const rendered = await render('agent-learnings-card.tsx', {
-      slug: 'video-agent', initialPayload: ready, initialSource: 'ready',
+      canInspectOwnLearningInfluence: true, slug: 'video-agent', initialPayload: ready, initialSource: 'ready',
     }, { backend() { return ready; } });
     try {
       await fillProposal(rendered, values); await submitProposal(rendered);
@@ -119,7 +119,7 @@ test('owner proposal validates IDs and general rule before a write; unavailable 
     } finally { rendered.cleanup(); }
   }
   const rendered = await render('agent-learnings-card.tsx', {
-    slug: 'video-agent', initialPayload: null, initialSource: 'unavailable',
+    canInspectOwnLearningInfluence: true, slug: 'video-agent', initialPayload: null, initialSource: 'unavailable',
   }, { backend() { return { ok: false }; } });
   try { assert.equal(rendered.queryByText('Propose from a Review issue'), null); }
   finally { rendered.cleanup(); }
@@ -128,7 +128,7 @@ test('owner proposal validates IDs and general rule before a write; unavailable 
 test('historical feedback analysis posts to the agent-bound backfill and refreshes suggestions', async () => {
   const responses: Array<{ path: string; method?: string }> = [];
   const rendered = await render('agent-learnings-card.tsx', {
-    slug: 'video-agent', initialPayload: ready, initialSource: 'ready',
+    canInspectOwnLearningInfluence: true, slug: 'video-agent', initialPayload: ready, initialSource: 'ready',
   }, {
     backend(path, init) {
       const method = (init as { method?: string })?.method;
@@ -152,7 +152,7 @@ test('historical feedback analysis posts to the agent-bound backfill and refresh
 
 test('an unverifiable backfill result fails closed and never reports analysis success', async () => {
   const rendered = await render('agent-learnings-card.tsx', {
-    slug: 'video-agent', initialPayload: ready, initialSource: 'ready',
+    canInspectOwnLearningInfluence: true, slug: 'video-agent', initialPayload: ready, initialSource: 'ready',
   }, {
     backend(path) {
       if (path.endsWith('/backfill')) return {
@@ -172,7 +172,7 @@ test('an unverifiable backfill result fails closed and never reports analysis su
 
 test('a legacy payload without selected-version eligibility authority fails closed', async () => {
   const rendered = await render('agent-learnings-card.tsx', {
-    slug: 'video-agent', initialPayload: null, initialSource: 'loading',
+    canInspectOwnLearningInfluence: true, slug: 'video-agent', initialPayload: null, initialSource: 'loading',
   }, { backend() { return { ok: true, source: 'ready', suggested: [], active: [] }; } });
   try {
     await rendered.act(async () => { await Promise.resolve(); await Promise.resolve(); });
@@ -185,7 +185,7 @@ test('an edited one-run suggestion atomically approves the replacement text', as
   const calls: Array<{ path: string; body?: unknown }> = [];
   const payload = { ...ready, suggested: [oneRunSuggestion] };
   const rendered = await render('agent-learnings-card.tsx', {
-    slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
+    canInspectOwnLearningInfluence: true, slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
   }, {
     backend(path, init) {
       calls.push({ path, body: (init as { body?: unknown })?.body });
@@ -230,7 +230,7 @@ test('editing an active rule appends a new immutable version', async () => {
   };
   const payload = { ...ready, active: [activeRule] };
   const rendered = await render('agent-learnings-card.tsx', {
-    slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
+    canInspectOwnLearningInfluence: true, slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
   }, {
     backend(path, init) {
       calls.push({ path, body: (init as { body?: unknown })?.body });
@@ -268,7 +268,7 @@ test('an active rule that is ineligible for the selected version is never presen
   };
   const payload = { ...ready, active: [activeRule] };
   const rendered = await render('agent-learnings-card.tsx', {
-    slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
+    canInspectOwnLearningInfluence: true, slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
   }, { backend() { return payload; } });
   try {
     assert.match(rendered.text(), /Active · Not eligible for agent v13/i);
@@ -285,7 +285,7 @@ test('low-evidence override never unlocks contradicted or scoped suggestions', a
   for (const item of blocked) {
     const payload = { ...ready, suggested: [item] };
     const rendered = await render('agent-learnings-card.tsx', {
-      slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
+      canInspectOwnLearningInfluence: true, slug: 'video-agent', initialPayload: payload, initialSource: 'ready',
     }, {
       backend() { return payload; },
     });
@@ -296,5 +296,45 @@ test('low-evidence override never unlocks contradicted or scoped suggestions', a
       assert.equal(approve.disabled, true);
       assert.doesNotMatch(rendered.text(), /Approve anyway/);
     } finally { rendered.cleanup(); }
+  }
+});
+
+
+test('customer and unknown author facts never fetch or expose the legacy rule panel', async () => {
+  for (const fact of [false, null, undefined, 'true', 1]) {
+    const r = await render('agent-learnings-card.tsx', {
+      slug: 'video-agent', canInspectOwnLearningInfluence: fact, initialPayload: ready, initialSource: 'ready',
+    }, { backend() { throw new Error('customer must not fetch author rules'); } });
+    try {
+      assert.equal(r.calls.backend.length, 0);
+      assert.equal(r.text(), '');
+      assert.equal(r.document.querySelector('button'), null);
+    } finally { r.cleanup(); }
+  }
+});
+
+test('changing to a customer unmounts author controls and does not fetch again', async () => {
+  const r = await render('agent-learnings-card.tsx', {
+    slug: 'video-agent', canInspectOwnLearningInfluence: true,
+  }, { backend() { return ready; } });
+  try {
+    assert.ok(r.calls.backend.length > 0);
+    const before = r.calls.backend.length;
+    await r.rerender({ slug: 'video-agent', canInspectOwnLearningInfluence: false });
+    assert.equal(r.text(), '');
+    assert.equal(r.calls.backend.length, before);
+  } finally { r.cleanup(); }
+});
+
+test('genuine author request failures remain unavailable rather than hidden', async () => {
+  for (const status of [400, 503]) {
+    const r = await render('agent-learnings-card.tsx', {
+      slug: 'video-agent', canInspectOwnLearningInfluence: true,
+    }, { backend() { throw new Error(`HTTP ${status}`); } });
+    try {
+      assert.ok(r.calls.backend.length > 0);
+      assert.match(r.text(), /Learnings unavailable/);
+      assert.equal((r.getByText('Actions disabled') as HTMLButtonElement).disabled, true);
+    } finally { r.cleanup(); }
   }
 });
