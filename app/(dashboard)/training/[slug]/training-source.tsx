@@ -275,11 +275,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     const fingerprint=JSON.stringify({identity:captured,operation,body});
     if(changeIntent.current?.fingerprint!==fingerprint)changeIntent.current={fingerprint,key:crypto.randomUUID()};
     changesInFlight.current=true;setChangesBusy(true);setChangesError('');
+    if(operation==='withdraw')invalidateTrainingContinuity();
     try{const response=await fetch(`/api/agent-training/changes?sessionId=${encodeURIComponent(session)}&operation=${operation}`,{
       method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':changeIntent.current.key},body:JSON.stringify(body)});
       const value=await response.json();if(changesIdentity.current!==captured)return;
       if(!response.ok||value.ok!==true)throw Error(value.reason||'training_change_unconfirmed');
-      if(operation==='withdraw')invalidateTrainingContinuity();
       changeIntent.current=null;await loadChanges();return value;
     }catch(e){if(changesIdentity.current===captured)setChangesError(e instanceof Error?e.message:'training_change_unconfirmed');}
     finally{changesInFlight.current=false;setChangesBusy(false);}
@@ -1352,12 +1352,12 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     await work(action==='store'?'Saving this teaching image privately':'Checking this teaching image',async()=>{
       const args=action==='store' ? {action,token:target.source.token,recordId:target.decision.recordId,expectedDigest:target.decision.recordDigest,consent:true}
         : {action,sessionId:session,recordId:target.decision.recordId,expectedDigest:target.decision.recordDigest};
+      if(action==='withdraw')invalidateTrainingContinuity();
       const result=await call('serverStorage',args);
       if (result.storage!==null && !isTrainingEvidenceStorage(result.storage,target.decision.recordId,target.decision.recordDigest))
         throw new TrainingError('training_storage_response_invalid','The stored-image status could not be verified.');
       if(action==='store' && (!result.storage?.storedAt || result.storage.withdrawnAt || result.storage.deletedAt))
         throw new TrainingError('training_storage_response_invalid','The image has not been confirmed as stored.');
-      if(action==='withdraw')invalidateTrainingContinuity();
       setServerStorage(result.storage);setServerConsent(false);setServerWithdrawal(false);
       setServerStorageNote(action==='withdraw' ? result.cleanup==='deleted'?'Server copy removed. The original teaching and local source are unchanged.':'Further access is withdrawn. Server deletion is pending and will retry.'
         : action==='store'?'This exact teaching image is stored privately for your own runs. It is not released to customers.':'');
@@ -1368,10 +1368,10 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if (!reviewed || (operation === 'retire' ? !retireConfirmed || reviewed.decision.state !== 'accepted'
       : !revokeConfirmed || !['accepted', 'retired'].includes(reviewed.decision.state))) return;
     await work(operation === 'retire' ? 'Stopping selection in new runs' : 'Withdrawing permission', async () => {
+      invalidateTrainingContinuity();
       const result = await call(operation, { sessionId: session, recordId: reviewed.decision.recordId, expectedDigest: reviewed.decision.recordDigest });
       if (result.recordId !== reviewed.decision.recordId || result.recordDigest !== reviewed.decision.recordDigest
         || result.state !== (operation === 'retire' ? 'retired' : 'revoked')) throw new TrainingError('training_authority_response_invalid', 'The teaching authority change could not be verified.');
-      invalidateTrainingContinuity();
       const acknowledged = reviewed.decision;
       const state: DecisionState = operation === 'retire' ? 'retired' : 'revoked';
       setSources(prior => prior.map(source => ({ ...source, decisions: source.decisions.map(decision =>

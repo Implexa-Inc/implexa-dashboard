@@ -2555,6 +2555,28 @@ test('acknowledged retirement and withdrawal invalidate cached carried-training 
  }
 });
 
+test('an uncertain authority response cannot leave cached training marked available',async()=>{
+ for(const outcome of ['lost','malformed']){
+  const adopted={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
+   eligibleRecordCount:1,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,eligibleRouteCount:2,readiness:'already_adopted',reason:null};
+  const h=await renderedWith({currentVersion:VERSION_B,state:'accepted',activeRequirements:requirements(VERSION_B),
+   sessionRequirements:requirements(VERSION_A),successorAdoption:adopted});
+  const r=h.rendered,original=h.bridge.trainingLocal;
+  h.bridge.trainingLocal=async(op,args)=>{const result=await original(op,args);if(op==='revoke'){
+   if(outcome==='lost')throw Error('response lost after server commit');return {...result,recordDigest:'f'.repeat(64)};
+  }return result;};
+  try{
+   await r.click(r.getByText('Manage teaching'));
+   await r.click(r.getByText(/Withdraw permission for further use now/).closest('label')!.querySelector('input')!);
+   await r.click(r.getByText('Withdraw permission now'));
+   assert.equal(h.calls.filter(c=>c.operation==='revoke').length,1);
+   assert.equal(r.queryByText('Earlier training carried forward'),null);
+   assert.ok(r.getByText('Check training status'));
+   assert.equal(h.calls.filter(c=>c.operation==='home').length,1);
+  }finally{r.cleanup();}
+ }
+});
+
 test('missing or malformed carry-forward proof is unknown rather than lost or carried training', async () => {
   const adopted={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
     eligibleRecordCount:1,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,eligibleRouteCount:2,readiness:'already_adopted',reason:null};
