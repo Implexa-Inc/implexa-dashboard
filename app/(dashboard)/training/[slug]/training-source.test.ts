@@ -2534,6 +2534,27 @@ test('historical list cannot replace active training continuity or create an unn
   } finally {rendered.cleanup();}
 });
 
+test('acknowledged retirement and withdrawal invalidate cached carried-training availability',async()=>{
+ for(const operation of ['retire','revoke'] as const){
+  const adopted={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
+   eligibleRecordCount:1,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,eligibleRouteCount:2,readiness:'already_adopted',reason:null};
+  const {rendered:r,calls}=await renderedWith({currentVersion:VERSION_B,state:'accepted',activeRequirements:requirements(VERSION_B),
+   sessionRequirements:requirements(VERSION_A),successorAdoption:adopted});
+  try{
+   assert.ok(r.getByText('Earlier training carried forward'));
+   await r.click(r.getByText('Manage teaching'));
+   const confirmation=operation==='retire'?/Stop selecting this teaching for new runs/:/Withdraw permission for further use now/;
+   await r.click(r.getByText(confirmation).closest('label')!.querySelector('input')!);
+   await r.click(r.getByText(operation==='retire'?'Stop using in new runs':'Withdraw permission now'));
+   assert.equal(calls.filter(c=>c.operation===operation).length,1);
+   assert.equal(r.queryByText('Earlier training carried forward'),null);
+   assert.ok(r.getByText('Check training status'));
+   assert.equal(r.queryByText('Start successor training session'),null);
+   assert.equal(calls.filter(c=>c.operation==='home').length,1,'no stale automatic read silently restores the cache');
+  }finally{r.cleanup();}
+ }
+});
+
 test('missing or malformed carry-forward proof is unknown rather than lost or carried training', async () => {
   const adopted={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_A,targetWorkflowVersionId:VERSION_B,
     eligibleRecordCount:1,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,eligibleRouteCount:2,readiness:'already_adopted',reason:null};

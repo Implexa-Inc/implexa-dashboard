@@ -211,6 +211,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [versionChanged, setVersionChanged] = useState(false);
   const [activeTraining, setActiveTraining] = useState<{requirements:ManagerTrainingRequirements;adoption:unknown}|null>(null);
   const [trainingStatusRefresh,setTrainingStatusRefresh] = useState(0);
+  const trainingAuthorityEpoch=useRef(0);
+  function invalidateTrainingContinuity(){trainingAuthorityEpoch.current++;setActiveTraining(null);}
   const [publication,setPublication]=useState<{versionId:string;shared:boolean;publicUrl:string}|null>(null);
   const [publishConfirmed,setPublishConfirmed]=useState(false);
   useEffect(()=>{setPublication(null);setPublishConfirmed(false);},[slug,currentVersion]);
@@ -277,6 +279,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Idempotency-Key':changeIntent.current.key},body:JSON.stringify(body)});
       const value=await response.json();if(changesIdentity.current!==captured)return;
       if(!response.ok||value.ok!==true)throw Error(value.reason||'training_change_unconfirmed');
+      if(operation==='withdraw')invalidateTrainingContinuity();
       changeIntent.current=null;await loadChanges();return value;
     }catch(e){if(changesIdentity.current===captured)setChangesError(e instanceof Error?e.message:'training_change_unconfirmed');}
     finally{changesInFlight.current=false;setChangesBusy(false);}
@@ -658,6 +661,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         if(result.scope.session){setSession(result.scope.session.sessionId);await load(result.scope.session.sessionId);}
         return;
       }
+      const authorityEpoch=trainingAuthorityEpoch.current;
       const result = await call('home', { slug });
       if (!live || !result.home) return;
       const home = result.home;
@@ -671,7 +675,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
           throw new TrainingError('manager_training_requirements_unavailable', 'Implexa cannot verify the active version’s required visual-reference training coverage. Reload after the backend and Dashboard are updated.');
         }
         setManagerTrainingRequirements(home.managerTrainingRequirements);
-        setActiveTraining({requirements:home.managerTrainingRequirements!,adoption:home.successorAdoption});
+        if(authorityEpoch===trainingAuthorityEpoch.current)
+          setActiveTraining({requirements:home.managerTrainingRequirements!,adoption:home.successorAdoption});
       } else {setManagerTrainingRequirements(null);setActiveTraining(null);}
       setAgentName(home.agent.name || slug); setCurrentVersion(projection.activeVersionId);
       const predecessor = projection.eligiblePredecessor;
@@ -1352,6 +1357,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         throw new TrainingError('training_storage_response_invalid','The stored-image status could not be verified.');
       if(action==='store' && (!result.storage?.storedAt || result.storage.withdrawnAt || result.storage.deletedAt))
         throw new TrainingError('training_storage_response_invalid','The image has not been confirmed as stored.');
+      if(action==='withdraw')invalidateTrainingContinuity();
       setServerStorage(result.storage);setServerConsent(false);setServerWithdrawal(false);
       setServerStorageNote(action==='withdraw' ? result.cleanup==='deleted'?'Server copy removed. The original teaching and local source are unchanged.':'Further access is withdrawn. Server deletion is pending and will retry.'
         : action==='store'?'This exact teaching image is stored privately for your own runs. It is not released to customers.':'');
@@ -1365,6 +1371,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       const result = await call(operation, { sessionId: session, recordId: reviewed.decision.recordId, expectedDigest: reviewed.decision.recordDigest });
       if (result.recordId !== reviewed.decision.recordId || result.recordDigest !== reviewed.decision.recordDigest
         || result.state !== (operation === 'retire' ? 'retired' : 'revoked')) throw new TrainingError('training_authority_response_invalid', 'The teaching authority change could not be verified.');
+      invalidateTrainingContinuity();
       const acknowledged = reviewed.decision;
       const state: DecisionState = operation === 'retire' ? 'retired' : 'revoked';
       setSources(prior => prior.map(source => ({ ...source, decisions: source.decisions.map(decision =>
