@@ -75,3 +75,8 @@ test('actual published producer exposes historical funding separately and requir
  const sample=r.document.querySelector('input[type="checkbox"]')!;await r.click(sample);assert.equal(consent.checked,false);
  assert.equal(calls.some(c=>c.init.method==='POST'),false);
 });
+
+test('listing metadata works in the web app without a local recording bridge or version prop',async t=>{
+ const c=fixture();const r=await render('../training/[slug]/marketplace-submission.tsx',{slug:'studio',versionId:null},{fetch:(async()=>({ok:true,json:async()=>c})) as typeof fetch});t.after(()=>r.cleanup());
+ const open=r.getByText('Prepare marketplace listing') as HTMLButtonElement;assert.equal(open.disabled,false);await r.click(open);assert.equal((r.document.querySelector('input') as HTMLInputElement).value,'Video studio');
+});
