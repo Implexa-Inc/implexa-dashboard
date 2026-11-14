@@ -3,6 +3,7 @@
 import {useState} from 'react';
 import type {MarketplaceSample} from '@/lib/agent-marketplace-samples';
 import Modal from './modal';
+import type {ApprovedListing,ApprovedRead} from '@/lib/approved-marketplace-listings';
 
 const SAMPLE_PRICING = {
  video: 'Try for free. $50/run. Or $200/mo for unlimited runs.',
@@ -10,14 +11,25 @@ const SAMPLE_PRICING = {
 };
 
 /** A visual pilot, deliberately disconnected from acquisition and checkout. */
-export default function MarketplaceSampleGallery({listings}:{listings:MarketplaceSample[]}){
+export default function MarketplaceSampleGallery({listings,approved={status:'ready',listings:[]}}:{listings:MarketplaceSample[];approved?:ApprovedRead}){
  const [category,setCategory]=useState('all'),[view,setView]=useState<'gallery'|'list'>('gallery');
  const [selected,setSelected]=useState<{agent:MarketplaceSample;mode:'details'|'rent'|'owner'}|null>(null);
- const shown=listings.filter(a=>category==='all'||a.artwork===category);
+ const [selectedReal,setSelectedReal]=useState<ApprovedListing|null>(null);
+ const actual=approved.status==='ready'?approved.listings:[];
+ const shown=listings.filter(a=>(a.artwork!=='video'||approved.status==='ready'&&!actual.length)&&(category==='all'||a.artwork===category));
  return <section aria-label="Agents for rent" className="space-y-7">
-  <div className="flex flex-wrap items-end justify-between gap-5"><div><h2 className="text-2xl font-medium tracking-tight text-ink-100">Rent a trained agent</h2><p className="mt-2 text-sm text-ink-400">Human taste. Trained judgement.</p></div><div className="inline-flex rounded-lg border border-ink-700 p-1" aria-label="Listing view">{(['gallery','list'] as const).map(v=><button key={v} type="button" aria-pressed={view===v} onClick={()=>setView(v)} className={`rounded-md px-3 py-1.5 text-xs capitalize ${view===v?'bg-ink-800 text-ink-100':'text-ink-400 hover:text-ink-100'}`}>{v==='gallery'?'▦ Gallery':'☷ List'}</button>)}</div></div>
-  <div className="flex flex-wrap items-center justify-between gap-4"><div className="flex flex-wrap gap-2" aria-label="Agent categories">{[{id:'all',name:'All'},{id:'video',name:'YouTube & video'},{id:'marketing',name:'Marketing'}].map(c=><button key={c.id} type="button" aria-pressed={category===c.id} onClick={()=>setCategory(c.id)} className={`rounded-full border px-4 py-2 text-xs ${category===c.id?'border-brand-500 bg-brand-500/10 text-brand-400':'border-ink-800 text-ink-400 hover:border-ink-600'}`}>{c.name}</button>)}</div><p className="text-xs text-ink-500">Beta preview · Sample listings and stats</p></div>
+  <div className="flex flex-wrap items-end justify-between gap-5"><div><h2 className="text-2xl font-medium tracking-tight text-ink-100">Find a trained agent</h2><p className="mt-2 text-sm text-ink-400">Human taste. Trained judgement.</p></div><div className="inline-flex rounded-lg border border-ink-700 p-1" aria-label="Listing view">{(['gallery','list'] as const).map(v=><button key={v} type="button" aria-pressed={view===v} onClick={()=>setView(v)} className={`rounded-md px-3 py-1.5 text-xs capitalize ${view===v?'bg-ink-800 text-ink-100':'text-ink-400 hover:text-ink-100'}`}>{v==='gallery'?'▦ Gallery':'☷ List'}</button>)}</div></div>
+  <div className="flex flex-wrap items-center justify-between gap-4"><div className="flex flex-wrap gap-2" aria-label="Agent categories">{[{id:'all',name:'All'},{id:'video',name:'YouTube & video'},{id:'marketing',name:'Marketing'}].map(c=><button key={c.id} type="button" aria-pressed={category===c.id} onClick={()=>setCategory(c.id)} className={`rounded-full border px-4 py-2 text-xs ${category===c.id?'border-brand-500 bg-brand-500/10 text-brand-400':'border-ink-800 text-ink-400 hover:border-ink-600'}`}>{c.name}</button>)}</div><p className="text-xs text-ink-500">Beta preview · Illustrative listings are labelled Sample</p></div>
+  {approved.status==='unavailable'&&<p role="alert" className="text-sm text-amber-300">Approved listings could not be loaded. Try refreshing this page.</p>}
   <div className={view==='gallery'?'grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))]':'space-y-6'} data-view={view}>
+   {category!=='marketing'&&actual.map(agent=><article key={agent.id} className={`overflow-hidden rounded-2xl border border-ink-700 bg-ink-900/30 ${view==='list'?'md:grid md:grid-cols-[280px_minmax(0,1fr)]':'max-w-2xl'}`}>
+    <button type="button" aria-label={`View ${agent.name}`} onClick={()=>setSelectedReal(agent)} className="group relative block w-full text-left"><SampleArtwork kind="video"/><span className="absolute left-5 top-5 rounded-full border border-emerald-800 bg-ink-950/90 px-3 py-1 text-xs text-emerald-400">Approved beta listing</span></button>
+    <div className="space-y-5 p-6"><p className="text-xs uppercase tracking-wider text-brand-400">{agent.category}</p><button className="text-left text-2xl font-medium" onClick={()=>setSelectedReal(agent)}>{agent.name}</button><p className="text-sm leading-6 text-ink-300">{agent.output}</p><p className="text-xs leading-5 text-ink-400">You provide: {agent.input}</p><p className="text-sm">{agent.studioName}</p>
+    <p className="text-xs text-ink-400">Supports {agent.engines.map(x=>x==='claude'?'Claude':'Codex').join(' and ')||'the engines shown in Setup'}</p>
+    <p className="text-xs text-ink-500">{agent.sampleCount} approved {agent.sampleCount===1?'sample':'samples'} · Playback unavailable in this beta</p>
+    <p className="text-lg">${(agent.servicePriceCents/100).toFixed(2)} / {agent.pricePeriod==='per_run'?'run':'month'} <span className="text-xs text-ink-500">planned service price</span></p>
+    <button className="btn-primary w-full" onClick={()=>setSelectedReal(agent)}>View agent</button><p className="text-center text-xs text-ink-500">Beta · Billing is not enabled</p></div>
+   </article>)}
    {shown.map(agent=><article key={agent.slug} className={`overflow-hidden rounded-2xl border border-ink-800 bg-ink-900/30 ${view==='list'?'md:grid md:grid-cols-[280px_minmax(0,1fr)]':'max-w-2xl'}`}>
     <button type="button" aria-label={`View ${agent.name}`} onClick={()=>setSelected({agent,mode:'details'})} className="group relative block w-full overflow-hidden text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"><SampleArtwork kind={agent.artwork}/><span className="absolute left-5 top-5 rounded-full border border-ink-700 bg-ink-950/80 px-3 py-1 text-[10px] text-ink-300">Sample</span><span className="absolute bottom-5 left-6 text-xs tracking-wide text-ink-300">{agent.artwork==='video'?'From the first frame to the final cut':'Find your audience. Keep getting better.'}</span></button>
     <div className="space-y-5 p-6"><div><p className="text-[11px] font-medium uppercase tracking-wider text-brand-400">{agent.category}</p><button type="button" onClick={()=>setSelected({agent,mode:'details'})} className="mt-2 text-left text-2xl font-medium tracking-tight text-ink-50 hover:text-brand-400">{agent.name}</button><p className="mt-3 text-sm leading-6 text-ink-300">{agent.outcome}</p><p className="mt-2 text-xs leading-5 text-ink-500">Start with {agent.input.charAt(0).toLowerCase()+agent.input.slice(1)}.</p></div>
@@ -28,7 +40,11 @@ export default function MarketplaceSampleGallery({listings}:{listings:Marketplac
     </div>
    </article>)}
   </div>
-  {!shown.length&&<p className="py-10 text-sm text-ink-400">No sample agents in this category.</p>}
+  {!shown.length&&!(category!=='marketing'&&actual.length)&&approved.status==='ready'&&<p className="py-10 text-sm text-ink-400">No agents in this category.</p>}
+  <Modal open={!!selectedReal} onClose={()=>setSelectedReal(null)} title={selectedReal?.name||'Approved listing'}>{selectedReal&&<div className="space-y-5 text-sm leading-6"><p className="text-emerald-400">Approved for the two-account beta · {selectedReal.studioName}</p><p>{selectedReal.output}</p><p className="text-ink-400">You provide: {selectedReal.input}</p><p>{selectedReal.sampleCount} owner-approved {selectedReal.sampleCount===1?'sample':'samples'}. Playback is not hosted yet.</p>
+   <section><h3 className="font-medium">Tools</h3>{selectedReal.tools.map(t=><p key={t.id} className="mt-2 text-ink-400">{t.id==='runway_media'?'Runway':t.id==='veed'?'VEED':t.id} · {t.mode==='included'?`Proposed inclusion; funding setup required${t.maximumChargeCents!==null&&t.validUntil&&Date.now()<Date.parse(t.validUntil)?` (up to $${(t.maximumChargeCents/100).toFixed(2)}/run, estimate)`:' (estimate unavailable)'}`:t.mode==='customer_connects'?'Connect your own account in Setup':'Not included'}</p>)}</section>
+   <p className="text-xs text-ink-500">Uses the existing published agent and normal Setup permissions. Billing and included-tool funding are not activated by this listing.</p><a href={`/workflows/${encodeURIComponent(selectedReal.slug)}?source=generated`} className="btn-primary inline-block">Open agent setup</a>
+  </div>}</Modal>
   <Modal open={!!selected} onClose={()=>setSelected(null)} title={selected?.mode==='owner'?selected.agent.owner.handle:selected?.agent.name||'Agent preview'}>
    {selected&&<div className="space-y-4 text-sm leading-6 text-ink-300"><p className="text-xs text-brand-400">Beta sample</p>{selected.mode==='owner'?<><p>Trains {selected.agent.owner.agentCount} {selected.agent.owner.agentCount===1?'agent':'agents'}.</p><p>Average evaluation: {selected.agent.owner.averageGrade}/100.</p><p className="text-xs text-ink-500">Illustrative trainer profile for this preview.</p></>:<><p>{selected.agent.outcome}</p><p className="text-lg text-ink-100">{SAMPLE_PRICING[selected.agent.artwork]}</p><p>Needs your Claude or ChatGPT subscription.</p><p className="text-xs text-ink-500">Sample listing. Agent details and rental checkout are coming next.</p></>}<button type="button" className="btn-primary mt-2" onClick={()=>setSelected(null)}>Done</button></div>}
   </Modal>
