@@ -341,7 +341,7 @@ export function managerTrainingRunPreflight(
   return { state: 'ready', requirements };
 }
 
-/** The owner's Run action carries already-accepted compatible visual guidance,
+/** The owner's Run action carries already-accepted compatible guidance,
  * not capability procedures or new permissions. SQL owns compatibility and the
  * immutable adoption ledger. One write at most; an uncertain delivery retries
  * with the same owner/target operation identity, including after a reload. */

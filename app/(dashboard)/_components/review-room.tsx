@@ -25,6 +25,7 @@
 import {trainingReviewHref} from '@/lib/training-review-routing';
 import { ReviewAudioEvidence } from './review-audio-evidence';
 import TrainerVoiceNote from './trainer-voice-note';
+import CustomerFeedbackSharing from './customer-feedback-sharing';
 import HistoricalReviewCandidateNotice from './historical-review-candidate-notice';
 import type { HistoricalReviewCandidate } from '@/lib/historical-review-candidate';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -83,6 +84,7 @@ export type ReviewRoomProps = {
   /** Reuses the same annotation writer; revision controls stay in Review Room. */
   trainingMode?: boolean;
   trainingOwnerId?: string;
+  customerOwnerId?: string;
   onTeachIssue?: (issue: ReviewIssue, artifact: ReviewArtifact) => void;
   onDoneTeaching?: (notes:Array<{issue:ReviewIssue;artifact:ReviewArtifact}>)=>void;
   onDirtyChange?: (dirty: boolean) => void;
@@ -1757,6 +1759,7 @@ export default function ReviewRoom(props: ReviewRoomProps) {
                     <p className="mt-0.5 text-[11px] text-sky-400">Opens another file</p>
                   )}
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink-200">{i.body}</p>
+                  {!props.trainingMode&&props.customerOwnerId&&!stale&&isSpatialAnchorV2(i.anchor as never)&&<CustomerFeedbackSharing issue={i} ownerId={props.customerOwnerId}/>}
                   {props.trainingMode && props.onTeachIssue && group.artifact && !stale && teachingNotes.some(note=>note.issue.id===i.id) && <button type="button" disabled={busy} className="mt-3 text-xs text-brand-400 hover:underline disabled:opacity-40" onClick={()=>props.onTeachIssue?.(i,group.artifact!)}>Extract training</button>}
                   {!props.trainingMode && submitView.mode === 'send_changes' && patternEligibleIssueIds.has(i.id) && (
                     <label className="mt-2 flex items-start gap-2 rounded border border-violet-500/20 bg-violet-500/5 px-2 py-1.5 text-[11px] text-ink-300">
