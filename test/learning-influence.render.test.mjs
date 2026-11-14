@@ -26,7 +26,7 @@ const payload = { ok: true, source: 'ready', selectedVersion: {
 
 test('rendered ready surface explains evidence, scope, lifecycle, and active receipt', () => {
   const html = renderToStaticMarkup(React.createElement(AgentLearningsCard,
-    { slug: fixture.scope.agentSlug, initialPayload: payload, initialSource: 'ready' }));
+    { canInspectOwnLearningInfluence: true, slug: fixture.scope.agentSlug, initialPayload: payload, initialSource: 'ready' }));
   for (const phrase of ['Train → Learnings','Suggested','Approved competence','Active','Eligible for agent v13','Evidence </dt><dd',
     'Contradictions </dt><dd','Private agent','Approve','Dismiss','Edit rule','Edit active rule','Disable','Undo','last applied',
     'Use feedback you already gave','Analyze past feedback','up to 180 days',
@@ -45,12 +45,12 @@ test('rendered ready surface explains evidence, scope, lifecycle, and active rec
 
 test('rendered proof history covers empty, pending, supplied, applied, unsupported, and revoked honestly', () => {
   const html = renderToStaticMarkup(React.createElement(AgentLearningsCard,
-    { slug: fixture.scope.agentSlug, initialPayload: payload, initialSource: 'ready' }));
+    { canInspectOwnLearningInfluence: true, slug: fixture.scope.agentSlug, initialPayload: payload, initialSource: 'ready' }));
   for (const phrase of ['Rule history', 'supply pending', 'supplied to run', 'applied',
     'unsupported scope', 'outcome pending', 'outcome accepted', 'revoked',
     'does not prove this rule caused the outcome']) assert.match(html, new RegExp(phrase));
   const empty = renderToStaticMarkup(React.createElement(AgentLearningsCard,
-    { slug: fixture.scope.agentSlug, initialPayload: { ...payload, history: [] }, initialSource: 'ready' }));
+    { canInspectOwnLearningInfluence: true, slug: fixture.scope.agentSlug, initialPayload: { ...payload, history: [] }, initialSource: 'ready' }));
   assert.match(empty, /No frozen learning context has been recorded yet/);
   assert.doesNotMatch(empty, /supplied to run/);
 });
@@ -59,7 +59,7 @@ test('rendered post-approval contradiction is visibly suspended but reversible',
   const suspended = {...payload,active:payload.active.map((rule) => ({...rule,
     contradictionCount:1,influenceState:'suspended_contradiction'}))};
   const html = renderToStaticMarkup(React.createElement(AgentLearningsCard,
-    { slug: fixture.scope.agentSlug, initialPayload: suspended, initialSource: 'ready' }));
+    { canInspectOwnLearningInfluence: true, slug: fixture.scope.agentSlug, initialPayload: suspended, initialSource: 'ready' }));
   assert.match(html, /Suspended from future runs/);
   assert.match(html, /Already-frozen runs are unchanged/);
   assert.match(html, />Disable</);
@@ -68,7 +68,7 @@ test('rendered post-approval contradiction is visibly suspended but reversible',
 
 test('rendered unavailable source is explicit and cannot masquerade as empty', () => {
   const html = renderToStaticMarkup(React.createElement(AgentLearningsCard,
-    { slug: 'render-agent', initialSource: 'unavailable' }));
+    { canInspectOwnLearningInfluence: true, slug: 'render-agent', initialSource: 'unavailable' }));
   assert.match(html, /could not be verified/);
   assert.match(html, /Nothing is shown as empty/);
   assert.match(html, /disabled=""/);
@@ -83,7 +83,7 @@ test('rendered one-run unscoped preference is advisory and author-overridable', 
     recurrenceCount: 1, contradictionCount: 0,
     scope: { ...baseScope, stepIndex: null, capabilityIdentity: null, toolIdentity: null } };
   const html = renderToStaticMarkup(React.createElement(AgentLearningsCard,
-    { slug: fixture.scope.agentSlug, initialPayload: { ...payload, suggested: [item] }, initialSource: 'ready' }));
+    { canInspectOwnLearningInfluence: true, slug: fixture.scope.agentSlug, initialPayload: { ...payload, suggested: [item] }, initialSource: 'ready' }));
   assert.match(html, /Only 1 independent run supports this suggestion/);
   assert.match(html, /low-evidence author override/);
   assert.match(html, /<button[^>]*>Approve anyway<\/button>/);

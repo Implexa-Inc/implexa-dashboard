@@ -77,6 +77,8 @@ export type AgentSection =
 export type AgentDetail = {
   workflow: WorkflowDetail;
   checklist: ActivationChecklist | null;
+  /** Author-panel visibility only; not runtime teaching readiness or a permission grant. */
+  canInspectOwnLearningInfluence: boolean | null;
   connectionWarnings: ConnectionWarning[];
   grade: AgentGrade | null;
   judgePolicy: string | null;
@@ -227,6 +229,9 @@ export async function getAgentDetail(
       detail: {
         isUnavailable: (section: AgentSection) => unavailableSet.has(section),
         workflow,
+        canInspectOwnLearningInfluence: !unavailableSet.has('own_generated')
+          && typeof body.canInspectOwnLearningInfluence === 'boolean'
+          ? body.canInspectOwnLearningInfluence : null,
         checklist: mapActivationChecklist(body.checklist ?? null, slug),
         connectionWarnings: mapEnvelopeWarnings(body.connections?.warnings),
         grade: mapGrade(body.grade),

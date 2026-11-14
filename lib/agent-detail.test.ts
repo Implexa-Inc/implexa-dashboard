@@ -278,3 +278,18 @@ test('Agent and Training share action-state derivation and preserve unknown read
  assert.equal(agentActionContext({status:'unavailable'}).statusUnavailable,true);
  const missing=await getAgentDetail('daily-brief','jwt',{fetchImpl:fetchStub(200,{...raw,unavailable:['lifecycle']}).impl});assert.equal(agentActionContext(missing).statusUnavailable,true);
 });
+
+
+test('author panel fact accepts only literal booleans and unreadable ownership stays unknown', async () => {
+  for (const [value, expected] of [[true, true], [false, false], [null, null], [undefined, null],
+    ['true', null], [1, null], [{}, null]]) {
+    const out = await getAgentDetail('daily-brief', 'jwt', { fetchImpl: fetchStub(200,
+      { ...ENVELOPE, canInspectOwnLearningInfluence: value }).impl });
+    assert.equal(out.status, 'ready');
+    if (out.status === 'ready') assert.equal(out.detail.canInspectOwnLearningInfluence, expected);
+  }
+  const out = await getAgentDetail('daily-brief', 'jwt', { fetchImpl: fetchStub(200,
+    { ...ENVELOPE, canInspectOwnLearningInfluence: true, unavailable: ['own_generated'] }).impl });
+  assert.equal(out.status, 'ready');
+  if (out.status === 'ready') assert.equal(out.detail.canInspectOwnLearningInfluence, null);
+});
