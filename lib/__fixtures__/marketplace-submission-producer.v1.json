@@ -1,0 +1,87 @@
+{
+  "provenance": {
+    "synthetic": true,
+    "producer": "real publication delivery fixture -> published snapshot -> readSubmission",
+    "migration": "0588"
+  },
+  "context": {
+    "ok": true,
+    "contractVersion": "marketplace-submission.v1",
+    "agent": {
+      "id": "ec120000-0000-4000-8000-000000006003",
+      "name": "Source fixture",
+      "versionId": "ec120000-0000-4000-8000-000000006004"
+    },
+    "binding": {
+      "versionId": "ec120000-0000-4000-8000-000000006004",
+      "publishedSnapshotDigest": "6dd0eaf899676869336523dc11a49c1d431b0cb982600e2f3fcb547f65030bc6",
+      "toolsDigest": "e3610fa8f3cef9241ee1bfa4aa2408ff3f4dacc899c048de7581f2c98d98f50b",
+      "priceDigest": "595b35f69144b0bd8e397f9a6c60631dad144779e56b40ade5435bb20beb03ec",
+      "samplesDigest": "ff6fc8a3c964d6206b28f5bb43a7e7de686f84e6ef724f19c85541e089b2e456"
+    },
+    "bindingDigest": "ba3b90cc1665286205987631df1fb782c1cf07ab1617eae75bb75072c2560cfa",
+    "canSubmit": true,
+    "tools": [
+      {
+        "id": "runway_media",
+        "name": "Runway",
+        "provider": "runway",
+        "required": false,
+        "accessMode": "api",
+        "origin": "funded_pilot_reference",
+        "canCustomerConnect": false,
+        "canInclude": true
+      }
+    ],
+    "samples": [
+      {
+        "id": "aac180c5-91e8-4249-9dbb-f9e892466607",
+        "runId": "609154c6-872e-49ca-a251-dfe00b83c577",
+        "sha256": "50b826acd925c70ab806bdaa6b852dc72ae72dd104703b571a7b2f89a9f7b5a4",
+        "relativePath": "out/result.json",
+        "role": "final_output",
+        "status": "validated",
+        "sizeBytes": 33,
+        "validatedAt": "2026-11-13T23:53:16.195Z",
+        "mtime": "2026-11-13T23:53:16.068Z",
+        "date": "2026-11-13T23:53:15.745Z"
+      }
+    ],
+    "engines": [],
+    "defaults": {
+      "name": "Source fixture",
+      "studioName": "My studio",
+      "category": "Other",
+      "input": "Topic",
+      "output": "Source fixture",
+      "servicePriceCents": 0,
+      "pricePeriod": "per_run",
+      "sampleIds": [],
+      "sampleReleaseConsent": false,
+      "tools": [
+        {
+          "id": "runway_media",
+          "mode": "not_offered",
+          "credits": 60,
+          "markupPercent": 0
+        }
+      ]
+    },
+    "draft": null,
+    "submission": null,
+    "runwayPrice": {
+      "provider": "runway",
+      "operation": "runway_gen4_5.text_to_video",
+      "model": "gen4.5",
+      "durationSeconds": 5,
+      "ratio": "1280:720",
+      "creditsPerClip": 60,
+      "centsPerCredit": 1,
+      "currency": "USD",
+      "sourceKind": "official_rate",
+      "sourceUrl": "https://docs.dev.runwayml.com/guides/pricing/",
+      "checkedAt": "2026-11-13T00:00:00Z",
+      "validUntil": "2026-11-20T00:00:00Z"
+    }
+  }
+}
