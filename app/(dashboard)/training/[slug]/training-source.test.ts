@@ -2696,3 +2696,57 @@ test('a delayed historical coverage response cannot erase current adoption proof
   assert.equal(h.calls.some(call=>call.operation==='create'),false);
  }finally{release();r.cleanup();}
 });
+
+test('Apply reconciles a lost acknowledgement from fresh exact inclusion without another write',async()=>{
+ for(const acknowledgment of ['ok','lost','malformed']){
+  const h=harness(),textId='99999999-9999-4999-8999-999999999991',requests:any[]=[];let included=false,reads=0;
+  const changes=()=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},
+   policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[{recordId:textId,recordDigest:DIGEST,summary:'Carry a meaningful visual anchor between related scenes.',
+    state:included?'candidate':'suggested',included,admissionOrigin:included?'owner_candidate':'none',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:null,policyReceiptDigest:null,sourceEventId:RECORD,sourceEventDigest:DIGEST,model:'claude-haiku-5-5'}],
+   test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:false},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}});
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
+   if(String(url).includes('/changes?')){
+    if(init.method==='POST'){requests.push(init);included=true;if(acknowledgment==='lost')throw Error('synthetic response lost after commit');return {ok:true,json:async()=>acknowledgment==='malformed'?{}:{ok:true}};}
+    reads++;return {ok:true,json:async()=>changes()};
+   }
+   return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+  }) as typeof fetch});
+  try{
+   await r.click(r.getByText('Continue to Apply & Test'));const before=reads;
+   await r.click(r.getByText('Apply selected'));
+   assert.equal(requests.length,1);assert.ok(requests[0].headers['Idempotency-Key']);
+   assert.equal(reads-before,2,'one pre-write read and one confirmation read, with no redundant mutation refresh');
+   assert.match(r.text(),/1 lesson saved\. Test this update/);assert.doesNotMatch(r.text(),/could not be confirmed|0 of 1/);
+   assert.equal(h.calls.some(c=>c.operation==='accept'),false,'uses existing text admission, never the visual authority writer');
+  }finally{r.cleanup();}
+ }
+});
+
+test('unconfirmed Apply remains unknown until same-session exact-digest inclusion is freshly read',async()=>{
+ for(const refreshed of ['included','different-digest','foreign-session','excluded','unavailable']){
+  const h=harness(),textId='99999999-9999-4999-8999-999999999992';let posts=0,afterWrite=false,allowRefresh=false;
+  const changes=()=>({ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:allowRefresh&&refreshed==='foreign-session'?NEW_SESSION:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},
+   policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[{recordId:textId,recordDigest:allowRefresh&&refreshed==='different-digest'?'e'.repeat(64):DIGEST,summary:'Carry the visual relationship forward.',
+    state:afterWrite?'candidate':'suggested',included:afterWrite&&refreshed!=='excluded',admissionOrigin:afterWrite?'owner_candidate':'none',category:'taste',sourceKind:'trainer_feedback',policyReceiptId:null,policyReceiptDigest:null,sourceEventId:RECORD,sourceEventDigest:DIGEST,model:'claude-haiku-5-5'}],
+   test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:false},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}});
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
+   if(String(url).includes('/changes?')){
+    if(init.method==='POST'){posts++;afterWrite=true;throw Error('synthetic acknowledgement lost');}
+    if(afterWrite&&(!allowRefresh||refreshed==='unavailable'))throw Error('synthetic confirmation read unavailable');
+    return {ok:true,json:async()=>changes()};
+   }
+   return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+  }) as typeof fetch});
+  try{
+   await r.click(r.getByText('Continue to Apply & Test'));await r.click(r.getByText('Apply selected'));
+   assert.equal(posts,1);assert.match(r.text(),/0 of 1 selected lessons confirmed saved/);
+   assert.doesNotMatch(r.text(),/1 lesson saved\. Test this update/);
+   allowRefresh=true;await r.click(r.getByText('Refresh saved changes'));
+   assert.equal(posts,1,'refresh never re-admits or auto-retries a mutation');
+   if(refreshed==='included'){
+    assert.match(r.text(),/1 lesson saved\. Test this update/);
+    assert.doesNotMatch(r.text(),/could not be confirmed|0 of 1/,'the owned stale Apply error is reconciled');
+   }else assert.doesNotMatch(r.text(),/1 lesson saved\. Test this update/,'other records, contexts and unknown reads cannot confirm this intent');
+  }finally{r.cleanup();}
+ }
+});
