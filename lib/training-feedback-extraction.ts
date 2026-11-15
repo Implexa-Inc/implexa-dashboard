@@ -1,3 +1,5 @@
+import {buildSpatialAnchor,anchorError,INTENT_CHANGE} from './review-anchor.ts';
+import type {DraftSpatial} from './review-timestamp-feedback.ts';
 import {demoAnnotationReceipt,scopedTeachingSuggestion,teachingDigest,teachingFrame,type DemoAnnotation,type ScopedTeachingSuggestion} from './training-teaching-draft.ts';
 import {deriveTrainingStages,TRAINING_PROPERTY_CODES,TRAINING_RELATIONS,type TrainingPropertyCode} from './training-local-ingress.ts';
 
@@ -22,6 +24,36 @@ export function checkpointExtraction(storage:Pick<Storage,'setItem'>,scope:strin
   const value=JSON.stringify({version:1,progress});
   if(value.length>20000)throw Error('This extraction is too large to save for recovery.');
   try{storage.setItem(`${JOURNAL_PREFIX}${scope}:${progress.fingerprint||progress.key}`,value);}catch{throw Error('Implexa could not save this draft for recovery. Free browser storage and retry; your original note stays saved.');}
+}
+export type SavedDirectFeedback={fingerprint:string;annotation:DemoAnnotation;feedback:string;spatial:DraftSpatial|null};
+/** Discover resumable UI state only. Canonical scope and frame checks still run
+ * when opened and extracted; the journal cannot grant training authority. */
+export async function savedDirectFeedback(storage:Pick<Storage,'length'|'key'|'getItem'|'setItem'>,
+ {ownerId,sessionId,versionId,sources}:{ownerId:string;sessionId:string;versionId:string;sources:Source[]}):Promise<{notes:SavedDirectFeedback[];unreadableCount:number}>{
+  const scope=`${ownerId}:${sessionId}:${versionId}`,prefix=`${JOURNAL_PREFIX}${scope}:`,notes:SavedDirectFeedback[]=[];let unreadableCount=0;
+  for(let index=0;index<storage.length;index++){
+    const key=storage.key(index);if(!key?.startsWith(prefix))continue;
+    try{
+      const fingerprint=key.slice(prefix.length),progress=extractionProgressFor(storage,scope,fingerprint),a=progress.annotation;
+      if(progress.linked||!a)continue;
+      if(!/^[a-f0-9-]{36}$/.test(a.annotationId)||!/^[a-f0-9]{64}$/.test(a.annotationDigest)
+        ||!/^[a-f0-9]{64}$/.test(a.frameSha256)||a.expectedActiveVersionId!==versionId
+        ||typeof a.rawAnnotation!=='string'||!a.rawAnnotation.trim()||a.rawAnnotation.length>2000
+        ||new TextEncoder().encode(a.rawAnnotation).length>8000)throw Error('invalid saved annotation');
+      const source=sources.find(source=>source.sourceId===a.sourceId&&source.metadata.sha256===a.sourceSha256);
+      if(!source||!Number.isSafeInteger(source.metadata.durationMs)||source.metadata.durationMs<0||!Number.isSafeInteger(a.timeMs)||a.timeMs<0
+        ||(source.metadata.durationMs===0?a.timeMs!==0:a.timeMs>=source.metadata.durationMs))throw Error('saved source unavailable');
+      const note=JSON.parse(a.rawAnnotation);
+      if(note?.role!=='trainer_commentary'||note.sourceKind!=='upload'||note.sourceId!==a.sourceId||note.timeMs!==a.timeMs
+        ||typeof note.feedback!=='string'||!note.feedback.trim())continue;
+      const spatial=note.spatial??null;
+      if(spatial!==null&&anchorError(buildSpatialAnchor({observedArtifactId:a.sourceId,observedArtifactSha256:a.sourceSha256,intent:{mode:INTENT_CHANGE},temporalStartMs:a.timeMs,geometry:spatial.geometry,sourceFrame:spatial.sourceFrame}))!==null)throw Error('invalid saved mark');
+      const expected=await teachingDigest(new TextEncoder().encode(JSON.stringify({id:sessionId,version:versionId,sourceId:a.sourceId,sourceSha256:a.sourceSha256,rawAnnotation:a.rawAnnotation,frameTime:a.timeMs})));
+      if(expected!==fingerprint)throw Error('saved identity mismatch');
+      notes.push({fingerprint,annotation:a,feedback:note.feedback,spatial});
+    }catch{unreadableCount++;}
+  }
+  return {notes:notes.sort((a,b)=>a.fingerprint.localeCompare(b.fingerprint)),unreadableCount};
 }
 export type FeedbackDraftRequest={key:string;fingerprint:string;annotationId:string;annotationDigest:string};
 /** This one-click authorization is never persisted. The extractor verifies it

@@ -2819,9 +2819,16 @@ test('an interrupted uploaded-note analysis offers an explicit new draft without
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,30));});
  try{
   await chooseDirectUpload(r);await flush();
-  const note=r.document.querySelector('[aria-label="Teach from an image"] textarea')!;assert.ok(note);
+  let note=r.document.querySelector('[aria-label="Teach from an image"] textarea')!;assert.ok(note);
   await setTextarea(r,note,'Let the image explain the actual relationship.');
   await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await flush();assert.equal(drafts,1);
+  await r.rerender({slug:'video-craft',ownerId:RECORD,key:'fresh-training-page'});await flush();
+  assert.equal(drafts,1,'remount never repeats the model request');assert.ok(r.queryByText('Continue saved feedback'));
+  await r.click(r.getByText('Continue saved feedback'));await flush();
+  note=r.document.querySelector('[aria-label="Teach from an image"] textarea')!;
+  assert.equal((note as HTMLTextAreaElement).value,'Let the image explain the actual relationship.');
+  assert.equal(drafts,1);assert.equal(requests.filter(b=>b.action==='save').length,1,'reopening restores the original note without another annotation writer');
+
   const retry=()=>Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Request another draft')!;
   assert.ok(retry());assert.equal(retry().closest('[hidden]'),null);
   await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await flush();assert.equal(drafts,1,'ordinary extraction cannot repeat an unknown request');

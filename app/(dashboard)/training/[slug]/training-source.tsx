@@ -21,7 +21,7 @@ import RunMarkTraining from './run-mark-training';
 import SavedReviewTeaching from './saved-review-teaching';
 import TrainingImagePlayer from './training-image-player';
 import TrainingDraftBundle,{visualTeachingSelectable} from './training-draft-bundle';
-import {extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
+import {extractFeedbackTeaching,savedDirectFeedback,type SavedDirectFeedback,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
 import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import type {Moment,RecordingDetail} from '@/lib/review-recorder';
 import {TrainingDialog as Modal} from './training-workspace';
@@ -859,6 +859,34 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       setExtractionNote(`${completed} draft${completed===1?'':'s'} ready to review${held?`; ${held} need clarification`:''}. Nothing is live yet.`);setLastFeedbackBatch(null);if(completed)selectTrainingStep(2);
     });
   }
+  const [savedFeedback,setSavedFeedback]=useState<SavedDirectFeedback[]>([]),[savedFeedbackUnreadable,setSavedFeedbackUnreadable]=useState(0),[reopenedFeedback,setReopenedFeedback]=useState<SavedDirectFeedback|null>(null);
+  useEffect(()=>{
+    let live=true;
+    if(!ownerId||!session||!currentVersion||sessionVersion!==currentVersion||installationId){setSavedFeedback([]);setSavedFeedbackUnreadable(0);return;}
+    void savedDirectFeedback(window.localStorage,{ownerId,sessionId:session,versionId:currentVersion,sources:sources.filter(source=>!!source.token).map(source=>({...source,token:source.token!}))})
+      .then(value=>{if(live){setSavedFeedback(value.notes);setSavedFeedbackUnreadable(value.unreadableCount);}}).catch(()=>{if(live){setSavedFeedback([]);setSavedFeedbackUnreadable(1);}});
+    return()=>{live=false;};
+  },[ownerId,session,currentVersion,sessionVersion,sources,installationId,busy]);
+  async function reopenSavedFeedback(note:SavedDirectFeedback){
+    if(!ownerId||!session||!currentVersion||versionChanged||directNote.trim()||directVoiceDirty||runDirty||recordingDirty||runFeedbackRequest)return;
+    const id=session,version=currentVersion,source=sources.find(source=>source.sourceId===note.annotation.sourceId&&!!source.token);
+    if(!source?.token)return;
+    await work('Opening your saved feedback',async()=>{
+      const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your saved note is preserved.');
+      const notes=await savedDirectFeedback(window.localStorage,{ownerId,sessionId:id,versionId:version,sources:[{...source,token:source.token!}]});
+      const saved=notes.notes.find(candidate=>candidate.fingerprint===note.fingerprint&&candidate.annotation.annotationId===note.annotation.annotationId&&candidate.annotation.annotationDigest===note.annotation.annotationDigest);
+      if(!saved)throw Error('This saved note changed. Reopen its current training history.');
+      const frame=await call('preview',{token:source.token,timeMs:saved.annotation.timeMs});
+      if(typeof frame.image!=='string'||await teachingDigest(teachingFrame(frame.image))!==saved.annotation.frameSha256)throw Error('The saved frame could not be verified. Your note is preserved.');
+      if(!chooseSource(source))return;
+      setRunSource(null);setActiveRecordingId(null);setDirectSource(true);setTime(saved.annotation.timeMs);
+      setPreview({token:source.token!,timeMs:saved.annotation.timeMs,image:frame.image});setDirectNote(saved.feedback);setDemoText(saved.annotation.rawAnnotation);setReopenedFeedback(saved);
+      const progress=extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,saved.fingerprint);
+      extractionProgress.current.set(saved.fingerprint,progress);
+      if(progress.suggestionStarted&&progress.annotation&&!progress.suggestion&&!progress.record&&!progress.linked)setDirectDraftRetry({fingerprint:saved.fingerprint,sessionId:id,versionId:version,sourceId:source.sourceId,timeMs:saved.annotation.timeMs,rawAnnotation:saved.annotation.rawAnnotation,request:retryFeedbackDraft(progress,saved.fingerprint)});
+      else setDirectDraftRetry(null);
+    });
+  }
   async function extractDirectFeedback(newDraftRequest?:FeedbackDraftRequest){
     if(!selected?.token||!currentVersion||!session||!demoText.trim()||versionChanged)return;
     const source={...selected,token:selected.token},version=currentVersion,id=session,rawAnnotation=demoText,frameTime=time;
@@ -954,7 +982,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
           const frame=await call('preview',{token:source.token,timeMs:0});
           if(frame.image)setPreview({token:source.token,timeMs:0,image:frame.image});
         }else if(directUpload&&source.token){
-          setDirectSource(true);setConsent(false);setDirectNote('');setPlaybackFallback('');
+          setDirectSource(true);setReopenedFeedback(null);setConsent(false);setDirectNote('');setPlaybackFallback('');
           if(added.recordingId&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(added.recordingId)&&source.metadata.mediaType==='video/mp4'){
             recordingSources.current.set(`${id}:${currentVersion}:${added.recordingId}`,{sourceId:source.sourceId,token:source.token,version:currentVersion!,sessionId:id});
             setActiveRecordingId(added.recordingId);setActiveRecordingDetail(null);setTrainerNarration(false);setRunSource(null);
@@ -1549,9 +1577,10 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&<><h2 className="text-xl font-medium tracking-tight">Ways to train</h2>{questionsError&&<div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-ink-400"><p>Training suggestions couldn’t load.</p><button type="button" disabled={questionsBusy||!!busy} onClick={()=>void loadQuestions()} className="underline">Retry training suggestions</button></div>}<CustomerTrainingInbox slug={slug} ownerId={ownerId||''} sessionId={sessionVersion===currentVersion?session:null} versionId={currentVersion} disabled={!!busy||changesBusy||versionChanged} onStart={()=>startPrivateTraining(false)} onSaved={()=>{void loadChanges();selectTrainingStep(2);}} onOwnExample={()=>{selectTrainingStep(1);setView('teach');}}/><TrainingOpportunities key={`${ownerId}:${slug}`} runs={recentRuns} pendingCount={unappliedCount} onReview={()=>selectTrainingStep(2)} questions={questions} sessionId={sessionVersion===currentVersion?session:null} versionId={currentVersion} disabled={!!busy||changesBusy||versionChanged} onStart={()=>startPrivateTraining(false)} onSaved={()=>{void loadChanges();void loadQuestions();selectTrainingStep(2);}}/>
     <section className="space-y-2 border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Chat with Implexa</h3><p className="text-sm text-ink-400">Teach a preference, ask a question or change how your agent works.</p><button id="training-chat-toggle" type="button" aria-expanded={chatExpanded} aria-controls="training-companion" disabled={!!busy} onClick={()=>chatExpanded?setChatExpanded(false):focusChat()} className="rounded-lg border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-ink-500">✦ {chatExpanded?'Close chat':'Chat with Implexa'}</button></section></>}
     {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onSelectRun={openRun} selectedRunId={activeRunId} sourceActive={!!activeRunId||!!activeRecordingId||directSource}  actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={requestTrainingUpload} uploadDisabled={!!busy||changesBusy||versionChanged||!currentVersion} uploading={busy==='Verifying the selected source and saving its identity'}/>}/>}
+    {!installationId&&!directSource&&!activeRecordingId&&!activeRunId&&(savedFeedback.length>0||savedFeedbackUnreadable>0)&&<section aria-label="Saved feedback to finish" className="space-y-3 rounded-xl border border-ink-800 p-4"><h3 className="text-lg font-medium">Continue your saved feedback</h3>{savedFeedbackUnreadable>0&&<p role="status" className="text-sm text-amber-300">Some saved feedback could not be reopened. Your saved notes have not been changed.</p>}{savedFeedback.map(note=><div key={note.fingerprint} className="space-y-2"><p className="line-clamp-2 text-sm text-ink-400">{note.feedback}</p><button type="button" className="text-sm text-orange-400 underline" disabled={!!busy||changesBusy||versionChanged||directVoiceDirty||runDirty||recordingDirty||!!runFeedbackRequest} onClick={()=>void reopenSavedFeedback(note)}>Continue saved feedback</button></div>)}</section>}
     {!installationId&&pendingRecordingId&&<div role="status" className="text-sm text-ink-300">Another recording is ready. Your current feedback is preserved. <button type="button" className="underline" onClick={()=>{if(recordingDirty){setClosingRecording(false);setReplaceRecordingOpen(true);}else if(pendingRecordingId)openRecording(pendingRecordingId);}}>Annotate new recording</button></div>}
     {!installationId&&directSource&&!activeRunId&&!activeRecordingId&&selected?.token&&previewIsCurrent&&preview?.image&&<>
-      <TrainingImagePlayer key={`${selected.sourceId}:${time}`} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} disabled={!!busy||changesBusy||versionChanged}
+      <TrainingImagePlayer key={`${selected.sourceId}:${time}:${reopenedFeedback?.fingerprint||'new'}`} initialSpatial={reopenedFeedback?.spatial||null} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} disabled={!!busy||changesBusy||versionChanged}
         onChange={(text,spatial)=>{setDirectNote(text);setDemoText(text.trim()||spatial?JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:selected.sourceId,timeMs:time,spatial,feedback:text}):'');}}
         onDone={()=>setDirectExtractionRequested(true)}/>
       {directDraftRetryIsCurrent&&<button type="button" className="text-sm text-orange-400 underline" disabled={!!busy||suggesting||changesBusy||versionChanged} onClick={()=>setFeedbackRetry('direct')}>Request another draft</button>}

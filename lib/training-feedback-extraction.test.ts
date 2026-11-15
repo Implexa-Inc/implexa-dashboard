@@ -1,21 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from './training-feedback-extraction.ts';
+import {extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,savedDirectFeedback,type FeedbackExtractionProgress,type FeedbackDraftRequest} from './training-feedback-extraction.ts';
 const id='11111111-1111-4111-8111-111111111111',record='22222222-2222-4222-8222-222222222222';
 const sha='a'.repeat(64),source={sourceId:id,token:'native-token',metadata:{sha256:sha,durationMs:1000}};
 const image='data:image/png;base64,'+Buffer.alloc(40,1).toString('base64');
 const hash=(text:string)=>createHash('sha256').update(text).digest('hex');
 const fields={chosen:'In this example, the route is a wall of text.',why:'Prefer a spatial explanation when geography matters.',process:'Applies when location explains the comparison.',desiredBehavior:'Explain the relationship visually, with a map when useful.'};
-function setup({nullScope=false,linkFails=false,wrongBinding=false,insufficient=false}={}){
+function setup({nullScope=false,linkFails=false,wrongBinding=false,insufficient=false,rawAnnotation='Show the location on a map, rather than listing names.',timeMs=1000}={}){
  const calls:any[]=[],progress:FeedbackExtractionProgress={key:id};let links=0;
- const run=(recovered=progress,checkpoint=()=>{},newDraftRequest?:FeedbackDraftRequest)=>extractFeedbackTeaching({source,timeMs:1000,rawAnnotation:'Show the location on a map, rather than listing names.',versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress:recovered,checkpoint,newDraftRequest,
+ const run=(recovered=progress,checkpoint=()=>{},newDraftRequest?:FeedbackDraftRequest)=>extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress:recovered,checkpoint,newDraftRequest,
   check:async()=>{calls.push(['check']);},call:async(op,args:any)=>{calls.push([op,args]);if(op==='preview')return {ok:true,image};if(op==='annotate')return {ok:true,recordId:record,recordDigest:sha};throw Error('Unexpected writer');},
   send:async(op,body:any,key)=>{calls.push([op,body,key]);
    if(op==='annotation'&&body.action==='save'){const {action,expectedActiveVersionId,...annotation}=body;return {ok:true,contractVersion:'training-demo-annotation.v1',annotationId:id,annotationDigest:sha,annotation:{...annotation,contractVersion:'training-demo-annotation.v1',targetVersionId:expectedActiveVersionId}};}
    if(op==='annotation'){if(linkFails&&++links===1)throw Error('lost link response');return {ok:true,contractVersion:'training-demo-link.v1',annotationId:id,annotationDigest:sha,recordId:record,recordDigest:sha,linkReceiptId:id};}
    const {mode,includeScope,image,consent,...binding}=body;
-   return {ok:true,requestId:id,contractVersion:'training-teaching-suggestion.v6',model:'claude-haiku-5-5',status:insufficient?'insufficient':'suggested',fields:insufficient?null:fields,reason:insufficient?'Please explain what you prefer.':'',scopeSuggestion:nullScope||insufficient?null:{property:'narrative_visual_alignment',relation:'rejected'},binding:{...binding,sourceId:wrongBinding?record:binding.sourceId,feedbackSha256:hash('Show the location on a map, rather than listing names.')},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}};
+   return {ok:true,requestId:id,contractVersion:'training-teaching-suggestion.v6',model:'claude-haiku-5-5',status:insufficient?'insufficient':'suggested',fields:insufficient?null:fields,reason:insufficient?'Please explain what you prefer.':'',scopeSuggestion:nullScope||insufficient?null:{property:'narrative_visual_alignment',relation:'rejected'},binding:{...binding,sourceId:wrongBinding?record:binding.sourceId,feedbackSha256:hash(rawAnnotation)},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}};
   }});
  return {run,calls,progress};
 }
@@ -106,4 +106,23 @@ test('new-draft confirmation does not survive a changed frame or revoked scope',
    check:async()=>{if(mode==='scope')throw Error('scope changed');},call:async()=>({ok:true,image:'data:image/png;base64,'+Buffer.alloc(40,2).toString('base64')}),send:async()=>assert.fail('changed evidence must not send')}),mode==='scope'?/scope changed/:/no longer matches/);
   assert.equal(progress.suggestionStarted,true);assert.equal(progress.draftingRetries,undefined);assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);
  }
+});
+
+test('reload discovery uses the real producer journal and exact upload scope without writes',async()=>{
+ const ownerId=id,sessionId=id,versionId=id,timeMs=0;
+ const rawAnnotation=JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:id,timeMs,spatial:{geometry:{kind:'point',x:0.2,y:0.3,width:null,height:null},sourceFrame:{visualWidth:1,visualHeight:1}},feedback:'Explain the actual relationship.'});
+ const fingerprint=hash(JSON.stringify({id:sessionId,version:versionId,sourceId:id,sourceSha256:sha,rawAnnotation,frameTime:timeMs}));
+ const values=new Map<string,string>(),storage={get length(){return values.size;},key:(i:number)=>[...values.keys()][i]||null,getItem:(k:string)=>values.get(k)||null,setItem:(k:string,v:string)=>{values.set(k,v);}};
+ const progress=extractionProgressFor(storage,`${ownerId}:${sessionId}:${versionId}`,fingerprint),{run}=setup({wrongBinding:true,rawAnnotation,timeMs});
+ await assert.rejects(run(progress,()=>checkpointExtraction(storage,`${ownerId}:${sessionId}:${versionId}`,progress)),/did not match/);
+ const snapshot=[...values];const {notes,unreadableCount}=await savedDirectFeedback(storage,{ownerId,sessionId,versionId,sources:[source]});assert.equal(unreadableCount,0);
+ assert.equal(notes.length,1);assert.equal(notes[0].annotation.rawAnnotation,rawAnnotation);assert.equal(notes[0].feedback,'Explain the actual relationship.');assert.equal(notes[0].fingerprint,fingerprint);assert.deepEqual(notes[0].spatial,JSON.parse(rawAnnotation).spatial);
+ assert.deepEqual([...values],snapshot,'discovery cannot reset or rewrite the journal');
+ for(const patch of [{ownerId:record},{sessionId:record},{versionId:record},{sources:[{...source,sourceId:record}]},{sources:[{...source,metadata:{...source.metadata,sha256:'c'.repeat(64)}}]}]){
+  assert.deepEqual((await savedDirectFeedback(storage,{ownerId,sessionId,versionId,sources:[source],...patch})).notes,[]);
+ }
+ progress.linked=true;checkpointExtraction(storage,`${ownerId}:${sessionId}:${versionId}`,progress);
+ assert.deepEqual((await savedDirectFeedback(storage,{ownerId,sessionId,versionId,sources:[source]})).notes,[],'completed drafts stay in normal review');
+ const originalKey=[...values.keys()][0];values.set(originalKey,'not-json');
+ const broken=await savedDirectFeedback(storage,{ownerId,sessionId,versionId,sources:[source]});assert.deepEqual(broken.notes,[]);assert.equal(broken.unreadableCount,1);assert.equal(values.get(originalKey),'not-json');
 });
