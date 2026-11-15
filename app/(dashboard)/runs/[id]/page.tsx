@@ -688,6 +688,7 @@ export default async function RunDetailPage({
   // an active one and the page had no way to stop showing "reviewing".
   let judgeRequestStatus: 'pending' | 'consumed' | 'cancelled' | null = null;
   let judgeRequestCreatedAt: string | null = null;
+  let failedJudgeRetry: { requestId: string; runId: string } | null = null;
   if (!judgment) {
     try {
       // created_at is fetched so the client can stop polling on its own after a
@@ -698,10 +699,16 @@ export default async function RunDetailPage({
       // 'failed' status), and without a deadline the browser would refresh
       // every 20s forever.
       const { data: jq } = await supabase.from('run_requests')
-        .select('status, created_at').eq('judge_target_run_id', params.id)
-        .in('status', ['pending', 'consumed', 'cancelled']).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      judgmentPending = !!jq;
-      judgeRequestStatus = (jq && jq.status) || null;
+        .select('id, status, lifecycle_state, run_id, created_at').eq('judge_target_run_id', params.id)
+        .eq('kind', 'judge').eq('source', 'implexa-judge').is('manager_verification_request_id', null)
+        .in('status', ['pending', 'consumed', 'cancelled', 'done']).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      // Manager execution cards redirect here. Keep their existing owner-granted
+      // retry reachable without exposing a scaffold as another customer run.
+      if (jq?.status === 'done' && jq.lifecycle_state === 'failed' && jq.run_id && jq.run_id !== params.id) {
+        failedJudgeRetry = { requestId: jq.id, runId: jq.run_id };
+      }
+      judgmentPending = !!jq && jq.status !== 'done';
+      judgeRequestStatus = jq && jq.status !== 'done' ? jq.status : null;
       judgeRequestCreatedAt = (jq && jq.created_at) || null;
     } catch { /* 0121 not applied — no pending state */ }
   }
@@ -1011,6 +1018,13 @@ export default async function RunDetailPage({
         {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-amber-300">{creativeGradeNotice}</p>}
         <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id} />
         {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
+        {failedJudgeRetry && (
+          <section className="card border-amber-500/30" aria-label="Final review recovery">
+            <h2 className="font-medium text-ink-100">Final review could not start</h2>
+            <p className="mt-1 text-sm text-ink-300">Your delivered work is unchanged. This retries only its review.</p>
+            <ControlPlaneRetry requestId={failedJudgeRetry.requestId} runId={failedJudgeRetry.runId} />
+          </section>
+        )}
         {judgment?.verdict === 'repair' && ['pending', 'consumed'].includes(repairRequest?.status || '') && (
           <RunJudgmentPending phase="repair" requestStatus={(repairRequest?.status as 'pending' | 'consumed') || null} createdAt={repairRequest?.created_at || null} />
         )}
