@@ -41,8 +41,8 @@ test('the browser supplies request identity plus the opaque grant it read back, 
 });
 
 test('the no-work claim is rendered only behind mayClaimNoWork and excludes paid recovery', () => {
-  assert.match(component, /\{mayClaimNoWork\(presentation\) && \(\s*\n\s*<p[^>]*>\{NO_WORK_CLAIM\}<\/p>/);
-  assert.equal((component.match(/NO_WORK_CLAIM/g) || []).length, 2, 'imported once, rendered once, behind the guard');
+  assert.match(component, /\{mayClaimNoWork\(presentation\) && !judgeReview && \(\s*\n\s*<p[^>]*>\{NO_WORK_CLAIM\}<\/p>/);
+  assert.equal((component.match(/\bNO_WORK_CLAIM\b/g) || []).length, 2, 'imported once, rendered once, behind the guard');
   assert.doesNotMatch(component, /No work or provider action started/, 'the sentence lives in the classifier, not as loose copy');
   const lib = readFileSync(join(process.cwd(), 'lib', 'control-plane-retry.ts'), 'utf8');
   assert.match(lib, /return \(p\.state === 'available' \|\| p\.state === 'queued'\) && !p\.paidPrelaunch;/);
@@ -75,4 +75,52 @@ test('a settled missing-training hold shows Training without offering the bootst
   assert.match(page,/requiredTrainingHold && <div role="status"/);
   assert.match(page,/href=\{`\/training\/\$\{encodeURIComponent\(r\.skill_slug\)\}`\}/);
   assert.match(page,/Accept replacement training before starting a new run/);
+});
+
+test('the delivered page offers only its latest failed ordinary Judge for backend-checked recovery', async () => {
+  const start = page.indexOf('  let judgeRequestStatus:'), end = page.indexOf('\n  let creativeGradeNotice:', start);
+  assert.ok(start > 0 && end > start);
+  const block = page.slice(start, end)
+    .replace(/let judgeRequestStatus:.*? = null;/, 'let judgeRequestStatus = null;')
+    .replace(/let judgeRequestCreatedAt:.*? = null;/, 'let judgeRequestCreatedAt = null;')
+    .replace(/let failedJudgeRetry:.*? = null;/, 'let failedJudgeRetry = null;');
+  const read = new Function('supabase', 'params', 'judgment', 'judgmentReadUnavailable', 'session', `return (async()=>{let judgmentPending=false;${block};return {judgmentPending,judgeRequestStatus,failedJudgeRetry,unavailable:judgmentReadUnavailable};})()`);
+  const ownerSession={user:{id:'customer'}};
+  const failed = {user_id:'customer',id:'judge-request',judge_target_run_id:'target',kind:'judge',source:'implexa-judge',manager_verification_request_id:null,
+    status:'done',lifecycle_state:'failed',run_id:'judge-child',created_at:'2026-11-15T08:00:00Z'};
+  let rows: any[] = [failed], reads = 0, queryError = false, queryErrorAtRead = Infinity;
+  const db = {from(table: string) {
+    assert.equal(table,'run_requests'); reads++;
+    let chosen = [...rows];
+    return {select(){return this;},eq(key:string,value:unknown){chosen=chosen.filter(r=>r[key]===value);return this;},
+      is(key:string,value:null){chosen=chosen.filter(r=>r[key]===value);return this;},
+      in(key:string,values:string[]){chosen=chosen.filter(r=>values.includes(r[key]));return this;},
+      order(key:string){chosen.sort((a,b)=>b[key].localeCompare(a[key]));return this;},limit(n:number){chosen=chosen.slice(0,n);return this;},
+      async maybeSingle(){return {data:chosen[0]||null,error:(queryError||reads===queryErrorAtRead)?new Error('offline'):null};}};
+  }};
+  const view = () => read(db,{id:'target'},null,false,ownerSession);
+  assert.deepEqual(await view(),{judgmentPending:false,judgeRequestStatus:null,failedJudgeRetry:{requestId:'judge-request',runId:'judge-child'},unavailable:false});
+  rows = [failed,{...failed,id:'newer',status:'pending',created_at:'2026-11-15T09:00:00Z'}];
+  assert.deepEqual(await view(),{judgmentPending:true,judgeRequestStatus:'pending',failedJudgeRetry:null,unavailable:false},'new active review wins over old failure');
+  rows=[failed,{...failed,id:'manager-qa',source:'manager_qa_verification',manager_verification_request_id:'proof',status:'pending',created_at:'2026-11-15T07:00:00Z'}];
+  assert.deepEqual(await view(),{judgmentPending:true,judgeRequestStatus:'pending',failedJudgeRetry:null,unavailable:false},'active Manager QA must not be masked by a newer failed ordinary Judge');
+  for (const change of [{user_id:'other'},{source:'other'},{kind:'recover'},{manager_verification_request_id:'manager-proof'},
+    {lifecycle_state:'completed'},{run_id:null},{run_id:'target'}]) {
+    rows=[{...failed,...change}]; assert.equal((await view()).failedJudgeRetry,null,JSON.stringify(change));
+  }
+  rows=[{...failed,status:'cancelled'}];
+  assert.deepEqual(await view(),{judgmentPending:true,judgeRequestStatus:'cancelled',failedJudgeRetry:null,unavailable:false},'existing cancellation presentation retained');
+  const before=reads;
+  assert.equal((await read(db,{id:'target'},{id:'verdict'},false,ownerSession)).failedJudgeRetry,null);
+  assert.equal(reads,before,'a recorded verdict must suppress recovery and the request query');
+  queryError=true; rows=[failed];
+  assert.deepEqual(await view(),{judgmentPending:false,judgeRequestStatus:null,failedJudgeRetry:null,unavailable:true},'failed read is unavailable, never a confirmed absence');
+  queryError=false; queryErrorAtRead=reads+2;
+  assert.deepEqual(await view(),{judgmentPending:false,judgeRequestStatus:null,failedJudgeRetry:null,unavailable:true},'ordinary recovery read errors are not an empty result either');
+  const beforeUnavailable=reads;
+  assert.equal((await read(db,{id:'target'},null,true,ownerSession)).failedJudgeRetry,null);
+  assert.equal(reads,beforeUnavailable,'unknown verdict status cannot offer recovery');
+  assert.match(page,/<ControlPlaneRetry requestId=\{failedJudgeRetry\.requestId\} runId=\{failedJudgeRetry\.runId\} \/>/,
+    'reuse the existing owner grant and source-Mac check with the Judge child, never the video run');
+  assert.match(page,/Your delivered work is unchanged\./);
 });

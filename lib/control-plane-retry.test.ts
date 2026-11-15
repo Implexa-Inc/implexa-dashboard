@@ -138,3 +138,14 @@ test('the distinction from Run again and the claim are explicit copy', () => {
   assert.equal(RUN_AGAIN_DISTINCTION, 'Run again: creates a new request');
   assert.match(NO_WORK_CLAIM, /No work or provider action started\./);
 });
+
+
+test('ordinary Judge copy is scoped to the final review only after affirmative server eligibility', () => {
+  const eligible = {...ELIGIBLE,failureCode:'judge_text_gate_prelaunch_refusal'};
+  assert.equal((describeControlPlaneRetry(eligible) as any).judgeReview,true);
+  assert.equal((describeControlPlaneRetry({...eligible,alreadyQueued:true}) as any).judgeReview,true);
+  for (const changed of [{eligible:false},{ok:false},{grantId:null},{workflowVersionId:null}]) {
+    assert.equal((describeControlPlaneRetry({...eligible,...changed}) as any).judgeReview,undefined);
+  }
+  assert.equal((describeControlPlaneRetry(ELIGIBLE) as any).judgeReview,undefined,'old retry copy remains unchanged');
+});
