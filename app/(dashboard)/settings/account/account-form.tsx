@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+
+type DesktopSetupBridge = { openSetup?: () => Promise<{ ok?: boolean }> };
+const desktopSetupBridge = () => (window as unknown as { implexaDesktop?: DesktopSetupBridge }).implexaDesktop;
 
 export default function AccountForm({
   currentEmail,
@@ -13,6 +16,20 @@ export default function AccountForm({
 }) {
   const router = useRouter();
   const supabase = createClient();
+
+  const [desktopSetupAvailable, setDesktopSetupAvailable] = useState(false);
+  const [desktopSetupOpening, setDesktopSetupOpening] = useState(false);
+  const [desktopSetupError, setDesktopSetupError] = useState(false);
+  useEffect(() => { setDesktopSetupAvailable(typeof desktopSetupBridge()?.openSetup === 'function'); }, []);
+
+  async function openDesktopSetup() {
+    setDesktopSetupOpening(true); setDesktopSetupError(false);
+    try {
+      const result = await desktopSetupBridge()?.openSetup?.();
+      if (result?.ok !== true) setDesktopSetupError(true);
+    } catch { setDesktopSetupError(true); }
+    finally { setDesktopSetupOpening(false); }
+  }
 
   // Display name
   const [name, setName] = useState(currentDisplayName);
@@ -62,6 +79,14 @@ export default function AccountForm({
 
   return (
     <div className="space-y-6">
+      {desktopSetupAvailable && <section className="card">
+        <h2 className="text-base font-medium text-ink-50 mb-1">Desktop account</h2>
+        <p className="text-xs text-ink-300 mb-4">Link or switch the account Implexa uses on this Mac.</p>
+        <button type="button" className="btn-outline" disabled={desktopSetupOpening} onClick={openDesktopSetup}>
+          {desktopSetupOpening ? 'Opening…' : 'Open Desktop setup'}
+        </button>
+        {desktopSetupError && <p role="alert" className="text-xs text-red-600 mt-2">Couldn’t open Desktop setup. Try again.</p>}
+      </section>}
       {/* Display name */}
       <section className="card">
         <h2 className="text-base font-medium text-ink-50 mb-1">Display name</h2>
