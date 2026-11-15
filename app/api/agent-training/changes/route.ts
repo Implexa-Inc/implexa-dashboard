@@ -2,17 +2,20 @@ import {NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase/server';
 import {UUID} from '@/lib/trainer-questions';
 // Publication preparation includes sequential validated reads and a guarded write.
-// Only these measured operations receive longer deadlines; all other writes stay 10s.
+// Records use one RPC with a 30s database ceiling, plus response margin here.
+// Other ordinary writes stay 10s; preparation/publication keep their existing budget.
 export const maxDuration=65;
 const BACKEND=(process.env.NEXT_PUBLIC_IMPLEXA_API_URL||'https://core.implexa.ai').replace(/\/$/,'');
 async function forward(request:Request,write:boolean){
  const {data:{session}}=await createClient().auth.getSession();
  if(!session?.access_token)return NextResponse.json({ok:false,reason:'unauthorized'},{status:401});
+ const startedAt=Date.now();let operationLabel=write?'unknown':'read';
  try{
   const q=new URL(request.url).searchParams,id=q.get('sessionId'),operation=q.get('operation');
   if(!UUID.test(id||'')||[...q.keys()].some(k=>k!=='sessionId'&&(!write||k!=='operation'))
    ||write&&!['policy','records','withdraw','creation-import','tests/prepare','activate','publication/prepare','publication/publish'].includes(operation||''))return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
-  const timeoutMs=write?(['publication/prepare','publication/publish','tests/prepare'].includes(operation||'')?60000:10000):55000;
+  operationLabel=write?operation!:'read';
+  const timeoutMs=write?(['publication/prepare','publication/publish','tests/prepare'].includes(operation||'')?60000:operation==='records'?35000:10000):55000;
   const headers:Record<string,string>={authorization:`Bearer ${session.access_token}`,'content-type':'application/json'};
   let body;
   if(write){const key=request.headers.get('Idempotency-Key');
@@ -26,7 +29,13 @@ async function forward(request:Request,write:boolean){
   const r=await fetch(`${BACKEND}/api/v2/agent-training/sessions/${id}/changes${write?`/${operation}`:''}`,{
    method:write?'POST':'GET',headers,...(write?{body:JSON.stringify(body)}:{}),cache:'no-store',signal:AbortSignal.any([request.signal,AbortSignal.timeout(timeoutMs)])});
   return NextResponse.json(await r.json(),{status:r.status,headers:{'Cache-Control':'no-store'}});
- }catch{return NextResponse.json({ok:false,reason:'training_changes_unavailable'},{status:503});}
+ }catch(error){
+  try{const name=error&&typeof error==='object'&&'name' in error?error.name:null;
+   console.warn('training_changes_proxy_failure',{kind:write?'write':'read',operation:operationLabel,
+    elapsedMs:Math.max(0,Date.now()-startedAt),errorClass:name==='TimeoutError'||name==='AbortError'?name:'other'});
+  }catch{/* Diagnostics do not change the response. */}
+  return NextResponse.json({ok:false,reason:'training_changes_unavailable'},{status:503});
+ }
 }
 export function GET(request:Request){return forward(request,false);}
 export function POST(request:Request){return forward(request,true);}
