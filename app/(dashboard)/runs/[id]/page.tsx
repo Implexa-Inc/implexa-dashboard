@@ -1024,7 +1024,7 @@ export default async function RunDetailPage({
         {judgmentReadUnavailable && <p className="text-sm text-amber-300">Final review status is unavailable. Refresh to check it again.</p>}
         {failedJudgeRetry && (
           <section className="card border-amber-500/30" aria-label="Final review recovery">
-            <h2 className="font-medium text-ink-100">Final review could not start</h2>
+            <h2 className="font-medium text-ink-100">Final review is incomplete</h2>
             <p className="mt-1 text-sm text-ink-300">Your delivered work is unchanged. This retries only its review.</p>
             <ControlPlaneRetry requestId={failedJudgeRetry.requestId} runId={failedJudgeRetry.runId} />
           </section>
