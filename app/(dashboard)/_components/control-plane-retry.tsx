@@ -28,6 +28,7 @@ import {
   PAID_POSTSTART_UNCLAIMED_CLAIM,
   PAID_SETTLED_BATCH_RESUME_CLAIM,
   PAID_RENDER_ONLY_RESUME_CLAIM, PAID_RENDER_ONLY_QUEUED_RECEIPT,
+  JUDGE_RETRY_LABEL, JUDGE_NO_WORK_CLAIM, JUDGE_QUEUED_RECEIPT,
 } from '@/lib/control-plane-retry';
 
 type LocalInputBridge = {
@@ -76,10 +77,11 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
   }, [requestId, supabase]);
 
   const presentation = describeControlPlaneRetry(eligibility);
+  const judgeReview = 'judgeReview' in presentation && presentation.judgeReview === true;
   if (queued || presentation.state === 'queued') {
     return (
       <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-3 text-sm text-ink-200">
-        {'renderOnly' in presentation && presentation.renderOnly ? PAID_RENDER_ONLY_QUEUED_RECEIPT : 'paidPrelaunch' in presentation && presentation.paidPrelaunch ? PAID_QUEUED_RECEIPT : QUEUED_RECEIPT}
+        {judgeReview ? JUDGE_QUEUED_RECEIPT : 'renderOnly' in presentation && presentation.renderOnly ? PAID_RENDER_ONLY_QUEUED_RECEIPT : 'paidPrelaunch' in presentation && presentation.paidPrelaunch ? PAID_QUEUED_RECEIPT : QUEUED_RECEIPT}
       </div>
     );
   }
@@ -162,7 +164,7 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
 
   return (
     <div className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/[0.06] px-3 py-3">
-      <div className="text-sm font-semibold text-ink-100">{'paidPrelaunch' in presentation && presentation.paidPrelaunch ? PAID_RECOVERY_LABEL : RETRY_SAFELY_LABEL}</div>
+      <div className="text-sm font-semibold text-ink-100">{judgeReview ? JUDGE_RETRY_LABEL : 'paidPrelaunch' in presentation && presentation.paidPrelaunch ? PAID_RECOVERY_LABEL : RETRY_SAFELY_LABEL}</div>
       {presentation.state === 'available' && presentation.paidPrelaunch && (
         <p className="mt-1 text-xs text-ink-300 leading-relaxed">{presentation.renderOnly ? PAID_RENDER_ONLY_RESUME_CLAIM : presentation.failureCode === 'paid_settled_batch_resume' ? PAID_SETTLED_BATCH_RESUME_CLAIM : presentation.failureCode === 'paid_poststart_unclaimed' ? PAID_POSTSTART_UNCLAIMED_CLAIM : presentation.ownerRecoveryIndex ? PAID_CLOSED_CLASS_RECOVERY_CLAIM : presentation.failureCode === 'paid_owner_closed_prelaunch_recovery' ? PAID_CLOSED_OWNER_RECOVERY_CLAIM : presentation.failureCode === 'paid_unacknowledged_lease_retirement' ? PAID_ISSUED_LEASE_RETIREMENT_CLAIM : presentation.leaseRetirement ? PAID_LEASE_RETIREMENT_CLAIM : PAID_RECOVERY_CLAIM}</p>
       )}
@@ -172,13 +174,14 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
       {presentation.state === 'available' && presentation.ownerRecoveryIndex && (
         <p className="mt-1 text-xs text-ink-300">Owner recovery {presentation.ownerRecoveryIndex} of {presentation.ownerRecoveryLimit} in this window.</p>
       )}
-      {mayClaimNoWork(presentation) && (
+      {mayClaimNoWork(presentation) && !judgeReview && (
         <p className="mt-1 text-xs text-ink-300 leading-relaxed">{NO_WORK_CLAIM}</p>
       )}
-      <ul className="mt-2 text-xs text-ink-400 leading-relaxed">
+      {mayClaimNoWork(presentation) && judgeReview && <p className="mt-1 text-xs text-ink-300">{JUDGE_NO_WORK_CLAIM}</p>}
+      {judgeReview ? <p className="mt-2 text-xs text-ink-400">Retry only this review; do not recreate the delivered work.</p> : <ul className="mt-2 text-xs text-ink-400 leading-relaxed">
         <li>{RETRY_SAFELY_DISTINCTION}</li>
         <li>{RUN_AGAIN_DISTINCTION}</li>
-      </ul>
+      </ul>}
       {presentation.state === 'disabled' && (
         <p className="mt-2 text-xs text-amber-300">
           {presentation.workMayHaveOccurred ? 'Retry safely is unavailable because work or an external action may have occurred: ' : 'Retry safely is unavailable: '}
@@ -188,15 +191,15 @@ export function ControlPlaneRetry({ requestId, runId }: { requestId: string; run
       {presentation.state === 'available' && !confirming && (
         <button type="button" onClick={() => setConfirming(true)} disabled={busy}
           className="mt-2 rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60">
-          Retry safely
+          {judgeReview ? JUDGE_RETRY_LABEL : 'Retry safely'}
         </button>
       )}
       {presentation.state === 'available' && confirming && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-ink-300">{presentation.ownerRecoveryIndex ? `Use owner recovery ${presentation.ownerRecoveryIndex} of ${presentation.ownerRecoveryLimit} for this closed attempt?` : presentation.failureCode === 'paid_owner_closed_prelaunch_recovery' ? 'Use the one additional recovery for this closed attempt?' : presentation.failureCode === 'paid_unacknowledged_lease_retirement' ? 'Retire the expired lease and use the one additional recovery?' : presentation.leaseRetirement ? 'Retire the expired lease and queue the same approved batch?' : 'Queue the same request with its frozen version and inputs?'}</span>
+          <span className="text-xs text-ink-300">{judgeReview ? 'Queue the same final review?' : presentation.ownerRecoveryIndex ? `Use owner recovery ${presentation.ownerRecoveryIndex} of ${presentation.ownerRecoveryLimit} for this closed attempt?` : presentation.failureCode === 'paid_owner_closed_prelaunch_recovery' ? 'Use the one additional recovery for this closed attempt?' : presentation.failureCode === 'paid_unacknowledged_lease_retirement' ? 'Retire the expired lease and use the one additional recovery?' : presentation.leaseRetirement ? 'Retire the expired lease and queue the same approved batch?' : 'Queue the same request with its frozen version and inputs?'}</span>
           <button type="button" onClick={() => void retry()} disabled={busy}
             className="rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60">
-            {busy ? 'Queuing…' : 'Queue the same request'}
+            {busy ? 'Queuing…' : judgeReview ? 'Queue final review' : 'Queue the same request'}
           </button>
           <button type="button" onClick={() => setConfirming(false)} disabled={busy}
             className="rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 hover:bg-ink-800 disabled:opacity-60">

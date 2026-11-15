@@ -45,15 +45,18 @@ export type ControlPlaneRetryEligibility = {
 
 export type ControlPlaneRetryPresentation =
   | { state: 'hidden' }
-  | { state: 'queued'; paidPrelaunch?: true; renderOnly?: true }
+  | { state: 'queued'; paidPrelaunch?: true; renderOnly?: true; judgeReview?: true }
   | { state: 'disabled'; reason: string; explanation: string; workMayHaveOccurred: boolean }
-  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string; paidPrelaunch?: true; renderOnly?: true; leaseRetirement?: true; ownerRecoveryIndex?: number; ownerRecoveryLimit?: number; unknownRuntimeHistory?: true };
+  | { state: 'available'; grantId: string; failureCode: string; workflowVersionId: string; paidPrelaunch?: true; renderOnly?: true; judgeReview?: true; leaseRetirement?: true; ownerRecoveryIndex?: number; ownerRecoveryLimit?: number; unknownRuntimeHistory?: true };
 
 export const RETRY_SAFELY_LABEL = 'Retry safely — no work started previously';
 export const RETRY_SAFELY_DISTINCTION = 'Retry safely: same request and frozen inputs';
 export const RUN_AGAIN_DISTINCTION = 'Run again: creates a new request';
 export const NO_WORK_CLAIM = 'Implexa could not attach its control tools before work began. No work or provider action started.';
 export const QUEUED_RECEIPT = 'Queued again safely — same request, frozen inputs. Implexa will verify its control tools before any work starts.';
+export const JUDGE_RETRY_LABEL = 'Retry final review';
+export const JUDGE_NO_WORK_CLAIM = 'The final review stopped before it started. Your delivered work is unchanged.';
+export const JUDGE_QUEUED_RECEIPT = 'The same final review is queued again. Your delivered work is unchanged.';
 export const PAID_RECOVERY_LABEL = 'Resume the same approved paid batch';
 export const PAID_RECOVERY_CLAIM = 'The failed attempt ended without a start acknowledgment or an irreversible paid claim. Recovery retains the same approved requests and budget; it does not approve a new batch.';
 export const PAID_QUEUED_RECEIPT = 'The same approved paid batch was queued again with frozen inputs. No extra paid authority was created.';
@@ -106,7 +109,8 @@ export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPres
     || e.failureCode === 'paid_owner_closed_prelaunch_recovery' || e.failureCode === 'paid_poststart_unclaimed'
     || e.failureCode === 'paid_settled_batch_resume';
   const renderOnly = e.failureCode === 'paid_settled_batch_resume' && e.noWorkEvidence?.renderOnly === true;
-  if (e.ok === true && e.eligible === true && e.alreadyQueued === true) return { state: 'queued', ...(paid ? { paidPrelaunch: true as const } : {}), ...(renderOnly ? { renderOnly: true as const } : {}) };
+  const judgeReview = e.failureCode === 'judge_text_gate_prelaunch_refusal';
+  if (e.ok === true && e.eligible === true && e.alreadyQueued === true) return { state: 'queued', ...(paid ? { paidPrelaunch: true as const } : {}), ...(renderOnly ? { renderOnly: true as const } : {}), ...(judgeReview ? { judgeReview: true as const } : {}) };
   if (e.ok === true && e.eligible === true) {
     // The grant is the only authority we may act with; an eligibility without
     // one (or without the frozen version it promises) is not actionable.
@@ -117,6 +121,7 @@ export function describeControlPlaneRetry(value: unknown): ControlPlaneRetryPres
       failureCode: typeof e.failureCode === 'string' && e.failureCode ? e.failureCode : 'attachment_unobserved',
       ...(paid ? { paidPrelaunch: true as const } : {}),
       ...(renderOnly ? { renderOnly: true as const } : {}),
+      ...(judgeReview ? { judgeReview: true as const } : {}),
       ...(paid && e.leaseRetirementRequired === true ? { leaseRetirement: true as const } : {}),
       ...((e.failureCode === 'paid_owner_closed_prelaunch_recovery' || e.failureCode === 'paid_poststart_unclaimed'
         || e.failureCode === 'paid_settled_batch_resume')
