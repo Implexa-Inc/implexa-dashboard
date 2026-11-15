@@ -1,5 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { transformSync } from 'esbuild';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { judgeRepairState, readJudgeReviewAge } from './judge-repair-state.ts';
 
 test('repair lifecycle distinguishes queued, running, and the exact repaired child', () => {
@@ -64,4 +69,26 @@ test('missing, unreadable, malformed or contradictory retry history never invent
   }
   await assert.rejects(readJudgeReviewAge(clockDatabase([]),'owner',clockRequest),/age_unavailable/);
   await assert.rejects(readJudgeReviewAge(clockDatabase([queued],new Error('offline')),'owner',clockRequest),/age_unavailable/);
+});
+
+
+test('the actual pending banner stays fresh for a recovered review and retains cancellation and stall states',async(t)=>{
+  const require=createRequire(import.meta.url);
+  const source=readFileSync(new URL('../app/(dashboard)/_components/run-judgment-pending.tsx',import.meta.url),'utf8');
+  const compiled=transformSync(source,{loader:'tsx',format:'cjs',jsx:'automatic'}).code;
+  const mod={exports:{}} as any;
+  new Function('require','module','exports',compiled)((name:string)=>name==='next/navigation'?{useRouter:()=>({refresh(){}})}:require(name),mod,mod.exports);
+  const render=(createdAt:string|null,requestStatus='consumed')=>renderToStaticMarkup(React.createElement(mod.exports.RunJudgmentPending,{createdAt,requestStatus}));
+  t.mock.method(Date,'now',()=>Date.parse('2020-01-02T12:05:00Z'));
+  assert.match(render(clockRequest.created_at),/taking unusually long/,'old request birth reproduces the reported false stall');
+  const db=clockDatabase([queued]);
+  const queuedOrigin=await readJudgeReviewAge(db,'owner',clockRequest);
+  assert.match(render(queuedOrigin,'pending'),/Judge is reviewing/);
+  assert.doesNotMatch(render(queuedOrigin,'pending'),/taking unusually long/);
+  const startedOrigin=await readJudgeReviewAge(db,'owner',{...clockRequest,started_at:'2020-01-02T12:02:00Z'});
+  assert.match(render(startedOrigin),/Judge is reviewing/);
+  t.mock.method(Date,'now',()=>Date.parse('2020-01-02T12:23:00Z'));
+  assert.match(render(startedOrigin),/taking unusually long/,'recovered reviews remain subject to the same 20-minute ceiling');
+  assert.match(render('broken','cancelled'),/review was cancelled/);
+  assert.doesNotMatch(render('broken','cancelled'),/taking unusually long|Judge is reviewing/);
 });
