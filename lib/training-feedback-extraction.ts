@@ -1,7 +1,7 @@
 import {demoAnnotationReceipt,scopedTeachingSuggestion,teachingDigest,teachingFrame,type DemoAnnotation,type ScopedTeachingSuggestion} from './training-teaching-draft.ts';
 import {deriveTrainingStages,TRAINING_PROPERTY_CODES,TRAINING_RELATIONS,type TrainingPropertyCode} from './training-local-ingress.ts';
 
-export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion;record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;retentionUntil?:string};
+export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion;record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string};
 type Source={sourceId:string;token:string;metadata:{sha256:string;durationMs:number}};
 type Reply={ok:boolean;[key:string]:any};
 type Send=(operation:'annotation'|'suggestion',body:unknown,key?:string)=>Promise<Reply>;
@@ -23,6 +23,16 @@ export function checkpointExtraction(storage:Pick<Storage,'setItem'>,scope:strin
   if(value.length>20000)throw Error('This extraction is too large to save for recovery.');
   try{storage.setItem(`${JOURNAL_PREFIX}${scope}:${progress.fingerprint||progress.key}`,value);}catch{throw Error('Implexa could not save this draft for recovery. Free browser storage and retry; your original note stays saved.');}
 }
+export type FeedbackDraftRequest={key:string;fingerprint:string;annotationId:string;annotationDigest:string};
+/** This one-click authorization is never persisted. The extractor verifies it
+ * only after opening the exact frame and checking the saved annotation. */
+export function retryFeedbackDraft(progress:FeedbackExtractionProgress,fingerprint:string):FeedbackDraftRequest{
+  if(!/^[a-f0-9]{64}$/.test(fingerprint)||progress.fingerprint!==fingerprint||!progress.annotation
+    ||progress.suggestionStarted!==true||progress.suggestion||progress.record||progress.linked
+    ||(progress.draftingRetries!==undefined&&(!Number.isSafeInteger(progress.draftingRetries)||progress.draftingRetries<0)))
+    throw Error('This draft is not waiting for a new suggestion. Keep the existing saved training.');
+  return {key:progress.key,fingerprint,annotationId:progress.annotation.annotationId,annotationDigest:progress.annotation.annotationDigest};
+}
 export function extractionFailure(value:Reply):string{
   if(value.reason==='idempotency_key_conflict')return 'This note has a conflicting saved draft. No duplicate was created; review its saved training.';
   if(value.reason==='teaching_suggestion_rate_limited')return `Drafting is busy. Retry in ${Number.isSafeInteger(value.retryAfter)?value.retryAfter:60} seconds; your notes and completed drafts are saved.`;
@@ -32,9 +42,9 @@ export function extractionFailure(value:Reply):string{
 /** Compose existing annotation, suggestion, native draft and link writers in order.
  * No acceptance occurs here. Progress survives a failed link so retry reuses its draft.
  */
-export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId,retentionUntil,progress,call,send,check,checkpoint=()=>{}}:{
+export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId,retentionUntil,progress,call,send,check,newDraftRequest,checkpoint=()=>{}}:{
   source:Source;timeMs:number;rawAnnotation:string;versionId:string;retentionUntil:string;progress:FeedbackExtractionProgress;
-  call:(operation:string,args:unknown)=>Promise<Reply>;send:Send;check:()=>Promise<void>;checkpoint?:()=>void;
+  call:(operation:string,args:unknown)=>Promise<Reply>;send:Send;check:()=>Promise<void>;newDraftRequest?:FeedbackDraftRequest;checkpoint?:()=>void;
 }){
   if(!rawAnnotation.trim()||rawAnnotation.length>2000)throw Error('This note is too long for one teaching. Split it into shorter notes; the original stays saved.');
   await check();
@@ -54,9 +64,16 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
   const annotation=progress.annotation;
   const binding={sourceId:source.sourceId,sourceSha256:source.metadata.sha256,timeMs:frameTime,frameSha256,annotationId:annotation.annotationId,annotationDigest:annotation.annotationDigest,expectedActiveVersionId:versionId,feedbackSha256:await teachingDigest(new TextEncoder().encode(rawAnnotation))};
   if(!progress.suggestion){
-    if(progress.suggestionStarted)throw Error('This extraction was interrupted while drafting. Your note is saved. Review any existing draft before requesting another suggestion.');
+    const interrupted=progress.suggestionStarted===true;
+    if(interrupted&&(!newDraftRequest||newDraftRequest.key!==progress.key||newDraftRequest.fingerprint!==progress.fingerprint
+      ||newDraftRequest.annotationId!==annotation.annotationId||newDraftRequest.annotationDigest!==annotation.annotationDigest
+      ||progress.record||progress.linked))
+      throw Error('This extraction was interrupted while drafting. Your note is saved. Review any existing draft before requesting another suggestion.');
     await check();const {feedbackSha256:_,...wire}=binding;
-    progress.suggestionStarted=true;try{checkpoint();}catch(error){progress.suggestionStarted=false;throw error;}
+    const previous={suggestionStarted:progress.suggestionStarted,draftingRetries:progress.draftingRetries,priorDraftOutcome:progress.priorDraftOutcome};
+    progress.suggestionStarted=true;
+    if(interrupted){progress.draftingRetries=(progress.draftingRetries||0)+1;progress.priorDraftOutcome='unconfirmed';}
+    try{checkpoint();}catch(error){Object.assign(progress,previous);throw error;}
     const value=await send('suggestion',{...wire,mode:'demonstration',includeScope:true,image:preview.image,consent:true});
     if(!value.ok){if(value.reason==='teaching_suggestion_rate_limited'){progress.suggestionStarted=false;checkpoint();}throw Error(extractionFailure(value));}
     if(!scopedTeachingSuggestion(value,binding))throw Error('The proposed teaching did not match this note and frame.');
