@@ -42,7 +42,8 @@ export function RunJudgmentPending({
    *  will never produce a verdict) renders a terminal message and stops polling,
    *  instead of looking identical to one still actively in flight. */
   requestStatus?: JudgeRequestStatus;
-  /** When the request was created, so the client can stop polling on its own
+  /** Age origin: original creation, or a recovered review's retry/start time.
+   * This lets the client stop polling on its own
    *  past a reasonable ceiling even if the request never reaches a terminal
    *  status (see STALL_CEILING_MS). */
   createdAt?: string | null;
