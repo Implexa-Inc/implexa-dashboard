@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,type FeedbackExtractionProgress} from './training-feedback-extraction.ts';
+import {extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from './training-feedback-extraction.ts';
 const id='11111111-1111-4111-8111-111111111111',record='22222222-2222-4222-8222-222222222222';
 const sha='a'.repeat(64),source={sourceId:id,token:'native-token',metadata:{sha256:sha,durationMs:1000}};
 const image='data:image/png;base64,'+Buffer.alloc(40,1).toString('base64');
@@ -9,7 +9,7 @@ const hash=(text:string)=>createHash('sha256').update(text).digest('hex');
 const fields={chosen:'In this example, the route is a wall of text.',why:'Prefer a spatial explanation when geography matters.',process:'Applies when location explains the comparison.',desiredBehavior:'Explain the relationship visually, with a map when useful.'};
 function setup({nullScope=false,linkFails=false,wrongBinding=false,insufficient=false}={}){
  const calls:any[]=[],progress:FeedbackExtractionProgress={key:id};let links=0;
- const run=(recovered=progress,checkpoint=()=>{})=>extractFeedbackTeaching({source,timeMs:1000,rawAnnotation:'Show the location on a map, rather than listing names.',versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress:recovered,checkpoint,
+ const run=(recovered=progress,checkpoint=()=>{},newDraftRequest?:FeedbackDraftRequest)=>extractFeedbackTeaching({source,timeMs:1000,rawAnnotation:'Show the location on a map, rather than listing names.',versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress:recovered,checkpoint,newDraftRequest,
   check:async()=>{calls.push(['check']);},call:async(op,args:any)=>{calls.push([op,args]);if(op==='preview')return {ok:true,image};if(op==='annotate')return {ok:true,recordId:record,recordDigest:sha};throw Error('Unexpected writer');},
   send:async(op,body:any,key)=>{calls.push([op,body,key]);
    if(op==='annotation'&&body.action==='save'){const {action,expectedActiveVersionId,...annotation}=body;return {ok:true,contractVersion:'training-demo-annotation.v1',annotationId:id,annotationDigest:sha,annotation:{...annotation,contractVersion:'training-demo-annotation.v1',targetVersionId:expectedActiveVersionId}};}
@@ -61,6 +61,49 @@ test('a pre-provider checkpoint failure is retryable because no model was invoke
  const {run,calls,progress}=setup();let checkpoints=0;
  await assert.rejects(run(progress,()=>{if(++checkpoints===2)throw Error('local storage quota');}),/local storage quota/);
  assert.equal(calls.filter(call=>call[0]==='suggestion').length,0);
- assert.equal(progress.suggestionStarted,false,'only an actual provider attempt may become uncertain');
+ assert.notEqual(progress.suggestionStarted,true,'only an actual provider attempt may become uncertain');
  await run(progress);assert.equal(calls.filter(call=>call[0]==='suggestion').length,1);assert.equal(progress.linked,true);
+});
+
+test('a confirmed request for another draft preserves saved annotation and native identity',async()=>{
+ const {run,calls,progress}=setup({wrongBinding:true});progress.fingerprint='b'.repeat(64);
+ await assert.rejects(run(),/did not match/);
+ const before=structuredClone(progress),request=retryFeedbackDraft(progress,progress.fingerprint!);
+ assert.deepEqual(progress,before,'confirmation itself does not mutate the journal');assert.equal(request.annotationDigest,progress.annotation!.annotationDigest);
+ const resumed=setup();await resumed.run(progress,()=>{},request);
+ assert.equal(resumed.calls.filter(c=>c[0]==='annotation'&&c[1].action==='save').length,0);
+ assert.equal(resumed.calls.filter(c=>c[0]==='suggestion').length,1);
+ assert.equal(resumed.calls.filter(c=>c[0]==='annotate').length,1);
+ assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);assert.equal(progress.linked,true);
+ assert.equal(progress.draftingRetries,1);assert.equal(progress.priorDraftOutcome,'unconfirmed');assert.equal(progress.key,before.key);
+});
+test('failed retry checkpoint leaves the interrupted journal and provider untouched',async()=>{
+ const {run,calls,progress}=setup({wrongBinding:true});progress.fingerprint='b'.repeat(64);
+ await assert.rejects(run(),/did not match/);const request=retryFeedbackDraft(progress,progress.fingerprint!);
+ await assert.rejects(run(progress,()=>{throw Error('quota');},request),/quota/);
+ assert.equal(progress.suggestionStarted,true);assert.equal(progress.draftingRetries,undefined);
+ await assert.rejects(run(),/interrupted while drafting/);assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);
+});
+test('new-draft recovery refuses different notes and completed, missing or malformed recovery state',()=>{
+ const fingerprint='b'.repeat(64),base:FeedbackExtractionProgress={key:id,fingerprint,suggestionStarted:true,annotation:{} as any};
+ for(const patch of [{fingerprint:'c'.repeat(64)},{annotation:undefined},{suggestionStarted:false},{suggestion:{} as any},{record:{recordId:record,recordDigest:sha}},{linked:true},{draftingRetries:-1},{draftingRetries:1.5}]){
+  assert.throws(()=>retryFeedbackDraft({...base,...patch},fingerprint),/not waiting/);
+ }
+});
+test('a stale single-use request cannot send after the annotation identity changes',async()=>{
+ const {run,calls,progress}=setup({wrongBinding:true});progress.fingerprint='b'.repeat(64);
+ await assert.rejects(run(),/did not match/);const request=retryFeedbackDraft(progress,progress.fingerprint!);
+ progress.annotation={...progress.annotation!,annotationDigest:'c'.repeat(64)};
+ await assert.rejects(run(progress,()=>{},request),/interrupted while drafting/);
+ assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);assert.equal(progress.suggestionStarted,true);
+});
+
+test('new-draft confirmation does not survive a changed frame or revoked scope',async()=>{
+ for(const mode of ['frame','scope']){
+  const {run,calls,progress}=setup({wrongBinding:true});progress.fingerprint='b'.repeat(64);
+  await assert.rejects(run(),/did not match/);const request=retryFeedbackDraft(progress,progress.fingerprint!);
+  await assert.rejects(extractFeedbackTeaching({source,timeMs:999,rawAnnotation:'Show the location on a map, rather than listing names.',versionId:id,retentionUntil:'2027-11-11',progress,newDraftRequest:request,
+   check:async()=>{if(mode==='scope')throw Error('scope changed');},call:async()=>({ok:true,image:'data:image/png;base64,'+Buffer.alloc(40,2).toString('base64')}),send:async()=>assert.fail('changed evidence must not send')}),mode==='scope'?/scope changed/:/no longer matches/);
+  assert.equal(progress.suggestionStarted,true);assert.equal(progress.draftingRetries,undefined);assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);
+ }
 });
