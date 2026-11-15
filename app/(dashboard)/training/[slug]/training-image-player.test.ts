@@ -14,5 +14,7 @@ test('a reopened image keeps its original spatial mark when the trainer edits th
   const area=r.document.querySelector('textarea')!;
   await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLTextAreaElement.prototype,'value')!.set!.call(area,'Updated note');area.dispatchEvent(new r.window.Event('input',{bubbles:true}));});
   assert.equal(changes.length,1);assert.equal(changes[0].text,'Updated note');assert.deepEqual(JSON.parse(JSON.stringify(changes[0].mark)),spatial);
+  await r.rerender({ownerId:'11111111-1111-4111-8111-111111111111',sourceId:'second',key:'second-source',image:'data:image/png;base64,aW1hZ2U=',timeMs:0,text:'New note',initialSpatial:null,disabled:false,onChange:(text:string,mark:any)=>changes.push({text,mark}),onDone:()=>{}});
+  const fresh=r.document.querySelector('textarea')!;await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLTextAreaElement.prototype,'value')!.set!.call(fresh,'Another note');fresh.dispatchEvent(new r.window.Event('input',{bubbles:true}));});assert.equal(changes.at(-1).mark,null,'a new source cannot inherit the prior mark');
  }finally{r.cleanup();}
 });

@@ -867,6 +867,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       .then(value=>{if(live){setSavedFeedback(value.notes);setSavedFeedbackUnreadable(value.unreadableCount);}}).catch(()=>{if(live){setSavedFeedback([]);setSavedFeedbackUnreadable(1);}});
     return()=>{live=false;};
   },[ownerId,session,currentVersion,sessionVersion,sources,installationId,busy]);
+  const reopenedFeedbackIsCurrent=!!reopenedFeedback&&reopenedFeedback.annotation.sourceId===selected?.sourceId
+    &&reopenedFeedback.annotation.sourceSha256===selected?.metadata.sha256&&reopenedFeedback.annotation.timeMs===time
+    &&reopenedFeedback.annotation.expectedActiveVersionId===currentVersion;
   async function reopenSavedFeedback(note:SavedDirectFeedback){
     if(!ownerId||!session||!currentVersion||versionChanged||directNote.trim()||directVoiceDirty||runDirty||recordingDirty||runFeedbackRequest)return;
     const id=session,version=currentVersion,source=sources.find(source=>source.sourceId===note.annotation.sourceId&&!!source.token);
@@ -905,7 +908,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       }
       setDirectDraftRetry(null);
       if(result.status==='held'){setHeldExtractions(previous=>[...previous.filter(item=>item.key!==fingerprint),{key:fingerprint,text:directNote,reason:result.reason}]);setExtractionNote('This lesson needs clarification. Your original feedback is saved.');}
-      else{setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setDemoText('');setDirectNote('');setExtractionNote('Your proposed lesson is ready to review. Nothing is live yet.');selectTrainingStep(2);}
+      else{setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setDemoText('');setDirectNote('');setReopenedFeedback(null);setExtractionNote('Your proposed lesson is ready to review. Nothing is live yet.');selectTrainingStep(2);}
       await load(id);await loadChanges();
     });
   }
@@ -1005,7 +1008,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(!keepRecording){setRunSource(null);if(activeRecordingId&&!recordingDirty)setActiveRecordingId(null);}
     showTeaching();
     if(questionAnswer){setDirectSource(false);setActiveRunId(null);}
-    setSelected(source); setTime(0); setPreview(null); setReviewed(null); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID());
+    setReopenedFeedback(null);setSelected(source); setTime(0); setPreview(null); setReviewed(null); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID());
     setSelectionPriority('50');return true;
   }
   function toggleStage(stage: TrainingStage) {
@@ -1580,7 +1583,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&!directSource&&!activeRecordingId&&!activeRunId&&(savedFeedback.length>0||savedFeedbackUnreadable>0)&&<section aria-label="Saved feedback to finish" className="space-y-3 rounded-xl border border-ink-800 p-4"><h3 className="text-lg font-medium">Continue your saved feedback</h3>{savedFeedbackUnreadable>0&&<p role="status" className="text-sm text-amber-300">Some saved feedback could not be reopened. Your saved notes have not been changed.</p>}{savedFeedback.map(note=><div key={note.fingerprint} className="space-y-2"><p className="line-clamp-2 text-sm text-ink-400">{note.feedback}</p><button type="button" className="text-sm text-orange-400 underline" disabled={!!busy||changesBusy||versionChanged||directVoiceDirty||runDirty||recordingDirty||!!runFeedbackRequest} onClick={()=>void reopenSavedFeedback(note)}>Continue saved feedback</button></div>)}</section>}
     {!installationId&&pendingRecordingId&&<div role="status" className="text-sm text-ink-300">Another recording is ready. Your current feedback is preserved. <button type="button" className="underline" onClick={()=>{if(recordingDirty){setClosingRecording(false);setReplaceRecordingOpen(true);}else if(pendingRecordingId)openRecording(pendingRecordingId);}}>Annotate new recording</button></div>}
     {!installationId&&directSource&&!activeRunId&&!activeRecordingId&&selected?.token&&previewIsCurrent&&preview?.image&&<>
-      <TrainingImagePlayer key={`${selected.sourceId}:${time}:${reopenedFeedback?.fingerprint||'new'}`} initialSpatial={reopenedFeedback?.spatial||null} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} disabled={!!busy||changesBusy||versionChanged}
+      <TrainingImagePlayer key={`${selected.sourceId}:${time}:${reopenedFeedbackIsCurrent?reopenedFeedback?.fingerprint:'new'}`} initialSpatial={reopenedFeedbackIsCurrent?reopenedFeedback?.spatial||null:null} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} disabled={!!busy||changesBusy||versionChanged}
         onChange={(text,spatial)=>{setDirectNote(text);setDemoText(text.trim()||spatial?JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:selected.sourceId,timeMs:time,spatial,feedback:text}):'');}}
         onDone={()=>setDirectExtractionRequested(true)}/>
       {directDraftRetryIsCurrent&&<button type="button" className="text-sm text-orange-400 underline" disabled={!!busy||suggesting||changesBusy||versionChanged} onClick={()=>setFeedbackRetry('direct')}>Request another draft</button>}
