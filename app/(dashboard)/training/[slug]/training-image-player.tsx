@@ -4,11 +4,11 @@ import ReviewSpatialOverlay from '../../_components/review-spatial-overlay';
 import TrainerVoiceNote from '../../_components/trainer-voice-note';
 import type {DraftSpatial} from '@/lib/review-timestamp-feedback';
 
-export default function TrainingImagePlayer({ownerId,sourceId,image,timeMs,text,disabled,onChange,onDone,onVoiceDirtyChange}:{
+export default function TrainingImagePlayer({ownerId,sourceId,image,timeMs,text,disabled,initialSpatial=null,onChange,onDone,onVoiceDirtyChange}:{
  ownerId:string;sourceId:string;image:string;timeMs:number;text:string;disabled:boolean;
- onChange:(text:string,spatial:DraftSpatial|null)=>void;onDone:()=>void;onVoiceDirtyChange?:(dirty:boolean)=>void;
+ initialSpatial?:DraftSpatial|null;onChange:(text:string,spatial:DraftSpatial|null)=>void;onDone:()=>void;onVoiceDirtyChange?:(dirty:boolean)=>void;
 }){
- const element=useRef<HTMLImageElement|null>(null),[spatial,setSpatial]=useState<DraftSpatial|null>(null),[voicePending,setVoicePending]=useState(false);
+ const element=useRef<HTMLImageElement|null>(null),[spatial,setSpatial]=useState<DraftSpatial|null>(initialSpatial),[voicePending,setVoicePending]=useState(false);
  const region=spatial?.geometry.kind==='rect'?{x:Math.round(spatial.geometry.x*1000000),y:Math.round(spatial.geometry.y*1000000),width:Math.min(Math.round(spatial.geometry.width!*1000000),1000000-Math.round(spatial.geometry.x*1000000)),height:Math.min(Math.round(spatial.geometry.height!*1000000),1000000-Math.round(spatial.geometry.y*1000000))}:{x:0,y:0,width:1000000,height:1000000};
  return <section aria-label="Teach from an image" className="space-y-4 rounded-xl border border-ink-800 p-4">
   <div className="relative"><img ref={element} src={image} alt="Your training example" className="max-h-[60vh] w-full rounded-lg object-contain"/><ReviewSpatialOverlay mediaKind="image" controlsMode="external" mediaEl={()=>element.current} enabled={!disabled&&!voicePending} pins={[]} draftSpatial={spatial} freezeMedia={()=>null}
