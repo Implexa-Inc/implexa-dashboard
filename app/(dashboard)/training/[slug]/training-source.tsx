@@ -21,7 +21,7 @@ import RunMarkTraining from './run-mark-training';
 import SavedReviewTeaching from './saved-review-teaching';
 import TrainingImagePlayer from './training-image-player';
 import TrainingDraftBundle,{visualTeachingSelectable} from './training-draft-bundle';
-import {extractFeedbackTeaching,savedDirectFeedback,type SavedDirectFeedback,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
+import {extractFeedbackTeaching,savedDirectFeedback,savedFeedbackMatches,type SavedDirectFeedback,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
 import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import type {Moment,RecordingDetail} from '@/lib/review-recorder';
 import {TrainingDialog as Modal} from './training-workspace';
@@ -867,9 +867,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       .then(value=>{if(live){setSavedFeedback(value.notes);setSavedFeedbackUnreadable(value.unreadableCount);}}).catch(()=>{if(live){setSavedFeedback([]);setSavedFeedbackUnreadable(1);}});
     return()=>{live=false;};
   },[ownerId,session,currentVersion,sessionVersion,sources,installationId,busy]);
-  const reopenedFeedbackIsCurrent=!!reopenedFeedback&&reopenedFeedback.annotation.sourceId===selected?.sourceId
-    &&reopenedFeedback.annotation.sourceSha256===selected?.metadata.sha256&&reopenedFeedback.annotation.timeMs===time
-    &&reopenedFeedback.annotation.expectedActiveVersionId===currentVersion;
+  const reopenedFeedbackIsCurrent=savedFeedbackMatches(reopenedFeedback,selected,time,currentVersion);
   async function reopenSavedFeedback(note:SavedDirectFeedback){
     if(!ownerId||!session||!currentVersion||versionChanged||directNote.trim()||directVoiceDirty||runDirty||recordingDirty||runFeedbackRequest)return;
     const id=session,version=currentVersion,source=sources.find(source=>source.sourceId===note.annotation.sourceId&&!!source.token);

@@ -26,6 +26,10 @@ export function checkpointExtraction(storage:Pick<Storage,'setItem'>,scope:strin
   try{storage.setItem(`${JOURNAL_PREFIX}${scope}:${progress.fingerprint||progress.key}`,value);}catch{throw Error('Implexa could not save this draft for recovery. Free browser storage and retry; your original note stays saved.');}
 }
 export type SavedDirectFeedback={fingerprint:string;annotation:DemoAnnotation;feedback:string;spatial:DraftSpatial|null};
+export function savedFeedbackMatches(note:SavedDirectFeedback|null,source:Pick<Source,'sourceId'|'metadata'>|null|undefined,timeMs:number,versionId:string|null):boolean{
+  return !!note&&note.annotation.sourceId===source?.sourceId&&note.annotation.sourceSha256===source?.metadata.sha256
+    &&note.annotation.timeMs===timeMs&&note.annotation.expectedActiveVersionId===versionId;
+}
 /** Discover resumable UI state only. Canonical scope and frame checks still run
  * when opened and extracted; the journal cannot grant training authority. */
 export async function savedDirectFeedback(storage:Pick<Storage,'length'|'key'|'getItem'|'setItem'>,

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,savedDirectFeedback,type FeedbackExtractionProgress,type FeedbackDraftRequest} from './training-feedback-extraction.ts';
+import {extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,savedDirectFeedback,savedFeedbackMatches,type FeedbackExtractionProgress,type FeedbackDraftRequest} from './training-feedback-extraction.ts';
 const id='11111111-1111-4111-8111-111111111111',record='22222222-2222-4222-8222-222222222222';
 const sha='a'.repeat(64),source={sourceId:id,token:'native-token',metadata:{sha256:sha,durationMs:1000}};
 const image='data:image/png;base64,'+Buffer.alloc(40,1).toString('base64');
@@ -117,6 +117,12 @@ test('reload discovery uses the real producer journal and exact upload scope wit
  await assert.rejects(run(progress,()=>checkpointExtraction(storage,`${ownerId}:${sessionId}:${versionId}`,progress)),/did not match/);
  const snapshot=[...values];const {notes,unreadableCount}=await savedDirectFeedback(storage,{ownerId,sessionId,versionId,sources:[source]});assert.equal(unreadableCount,0);
  assert.equal(notes.length,1);assert.equal(notes[0].annotation.rawAnnotation,rawAnnotation);assert.equal(notes[0].feedback,'Explain the actual relationship.');assert.equal(notes[0].fingerprint,fingerprint);assert.deepEqual(notes[0].spatial,JSON.parse(rawAnnotation).spatial);
+ assert.equal(savedFeedbackMatches(notes[0],source,0,versionId),true);
+ assert.equal(savedFeedbackMatches(notes[0],null,0,versionId),false);
+ assert.equal(savedFeedbackMatches(notes[0],{...source,sourceId:record},0,versionId),false);
+ assert.equal(savedFeedbackMatches(notes[0],{...source,metadata:{...source.metadata,sha256:'c'.repeat(64)}},0,versionId),false);
+ assert.equal(savedFeedbackMatches(notes[0],source,1,versionId),false);
+ assert.equal(savedFeedbackMatches(notes[0],source,0,record),false);
  assert.deepEqual([...values],snapshot,'discovery cannot reset or rewrite the journal');
  for(const patch of [{ownerId:record},{sessionId:record},{versionId:record},{sources:[{...source,sourceId:record}]},{sources:[{...source,metadata:{...source.metadata,sha256:'c'.repeat(64)}}]}]){
   assert.deepEqual((await savedDirectFeedback(storage,{ownerId,sessionId,versionId,sources:[source],...patch})).notes,[]);
