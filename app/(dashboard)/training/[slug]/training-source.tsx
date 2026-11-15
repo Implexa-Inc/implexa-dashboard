@@ -199,7 +199,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [feedbackInput,setFeedbackInput]=useState<{recordingId:string;sourceId:string;text:string;endFrame:boolean}|null>(null);
   const [pendingFeedback,setPendingFeedback]=useState<{recordingId:string;sourceId:string;sessionId:string;version:string;timeMs:number;phase:'save'|'suggest'}|null>(null);
   const [feedbackCategoryConfirmed,setFeedbackCategoryConfirmed]=useState(false);
-  const [closingRecording,setClosingRecording]=useState(false),[feedbackRetry,setFeedbackRetry]=useState(false);
+  const [closingRecording,setClosingRecording]=useState(false),[feedbackRetry,setFeedbackRetry]=useState<'direct'|'saved'|null>(null);
   const [runRequest,setRunRequest]=useState<{nonce:string;binding:PreparedTrainingTest|null}|null>(null);
   const preparedRuns=useRef(new Map<string,PreparedTrainingTest>());
   const preparingTest=useRef(false);
@@ -1554,7 +1554,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <TrainingImagePlayer key={`${selected.sourceId}:${time}`} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} disabled={!!busy||changesBusy||versionChanged}
         onChange={(text,spatial)=>{setDirectNote(text);setDemoText(text.trim()||spatial?JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:selected.sourceId,timeMs:time,spatial,feedback:text}):'');}}
         onDone={()=>setDirectExtractionRequested(true)}/>
-      {directDraftRetryIsCurrent&&<button type="button" className="text-sm text-orange-400 underline" disabled={!!busy||suggesting||changesBusy||versionChanged} onClick={()=>setFeedbackRetry(true)}>Request another draft</button>}
+      {directDraftRetryIsCurrent&&<button type="button" className="text-sm text-orange-400 underline" disabled={!!busy||suggesting||changesBusy||versionChanged} onClick={()=>setFeedbackRetry('direct')}>Request another draft</button>}
       {playbackFallback&&<p role="status" className="text-xs text-ink-400">{playbackFallback}</p>}
       {selected.metadata.durationMs>0&&<details className="text-xs text-ink-400"><summary className="cursor-pointer">Choose a different frame</summary><input aria-label="Training video frame" className="mt-3 w-full" type="range" min="0" max={selected.metadata.durationMs-1} value={time} disabled={!!busy||directVoiceDirty||!!directNote.trim()} onChange={event=>changeTime(Number(event.target.value))}/><button type="button" disabled={!!busy||directVoiceDirty||!!directNote.trim()} onClick={()=>void showPreview()}>Open this frame</button></details>}
     </>}
@@ -1601,17 +1601,17 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       {previewIsCurrent&&preview?.image&&<img src={preview.image} alt="Frame for your feedback" className="w-64 rounded-lg"/>}
       {pendingFeedback?.phase==='suggest'&&!demoAnnotationIsCurrent&&!busy&&<button type="button" onClick={()=>void saveDemoAnnotation()}>Retry saving feedback source</button>}
       {suggested?.value.fields&&demoAnnotationIsCurrent&&suggested.value.binding.frameSha256===demoAnnotation?.value.frameSha256&&'annotationId' in suggested.value.binding&&suggested.value.binding.annotationId===demoAnnotation?.value.annotationId&&<><div className="space-y-2">{TEACHING_FIELDS.map(key=><p key={key} className="text-sm text-ink-400"><strong>{TEACHING_SECTION_LABELS[key]}:</strong> {suggested.value.fields![key]}</p>)}</div><p className="text-xs text-ink-400">{relationLabel(relation)} · {feedbackCategoryConfirmed?`${property.replaceAll('_',' ')} · ${stages.map(trainingStageLabel).join(', ')}`:'Category not chosen'}</p>{learningScopeControls(true)}{!feedbackCategoryConfirmed&&<p className="text-xs text-ink-400">Choose its category under “Where this learning applies” before saving.</p>}<button type="button" className="btn-primary" disabled={!!busy||suggesting||versionChanged||!stages.length||!!pendingDemoLink||!feedbackCategoryConfirmed} onClick={()=>{appliedSuggestion.current=suggested.value;void annotate(suggested.value.fields!);}}>Save as draft</button></>}
-      {demoAnnotationIsCurrent&&!suggesting&&!suggested?.value.fields&&!pendingFeedback&&<button type="button" disabled={!!busy} onClick={()=>setFeedbackRetry(true)}>Retry suggestion from saved feedback</button>}
+      {demoAnnotationIsCurrent&&!suggesting&&!suggested?.value.fields&&!pendingFeedback&&<button type="button" disabled={!!busy} onClick={()=>setFeedbackRetry('saved')}>Retry suggestion from saved feedback</button>}
       <button type="button" disabled={!!busy||suggesting||!!pendingDemoLink} onClick={discardFeedbackSuggestion}>Discard this suggestion</button>
       {pendingDemoLink&&<button type="button" disabled={!!busy} onClick={()=>work('Linking your feedback',()=>linkDemoAnnotation(pendingDemoLink))}>Retry feedback link</button>}
     </section>}
-    <Modal open={feedbackRetry} onClose={()=>setFeedbackRetry(false)} title={directDraftRetry?'Request another draft?':'Retry this teaching suggestion?'}>
-      <p>{directDraftRetry?'The previous analysis did not return a confirmed draft. It may have reached the AI. This sends the same saved note and frame again to request a new suggestion; it does not apply training.':'The selected frame and your saved feedback will be sent again to Anthropic Claude Haiku 5.5.'}</p>
-      <button type="button" disabled={!!busy||suggesting||versionChanged||(directDraftRetry?!directDraftRetryIsCurrent:!demoAnnotationIsCurrent)} onClick={()=>{
-        setFeedbackRetry(false);
-        if(directDraftRetry){void extractDirectFeedback(directDraftRetry.request);}
+    <Modal open={feedbackRetry!==null} onClose={()=>setFeedbackRetry(null)} title={feedbackRetry==='direct'?'Request another draft?':'Retry this teaching suggestion?'}>
+      <p>{feedbackRetry==='direct'?'The previous analysis did not return a confirmed draft. It may have reached the AI. This sends the same saved note and frame again to request a new suggestion; it does not apply training.':'The selected frame and your saved feedback will be sent again to Anthropic Claude Haiku 5.5.'}</p>
+      <button type="button" disabled={!!busy||suggesting||versionChanged||(feedbackRetry==='direct'?!directDraftRetryIsCurrent:!demoAnnotationIsCurrent)} onClick={()=>{
+        setFeedbackRetry(null);
+        if(feedbackRetry==='direct'){if(directDraftRetry&&directDraftRetryIsCurrent)void extractDirectFeedback(directDraftRetry.request);}
         else{setDraftConsent(true);void suggestTeaching(true);}
-      }}>{directDraftRetry?'Request another draft':'Retry suggestion'}</button>
+      }}>{feedbackRetry==='direct'?'Request another draft':'Retry suggestion'}</button>
     </Modal>
     <Modal open={directExtractionRequested} onClose={()=>setDirectExtractionRequested(false)} title="Find the lesson in this example?"><p className="text-sm leading-6 text-ink-300">Implexa will use your note and this frame to suggest reusable training. You can edit or skip it before applying.</p><TrainingInfo label="What this analysis shares">{OWNER_SOURCE_CONSENT} Your note, region and this frame go to Claude Haiku 5.5. The video's narration is not used as your instruction.</TrainingInfo><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void extractDirectFeedback()}>Extract training</button></Modal>
     <Modal open={!!batchFeedbackRequest} onClose={()=>setBatchFeedbackRequest(null)} title="Find the lessons in your feedback?">

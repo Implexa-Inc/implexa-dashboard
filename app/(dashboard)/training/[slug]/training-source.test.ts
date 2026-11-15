@@ -2184,6 +2184,7 @@ test('a saved picture mark becomes a linked draft from exact feedback, retains r
   await flush();await r.click(r.getByText('Turn into a learning'));assert.equal(registrations,0);assert.equal(requests.length,0);
   await r.click(r.getByText('Suggest learning'));await flush();
   assert.match(r.text(),/Explain your preference more clearly/);assert.ok(r.queryByText('Retry suggestion from saved feedback'));
+  await r.click(r.getByText('Retry suggestion from saved feedback'));const retryDialog=r.document.querySelector('[role="dialog"][aria-label="Retry this teaching suggestion?"]')!;assert.ok(retryDialog);assert.ok(Array.from(retryDialog.querySelectorAll('button')).some(b=>b.textContent==='Retry suggestion'));assert.equal(requests.filter(b=>b.mode==='demonstration').length,1,'opening saved-note retry sends nothing');await r.click(retryDialog.querySelector('button[aria-label="Close"]')!);
   await r.click(r.getByText('Discard this suggestion'));assert.equal(r.document.querySelector('[aria-label="Learning from your feedback"]'),null);
   await r.click(r.getByText('Turn into a learning'));await r.click(r.getByText('Suggest learning'));await flush();
   assert.equal(registrations,1,'the next mark attempt reuses the source');assert.equal(h.calls.filter(c=>c.operation==='preview').every(c=>c.args.timeMs===4999),true,'the end mark uses the last valid frame');assert.match(r.text(),/just before the recording ends/);assert.deepEqual(JSON.parse(raw),{recordingId:RECORD,moment},'all card fields and region are original feedback');
