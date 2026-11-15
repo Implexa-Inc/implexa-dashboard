@@ -2783,7 +2783,7 @@ test('delayed Apply and saved-change reads cannot overwrite a newer session or v
   const value=textApplyProducerProjection(),writes:any[]=[],live={current:`${SESSION}:${VERSION_A}`},pending={current:null as any};
   let reads=0,posts=0,release!:()=>void,started!:()=>void;
   const gate=new Promise<void>(resolve=>{release=resolve;}),began=new Promise<void>(resolve=>{started=resolve;});
-  const dependencies={session:SESSION,currentVersion:VERSION_A,installationId:null,changesIdentity:live,unconfirmedTextApply:pending,changes:value,
+  const dependencies={session:SESSION,currentVersion:VERSION_A,installationId:null,changesIdentity:live,changesRead:{current:0},unconfirmedTextApply:pending,changes:value,
    changesInFlight:{current:false},changeIntent:{current:null},changesBusy:false,versionChanged:false,busyRef:{current:false},crypto:globalThis.crypto,guidedTrainingChanges,
    invalidateTrainingContinuity:()=>{},setBusy:()=>{},setChangesBusy:()=>{},setChanges:(v:any)=>writes.push(['changes',v]),setChangesError:(v:any)=>writes.push(['error',v]),setApplyNote:(v:any)=>writes.push(['note',v]),setError:(v:any)=>writes.push(['page-error',v]),
    fetch:async(_url:string,init:any={})=>{
@@ -2841,4 +2841,53 @@ test('an interrupted uploaded-note analysis offers an explicit new draft without
   assert.equal(drafts,2);assert.equal(requests.filter(b=>b.action==='save').length,1,'reuse original annotation');
   assert.equal(h.calls.filter(c=>c.operation==='annotate').length,1);assert.equal(h.calls.some(c=>c.operation==='accept'),false);
  }finally{r.cleanup();}
+});
+
+
+test('exact visual acceptance clears old test authority and rereads included material',async()=>{
+ for(const outcome of ['fresh','unavailable','delayed-old-read']){
+  const h=harness(),original=h.bridge.trainingLocal;let accepted=false,reads=0;
+  let releaseAccept!:()=>void,releaseOld!:()=>void;
+  const acceptGate=new Promise<void>(resolve=>{releaseAccept=resolve;});
+  const oldGate=new Promise<void>(resolve=>{releaseOld=resolve;});
+  const projection=(included:boolean)=>{
+   const value=textApplyProducerProjection();value.feedback=[];
+   Object.assign(value.records[0],{recordId:RECORD,recordDigest:DIGEST,sourceKind:'legacy_evidence',sourceEventId:null,sourceEventDigest:null,
+    state:included?'human_accepted':'suggested',included,admissionOrigin:included?'human_decision':'none'});
+   Object.assign(value.binding,{snapshotDigest:included?'c'.repeat(64):DIGEST});
+   Object.assign(value.test,{status:included?'stale':'delivered',scope:'private_candidate',snapshotDigest:DIGEST,runId:SOURCE_ID,canTest:true});
+   delete value.activation;value.publication={canPublish:false,reason:null,servedSnapshotDigest:null};
+   assert.ok(guidedTrainingChanges(value,{sessionId:SESSION,workflowVersionId:VERSION_A}));return value;
+  };
+  h.bridge.trainingLocal=async(operation,args)=>{
+   if(operation==='accept'){accepted=true;await acceptGate;}return original(operation,args);
+  };
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,fetch:(async(url:any)=>{
+   if(String(url).includes('/changes?')){
+    const n=++reads,wasAccepted=accepted;
+    if(outcome==='delayed-old-read'&&n===1){await oldGate;return {ok:true,json:async()=>projection(false)};}
+    if(wasAccepted&&outcome==='unavailable')throw Error('synthetic refresh unavailable');
+    return {ok:true,json:async()=>projection(wasAccepted)};
+   }
+   return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+  }) as typeof fetch});
+  try{
+   if(outcome!=='delayed-old-read')assert.match(r.text(),/A matching test delivered/);
+   await r.click(r.getByText('Review before accepting'));
+   const checks=r.document.querySelectorAll('input[type="checkbox"]');await r.click(checks[checks.length-1]);
+   await r.click(r.getByText('Accept this exact decision'));
+   assert.equal(accepted,true);assert.doesNotMatch(r.text(),/A matching test delivered/);
+   if(outcome==='delayed-old-read'){
+    await r.act(async()=>{releaseOld();await oldGate;});
+    assert.doesNotMatch(r.text(),/A matching test delivered/,'pre-mutation read cannot restore old authority');
+   }
+   await r.act(async()=>{releaseAccept();await acceptGate;});
+   assert.equal(reads,2,'canonical state is reread once after native acceptance');
+   assert.doesNotMatch(r.text(),/A matching test delivered/);
+   assert.equal(r.queryByText('Accept this exact decision'),null);
+   assert.equal(h.calls.filter(c=>c.operation==='accept').length,1);
+   if(outcome==='unavailable')assert.match(r.text(),/Saved training changes are unavailable/);
+   else assert.match(r.text(),/The update changed after its last test/);
+  }finally{releaseAccept();releaseOld();r.cleanup();}
+ }
 });

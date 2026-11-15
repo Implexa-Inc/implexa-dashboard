@@ -265,11 +265,13 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const changesInFlight=useRef(false),changeIntent=useRef<{fingerprint:string;key:string}|null>(null);
   const unconfirmedTextApply=useRef<{identity:string;records:Array<{recordId:string;recordDigest:string}>;error:string}|null>(null);
   const changesIdentity=useRef('');changesIdentity.current=`${session}:${currentVersion}`;
+  const changesRead=useRef(0);
   async function loadChanges(signal?:AbortSignal){
     const captured=`${session}:${currentVersion}`;
     if(!session||!currentVersion||installationId||changesIdentity.current!==captured)return;
+    const read=++changesRead.current;
     try{const response=await fetch(`/api/agent-training/changes?sessionId=${encodeURIComponent(session)}`,{cache:'no-store',signal});
-      const value=await response.json();if(signal?.aborted||changesIdentity.current!==captured)return;
+      const value=await response.json();if(signal?.aborted||changesIdentity.current!==captured||read!==changesRead.current)return;
       if(!response.ok||!guidedTrainingChanges(value,{sessionId:session,workflowVersionId:currentVersion}))throw Error(value.reason||'training_changes_unavailable');
       setChanges(value);setChangesError('');
       const pending=unconfirmedTextApply.current;
@@ -281,7 +283,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         }else setApplyNote(`${confirmed} of ${pending.records.length} selected lessons confirmed saved. Refresh to check the remaining lessons before retrying.`);
       }
       return value;
-    }catch(e){if(!signal?.aborted&&changesIdentity.current===captured){setChanges(null);setChangesError(e instanceof Error?e.message:'training_changes_unavailable');}}
+    }catch(e){if(!signal?.aborted&&changesIdentity.current===captured&&read===changesRead.current){setChanges(null);setChangesError(e instanceof Error?e.message:'training_changes_unavailable');}}
   }
   useEffect(()=>{setChanges(null);setChangesError('');setChatRequest(null);changeIntent.current=null;unconfirmedTextApply.current=null;setApplyNote('');const controller=new AbortController();void loadChanges(controller.signal);return()=>controller.abort();},[session,currentVersion,installationId]);
   async function mutateChanges(operation:'policy'|'records'|'creation-import'|'withdraw'|'tests/prepare'|'activate'|'publication/prepare'|'publication/publish',body:unknown,refresh=true){
@@ -1363,9 +1365,15 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if (!reviewed?.source.token || !acceptConfirmed || reviewed.decision.state !== 'draft') return;
     await work('Revalidating source and accepting decision', async () => {
       await requireCurrentScope();
-      await call('accept', { token: reviewed.source.token, recordId: reviewed.decision.recordId, expectedDigest: reviewed.decision.recordDigest });
-      await load(session); setReviewed(null);
-      if (questions) await loadQuestions();
+      // Acceptance changes the candidate material, so an earlier test must not
+      // remain visible while its canonical training snapshot is being reread.
+      changesRead.current++;setChanges(null);setChangesError('');
+      try {
+        await call('accept', { token: reviewed.source.token, recordId: reviewed.decision.recordId, expectedDigest: reviewed.decision.recordDigest });
+        setReviewed(null);
+        await load(session);
+        if (questions) await loadQuestions();
+      } finally { await loadChanges(); }
     });
   }
   const [applyNote,setApplyNote]=useState('');
