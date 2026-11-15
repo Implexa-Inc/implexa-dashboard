@@ -57,6 +57,7 @@ import { deriveRecoveredWork } from '@/lib/run-recovery';
 import { RUN_ARTIFACT_COLUMNS, projectRunArtifacts, type RecoveryArtifactView } from '@/lib/run-artifact-projection';
 import { RunJudgmentCard, type JudgeRepairRequest, type RunJudgment } from '../../_components/run-judgment-card';
 import { RunJudgmentPending } from '../../_components/run-judgment-pending';
+import { readJudgeReviewAge } from '@/lib/judge-repair-state';
 import VerifiedArtifacts, { type VerifiedArtifact } from '../../_components/verified-artifacts';
 import { isValidatedVideoOutput } from '@/lib/generation-entry-eligibility';
 import StageCompetenceProof from '../../_components/stage-competence-proof';
@@ -693,25 +694,20 @@ export default async function RunDetailPage({
   let failedJudgeRetry: { requestId: string; runId: string } | null = null;
   if (!judgment && !judgmentReadUnavailable) {
     try {
-      // created_at is fetched so the client can stop polling on its own after a
-      // reasonable ceiling, even if the underlying request never reaches a
-      // terminal status — a worker session that crashes right after CLAIMING
-      // the request (consumed) but before ever calling recordJudgment leaves it
-      // stuck there with no failure marker at all (run_requests has no
-      // 'failed' status), and without a deadline the browser would refresh
-      // every 20s forever.
+      // Preserve the bounded polling deadline, measuring a recovered review
+      // from its successful requeue rather than this request's old birth.
       const { data: jq, error: requestError } = await supabase.from('run_requests')
-        .select('status, created_at').eq('judge_target_run_id', params.id)
+        .select('id, status, created_at, bootstrap_retry_epoch').eq('judge_target_run_id', params.id)
         .in('status', ['pending', 'consumed', 'cancelled']).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (requestError) throw new Error('judge_request_unavailable');
       judgmentPending = !!jq;
       judgeRequestStatus = (jq && jq.status) || null;
-      judgeRequestCreatedAt = (jq && jq.created_at) || null;
+      judgeRequestCreatedAt = jq && jq.status !== 'cancelled' ? await readJudgeReviewAge(supabase, session.user.id, jq) : (jq?.created_at || null);
       if (!judgmentPending) {
         // Preserve the unfiltered active-review read above, including Manager QA.
         // Only an ordinary Judge can expose this retained prelaunch recovery.
         const { data: ordinary, error: ordinaryError } = await supabase.from('run_requests')
-          .select('id, status, lifecycle_state, run_id, created_at').eq('judge_target_run_id', params.id)
+          .select('id, status, lifecycle_state, run_id, created_at, bootstrap_retry_epoch').eq('judge_target_run_id', params.id)
           .eq('user_id', session.user.id).eq('kind', 'judge').eq('source', 'implexa-judge')
           .is('manager_verification_request_id', null)
           .in('status', ['pending', 'consumed', 'cancelled', 'done']).order('created_at', { ascending: false }).limit(1).maybeSingle();
@@ -720,12 +716,12 @@ export default async function RunDetailPage({
         if (ordinary && ordinary.status !== 'done') {
           judgmentPending = true;
           judgeRequestStatus = ordinary.status;
-          judgeRequestCreatedAt = ordinary.created_at;
+          judgeRequestCreatedAt = ordinary.status !== 'cancelled' ? await readJudgeReviewAge(supabase, session.user.id, ordinary) : ordinary.created_at;
         } else if (ordinary?.status === 'done' && ordinary.lifecycle_state === 'failed' && ordinary.run_id && ordinary.run_id !== params.id) {
           failedJudgeRetry = { requestId: ordinary.id, runId: ordinary.run_id };
         }
       }
-    } catch { judgmentReadUnavailable = true; }
+    } catch { judgmentReadUnavailable = true; judgmentPending = false; failedJudgeRetry = null; }
   }
 
   let creativeGradeNotice: string | null = null;
