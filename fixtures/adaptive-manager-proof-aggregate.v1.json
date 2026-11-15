@@ -1,0 +1,58 @@
+{
+  "provenance": {
+    "producer": "src/services/run-manager-proof.service.js:getRunManagerProof",
+    "backendCommit": "5df5ccbb575da6bb29f3a75d1c40054ecf177eec",
+    "scope": "Hermetic real backend producer with controlled in-memory database. No live account, model, RLS or output-quality proof."
+  },
+  "proof": {
+    "status": "ready",
+    "stageCount": 3,
+    "stages": [
+      {
+        "stage": "planning",
+        "decisionCount": 14,
+        "undisclosedReferenceCount": 7,
+        "handlingStatus": "reported",
+        "appliedCount": 9,
+        "exceptionCount": 1,
+        "unavailableCount": 4,
+        "refusedCount": 0,
+        "causationClaim": "not_claimed",
+        "verificationStatus": "not_required",
+        "requiredCriterionCount": 0,
+        "verifiedCriterionCount": 0
+      },
+      {
+        "stage": "build",
+        "decisionCount": 3,
+        "undisclosedReferenceCount": 11,
+        "handlingStatus": "reported",
+        "appliedCount": 2,
+        "exceptionCount": 1,
+        "unavailableCount": 0,
+        "refusedCount": 0,
+        "causationClaim": "not_claimed",
+        "verificationStatus": "not_required",
+        "requiredCriterionCount": 0,
+        "verifiedCriterionCount": 0
+      },
+      {
+        "stage": "qa",
+        "decisionCount": 0,
+        "undisclosedReferenceCount": 0,
+        "handlingStatus": "reported",
+        "appliedCount": 0,
+        "exceptionCount": 0,
+        "unavailableCount": 0,
+        "refusedCount": 0,
+        "causationClaim": "not_claimed",
+        "verificationStatus": "not_required",
+        "requiredCriterionCount": 0,
+        "verifiedCriterionCount": 0
+      }
+    ],
+    "handlingStatus": "ready",
+    "verificationStatus": "not_required",
+    "disclosure": "aggregate_stage_proof_only"
+  }
+}

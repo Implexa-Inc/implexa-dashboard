@@ -578,6 +578,9 @@ export function parseStageManagerProof(raw: unknown): StageManagerProof | null {
   if (!['ready', 'incomplete'].includes(String(raw.handlingStatus))) return null;
   if (raw.stageCount !== raw.stages.length || raw.stages.length === 0) return null;
 
+  // Existing v3 managed transport permits this bounded handling catalogue.
+  // Aggregate counts are not limited to the eight legacy decision traces.
+  const maximumHandlingItems = 4196;
   const stageNames = new Set<string>();
   for (const stage of raw.stages) {
     if (!isObject(stage) || !MANAGER_STAGES.has(String(stage.stage)) || stageNames.has(String(stage.stage))) return null;
@@ -587,9 +590,9 @@ export function parseStageManagerProof(raw: unknown): StageManagerProof | null {
     if (Object.keys(stage).some((key) => !stageKeys.has(key))) return null;
     if (stage.undisclosedReferenceCount !== undefined && !isCount(stage.undisclosedReferenceCount, 16)) return null;
     stageNames.add(String(stage.stage));
-    if (!isCount(stage.decisionCount, 8) || !isCount(stage.appliedCount, 8)
-        || !isCount(stage.exceptionCount, 8) || !isCount(stage.unavailableCount, 8)
-        || !isCount(stage.refusedCount, 8)) return null;
+    if (!isCount(stage.decisionCount, maximumHandlingItems) || !isCount(stage.appliedCount, maximumHandlingItems)
+        || !isCount(stage.exceptionCount, maximumHandlingItems) || !isCount(stage.unavailableCount, maximumHandlingItems)
+        || !isCount(stage.refusedCount, maximumHandlingItems)) return null;
     if (!['reported', 'not_recorded'].includes(String(stage.handlingStatus))) return null;
     const handled = Number(stage.appliedCount) + Number(stage.exceptionCount)
       + Number(stage.unavailableCount) + Number(stage.refusedCount);
