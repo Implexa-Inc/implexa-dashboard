@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-
-type DesktopSetupBridge = { openSetup?: () => Promise<{ ok?: boolean }> };
-const desktopSetupBridge = () => (window as unknown as { implexaDesktop?: DesktopSetupBridge }).implexaDesktop;
+import { useDesktopBridge } from '../../_components/api-key-row';
 
 export default function AccountForm({
   currentEmail,
@@ -17,18 +15,20 @@ export default function AccountForm({
   const router = useRouter();
   const supabase = createClient();
 
-  const [desktopSetupAvailable, setDesktopSetupAvailable] = useState(false);
+  const desktop = useDesktopBridge();
+  const desktopSetupInFlight = useRef(false);
   const [desktopSetupOpening, setDesktopSetupOpening] = useState(false);
   const [desktopSetupError, setDesktopSetupError] = useState(false);
-  useEffect(() => { setDesktopSetupAvailable(typeof desktopSetupBridge()?.openSetup === 'function'); }, []);
 
   async function openDesktopSetup() {
+    if (desktopSetupInFlight.current) return;
+    desktopSetupInFlight.current = true;
     setDesktopSetupOpening(true); setDesktopSetupError(false);
     try {
-      const result = await desktopSetupBridge()?.openSetup?.();
+      const result = await desktop?.openSetup?.();
       if (result?.ok !== true) setDesktopSetupError(true);
     } catch { setDesktopSetupError(true); }
-    finally { setDesktopSetupOpening(false); }
+    finally { desktopSetupInFlight.current = false; setDesktopSetupOpening(false); }
   }
 
   // Display name
@@ -79,7 +79,7 @@ export default function AccountForm({
 
   return (
     <div className="space-y-6">
-      {desktopSetupAvailable && <section className="card">
+      {typeof desktop?.openSetup === 'function' && <section className="card">
         <h2 className="text-base font-medium text-ink-50 mb-1">Desktop account</h2>
         <p className="text-xs text-ink-300 mb-4">Link or switch the account Implexa uses on this Mac.</p>
         <button type="button" className="btn-outline" disabled={desktopSetupOpening} onClick={openDesktopSetup}>
