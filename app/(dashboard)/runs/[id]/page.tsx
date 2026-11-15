@@ -695,9 +695,9 @@ export default async function RunDetailPage({
   if (!judgment && !judgmentReadUnavailable) {
     try {
       // Preserve the bounded polling deadline, measuring a recovered review
-      // from its successful retry/start rather than this request's old birth.
+      // from its successful requeue rather than this request's old birth.
       const { data: jq, error: requestError } = await supabase.from('run_requests')
-        .select('id, status, created_at, started_at, bootstrap_retry_epoch').eq('judge_target_run_id', params.id)
+        .select('id, status, created_at, bootstrap_retry_epoch').eq('judge_target_run_id', params.id)
         .in('status', ['pending', 'consumed', 'cancelled']).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (requestError) throw new Error('judge_request_unavailable');
       judgmentPending = !!jq;
@@ -707,7 +707,7 @@ export default async function RunDetailPage({
         // Preserve the unfiltered active-review read above, including Manager QA.
         // Only an ordinary Judge can expose this retained prelaunch recovery.
         const { data: ordinary, error: ordinaryError } = await supabase.from('run_requests')
-          .select('id, status, lifecycle_state, run_id, created_at, started_at, bootstrap_retry_epoch').eq('judge_target_run_id', params.id)
+          .select('id, status, lifecycle_state, run_id, created_at, bootstrap_retry_epoch').eq('judge_target_run_id', params.id)
           .eq('user_id', session.user.id).eq('kind', 'judge').eq('source', 'implexa-judge')
           .is('manager_verification_request_id', null)
           .in('status', ['pending', 'consumed', 'cancelled', 'done']).order('created_at', { ascending: false }).limit(1).maybeSingle();

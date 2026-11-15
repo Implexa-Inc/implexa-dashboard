@@ -79,7 +79,7 @@ test('the invalid-timestamp fix does not change behavior for a genuinely missing
 test('the run page fetches judge-request status AND created_at, and threads both into BOTH pending banners', () => {
   assert.match(runPage, /\.in\('status', \['pending', 'consumed', 'cancelled'\]\)/,
     'without cancelled in the query, the page can never distinguish a dead request from a live one');
-  assert.match(runPage, /\.select\('id, status, created_at, started_at, bootstrap_retry_epoch'\)\.eq\('judge_target_run_id', params\.id\)/,
+  assert.match(runPage, /\.select\('id, status, created_at, bootstrap_retry_epoch'\)\.eq\('judge_target_run_id', params\.id\)/,
     'created_at must be selected, or the client has no way to compute a stall ceiling');
   assert.match(runPage, /judgeRequestStatus\s*=\s*\(jq && jq\.status\)/);
   assert.match(runPage, /judgeRequestCreatedAt\s*=.*await readJudgeReviewAge\(supabase, session\.user\.id, jq\)/);
