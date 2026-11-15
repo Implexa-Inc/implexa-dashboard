@@ -21,7 +21,7 @@ import RunMarkTraining from './run-mark-training';
 import SavedReviewTeaching from './saved-review-teaching';
 import TrainingImagePlayer from './training-image-player';
 import TrainingDraftBundle,{visualTeachingSelectable} from './training-draft-bundle';
-import {extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress} from '@/lib/training-feedback-extraction';
+import {extractFeedbackTeaching,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
 import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import type {Moment,RecordingDetail} from '@/lib/review-recorder';
 import {TrainingDialog as Modal} from './training-workspace';
@@ -471,7 +471,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[ownerId,slug,currentVersion,installationId]);
   const [demoText, setDemoText] = useState('');
-  const [directDraftRetry,setDirectDraftRetry]=useState<{fingerprint:string;sessionId:string;versionId:string;sourceId:string;timeMs:number;rawAnnotation:string}|null>(null);
+  const [directDraftRetry,setDirectDraftRetry]=useState<{fingerprint:string;sessionId:string;versionId:string;sourceId:string;timeMs:number;rawAnnotation:string;request:FeedbackDraftRequest}|null>(null);
   const directDraftRetryIsCurrent=!!directDraftRetry&&directDraftRetry.sessionId===session&&directDraftRetry.versionId===currentVersion
     &&directDraftRetry.sourceId===selected?.sourceId&&directDraftRetry.timeMs===time&&directDraftRetry.rawAnnotation===demoText;
   const [demoAnnotation, setDemoAnnotation] = useState<{ value: DemoAnnotation; previewIdentity: string } | null>(null);
@@ -859,21 +859,20 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       setExtractionNote(`${completed} draft${completed===1?'':'s'} ready to review${held?`; ${held} need clarification`:''}. Nothing is live yet.`);setLastFeedbackBatch(null);if(completed)selectTrainingStep(2);
     });
   }
-  async function extractDirectFeedback(retryFingerprint?:string){
+  async function extractDirectFeedback(newDraftRequest?:FeedbackDraftRequest){
     if(!selected?.token||!currentVersion||!session||!demoText.trim()||versionChanged)return;
     const source={...selected,token:selected.token},version=currentVersion,id=session,rawAnnotation=demoText,frameTime=time;
     setDirectExtractionRequested(false);
     await work('Finding the lesson in your example',async()=>{
       const fingerprint=await teachingDigest(new TextEncoder().encode(JSON.stringify({id,version,sourceId:source.sourceId,sourceSha256:source.metadata.sha256,rawAnnotation,frameTime})));
       let progress=extractionProgress.current.get(fingerprint);if(!progress){progress=extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,fingerprint);extractionProgress.current.set(fingerprint,progress);}
-      if(retryFingerprint&&(retryFingerprint!==fingerprint||!directDraftRetryIsCurrent))throw Error('The note changed. Review the current example before retrying.');
-      const newDraftRequest=retryFingerprint?retryFeedbackDraft(progress,fingerprint):undefined;
+      if(newDraftRequest&&(newDraftRequest.fingerprint!==fingerprint||!directDraftRetryIsCurrent))throw Error('The note changed. Review the current example before retrying.');
       let result;
       try{result=await extractFeedbackTeaching({source,timeMs:frameTime,rawAnnotation,versionId:version,retentionUntil:retention,progress,newDraftRequest,checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress!),
         call:async(operation,args)=>await call(operation,args),check:async()=>{const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your draft is preserved.');},
         send:async(operation,body,key)=>{const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:id,...(operation==='annotation'?{operation:'annotation'}:{})})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(body)});const value=await response.json();return value;}});
       }catch(error){
-        if(progress.suggestionStarted&&!progress.suggestion&&!progress.record)setDirectDraftRetry({fingerprint,sessionId:id,versionId:version,sourceId:source.sourceId,timeMs:frameTime,rawAnnotation});
+        if(progress.suggestionStarted&&progress.annotation&&!progress.suggestion&&!progress.record&&!progress.linked)setDirectDraftRetry({fingerprint,sessionId:id,versionId:version,sourceId:source.sourceId,timeMs:frameTime,rawAnnotation,request:retryFeedbackDraft(progress,fingerprint)});
         throw error;
       }
       setDirectDraftRetry(null);
@@ -1610,7 +1609,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <p>{directDraftRetry?'The previous analysis did not return a confirmed draft. It may have reached the AI. This sends the same saved note and frame again to request a new suggestion; it does not apply training.':'The selected frame and your saved feedback will be sent again to Anthropic Claude Haiku 5.5.'}</p>
       <button type="button" disabled={!!busy||suggesting||versionChanged||(directDraftRetry?!directDraftRetryIsCurrent:!demoAnnotationIsCurrent)} onClick={()=>{
         setFeedbackRetry(false);
-        if(directDraftRetry){void extractDirectFeedback(directDraftRetry.fingerprint);}
+        if(directDraftRetry){void extractDirectFeedback(directDraftRetry.request);}
         else{setDraftConsent(true);void suggestTeaching(true);}
       }}>{directDraftRetry?'Request another draft':'Retry suggestion'}</button>
     </Modal>
