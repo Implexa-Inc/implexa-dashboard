@@ -2783,7 +2783,7 @@ test('delayed Apply and saved-change reads cannot overwrite a newer session or v
   const value=textApplyProducerProjection(),writes:any[]=[],live={current:`${SESSION}:${VERSION_A}`},pending={current:null as any};
   let reads=0,posts=0,release!:()=>void,started!:()=>void;
   const gate=new Promise<void>(resolve=>{release=resolve;}),began=new Promise<void>(resolve=>{started=resolve;});
-  const dependencies={session:SESSION,currentVersion:VERSION_A,installationId:null,changesIdentity:live,unconfirmedTextApply:pending,changes:value,
+  const dependencies={session:SESSION,currentVersion:VERSION_A,installationId:null,changesIdentity:live,changesRead:{current:0},unconfirmedTextApply:pending,changes:value,
    changesInFlight:{current:false},changeIntent:{current:null},changesBusy:false,versionChanged:false,busyRef:{current:false},crypto:globalThis.crypto,guidedTrainingChanges,
    invalidateTrainingContinuity:()=>{},setBusy:()=>{},setChangesBusy:()=>{},setChanges:(v:any)=>writes.push(['changes',v]),setChangesError:(v:any)=>writes.push(['error',v]),setApplyNote:(v:any)=>writes.push(['note',v]),setError:(v:any)=>writes.push(['page-error',v]),
    fetch:async(_url:string,init:any={})=>{
