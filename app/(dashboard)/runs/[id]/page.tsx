@@ -701,18 +701,30 @@ export default async function RunDetailPage({
       // 'failed' status), and without a deadline the browser would refresh
       // every 20s forever.
       const { data: jq, error: requestError } = await supabase.from('run_requests')
-        .select('id, status, lifecycle_state, run_id, created_at').eq('judge_target_run_id', params.id)
-        .eq('kind', 'judge').eq('source', 'implexa-judge').is('manager_verification_request_id', null)
-        .in('status', ['pending', 'consumed', 'cancelled', 'done']).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        .select('status, created_at').eq('judge_target_run_id', params.id)
+        .in('status', ['pending', 'consumed', 'cancelled']).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (requestError) throw new Error('judge_request_unavailable');
-      // Manager execution cards redirect here. Keep their existing owner-granted
-      // retry reachable without exposing a scaffold as another customer run.
-      if (jq?.status === 'done' && jq.lifecycle_state === 'failed' && jq.run_id && jq.run_id !== params.id) {
-        failedJudgeRetry = { requestId: jq.id, runId: jq.run_id };
-      }
-      judgmentPending = !!jq && jq.status !== 'done';
-      judgeRequestStatus = jq && jq.status !== 'done' ? jq.status : null;
+      judgmentPending = !!jq;
+      judgeRequestStatus = (jq && jq.status) || null;
       judgeRequestCreatedAt = (jq && jq.created_at) || null;
+      if (!judgmentPending) {
+        // Preserve the unfiltered active-review read above, including Manager QA.
+        // Only an ordinary Judge can expose this retained prelaunch recovery.
+        const { data: ordinary, error: ordinaryError } = await supabase.from('run_requests')
+          .select('id, status, lifecycle_state, run_id, created_at').eq('judge_target_run_id', params.id)
+          .eq('user_id', session.user.id).eq('kind', 'judge').eq('source', 'implexa-judge')
+          .is('manager_verification_request_id', null)
+          .in('status', ['pending', 'consumed', 'cancelled', 'done']).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (ordinaryError) throw new Error('judge_recovery_read_unavailable');
+        // A new ordinary review may have appeared between these reads.
+        if (ordinary && ordinary.status !== 'done') {
+          judgmentPending = true;
+          judgeRequestStatus = ordinary.status;
+          judgeRequestCreatedAt = ordinary.created_at;
+        } else if (ordinary?.status === 'done' && ordinary.lifecycle_state === 'failed' && ordinary.run_id && ordinary.run_id !== params.id) {
+          failedJudgeRetry = { requestId: ordinary.id, runId: ordinary.run_id };
+        }
+      }
     } catch { judgmentReadUnavailable = true; }
   }
 
@@ -1025,7 +1037,7 @@ export default async function RunDetailPage({
         {failedJudgeRetry && (
           <section className="card border-amber-500/30" aria-label="Final review recovery">
             <h2 className="font-medium text-ink-100">Final review is incomplete</h2>
-            <p className="mt-1 text-sm text-ink-300">Your delivered work is unchanged. This retries only its review.</p>
+            <p className="mt-1 text-sm text-ink-300">Your delivered work is unchanged.</p>
             <ControlPlaneRetry requestId={failedJudgeRetry.requestId} runId={failedJudgeRetry.runId} />
           </section>
         )}
