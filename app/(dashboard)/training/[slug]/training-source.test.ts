@@ -2815,7 +2815,7 @@ test('an interrupted uploaded-note analysis reconciles the durable result and re
   if(++drafts===1)throw Error('response lost');
   const {mode,image,consent,includeScope,analysis,...binding}=b;
   assert.equal(analysis.consentVersion,'training-annotation-taste-and-setup.v1');
-  if(drafts===2){assert.equal(analysis.retryOf,null);return {ok:false,json:async()=>({ok:false,unavailable:true,reason:'provider_timeout',analysisRequest:{requestEventId:QUESTION,requestDigest:DIGEST,attemptOrdinal:1}})};}
+  if(drafts===2){assert.equal(analysis.retryOf,null);return {ok:false,json:async()=>({ok:false,unavailable:true,reason:'teaching_suggestion_provider_timeout',analysisRequest:{requestEventId:QUESTION,requestDigest:DIGEST,attemptOrdinal:1}})};}
   assert.deepEqual(analysis.retryOf,{requestEventId:QUESTION,requestDigest:DIGEST});
   return {ok:true,json:async()=>({ok:true,contractVersion:'training-teaching-suggestion.v7',operatingGap:null,analysisReceipt:{requestEventId:QUESTION,requestDigest:DIGEST,resultEventId:QUESTION,resultDigest:DIGEST,attemptOrdinal:2,setupDigest:DIGEST,setupState:'complete',target:null,usage:{status:'unknown',inputTokens:null,outputTokens:null}},requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',scopeSuggestion:{property:'layout_variety',relation:'accepted'},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
  }) as typeof fetch;

@@ -29,7 +29,7 @@ export default function TrainingOperatingChanges({sessionId,versionId,slug,refre
   }catch{if(current.current===captured)setError('Could not confirm dismissal. Refresh suggestions before trying again.');}
   finally{if(current.current===captured)setBusy(false);}
  }
- const visible=page?.analyses.filter(a=>!['dismissed','not_applicable'].includes(a.edit.state)&&a.result?.operatingGap?.status!=='present')||[];
+ const visible=page?.analyses.filter(a=>a.outcome!=='answered'||!['dismissed','not_applicable'].includes(a.edit.state)&&a.result?.operatingGap?.status!=='present')||[];
  if(!visible.length&&!error&&!page?.nextCursor)return null;
  const r=review?.result,target=r?.analysisReceipt.target;
  return <section className="space-y-3" aria-label="Suggested agent improvements">

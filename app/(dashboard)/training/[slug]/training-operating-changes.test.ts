@@ -31,3 +31,9 @@ test('a tool proposal requests capability review and never enables the step-edit
  assert.match(r.text(),/Tool capability to review/);assert.equal(r.queryByText('Review agent update'),null);assert.equal(calls.some(c=>c.method==='POST'),false);
  mode='present';await r.rerender({...props,refreshKey:1});await r.act(async()=>{});assert.equal(r.queryByText('Suggested agent improvements'),null);
 });
+
+test('pending and failed analyses stay visible even though no edit is applicable, and refresh never starts inference',async t=>{
+ const calls:any[]=[];let failed=false;
+ const r=await render('../training/[slug]/training-operating-changes.tsx',props,{fetch:(async(url:string,init:any={})=>{calls.push({url,init});const p:any=page();p.analyses[0]={...p.analyses[0],outcome:failed?'failed':'pending',reason:failed?'teaching_suggestion_provider_timeout':null,result:null,edit:{state:'not_applicable',requestId:null,requestStatus:null,reviewedNote:null}};return {ok:true,json:async()=>p};}) as typeof fetch});t.after(()=>r.cleanup());await r.act(async()=>{});
+ assert.match(r.text(),/Checking your agent setup/);failed=true;await r.click(r.getByText('Refresh suggestions'));assert.match(r.text(),/Agent setup needs another look/);assert.equal(calls.some(c=>c.init.method==='POST'),false);
+});

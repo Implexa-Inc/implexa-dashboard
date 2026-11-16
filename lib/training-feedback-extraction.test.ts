@@ -148,3 +148,15 @@ test('ordinary annotation opts into one combined analysis; a procedure-only resu
  assert.ok('operatingGap' in result.suggestion&&result.suggestion.operatingGap?.genericDelta);await run();
  assert.equal(calls.filter(c=>c.op==='suggestion').length,1);assert.equal(calls.includes('annotate'),false);assert.equal(progress.linked,undefined);
 });
+
+test('an uncertain result commit never becomes permission to infer again; only a saved failure supplies retryOf',async()=>{
+ const rawAnnotation='Improve the internal review procedure.',progress:FeedbackExtractionProgress={key:id,fingerprint:'b'.repeat(64),suggestionStarted:true,
+  annotation:{annotationId:id,annotationDigest:sha,rawAnnotation,sourceId:id,sourceSha256:sha,timeMs:0,frameSha256:createHash('sha256').update(Buffer.from(image.slice(22),'base64')).digest('hex'),expectedActiveVersionId:id}};
+ let outcome='annotation_analysis_commit_unconfirmed';const requests:any[]=[];
+ const run=(newDraftRequest?:FeedbackDraftRequest)=>extractFeedbackTeaching({source,timeMs:0,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress,analyzeSetup:true,newDraftRequest,check:async()=>{},call:async()=>({ok:true,image}),
+  send:async(op,body:any)=>{assert.equal(op,'suggestion');requests.push(body.analysis);return {ok:false,unavailable:true,reason:outcome,analysisRequest:{requestEventId:record,requestDigest:sha,attemptOrdinal:1}};}});
+ await assert.rejects(run());assert.equal(progress.analysisOutcome,'pending');
+ await assert.rejects(run(retryFeedbackDraft(progress,progress.fingerprint!)));assert.equal(requests[1].retryOf,null);
+ outcome='teaching_suggestion_provider_timeout';await assert.rejects(run());assert.equal(progress.analysisOutcome,'failed');
+ await assert.rejects(run(retryFeedbackDraft(progress,progress.fingerprint!)));assert.deepEqual(requests[3].retryOf,{requestEventId:record,requestDigest:sha});
+});

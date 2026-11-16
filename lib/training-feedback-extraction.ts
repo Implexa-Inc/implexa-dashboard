@@ -114,7 +114,7 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
       ?{requestEventId:progress.analysisRequest.requestEventId,requestDigest:progress.analysisRequest.requestDigest}:null;
     const value=await send('suggestion',{...wire,mode:'demonstration',includeScope:true,image:preview.image,consent:true,
       ...(analyzeSetup?{analysis:{contractVersion:'training-annotation-analysis-request.v1',consentVersion:'training-annotation-taste-and-setup.v1',retryOf}}:{})});
-    if(analyzeSetup&&analysisRequestReceipt(value.analysisRequest)){progress.analysisRequest=value.analysisRequest;progress.analysisOutcome=value.reason==='annotation_analysis_pending'?'pending':'failed';checkpoint();}
+    if(analyzeSetup&&analysisRequestReceipt(value.analysisRequest)){progress.analysisRequest=value.analysisRequest;progress.analysisOutcome=typeof value.reason==='string'&&value.reason.startsWith('teaching_suggestion_')&&value.unavailable===true?'failed':'pending';checkpoint();}
     if(!value.ok){if(value.reason==='teaching_suggestion_rate_limited'){progress.suggestionStarted=false;checkpoint();}throw Error(extractionFailure(value));}
     if(analyzeSetup){if(!annotationAnalysis(value,binding))throw Error('The proposed teaching did not match this note and frame.');}
     else if(!scopedTeachingSuggestion(value,binding))throw Error('The proposed teaching did not match this note and frame.');
