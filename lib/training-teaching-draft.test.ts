@@ -83,3 +83,16 @@ test('direction-aware insufficient replies require null scope and preserve their
  assert.equal(scopedTeachingSuggestion(v8,v8.binding),true);
  assert.equal(scopedTeachingSuggestion({...v8,creativeDirections:[]},v8.binding),false);
 });
+
+
+test('actual backend direction producer responses pass the unchanged exact Dashboard binding and scope decoders',()=>{
+ const f=JSON.parse(readFileSync(new URL('../test/fixtures/training-direction-scope-producer.v1.json',import.meta.url),'utf8'));
+ const {demonstration:d,annotation:a,list:l,pending:p}=f;
+ assert.equal(scopedTeachingSuggestion(d,d.binding),true);
+ assert.equal(annotationAnalysis(a,a.binding),true);
+ assert.equal(annotationGapPage(l,a.binding.expectedActiveVersionId),true);
+ assert.equal(annotationGapPage({...l,analyses:[p]},a.binding.expectedActiveVersionId),true);
+ assert.equal(annotationAnalysis({...a,binding:{...a.binding,directionScopeContract:'training-direction-scope.v1'}},a.binding),false,'a producer must not inflate the legacy exact frame binding');
+ const downgraded=structuredClone(l);delete downgraded.analyses[0].directionScopeContract;
+ assert.equal(annotationGapPage(downgraded,a.binding.expectedActiveVersionId),false,'a scoped result cannot appear as an unqualified general analysis');
+});
