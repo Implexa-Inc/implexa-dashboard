@@ -925,8 +925,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         throw error;
       }finally{setOperatingRefresh(value=>value+1);}
       setDirectDraftRetry(null);
-      if(result.status==='held'){setHeldExtractions(previous=>[...previous.filter(item=>item.key!==fingerprint),{key:fingerprint,text:directNote,reason:result.reason}]);setExtractionNote('This lesson needs clarification. Your original feedback is saved.');}
-      else{setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setDemoText('');setDirectNote('');setReopenedFeedback(null);setExtractionNote('Your proposed lesson is ready to review. Nothing is live yet.');selectTrainingStep(2);}
+      const operating=result.suggestion.contractVersion==='training-teaching-suggestion.v7'?result.suggestion.operatingGap:null;
+      if(result.status==='held'){
+        if(operating){setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setExtractionNote(operating.status==='suggested'?'Your feedback suggests an agent setup change. Review the suggestion above.':operating.status==='present'?'This method is already in the agent. Your feedback is saved.':'Your feedback is saved. Tool or setup support needs review.');}
+        else{setHeldExtractions(previous=>[...previous.filter(item=>item.key!==fingerprint),{key:fingerprint,text:directNote,reason:result.reason}]);setExtractionNote('This lesson needs clarification. Your original feedback is saved.');}
+      }else{setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setDemoText('');setDirectNote('');setReopenedFeedback(null);setExtractionNote(operating?.status==='suggested'?'Your lesson and agent update are ready to review. Nothing is live yet.':operating?.status==='present'?'Your proposed lesson is ready. The requested method is already available.':'Your proposed lesson is ready to review. Nothing is live yet.');selectTrainingStep(2);}
       await load(id);await loadChanges();
     });
   }

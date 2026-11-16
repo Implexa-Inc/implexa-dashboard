@@ -45,14 +45,15 @@ export default function TrainingOperatingChanges({sessionId,versionId,slug,refre
    {g&&g.kind==='tool'&&<details className="text-xs text-ink-400"><summary>Why this needs a tool review</summary><p className="mt-2">{g.privateRationale}</p></details>}
    <div className="flex gap-3">
     {a.retry.state!=='none'&&onResume&&<button className="btn-outline" disabled={busy||disabled} onClick={()=>onResume(a)}>Continue saved feedback</button>}
-    {available&&<button className="btn-outline" disabled={busy||disabled} onClick={()=>setReview(a)}>Review agent update</button>}
+    {available&&<button className="btn-outline" disabled={busy||disabled} onClick={()=>{setReviewUnknown(true);void load(false,undefined,a.analysisRequest.requestEventId);}}>Review agent update</button>}
     {!queued&&a.result&&<button className="text-xs text-ink-400" disabled={busy||disabled} onClick={()=>void dismiss(a)}>Dismiss suggestion</button>}
    </div>
   </article>;})}
   {error&&<p role="status" className="text-sm text-amber-400">{error}</p>}
-  <button disabled={busy||disabled} onClick={()=>void load()} className="text-xs text-ink-400">Refresh suggestions</button>
+  <button disabled={busy||disabled} onClick={()=>void load(false,undefined,review?.analysisRequest.requestEventId)} className="text-xs text-ink-400">Refresh suggestions</button>
   {page?.nextCursor&&<button disabled={busy||disabled} onClick={()=>void load(true)} className="text-xs text-ink-400 ml-3">More suggestions</button>}
-  <TrainingDialog open={!!r&&!!target} title="Review agent update" onClose={()=>setReview(null)}>
+  <TrainingDialog open={!!r&&!!target} title="Review agent update" onClose={()=>{setReview(null);setReviewUnknown(false);}}>
+   {reviewUnknown&&<div role="status" className="mb-3 space-y-2 text-sm text-ink-400"><p>{busy?'Checking the saved update…':'The saved update could not be checked.'}</p><button disabled={busy} className="text-xs underline" onClick={()=>void load(false,undefined,review?.analysisRequest.requestEventId)}>Check saved update</button></div>}
    {r&&target&&<ImproveAgent key={r.analysisReceipt.resultEventId} bare slug={slug} initialNote={review?.edit.reviewedNote||r.operatingGap?.genericDelta||''} statusUnavailable={disabled||busy||reviewUnknown}
     annotationBinding={{sessionId,analysisResultEventId:r.analysisReceipt.resultEventId,analysisResultDigest:r.analysisReceipt.resultDigest,expectedActiveVersionId:versionId,stepOrder:target.stepOrder,stepDigest:target.stepDigest,supersedes:review?.edit.review?{eventId:review.edit.review.eventId,digest:review.edit.review.digest}:null}}
     onQueued={()=>void load(false,undefined,review!.analysisRequest.requestEventId)} onUnconfirmed={()=>{setReviewUnknown(true);void load(false,undefined,review!.analysisRequest.requestEventId);}}/>}

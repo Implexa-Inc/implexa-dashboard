@@ -2917,3 +2917,29 @@ test('a failed automatic analysis card reopens its exact saved annotation withou
   assert.ok(r.queryByText('Review or retry analysis'));assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
  }finally{r.cleanup();}
 });
+
+test('ordinary feedback can produce only an operating result without falsely asking for a taste clarification',async()=>{
+ for(const state of ['suggested','present']){
+  const h=harness({previewImage:VALID_FRAME}),r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,runContext:{statusUnavailable:false,revisePending:false}},{bridge:h.bridge});
+  Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+  const prior=r.window.fetch;let response:any=null,raw='',modelRequests=0;
+  r.window.fetch=(async(url:string,init:RequestInit={})=>{
+   if(String(url).includes('/annotation-gap-edit?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-annotation-gap-list.v1',analyses:response?[{analysisRequest:{requestEventId:QUESTION,requestDigest:DIGEST,attemptOrdinal:1},annotation:{annotationId:QUESTION,annotationDigest:DIGEST},retry:{state:'none',availableAt:null},outcome:'answered',reason:null,result:response,edit:{state:state==='suggested'?'available':'not_applicable',review:null,requestId:null,requestStatus:null,reviewedNote:null}}]:[],nextCursor:null})};
+   if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+   const b=JSON.parse(String(init.body));if(b.action==='save'){raw=b.rawAnnotation;const {action,expectedActiveVersionId,...annotation}=b;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:{contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId}})};}
+   modelRequests++;const {mode,image,consent,includeScope,analysis,...binding}=b;assert.equal(analysis.consentVersion,'training-annotation-taste-and-setup.v1');
+   response={ok:true,contractVersion:'training-teaching-suggestion.v7',requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'insufficient',fields:null,reason:'An operating instruction, not a new visual preference.',scopeSuggestion:null,
+    operatingGap:{status:state,kind:'procedure',stepOrder:2,capability:null,evidenceExcerpt:'Create the scene prompts',privateRationale:'Prompt authoring belongs in the existing build procedure.',genericDelta:state==='suggested'?'Author scene prompts within the agent from the accepted plan.':''},
+    analysisReceipt:{requestEventId:QUESTION,requestDigest:DIGEST,resultEventId:RECORD,resultDigest:DIGEST,attemptOrdinal:1,setupDigest:DIGEST,setupState:'complete',target:{stepOrder:2,stepDigest:DIGEST,methods:[]},usage:{status:'observed',inputTokens:200,outputTokens:100}},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}};
+   return {ok:true,json:async()=>response};
+  }) as typeof fetch;
+  try{
+   await chooseDirectUpload(r);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+   const input=r.document.querySelector('[aria-label="Teach from an image"] textarea')!;await setTextarea(r,input,'Create the scene prompts inside the agent rather than asking for another file.');
+   await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
+   assert.equal(modelRequests,1);assert.doesNotMatch(r.text(),/This lesson needs clarification/);assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
+   if(state==='suggested'){assert.match(r.text(),/Your feedback suggests an agent setup change/);assert.ok(r.queryByText('Review agent update'));}
+   else{assert.match(r.text(),/This method is already in the agent/);assert.equal(r.queryByText('Review agent update'),null);}
+  }finally{r.cleanup();}
+ }
+});

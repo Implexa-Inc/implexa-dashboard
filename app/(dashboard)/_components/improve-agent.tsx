@@ -109,7 +109,7 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
             disabled={statusUnavailable || revisePending}
             className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
           />
-          {error && <div className="mt-1.5 space-y-2"><p className="text-xs text-rose-500">{error}</p>{annotationBinding&&onUnconfirmed&&<button type="button" className="text-xs underline" onClick={onUnconfirmed}>Check saved update</button>}</div>}
+          {error && <p className="text-xs text-rose-500 mt-1.5">{error}</p>}
           <div className="flex items-center justify-between mt-2.5">
             <span className="text-[11px] text-ink-500">Proposes updated steps · ⌘↵</span>
             <div className="flex items-center gap-2">
@@ -127,7 +127,7 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
           </div>
         </div>
       )}
-      {statusUnavailable && (
+      {statusUnavailable && !annotationBinding && (
         <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
           Edit status is unavailable. Reload before queueing another permanent change.
         </p>

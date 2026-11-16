@@ -52,3 +52,17 @@ test('an unconfirmed queue reconciles its latest approval before the trainer can
  await r.click(r.getByText('Apply change'));await r.act(async()=>{});
  const posts=calls.filter(c=>c.init.method==='POST');assert.equal(posts.length,2);assert.deepEqual(JSON.parse(posts[1].init.body).supersedes,{eventId:approval.eventId,digest:approval.digest});assert.equal(JSON.parse(posts[1].init.body).note,'Correct the reviewed setup change.');assert.match(r.text(),/Agent update queued/);
 });
+
+test('a failed targeted queue check can be retried without reloading or losing the edited note',async t=>{
+ let attempted=false,failRead=true;const approval={eventId:id(30),digest:H,revision:1,supersedes:null};
+ const r=await render('../training/[slug]/training-operating-changes.tsx',props,{fetch:(async(url:string,init:any={})=>{
+  if(init.method==='POST'){attempted=true;return {ok:false,json:async()=>({ok:false,reason:'annotation_gap_queue_unconfirmed'})};}
+  if(attempted&&failRead)throw Error('temporary read failure');
+  const p:any=page();if(attempted)p.analyses[0].edit={state:'reviewed_unqueued',review:approval,requestId:null,requestStatus:null,reviewedNote:'Saved approval.'};return {ok:true,json:async()=>p};
+ }) as typeof fetch});t.after(()=>r.cleanup());Object.defineProperty(r.window,'crypto',{value:webcrypto,configurable:true});Object.assign(r.window,{TextEncoder});await r.act(async()=>{});
+ await r.click(r.getByText('Review agent update'));const input=r.document.querySelector('textarea')!;
+ await r.act(()=>{Object.getOwnPropertyDescriptor(r.window.HTMLTextAreaElement.prototype,'value')!.set!.call(input,'Keep this trainer edit.');input.dispatchEvent(new r.window.Event('input',{bubbles:true}));});
+ await r.click(r.getByText('Apply change'));await r.act(async()=>{});assert.equal((r.getByText('Apply change') as HTMLButtonElement).disabled,true);
+ failRead=false;await r.click(r.getByText('Check saved update'));await r.act(async()=>{});
+ assert.equal((r.getByText('Apply change') as HTMLButtonElement).disabled,false);assert.equal((r.document.querySelector('textarea') as HTMLTextAreaElement).value,'Keep this trainer edit.');
+});
