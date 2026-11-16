@@ -1,15 +1,24 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { JetBrains_Mono, Shippori_Mincho, Zen_Kaku_Gothic_New } from 'next/font/google';
+import { themeBootScript, themeMode } from '@/lib/theme';
 
-// Inter was named in the Tailwind font stack but never actually loaded, so the
-// app silently fell back to system fonts and the Inter-only stylistic sets in
-// globals.css did nothing. Self-hosting it via next/font (no layout shift, no
-// external request at runtime) is what makes the type read crisp and uniform
-// across platforms, the way Vercel's own dashboard does.
-const inter = Inter({
+// Tukido type system (Implexa/tukido-app-design/DESIGN_SYSTEM.md):
+//   UI       → Zen Kaku Gothic New (everything you read and click)
+//   Display  → Shippori Mincho (page titles only; see `h1` in globals.css)
+//   Mono     → JetBrains Mono (IDs, code, technical details)
+// Self-hosted via next/font: no layout shift, no runtime request to Google.
+const ui = Zen_Kaku_Gothic_New({
   subsets: ['latin'],
-  variable: '--font-inter',
+  weight: ['400', '500', '700'],
+  variable: '--font-ui',
+  display: 'swap',
+});
+
+const display = Shippori_Mincho({
+  subsets: ['latin'],
+  weight: ['500', '600'],
+  variable: '--font-display',
   display: 'swap',
 });
 
@@ -29,11 +38,21 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const mode = themeMode();
+  // Server renders the theme everyone gets by default (dark). The boot script
+  // runs before first paint and may switch to light (clock mode by day, or a
+  // per-browser `?theme=` preview), so <html> attributes can legitimately
+  // differ from the server render: suppressHydrationWarning covers exactly that.
   return (
-    // `dark` is forced here so every user gets the good dark theme regardless
-    // of OS preference. `color-scheme: dark` keeps native controls (scrollbars,
-    // form widgets, the browser chrome) consistent with the app.
-    <html lang="en" className={`dark ${inter.variable} ${jetbrainsMono.variable}`} style={{ colorScheme: 'dark' }}>
+    <html
+      lang="en"
+      className={`dark ${ui.variable} ${display.variable} ${jetbrainsMono.variable}`}
+      style={{ colorScheme: 'dark' }}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript(mode) }} />
+      </head>
       <body className="min-h-screen antialiased">{children}</body>
     </html>
   );
