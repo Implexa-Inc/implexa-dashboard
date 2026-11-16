@@ -66,3 +66,8 @@ test('a failed targeted queue check can be retried without reloading or losing t
  failRead=false;await r.click(r.getByText('Check saved update'));await r.act(async()=>{});
  assert.equal((r.getByText('Apply change') as HTMLButtonElement).disabled,false);assert.equal((r.document.querySelector('textarea') as HTMLTextAreaElement).value,'Keep this trainer edit.');
 });
+
+test('incomplete setup remains visible even without a proposed edit and never implies no gap was found',async t=>{
+ const calls:any[]=[];const r=await render('../training/[slug]/training-operating-changes.tsx',props,{fetch:(async(url:string,init:any={})=>{calls.push(init);const p:any=page();p.analyses[0].result.operatingGap=null;p.analyses[0].result.analysisReceipt.setupState='incomplete';p.analyses[0].result.analysisReceipt.target=null;p.analyses[0].edit.state='not_applicable';return {ok:true,json:async()=>p};}) as typeof fetch});t.after(()=>r.cleanup());await r.act(async()=>{});
+ assert.match(r.text(),/Agent setup couldn’t be checked/);assert.match(r.text(),/No step or tool assessment was possible/);assert.equal(r.queryByText('Review agent update'),null);assert.equal(calls.some(c=>c.method==='POST'),false);
+});

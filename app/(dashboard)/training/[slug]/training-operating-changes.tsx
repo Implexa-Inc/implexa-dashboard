@@ -33,15 +33,15 @@ export default function TrainingOperatingChanges({sessionId,versionId,slug,refre
   }catch{if(current.current===captured)setError('Could not confirm dismissal. Refresh suggestions before trying again.');}
   finally{if(current.current===captured)setBusy(false);}
  }
- const visible=page?.analyses.filter(a=>a.outcome!=='superseded'&&(a.outcome!=='answered'||!['dismissed','not_applicable'].includes(a.edit.state)&&a.result?.operatingGap?.status!=='present'))||[];
+ const visible=page?.analyses.filter(a=>a.outcome!=='superseded'&&(a.outcome!=='answered'||a.edit.state!=='dismissed'&&(a.result?.analysisReceipt.setupState==='incomplete'||a.edit.state!=='not_applicable'&&a.result?.operatingGap?.status!=='present')))||[];
  if(!visible.length&&!error&&!page?.nextCursor)return null;
  const r=review?.result,target=r?.analysisReceipt.target;
  return <section className="space-y-3" aria-label="Suggested agent improvements">
   <h3 className="text-base font-medium">Suggested agent improvements</h3>
-  {visible.map(a=>{const g=a.result?.operatingGap,queued=a.edit.state==='queued',available=['available','reviewed_unqueued'].includes(a.edit.state);return <article className="rounded-xl border border-ink-700 p-4 space-y-2" key={a.analysisRequest.requestEventId}>
-   <h4 className="font-medium">{queued?'Agent update queued':g?.kind==='tool'?'Tool capability to review':g?.status==='suggested'?'Update an agent step':a.outcome==='pending'?'Checking your agent setup':'Agent setup needs another look'}</h4>
+  {visible.map(a=>{const g=a.result?.operatingGap,incomplete=a.result?.analysisReceipt.setupState==='incomplete',queued=a.edit.state==='queued',available=['available','reviewed_unqueued'].includes(a.edit.state);return <article className="rounded-xl border border-ink-700 p-4 space-y-2" key={a.analysisRequest.requestEventId}>
+   <h4 className="font-medium">{incomplete?'Agent setup couldn’t be checked':queued?'Agent update queued':g?.kind==='tool'?'Tool capability to review':g?.status==='suggested'?'Update an agent step':a.outcome==='pending'?'Checking your agent setup':'Agent setup needs another look'}</h4>
    {(a.edit.reviewedNote||g?.genericDelta)&&<p className="text-sm whitespace-pre-wrap">{a.edit.reviewedNote||g?.genericDelta}</p>}
-   <p className="text-xs text-ink-400">{queued?'The current version stays active until the update succeeds.':g?.kind==='tool'?'This needs a tool and method review before it can be added.':available?'Review this proposed setup change from your feedback before applying.':a.edit.state==='stale'?'The agent has changed. Analyze feedback against its current setup before editing.':a.outcome==='pending'?'Refresh to check the saved result. No new analysis will start.':'Your feedback is saved. Reopen the example to review or retry its analysis.'}</p>
+   <p className="text-xs text-ink-400">{incomplete?'Your feedback is saved. No step or tool assessment was possible; any taste suggestion remains available.':queued?'The current version stays active until the update succeeds.':g?.kind==='tool'?'This needs a tool and method review before it can be added.':available?'Review this proposed setup change from your feedback before applying.':a.edit.state==='stale'?'The agent has changed. Analyze feedback against its current setup before editing.':a.outcome==='pending'?'Refresh to check the saved result. No new analysis will start.':'Your feedback is saved. Reopen the example to review or retry its analysis.'}</p>
    {g&&g.kind==='tool'&&<details className="text-xs text-ink-400"><summary>Why this needs a tool review</summary><p className="mt-2">{g.privateRationale}</p></details>}
    <div className="flex gap-3">
     {a.retry.state!=='none'&&onResume&&<button className="btn-outline" disabled={busy||disabled} onClick={()=>onResume(a)}>Continue saved feedback</button>}
