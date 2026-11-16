@@ -132,3 +132,61 @@ test('reload discovery uses the real producer journal and exact upload scope wit
  const originalKey=[...values.keys()][0];values.set(originalKey,'not-json');
  const broken=await savedDirectFeedback(storage,{ownerId,sessionId,versionId,sources:[source]});assert.deepEqual(broken.notes,[]);assert.equal(broken.unreadableCount,1);assert.equal(values.get(originalKey),'not-json');
 });
+
+test('ordinary annotation opts into one combined analysis; a procedure-only result survives insufficient taste and replay',async()=>{
+ const progress:FeedbackExtractionProgress={key:id};const calls:any[]=[];
+ const run=()=>extractFeedbackTeaching({source,timeMs:0,rawAnnotation:'Keep the media prompt self-contained in the agent.',versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress,analyzeSetup:true,check:async()=>{},
+  call:async(op)=>{calls.push(op);if(op==='preview')return {ok:true,image};throw Error('No taste draft should be created');},
+  send:async(op,body:any)=>{calls.push({op,body});if(op==='annotation'){const {action,expectedActiveVersionId,...annotation}=body;return {ok:true,contractVersion:'training-demo-annotation.v1',annotationId:id,annotationDigest:sha,annotation:{...annotation,contractVersion:'training-demo-annotation.v1',targetVersionId:expectedActiveVersionId}};}
+   const {mode,includeScope,image,consent,analysis,...binding}=body;
+   assert.deepEqual(analysis,{contractVersion:'training-annotation-analysis-request.v1',consentVersion:'training-annotation-taste-and-setup.v1',retryOf:null});
+   return {ok:true,requestId:id,contractVersion:'training-teaching-suggestion.v7',model:'claude-haiku-5-5',status:'insufficient',fields:null,reason:'A procedure change, rather than a visual preference.',scopeSuggestion:null,binding:{...binding,feedbackSha256:hash('Keep the media prompt self-contained in the agent.')},
+    sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'},
+    operatingGap:{status:'suggested',kind:'procedure',stepOrder:4,capability:null,evidenceExcerpt:'Keep the media prompt self-contained',privateRationale:'The step needs prompt authoring.',genericDelta:'Author and review media prompts within the Build step.'},
+    analysisReceipt:{requestEventId:id,requestDigest:sha,resultEventId:record,resultDigest:sha,attemptOrdinal:1,setupDigest:sha,setupState:'complete',target:{stepOrder:4,stepDigest:sha,methods:[]},usage:{status:'observed',inputTokens:500,outputTokens:100}}};}});
+ const result=await run();assert.equal(result.status,'held');assert.equal(result.suggestion.contractVersion,'training-teaching-suggestion.v7');
+ assert.ok('operatingGap' in result.suggestion&&result.suggestion.operatingGap?.genericDelta);await run();
+ assert.equal(calls.filter(c=>c.op==='suggestion').length,1);assert.equal(calls.includes('annotate'),false);assert.equal(progress.linked,undefined);
+});
+
+test('an uncertain result commit never becomes permission to infer again; only a saved failure supplies retryOf',async()=>{
+ const rawAnnotation='Improve the internal review procedure.',progress:FeedbackExtractionProgress={key:id,fingerprint:'b'.repeat(64),suggestionStarted:true,analysisContract:'training-teaching-suggestion.v7',
+  annotation:{annotationId:id,annotationDigest:sha,rawAnnotation,sourceId:id,sourceSha256:sha,timeMs:0,frameSha256:createHash('sha256').update(Buffer.from(image.slice(22),'base64')).digest('hex'),expectedActiveVersionId:id}};
+ let outcome='annotation_analysis_commit_unconfirmed';const requests:any[]=[];
+ const run=(newDraftRequest?:FeedbackDraftRequest)=>extractFeedbackTeaching({source,timeMs:0,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress,analyzeSetup:true,newDraftRequest,check:async()=>{},call:async()=>({ok:true,image}),
+  send:async(op,body:any)=>{assert.equal(op,'suggestion');requests.push(body.analysis);return {ok:false,unavailable:true,reason:outcome,analysisRequest:{requestEventId:record,requestDigest:sha,attemptOrdinal:1}};}});
+ await assert.rejects(run());assert.equal(progress.analysisOutcome,'pending');
+ await assert.rejects(run(retryFeedbackDraft(progress,progress.fingerprint!)));assert.equal(requests[1].retryOf,null);
+ outcome='teaching_suggestion_provider_timeout';await assert.rejects(run());assert.equal(progress.analysisOutcome,'failed');
+ await assert.rejects(run(retryFeedbackDraft(progress,progress.fingerprint!)));assert.deepEqual(requests[3].retryOf,{requestEventId:record,requestDigest:sha});
+});
+
+test('an old unconfirmed v6 journal requires the existing explicit retry acknowledgment before v7',async()=>{
+ const rawAnnotation='Keep explanatory visuals readable.',progress:FeedbackExtractionProgress={key:id,fingerprint:'b'.repeat(64),suggestionStarted:true,
+  annotation:{annotationId:id,annotationDigest:sha,rawAnnotation,sourceId:id,sourceSha256:sha,timeMs:0,frameSha256:createHash('sha256').update(Buffer.from(image.slice(22),'base64')).digest('hex'),expectedActiveVersionId:id}};
+ const sent:any[]=[];
+ const run=(newDraftRequest?:FeedbackDraftRequest)=>extractFeedbackTeaching({source,timeMs:0,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress,analyzeSetup:true,newDraftRequest,check:async()=>{},call:async()=>({ok:true,image}),send:async(op,body:any)=>{sent.push({op,body});return {ok:false,reason:'annotation_analysis_pending',analysisRequest:{requestEventId:record,requestDigest:sha,attemptOrdinal:1}};}});
+ await assert.rejects(run(),/interrupted while drafting/);assert.equal(sent.length,0);assert.equal(progress.analysisContract,undefined);
+ await assert.rejects(run(retryFeedbackDraft(progress,progress.fingerprint!)));assert.equal(sent.length,1);assert.equal(progress.analysisContract,'training-teaching-suggestion.v7');assert.equal(sent[0].body.analysis.retryOf,null);
+});
+
+test('unknown-result retry carries acknowledgement only from the explicit retry action',async()=>{
+ const rawAnnotation='Review the diagram before delivery.',progress:FeedbackExtractionProgress={key:id,fingerprint:'b'.repeat(64),suggestionStarted:true,analysisContract:'training-teaching-suggestion.v7',analysisOutcome:'pending',analysisRequest:{requestEventId:record,requestDigest:sha,attemptOrdinal:1},
+  annotation:{annotationId:id,annotationDigest:sha,rawAnnotation,sourceId:id,sourceSha256:sha,timeMs:0,frameSha256:createHash('sha256').update(Buffer.from(image.slice(22),'base64')).digest('hex'),expectedActiveVersionId:id}};
+ const sent:any[]=[];
+ const run=(newDraftRequest?:FeedbackDraftRequest)=>extractFeedbackTeaching({source,timeMs:0,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress,analyzeSetup:true,newDraftRequest,check:async()=>{},call:async()=>({ok:true,image}),send:async(op,body:any)=>{sent.push(body.analysis);return {ok:false,reason:'annotation_analysis_pending',analysisRequest:progress.analysisRequest};}});
+ await assert.rejects(run());assert.equal(sent[0].retryOf,null);
+ await assert.rejects(run({...retryFeedbackDraft(progress,progress.fingerprint!),acknowledgedUnknownPrior:true}));
+ assert.deepEqual(sent[1].retryOf,{requestEventId:record,requestDigest:sha,acknowledgedUnknownPrior:true});
+});
+
+test('reload after a lost retry response reconciles the exact approved retry identity',async()=>{
+ const rawAnnotation='Keep prompts inside the agent.',progress:FeedbackExtractionProgress={key:id,fingerprint:'b'.repeat(64),suggestionStarted:true,analysisContract:'training-teaching-suggestion.v7',analysisOutcome:'failed',analysisRequest:{requestEventId:record,requestDigest:sha,attemptOrdinal:1},
+  annotation:{annotationId:id,annotationDigest:sha,rawAnnotation,sourceId:id,sourceSha256:sha,timeMs:0,frameSha256:createHash('sha256').update(Buffer.from(image.slice(22),'base64')).digest('hex'),expectedActiveVersionId:id}};
+ const requests:any[]=[],values=new Map<string,string>(),storage={getItem:(k:string)=>values.get(k)||null,setItem:(k:string,v:string)=>{values.set(k,v);}};
+ const actual=extractionProgressFor(storage,'scope',progress.fingerprint!);progress.key=actual.key;
+ const run=(current:FeedbackExtractionProgress,newDraftRequest?:FeedbackDraftRequest)=>extractFeedbackTeaching({source,timeMs:0,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress:current,analyzeSetup:true,newDraftRequest,checkpoint:()=>checkpointExtraction(storage,'scope',current),check:async()=>{},call:async()=>({ok:true,image}),send:async(op,body:any)=>{requests.push(body.analysis);throw Error('retry response lost');}});
+ await assert.rejects(run(progress,retryFeedbackDraft(progress,progress.fingerprint!)),/retry response lost/);
+ const recovered=extractionProgressFor(storage,'scope',progress.fingerprint!);await assert.rejects(run(recovered),/retry response lost/);
+ assert.deepEqual(requests[1],requests[0]);assert.deepEqual(requests[1].retryOf,{requestEventId:record,requestDigest:sha});
+});

@@ -26,6 +26,67 @@ export type TeachingSuggestion = { ok: true; contractVersion: 'training-teaching
   binding: SuggestionBinding; status: 'suggested' | 'insufficient'; fields: TeachingFields | null; reason: string;
   sources: { chosen: 'observed_frame'; why: 'trainer_preference'; process: 'transferable_guidance'; desiredBehavior: 'transferable_guidance' } };
 export type ScopedTeachingSuggestion=Omit<TeachingSuggestion,'contractVersion'>&{contractVersion:'training-teaching-suggestion.v6';scopeSuggestion:{property:string;relation:string}|null};
+export type AnalysisRequestReceipt={requestEventId:string;requestDigest:string;attemptOrdinal:number};
+export type OperatingGap={status:'suggested'|'present'|'incomplete'|'unsupported';kind:'procedure'|'tool';stepOrder:number|null;
+  capability:'web_reference_research'|'presenter_background_removal'|null;evidenceExcerpt:string;privateRationale:string;genericDelta:string};
+export type AnnotationAnalysis=Omit<ScopedTeachingSuggestion,'contractVersion'>&{contractVersion:'training-teaching-suggestion.v7';operatingGap:OperatingGap|null;
+  analysisReceipt:AnalysisRequestReceipt&{resultEventId:string;resultDigest:string;setupDigest:string;setupState:'complete'|'incomplete';
+    target:null|{stepOrder:number;stepDigest:string;methods:Array<{source:string;slug:string;contentDigest:string}>};
+    usage:{status:'observed'|'unknown';inputTokens:number|null;outputTokens:number|null}}};
+export type AnnotationGapReview={eventId:string;digest:string;revision:number;supersedes:{eventId:string;digest:string}|null};
+export type AnnotationGapAnalysis={analysisRequest:AnalysisRequestReceipt;annotation:{annotationId:string;annotationDigest:string};retry:{state:'none'|'after_failure'|'after_unknown';availableAt:string|null};outcome:'pending'|'answered'|'failed'|'refused'|'superseded';reason:string|null;result:AnnotationAnalysis|null;
+  edit:{state:'available'|'reviewed_unqueued'|'not_applicable'|'dismissed'|'queued'|'stale'|'blocked';review:AnnotationGapReview|null;requestId:string|null;requestStatus:string|null;reviewedNote:string|null}};
+export type AnnotationGapPage={ok:true;contractVersion:'training-annotation-gap-list.v1';analyses:AnnotationGapAnalysis[];nextCursor:null|{afterCreatedAt:string;afterId:string}};
+export function analysisRequestReceipt(v:any):v is AnalysisRequestReceipt{
+  return exact(v,['requestEventId','requestDigest','attemptOrdinal'])&&recordingUuid(v.requestEventId)&&recordingSha(v.requestDigest)&&Number.isSafeInteger(v.attemptOrdinal)&&v.attemptOrdinal>=1;
+}
+/** Opt-in extension of the existing teaching decoder. Never relax v6 for older producers. */
+export function annotationAnalysis(v:any,expected:SuggestionBinding):v is AnnotationAnalysis{
+  if(!v||v.contractVersion!=='training-teaching-suggestion.v7'||!Object.hasOwn(v,'operatingGap')||!Object.hasOwn(v,'analysisReceipt'))return false;
+  const {operatingGap:g,analysisReceipt:r,...taste}=v;
+  if(!scopedTeachingSuggestion({...taste,contractVersion:'training-teaching-suggestion.v6'},expected))return false;
+  if(!exact(r,['requestEventId','requestDigest','attemptOrdinal','resultEventId','resultDigest','setupDigest','setupState','target','usage'])
+    ||!analysisRequestReceipt({requestEventId:r.requestEventId,requestDigest:r.requestDigest,attemptOrdinal:r.attemptOrdinal})
+    ||!recordingUuid(r.resultEventId)||!recordingSha(r.resultDigest)||!recordingSha(r.setupDigest)||!['complete','incomplete'].includes(r.setupState))return false;
+  const t=r.target,u=r.usage;
+  if(t!==null&&(!exact(t,['stepOrder','stepDigest','methods'])||!Number.isSafeInteger(t.stepOrder)||t.stepOrder<1||!recordingSha(t.stepDigest)
+    ||!Array.isArray(t.methods)||!t.methods.every((m:any)=>exact(m,['source','slug','contentDigest'])&&typeof m.source==='string'&&!!m.source&&typeof m.slug==='string'&&!!m.slug&&recordingSha(m.contentDigest))))return false;
+  if(!exact(u,['status','inputTokens','outputTokens'])||!(u.status==='unknown'?u.inputTokens===null&&u.outputTokens===null:
+    u.status==='observed'&&[u.inputTokens,u.outputTokens].every(n=>Number.isSafeInteger(n)&&n>=0)))return false;
+  if(g===null)return true;
+  return exact(g,['status','kind','stepOrder','capability','evidenceExcerpt','privateRationale','genericDelta'])
+    &&['suggested','present','incomplete','unsupported'].includes(g.status)&&['procedure','tool'].includes(g.kind)
+    &&(g.stepOrder===null||Number.isSafeInteger(g.stepOrder)&&g.stepOrder>=1)
+    &&(g.capability===null||['web_reference_research','presenter_background_removal'].includes(g.capability))
+    &&Object.entries({evidenceExcerpt:400,privateRationale:500,genericDelta:1000}).every(([k,max])=>typeof g[k]==='string'&&Array.from(g[k]).length<=max)
+    &&!!g.evidenceExcerpt.trim()&&!!g.privateRationale.trim()
+    &&(g.kind!=='procedure'||g.capability===null)&&(g.kind!=='tool'||g.status==='unsupported'||g.capability!==null)
+    &&(g.status==='suggested'?!!g.genericDelta.trim():g.genericDelta==='')
+    &&(g.stepOrder===null||t!==null&&t.stepOrder===g.stepOrder)
+    &&(!['suggested','present'].includes(g.status)||r.setupState==='complete'&&t!==null&&t.stepOrder===g.stepOrder);
+}
+export function annotationGapPage(v:any,versionId:string):v is AnnotationGapPage{
+  return exact(v,['ok','contractVersion','analyses','nextCursor'])&&v.ok===true&&v.contractVersion==='training-annotation-gap-list.v1'
+    &&Array.isArray(v.analyses)&&v.analyses.length<=50&&v.analyses.every((a:any)=>{
+      if(!exact(a,['analysisRequest','annotation','retry','outcome','reason','result','edit'])||!analysisRequestReceipt(a.analysisRequest)||!['pending','answered','failed','refused','superseded'].includes(a.outcome)
+        ||!(a.reason===null||typeof a.reason==='string'&&a.reason.length<=500))return false;
+      const r=a.result,b=r?.binding,e=a.edit;
+      if(!exact(a.annotation,['annotationId','annotationDigest'])||!recordingUuid(a.annotation.annotationId)||!recordingSha(a.annotation.annotationDigest)
+        ||!exact(a.retry,['state','availableAt'])||!['none','after_failure','after_unknown'].includes(a.retry.state)
+        ||!(a.retry.availableAt===null||typeof a.retry.availableAt==='string'&&Number.isFinite(Date.parse(a.retry.availableAt))))return false;
+      if(r!==null&&(!b||!exact(b,['sourceId','sourceSha256','timeMs','frameSha256','expectedActiveVersionId','feedbackSha256','annotationId','annotationDigest'])
+        ||!['sourceId','annotationId'].every(k=>recordingUuid(b[k]))||!['sourceSha256','frameSha256','feedbackSha256','annotationDigest'].every(k=>recordingSha(b[k]))
+        ||b.annotationId!==a.annotation.annotationId||b.annotationDigest!==a.annotation.annotationDigest||!Number.isSafeInteger(b.timeMs)||b.timeMs<0||b.expectedActiveVersionId!==versionId||!annotationAnalysis(r,b)
+        ||!(['requestEventId','requestDigest','attemptOrdinal'] as const).every(k=>r.analysisReceipt[k]===a.analysisRequest[k])))return false;
+      return (a.outcome==='answered'?r!==null:r===null)&&exact(e,['state','review','requestId','requestStatus','reviewedNote'])
+        &&(e.review===null||exact(e.review,['eventId','digest','revision','supersedes'])&&recordingUuid(e.review.eventId)&&recordingSha(e.review.digest)
+          &&Number.isSafeInteger(e.review.revision)&&e.review.revision>=1&&(e.review.supersedes===null||exact(e.review.supersedes,['eventId','digest'])&&recordingUuid(e.review.supersedes.eventId)&&recordingSha(e.review.supersedes.digest)))
+        &&['available','reviewed_unqueued','not_applicable','dismissed','queued','stale','blocked'].includes(e.state)
+        &&(e.requestId===null||recordingUuid(e.requestId))&&(e.requestStatus===null||typeof e.requestStatus==='string'&&e.requestStatus.length<=100)
+        &&(e.reviewedNote===null||typeof e.reviewedNote==='string'&&e.reviewedNote.length<=2000&&new TextEncoder().encode(e.reviewedNote).length<=8000)
+        &&(!['available','reviewed_unqueued'].includes(e.state)||r?.operatingGap?.kind==='procedure'&&r.operatingGap.status==='suggested'&&r.analysisReceipt.target!==null);
+    })&&(v.nextCursor===null||exact(v.nextCursor,['afterCreatedAt','afterId'])&&recordingUuid(v.nextCursor.afterId)&&typeof v.nextCursor.afterCreatedAt==='string'&&Number.isFinite(Date.parse(v.nextCursor.afterCreatedAt)));
+}
 /** The workspace opts in; older callers keep their exact v2/v3 contract. */
 export function scopedTeachingSuggestion(value:any,expected:SuggestionBinding):value is ScopedTeachingSuggestion{
   if(!value||value.contractVersion!=='training-teaching-suggestion.v6'||!Object.hasOwn(value,'scopeSuggestion'))return false;
