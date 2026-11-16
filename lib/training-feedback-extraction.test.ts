@@ -7,15 +7,15 @@ const sha='a'.repeat(64),source={sourceId:id,token:'native-token',metadata:{sha2
 const image='data:image/png;base64,'+Buffer.alloc(40,1).toString('base64');
 const hash=(text:string)=>createHash('sha256').update(text).digest('hex');
 const fields={chosen:'In this example, the route is a wall of text.',why:'Prefer a spatial explanation when geography matters.',process:'Applies when location explains the comparison.',desiredBehavior:'Explain the relationship visually, with a map when useful.'};
-function setup({nullScope=false,linkFails=false,wrongBinding=false,insufficient=false,rawAnnotation='Show the location on a map, rather than listing names.',timeMs=1000}={}){
- const calls:any[]=[],progress:FeedbackExtractionProgress={key:id};let links=0;
- const run=(recovered=progress,checkpoint=()=>{},newDraftRequest?:FeedbackDraftRequest)=>extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress:recovered,checkpoint,newDraftRequest,
-  check:async()=>{calls.push(['check']);},call:async(op,args:any)=>{calls.push([op,args]);if(op==='preview')return {ok:true,image};if(op==='annotate')return {ok:true,recordId:record,recordDigest:sha};throw Error('Unexpected writer');},
+function setup({nullScope=false,linkFails=false,wrongBinding=false,insufficient=false,rawAnnotation='Show the location on a map, rather than listing names.',timeMs=1000,modelRelation='rejected',writeFails=false}={}){
+ const calls:any[]=[],progress:FeedbackExtractionProgress={key:id};let links=0,writes=0;
+ const run=(recovered=progress,checkpoint=()=>{},newDraftRequest?:FeedbackDraftRequest,reviewBeforeSave=false,relationChoice?:Parameters<typeof extractFeedbackTeaching>[0]['relationChoice'])=>extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress:recovered,checkpoint,newDraftRequest,reviewBeforeSave,relationChoice,
+  check:async()=>{calls.push(['check']);},call:async(op,args:any)=>{calls.push([op,args]);if(op==='preview')return {ok:true,image};if(op==='annotate'){if(writeFails&&++writes===1)throw Error('unknown native save');return {ok:true,recordId:record,recordDigest:sha};}throw Error('Unexpected writer');},
   send:async(op,body:any,key)=>{calls.push([op,body,key]);
    if(op==='annotation'&&body.action==='save'){const {action,expectedActiveVersionId,...annotation}=body;return {ok:true,contractVersion:'training-demo-annotation.v1',annotationId:id,annotationDigest:sha,annotation:{...annotation,contractVersion:'training-demo-annotation.v1',targetVersionId:expectedActiveVersionId}};}
    if(op==='annotation'){if(linkFails&&++links===1)throw Error('lost link response');return {ok:true,contractVersion:'training-demo-link.v1',annotationId:id,annotationDigest:sha,recordId:record,recordDigest:sha,linkReceiptId:id};}
    const {mode,includeScope,image,consent,...binding}=body;
-   return {ok:true,requestId:id,contractVersion:'training-teaching-suggestion.v6',model:'claude-haiku-5-5',status:insufficient?'insufficient':'suggested',fields:insufficient?null:fields,reason:insufficient?'Please explain what you prefer.':'',scopeSuggestion:nullScope||insufficient?null:{property:'narrative_visual_alignment',relation:'rejected'},binding:{...binding,sourceId:wrongBinding?record:binding.sourceId,feedbackSha256:hash(rawAnnotation)},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}};
+   return {ok:true,requestId:id,contractVersion:'training-teaching-suggestion.v6',model:'claude-haiku-5-5',status:insufficient?'insufficient':'suggested',fields:insufficient?null:fields,reason:insufficient?'Please explain what you prefer.':'',scopeSuggestion:nullScope||insufficient?null:{property:'narrative_visual_alignment',relation:modelRelation},binding:{...binding,sourceId:wrongBinding?record:binding.sourceId,feedbackSha256:hash(rawAnnotation)},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}};
   }});
  return {run,calls,progress};
 }
@@ -189,4 +189,62 @@ test('reload after a lost retry response reconciles the exact approved retry ide
  await assert.rejects(run(progress,retryFeedbackDraft(progress,progress.fingerprint!)),/retry response lost/);
  const recovered=extractionProgressFor(storage,'scope',progress.fingerprint!);await assert.rejects(run(recovered),/retry response lost/);
  assert.deepEqual(requests[1],requests[0]);assert.deepEqual(requests[1].retryOf,{requestEventId:record,requestDigest:sha});
+});
+
+
+test('ordinary review can correct the model relation before the existing immutable writer without another inference',async()=>{
+ const {run,calls,progress}=setup({modelRelation:'accepted'});
+ assert.equal((await run(progress,()=>{},undefined,true)).status,'review');
+ assert.equal(calls.some(c=>c[0]==='annotate'),false);assert.equal(progress.linked,undefined);
+ const recovered=JSON.parse(JSON.stringify(progress));
+ assert.equal((await run(recovered,()=>{},undefined,true,'rejected')).status,'drafted');
+ assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);
+ const saved=calls.find(c=>c[0]==='annotate')[1];assert.equal(saved.content.relation,'rejected');assert.deepEqual(saved.decision,fields);
+ assert.equal(recovered.suggestion.scopeSuggestion.relation,'accepted','preserve the original model proposal separately');
+ assert.equal(recovered.reviewedRelation,'rejected');assert.equal(recovered.linked,true);
+ assert.equal(calls.some(c=>['accept','activate','revise_workflow'].includes(c[0])),false);
+});
+test('an uncertain native save retains the reviewed choice and exact writer key on recovery',async()=>{
+ const {run,calls,progress}=setup({modelRelation:'accepted',writeFails:true});
+ await run(progress,()=>{},undefined,true);
+ await assert.rejects(run(progress,()=>{},undefined,true,'rejected'),/unknown native save/);
+ assert.equal(progress.reviewedRelation,'rejected');
+ await assert.rejects(run(progress,()=>{},undefined,true,'accepted'),/save has already started/);
+ await run(progress,()=>{},undefined,true,'rejected');
+ const writes=calls.filter(c=>c[0]==='annotate');assert.equal(writes.length,2);assert.deepEqual(writes[0][1],writes[1][1]);
+ assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);assert.equal(progress.linked,true);
+});
+test('a failed review checkpoint starts no native write and does not freeze an unsaved choice',async()=>{
+ const {run,calls,progress}=setup({modelRelation:'accepted'});await run(progress,()=>{},undefined,true);
+ await assert.rejects(run(progress,()=>{if(progress.reviewedRelation)throw Error('storage full');},undefined,true,'rejected'),/storage full/);
+ assert.equal(progress.reviewedRelation,undefined);assert.equal(calls.some(c=>c[0]==='annotate'),false);
+ await run(progress,()=>{},undefined,true,'accepted');assert.equal(calls.find(c=>c[0]==='annotate')[1].content.relation,'accepted');
+});
+
+test('a reviewed draft with an unconfirmed link resumes that draft without writing or inferring again',async()=>{
+ const {run,calls,progress}=setup({modelRelation:'accepted',linkFails:true});await run(progress,()=>{},undefined,true);
+ await assert.rejects(run(progress,()=>{},undefined,true,'rejected'),/lost link/);assert.ok(progress.record);
+ await run(progress,()=>{},undefined,true,'rejected');assert.equal(progress.linked,true);
+ assert.equal(calls.filter(c=>c[0]==='annotate').length,1);assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);
+});
+
+test('a pre-upgrade uncertain native save preserves its original relation and writer identity',async()=>{
+ const {run,calls,progress}=setup({modelRelation:'accepted',writeFails:true});
+ await assert.rejects(run(),/unknown native save/);assert.ok(progress.retentionUntil);assert.equal(progress.reviewedRelation,undefined);
+ await assert.rejects(run(progress,()=>{},undefined,true,'rejected'),/save has already started/);
+ assert.equal((await run(progress,()=>{},undefined,true)).status,'drafted','no new relation review after a legacy save may have begun');
+ const writes=calls.filter(c=>c[0]==='annotate');assert.equal(writes.length,2);assert.deepEqual(writes[0][1],writes[1][1]);
+ assert.equal(writes[1][1].content.relation,'accepted');assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);
+});
+
+test('retention checkpoint failure cannot send an unpersisted writer body on the next save',async()=>{
+ const {run,progress,calls}=setup({modelRelation:'accepted'});await run(progress,()=>{},undefined,true);
+ let durable=structuredClone(progress),failRetention=true;
+ const checkpoint=()=>{if(progress.retentionUntil&&failRetention)throw Error('retention storage failure');durable=structuredClone(progress);};
+ await assert.rejects(run(progress,checkpoint,undefined,true,'rejected'),/retention storage failure/);
+ assert.equal(progress.retentionUntil,undefined);assert.equal(durable.retentionUntil,undefined);assert.equal(durable.reviewedRelation,'rejected');
+ assert.equal(calls.some(c=>c[0]==='annotate'),false);
+ failRetention=false;await run(progress,checkpoint,undefined,true,'rejected');
+ const saved=calls.find(c=>c[0]==='annotate')[1];assert.equal(durable.retentionUntil,saved.content.governance.retentionUntil);
+ assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);assert.equal(progress.linked,true);
 });

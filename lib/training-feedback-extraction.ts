@@ -1,9 +1,9 @@
 import {buildSpatialAnchor,anchorError,INTENT_CHANGE} from './review-anchor.ts';
 import type {DraftSpatial} from './review-timestamp-feedback.ts';
 import {demoAnnotationReceipt,scopedTeachingSuggestion,teachingDigest,teachingFrame,type DemoAnnotation,type ScopedTeachingSuggestion,annotationAnalysis,analysisRequestReceipt,type AnnotationAnalysis,type AnalysisRequestReceipt} from './training-teaching-draft.ts';
-import {deriveTrainingStages,TRAINING_PROPERTY_CODES,TRAINING_RELATIONS,type TrainingPropertyCode} from './training-local-ingress.ts';
+import {deriveTrainingStages,TRAINING_PROPERTY_CODES,TRAINING_RELATIONS,type TrainingPropertyCode,type TrainingRelation} from './training-local-ingress.ts';
 
-export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion|AnnotationAnalysis;analysisRequest?:AnalysisRequestReceipt;analysisOutcome?:'pending'|'failed';analysisContract?:'training-teaching-suggestion.v7';analysisIntent?:{retryOf:null|{requestEventId:string;requestDigest:string;acknowledgedUnknownPrior?:true}};record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string};
+export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion|AnnotationAnalysis;analysisRequest?:AnalysisRequestReceipt;analysisOutcome?:'pending'|'failed';analysisContract?:'training-teaching-suggestion.v7';analysisIntent?:{retryOf:null|{requestEventId:string;requestDigest:string;acknowledgedUnknownPrior?:true}};record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string;reviewedRelation?:TrainingRelation};
 type Source={sourceId:string;token:string;metadata:{sha256:string;durationMs:number}};
 type Reply={ok:boolean;[key:string]:any};
 type Send=(operation:'annotation'|'suggestion',body:unknown,key?:string)=>Promise<Reply>;
@@ -78,9 +78,9 @@ export function extractionFailure(value:Reply):string{
 /** Compose existing annotation, suggestion, native draft and link writers in order.
  * No acceptance occurs here. Progress survives a failed link so retry reuses its draft.
  */
-export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId,retentionUntil,progress,call,send,check,newDraftRequest,analyzeSetup=false,checkpoint=()=>{}}:{
+export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId,retentionUntil,progress,call,send,check,newDraftRequest,analyzeSetup=false,reviewBeforeSave=false,relationChoice,checkpoint=()=>{}}:{
   source:Source;timeMs:number;rawAnnotation:string;versionId:string;retentionUntil:string;progress:FeedbackExtractionProgress;
-  call:(operation:string,args:unknown)=>Promise<Reply>;send:Send;check:()=>Promise<void>;newDraftRequest?:FeedbackDraftRequest;analyzeSetup?:boolean;checkpoint?:()=>void;
+  call:(operation:string,args:unknown)=>Promise<Reply>;send:Send;check:()=>Promise<void>;newDraftRequest?:FeedbackDraftRequest;analyzeSetup?:boolean;reviewBeforeSave?:boolean;relationChoice?:TrainingRelation;checkpoint?:()=>void;
 }){
   if(!rawAnnotation.trim()||rawAnnotation.length>2000)throw Error('This note is too long for one teaching. Split it into shorter notes; the original stays saved.');
   await check();
@@ -130,11 +130,26 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
   if(suggestion.status==='insufficient'||!suggestion.fields||!suggestion.scopeSuggestion)return {status:'held' as const,reason:suggestion.reason||'Review the category and example type before saving this teaching.',suggestion,image:preview.image};
   const scope=suggestion.scopeSuggestion;
   if(!TRAINING_PROPERTY_CODES.includes(scope.property as any)||!TRAINING_RELATIONS.includes(scope.relation as any))throw Error('The proposed teaching scope is unsupported.');
+  // Review only the source-example relation before the existing immutable writer.
+  // A persisted choice resumes the same save; it never admits the teaching.
+  const legacySaveStarted=!!progress.retentionUntil&&!progress.reviewedRelation;
+  if(relationChoice!==undefined&&!TRAINING_RELATIONS.includes(relationChoice))throw Error('Choose an example type before saving.');
+  if(progress.reviewedRelation!==undefined&&!TRAINING_RELATIONS.includes(progress.reviewedRelation))throw Error('The saved example choice needs review.');
+  if(relationChoice!==undefined&&(legacySaveStarted||(progress.reviewedRelation!==undefined?progress.reviewedRelation!==relationChoice:!!progress.record)))throw Error('This teaching save has already started. Finish the saved choice before making a different draft.');
+  if(reviewBeforeSave&&!progress.record&&!legacySaveStarted&&!progress.reviewedRelation&&relationChoice===undefined)return {status:'review' as const,suggestion,image:preview.image};
+  if(relationChoice!==undefined&&!progress.reviewedRelation){
+    progress.reviewedRelation=relationChoice;
+    try{checkpoint();}catch(error){delete progress.reviewedRelation;throw error;}
+  }
+  const chosenRelation=progress.reviewedRelation||scope.relation;
   const stages=deriveTrainingStages(scope.property as TrainingPropertyCode);
   if(!progress.record){
-    if(!progress.retentionUntil){progress.retentionUntil=retentionUntil;checkpoint();}
+    if(!progress.retentionUntil){
+      progress.retentionUntil=retentionUntil;
+      try{checkpoint();}catch(error){delete progress.retentionUntil;throw error;}
+    }
     await check();const value=await call('annotate',{token:source.token,timeMs:frameTime,idempotencyKey:progress.key,decision:suggestion.fields,content:{
-      relation:scope.relation,properties:[scope.property],mustNotCopy:['source text','source logos','protected identity'],
+      relation:chosenRelation,properties:[scope.property],mustNotCopy:['source text','source logos','protected identity'],
       applicability:{taskFacts:[],stages,exceptions:[],priority:50},
       governance:{rightsBasis:'owner_created',rightsReceipt:'Coach confirms ownership and grants bounded evidence use',disclosure:'owner_private',retentionUntil:progress.retentionUntil,deletionPolicy:'revoke_then_delete_derivatives',consent:true,attribution:''},
     }});

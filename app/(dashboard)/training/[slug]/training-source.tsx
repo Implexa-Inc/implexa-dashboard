@@ -195,6 +195,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [batchFeedbackRequest,setBatchFeedbackRequest]=useState<{recordingId:string;moments:Moment[]}|null>(null);
   const extractionProgress=useRef(new Map<string,FeedbackExtractionProgress>());
   const [extractionNote,setExtractionNote]=useState(''),[heldExtractions,setHeldExtractions]=useState<Array<{key:string;text:string;reason:string}>>([]);
+  const [directScopeReview,setDirectScopeReview]=useState<{agentKey:string;fingerprint:string;sessionId:string;versionId:string;sourceId:string;timeMs:number;rawAnnotation:string;image:string;lesson:string;relation:TrainingRelation}|null>(null);
   const [lastFeedbackBatch,setLastFeedbackBatch]=useState<{recordingId:string;moments:Moment[]}|null>(null);
   const extractionCancel=useRef(false);
   const [feedbackInput,setFeedbackInput]=useState<{recordingId:string;sourceId:string;text:string;endFrame:boolean}|null>(null);
@@ -476,6 +477,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   },[ownerId,slug,currentVersion,installationId]);
   const [demoText, setDemoText] = useState('');
   const [directDraftRetry,setDirectDraftRetry]=useState<{fingerprint:string;sessionId:string;versionId:string;sourceId:string;timeMs:number;rawAnnotation:string;request:FeedbackDraftRequest}|null>(null);
+  const directScopeReviewIsCurrent=!!directScopeReview&&directScopeReview.agentKey===`${ownerId}:${slug}`&&directScopeReview.sessionId===session&&directScopeReview.versionId===currentVersion&&directScopeReview.sourceId===selected?.sourceId&&directScopeReview.timeMs===time&&directScopeReview.rawAnnotation===demoText&&!versionChanged;
   const directDraftRetryIsCurrent=!!directDraftRetry&&directDraftRetry.sessionId===session&&directDraftRetry.versionId===currentVersion
     &&directDraftRetry.sourceId===selected?.sourceId&&directDraftRetry.timeMs===time&&directDraftRetry.rawAnnotation===demoText;
   const [demoAnnotation, setDemoAnnotation] = useState<{ value: DemoAnnotation; previewIdentity: string } | null>(null);
@@ -908,7 +910,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     }else await reopenSavedFeedback(note);
     selectTrainingStep(1);
   }
-  async function extractDirectFeedback(newDraftRequest?:FeedbackDraftRequest){
+  async function extractDirectFeedback(newDraftRequest?:FeedbackDraftRequest,relationChoice?:TrainingRelation){
     if(!selected?.token||!currentVersion||!session||!demoText.trim()||versionChanged)return;
     const source={...selected,token:selected.token},version=currentVersion,id=session,rawAnnotation=demoText,frameTime=time;
     setDirectExtractionRequested(false);
@@ -916,8 +918,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       const fingerprint=await teachingDigest(new TextEncoder().encode(JSON.stringify({id,version,sourceId:source.sourceId,sourceSha256:source.metadata.sha256,rawAnnotation,frameTime})));
       let progress=extractionProgress.current.get(fingerprint);if(!progress){progress=extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,fingerprint);extractionProgress.current.set(fingerprint,progress);}
       if(newDraftRequest&&(newDraftRequest.fingerprint!==fingerprint||!directDraftRetryIsCurrent))throw Error('The note changed. Review the current example before retrying.');
+      if(relationChoice!==undefined&&(!directScopeReviewIsCurrent||directScopeReview?.fingerprint!==fingerprint))throw Error('The example changed. Review its current suggestion before saving.');
       let result;
-      try{result=await extractFeedbackTeaching({source,timeMs:frameTime,rawAnnotation,versionId:version,retentionUntil:retention,progress,newDraftRequest,analyzeSetup:true,checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress!),
+      try{result=await extractFeedbackTeaching({source,timeMs:frameTime,rawAnnotation,versionId:version,retentionUntil:retention,progress,newDraftRequest,analyzeSetup:true,reviewBeforeSave:true,relationChoice,checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress!),
         call:async(operation,args)=>await call(operation,args),check:async()=>{const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your draft is preserved.');},
         send:async(operation,body,key)=>{const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:id,...(operation==='annotation'?{operation:'annotation'}:{})})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(body)});const value=await response.json();return value;}});
       }catch(error){
@@ -925,6 +928,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         throw error;
       }finally{setOperatingRefresh(value=>value+1);}
       setDirectDraftRetry(null);
+      if(result.status==='review'){
+        setDirectScopeReview({agentKey:`${ownerId}:${slug}`,fingerprint,sessionId:id,versionId:version,sourceId:source.sourceId,timeMs:frameTime,rawAnnotation,image:result.image,lesson:result.suggestion.fields!.desiredBehavior,relation:result.suggestion.scopeSuggestion!.relation as TrainingRelation});
+        setExtractionNote('Review the example type before saving this teaching.');selectTrainingStep(2);return;
+      }
+      setDirectScopeReview(null);
       const operating=result.suggestion.contractVersion==='training-teaching-suggestion.v7'?result.suggestion.operatingGap:null;
       if(result.status==='held'){
         if(operating){setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setExtractionNote(operating.status==='suggested'?'Your feedback suggests an agent setup change. Review the suggestion above.':operating.status==='present'?'This method is already in the agent. Your feedback is saved.':'Your feedback is saved. Tool or setup support needs review.');}
@@ -1723,6 +1731,20 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </div>
     <div hidden={!installationId&&trainingStep!==2} className="space-y-7">
     {!installationId&&<div><h2 className="text-2xl font-medium tracking-tight">Review training</h2><p className="mt-2 text-sm text-ink-400">Check the lessons, edit anything you’d change, then continue.</p></div>}
+    {!installationId&&directScopeReviewIsCurrent&&directScopeReview&&<section aria-label="Review example type" className="rounded-xl border border-ink-700 p-5 space-y-4">
+      <h3 className="text-lg font-medium">Review your teaching</h3>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={directScopeReview.image} alt="Example being reviewed before saving" className="w-48 rounded-lg"/>
+      <p className="text-sm leading-6">{directScopeReview.lesson}</p>
+      <label className="block text-sm">How should the agent use this example?
+        <select className="mt-2 block rounded-lg border border-ink-700 bg-ink-950 p-2" value={directScopeReview.relation} disabled={!!busy||versionChanged||!!extractionProgress.current.get(directScopeReview.fingerprint)?.reviewedRelation}
+          onChange={event=>setDirectScopeReview({...directScopeReview,relation:event.target.value as TrainingRelation})}>
+          {TRAINING_RELATIONS.map(value=><option key={value} value={value}>{{accepted:'Keep this approach',rejected:'Avoid this approach',contrast:'Compare these approaches',exception:'Use as an exception'}[value]}</option>)}
+        </select>
+      </label>
+      <p className="text-xs text-ink-400">This describes the example shown, not the improvement you want. Saving keeps a draft; it does not apply training.</p>
+      <button type="button" className="btn-primary" disabled={!!busy||versionChanged} onClick={()=>void extractDirectFeedback(undefined,directScopeReview.relation)}>Save teaching draft</button>
+    </section>}
     {!installationId&&session&&currentVersion&&ownerId&&<RunMarkTraining applyContainer={applyContainer} onEligibleCountChange={reportRunPending} activeStep={trainingStep} onReviewReady={()=>selectTrainingStep(2)} sessionId={session} currentVersionId={currentVersion} ownerId={ownerId} slug={slug} requests={runFeedbackRequest} onClose={()=>setRunFeedbackRequest(null)} onScopeCheck={async()=>{const scoped=await requireCurrentScope(session);if(scoped.agent.currentVersionId!==currentVersion)throw new TrainingError('training_version_changed');}} onApplied={async()=>{await loadChanges();}}/>}
     {!installationId&&session&&currentVersion&&<SavedReviewTeaching sessionId={session} versionId={currentVersion} target={savedReviewTarget} onClose={()=>setSavedReviewTarget(null)} onChanged={async()=>{await loadChanges();}} slug={slug}/>}
 
