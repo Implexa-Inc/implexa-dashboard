@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState} from 'react';
 import Modal from '../../_components/modal';
 import ImproveAgent from '../../_components/improve-agent';
+import {TRAINING_CREATIVE_DIRECTIONS,type TrainingCreativeDirection} from '@/lib/training-local-ingress';
 import {TrainingInfo} from './training-workspace';
 import {ChatFrame,ChatMessage,ChatComposer} from '../../_components/agent-chat';
 
@@ -11,7 +12,7 @@ type Turn={turnId:string;versionId:string;sourceId:string|null;sourceSha256:stri
  canProposeEdit?:boolean;
  sourceKind?:'creation_notes'|'trainer_feedback';
  status:'pending'|'answered'|'failed'|'stale';answer:string|null;action:Action;reason:string|null};
-type Context={agent:{id:string;name:string;slug:string;versionId:string};boundMethods:Array<{stageIndex:number;source:string;slug:string;contentDigest:string}>;
+type Context={directionScopeContract?:'training-direction-scope.v1';creativeDirectionOptions?:TrainingCreativeDirection[];agent:{id:string;name:string;slug:string;versionId:string};boundMethods:Array<{stageIndex:number;source:string;slug:string;contentDigest:string}>;
  researchMethodPresent:boolean;source:{sourceId:string;sha256:string}|null;availableActions:Action[]};
 type Reply={ok:boolean;reason?:string;contractVersion?:string;canSend?:boolean;turns?:Turn[];turn?:Turn;context?:Context|null;totalTurns?:number};
 export type TrainingChatRequest={key:string;target:{kind:'feedback'|'record';id:string;digest:string};prompt:string};
@@ -23,6 +24,7 @@ const contextMatches=(v:Context|null|undefined,versionId:string|null,sourceId:st
  &&v.agent?.versionId===versionId&&v.agent.slug===slug&&(v.source?.sourceId||null)===sourceId&&(v.source?.sha256||null)===sha
  &&typeof v.researchMethodPresent==='boolean'&&Array.isArray(v.boundMethods)
  &&v.boundMethods.every(m=>typeof m.slug==='string'&&/^[a-f0-9]{64}$/.test(m.contentDigest))
+ &&(v.directionScopeContract===undefined||v.directionScopeContract==='training-direction-scope.v1')
  &&Array.isArray(v.availableActions)&&v.availableActions.every(a=>Object.hasOwn(names,a));
 export default function TrainingChat({sessionId,versionId,slug,sources,selectedSourceId,disabled,busy=false,embedded=false,onAttach,onClose,onSelectSource,onAction,guided=false,automaticInclusion=false,request,onSaved,editUnavailable=false}:{
  sessionId:string;versionId:string|null;slug:string;sources:Source[];selectedSourceId:string|null;disabled:boolean;busy?:boolean;
@@ -36,14 +38,14 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
  const [editTurn,setEditTurn]=useState<Turn|null>(null);
  const [target,setTarget]=useState<TrainingChatRequest['target']|null>(null);
  const identity=`${sessionId}:${versionId}:${selectedSourceId}`,latest=useRef(identity);latest.current=identity;
- const pending=useRef<{identity:string;message:string;turnId:string;targetKey:string}|null>(null);
+ const pending=useRef<{identity:string;message:string;turnId:string;targetKey:string;scopeContract?:'training-direction-scope.v1'}|null>(null);
  const load=async(signal?:AbortSignal)=>{
   if(!sessionId)return;const captured=identity;setLoading(true);setError('');
   try{
-   const q=new URLSearchParams({sessionId,...(selectedSourceId?{sourceId:selectedSourceId}:{})});
+   const q=new URLSearchParams({sessionId,...(selectedSourceId?{sourceId:selectedSourceId}:{}),...(guided?{directionScopeContract:'training-direction-scope.v1'}:{})});
    const r=await fetch(`/api/agent-training/chat?${q}`,{cache:'no-store',signal});const v:Reply=await r.json();
    if(signal?.aborted||latest.current!==captured)return;
-   if(!r.ok||!v.ok||v.contractVersion!=='training-chat.v1'||!Array.isArray(v.turns)||!v.turns.every(validTurn)
+   if(!r.ok||!v.ok||v.contractVersion!==(guided?'training-chat.v2':'training-chat.v1')||guided&&v.canSend&&(!v.context||v.context.directionScopeContract!=='training-direction-scope.v1'||!Array.isArray(v.context.creativeDirectionOptions)||v.context.creativeDirectionOptions.length>4||new Set(v.context.creativeDirectionOptions).size!==v.context.creativeDirectionOptions.length||v.context.creativeDirectionOptions.some(direction=>!TRAINING_CREATIVE_DIRECTIONS.includes(direction)))||!Array.isArray(v.turns)||!v.turns.every(validTurn)
     ||(v.canSend&&!contextMatches(v.context,versionId,selectedSourceId,sources.find(s=>s.sourceId===selectedSourceId)?.metadata.sha256||null,slug)))throw Error(v.reason||'training_chat_unavailable');
    setTurns(v.turns);setTotal(v.totalTurns||0);setCanSend(v.canSend===true);setContext(v.context||null);
   }catch(e){if(!signal?.aborted&&latest.current===captured)setError(e instanceof Error?e.message:'training_chat_unavailable');}
@@ -56,13 +58,13 @@ export default function TrainingChat({sessionId,versionId,slug,sources,selectedS
   if(sending||disabled||!canSend||!versionId||!text.trim())return;
   const captured=identity,message=text;
   const targetKey=JSON.stringify(target);
-  const reserved=pending.current?.identity===captured&&pending.current.message===message&&pending.current.targetKey===targetKey?pending.current:{identity:captured,message,turnId:crypto.randomUUID(),targetKey};
+  const reserved=pending.current?.identity===captured&&pending.current.message===message&&pending.current.targetKey===targetKey?pending.current:{identity:captured,message,turnId:crypto.randomUUID(),targetKey,...(guided&&context?.directionScopeContract?{scopeContract:context.directionScopeContract}:{})};
   pending.current=reserved;setSending(true);setError('');
   try{
    const r=await fetch(`/api/agent-training/chat?sessionId=${encodeURIComponent(sessionId)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({turnId:reserved.turnId,expectedActiveVersionId:versionId,sourceId:selectedSourceId,message,consent:true,...(guided?{changesContract:'guided-training-changes.v1',target}:{})})});
+    body:JSON.stringify({turnId:reserved.turnId,expectedActiveVersionId:versionId,sourceId:selectedSourceId,message,consent:true,...(guided?{changesContract:'guided-training-changes.v1',target,...(reserved.scopeContract?{directionScopeContract:reserved.scopeContract}:{})}:{})})});
    const v:Reply=await r.json();if(latest.current!==captured)return;
-   if(!r.ok||!v.ok||v.contractVersion!=='training-chat.v1'||!v.turn||!validTurn(v.turn)||v.turn.turnId!==reserved.turnId
+   if(!r.ok||!v.ok||v.contractVersion!==(reserved.scopeContract?'training-chat.v2':'training-chat.v1')||!v.turn||!validTurn(v.turn)||v.turn.turnId!==reserved.turnId
     ||(v.context&&!contextMatches(v.context,versionId,selectedSourceId,source?.metadata.sha256||null,slug))
     ||v.turn.versionId!==versionId||v.turn.sourceId!==selectedSourceId||v.turn.sourceSha256!==(source?.metadata.sha256||null))throw Error(v.reason||'training_chat_response_unconfirmed');
    setTurns(old=>[...old.filter(t=>t.turnId!==v.turn!.turnId),v.turn!]);setCanSend(v.canSend===true);

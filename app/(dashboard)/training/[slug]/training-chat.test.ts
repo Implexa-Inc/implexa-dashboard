@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {render,type Rendered} from '../../../../lib/test/render.ts';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,VERSION=id(1),SESSION=id(2),SOURCE=id(3),H='a'.repeat(64);
 const source={sourceId:SOURCE,localName:'Cambrian demonstration',metadata:{sha256:H,mediaType:'video/mp4',durationMs:324000}};
-const context=()=>({agent:{id:id(4),name:'Video agent',slug:'video-agent',versionId:VERSION},researchMethodPresent:true,
+const context=()=>({agent:{id:id(4),name:'Video agent',slug:'video-agent',versionId:VERSION},researchMethodPresent:true,directionScopeContract:'training-direction-scope.v1',creativeDirectionOptions:['Animation-heavy','Cinematic B-roll-heavy','Balanced','No B-rolls'],
  boundMethods:[{stageIndex:2,source:'community',slug:'implexa-inc-reference-research-assessment',contentDigest:H}],
  source:{sourceId:SOURCE,sha256:H},availableActions:['none','analyse_taste','review_method','test_agent']});
 const turn=(patch={})=>({turnId:id(5),versionId:VERSION,sourceId:SOURCE,sourceSha256:H,message:'Please review this recording.',createdAt:'2026-10-31T12:00:00Z',
@@ -16,8 +16,8 @@ async function setup(t:any,options:{turns?:any[];offlineOnce?:boolean;wrongConte
   calls.push({url,init});let c=context();if(options.wrongContext)c.agent.versionId=id(99);
   if(init.method==='POST'){posts++;const b=JSON.parse(init.body);saved=[turn({turnId:b.turnId,message:b.message})];
    if(options.offlineOnce&&posts===1)throw Error('private upstream text');
-   return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:true,turn:saved[0],context:c})};}
-  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:!options.historical,turns:saved,totalTurns:saved.length,context:options.historical?null:c})};
+   return {ok:true,json:async()=>({ok:true,contractVersion:b.directionScopeContract?'training-chat.v2':'training-chat.v1',canSend:true,turn:saved[0],context:c})};}
+  return {ok:true,json:async()=>({ok:true,contractVersion:url.includes('directionScopeContract=')?'training-chat.v2':'training-chat.v1',canSend:!options.historical,turns:saved,totalTurns:saved.length,context:options.historical?null:c})};
  }) as typeof fetch});t.after(()=>r.cleanup());
  return {r,calls,actions,props};
 }
@@ -127,4 +127,20 @@ test('a structural edit is reviewed with the owner message and queues only after
 test('historical edit suggestions cannot open a revision confirmation',async t=>{
  const {r}=await setup(t,{guided:true,historical:true,turns:[turn({action:'none',canProposeEdit:true})]});await r.click(r.getByText('Open conversation'));
  assert.equal(r.queryByText('Review agent change →'),null);assert.equal(r.document.querySelector('[role="dialog"]'),null);
+});
+
+
+test('direction-aware chat pins the request and refuses a legacy response without losing the message',async t=>{
+ for(const legacyReply of [false,true]){
+  const calls:any[]=[],c={...context(),directionScopeContract:'training-direction-scope.v1'};let saved=0;
+  const r=await render('../training/[slug]/training-chat.tsx',{guided:true,embedded:true,sessionId:SESSION,versionId:VERSION,slug:'video-agent',sources:[source],selectedSourceId:SOURCE,disabled:false,onSelectSource:()=>{},onAction:async()=>{},onSaved:()=>saved++},{fetch:(async(url:string,init:any={})=>{
+   calls.push({url,init});if(init.method!=='POST')return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v2',canSend:true,turns:[],totalTurns:0,context:c})};
+   const body=JSON.parse(init.body);return {ok:true,json:async()=>({ok:true,contractVersion:legacyReply?'training-chat.v1':'training-chat.v2',canSend:true,turn:turn({turnId:body.turnId,message:body.message}),context:c})};
+  }) as typeof fetch});t.after(()=>r.cleanup());
+  await type(r,'Only for Cinematic B-roll-heavy: use relevant imagery.');await r.click(r.getByText('Send'));
+  const posts=calls.filter(c=>c.init.method==='POST');assert.equal(posts.length,1);
+  assert.equal(JSON.parse(posts[0].init.body).directionScopeContract,'training-direction-scope.v1');
+  assert.equal(saved,legacyReply?0:1);
+  if(legacyReply){assert.match(r.text(),/training chat response unconfirmed/);assert.match(r.document.querySelector('textarea')!.value,/Only for Cinematic/);}
+ }
 });

@@ -13,7 +13,7 @@ export default function TrainingOperatingChanges({sessionId,versionId,slug,refre
  async function load(append=false,signal?:AbortSignal,requestEventId?:string){
   const captured=identity,read=++sequence.current;setBusy(true);
   const cursor=append?page?.nextCursor:null;
-  const q=new URLSearchParams({sessionId,limit:requestEventId?'1':'20',...(requestEventId?{requestEventId}:cursor||{})});
+  const q=new URLSearchParams({sessionId,directionScopeContract:'training-direction-scope.v1',limit:requestEventId?'1':'20',...(requestEventId?{requestEventId}:cursor||{})});
   try{const response=await fetch(`/api/agent-training/annotation-gap-edit?${q}`,{cache:'no-store',signal});const value=await response.json();
    if(signal?.aborted||current.current!==captured||sequence.current!==read)return;
    if(!response.ok||!annotationGapPage(value,versionId))throw Error('Agent improvement suggestions could not be loaded.');

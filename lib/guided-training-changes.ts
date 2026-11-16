@@ -1,7 +1,8 @@
 /** Owner-private projection. Server receipts establish inclusion and test status;
  * a model statement is never evidence that a teaching was saved or applied. */
+import {isTrainingDirectionScope,type TrainingDirectionScope} from './training-local-ingress.ts';
 export type FeedbackOutcome='not_analysed'|'not_converted'|'partly'|'added';
-export type TrainingChangeRecord={recordId:string;recordDigest:string;summary:string|null;state:'suggested'|'candidate'|'human_accepted'|'retired'|'revoked'|'discarded'|'unavailable'|'removed';included:boolean;admissionOrigin:'none'|'standing_policy'|'owner_candidate'|'human_decision';category:'taste'|'method_preference'|null;sourceKind:'trainer_feedback'|'creation_notes'|'legacy_evidence';policyReceiptId:string|null;policyReceiptDigest:string|null;sourceEventId:string|null;sourceEventDigest:string|null;model:string|null;reviewMark?:{acknowledgmentId:string}};
+export type TrainingChangeRecord={creativeDirections?:TrainingDirectionScope;recordId:string;recordDigest:string;summary:string|null;state:'suggested'|'candidate'|'human_accepted'|'retired'|'revoked'|'discarded'|'unavailable'|'removed';included:boolean;admissionOrigin:'none'|'standing_policy'|'owner_candidate'|'human_decision';category:'taste'|'method_preference'|null;sourceKind:'trainer_feedback'|'creation_notes'|'legacy_evidence';policyReceiptId:string|null;policyReceiptDigest:string|null;sourceEventId:string|null;sourceEventDigest:string|null;model:string|null;reviewMark?:{acknowledgmentId:string}};
 export type GuidedTrainingChanges={ok:true;contractVersion:'guided-training-changes.v1';
  binding:{sessionId:string;agentFamilyId:string;workflowVersionId:string;snapshotDigest:string};
  policy:{policyId:string|null;policyDigest:string|null;revision:number;enabled:boolean};
@@ -22,7 +23,7 @@ export function guidedTrainingChanges(v:any,expected:{sessionId:string;workflowV
   ||!id(v.binding.agentFamilyId)||!sha(v.binding.snapshotDigest)||!v.policy||typeof v.policy.enabled!=='boolean'
   ||!Number.isSafeInteger(v.policy.revision)||v.policy.revision<0||!(v.policy.policyId===null&&v.policy.policyDigest===null||id(v.policy.policyId)&&sha(v.policy.policyDigest))||v.policy.enabled&&v.policy.policyId===null
   ||!Array.isArray(v.records)||v.records.length>100||!Array.isArray(v.feedback)||v.feedback.length>100)return false;
- const seen=new Set();for(const r of v.records){if(!id(r.recordId)||seen.has(r.recordId)||!sha(r.recordDigest)||!(r.summary===null&&!r.included&&['revoked','retired','discarded','unavailable'].includes(r.state)||text(r.summary,2000)&&r.summary.trim())
+ const seen=new Set();for(const r of v.records){if(Object.hasOwn(r,'creativeDirections')&&!isTrainingDirectionScope(r.creativeDirections)||!id(r.recordId)||seen.has(r.recordId)||!sha(r.recordDigest)||!(r.summary===null&&!r.included&&['revoked','retired','discarded','unavailable'].includes(r.state)||text(r.summary,2000)&&r.summary.trim())
   ||typeof r.included!=='boolean'||!['none','standing_policy','owner_candidate','human_decision'].includes(r.admissionOrigin)
   ||![null,'taste','method_preference'].includes(r.category)||!['trainer_feedback','creation_notes','legacy_evidence'].includes(r.sourceKind)
   ||!(r.policyReceiptId===null&&r.policyReceiptDigest===null||id(r.policyReceiptId)&&sha(r.policyReceiptDigest))

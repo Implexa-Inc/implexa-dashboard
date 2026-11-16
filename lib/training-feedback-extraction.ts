@@ -1,9 +1,9 @@
 import {buildSpatialAnchor,anchorError,INTENT_CHANGE} from './review-anchor.ts';
 import type {DraftSpatial} from './review-timestamp-feedback.ts';
 import {demoAnnotationReceipt,scopedTeachingSuggestion,teachingDigest,teachingFrame,type DemoAnnotation,type ScopedTeachingSuggestion,annotationAnalysis,analysisRequestReceipt,type AnnotationAnalysis,type AnalysisRequestReceipt} from './training-teaching-draft.ts';
-import {deriveTrainingStages,TRAINING_PROPERTY_CODES,TRAINING_RELATIONS,type TrainingPropertyCode,type TrainingRelation} from './training-local-ingress.ts';
+import {deriveTrainingStages,TRAINING_PROPERTY_CODES,TRAINING_RELATIONS,type TrainingPropertyCode,type TrainingRelation,trainingDirectionFacts} from './training-local-ingress.ts';
 
-export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion|AnnotationAnalysis;analysisRequest?:AnalysisRequestReceipt;analysisOutcome?:'pending'|'failed';analysisContract?:'training-teaching-suggestion.v7';analysisIntent?:{retryOf:null|{requestEventId:string;requestDigest:string;acknowledgedUnknownPrior?:true}};record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string;reviewedRelation?:TrainingRelation};
+export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion|AnnotationAnalysis;analysisRequest?:AnalysisRequestReceipt;analysisOutcome?:'pending'|'failed';analysisContract?:'training-teaching-suggestion.v7'|'training-teaching-suggestion.v9';analysisIntent?:{retryOf:null|{requestEventId:string;requestDigest:string;acknowledgedUnknownPrior?:true}};record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string;reviewedRelation?:TrainingRelation};
 type Source={sourceId:string;token:string;metadata:{sha256:string;durationMs:number}};
 type Reply={ok:boolean;[key:string]:any};
 type Send=(operation:'annotation'|'suggestion',body:unknown,key?:string)=>Promise<Reply>;
@@ -78,9 +78,9 @@ export function extractionFailure(value:Reply):string{
 /** Compose existing annotation, suggestion, native draft and link writers in order.
  * No acceptance occurs here. Progress survives a failed link so retry reuses its draft.
  */
-export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId,retentionUntil,progress,call,send,check,newDraftRequest,analyzeSetup=false,reviewBeforeSave=false,relationChoice,checkpoint=()=>{}}:{
+export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId,retentionUntil,progress,call,send,check,newDraftRequest,analyzeSetup=false,directionScope=false,reviewBeforeSave=false,relationChoice,checkpoint=()=>{}}:{
   source:Source;timeMs:number;rawAnnotation:string;versionId:string;retentionUntil:string;progress:FeedbackExtractionProgress;
-  call:(operation:string,args:unknown)=>Promise<Reply>;send:Send;check:()=>Promise<void>;newDraftRequest?:FeedbackDraftRequest;analyzeSetup?:boolean;reviewBeforeSave?:boolean;relationChoice?:TrainingRelation;checkpoint?:()=>void;
+  call:(operation:string,args:unknown)=>Promise<Reply>;send:Send;check:()=>Promise<void>;newDraftRequest?:FeedbackDraftRequest;analyzeSetup?:boolean;directionScope?:boolean;reviewBeforeSave?:boolean;relationChoice?:TrainingRelation;checkpoint?:()=>void;
 }){
   if(!rawAnnotation.trim()||rawAnnotation.length>2000)throw Error('This note is too long for one teaching. Split it into shorter notes; the original stays saved.');
   await check();
@@ -101,7 +101,8 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
   const binding={sourceId:source.sourceId,sourceSha256:source.metadata.sha256,timeMs:frameTime,frameSha256,annotationId:annotation.annotationId,annotationDigest:annotation.annotationDigest,expectedActiveVersionId:versionId,feedbackSha256:await teachingDigest(new TextEncoder().encode(rawAnnotation))};
   if(!progress.suggestion){
     const interrupted=progress.suggestionStarted===true;
-    if((!analyzeSetup||progress.analysisContract!=='training-teaching-suggestion.v7')&&interrupted&&(!newDraftRequest||newDraftRequest.key!==progress.key||newDraftRequest.fingerprint!==progress.fingerprint
+    const scopeDirections=directionScope&&progress.analysisContract!=='training-teaching-suggestion.v7';
+    if((!analyzeSetup||!['training-teaching-suggestion.v7','training-teaching-suggestion.v9'].includes(progress.analysisContract||''))&&interrupted&&(!newDraftRequest||newDraftRequest.key!==progress.key||newDraftRequest.fingerprint!==progress.fingerprint
       ||newDraftRequest.annotationId!==annotation.annotationId||newDraftRequest.annotationDigest!==annotation.annotationDigest
       ||progress.record||progress.linked))
       throw Error('This extraction was interrupted while drafting. Your note is saved. Review any existing draft before requesting another suggestion.');
@@ -113,20 +114,23 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
     // Reconcile the exact already-approved request after a lost retry response.
     // Falling back to the initial identity would strand its superseding result.
     const retryOf=explicitRetry||progress.analysisIntent?.retryOf||null;
-    progress.suggestionStarted=true;if(analyzeSetup){progress.analysisContract='training-teaching-suggestion.v7';progress.analysisIntent={retryOf};}
+    progress.suggestionStarted=true;if(analyzeSetup){progress.analysisContract=scopeDirections?'training-teaching-suggestion.v9':'training-teaching-suggestion.v7';progress.analysisIntent={retryOf};}
     if(interrupted){progress.draftingRetries=(progress.draftingRetries||0)+1;progress.priorDraftOutcome='unconfirmed';}
     try{checkpoint();}catch(error){Object.assign(progress,previous);throw error;}
     const value=await send('suggestion',{...wire,mode:'demonstration',includeScope:true,image:preview.image,consent:true,
+      ...(scopeDirections?{directionScopeContract:'training-direction-scope.v1'}:{}),
       ...(analyzeSetup?{analysis:{contractVersion:'training-annotation-analysis-request.v1',consentVersion:'training-annotation-taste-and-setup.v1',retryOf}}:{})});
     if(analyzeSetup&&analysisRequestReceipt(value.analysisRequest)){progress.analysisRequest=value.analysisRequest;progress.analysisOutcome=typeof value.reason==='string'&&value.reason.startsWith('teaching_suggestion_')&&value.unavailable===true?'failed':'pending';checkpoint();}
     if(!value.ok){if(value.reason==='teaching_suggestion_rate_limited'){progress.suggestionStarted=false;checkpoint();}throw Error(extractionFailure(value));}
+    if(scopeDirections&&value.contractVersion!==(analyzeSetup?'training-teaching-suggestion.v9':'training-teaching-suggestion.v8'))throw Error('This analysis did not preserve creative direction. Your feedback is saved.');
     if(analyzeSetup){if(!annotationAnalysis(value,binding))throw Error('The proposed teaching did not match this note and frame.');}
     else if(!scopedTeachingSuggestion(value,binding))throw Error('The proposed teaching did not match this note and frame.');
     progress.suggestion=value as ScopedTeachingSuggestion|AnnotationAnalysis;progress.suggestionStarted=false;checkpoint();
   }
   const suggestion=progress.suggestion;
   if(!suggestion)throw Error('The saved suggestion is missing.');
-  if(!(suggestion.contractVersion==='training-teaching-suggestion.v7'?annotationAnalysis(suggestion,binding):scopedTeachingSuggestion(suggestion,binding)))throw Error('The saved suggestion no longer matches this note and frame.');
+  if(!(['training-teaching-suggestion.v7','training-teaching-suggestion.v9'].includes(suggestion.contractVersion)?annotationAnalysis(suggestion,binding):scopedTeachingSuggestion(suggestion,binding)))throw Error('The saved suggestion no longer matches this note and frame.');
+  if(['training-teaching-suggestion.v8','training-teaching-suggestion.v9'].includes(suggestion.contractVersion)&&suggestion.creativeDirections===null)return {status:'held' as const,reason:'Which creative direction should this lesson apply to? Clarify it in your feedback.',suggestion,image:preview.image};
   if(suggestion.status==='insufficient'||!suggestion.fields||!suggestion.scopeSuggestion)return {status:'held' as const,reason:suggestion.reason||'Review the category and example type before saving this teaching.',suggestion,image:preview.image};
   const scope=suggestion.scopeSuggestion;
   if(!TRAINING_PROPERTY_CODES.includes(scope.property as any)||!TRAINING_RELATIONS.includes(scope.relation as any))throw Error('The proposed teaching scope is unsupported.');
@@ -150,7 +154,7 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
     }
     await check();const value=await call('annotate',{token:source.token,timeMs:frameTime,idempotencyKey:progress.key,decision:suggestion.fields,content:{
       relation:chosenRelation,properties:[scope.property],mustNotCopy:['source text','source logos','protected identity'],
-      applicability:{taskFacts:[],stages,exceptions:[],priority:50},
+      applicability:{taskFacts:['training-teaching-suggestion.v8','training-teaching-suggestion.v9'].includes(suggestion.contractVersion)?trainingDirectionFacts(suggestion.creativeDirections!):[],stages,exceptions:[],priority:50},
       governance:{rightsBasis:'owner_created',rightsReceipt:'Coach confirms ownership and grants bounded evidence use',disclosure:'owner_private',retentionUntil:progress.retentionUntil,deletionPolicy:'revoke_then_delete_derivatives',consent:true,attribution:''},
     }});
     if(!value.ok||typeof value.recordId!=='string'||!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(value.recordId)||typeof value.recordDigest!=='string'||!/^[a-f0-9]{64}$/.test(value.recordDigest))throw Error('The teaching draft could not be confirmed saved.');
