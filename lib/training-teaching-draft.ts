@@ -49,7 +49,7 @@ export function annotationAnalysis(v:any,expected:SuggestionBinding):v is Annota
     ||!recordingUuid(r.resultEventId)||!recordingSha(r.resultDigest)||!recordingSha(r.setupDigest)||!['complete','incomplete'].includes(r.setupState))return false;
   const t=r.target,u=r.usage;
   if(t!==null&&(!exact(t,['stepOrder','stepDigest','methods'])||!Number.isSafeInteger(t.stepOrder)||t.stepOrder<1||!recordingSha(t.stepDigest)
-    ||!Array.isArray(t.methods)||t.methods.length>100||!t.methods.every((m:any)=>exact(m,['source','slug','contentDigest'])&&typeof m.source==='string'&&!!m.source&&typeof m.slug==='string'&&!!m.slug&&recordingSha(m.contentDigest))))return false;
+    ||!Array.isArray(t.methods)||!t.methods.every((m:any)=>exact(m,['source','slug','contentDigest'])&&typeof m.source==='string'&&!!m.source&&typeof m.slug==='string'&&!!m.slug&&recordingSha(m.contentDigest))))return false;
   if(!exact(u,['status','inputTokens','outputTokens'])||!(u.status==='unknown'?u.inputTokens===null&&u.outputTokens===null:
     u.status==='observed'&&[u.inputTokens,u.outputTokens].every(n=>Number.isSafeInteger(n)&&n>=0)))return false;
   if(g===null)return true;
@@ -58,8 +58,11 @@ export function annotationAnalysis(v:any,expected:SuggestionBinding):v is Annota
     &&(g.stepOrder===null||Number.isSafeInteger(g.stepOrder)&&g.stepOrder>=1)
     &&(g.capability===null||['web_reference_research','presenter_background_removal'].includes(g.capability))
     &&Object.entries({evidenceExcerpt:400,privateRationale:500,genericDelta:1000}).every(([k,max])=>typeof g[k]==='string'&&Array.from(g[k]).length<=max)
-    &&(g.status!=='suggested'||!!g.genericDelta.trim())
-    &&(g.status!=='suggested'||g.kind!=='procedure'||r.setupState==='complete'&&t!==null&&t.stepOrder===g.stepOrder);
+    &&!!g.evidenceExcerpt.trim()&&!!g.privateRationale.trim()
+    &&(g.kind!=='procedure'||g.capability===null)&&(g.kind!=='tool'||g.status==='unsupported'||g.capability!==null)
+    &&(g.status==='suggested'?!!g.genericDelta.trim():g.genericDelta==='')
+    &&(g.stepOrder===null||t!==null&&t.stepOrder===g.stepOrder)
+    &&(!['suggested','present'].includes(g.status)||r.setupState==='complete'&&t!==null&&t.stepOrder===g.stepOrder);
 }
 export function annotationGapPage(v:any,versionId:string):v is AnnotationGapPage{
   return exact(v,['ok','contractVersion','analyses','nextCursor'])&&v.ok===true&&v.contractVersion==='training-annotation-gap-list.v1'

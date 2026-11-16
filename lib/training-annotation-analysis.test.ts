@@ -25,8 +25,9 @@ test('wrong source, uncertain setup or result linkage cannot enable a reviewed e
  assert.equal(annotationGapPage(page(),id(99)),false);
 });
 test('tool review, present and incomplete outcomes are valid without granting a tool or inventing a step',()=>{
- for(const status of ['present','incomplete','unsupported']){const s:any=suggestion();s.operatingGap.status=status;s.operatingGap.genericDelta='';s.operatingGap.stepOrder=null;s.analysisReceipt.target=null;s.analysisReceipt.setupState='incomplete';assert.equal(annotationAnalysis(s,s.binding),true);}
- const s:any=suggestion();s.operatingGap.kind='tool';s.operatingGap.capability='presenter_background_removal';s.operatingGap.stepOrder=null;s.analysisReceipt.target=null;assert.equal(annotationAnalysis(s,s.binding),true);
+ for(const status of ['incomplete','unsupported']){const s:any=suggestion();s.operatingGap.status=status;s.operatingGap.genericDelta='';s.operatingGap.stepOrder=null;s.analysisReceipt.target=null;s.analysisReceipt.setupState='incomplete';assert.equal(annotationAnalysis(s,s.binding),true);}
+ const present:any=suggestion();present.operatingGap.status='present';present.operatingGap.genericDelta='';assert.equal(annotationAnalysis(present,present.binding),true);
+ const s:any=suggestion();s.operatingGap.kind='tool';s.operatingGap.capability='presenter_background_removal';assert.equal(annotationAnalysis(s,s.binding),true);
 });
 
 test('unmodified real SQL/service producer response and persisted list row pass the Dashboard consumer',()=>{

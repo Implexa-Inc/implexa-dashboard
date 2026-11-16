@@ -26,7 +26,7 @@ test('a proposal restores after taste acceptance; review queues only the edited 
 });
 test('a tool proposal requests capability review and never enables the step-edit writer; present results stay quiet',async t=>{
  let mode='tool';const calls:any[]=[];
- const r=await render('../training/[slug]/training-operating-changes.tsx',props,{fetch:(async(url:string,init:any={})=>{calls.push(init);const p:any=page();p.analyses[0].result.operatingGap.kind='tool';p.analyses[0].result.operatingGap.status=mode==='present'?'present':'suggested';p.analyses[0].edit.state='not_applicable';
+ const r=await render('../training/[slug]/training-operating-changes.tsx',props,{fetch:(async(url:string,init:any={})=>{calls.push(init);const p:any=page();p.analyses[0].result.operatingGap.kind='tool';p.analyses[0].result.operatingGap.capability='presenter_background_removal';if(mode==='present')p.analyses[0].result.operatingGap.genericDelta='';p.analyses[0].result.operatingGap.status=mode==='present'?'present':'suggested';p.analyses[0].edit.state='not_applicable';
   if(mode==='tool')p.analyses[0].edit.state='blocked';return {ok:true,json:async()=>p};}) as typeof fetch});t.after(()=>r.cleanup());await r.act(async()=>{});
  assert.match(r.text(),/Tool capability to review/);assert.equal(r.queryByText('Review agent update'),null);assert.equal(calls.some(c=>c.method==='POST'),false);
  mode='present';await r.rerender({...props,refreshKey:1});await r.act(async()=>{});assert.equal(r.queryByText('Suggested agent improvements'),null);

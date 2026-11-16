@@ -150,7 +150,7 @@ test('ordinary annotation opts into one combined analysis; a procedure-only resu
 });
 
 test('an uncertain result commit never becomes permission to infer again; only a saved failure supplies retryOf',async()=>{
- const rawAnnotation='Improve the internal review procedure.',progress:FeedbackExtractionProgress={key:id,fingerprint:'b'.repeat(64),suggestionStarted:true,
+ const rawAnnotation='Improve the internal review procedure.',progress:FeedbackExtractionProgress={key:id,fingerprint:'b'.repeat(64),suggestionStarted:true,analysisContract:'training-teaching-suggestion.v7',
   annotation:{annotationId:id,annotationDigest:sha,rawAnnotation,sourceId:id,sourceSha256:sha,timeMs:0,frameSha256:createHash('sha256').update(Buffer.from(image.slice(22),'base64')).digest('hex'),expectedActiveVersionId:id}};
  let outcome='annotation_analysis_commit_unconfirmed';const requests:any[]=[];
  const run=(newDraftRequest?:FeedbackDraftRequest)=>extractFeedbackTeaching({source,timeMs:0,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress,analyzeSetup:true,newDraftRequest,check:async()=>{},call:async()=>({ok:true,image}),
@@ -159,4 +159,13 @@ test('an uncertain result commit never becomes permission to infer again; only a
  await assert.rejects(run(retryFeedbackDraft(progress,progress.fingerprint!)));assert.equal(requests[1].retryOf,null);
  outcome='teaching_suggestion_provider_timeout';await assert.rejects(run());assert.equal(progress.analysisOutcome,'failed');
  await assert.rejects(run(retryFeedbackDraft(progress,progress.fingerprint!)));assert.deepEqual(requests[3].retryOf,{requestEventId:record,requestDigest:sha});
+});
+
+test('an old unconfirmed v6 journal requires the existing explicit retry acknowledgment before v7',async()=>{
+ const rawAnnotation='Keep explanatory visuals readable.',progress:FeedbackExtractionProgress={key:id,fingerprint:'b'.repeat(64),suggestionStarted:true,
+  annotation:{annotationId:id,annotationDigest:sha,rawAnnotation,sourceId:id,sourceSha256:sha,timeMs:0,frameSha256:createHash('sha256').update(Buffer.from(image.slice(22),'base64')).digest('hex'),expectedActiveVersionId:id}};
+ const sent:any[]=[];
+ const run=(newDraftRequest?:FeedbackDraftRequest)=>extractFeedbackTeaching({source,timeMs:0,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress,analyzeSetup:true,newDraftRequest,check:async()=>{},call:async()=>({ok:true,image}),send:async(op,body:any)=>{sent.push({op,body});return {ok:false,reason:'annotation_analysis_pending',analysisRequest:{requestEventId:record,requestDigest:sha,attemptOrdinal:1}};}});
+ await assert.rejects(run(),/interrupted while drafting/);assert.equal(sent.length,0);assert.equal(progress.analysisContract,undefined);
+ await assert.rejects(run(retryFeedbackDraft(progress,progress.fingerprint!)));assert.equal(sent.length,1);assert.equal(progress.analysisContract,'training-teaching-suggestion.v7');assert.equal(sent[0].body.analysis.retryOf,null);
 });
