@@ -33,7 +33,7 @@ export function isTrainingDirectionScope(value: unknown): value is TrainingDirec
 export function trainingDirectionsFromTaskFacts(facts: unknown): TrainingDirectionScope | undefined {
   if (facts === undefined) return undefined; // historical projection, not a scope claim
   if (!Array.isArray(facts) || facts.some(fact => typeof fact !== 'string')) return null;
-  const scoped = facts.filter(fact => /^creative_direction[:=]/.test(fact));
+  const scoped = facts.filter(fact => /^creative_direction/i.test(fact));
   if (!scoped.length) return [];
   const direction = scoped[0].slice('creative_direction:'.length);
   return scoped.length === 1 && scoped[0].startsWith('creative_direction:')
