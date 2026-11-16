@@ -129,12 +129,10 @@ export function trainingSuccessorAdoptionPreview(
 
 /** The active-version projection, never a historical session's coverage. */
 export function trainingContinuityStatus(preview: unknown, requirements: ManagerTrainingRequirements | null,
-  targetVersionId: string | null, sourceVersionId: string | null): { state: 'carried' | 'available'; count: number } | { state: 'review'; reason: string } | { state: 'unknown' } {
+  targetVersionId: string | null): { state: 'carried' | 'available'; count: number } | { state: 'review'; reason: string } | { state: 'unknown' } {
   if (!targetVersionId || !isManagerTrainingRequirements(requirements, targetVersionId)) return { state: 'unknown' };
   const checked = trainingSuccessorAdoptionPreview(preview, targetVersionId, requirements);
-  if (!checked || !sourceVersionId || (checked.contractVersion === 'manager-training-successor-adoption-preview.v2'
-    ? !checked.ancestorRecovery.versionIds.slice(0,-1).includes(sourceVersionId)
-    : checked.sourceWorkflowVersionId !== sourceVersionId)) return { state: 'unknown' };
+  if (!checked) return { state: 'unknown' };
   if (checked.readiness === 'not_compatible') {
     // A moved version or lost ownership invalidates this read; it says nothing
     // about whether the teaching needs review.
@@ -151,6 +149,18 @@ export function trainingContinuityStatus(preview: unknown, requirements: Manager
     return { state: 'carried', count: checked.alreadyAdoptedRecordCount };
   }
   return { state: 'unknown' };
+}
+
+/** Only a covered historical session may skip its own lesson review. This is
+ * separate from the active target's carry status and adoption authority. */
+export function trainingCarryCoversSession(preview: unknown, requirements: ManagerTrainingRequirements | null,
+  targetVersionId: string | null, sessionVersionId: string | null): boolean {
+  if (!targetVersionId || !sessionVersionId || !isManagerTrainingRequirements(requirements, targetVersionId)) return false;
+  const checked = trainingSuccessorAdoptionPreview(preview, targetVersionId, requirements);
+  return Boolean(checked && checked.readiness !== 'not_compatible'
+    && (checked.contractVersion === 'manager-training-successor-adoption-preview.v2'
+      ? checked.ancestorRecovery.versionIds.slice(0,-1).includes(sessionVersionId)
+      : checked.sourceWorkflowVersionId === sessionVersionId));
 }
 
 export function trainingSuccessorAdoptionActionAvailable(

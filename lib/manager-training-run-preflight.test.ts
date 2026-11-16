@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { trainingContinuityStatus, prepareTrainingRun, managerTrainingRunPreflight, trainingSuccessorAdoptionActionAvailable, trainingSuccessorAdoptionPreview,
+import { trainingContinuityStatus, trainingCarryCoversSession, prepareTrainingRun, managerTrainingRunPreflight, trainingSuccessorAdoptionActionAvailable, trainingSuccessorAdoptionPreview,
   trainingSuccessorAdoptionReceipt, trainingProposedAdoptionPreview, preparedTrainingTestQuery } from './manager-training-run-preflight.ts';
 
 const TARGET = '33333333-3333-4333-8333-333333333333';
@@ -274,13 +274,14 @@ test('continuity needs complete positive target-bound adoption, separate from ma
  const req=home('reference_training_ready').home.managerTrainingRequirements;
  const adopted={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:SOURCE,targetWorkflowVersionId:TARGET,
   eligibleRecordCount:1,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0,eligibleRouteCount:2,readiness:'already_adopted',reason:null};
- assert.deepEqual(trainingContinuityStatus(adopted,req,TARGET,SOURCE),{state:'carried',count:1});
- assert.deepEqual(trainingContinuityStatus(adopted,req,TARGET,TARGET),{state:'unknown'});
+ assert.deepEqual(trainingContinuityStatus(adopted,req,TARGET),{state:'carried',count:1});
+ assert.equal(trainingCarryCoversSession(adopted,req,TARGET,SOURCE),true);
+ assert.equal(trainingCarryCoversSession(adopted,req,TARGET,TARGET),false);
  for(const [proof,requirements] of [[undefined,req],[adopted,null],[{...adopted,eligibleRouteCount:0},req],
   [{...adopted,eligibleRecordCount:0,alreadyAdoptedRecordCount:0,eligibleRouteCount:0},req],
   [{...adopted,eligibleRecordCount:2,alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:1},req],
   [adopted,{...req,workflowVersionId:SOURCE}]]) {
-   assert.deepEqual(trainingContinuityStatus(proof,requirements as typeof req,TARGET,SOURCE),{state:'unknown'});
+   assert.deepEqual(trainingContinuityStatus(proof,requirements as typeof req,TARGET),{state:'unknown'});
  }
 });
 
@@ -289,10 +290,10 @@ test('stale authority is unknown, while actual teaching incompatibility needs re
  const refusal={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:SOURCE,targetWorkflowVersionId:TARGET,
   eligibleRecordCount:0,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0,readiness:'not_compatible'};
  for(const reason of ['agent_active_version_changed','agent_not_owned']) {
-  assert.deepEqual(trainingContinuityStatus({...refusal,reason},req,TARGET,SOURCE),{state:'unknown'});
+  assert.deepEqual(trainingContinuityStatus({...refusal,reason},req,TARGET),{state:'unknown'});
  }
  for(const reason of ['task_identity_changed','manager_policy_changed','version_lineage_incompatible']) {
-  assert.deepEqual(trainingContinuityStatus({...refusal,reason},req,TARGET,SOURCE),{state:'review',reason});
+  assert.deepEqual(trainingContinuityStatus({...refusal,reason},req,TARGET),{state:'review',reason});
  }
 });
 
@@ -346,5 +347,23 @@ test('a successful carry cannot loop, ignore a moved version or rely on a missin
   let reads=0,posts=0;const result=await prepareTrainingRun({slug:'video-craft',workflowVersionId:TARGET,
    read:async()=>reads++?fresh:f.before,adopt:async()=>{posts++;return f.receipt;}});
   assert.notEqual(result.preflight.state,'ready');assert.ok(result.carryError);assert.equal(posts,1);assert.equal(reads,2);
+ }
+});
+
+
+test('active carry status is independent of the historical session while skip-review stays session-bound',()=>{
+ const f=ancestorHome(),req=f.home.managerTrainingRequirements,preview=f.home.successorAdoption;
+ const historical='99999999-9999-4999-8999-999999999999';
+ assert.deepEqual(trainingContinuityStatus(preview,req,TARGET),{state:'available',count:5});
+ assert.equal(trainingCarryCoversSession(preview,req,TARGET,historical),false);
+ assert.equal(trainingCarryCoversSession(preview,req,TARGET,SOURCE),true);
+ assert.equal(trainingCarryCoversSession(preview,req,TARGET,INTERMEDIATE),true);
+ assert.equal(trainingCarryCoversSession(preview,req,TARGET,TARGET),false);
+ const after={...preview,alreadyAdoptedRecordCount:5,newlyAdoptableRecordCount:0,readiness:'already_adopted'};
+ assert.deepEqual(trainingContinuityStatus(after,req,TARGET),{state:'carried',count:5});
+ assert.equal(trainingCarryCoversSession(after,req,TARGET,historical),false);
+ for(const bad of [{...preview,targetWorkflowVersionId:historical}, {...preview,ancestorRecovery:{...preview.ancestorRecovery,planDigest:'bad'}}]){
+  assert.deepEqual(trainingContinuityStatus(bad,req,TARGET),{state:'unknown'});
+  assert.equal(trainingCarryCoversSession(bad,req,TARGET,SOURCE),false);
  }
 });
