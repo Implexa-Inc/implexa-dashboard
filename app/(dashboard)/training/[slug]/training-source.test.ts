@@ -3021,3 +3021,30 @@ for(const creativeDirections of [[],['Cinematic B-roll-heavy']] as const)test(`d
   assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false,'scope is visible before the immutable writer');
  }finally{r.cleanup();}
 });
+
+
+test('target carry from a newer adoption path does not claim the selected older session is covered',async()=>{
+ const source='77777777-7777-4777-8777-777777777777',middle='88888888-8888-4888-8888-888888888888';
+ for(const carried of [false,true]){
+  const proof={contractVersion:'manager-training-successor-adoption-preview.v2',sourceWorkflowVersionId:source,targetWorkflowVersionId:VERSION_B,
+   eligibleRecordCount:38,alreadyAdoptedRecordCount:carried?38:0,newlyAdoptableRecordCount:carried?0:38,eligibleRouteCount:26,
+   readiness:carried?'already_adopted':'adoption_available',reason:null,ancestorRecovery:{planDigest:DIGEST,versionIds:[source,middle,VERSION_B]}};
+  const h=await renderedWith({currentVersion:VERSION_B,state:'accepted',activeRequirements:requirements(VERSION_B),
+   sessionRequirements:requirements(VERSION_A),successorAdoption:proof});
+  const r=h.rendered;
+  try{
+   assert.match(r.text(),carried?/Earlier training carried forward/:/Earlier training can be reused/);
+   assert.match(r.text(),/38 compatible lessons/);
+   assert.match(r.text(),/The selected older session is separate from this carry/);
+   assert.equal(r.queryByText('Continue training'),null);
+   assert.ok(r.getByText('Review earlier training'));
+   assert.equal(h.calls.some(c=>['create','accept','annotate'].includes(c.operation)),false);
+   await r.click(r.getByText('Review earlier training'));
+   await r.click(r.getByText('Start a new training session for the updated agent.'));
+   await r.click(r.getByText('Start successor training session'));
+   const creates=h.calls.filter(c=>c.operation==='create');assert.equal(creates.length,1);
+   assert.equal(creates[0].args.parentSessionId,SESSION);
+   assert.equal(h.calls.some(c=>['accept','annotate'].includes(c.operation)),false,'starting a current session must not re-admit the selected historical examples');
+  }finally{r.cleanup();}
+ }
+});

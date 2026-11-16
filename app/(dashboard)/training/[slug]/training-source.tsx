@@ -12,7 +12,7 @@ import CustomerTrainingInbox from './customer-training-inbox';
 import TrainingChanges,{TrainingRunPanel,trainingTextSelectable} from './training-changes';
 import AgentActions from '../../_components/agent-actions';
 import type {AgentActionContext} from '@/lib/agent-detail';
-import {trainingContinuityStatus,prepareTrainingRun,type PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
+import {trainingContinuityStatus,trainingCarryCoversSession,prepareTrainingRun,type PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
 import {createClient} from '@/lib/supabase/client';
 import {callBackend} from '@/lib/api';
 import NewReview from '../../review/new/new-review';
@@ -532,7 +532,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   );
   const coverageNeedsUpdate = Boolean(coverageIsCurrent && managerCoverage?.readiness === 'agent_update_required' && managerCoverage.reason);
   const requirementsAreCurrent = isManagerTrainingRequirements(managerTrainingRequirements, sessionVersion || currentVersion);
-  const continuity = trainingContinuityStatus(activeTraining?.adoption, activeTraining?.requirements || null, currentVersion, sessionVersion);
+  const continuity = trainingContinuityStatus(activeTraining?.adoption, activeTraining?.requirements || null, currentVersion);
+  const carryCoversSession = trainingCarryCoversSession(activeTraining?.adoption, activeTraining?.requirements || null, currentVersion, sessionVersion);
   const activeVersionTrainingIsReady = versionChanged && continuity.state === 'carried';
   const trainingIsReady = Boolean(!versionChanged && requirementsAreCurrent && managerTrainingRequirements
     && (managerTrainingRequirements.readiness === 'reference_training_ready' || managerTrainingRequirements.readiness === 'not_applicable'));
@@ -1073,12 +1074,13 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       adopt:(body,key)=>callBackend(`/api/v2/agent-training/agents/${encodeURIComponent(slug)}/adopt-successor`,{
         jwt:auth.access_token,method:'POST',body,idempotencyKey:key})});
     const proof=freshHome?.ok===true&&freshHome.home?.agent?.currentVersionId===currentVersion
-      ?trainingContinuityStatus(freshHome.home.successorAdoption,freshHome.home.managerTrainingRequirements,currentVersion,sessionVersion):null;
-    if(result.carryError||(historical?(result.preflight.state!=='ready'||(!result.carried&&proof?.state!=='carried')):result.preflight.state==='unavailable'))throw new TrainingError('training_continuity_unconfirmed',result.carryError||'Check the current training before continuing.');
+      ?trainingContinuityStatus(freshHome.home.successorAdoption,freshHome.home.managerTrainingRequirements,currentVersion):null;
+    const coversHistorical=trainingCarryCoversSession(freshHome?.home?.successorAdoption,freshHome?.home?.managerTrainingRequirements||null,currentVersion,sessionVersion);
+    if(result.carryError||(historical?(result.preflight.state!=='ready'||!coversHistorical||(!result.carried&&proof?.state!=='carried')):result.preflight.state==='unavailable'))throw new TrainingError('training_continuity_unconfirmed',result.carryError||'Check the current training before continuing.');
     return result;
   }
   async function beginVersionSuccessor(compatible=false) {
-    if (!versionChanged || (!transitionConfirmed&&!(compatible&&['carried','available'].includes(continuity.state))) || !currentVersion || !sessionVersion) return;
+    if (!versionChanged || (compatible&&!carryCoversSession) || (!transitionConfirmed&&!(compatible&&['carried','available'].includes(continuity.state))) || !currentVersion || !sessionVersion) return;
     const predecessor = { fromVersion: sessionVersion, sources };
     await work('Starting a successor training session for the active version', async () => {
       if(compatible)await preserveCompatibleTraining(true);
@@ -1821,11 +1823,12 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {installationId && pendingDemoLink && <button disabled={!!busy} onClick={() => work("Linking the preserved preference feedback", () => linkDemoAnnotation(pendingDemoLink))}>Retry feedback link</button>}
     {!installationId && versionChanged && <section role={activeVersionTrainingIsReady ? 'status' : 'alert'} className={`rounded-xl border p-4 space-y-3 ${legacyControls} ${activeVersionTrainingIsReady ? 'border-emerald-800' : 'border-ink-700'}`}>
       <h2 className="font-semibold">{continuity.state==='carried'?'Earlier training carried forward':continuity.state==='available'?'Earlier training can be reused':continuity.state==='review'?'Review training for this update':'Earlier training status needs checking'}</h2>
-      {continuity.state==='carried'?<p>{continuity.count} compatible {continuity.count===1?'lesson is':'lessons are'} available to this version. You do not need to upload or approve {continuity.count===1?'it':'them'} again.</p>
-        :continuity.state==='available'?<p>{continuity.count} compatible {continuity.count===1?'lesson will':'lessons will'} carry forward when you run your agent. You do not need to recreate the examples.</p>
+      {continuity.state==='carried'?<p>{continuity.count} compatible {continuity.count===1?'lesson from an earlier version is':'lessons from earlier versions are'} available to this version. You do not need to upload or approve {continuity.count===1?'it':'them'} again.</p>
+        :continuity.state==='available'?<p>{continuity.count} compatible {continuity.count===1?'lesson from an earlier version will':'lessons from earlier versions will'} carry forward when you run your agent. You do not need to recreate the examples.</p>
         :continuity.state==='unknown'?<><p>Your saved training is preserved. We could not confirm which earlier lessons this version can use.</p><button disabled={!!busy} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Check training status</button></>
-        :<><p>The update needs a training review. Keep your earlier examples; review what has changed before adding or changing lessons.</p><details><summary>Review earlier training</summary><p className="mt-3">Start a session for this version to add or revise the affected lessons. Existing lessons and their history stay saved.</p><label className="mt-3 flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event)=>setTransitionConfirmed(event.target.checked)}/>Start a new training session for the updated agent.</label><button disabled={!!busy||!transitionConfirmed||!currentVersion} onClick={()=>void beginVersionSuccessor()}>Start successor training session</button></details></>}
-      {['carried','available'].includes(continuity.state)&&<button type="button" className="btn-primary" disabled={!!busy} onClick={()=>void beginVersionSuccessor(true)}>Continue training</button>}
+        :null}
+      {(continuity.state==='review'||(['carried','available'].includes(continuity.state)&&!carryCoversSession))&&<><p>{continuity.state==='review'?'The update needs a training review.':'The selected older session is separate from this carry. Review its lessons if you want to reuse them here.'}</p><p>Keep your earlier examples; review what has changed before adding or changing lessons.</p><details><summary>Review earlier training</summary><p className="mt-3">Start a session for this version to add or revise the affected lessons. Existing lessons and their history stay saved.</p><label className="mt-3 flex gap-3"><input type="checkbox" checked={transitionConfirmed} disabled={!!busy} onChange={(event)=>setTransitionConfirmed(event.target.checked)}/>Start a new training session for the updated agent.</label><button disabled={!!busy||!transitionConfirmed||!currentVersion} onClick={()=>void beginVersionSuccessor()}>Start successor training session</button></details></>}
+      {carryCoversSession&&['carried','available'].includes(continuity.state)&&<button type="button" className="btn-primary" disabled={!!busy} onClick={()=>void beginVersionSuccessor(true)}>Continue training</button>}
     </section>}
     <div id="training-demonstration" hidden={!installationId&&(view!=='teach'||directSource)} className={`space-y-4 rounded-xl border border-ink-800 p-5 ${legacyControls}`}>
     {!installationId&&<div><h2 className="text-lg font-medium">Your demonstration</h2><p className="mt-2 text-sm text-ink-400">Choose a recording or image, then select the moment you want to teach.</p></div>}
