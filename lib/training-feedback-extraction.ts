@@ -132,10 +132,11 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
   if(!TRAINING_PROPERTY_CODES.includes(scope.property as any)||!TRAINING_RELATIONS.includes(scope.relation as any))throw Error('The proposed teaching scope is unsupported.');
   // Review only the source-example relation before the existing immutable writer.
   // A persisted choice resumes the same save; it never admits the teaching.
+  const legacySaveStarted=!!progress.retentionUntil&&!progress.reviewedRelation;
   if(relationChoice!==undefined&&!TRAINING_RELATIONS.includes(relationChoice))throw Error('Choose an example type before saving.');
   if(progress.reviewedRelation!==undefined&&!TRAINING_RELATIONS.includes(progress.reviewedRelation))throw Error('The saved example choice needs review.');
-  if(relationChoice!==undefined&&(progress.reviewedRelation!==undefined?progress.reviewedRelation!==relationChoice:!!progress.record))throw Error('This teaching save has already started. Finish the saved choice before making a different draft.');
-  if(reviewBeforeSave&&!progress.record&&!progress.reviewedRelation&&relationChoice===undefined)return {status:'review' as const,suggestion,image:preview.image};
+  if(relationChoice!==undefined&&(legacySaveStarted||(progress.reviewedRelation!==undefined?progress.reviewedRelation!==relationChoice:!!progress.record)))throw Error('This teaching save has already started. Finish the saved choice before making a different draft.');
+  if(reviewBeforeSave&&!progress.record&&!legacySaveStarted&&!progress.reviewedRelation&&relationChoice===undefined)return {status:'review' as const,suggestion,image:preview.image};
   if(relationChoice!==undefined&&!progress.reviewedRelation){
     progress.reviewedRelation=relationChoice;
     try{checkpoint();}catch(error){delete progress.reviewedRelation;throw error;}

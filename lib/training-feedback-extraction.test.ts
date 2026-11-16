@@ -227,3 +227,12 @@ test('a reviewed draft with an unconfirmed link resumes that draft without writi
  await run(progress,()=>{},undefined,true,'rejected');assert.equal(progress.linked,true);
  assert.equal(calls.filter(c=>c[0]==='annotate').length,1);assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);
 });
+
+test('a pre-upgrade uncertain native save preserves its original relation and writer identity',async()=>{
+ const {run,calls,progress}=setup({modelRelation:'accepted',writeFails:true});
+ await assert.rejects(run(),/unknown native save/);assert.ok(progress.retentionUntil);assert.equal(progress.reviewedRelation,undefined);
+ await assert.rejects(run(progress,()=>{},undefined,true,'rejected'),/save has already started/);
+ assert.equal((await run(progress,()=>{},undefined,true)).status,'drafted','no new relation review after a legacy save may have begun');
+ const writes=calls.filter(c=>c[0]==='annotate');assert.equal(writes.length,2);assert.deepEqual(writes[0][1],writes[1][1]);
+ assert.equal(writes[1][1].content.relation,'accepted');assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);
+});
