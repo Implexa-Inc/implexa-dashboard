@@ -169,3 +169,18 @@ test('a late guided-mode handshake reloads scope and preserves unsent wording wi
  const body=JSON.parse(posts[0].init.body);assert.equal(body.directionScopeContract,'training-direction-scope.v1');
  assert.equal(body.changesContract,'guided-training-changes.v1');assert.match(body.message,/Only for Cinematic/);
 });
+
+test('a guided reply with stale context cannot downgrade a subsequent teaching send',async t=>{
+ const calls:any[]=[],c=context(),legacy={...context()};
+ delete (legacy as any).directionScopeContract;delete (legacy as any).creativeDirectionOptions;
+ const r=await render('../training/[slug]/training-chat.tsx',{guided:true,embedded:true,sessionId:SESSION,versionId:VERSION,slug:'video-agent',sources:[source],selectedSourceId:SOURCE,disabled:false,onSelectSource:()=>{},onAction:async()=>{}},{fetch:(async(url:string,init:any={})=>{
+  calls.push({url,init});if(init.method!=='POST')return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v2',canSend:true,turns:[],context:c})};
+  const body=JSON.parse(init.body);return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v2',canSend:true,turn:turn({turnId:body.turnId,message:body.message}),context:legacy})};
+ }) as typeof fetch});t.after(()=>r.cleanup());
+ await type(r,'Only for Cinematic B-roll-heavy: prefer relevant images.');await r.click(r.getByText('Send'));
+ assert.equal(calls.filter(x=>x.init.method==='POST').length,1);
+ await type(r,'Keep animation secondary in that direction.');await r.click(r.getByText('Send'));
+ assert.equal(calls.filter(x=>x.init.method==='POST').length,1);
+ assert.match(r.text(),/Refresh saved messages before sending this teaching/);
+ assert.equal(r.document.querySelector('textarea')!.value,'Keep animation secondary in that direction.');
+});
