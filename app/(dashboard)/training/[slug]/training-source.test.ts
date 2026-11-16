@@ -2894,3 +2894,26 @@ test('exact visual acceptance clears old test authority and rereads included mat
   }finally{releaseAccept();releaseOld();r.cleanup();}
  }
 });
+
+test('a failed automatic analysis card reopens its exact saved annotation without starting another model call',async()=>{
+ const h=harness({previewImage:VALID_FRAME}),r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD,runContext:{statusUnavailable:false,revisePending:false}},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const prior=r.window.fetch;let annotation:any=null,analyses=0;
+ r.window.fetch=(async(url:string,init:RequestInit={})=>{
+  if(String(url).includes('/annotation-gap-edit?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-annotation-gap-list.v1',analyses:annotation&&analyses?[{analysisRequest:{requestEventId:QUESTION,requestDigest:DIGEST,attemptOrdinal:1},annotation:{annotationId:QUESTION,annotationDigest:DIGEST},outcome:'failed',reason:'teaching_suggestion_provider_timeout',result:null,retry:{state:'after_failure',availableAt:null},edit:{state:'not_applicable',review:null,requestId:null,requestStatus:null,reviewedNote:null}}]:[],nextCursor:null})};
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  const b=JSON.parse(String(init.body));
+  if(b.action==='save'){const {action,expectedActiveVersionId,...saved}=b;annotation=saved;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:{contractVersion:'training-demo-annotation.v1',...saved,targetVersionId:expectedActiveVersionId}})};}
+  analyses++;return {ok:false,json:async()=>({ok:false,unavailable:true,reason:'teaching_suggestion_provider_timeout',analysisRequest:{requestEventId:QUESTION,requestDigest:DIGEST,attemptOrdinal:1},retry:{state:'after_failure',availableAt:null}})};
+ }) as typeof fetch;
+ const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
+ try{
+  await chooseDirectUpload(r);await flush();const note=r.document.querySelector('[aria-label="Teach from an image"] textarea')!;
+  await setTextarea(r,note,'Show what the scene explains, rather than repeating its words.');
+  await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await flush();
+  const card=r.document.querySelector('[aria-label="Suggested agent improvements"]')!;assert.ok(card);assert.match(card.textContent||'',/Agent setup needs another look/);
+  const resume=Array.from(card.querySelectorAll('button')).find(b=>b.textContent==='Continue saved feedback')!;assert.ok(resume);assert.equal(resume.disabled,false);
+  await r.click(resume);await flush();assert.equal(analyses,1);assert.equal((r.document.querySelector('[aria-label="Teach from an image"] textarea') as HTMLTextAreaElement).value,'Show what the scene explains, rather than repeating its words.');
+  assert.ok(r.queryByText('Review or retry analysis'));assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false);
+ }finally{r.cleanup();}
+});

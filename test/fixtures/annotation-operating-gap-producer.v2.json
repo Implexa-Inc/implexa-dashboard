@@ -1,0 +1,253 @@
+{
+  "provenance": {
+    "synthetic": true,
+    "producer": "real demo annotation SQL -> actual v7 service -> real private result writer",
+    "sourceCommit": "ad3743c0d21c42cd8268e55106a3f0b04f41d22d",
+    "schemaCandidateSha256": "9061f499b18c6add2fff4db3129d4fc0449bf3fdb3b2d953ba2dfebc86492a2f"
+  },
+  "response": {
+    "ok": true,
+    "contractVersion": "training-teaching-suggestion.v7",
+    "model": "claude-haiku-5-5",
+    "binding": {
+      "sourceId": "70000000-0000-4000-8000-000000000005",
+      "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "timeMs": 0,
+      "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426",
+      "annotationId": "53510c00-d85d-4784-bef4-0e1f7eebcb38",
+      "annotationDigest": "7b7e31c8cba743240481a70def4e3230a59d3d4794a29393cfd5444ce7c27d00",
+      "expectedActiveVersionId": "70000000-0000-4000-8000-000000000003",
+      "feedbackSha256": "fc49f0aaf486f2c18d8cf05b278940de3b72e6b6071cbf33ccd460564308d7e4"
+    },
+    "fields": null,
+    "reason": "This is an operating instruction, not a visual preference.",
+    "status": "insufficient",
+    "operatingGap": {
+      "kind": "procedure",
+      "status": "suggested",
+      "stepOrder": 2,
+      "capability": null,
+      "genericDelta": "Author scene prompts inside Build from the accepted plan; do not require a separate trainer prompt file.",
+      "evidenceExcerpt": "author the scene prompts",
+      "privateRationale": "The annotation supports a narrow review improvement."
+    },
+    "scopeSuggestion": null,
+    "sources": {
+      "chosen": "observed_frame",
+      "why": "trainer_preference",
+      "process": "transferable_guidance",
+      "desiredBehavior": "transferable_guidance"
+    },
+    "requestId": "7d0b193a-3fad-4dc6-8d1e-bd663cb5a666",
+    "analysisReceipt": {
+      "requestEventId": "3fdcbc78-04c8-405f-960d-c8c0e7935001",
+      "requestDigest": "3afd3961e82099678bf1109858d45de2b3127665446956efa0eba357636d36ea",
+      "attemptOrdinal": 1,
+      "resultEventId": "7d0b193a-3fad-4dc6-8d1e-bd663cb5a666",
+      "resultDigest": "9f9d6995c4dd9d0620c0a87ea1ef7978db494a869891d10093aa35289b0b5d20",
+      "setupDigest": "701f88855d9b3ace987e7ed919596e75ec064ec0e50de0c9c027f288991519e0",
+      "setupState": "complete",
+      "target": {
+        "methods": [],
+        "stepOrder": 2,
+        "stepDigest": "856a8f646347d7c8bb8cfbe82abe2bdbf2346ea4086f06f4c9e42499179fc27f"
+      },
+      "usage": {
+        "status": "observed",
+        "inputTokens": 40,
+        "outputTokens": 35
+      }
+    }
+  },
+  "listRow": {
+    "analysisRequest": {
+      "requestEventId": "3fdcbc78-04c8-405f-960d-c8c0e7935001",
+      "requestDigest": "3afd3961e82099678bf1109858d45de2b3127665446956efa0eba357636d36ea",
+      "attemptOrdinal": 1
+    },
+    "annotation": {
+      "annotationId": "53510c00-d85d-4784-bef4-0e1f7eebcb38",
+      "annotationDigest": "7b7e31c8cba743240481a70def4e3230a59d3d4794a29393cfd5444ce7c27d00"
+    },
+    "retry": {
+      "state": "none",
+      "availableAt": null
+    },
+    "outcome": "answered",
+    "reason": null,
+    "result": {
+      "ok": true,
+      "contractVersion": "training-teaching-suggestion.v7",
+      "model": "claude-haiku-5-5",
+      "binding": {
+        "sourceId": "70000000-0000-4000-8000-000000000005",
+        "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "timeMs": 0,
+        "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426",
+        "annotationId": "53510c00-d85d-4784-bef4-0e1f7eebcb38",
+        "annotationDigest": "7b7e31c8cba743240481a70def4e3230a59d3d4794a29393cfd5444ce7c27d00",
+        "expectedActiveVersionId": "70000000-0000-4000-8000-000000000003",
+        "feedbackSha256": "fc49f0aaf486f2c18d8cf05b278940de3b72e6b6071cbf33ccd460564308d7e4"
+      },
+      "fields": null,
+      "reason": "This is an operating instruction, not a visual preference.",
+      "status": "insufficient",
+      "operatingGap": {
+        "kind": "procedure",
+        "status": "suggested",
+        "stepOrder": 2,
+        "capability": null,
+        "genericDelta": "Author scene prompts inside Build from the accepted plan; do not require a separate trainer prompt file.",
+        "evidenceExcerpt": "author the scene prompts",
+        "privateRationale": "The annotation supports a narrow review improvement."
+      },
+      "scopeSuggestion": null,
+      "sources": {
+        "chosen": "observed_frame",
+        "why": "trainer_preference",
+        "process": "transferable_guidance",
+        "desiredBehavior": "transferable_guidance"
+      },
+      "requestId": "7d0b193a-3fad-4dc6-8d1e-bd663cb5a666",
+      "analysisReceipt": {
+        "requestEventId": "3fdcbc78-04c8-405f-960d-c8c0e7935001",
+        "requestDigest": "3afd3961e82099678bf1109858d45de2b3127665446956efa0eba357636d36ea",
+        "attemptOrdinal": 1,
+        "resultEventId": "7d0b193a-3fad-4dc6-8d1e-bd663cb5a666",
+        "resultDigest": "9f9d6995c4dd9d0620c0a87ea1ef7978db494a869891d10093aa35289b0b5d20",
+        "setupDigest": "701f88855d9b3ace987e7ed919596e75ec064ec0e50de0c9c027f288991519e0",
+        "setupState": "complete",
+        "target": {
+          "methods": [],
+          "stepOrder": 2,
+          "stepDigest": "856a8f646347d7c8bb8cfbe82abe2bdbf2346ea4086f06f4c9e42499179fc27f"
+        },
+        "usage": {
+          "status": "observed",
+          "inputTokens": 40,
+          "outputTokens": 35
+        }
+      }
+    },
+    "edit": {
+      "state": "queued",
+      "requestId": "550ee3a7-3738-5abe-9aae-09cfa1d98100",
+      "requestStatus": "pending",
+      "reviewedNote": "Author scene prompts inside Build from the accepted plan; do not require a separate trainer prompt file.",
+      "review": {
+        "eventId": "0e3c61e3-6a73-4a71-8680-ceadb5457261",
+        "digest": "faf6b0549d973c2a09ec9033de11c8dea4e83553d698c7672dd31e4fe4e51f57",
+        "revision": 1,
+        "supersedes": null
+      }
+    }
+  },
+  "reviewedUnqueuedRow": {
+    "analysisRequest": {
+      "requestEventId": "aaad377b-b82d-4ecb-9da6-6333cedacad7",
+      "requestDigest": "33ce0f0ee2a06bc77f20ed3fb6fef6324a1638ccfbbb4e617a7196bd180c3b11",
+      "attemptOrdinal": 1
+    },
+    "annotation": {
+      "annotationId": "714137c2-07ce-436b-b2b9-e9d60ba21dfd",
+      "annotationDigest": "10a562abee3495adb221a542b51e9e26f4e47adeede9c4f19e0a63775342f126"
+    },
+    "retry": {
+      "state": "none",
+      "availableAt": null
+    },
+    "outcome": "answered",
+    "reason": null,
+    "result": {
+      "ok": true,
+      "contractVersion": "training-teaching-suggestion.v7",
+      "model": "claude-haiku-5-5",
+      "binding": {
+        "sourceId": "70000000-0000-4000-8000-000000000005",
+        "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "timeMs": 0,
+        "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426",
+        "annotationId": "714137c2-07ce-436b-b2b9-e9d60ba21dfd",
+        "annotationDigest": "10a562abee3495adb221a542b51e9e26f4e47adeede9c4f19e0a63775342f126",
+        "expectedActiveVersionId": "70000000-0000-4000-8000-000000000003",
+        "feedbackSha256": "aa9523ed5491150c34d1764cea54cfe1432517fc5afd14542115ac0f69cc58d9"
+      },
+      "fields": null,
+      "reason": "This is an operating instruction, not a visual preference.",
+      "status": "insufficient",
+      "operatingGap": {
+        "kind": "procedure",
+        "status": "suggested",
+        "stepOrder": 2,
+        "capability": null,
+        "genericDelta": "Author scene prompts inside Build from the accepted plan; do not require a separate trainer prompt file.",
+        "evidenceExcerpt": "author the scene prompts",
+        "privateRationale": "The annotation supports a narrow review improvement."
+      },
+      "scopeSuggestion": null,
+      "sources": {
+        "chosen": "observed_frame",
+        "why": "trainer_preference",
+        "process": "transferable_guidance",
+        "desiredBehavior": "transferable_guidance"
+      },
+      "requestId": "0a9bc281-9eb0-43b8-b52b-ffb27a648871",
+      "analysisReceipt": {
+        "requestEventId": "aaad377b-b82d-4ecb-9da6-6333cedacad7",
+        "requestDigest": "33ce0f0ee2a06bc77f20ed3fb6fef6324a1638ccfbbb4e617a7196bd180c3b11",
+        "attemptOrdinal": 1,
+        "resultEventId": "0a9bc281-9eb0-43b8-b52b-ffb27a648871",
+        "resultDigest": "1231ceee9650fc301855cbf981ac5e9a090eec0b6ae973fd2451649a7d21a45b",
+        "setupDigest": "701f88855d9b3ace987e7ed919596e75ec064ec0e50de0c9c027f288991519e0",
+        "setupState": "complete",
+        "target": {
+          "methods": [],
+          "stepOrder": 2,
+          "stepDigest": "856a8f646347d7c8bb8cfbe82abe2bdbf2346ea4086f06f4c9e42499179fc27f"
+        },
+        "usage": {
+          "status": "observed",
+          "inputTokens": 40,
+          "outputTokens": 35
+        }
+      }
+    },
+    "edit": {
+      "state": "reviewed_unqueued",
+      "requestId": null,
+      "requestStatus": null,
+      "reviewedNote": "Author scene prompts inside Build from the accepted plan; do not require a separate trainer prompt file.",
+      "review": {
+        "eventId": "71b041d6-879c-43d1-bf33-6b638f5da356",
+        "digest": "38a73b2ff8560693bf609a2b983dcc08b9215e34b9378fea69098eb845abad79",
+        "revision": 1,
+        "supersedes": null
+      }
+    }
+  },
+  "pendingRow": {
+    "analysisRequest": {
+      "requestEventId": "0dfa0a04-9558-4836-a991-9b5b897de417",
+      "requestDigest": "46d9b448490bf703f9bfbf447e0485e417825533fbdfe893f3f546a4673e8f0a",
+      "attemptOrdinal": 1
+    },
+    "annotation": {
+      "annotationId": "0f0074f9-84e6-4119-9210-18fef1d85584",
+      "annotationDigest": "4f03df9cc3bb14ac5dd38b5d02d890a4357de035ef450d4f10599e67b0335456"
+    },
+    "retry": {
+      "state": "none",
+      "availableAt": "2026-11-15T18:16:48.511316-08:00"
+    },
+    "outcome": "pending",
+    "reason": null,
+    "result": null,
+    "edit": {
+      "state": "not_applicable",
+      "requestId": null,
+      "requestStatus": null,
+      "reviewedNote": null,
+      "review": null
+    }
+  }
+}

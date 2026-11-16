@@ -18,10 +18,10 @@ export async function POST(request:Request){
 
 export async function GET(request:Request){
  const {data:{session}}=await createClient().auth.getSession();if(!session?.access_token)return NextResponse.json({ok:false,reason:'unauthorized'},{status:401});
- const q=new URL(request.url).searchParams,id=q.get('sessionId'),limit=q.get('limit'),created=q.get('afterCreatedAt'),after=q.get('afterId');
- if(!UUID.test(id||'')||[...q.keys()].some(k=>!['sessionId','limit','afterCreatedAt','afterId'].includes(k))
+ const q=new URL(request.url).searchParams,id=q.get('sessionId'),limit=q.get('limit'),created=q.get('afterCreatedAt'),after=q.get('afterId'),target=q.get('requestEventId');
+ if(!UUID.test(id||'')||[...q.keys()].some(k=>!['sessionId','limit','afterCreatedAt','afterId','requestEventId'].includes(k))
    ||[...q.keys()].some(k=>q.getAll(k).length!==1)||limit!==null&&!/^(?:[1-9]|[1-4][0-9]|50)$/.test(limit)
-   ||(created===null)!==(after===null)||after!==null&&!UUID.test(after)||created!==null&&(created.length>40||!Number.isFinite(Date.parse(created))))
+   ||target!==null&&(!UUID.test(target)||created!==null||after!==null)||(created===null)!==(after===null)||after!==null&&!UUID.test(after)||created!==null&&(created.length>40||!Number.isFinite(Date.parse(created))))
    return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
  q.delete('sessionId');
  try{const response=await fetch(`${BACKEND}/api/v2/agent-training/sessions/${id}/annotation-gap-edit?${q}`,{headers:{authorization:`Bearer ${session.access_token}`},cache:'no-store',signal:AbortSignal.any([request.signal,AbortSignal.timeout(8000)])});

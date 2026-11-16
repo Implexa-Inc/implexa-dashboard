@@ -26,9 +26,10 @@ test('GET and reviewed queue forward to one existing owner-authenticated backend
  assert.equal(p.calls[0].init.headers.authorization,'Bearer server-session');assert.equal(response.headers['Cache-Control'],'no-store');
  const body={action:'queue',note:'A reviewed generic setup change.'};await p.POST(req(JSON.stringify(body)));
  assert.deepEqual(JSON.parse(p.calls[1].init.body),body);assert.equal(p.calls.length,2);
+ await p.GET(new Request(`https://dashboard.test/api/agent-training/annotation-gap-edit?sessionId=${SESSION}&requestEventId=${SESSION}`));assert.match(p.calls[2].url,/requestEventId=/);
 });
 test('malformed scopes/cursors and oversized bodies are rejected before forwarding; failures do not retry',async()=>{
- for(const query of [`sessionId=${SESSION}&ownerId=other`,`sessionId=${SESSION}&sessionId=${SESSION}`,`sessionId=${SESSION}&afterId=${SESSION}`,`sessionId=${SESSION}&limit=51`]){
+ for(const query of [`sessionId=${SESSION}&ownerId=other`,`sessionId=${SESSION}&sessionId=${SESSION}`,`sessionId=${SESSION}&afterId=${SESSION}`,`sessionId=${SESSION}&limit=51`,`sessionId=${SESSION}&requestEventId=bad`,`sessionId=${SESSION}&requestEventId=${SESSION}&afterCreatedAt=2026-11-15T00:00:00Z&afterId=${SESSION}`]){
   const p=proxy();assert.equal((await p.GET(new Request(`https://dashboard.test/api/agent-training/annotation-gap-edit?${query}`))).status,400);assert.equal(p.calls.length,0);
  }
  const unauth=proxy({signedIn:false});assert.equal((await unauth.POST(req())).status,401);assert.equal(unauth.calls.length,0);

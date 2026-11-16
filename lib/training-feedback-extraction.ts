@@ -3,7 +3,7 @@ import type {DraftSpatial} from './review-timestamp-feedback.ts';
 import {demoAnnotationReceipt,scopedTeachingSuggestion,teachingDigest,teachingFrame,type DemoAnnotation,type ScopedTeachingSuggestion,annotationAnalysis,analysisRequestReceipt,type AnnotationAnalysis,type AnalysisRequestReceipt} from './training-teaching-draft.ts';
 import {deriveTrainingStages,TRAINING_PROPERTY_CODES,TRAINING_RELATIONS,type TrainingPropertyCode} from './training-local-ingress.ts';
 
-export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion|AnnotationAnalysis;analysisRequest?:AnalysisRequestReceipt;analysisOutcome?:'pending'|'failed';analysisContract?:'training-teaching-suggestion.v7';record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string};
+export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion|AnnotationAnalysis;analysisRequest?:AnalysisRequestReceipt;analysisOutcome?:'pending'|'failed';analysisContract?:'training-teaching-suggestion.v7';analysisIntent?:{retryOf:null|{requestEventId:string;requestDigest:string;acknowledgedUnknownPrior?:true}};record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string};
 type Source={sourceId:string;token:string;metadata:{sha256:string;durationMs:number}};
 type Reply={ok:boolean;[key:string]:any};
 type Send=(operation:'annotation'|'suggestion',body:unknown,key?:string)=>Promise<Reply>;
@@ -59,7 +59,7 @@ export async function savedDirectFeedback(storage:Pick<Storage,'length'|'key'|'g
   }
   return {notes:notes.sort((a,b)=>a.fingerprint.localeCompare(b.fingerprint)),unreadableCount};
 }
-export type FeedbackDraftRequest={key:string;fingerprint:string;annotationId:string;annotationDigest:string};
+export type FeedbackDraftRequest={key:string;fingerprint:string;annotationId:string;annotationDigest:string;acknowledgedUnknownPrior?:true};
 /** This one-click authorization is never persisted. The extractor verifies it
  * only after opening the exact frame and checking the saved annotation. */
 export function retryFeedbackDraft(progress:FeedbackExtractionProgress,fingerprint:string):FeedbackDraftRequest{
@@ -106,12 +106,16 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
       ||progress.record||progress.linked))
       throw Error('This extraction was interrupted while drafting. Your note is saved. Review any existing draft before requesting another suggestion.');
     await check();const {feedbackSha256:_,...wire}=binding;
-    const previous={suggestionStarted:progress.suggestionStarted,draftingRetries:progress.draftingRetries,priorDraftOutcome:progress.priorDraftOutcome,analysisContract:progress.analysisContract};
-    progress.suggestionStarted=true;if(analyzeSetup)progress.analysisContract='training-teaching-suggestion.v7';
+    const previous={suggestionStarted:progress.suggestionStarted,draftingRetries:progress.draftingRetries,priorDraftOutcome:progress.priorDraftOutcome,analysisContract:progress.analysisContract,analysisIntent:progress.analysisIntent};
+    const explicitRetry=analyzeSetup&&newDraftRequest&&progress.analysisRequest&&(progress.analysisOutcome==='failed'||newDraftRequest.acknowledgedUnknownPrior===true)
+      ?{requestEventId:progress.analysisRequest.requestEventId,requestDigest:progress.analysisRequest.requestDigest,
+        ...(progress.analysisOutcome!=='failed'&&newDraftRequest.acknowledgedUnknownPrior===true?{acknowledgedUnknownPrior:true as const}:{})}:null;
+    // Reconcile the exact already-approved request after a lost retry response.
+    // Falling back to the initial identity would strand its superseding result.
+    const retryOf=explicitRetry||progress.analysisIntent?.retryOf||null;
+    progress.suggestionStarted=true;if(analyzeSetup){progress.analysisContract='training-teaching-suggestion.v7';progress.analysisIntent={retryOf};}
     if(interrupted){progress.draftingRetries=(progress.draftingRetries||0)+1;progress.priorDraftOutcome='unconfirmed';}
     try{checkpoint();}catch(error){Object.assign(progress,previous);throw error;}
-    const retryOf=analyzeSetup&&newDraftRequest&&progress.analysisOutcome==='failed'&&progress.analysisRequest
-      ?{requestEventId:progress.analysisRequest.requestEventId,requestDigest:progress.analysisRequest.requestDigest}:null;
     const value=await send('suggestion',{...wire,mode:'demonstration',includeScope:true,image:preview.image,consent:true,
       ...(analyzeSetup?{analysis:{contractVersion:'training-annotation-analysis-request.v1',consentVersion:'training-annotation-taste-and-setup.v1',retryOf}}:{})});
     if(analyzeSetup&&analysisRequestReceipt(value.analysisRequest)){progress.analysisRequest=value.analysisRequest;progress.analysisOutcome=typeof value.reason==='string'&&value.reason.startsWith('teaching_suggestion_')&&value.unavailable===true?'failed':'pending';checkpoint();}

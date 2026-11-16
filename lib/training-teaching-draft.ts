@@ -33,8 +33,9 @@ export type AnnotationAnalysis=Omit<ScopedTeachingSuggestion,'contractVersion'>&
   analysisReceipt:AnalysisRequestReceipt&{resultEventId:string;resultDigest:string;setupDigest:string;setupState:'complete'|'incomplete';
     target:null|{stepOrder:number;stepDigest:string;methods:Array<{source:string;slug:string;contentDigest:string}>};
     usage:{status:'observed'|'unknown';inputTokens:number|null;outputTokens:number|null}}};
-export type AnnotationGapAnalysis={analysisRequest:AnalysisRequestReceipt;outcome:'pending'|'answered'|'failed'|'refused';reason:string|null;result:AnnotationAnalysis|null;
-  edit:{state:'available'|'not_applicable'|'dismissed'|'queued'|'stale'|'blocked';requestId:string|null;requestStatus:string|null;reviewedNote:string|null}};
+export type AnnotationGapReview={eventId:string;digest:string;revision:number;supersedes:{eventId:string;digest:string}|null};
+export type AnnotationGapAnalysis={analysisRequest:AnalysisRequestReceipt;annotation:{annotationId:string;annotationDigest:string};retry:{state:'none'|'after_failure'|'after_unknown';availableAt:string|null};outcome:'pending'|'answered'|'failed'|'refused'|'superseded';reason:string|null;result:AnnotationAnalysis|null;
+  edit:{state:'available'|'reviewed_unqueued'|'not_applicable'|'dismissed'|'queued'|'stale'|'blocked';review:AnnotationGapReview|null;requestId:string|null;requestStatus:string|null;reviewedNote:string|null}};
 export type AnnotationGapPage={ok:true;contractVersion:'training-annotation-gap-list.v1';analyses:AnnotationGapAnalysis[];nextCursor:null|{afterCreatedAt:string;afterId:string}};
 export function analysisRequestReceipt(v:any):v is AnalysisRequestReceipt{
   return exact(v,['requestEventId','requestDigest','attemptOrdinal'])&&recordingUuid(v.requestEventId)&&recordingSha(v.requestDigest)&&Number.isSafeInteger(v.attemptOrdinal)&&v.attemptOrdinal>=1;
@@ -67,18 +68,23 @@ export function annotationAnalysis(v:any,expected:SuggestionBinding):v is Annota
 export function annotationGapPage(v:any,versionId:string):v is AnnotationGapPage{
   return exact(v,['ok','contractVersion','analyses','nextCursor'])&&v.ok===true&&v.contractVersion==='training-annotation-gap-list.v1'
     &&Array.isArray(v.analyses)&&v.analyses.length<=50&&v.analyses.every((a:any)=>{
-      if(!exact(a,['analysisRequest','outcome','reason','result','edit'])||!analysisRequestReceipt(a.analysisRequest)||!['pending','answered','failed','refused'].includes(a.outcome)
+      if(!exact(a,['analysisRequest','annotation','retry','outcome','reason','result','edit'])||!analysisRequestReceipt(a.analysisRequest)||!['pending','answered','failed','refused','superseded'].includes(a.outcome)
         ||!(a.reason===null||typeof a.reason==='string'&&a.reason.length<=500))return false;
       const r=a.result,b=r?.binding,e=a.edit;
+      if(!exact(a.annotation,['annotationId','annotationDigest'])||!recordingUuid(a.annotation.annotationId)||!recordingSha(a.annotation.annotationDigest)
+        ||!exact(a.retry,['state','availableAt'])||!['none','after_failure','after_unknown'].includes(a.retry.state)
+        ||!(a.retry.availableAt===null||typeof a.retry.availableAt==='string'&&Number.isFinite(Date.parse(a.retry.availableAt))))return false;
       if(r!==null&&(!b||!exact(b,['sourceId','sourceSha256','timeMs','frameSha256','expectedActiveVersionId','feedbackSha256','annotationId','annotationDigest'])
         ||!['sourceId','annotationId'].every(k=>recordingUuid(b[k]))||!['sourceSha256','frameSha256','feedbackSha256','annotationDigest'].every(k=>recordingSha(b[k]))
-        ||!Number.isSafeInteger(b.timeMs)||b.timeMs<0||b.expectedActiveVersionId!==versionId||!annotationAnalysis(r,b)
+        ||b.annotationId!==a.annotation.annotationId||b.annotationDigest!==a.annotation.annotationDigest||!Number.isSafeInteger(b.timeMs)||b.timeMs<0||b.expectedActiveVersionId!==versionId||!annotationAnalysis(r,b)
         ||!(['requestEventId','requestDigest','attemptOrdinal'] as const).every(k=>r.analysisReceipt[k]===a.analysisRequest[k])))return false;
-      return (a.outcome==='answered'?r!==null:r===null)&&exact(e,['state','requestId','requestStatus','reviewedNote'])
-        &&['available','not_applicable','dismissed','queued','stale','blocked'].includes(e.state)
+      return (a.outcome==='answered'?r!==null:r===null)&&exact(e,['state','review','requestId','requestStatus','reviewedNote'])
+        &&(e.review===null||exact(e.review,['eventId','digest','revision','supersedes'])&&recordingUuid(e.review.eventId)&&recordingSha(e.review.digest)
+          &&Number.isSafeInteger(e.review.revision)&&e.review.revision>=1&&(e.review.supersedes===null||exact(e.review.supersedes,['eventId','digest'])&&recordingUuid(e.review.supersedes.eventId)&&recordingSha(e.review.supersedes.digest)))
+        &&['available','reviewed_unqueued','not_applicable','dismissed','queued','stale','blocked'].includes(e.state)
         &&(e.requestId===null||recordingUuid(e.requestId))&&(e.requestStatus===null||typeof e.requestStatus==='string'&&e.requestStatus.length<=100)
         &&(e.reviewedNote===null||typeof e.reviewedNote==='string'&&e.reviewedNote.length<=2000&&new TextEncoder().encode(e.reviewedNote).length<=8000)
-        &&(e.state!=='available'||r?.operatingGap?.kind==='procedure'&&r.operatingGap.status==='suggested'&&r.analysisReceipt.target!==null);
+        &&(!['available','reviewed_unqueued'].includes(e.state)||r?.operatingGap?.kind==='procedure'&&r.operatingGap.status==='suggested'&&r.analysisReceipt.target!==null);
     })&&(v.nextCursor===null||exact(v.nextCursor,['afterCreatedAt','afterId'])&&recordingUuid(v.nextCursor.afterId)&&typeof v.nextCursor.afterCreatedAt==='string'&&Number.isFinite(Date.parse(v.nextCursor.afterCreatedAt)));
 }
 /** The workspace opts in; older callers keep their exact v2/v3 contract. */

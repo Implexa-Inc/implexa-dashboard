@@ -23,7 +23,7 @@ import { canSubmitAgentRevision, confirmedAgentRevisionRequestId } from '@/lib/r
 
 type State = 'idle' | 'sending' | 'queued' | 'error';
 
-export default function ImproveAgent({ slug, bare = false, statusUnavailable = false, revisePending = false, initialNote='', trainingChatBinding, annotationBinding, onQueued }: { slug: string; bare?: boolean; statusUnavailable?: boolean; revisePending?: boolean;initialNote?:string;trainingChatBinding?:{sessionId:string;turnId:string;expectedActiveVersionId:string};annotationBinding?:{sessionId:string;analysisResultEventId:string;analysisResultDigest:string;expectedActiveVersionId:string;stepOrder:number;stepDigest:string};onQueued?:()=>void }) {
+export default function ImproveAgent({ slug, bare = false, statusUnavailable = false, revisePending = false, initialNote='', trainingChatBinding, annotationBinding, onQueued, onUnconfirmed }: { slug: string; bare?: boolean; statusUnavailable?: boolean; revisePending?: boolean;initialNote?:string;trainingChatBinding?:{sessionId:string;turnId:string;expectedActiveVersionId:string};annotationBinding?:{sessionId:string;analysisResultEventId:string;analysisResultDigest:string;expectedActiveVersionId:string;stepOrder:number;stepDigest:string;supersedes:{eventId:string;digest:string}|null};onQueued?:()=>void;onUnconfirmed?:()=>void }) {
   const router = useRouter();
   const [open, setOpen] = useState(bare);
   const [note, setNote] = useState(initialNote);
@@ -53,7 +53,7 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
       router.refresh();onQueued?.();
     } catch (e) {
       setState('error');
-      setError(e instanceof Error ? e.message : 'Could not queue the change.');
+      setError(e instanceof Error ? e.message : 'Could not queue the change.');onUnconfirmed?.();
     }
   }
 
@@ -109,7 +109,7 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
             disabled={statusUnavailable || revisePending}
             className="w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 placeholder:text-ink-600 focus:border-brand-500/60 focus:outline-none resize-y"
           />
-          {error && <p className="text-xs text-rose-500 mt-1.5">{error}</p>}
+          {error && <div className="mt-1.5 space-y-2"><p className="text-xs text-rose-500">{error}</p>{annotationBinding&&onUnconfirmed&&<button type="button" className="text-xs underline" onClick={onUnconfirmed}>Check saved update</button>}</div>}
           <div className="flex items-center justify-between mt-2.5">
             <span className="text-[11px] text-ink-500">Proposes updated steps · ⌘↵</span>
             <div className="flex items-center gap-2">
