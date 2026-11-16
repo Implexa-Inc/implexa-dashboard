@@ -3,93 +3,66 @@
 @tailwind utilities;
 
 /* ───────────────────────────────────────────────────────────────────────
- * Implexa dashboard — day/night theme.
+ * Tukido dashboard theme: washi paper by day, sumi ink by night.
  *
- * Dark mode is the enforced default (the root layout puts `.dark` on <html>),
- * so the `.dark` token block below is what every user actually sees.
+ * Source of truth: Implexa/tukido-app-design/tokens.css + DESIGN_SYSTEM.md
+ * (step 2 of the app redesign: a TOKEN-ONLY change, no component edits).
  *
- * Dark mode:
- *   - Near-black warm body, light text, warm + emerald accents
+ * The `ink` scale FLIPS between the two blocks below. Components keep using
+ * the same semantic names (text-ink-100, bg-ink-900, …) and adapt.
  *
- * Light mode (reachable only when the `.dark` class is removed, e.g. a future
- * toggle) is tuned to a Vercel / Wispr Flow / Linear grade: a soft off-white
- * page, raised white cards, hairline borders, and crisp near-black text.
+ *   ink-50  primary text      ink-500 subtle labels (non-text, AA large only)
+ *   ink-100 body text         ink-600 prominent borders
+ *   ink-200 emphasized body   ink-700 hairlines / card borders
+ *   ink-300 muted text        ink-800 hover surfaces
+ *   ink-400 captions          ink-900 cards       ink-950 page
  *
- * The `ink` scale FLIPS via these variables. Components use semantic
- * names (text-ink-100, bg-ink-900, etc.) and the underlying color
- * adapts automatically.
+ * Which theme a user sees is decided in app/layout.tsx (THEME_MODE): dark for
+ * everyone by default, or "clock" (light by day, dark 7pm–6am). `?theme=light`
+ * / `?theme=dark` / `?theme=auto` previews and remembers a per-browser choice.
+ *
+ * Contrast (checked): ink-300/400 ≥ 4.8:1 on cards and page in both themes.
  * ─────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Light mode: ink-50 is darkest text, ink-950 is the off-white body bg.
-   *
-   * Warm-neutral (stone) scale, calibrated for a calm, professional light UI:
-   *   - Page (ink-950) is a soft off-white (#FAFAF9), NOT pure white, so it
-   *     never reads harsh. Cards (ink-900) are pure white and sit RAISED above
-   *     the page with a hairline border plus subtle shadow (the Vercel look).
-   *   - Borders (ink-700/600) are low-contrast hairlines, not heavy grays.
-   *   - Text runs near-black (ink-50) down to muted stone (ink-300/400).
-   *
-   * WCAG AA against the white card / off-white page:
-   *   ink-300 -> ~7.4:1  (muted text, comfortable for body copy)
-   *   ink-400 -> ~4.8:1  (captions / secondary, passes AA normal)
-   *   ink-500 -> ~2.9:1  (subtle UI labels, AA Large / non-text only)
-   * Don't use ink-500 for body-sized text; reserve for badges/labels/borders.
-   */
-  --ink-50:  28 25 23;                                                               /* near-black headings (#1C1917) */
-  --ink-100: 41 37 36;                                                               /* body text (#292524) */
-  --ink-200: 68 64 60;                                                               /* emphasized body (#44403C) */
-  --ink-300: 87 83 78;                                                               /* muted text, ~7.4:1 (#57534E) */
-  --ink-400: 120 113 108;                                                            /* captions, ~4.8:1 (#78716C) */
-  --ink-500: 168 162 158;                                                            /* subtle UI labels, AA Large only (#A8A29E) */
-  --ink-600: 214 211 209;                                                            /* prominent borders (#D6D3D1) */
-  --ink-700: 231 229 228;                                                            /* hairline dividers / card borders (#E7E5E4) */
-  --ink-800: 245 245 244;                                                            /* hover surfaces (#F5F5F4) */
-  --ink-900: 255 255 255;                                                            /* card / surface, raised white (#FFFFFF) */
-  --ink-950: 250 250 249;                                                            /* body bg, soft off-white (#FAFAF9) */
+  /* Light: washi paper, aizome indigo text. */
+  --ink-50:  30 43 69;     /* #1E2B45 aizome — headings, primary text */
+  --ink-100: 47 59 85;     /* #2F3B55 body text */
+  --ink-200: 68 80 106;    /* #44506A emphasized body */
+  --ink-300: 91 100 121;   /* #5B6479 muted text */
+  --ink-400: 91 100 121;   /* #5B6479 captions (kept ≥4.5:1, so same as 300) */
+  --ink-500: 138 144 160;  /* #8A90A0 subtle labels / control borders */
+  --ink-600: 201 197 184;  /* #C9C5B8 prominent borders */
+  --ink-700: 216 213 202;  /* #D8D5CA hairlines */
+  --ink-800: 231 228 218;  /* #E7E4DA hover surfaces */
+  --ink-900: 250 249 245;  /* #FAF9F5 cards (raised paper) */
+  --ink-950: 243 241 234;  /* #F3F1EA page (washi) */
 }
 
 .dark {
-  /* Dark mode: ink-50 is brightest text, ink-950 is near-black body bg.
-   * Forced on by the root layout; this is the default experience. */
-  --ink-50:  250 250 248;
-  --ink-100: 229 225 216;
-  --ink-200: 201 194 183;
-  --ink-300: 161 153 146;
-  --ink-400: 124 116 108;
-  --ink-500: 110 102 94;
-  --ink-600: 74 67 57;
-  --ink-700: 42 36 30;
-  --ink-800: 31 26 20;
-  --ink-900: 21 17 12;
-  --ink-950: 10 8 5;
+  /* Dark: sumi ink paper, washi text. */
+  --ink-50:  236 232 222;  /* #ECE8DE */
+  --ink-100: 214 210 200;  /* #D6D2C8 */
+  --ink-200: 188 193 204;  /* #BCC1CC */
+  --ink-300: 163 169 183;  /* #A3A9B7 */
+  --ink-400: 149 156 172;  /* #959CAC */
+  --ink-500: 102 112 138;  /* #66708A */
+  --ink-600: 74 83 103;    /* #4A5367 */
+  --ink-700: 39 46 61;     /* #272E3D */
+  --ink-800: 31 37 51;     /* #1F2533 */
+  --ink-900: 25 30 42;     /* #191E2A */
+  --ink-950: 18 22 31;     /* #12161F */
 }
 
 html, body {
   background: rgb(var(--ink-950));
   color:      rgb(var(--ink-50));
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';                             /* Inter stylistic alternates */
 }
 
-/* Subtle warm glow behind the body — only visible in dark mode where it
- * reads as "campfire light." In light mode the glow is invisible so it
- * doesn't muddy the white. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 60% 40% at 50% -10%, rgba(255, 87, 34, 0.00) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 30% at 90% 100%, rgba(255, 87, 34, 0.00) 0%, transparent 70%);
-  z-index: -1;
-  transition: opacity 200ms;
-}
-
-.dark body::before {
-  background:
-    radial-gradient(ellipse 60% 40% at 50% -10%, rgba(255, 87, 34, 0.06) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 30% at 90% 100%, rgba(52, 211, 153, 0.04) 0%, transparent 70%);
+/* Page titles use the display serif (Shippori Mincho); everything else is the
+ * UI sans. A utility class on an h1 (e.g. font-mono) still wins. */
+@layer base {
+  h1 { font-family: var(--font-display), Georgia, serif; font-weight: 500; letter-spacing: -0.01em; }
 }
 
 /* highlight.js — code blocks. Always dark (looks great on both modes for code). */
@@ -115,7 +88,7 @@ body::before {
 @layer components {
   /* ── Buttons ────────────────────────────────────────────────────── */
   .btn          { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all; }
-  .btn-primary  { @apply btn bg-brand-500 text-ink-950 hover:bg-brand-400 hover:shadow-glow active:bg-brand-600; }
+  .btn-primary  { @apply btn bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700; }
   .btn-success  { @apply btn bg-success-400 text-ink-950 hover:bg-success-300 hover:shadow-glow-emerald active:bg-success-500; }
   .btn-ghost    { @apply btn text-ink-100 hover:bg-ink-800 active:bg-ink-700; }
   .btn-outline  { @apply btn border border-ink-600 text-ink-100 hover:bg-ink-800 hover:border-ink-500; }
@@ -156,8 +129,8 @@ body::before {
 .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 
-/* Selection — warm orange tint */
-::selection { background: rgba(255, 87, 34, 0.3); color: rgb(var(--ink-50)); }
+/* Selection: vermilion tint */
+::selection { background: rgba(200, 50, 31, 0.22); color: rgb(var(--ink-50)); }
 
 /* Implexa logo i-dot pulse — defined globally (not via styled-jsx) so the
  * <Logo /> component stays server-component compatible. Matches the
