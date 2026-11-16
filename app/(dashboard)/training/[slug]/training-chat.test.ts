@@ -144,3 +144,28 @@ test('direction-aware chat pins the request and refuses a legacy response withou
   if(legacyReply){assert.match(r.text(),/training chat response unconfirmed/);assert.match(r.document.querySelector('textarea')!.value,/Only for Cinematic/);}
  }
 });
+
+
+test('a late guided-mode handshake reloads scope and preserves unsent wording without a legacy downgrade',async t=>{
+ const calls:any[]=[],c=context();let release:any;
+ const scopedReply=new Promise(resolve=>{release=resolve;});
+ const legacy={...c};delete (legacy as any).directionScopeContract;delete (legacy as any).creativeDirectionOptions;
+ const props={guided:false,embedded:true,sessionId:SESSION,versionId:VERSION,slug:'video-agent',sources:[source],selectedSourceId:SOURCE,disabled:false,onSelectSource:()=>{},onAction:async()=>{}};
+ const r=await render('../training/[slug]/training-chat.tsx',props,{fetch:(async(url:string,init:any={})=>{
+  calls.push({url,init});
+  if(init.method==='POST'){const body=JSON.parse(init.body);return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v2',canSend:true,turn:turn({turnId:body.turnId,message:body.message}),context:c})};}
+  if(url.includes('directionScopeContract='))return scopedReply;
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:true,turns:[],context:legacy})};
+ }) as typeof fetch});t.after(()=>r.cleanup());
+ await type(r,'Only for Cinematic B-roll-heavy: use relevant imagery.');
+ await r.rerender({...props,guided:true});
+ assert.equal(calls.filter(x=>x.url.includes('directionScopeContract=')).length,1);
+ assert.equal((r.getByText('Send') as HTMLButtonElement).disabled,true);
+ assert.match(r.document.querySelector('textarea')!.value,/Only for Cinematic/);
+ assert.equal(calls.some(x=>x.init.method==='POST'),false);
+ await r.act(async()=>{release({ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v2',canSend:true,turns:[],context:c})});await new Promise(resolve=>setImmediate(resolve));});
+ await r.click(r.getByText('Send'));
+ const posts=calls.filter(x=>x.init.method==='POST');assert.equal(posts.length,1);
+ const body=JSON.parse(posts[0].init.body);assert.equal(body.directionScopeContract,'training-direction-scope.v1');
+ assert.equal(body.changesContract,'guided-training-changes.v1');assert.match(body.message,/Only for Cinematic/);
+});
