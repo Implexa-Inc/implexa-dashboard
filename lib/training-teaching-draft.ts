@@ -89,7 +89,7 @@ export function annotationGapPage(v:any,versionId:string):v is AnnotationGapPage
         &&['available','reviewed_unqueued','not_applicable','dismissed','queued','stale','blocked'].includes(e.state)
         &&(e.requestId===null||recordingUuid(e.requestId))&&(e.requestStatus===null||typeof e.requestStatus==='string'&&e.requestStatus.length<=100)
         &&(e.reviewedNote===null||typeof e.reviewedNote==='string'&&e.reviewedNote.length<=2000&&new TextEncoder().encode(e.reviewedNote).length<=8000)
-        &&(!['available','reviewed_unqueued'].includes(e.state)||(r?.operatingGap?.kind==='procedure'||r?.operatingGap?.kind==='tool'&&r.operatingGap.capability==='higgsfield_image_to_video')&&r.operatingGap.status==='suggested'&&r.analysisReceipt.target!==null);
+        &&(!['available','reviewed_unqueued'].includes(e.state)||r?.operatingGap?.kind==='procedure'&&r.operatingGap.status==='suggested'&&r.analysisReceipt.target!==null);
     })&&(v.nextCursor===null||exact(v.nextCursor,['afterCreatedAt','afterId'])&&recordingUuid(v.nextCursor.afterId)&&typeof v.nextCursor.afterCreatedAt==='string'&&Number.isFinite(Date.parse(v.nextCursor.afterCreatedAt)));
 }
 /** The workspace opts in; older callers keep their exact v2/v3 contract. */

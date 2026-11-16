@@ -1178,6 +1178,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         segments:local.segments,storyboard:local.storyboard,consent:true,...(agent?{capability:agentCapability}:{})})});
       const value=await response.json();
       if(latestDraft.current!==snapshot)throw Error('The draft changed. The located excerpt was not applied.');
+      if(!response.ok || value?.ok!==true)throw Error(teachingFailure(value,response.status));
       const detected=agent?recordingLocatorCapability(value,agentCapability):null;
       if(agent&&!detected?.ok)throw Error('The demonstrated tool could not be identified. Your recording is saved.');
       if(response.ok && value?.ok===true && value.status==='insufficient' && typeof value.reason==='string' && value.reason.length<=300){setSuggestionNote(value.reason);return;}

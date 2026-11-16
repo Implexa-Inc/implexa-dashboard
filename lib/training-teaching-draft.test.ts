@@ -119,7 +119,11 @@ test('actual Higgsfield producer supports automatic discovery, both method paths
  const annotation=f.results.find((r:any)=>r.gate==='training-higgsfield-annotation-producer');
  assert.equal(annotationAnalysis(annotation.result,annotation.result.binding),true);
  assert.equal(annotationGapPage(annotation.list,annotation.result.binding.expectedActiveVersionId),true);
- assert.equal(annotation.list.analyses[0].edit.state,'available');
+ assert.equal(annotation.list.analyses[0].edit.state,'blocked');
+ for(const state of ['available','reviewed_unqueued']){
+  const bypass=structuredClone(annotation.list);bypass.analyses[0].edit.state=state;
+  assert.equal(annotationGapPage(bypass,annotation.result.binding.expectedActiveVersionId),false,'a tool finding cannot bypass the recorded capability update review');
+ }
  const recording=f.results.find((r:any)=>r.gate==='training-higgsfield-actual-producer');
  assert.deepEqual(recordingLocatorCapability(recording.located,'auto'),{ok:true,capability:'higgsfield_image_to_video'});
  assert.deepEqual(recordingLocatorCapability(recording.explicit,'higgsfield_image_to_video'),{ok:true,capability:'higgsfield_image_to_video'});

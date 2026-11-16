@@ -1589,6 +1589,34 @@ for(const capability of ['web_reference_research','higgsfield_image_to_video'])t
 });
 
 
+for(const [status,reason,message] of [
+ [401,'teaching_suggestion_provider_auth',/provider rejected its credentials/],
+ [409,'agent_active_version_changed',/active agent version could not be verified/],
+ [503,'teaching_suggestion_provider_timeout',/drafting request timed out/],
+] as const)test(`automatic tool discovery preserves its typed ${status} failure and request reference`,async()=>{
+ const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
+ const segments=[{index:0,startMs:0,endMs:5000,text:'Turn this image into video using Higgsfield.'}];
+ h.bridge.trainingLocal=async(operation,args)=>operation==='recording'?{ok:true,manifest:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A},segments,storyboard:[],manifestId:QUESTION,manifestDigest:DIGEST}:original(operation,args);
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const prior=r.window.fetch;let requests=0;
+ r.window.fetch=(async(url:string,init:RequestInit)=>{
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  requests++;assert.equal(JSON.parse(String(init.body)).mode,'recording-agent-locate');
+  return {ok:false,status,json:async()=>({ok:false,reason,requestId:QUESTION})};
+ }) as typeof fetch;
+ try{
+  await r.click(r.getByText('Annotate source'));
+  await r.click(r.getByText(/Separately analyze tool use/).closest('label')!.querySelector('input')!);
+  await r.click(r.getByText('Suggest tool and method update'));
+  await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+  assert.match(r.text(),message);assert.ok(r.text().includes(`reference ${QUESTION}`));
+  assert.doesNotMatch(r.text(),/demonstrated tool could not be identified/);
+  assert.equal(requests,1);assert.equal(r.queryByText('Request this agent update'),null);
+  assert.equal(h.calls.some(c=>['annotate','accept'].includes(c.operation)),false);
+ }finally{r.cleanup();}
+});
+
 test('server image status is record-bound and never accepts malformed storage metadata',()=>{
  const stored={storageId:TOKEN,recordId:RECORD,recordDigest:DIGEST,evidenceId:SOURCE_ID,sha256:SOURCE_DIGEST,sizeBytes:68,width:1,height:1,
   consentReceiptDigest:'c'.repeat(64),retentionUntil:'2026-12-01T00:00:00Z',storedAt:'2026-10-28T00:00:00Z',uploadExpiresAt:null,withdrawnAt:null,deletedAt:null};

@@ -32,12 +32,12 @@ export function DeclaredMachineTools({ tools, declarations = [] }: { tools?: Age
   return (
     <section className="rounded-lg border border-ink-800 p-4" aria-label="Declared local tools">
       <h2 className="text-sm font-medium text-ink-100">Declared local tools</h2>
-      <p className="mt-1 text-xs text-ink-500">Local tools this agent can use.</p>
+      <p className="mt-1 text-xs text-ink-500">Declared for this version.</p>
       <ul className="mt-3 space-y-2">
         {rows.map((tool) => (
           <li key={tool.id} className="flex items-center justify-between gap-3 text-sm">
             <span className="text-ink-200">{tool.label}</span>
-            <span className="text-xs text-ink-500">{tool.kind === 'declared_local_tool' ? 'Local · checked when used' : tool.kind === 'cli_auth' ? 'CLI sign-in · checked before run' : 'Local'}{tool.required ? '' : ' · optional'}</span>
+            <span className="text-xs text-ink-500">{tool.kind === 'cli_auth' ? 'CLI sign-in · checked before run' : 'Local'}{tool.required ? '' : ' · optional'}</span>
           </li>
         ))}
       </ul>

@@ -52,7 +52,8 @@ test('Setup shows an optional declared CLI without claiming a connection or offe
   ] }, { exportName: 'DeclaredMachineTools' });
   t.after(() => r.cleanup());
   assert.match(r.text(), /Higgsfield/);
-  assert.match(r.text(), /Local · checked when used · optional/);
-  assert.doesNotMatch(r.text(), /signed in|installed|key allowed|Everything.*set up|before each run/i);
+  assert.match(r.text(), /Declared for this version/);
+  assert.match(r.text(), /Local · optional/);
+  assert.doesNotMatch(r.text(), /signed in|installed|key allowed|Everything.*set up|checked when used|before each run|this agent can use/i);
   assert.equal(r.document.querySelectorAll('button, a, input').length, 0);
 });
