@@ -28,7 +28,7 @@ export type TeachingSuggestion = { ok: true; contractVersion: 'training-teaching
 export type ScopedTeachingSuggestion=Omit<TeachingSuggestion,'contractVersion'>&{contractVersion:'training-teaching-suggestion.v6'|'training-teaching-suggestion.v8';creativeDirections?:TrainingDirectionScope;scopeSuggestion:{property:string;relation:string}|null};
 export type AnalysisRequestReceipt={requestEventId:string;requestDigest:string;attemptOrdinal:number};
 export type OperatingGap={status:'suggested'|'present'|'incomplete'|'unsupported';kind:'procedure'|'tool';stepOrder:number|null;
-  capability:'web_reference_research'|'presenter_background_removal'|null;evidenceExcerpt:string;privateRationale:string;genericDelta:string};
+  capability:'web_reference_research'|'presenter_background_removal'|'higgsfield_image_to_video'|null;evidenceExcerpt:string;privateRationale:string;genericDelta:string};
 export type AnnotationAnalysis=Omit<ScopedTeachingSuggestion,'contractVersion'>&{contractVersion:'training-teaching-suggestion.v7'|'training-teaching-suggestion.v9';operatingGap:OperatingGap|null;
   analysisReceipt:AnalysisRequestReceipt&{resultEventId:string;resultDigest:string;setupDigest:string;setupState:'complete'|'incomplete';
     target:null|{stepOrder:number;stepDigest:string;methods:Array<{source:string;slug:string;contentDigest:string}>};
@@ -62,7 +62,7 @@ export function annotationAnalysis(v:any,expected:SuggestionBinding):v is Annota
   return exact(g,['status','kind','stepOrder','capability','evidenceExcerpt','privateRationale','genericDelta'])
     &&['suggested','present','incomplete','unsupported'].includes(g.status)&&['procedure','tool'].includes(g.kind)
     &&(g.stepOrder===null||Number.isSafeInteger(g.stepOrder)&&g.stepOrder>=1)
-    &&(g.capability===null||['web_reference_research','presenter_background_removal'].includes(g.capability))
+    &&(g.capability===null||['web_reference_research','presenter_background_removal','higgsfield_image_to_video'].includes(g.capability))
     &&Object.entries({evidenceExcerpt:400,privateRationale:500,genericDelta:1000}).every(([k,max])=>typeof g[k]==='string'&&Array.from(g[k]).length<=max)
     &&!!g.evidenceExcerpt.trim()&&!!g.privateRationale.trim()
     &&(g.kind!=='procedure'||g.capability===null)&&(g.kind!=='tool'||g.status==='unsupported'||g.capability!==null)
@@ -163,16 +163,28 @@ export type RecordingExcerpt = {sourceId:string;sourceSha256:string;targetVersio
 export type RecordingSuggestion = {ok:true;contractVersion:'training-teaching-suggestion.v4';requestId:string;model:string;status:'suggested';fields:TeachingFields;reason:'';
   frameIndex:number;suggestionId:string;suggestionDigest:string;sources:Record<typeof TEACHING_FIELDS[number],string>;
   binding:{sourceId:string;sourceSha256:string;targetVersionId:string;excerptId:string;excerptDigest:string;frames:Array<{timeMs:number;frameSha256:string}>}};
-export type RecordingAgentCapability = 'web_reference_research'|'presenter_background_removal';
+export type RecordingAgentCapability = 'web_reference_research'|'presenter_background_removal'|'higgsfield_image_to_video';
+export function isRecordingAgentCapability(v:unknown):v is RecordingAgentCapability {
+ return typeof v==='string'&&['web_reference_research','presenter_background_removal','higgsfield_image_to_video'].includes(v);
+}
+export function recordingLocatorCapability(v:any,requested:RecordingAgentCapability|'auto'):{ok:true;capability:RecordingAgentCapability|null}|{ok:false} {
+ if(!['located','insufficient'].includes(v?.status))return {ok:false};
+ if(requested==='auto')return v.status==='insufficient'
+  ? v.capability===null?{ok:true,capability:null}:{ok:false}
+  : isRecordingAgentCapability(v.capability)?{ok:true,capability:v.capability}:{ok:false};
+ return isRecordingAgentCapability(requested)&&(v.capability===undefined||v.capability===(v.status==='located'?requested:null))
+  ?{ok:true,capability:v.status==='located'?requested:null}:{ok:false};
+}
+
 export type RecordingAgentSuggestion = {ok:true;contractVersion:'training-recording-agent-suggestion.v1';requestId:string;model:string;status:'suggested';
   capability:RecordingAgentCapability;frameIndex:number;reason:'';limitations:string[];suggestionId:string;suggestionDigest:string;
-  proposedChange:string;application:'not_applied';methodSelection:'pending_existing_binder';binding:RecordingSuggestion['binding']};
+  proposedChange:string;application:'not_applied';methodSelection:'pending_existing_binder'|'agent_change_required';binding:RecordingSuggestion['binding']};
 export function recordingAgentSuggestion(v:any,expected:RecordingSuggestion['binding'],capability:RecordingAgentCapability='web_reference_research'):v is RecordingAgentSuggestion {
   return exact(v,['ok','contractVersion','requestId','model','status','capability','frameIndex','reason','limitations','suggestionId','suggestionDigest','proposedChange','application','methodSelection','binding'])
     && v.ok===true&&v.contractVersion==='training-recording-agent-suggestion.v1'&&v.model===TEACHING_MODEL&&recordingUuid(v.requestId)
-    &&v.status==='suggested'&&v.capability===capability&&['web_reference_research','presenter_background_removal'].includes(v.capability)&&v.reason===''&&Number.isInteger(v.frameIndex)&&v.frameIndex>=0&&v.frameIndex<3
+    &&v.status==='suggested'&&v.capability===capability&&['web_reference_research','presenter_background_removal','higgsfield_image_to_video'].includes(v.capability)&&v.reason===''&&Number.isInteger(v.frameIndex)&&v.frameIndex>=0&&v.frameIndex<3
     &&recordingUuid(v.suggestionId)&&recordingSha(v.suggestionDigest)&&typeof v.proposedChange==='string'&&v.proposedChange.length>0&&v.proposedChange.length<=2000
-    &&v.application==='not_applied'&&v.methodSelection==='pending_existing_binder'&&Array.isArray(v.limitations)&&v.limitations.length<=5
+    &&v.application==='not_applied'&&(v.methodSelection==='pending_existing_binder'||v.methodSelection==='agent_change_required'&&v.capability==='higgsfield_image_to_video')&&Array.isArray(v.limitations)&&v.limitations.length<=5
     &&v.limitations.every((s:unknown)=>typeof s==='string'&&!!s.trim()&&s.length<=200)
     &&exact(v.binding,Object.keys(expected))&&JSON.stringify(v.binding)===JSON.stringify(expected);
 }

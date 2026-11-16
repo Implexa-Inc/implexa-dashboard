@@ -26,14 +26,15 @@ import { InlineAddKeyButton, useDesktopBridge } from './api-key-row';
 import type { AgentRequirementsPayload, AgentMachineTools, AgentSetupTarget, AgentMacAccess } from '@/lib/activation';
 import { apiKeyAccessReady, toolAccessReady, managedToolConnection } from '@/lib/activation-core';
 
-export function DeclaredMachineTools({ tools }: { tools?: AgentMachineTools | null }) {
-  if (!tools?.requirements.length) return null;
+export function DeclaredMachineTools({ tools, declarations = [] }: { tools?: AgentMachineTools | null; declarations?: AgentMachineTools['requirements'] }) {
+  const rows = [...(tools?.requirements || []), ...declarations.filter(d => !tools?.requirements.some(t => t.label.toLowerCase() === d.label.toLowerCase()))];
+  if (!rows.length) return null;
   return (
     <section className="rounded-lg border border-ink-800 p-4" aria-label="Declared local tools">
       <h2 className="text-sm font-medium text-ink-100">Declared local tools</h2>
-      <p className="mt-1 text-xs text-ink-500">Declared for this version. Availability is checked before each run.</p>
+      <p className="mt-1 text-xs text-ink-500">Declared for this version.</p>
       <ul className="mt-3 space-y-2">
-        {tools.requirements.map((tool) => (
+        {rows.map((tool) => (
           <li key={tool.id} className="flex items-center justify-between gap-3 text-sm">
             <span className="text-ink-200">{tool.label}</span>
             <span className="text-xs text-ink-500">{tool.kind === 'cli_auth' ? 'CLI sign-in · checked before run' : 'Local'}{tool.required ? '' : ' · optional'}</span>

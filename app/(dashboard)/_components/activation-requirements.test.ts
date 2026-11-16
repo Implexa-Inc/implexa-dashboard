@@ -43,3 +43,17 @@ test('the "Get it" link is suppressed when there is no URL (never render a null 
     'a link-less row (url:null) must not render an <a href={null}>',
   );
 });
+
+
+test('Setup shows an optional declared CLI without claiming a connection or offering a key grant', async t => {
+  const {render} = await import('../../../lib/test/render.ts');
+  const r = await render('./activation-requirements.tsx', { declarations: [
+    { id: 'declared-step-4', kind: 'declared_local_tool', label: 'Higgsfield', required: false },
+  ] }, { exportName: 'DeclaredMachineTools' });
+  t.after(() => r.cleanup());
+  assert.match(r.text(), /Higgsfield/);
+  assert.match(r.text(), /Declared for this version/);
+  assert.match(r.text(), /Local · optional/);
+  assert.doesNotMatch(r.text(), /signed in|installed|key allowed|Everything.*set up|checked when used|before each run|this agent can use/i);
+  assert.equal(r.document.querySelectorAll('button, a, input').length, 0);
+});

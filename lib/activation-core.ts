@@ -71,6 +71,24 @@ function machineTools(value: unknown): AgentMachineTools | null {
   return { digest: v.digest, requirements };
 }
 
+function localToolDeclarations(value: unknown): AgentMachineTools['requirements'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const p = value as { contractVersion?: unknown; tools?: unknown };
+  if (p.contractVersion !== 'agent-tool-execution.v1' || !Array.isArray(p.tools) || p.tools.length > 64) return [];
+  const rows: AgentMachineTools['requirements'] = [], orders = new Set<number>();
+  for (const t of p.tools) {
+    if (!t || typeof t !== 'object' || !Number.isSafeInteger(t.stepOrder) || t.stepOrder < 1 || orders.has(t.stepOrder)
+      || typeof t.tool !== 'string' || !t.tool.trim() || t.tool.length > 40
+      || !['api_key', 'browser_login', 'local_tool'].includes(t.access) || !['required', 'optional'].includes(t.requiredness)
+      || !Array.isArray(t.fallbacks) || t.fallbacks.length > 8
+      || t.fallbacks.some((f: unknown) => typeof f !== 'string' || !f.trim() || f.length > 1000)
+      || t.requiredness === 'optional' && !t.fallbacks.length) return [];
+    orders.add(t.stepOrder);
+    if (t.access === 'local_tool') rows.push({ id: `declared-step-${t.stepOrder}`, kind: 'declared_local_tool', label: t.tool, required: t.requiredness === 'required' });
+  }
+  return rows;
+}
+
 export function parseAgentSetupContext(value: unknown): AgentSetupContext | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const c = value as AgentSetupContext;
@@ -120,6 +138,7 @@ export function mapActivationChecklist(b: Record<string, unknown> | null | undef
     requirements: (b.requirements as AgentRequirementsPayload) ?? undefined,
     executionRequirements: parseMarketplaceExecutionRequirements(b.executionRequirements),
     machineTools: machineTools(b.machineCapabilityContract),
+    localToolDeclarations: typeof b.workflowVersionId === 'string' && b.workflowVersionId ? localToolDeclarations(b.executionToolPlan) : [],
     source: (b.source as string) ?? 'generated',
     canActivate: !!b.canActivate,
     stepsLeft: Number(b.stepsLeft ?? 0),
