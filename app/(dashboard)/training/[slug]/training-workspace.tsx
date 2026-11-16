@@ -10,9 +10,9 @@ import type {ReviewArtifact} from '@/lib/review';
 import type {TrainingDirectionScope} from '@/lib/training-local-ingress';
 
 export function TrainingDirectionLabel({scope}:{scope:TrainingDirectionScope|undefined}) {
- if (scope === undefined || scope?.length === 0) return null;
+ if (scope === undefined) return null;
  return <p className={`mt-2 text-xs ${scope === null ? 'text-amber-300' : 'text-brand-400'}`}>
-  {scope === null ? 'Creative direction needs review' : `Only for ${scope[0]}`}
+  {scope === null ? 'Creative direction needs review' : scope.length === 0 ? 'All directions' : `Only for ${scope[0]}`}
  </p>;
 }
 

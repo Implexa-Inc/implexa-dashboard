@@ -130,8 +130,8 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
   const suggestion=progress.suggestion;
   if(!suggestion)throw Error('The saved suggestion is missing.');
   if(!(['training-teaching-suggestion.v7','training-teaching-suggestion.v9'].includes(suggestion.contractVersion)?annotationAnalysis(suggestion,binding):scopedTeachingSuggestion(suggestion,binding)))throw Error('The saved suggestion no longer matches this note and frame.');
-  if(['training-teaching-suggestion.v8','training-teaching-suggestion.v9'].includes(suggestion.contractVersion)&&suggestion.creativeDirections===null)return {status:'held' as const,reason:'Which creative direction should this lesson apply to? Clarify it in your feedback.',suggestion,image:preview.image};
   if(suggestion.status==='insufficient'||!suggestion.fields||!suggestion.scopeSuggestion)return {status:'held' as const,reason:suggestion.reason||'Review the category and example type before saving this teaching.',suggestion,image:preview.image};
+  if(['training-teaching-suggestion.v8','training-teaching-suggestion.v9'].includes(suggestion.contractVersion)&&suggestion.creativeDirections===null)return {status:'held' as const,reason:'Which creative direction should this lesson apply to? Clarify it in your feedback.',suggestion,image:preview.image};
   const scope=suggestion.scopeSuggestion;
   if(!TRAINING_PROPERTY_CODES.includes(scope.property as any)||!TRAINING_RELATIONS.includes(scope.relation as any))throw Error('The proposed teaching scope is unsupported.');
   // Review only the source-example relation before the existing immutable writer.

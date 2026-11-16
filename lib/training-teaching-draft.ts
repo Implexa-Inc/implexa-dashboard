@@ -43,7 +43,7 @@ export function analysisRequestReceipt(v:any):v is AnalysisRequestReceipt{
 /** Opt-in extension of the existing teaching decoder. Never relax v6 for older producers. */
 export function annotationAnalysis(v:any,expected:SuggestionBinding):v is AnnotationAnalysis{
   if(v?.contractVersion==='training-teaching-suggestion.v9'){
-    if(!Object.hasOwn(v,'creativeDirections')||!isTrainingDirectionScope(v.creativeDirections))return false;
+    if(!Object.hasOwn(v,'creativeDirections')||!isTrainingDirectionScope(v.creativeDirections)||v.status==='insufficient'&&v.creativeDirections!==null)return false;
     const {creativeDirections,...legacy}=v;
     return annotationAnalysis({...legacy,contractVersion:'training-teaching-suggestion.v7'},expected);
   }
@@ -79,7 +79,7 @@ export function annotationGapPage(v:any,versionId:string):v is AnnotationGapPage
       if(!exact(a.annotation,['annotationId','annotationDigest'])||!recordingUuid(a.annotation.annotationId)||!recordingSha(a.annotation.annotationDigest)
         ||!exact(a.retry,['state','availableAt'])||!['none','after_failure','after_unknown'].includes(a.retry.state)
         ||!(a.retry.availableAt===null||typeof a.retry.availableAt==='string'&&Number.isFinite(Date.parse(a.retry.availableAt))))return false;
-      if(r!==null&&(!b||!exact(b,['sourceId','sourceSha256','timeMs','frameSha256','expectedActiveVersionId','feedbackSha256','annotationId','annotationDigest'])
+      if(r!==null&&(r.contractVersion!==(a.directionScopeContract?'training-teaching-suggestion.v9':'training-teaching-suggestion.v7')||!b||!exact(b,['sourceId','sourceSha256','timeMs','frameSha256','expectedActiveVersionId','feedbackSha256','annotationId','annotationDigest'])
         ||!['sourceId','annotationId'].every(k=>recordingUuid(b[k]))||!['sourceSha256','frameSha256','feedbackSha256','annotationDigest'].every(k=>recordingSha(b[k]))
         ||b.annotationId!==a.annotation.annotationId||b.annotationDigest!==a.annotation.annotationDigest||!Number.isSafeInteger(b.timeMs)||b.timeMs<0||b.expectedActiveVersionId!==versionId||!annotationAnalysis(r,b)
         ||!(['requestEventId','requestDigest','attemptOrdinal'] as const).every(k=>r.analysisReceipt[k]===a.analysisRequest[k])))return false;
@@ -95,7 +95,7 @@ export function annotationGapPage(v:any,versionId:string):v is AnnotationGapPage
 /** The workspace opts in; older callers keep their exact v2/v3 contract. */
 export function scopedTeachingSuggestion(value:any,expected:SuggestionBinding):value is ScopedTeachingSuggestion{
   if(value?.contractVersion==='training-teaching-suggestion.v8'){
-    if(!Object.hasOwn(value,'creativeDirections')||!isTrainingDirectionScope(value.creativeDirections))return false;
+    if(!Object.hasOwn(value,'creativeDirections')||!isTrainingDirectionScope(value.creativeDirections)||value.status==='insufficient'&&value.creativeDirections!==null)return false;
     const {creativeDirections,...legacy}=value;
     return scopedTeachingSuggestion({...legacy,contractVersion:'training-teaching-suggestion.v6'},expected);
   }

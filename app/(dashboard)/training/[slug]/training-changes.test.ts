@@ -205,6 +205,7 @@ test('direction-scoped teachings show their scope before Apply and unresolved sc
  assert.equal(guidedTrainingChanges(v,expected),true);
  const applied:any[]=[],props={value:v,onPolicy:()=>{},onForce:()=>{},onEdit:()=>{},onRecord:()=>{},onTest:()=>{},onPublish:()=>{},onApplySelected:(records:any[])=>applied.push(records)};
  const r=await render('../training/[slug]/training-changes.tsx',props);t.after(()=>r.cleanup());
+ await r.rerender({...props,value:{...v,records:[{...v.records[0],creativeDirections:[]}]}});assert.ok(r.getByText('All directions'));await r.rerender(props);
  assert.ok(r.getByText('Only for Cinematic B-roll-heavy'));
  await r.click(r.getByText('Apply selected'));assert.deepEqual(applied[0][0].creativeDirections,['Cinematic B-roll-heavy']);
  const unresolved={...v,records:[{...v.records[0],creativeDirections:null}]};await r.rerender({...props,value:unresolved});

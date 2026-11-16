@@ -1,6 +1,7 @@
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
-import { teachingSuggestion, teachingDigest, teachingFrame, teachingFailure, recordingAgentSuggestion } from './training-teaching-draft.ts';
+import { teachingSuggestion, teachingDigest, teachingFrame, teachingFailure, recordingAgentSuggestion, annotationGapPage, annotationAnalysis, scopedTeachingSuggestion } from './training-teaching-draft.ts';
 const binding = { sourceId:'source',sourceSha256:'a'.repeat(64),timeMs:0,frameSha256:'b'.repeat(64),questionReceiptId:'question',
   questionReceiptDigest:'c'.repeat(64),expectedActiveVersionId:'version',feedbackSha256:'d'.repeat(64) };
 const value = { requestId:'11111111-1111-4111-8111-111111111111',ok:true,contractVersion:'training-teaching-suggestion.v2',model:'claude-haiku-5-5',binding,
@@ -62,4 +63,23 @@ test('recording v4 keeps inferred preference distinct and binds every offered fr
  const reply={...value,contractVersion:'training-teaching-suggestion.v4',binding,frameIndex:1,suggestionId:id,suggestionDigest:'d'.repeat(64),sources:{...value.sources,why:'inferred_from_recognized_narration'}};
  assert.equal(recordingSuggestion(reply,binding),true);
  for(const patch of [{frameIndex:3},{sources:value.sources},{suggestionId:'unbound'},{binding:{...binding,frames:[...binding.frames].reverse()}},{binding:{...binding,excerptDigest:'e'.repeat(64)}}])assert.equal(recordingSuggestion({...reply,...patch},binding),false);
+});
+
+
+test('analysis recovery requires the result version to match its saved original scope pin',()=>{
+ const f=JSON.parse(readFileSync(new URL('../test/fixtures/annotation-operating-gap-producer.v2.json',import.meta.url),'utf8'));
+ const page={ok:true,contractVersion:'training-annotation-gap-list.v1',analyses:[structuredClone(f.listRow)],nextCursor:null},row=page.analyses[0],version=row.result.binding.expectedActiveVersionId;
+ assert.equal(annotationGapPage(page,version),true);
+ row.directionScopeContract='training-direction-scope.v1';assert.equal(annotationGapPage(page,version),false,'pinned recovery cannot downgrade to v7');
+ row.result={...row.result,contractVersion:'training-teaching-suggestion.v9',creativeDirections:null};assert.equal(annotationGapPage(page,version),true);
+ delete row.directionScopeContract;assert.equal(annotationGapPage(page,version),false,'v9 cannot masquerade as an old general request');
+});
+test('direction-aware insufficient replies require null scope and preserve their actual clarification reason',()=>{
+ const f=JSON.parse(readFileSync(new URL('../test/fixtures/annotation-operating-gap-producer.v2.json',import.meta.url),'utf8'));
+ const v9={...f.response,contractVersion:'training-teaching-suggestion.v9',status:'insufficient',fields:null,scopeSuggestion:null,reason:'The note needs a clearer preference.',creativeDirections:null};
+ assert.equal(annotationAnalysis(v9,v9.binding),true);
+ for(const creativeDirections of [[],['Balanced']])assert.equal(annotationAnalysis({...v9,creativeDirections},v9.binding),false);
+ const {operatingGap,analysisReceipt,...v8}=v9;v8.contractVersion='training-teaching-suggestion.v8';
+ assert.equal(scopedTeachingSuggestion(v8,v8.binding),true);
+ assert.equal(scopedTeachingSuggestion({...v8,creativeDirections:[]},v8.binding),false);
 });

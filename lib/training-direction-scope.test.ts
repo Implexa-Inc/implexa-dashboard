@@ -5,7 +5,7 @@ import {isTrainingDirectionScope,trainingDirectionsFromTaskFacts,trainingDirecti
 test('conditional task facts cannot silently become general training at the client boundary',()=>{
  assert.deepEqual(trainingDirectionsFromTaskFacts(['presenter-led explanation']),[]);
  assert.equal(trainingDirectionsFromTaskFacts(undefined),undefined);
- for(const facts of [['creative_direction:Unknown'],['creative_direction=Balanced'],['Creative_Direction:Balanced'],['creative_direction_unknown'],['creative_direction:Balanced','creative_direction:No B-rolls'],['creative_direction:Balanced','creative_direction:Balanced'],null])
+ for(const facts of [['creative_direction:Unknown'],['creative_direction=Balanced'],['Creative_Direction:Balanced'],['creative_direction_unknown'],['creative-direction:Balanced'],[' creative_direction:Balanced'],['creative_direction:Balanced','creative_direction:No B-rolls'],['creative_direction:Balanced','creative_direction:Balanced'],null])
   assert.equal(trainingDirectionsFromTaskFacts(facts),null);
  assert.equal(isTrainingDirectionScope(undefined),false);
  assert.equal(isTrainingDirectionScope(null),true);

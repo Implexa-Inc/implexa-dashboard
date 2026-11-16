@@ -83,3 +83,9 @@ test('equal eligible counts are reported to a new scoped owner without reusing i
  const first:number[]=[],second:number[]=[],props={drafts:[draft],busy:false,onApply:()=>{},onEdit:()=>{},onEligibleCountChange:(count:number)=>first.push(count)},r=await render(component,props);
  try{assert.deepEqual(first,[1]);await r.rerender({...props,drafts:[{...draft,id:'new-scope',digest:'b'.repeat(64)}],onEligibleCountChange:(count:number)=>second.push(count)});assert.deepEqual(second,[1]);assert.deepEqual(first,[1]);}finally{r.cleanup();}
 });
+
+
+test('general direction proposals are explicit in both the review card and final Apply confirmation',async()=>{
+ const r=await render(component,{drafts:[{...draft,creativeDirections:[]}],busy:false,onApply:()=>{},onEdit:()=>{}});
+ try{assert.ok(r.getByText('All directions'));await r.click(openButton(r));assert.match(dialog(r).textContent||'',/All directions/);}finally{r.cleanup();}
+});
