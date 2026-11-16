@@ -236,3 +236,15 @@ test('a pre-upgrade uncertain native save preserves its original relation and wr
  const writes=calls.filter(c=>c[0]==='annotate');assert.equal(writes.length,2);assert.deepEqual(writes[0][1],writes[1][1]);
  assert.equal(writes[1][1].content.relation,'accepted');assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);
 });
+
+test('retention checkpoint failure cannot send an unpersisted writer body on the next save',async()=>{
+ const {run,progress,calls}=setup({modelRelation:'accepted'});await run(progress,()=>{},undefined,true);
+ let durable=structuredClone(progress),failRetention=true;
+ const checkpoint=()=>{if(progress.retentionUntil&&failRetention)throw Error('retention storage failure');durable=structuredClone(progress);};
+ await assert.rejects(run(progress,checkpoint,undefined,true,'rejected'),/retention storage failure/);
+ assert.equal(progress.retentionUntil,undefined);assert.equal(durable.retentionUntil,undefined);assert.equal(durable.reviewedRelation,'rejected');
+ assert.equal(calls.some(c=>c[0]==='annotate'),false);
+ failRetention=false;await run(progress,checkpoint,undefined,true,'rejected');
+ const saved=calls.find(c=>c[0]==='annotate')[1];assert.equal(durable.retentionUntil,saved.content.governance.retentionUntil);
+ assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);assert.equal(progress.linked,true);
+});

@@ -144,7 +144,10 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
   const chosenRelation=progress.reviewedRelation||scope.relation;
   const stages=deriveTrainingStages(scope.property as TrainingPropertyCode);
   if(!progress.record){
-    if(!progress.retentionUntil){progress.retentionUntil=retentionUntil;checkpoint();}
+    if(!progress.retentionUntil){
+      progress.retentionUntil=retentionUntil;
+      try{checkpoint();}catch(error){delete progress.retentionUntil;throw error;}
+    }
     await check();const value=await call('annotate',{token:source.token,timeMs:frameTime,idempotencyKey:progress.key,decision:suggestion.fields,content:{
       relation:chosenRelation,properties:[scope.property],mustNotCopy:['source text','source logos','protected identity'],
       applicability:{taskFacts:[],stages,exceptions:[],priority:50},
