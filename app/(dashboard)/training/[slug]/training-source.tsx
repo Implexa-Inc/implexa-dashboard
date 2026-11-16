@@ -50,7 +50,7 @@ import {
   TRAINING_RELATIONS,
   TRAINING_STAGE_OPTIONS,
   TRAINING_STAGE_ROUTING_VERSION,
-  TRAINING_CREATIVE_DIRECTIONS,trainingDirectionsFromTaskFacts,trainingDirectionFacts,type TrainingCreativeDirection,
+  TRAINING_CREATIVE_DIRECTIONS,trainingDirectionsFromTaskFacts,trainingDirectionFacts,type TrainingCreativeDirection,type TrainingDirectionScope,
   requiredStagesForDecision,
   type ManagerTrainingRequirements,
   type ManagerTrainingCoverage,
@@ -196,7 +196,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [batchFeedbackRequest,setBatchFeedbackRequest]=useState<{recordingId:string;moments:Moment[]}|null>(null);
   const extractionProgress=useRef(new Map<string,FeedbackExtractionProgress>());
   const [extractionNote,setExtractionNote]=useState(''),[heldExtractions,setHeldExtractions]=useState<Array<{key:string;text:string;reason:string}>>([]);
-  const [directScopeReview,setDirectScopeReview]=useState<{agentKey:string;fingerprint:string;sessionId:string;versionId:string;sourceId:string;timeMs:number;rawAnnotation:string;image:string;lesson:string;relation:TrainingRelation}|null>(null);
+  const [directScopeReview,setDirectScopeReview]=useState<{agentKey:string;fingerprint:string;sessionId:string;versionId:string;sourceId:string;timeMs:number;rawAnnotation:string;image:string;lesson:string;creativeDirections?:TrainingDirectionScope;relation:TrainingRelation}|null>(null);
   const [lastFeedbackBatch,setLastFeedbackBatch]=useState<{recordingId:string;moments:Moment[]}|null>(null);
   const extractionCancel=useRef(false);
   const [feedbackInput,setFeedbackInput]=useState<{recordingId:string;sourceId:string;text:string;endFrame:boolean}|null>(null);
@@ -933,7 +933,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       }finally{setOperatingRefresh(value=>value+1);}
       setDirectDraftRetry(null);
       if(result.status==='review'){
-        setDirectScopeReview({agentKey:`${ownerId}:${slug}`,fingerprint,sessionId:id,versionId:version,sourceId:source.sourceId,timeMs:frameTime,rawAnnotation,image:result.image,lesson:result.suggestion.fields!.desiredBehavior,relation:result.suggestion.scopeSuggestion!.relation as TrainingRelation});
+        setDirectScopeReview({agentKey:`${ownerId}:${slug}`,fingerprint,sessionId:id,versionId:version,sourceId:source.sourceId,timeMs:frameTime,rawAnnotation,image:result.image,lesson:result.suggestion.fields!.desiredBehavior,creativeDirections:result.suggestion.creativeDirections,relation:result.suggestion.scopeSuggestion!.relation as TrainingRelation});
         setExtractionNote('Review the example type before saving this teaching.');selectTrainingStep(2);return;
       }
       setDirectScopeReview(null);
@@ -1743,7 +1743,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <h3 className="text-lg font-medium">Review your teaching</h3>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={directScopeReview.image} alt="Example being reviewed before saving" className="w-48 rounded-lg"/>
-      <p className="text-sm leading-6">{directScopeReview.lesson}</p>
+      <p className="text-sm leading-6">{directScopeReview.lesson}</p><TrainingDirectionLabel scope={directScopeReview.creativeDirections}/>
       <label className="block text-sm">How should the agent use this example?
         <select className="mt-2 block rounded-lg border border-ink-700 bg-ink-950 p-2" value={directScopeReview.relation} disabled={!!busy||versionChanged||!!extractionProgress.current.get(directScopeReview.fingerprint)?.reviewedRelation}
           onChange={event=>setDirectScopeReview({...directScopeReview,relation:event.target.value as TrainingRelation})}>

@@ -2966,3 +2966,27 @@ test('a reviewed planning successor preserves direction conditions and exception
   assert.deepEqual(JSON.parse(JSON.stringify((write.args as any).content.applicability.exceptions)),['abstract-only source']);
  }finally{r.cleanup();}
 });
+
+
+test('direct annotation review shows the proposed creative direction before creating a teaching draft',async()=>{
+ const h=harness({previewImage:VALID_FRAME}),r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const prior=r.window.fetch;let raw='';
+ r.window.fetch=(async(url:string,init:RequestInit={})=>{
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  const b=JSON.parse(String(init.body));
+  if(b.action==='save'){raw=b.rawAnnotation;const {action,expectedActiveVersionId,...annotation}=b;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:{contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId}})};}
+  const {mode,image,consent,includeScope,analysis,directionScopeContract,...binding}=b;
+  assert.equal(directionScopeContract,'training-direction-scope.v1');
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-teaching-suggestion.v9',creativeDirections:['Cinematic B-roll-heavy'],operatingGap:null,
+   analysisReceipt:{requestEventId:QUESTION,requestDigest:DIGEST,resultEventId:RECORD,resultDigest:DIGEST,attemptOrdinal:1,setupDigest:DIGEST,setupState:'complete',target:null,usage:{status:'unknown',inputTokens:null,outputTokens:null}},
+   requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',scopeSuggestion:{property:'layout_variety',relation:'accepted'},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
+ }) as typeof fetch;
+ try{
+  await chooseDirectUpload(r);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+  await setTextarea(r,r.document.querySelector('[aria-label="Teach from an image"] textarea')!,'For cinematic B-roll-heavy videos, explain the place with relevant imagery.');
+  await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
+  const review=r.document.querySelector('[aria-label="Review example type"]');assert.ok(review);assert.match(review.textContent||'',/Only for Cinematic B-roll-heavy/);
+  assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false,'scope is visible before the immutable writer');
+ }finally{r.cleanup();}
+});
