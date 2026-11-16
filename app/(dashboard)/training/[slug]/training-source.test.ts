@@ -2287,8 +2287,8 @@ test('Done teaching saves exact commentary before scoped extraction and prepares
   const b=JSON.parse(String(init.body));requests.push(b);
   if(b.action==='save'){raw=b.rawAnnotation;const {action,expectedActiveVersionId,...annotation}=b;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:{contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId}})};}
   if(b.action==='link')return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-link.v1',annotationId:b.annotationId,annotationDigest:b.annotationDigest,recordId:b.recordId,recordDigest:b.expectedRecordDigest,linkReceiptId:QUESTION})};
-  const {mode,image,consent,includeScope,...binding}=b;
-  return {ok:true,json:async()=>({ok:true,contractVersion:'training-teaching-suggestion.v6',requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',scopeSuggestion:{property:'layout_variety',relation:'accepted'},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
+  const {mode,image,consent,includeScope,directionScopeContract,...binding}=b;
+  return {ok:true,json:async()=>({ok:true,contractVersion:directionScopeContract?'training-teaching-suggestion.v8':'training-teaching-suggestion.v6',...(directionScopeContract?{creativeDirections:[]}:{}),requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',scopeSuggestion:{property:'layout_variety',relation:'accepted'},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
  }) as typeof fetch;
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,40));});
  try{
@@ -2813,11 +2813,11 @@ test('an interrupted uploaded-note analysis reconciles the durable result and re
   if(b.action==='save'){raw=b.rawAnnotation;const {action,expectedActiveVersionId,...annotation}=b;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:{contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId}})};}
   if(b.action==='link')return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-link.v1',annotationId:b.annotationId,annotationDigest:b.annotationDigest,recordId:b.recordId,recordDigest:b.expectedRecordDigest,linkReceiptId:QUESTION})};
   if(++drafts===1)throw Error('response lost');
-  const {mode,image,consent,includeScope,analysis,...binding}=b;
+  const {mode,image,consent,includeScope,analysis,directionScopeContract,...binding}=b;
   assert.equal(analysis.consentVersion,'training-annotation-taste-and-setup.v1');
   if(drafts===2){assert.equal(analysis.retryOf,null);return {ok:false,json:async()=>({ok:false,unavailable:true,reason:'teaching_suggestion_provider_timeout',analysisRequest:{requestEventId:QUESTION,requestDigest:DIGEST,attemptOrdinal:1}})};}
   assert.deepEqual(analysis.retryOf,{requestEventId:QUESTION,requestDigest:DIGEST});
-  return {ok:true,json:async()=>({ok:true,contractVersion:'training-teaching-suggestion.v7',operatingGap:null,analysisReceipt:{requestEventId:QUESTION,requestDigest:DIGEST,resultEventId:QUESTION,resultDigest:DIGEST,attemptOrdinal:2,setupDigest:DIGEST,setupState:'complete',target:null,usage:{status:'unknown',inputTokens:null,outputTokens:null}},requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',scopeSuggestion:{property:'layout_variety',relation:'accepted'},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
+  return {ok:true,json:async()=>({ok:true,contractVersion:directionScopeContract?'training-teaching-suggestion.v9':'training-teaching-suggestion.v7',...(directionScopeContract?{creativeDirections:[]}:{}),operatingGap:null,analysisReceipt:{requestEventId:QUESTION,requestDigest:DIGEST,resultEventId:QUESTION,resultDigest:DIGEST,attemptOrdinal:2,setupDigest:DIGEST,setupState:'complete',target:null,usage:{status:'unknown',inputTokens:null,outputTokens:null}},requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',scopeSuggestion:{property:'layout_variety',relation:'accepted'},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
  }) as typeof fetch;
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,30));});
  try{
@@ -2931,11 +2931,11 @@ test('ordinary feedback can produce only an operating result without falsely ask
   Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
   const prior=r.window.fetch;let response:any=null,raw='',modelRequests=0;
   r.window.fetch=(async(url:string,init:RequestInit={})=>{
-   if(String(url).includes('/annotation-gap-edit?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-annotation-gap-list.v1',analyses:response?[{analysisRequest:{requestEventId:QUESTION,requestDigest:DIGEST,attemptOrdinal:1},annotation:{annotationId:QUESTION,annotationDigest:DIGEST},retry:{state:'none',availableAt:null},outcome:'answered',reason:null,result:response,edit:{state:state==='suggested'?'available':'not_applicable',review:null,requestId:null,requestStatus:null,reviewedNote:null}}]:[],nextCursor:null})};
+   if(String(url).includes('/annotation-gap-edit?'))return {ok:true,json:async()=>({ok:true,contractVersion:'training-annotation-gap-list.v1',analyses:response?[{...(response.contractVersion==='training-teaching-suggestion.v9'?{directionScopeContract:'training-direction-scope.v1'}:{}),analysisRequest:{requestEventId:QUESTION,requestDigest:DIGEST,attemptOrdinal:1},annotation:{annotationId:QUESTION,annotationDigest:DIGEST},retry:{state:'none',availableAt:null},outcome:'answered',reason:null,result:response,edit:{state:state==='suggested'?'available':'not_applicable',review:null,requestId:null,requestStatus:null,reviewedNote:null}}]:[],nextCursor:null})};
    if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
    const b=JSON.parse(String(init.body));if(b.action==='save'){raw=b.rawAnnotation;const {action,expectedActiveVersionId,...annotation}=b;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:{contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId}})};}
-   modelRequests++;const {mode,image,consent,includeScope,analysis,...binding}=b;assert.equal(analysis.consentVersion,'training-annotation-taste-and-setup.v1');
-   response={ok:true,contractVersion:'training-teaching-suggestion.v7',requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'insufficient',fields:null,reason:'An operating instruction, not a new visual preference.',scopeSuggestion:null,
+   modelRequests++;const {mode,image,consent,includeScope,analysis,directionScopeContract,...binding}=b;assert.equal(analysis.consentVersion,'training-annotation-taste-and-setup.v1');
+   response={ok:true,contractVersion:directionScopeContract?'training-teaching-suggestion.v9':'training-teaching-suggestion.v7',...(directionScopeContract?{creativeDirections:null}:{}),requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'insufficient',fields:null,reason:'An operating instruction, not a new visual preference.',scopeSuggestion:null,
     operatingGap:{status:state,kind:'procedure',stepOrder:2,capability:null,evidenceExcerpt:'Create the scene prompts',privateRationale:'Prompt authoring belongs in the existing build procedure.',genericDelta:state==='suggested'?'Author scene prompts within the agent from the accepted plan.':''},
     analysisReceipt:{requestEventId:QUESTION,requestDigest:DIGEST,resultEventId:RECORD,resultDigest:DIGEST,attemptOrdinal:1,setupDigest:DIGEST,setupState:'complete',target:{stepOrder:2,stepDigest:DIGEST,methods:[]},usage:{status:'observed',inputTokens:200,outputTokens:100}},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}};
    return {ok:true,json:async()=>response};
@@ -2949,4 +2949,44 @@ test('ordinary feedback can produce only an operating result without falsely ask
    else{assert.match(r.text(),/This method is already in the agent/);assert.equal(r.queryByText('Review agent update'),null);}
   }finally{r.cleanup();}
  }
+});
+
+
+test('a reviewed planning successor preserves direction conditions and exceptions in the native draft',async()=>{
+ const h=harness({state:'accepted',stages:['build','preview','qa'],previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
+ h.bridge.trainingLocal=async(operation,args)=>{const result:any=await original(operation,args);if(operation==='list'&&result.sources?.[0])Object.assign(result.sources[0].decisions[0].content.applicability,{taskFacts:['creative_direction:Cinematic B-roll-heavy'],exceptions:['abstract-only source']});return result;};
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
+ try{
+  await r.click(r.getByText('Review accepted evidence'));await r.click(r.getByText('Create planning-scoped successor'));
+  assert.ok(r.getByText('Only for Cinematic B-roll-heavy'));
+  await r.click(r.getByText('Preview this exact frame'));
+  await r.click(r.getByText('Save decision draft'));
+  const write=h.calls.find(c=>c.operation==='annotate');assert.ok(write,'normal native writer was called');
+  assert.deepEqual(JSON.parse(JSON.stringify((write.args as any).content.applicability.taskFacts)),['creative_direction:Cinematic B-roll-heavy']);
+  assert.deepEqual(JSON.parse(JSON.stringify((write.args as any).content.applicability.exceptions)),['abstract-only source']);
+ }finally{r.cleanup();}
+});
+
+
+for(const creativeDirections of [[],['Cinematic B-roll-heavy']] as const)test(`direct annotation review shows ${creativeDirections.length?'specific':'general'} scope before creating a teaching draft`,async()=>{
+ const h=harness({previewImage:VALID_FRAME}),r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
+ Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+ const prior=r.window.fetch;let raw='';
+ r.window.fetch=(async(url:string,init:RequestInit={})=>{
+  if(!String(url).includes('/teaching-suggestion?'))return prior(url,init);
+  const b=JSON.parse(String(init.body));
+  if(b.action==='save'){raw=b.rawAnnotation;const {action,expectedActiveVersionId,...annotation}=b;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:{contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId}})};}
+  const {mode,image,consent,includeScope,analysis,directionScopeContract,...binding}=b;
+  assert.equal(directionScopeContract,'training-direction-scope.v1');
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-teaching-suggestion.v9',creativeDirections:[...creativeDirections],operatingGap:null,
+   analysisReceipt:{requestEventId:QUESTION,requestDigest:DIGEST,resultEventId:RECORD,resultDigest:DIGEST,attemptOrdinal:1,setupDigest:DIGEST,setupState:'complete',target:null,usage:{status:'unknown',inputTokens:null,outputTokens:null}},
+   requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',scopeSuggestion:{property:'layout_variety',relation:'accepted'},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
+ }) as typeof fetch;
+ try{
+  await chooseDirectUpload(r);await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,25));});
+  await setTextarea(r,r.document.querySelector('[aria-label="Teach from an image"] textarea')!,'For cinematic B-roll-heavy videos, explain the place with relevant imagery.');
+  await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
+  const review=r.document.querySelector('[aria-label="Review example type"]');assert.ok(review);assert.match(review.textContent||'',creativeDirections.length?/Only for Cinematic B-roll-heavy/:/All directions/);
+  assert.equal(h.calls.some(c=>c.operation==='annotate'||c.operation==='accept'),false,'scope is visible before the immutable writer');
+ }finally{r.cleanup();}
 });

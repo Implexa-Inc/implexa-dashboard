@@ -27,7 +27,7 @@ import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import type {Moment,RecordingDetail} from '@/lib/review-recorder';
 import {TrainingDialog as Modal} from './training-workspace';
 import {guidedTrainingChanges,trainingPublicationPreview,type TrainingPublicationPreview,type GuidedTrainingChanges,type TrainingChangeRecord} from '@/lib/guided-training-changes';
-import {TrainingEntry,TrainingAttention,TrainingInfo,TrainingImage,TrainingDetails,revealTrainingElement,TrainingExplanation,type TrainingStep,type TrainingView,type TrainingRun} from './training-workspace';
+import {TrainingEntry,TrainingAttention,TrainingInfo,TrainingImage,TrainingDetails,TrainingDirectionLabel,revealTrainingElement,TrainingExplanation,type TrainingStep,type TrainingView,type TrainingRun} from './training-workspace';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MarketplaceSubmission from './marketplace-submission';
 import { answerReceipt, questionGroups, questionOutcomeLabel, questionExcerpt, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
@@ -50,6 +50,7 @@ import {
   TRAINING_RELATIONS,
   TRAINING_STAGE_OPTIONS,
   TRAINING_STAGE_ROUTING_VERSION,
+  TRAINING_CREATIVE_DIRECTIONS,trainingDirectionsFromTaskFacts,trainingDirectionFacts,type TrainingCreativeDirection,type TrainingDirectionScope,
   requiredStagesForDecision,
   type ManagerTrainingRequirements,
   type ManagerTrainingCoverage,
@@ -69,7 +70,7 @@ type Decision = {
   state: DecisionState;
   deliveryMode?: DeliveryMode;
   deliveryReceiptDigest?: string | null;
-  content: { relation: TrainingRelation; properties: TrainingPropertyCode[]; summary: string; anchor: { startMs: number }; derivatives?: Array<{ sha256: string }>; applicability?: { stages?: string[]; priority?: number } };
+  content: { relation: TrainingRelation; properties: TrainingPropertyCode[]; summary: string; anchor: { startMs: number }; derivatives?: Array<{ sha256: string }>; applicability?: { taskFacts?:string[]; exceptions?:string[]; stages?: string[]; priority?: number } };
   decision: { chosen: string; why: string; process: string; desiredBehavior: string };
 };
 type Source = {
@@ -195,7 +196,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [batchFeedbackRequest,setBatchFeedbackRequest]=useState<{recordingId:string;moments:Moment[]}|null>(null);
   const extractionProgress=useRef(new Map<string,FeedbackExtractionProgress>());
   const [extractionNote,setExtractionNote]=useState(''),[heldExtractions,setHeldExtractions]=useState<Array<{key:string;text:string;reason:string}>>([]);
-  const [directScopeReview,setDirectScopeReview]=useState<{agentKey:string;fingerprint:string;sessionId:string;versionId:string;sourceId:string;timeMs:number;rawAnnotation:string;image:string;lesson:string;relation:TrainingRelation}|null>(null);
+  const [directScopeReview,setDirectScopeReview]=useState<{agentKey:string;fingerprint:string;sessionId:string;versionId:string;sourceId:string;timeMs:number;rawAnnotation:string;image:string;lesson:string;creativeDirections?:TrainingDirectionScope;relation:TrainingRelation}|null>(null);
   const [lastFeedbackBatch,setLastFeedbackBatch]=useState<{recordingId:string;moments:Moment[]}|null>(null);
   const extractionCancel=useRef(false);
   const [feedbackInput,setFeedbackInput]=useState<{recordingId:string;sourceId:string;text:string;endFrame:boolean}|null>(null);
@@ -430,6 +431,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   useEffect(()=>setWordingOpened(false),[selected?.sourceId]);
   useEffect(()=>{if([chosen,why,process,behavior].every(value=>value.trim()))setWordingOpened(true);},[selected?.sourceId,chosen,why,process,behavior]);
   const [selectionPriority, setSelectionPriority] = useState('50');
+  const [selectionConditions,setSelectionConditions]=useState<{taskFacts:string[];exceptions:string[]}>({taskFacts:[],exceptions:[]});
+  const selectionDirections=trainingDirectionsFromTaskFacts(selectionConditions.taskFacts);
+  const declaredDirections=runContext?.workflowVersionId===currentVersion?runContext.inputContract?.fields.find(field=>field.key==='creative_direction'&&field.kind==='choice')?.options?.filter((option):option is TrainingCreativeDirection=>TRAINING_CREATIVE_DIRECTIONS.includes(option as TrainingCreativeDirection))||[]:[];
   const priorityIsValid = /^\d{1,3}$/.test(selectionPriority) && Number(selectionPriority) <= 100;
   const [pending, setPending] = useState<LocalDraft[]>([]);
   const [failed, setFailed] = useState<LocalDraft[]>([]);
@@ -503,7 +507,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [suggestionNote, setSuggestionNote] = useState('');
   const appliedSuggestion = useRef<TeachingSuggestion | null>(null);
   const previewIdentity = useMemo(() => crypto.randomUUID(), [preview]);
-  const draftSnapshot = JSON.stringify({ session, sessionVersion, currentVersion, versionChanged, token: selected?.token, sourceId: selected?.sourceId,
+  const draftSnapshot = JSON.stringify({ selectionConditions, session, sessionVersion, currentVersion, versionChanged, token: selected?.token, sourceId: selected?.sourceId,
     time, previewIdentity, property, stages, relation, chosen, why, process, behavior, answer: questionAnswer, demoText, demoAnnotation, agentCapability });
   const latestDraft = useRef(draftSnapshot); latestDraft.current = draftSnapshot;
   useEffect(() => { setDraftConsent(false); }, [preview?.image, selected?.sourceId, time, questionAnswer, demoText, demoAnnotation, session, currentVersion]);
@@ -901,7 +905,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(directNote.trim()&&demoText!==note.annotation.rawAnnotation||directVoiceDirty||runDirty||recordingDirty||runFeedbackRequest){setExtractionNote('Finish or discard the current note before opening this saved feedback.');return;}
     const progress=extractionProgressFor(window.localStorage,`${ownerId}:${session}:${currentVersion}`,note.fingerprint);
     if(progress.suggestion||progress.record||progress.linked){setExtractionNote('This note already has a saved draft. Review that draft before requesting another analysis.');return;}
-    progress.analysisContract='training-teaching-suggestion.v7';progress.analysisRequest=analysis.analysisRequest;
+    progress.analysisContract=analysis.directionScopeContract==='training-direction-scope.v1'?'training-teaching-suggestion.v9':progress.analysisContract||'training-teaching-suggestion.v7';progress.analysisRequest=analysis.analysisRequest;
     progress.analysisOutcome=analysis.retry.state==='after_failure'?'failed':'pending';progress.suggestionStarted=true;
     checkpointExtraction(window.localStorage,`${ownerId}:${session}:${currentVersion}`,progress);extractionProgress.current.set(note.fingerprint,progress);
     if(demoText===note.annotation.rawAnnotation&&selected?.sourceId===note.annotation.sourceId&&time===note.annotation.timeMs){
@@ -920,7 +924,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       if(newDraftRequest&&(newDraftRequest.fingerprint!==fingerprint||!directDraftRetryIsCurrent))throw Error('The note changed. Review the current example before retrying.');
       if(relationChoice!==undefined&&(!directScopeReviewIsCurrent||directScopeReview?.fingerprint!==fingerprint))throw Error('The example changed. Review its current suggestion before saving.');
       let result;
-      try{result=await extractFeedbackTeaching({source,timeMs:frameTime,rawAnnotation,versionId:version,retentionUntil:retention,progress,newDraftRequest,analyzeSetup:true,reviewBeforeSave:true,relationChoice,checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress!),
+      try{result=await extractFeedbackTeaching({source,timeMs:frameTime,rawAnnotation,versionId:version,retentionUntil:retention,progress,newDraftRequest,analyzeSetup:true,directionScope:true,reviewBeforeSave:true,relationChoice,checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress!),
         call:async(operation,args)=>await call(operation,args),check:async()=>{const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your draft is preserved.');},
         send:async(operation,body,key)=>{const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:id,...(operation==='annotation'?{operation:'annotation'}:{})})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(body)});const value=await response.json();return value;}});
       }catch(error){
@@ -929,11 +933,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       }finally{setOperatingRefresh(value=>value+1);}
       setDirectDraftRetry(null);
       if(result.status==='review'){
-        setDirectScopeReview({agentKey:`${ownerId}:${slug}`,fingerprint,sessionId:id,versionId:version,sourceId:source.sourceId,timeMs:frameTime,rawAnnotation,image:result.image,lesson:result.suggestion.fields!.desiredBehavior,relation:result.suggestion.scopeSuggestion!.relation as TrainingRelation});
+        setDirectScopeReview({agentKey:`${ownerId}:${slug}`,fingerprint,sessionId:id,versionId:version,sourceId:source.sourceId,timeMs:frameTime,rawAnnotation,image:result.image,lesson:result.suggestion.fields!.desiredBehavior,creativeDirections:result.suggestion.creativeDirections,relation:result.suggestion.scopeSuggestion!.relation as TrainingRelation});
         setExtractionNote('Review the example type before saving this teaching.');selectTrainingStep(2);return;
       }
       setDirectScopeReview(null);
-      const operating=result.suggestion.contractVersion==='training-teaching-suggestion.v7'?result.suggestion.operatingGap:null;
+      const operating=(result.suggestion.contractVersion==='training-teaching-suggestion.v7'||result.suggestion.contractVersion==='training-teaching-suggestion.v9')?result.suggestion.operatingGap:null;
       if(result.status==='held'){
         if(operating){setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setExtractionNote(operating.status==='suggested'?'Your feedback suggests an agent setup change. Review the suggestion above.':operating.status==='present'?'This method is already in the agent. Your feedback is saved.':'Your feedback is saved. Tool or setup support needs review.');}
         else{setHeldExtractions(previous=>[...previous.filter(item=>item.key!==fingerprint),{key:fingerprint,text:directNote,reason:result.reason}]);setExtractionNote('This lesson needs clarification. Your original feedback is saved.');}
@@ -1038,7 +1042,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     showTeaching();
     if(questionAnswer){setDirectSource(false);setActiveRunId(null);}
     setReopenedFeedback(null);setSelected(source); setTime(0); setPreview(null); setReviewed(null); setSuccessorStageExpansion(null); setDecisionKey(crypto.randomUUID());
-    setSelectionPriority('50');return true;
+    setSelectionPriority('50');setSelectionConditions({taskFacts:[],exceptions:[]});return true;
   }
   function toggleStage(stage: TrainingStage) {
     setStages((current) => {
@@ -1056,6 +1060,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setRelation(decision.content.relation); setProperty(nextProperty);
     setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior); setCopiedTeachingWording(true);
     setSelectionPriority(String(decision.content.applicability?.priority ?? 50));
+    setSelectionConditions({taskFacts:[...(decision.content.applicability?.taskFacts||[])],exceptions:[...(decision.content.applicability?.exceptions||[])]});
     setStages(deriveTrainingStages(nextProperty)); setDecisionKey(crypto.randomUUID());
   }
   async function preserveCompatibleTraining(historical=false){
@@ -1103,6 +1108,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setRelation(decision.content.relation); setProperty(nextProperty);
     setChosen(decision.decision.chosen); setWhy(decision.decision.why); setProcess(decision.decision.process); setBehavior(decision.decision.desiredBehavior); setCopiedTeachingWording(true);
     setSelectionPriority(String(decision.content.applicability?.priority ?? 50));
+    setSelectionConditions({taskFacts:[...(decision.content.applicability?.taskFacts||[])],exceptions:[...(decision.content.applicability?.exceptions||[])]});
     const preserved = normalizeTrainingStages(decision.content.applicability?.stages);
     const required = requiredStagesForDecision(targetRequirements, nextProperty, decision.content.relation);
     setStages(preserved);
@@ -1330,12 +1336,13 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       const demo = !questionAnswer && demoAnnotationIsCurrent ? demoAnnotation!.value : null;
       if (!requestedPreview || requestedPreview.token !== source.token || requestedPreview.timeMs !== requestedTime) throw new TrainingError('training_preview_stale', 'Preview this exact timestamp again before saving.');
       if (questionAnswer && questionAnswer.expectedActiveVersionId !== scope.agent.currentVersionId) throw new TrainingError('training_version_changed');
+      if(selectionDirections===null)throw Error('Review which creative direction this teaching applies to before saving.');
       const drafted = await call('annotate', {
         token: source.token, timeMs: requestedTime, idempotencyKey: decisionKey,
         decision: narrationFields||{ chosen, why, process, desiredBehavior: behavior },
         content: {
           relation, properties: [property], mustNotCopy: ['source text', 'source logos', 'protected identity'],
-          applicability: { taskFacts: [], stages: normalizeTrainingStages(stages), exceptions: [], priority: Number(selectionPriority) },
+          applicability: { taskFacts: [...selectionConditions.taskFacts], stages: normalizeTrainingStages(stages), exceptions: [...selectionConditions.exceptions], priority: Number(selectionPriority) },
           governance: { rightsBasis: installationId?'permission_granted':'owner_created', rightsReceipt: installationId?'Customer confirms permission for this output and bounded private preference evidence':'Coach confirms ownership and grants bounded evidence use', disclosure: 'owner_private', retentionUntil: retention, deletionPolicy: 'revoke_then_delete_derivatives', consent: true, attribution: '' },
         },
       });
@@ -1348,7 +1355,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:scope.agent.currentVersionId,suggestionId:recordingDraft.suggestionId,
         suggestionDigest:recordingDraft.suggestionDigest,recordId:drafted.recordId,expectedRecordDigest:drafted.recordDigest}} : null;
       if(recordingLink)setPendingRecordingLink(recordingLink);
-      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setCopiedTeachingWording(false); setWordingOpened(false); setSelectionPriority('50'); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null);
+      setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setCopiedTeachingWording(false); setWordingOpened(false); setSelectionPriority('50');setSelectionConditions({taskFacts:[],exceptions:[]}); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null);
       const saved = await load(session);
       if (appliedSuggestion.current) {
         const record = saved.sources?.flatMap(s => s.decisions).find(d => d.recordId === drafted.recordId);
@@ -1577,7 +1584,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
 
   function discardFeedbackSuggestion(){setRelation('accepted');setDemoText('');setDemoAnnotation(null);setSuggested(null);setPendingFeedback(null);setFeedbackInput(null);setFeedbackCategoryConfirmed(false);setDecisionKey(crypto.randomUUID());setSuggestionNote('Suggestion discarded. Your original private feedback remains saved.');}
-  const learningScopeControls=(feedback=false)=><details className="text-xs text-ink-400"><summary>Where this learning applies</summary><label className="mt-3 block">Category<select disabled={!!busy||suggesting||versionChanged} value={feedback&&!feedbackCategoryConfirmed?'':property} onChange={e=>{const value=e.target.value as TrainingPropertyCode;setProperty(value);if(!feedback||!feedbackCategoryConfirmed)setStages(deriveTrainingStages(value));setDecisionKey(crypto.randomUUID());if(feedback)setFeedbackCategoryConfirmed(true);}}>{feedback&&<option value="" disabled>Choose a category</option>}{TRAINING_PROPERTY_CODES.map(p=><option key={p} value={p}>{trainingPropertyLabel(p)}</option>)}</select></label><label className="mt-3 block">Example type<select disabled={!!busy||suggesting||versionChanged} value={relation} onChange={e=>{setRelation(e.target.value as TrainingRelation);setDecisionKey(crypto.randomUUID());}}>{TRAINING_RELATIONS.map(r=><option key={r} value={r}>{relationLabel(r)}</option>)}</select></label>{TRAINING_STAGE_OPTIONS.map(option=><label key={option.value} className="mt-2 flex gap-2"><input type="checkbox" disabled={!!busy||suggesting||versionChanged} checked={stages.includes(option.value)} onChange={()=>toggleStage(option.value)}/>{option.label}</label>)}</details>;
+  const directionScopeControls=()=><><TrainingDirectionLabel scope={selectionDirections}/>{declaredDirections.length>0&&<label className="mt-3 block">Creative direction<select aria-label="Teaching creative direction" disabled={!!busy||suggesting||versionChanged} value={selectionDirections===null?'unresolved':selectionDirections?.[0]||''} onChange={e=>{const direction=e.target.value as TrainingCreativeDirection;setSelectionConditions(current=>({...current,taskFacts:[...current.taskFacts.filter(fact=>!/^\s*creative[\s_-]*direction/i.test(fact)),...trainingDirectionFacts(direction?[direction]:[])]}));setDecisionKey(crypto.randomUUID());}}>{selectionDirections===null&&<option value="unresolved" disabled>Choose where this lesson applies</option>}<option value="">All directions</option>{declaredDirections.map(direction=><option key={direction} value={direction}>{direction}</option>)}</select></label>}</>;
+  const learningScopeControls=(feedback=false)=><details className="text-xs text-ink-400"><summary>Where this learning applies</summary>{directionScopeControls()}<label className="mt-3 block">Category<select disabled={!!busy||suggesting||versionChanged} value={feedback&&!feedbackCategoryConfirmed?'':property} onChange={e=>{const value=e.target.value as TrainingPropertyCode;setProperty(value);if(!feedback||!feedbackCategoryConfirmed)setStages(deriveTrainingStages(value));setDecisionKey(crypto.randomUUID());if(feedback)setFeedbackCategoryConfirmed(true);}}>{feedback&&<option value="" disabled>Choose a category</option>}{TRAINING_PROPERTY_CODES.map(p=><option key={p} value={p}>{trainingPropertyLabel(p)}</option>)}</select></label><label className="mt-3 block">Example type<select disabled={!!busy||suggesting||versionChanged} value={relation} onChange={e=>{setRelation(e.target.value as TrainingRelation);setDecisionKey(crypto.randomUUID());}}>{TRAINING_RELATIONS.map(r=><option key={r} value={r}>{relationLabel(r)}</option>)}</select></label>{TRAINING_STAGE_OPTIONS.map(option=><label key={option.value} className="mt-2 flex gap-2"><input type="checkbox" disabled={!!busy||suggesting||versionChanged} checked={stages.includes(option.value)} onChange={()=>toggleStage(option.value)}/>{option.label}</label>)}</details>;
   const visualDraftItems=sources.flatMap(source=>source.decisions.filter(decision=>decision.state==='draft'&&![...extractionProgress.current.values()].some(progress=>progress.record?.recordId===decision.recordId&&!progress.linked)&&!!source.token&&!!decision.content.derivatives?.[0]?.sha256&&normalizeTrainingStages(decision.content.applicability?.stages).length>0).map(decision=>({source,decision})));
   const hiddenDraftIds=sources.flatMap(source=>source.decisions.filter(decision=>decision.state==='draft').map(decision=>decision.recordId));
   const textPending=changes?.records.filter(record=>!hiddenDraftIds.includes(record.recordId)&&trainingTextSelectable(record)).length||0;
@@ -1735,7 +1743,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <h3 className="text-lg font-medium">Review your teaching</h3>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={directScopeReview.image} alt="Example being reviewed before saving" className="w-48 rounded-lg"/>
-      <p className="text-sm leading-6">{directScopeReview.lesson}</p>
+      <p className="text-sm leading-6">{directScopeReview.lesson}</p><TrainingDirectionLabel scope={directScopeReview.creativeDirections}/>
       <label className="block text-sm">How should the agent use this example?
         <select className="mt-2 block rounded-lg border border-ink-700 bg-ink-950 p-2" value={directScopeReview.relation} disabled={!!busy||versionChanged||!!extractionProgress.current.get(directScopeReview.fingerprint)?.reviewedRelation}
           onChange={event=>setDirectScopeReview({...directScopeReview,relation:event.target.value as TrainingRelation})}>
@@ -1755,7 +1763,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&history&&<section aria-label="Earlier training" className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 className="text-xl font-medium">Learnings</h2>{versionPicker}</header><p className="text-xs text-ink-500">Earlier version · read-only</p>{history.sources.flatMap(source=>source.decisions.map(d=><details key={d.recordId} className="border-b border-ink-800 py-4"><summary className="cursor-pointer text-sm">{['draft','accepted'].includes(d.state)?d.decision.desiredBehavior||d.content.summary:'This teaching is no longer available for use.'}</summary><div className="space-y-3 pt-4 text-sm leading-6 text-ink-400">{source.token&&d.content.derivatives?.[0]?.sha256&&['draft','accepted'].includes(d.state)&&<TrainingImage token={source.token} recordId={d.recordId} recordDigest={d.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy} context={`${history.sessionId}:${history.versionId}`} alt="Earlier teaching example"/>}{['draft','accepted'].includes(d.state)&&<p>{d.content.summary}</p>}<p>{d.state} · {relationLabel(d.content.relation)}</p></div></details>))}{!history.sources.length&&<p className="text-sm text-ink-500">No examples were returned for this version.</p>}</section>}
     {!installationId&&!session&&!busy&&<button type="button" className="text-sm text-ink-300 disabled:opacity-40" disabled={!currentVersion||versionChanged} onClick={()=>{focusChat();}}>Start teaching →</button>}
     {!installationId&&session&&!history&&<TrainingDraftBundle applyContainer={applyContainer} busy={!!busy||changesBusy||versionChanged||!!pendingDemoLink||!!pendingRecordingLink||!!pendingAnswerLinks}
-      drafts={visualDraftItems.map(({source,decision})=>({id:decision.recordId,digest:decision.recordDigest,judgment:decision.decision.why||decision.decision.desiredBehavior,appliesWhen:decision.decision.process,example:decision.decision.chosen,relation:decision.content.relation,category:decision.content.properties.map(property=>trainingPropertyLabel(property)).join(', '),renderEvidence:<TrainingImage token={source.token!} recordId={decision.recordId} recordDigest={decision.recordDigest} frameSha256={decision.content.derivatives![0].sha256} enabled={!busy&&!changesBusy} context={`${session}:${currentVersion}`} alt="Proposed teaching example" expandable/>}))}
+      drafts={visualDraftItems.map(({source,decision})=>({id:decision.recordId,digest:decision.recordDigest,judgment:decision.decision.why||decision.decision.desiredBehavior,appliesWhen:decision.decision.process,example:decision.decision.chosen,relation:decision.content.relation,category:decision.content.properties.map(property=>trainingPropertyLabel(property)).join(', '),creativeDirections:trainingDirectionsFromTaskFacts(decision.content.applicability?.taskFacts),renderEvidence:<TrainingImage token={source.token!} recordId={decision.recordId} recordDigest={decision.recordDigest} frameSha256={decision.content.derivatives![0].sha256} enabled={!busy&&!changesBusy} context={`${session}:${currentVersion}`} alt="Proposed teaching example" expandable/>}))}
       onExplain={id=>{const record=changes?.records.find(record=>record.recordId===id);if(record)void explainTeaching(record);}}
       explanationFor={id=>{const record=changes?.records.find(record=>record.recordId===id);const explanation=record&&explanations[`${changesIdentity.current}:${id}:${record.recordDigest}`];return explanation?<div role="status" className="mt-3 rounded-lg bg-ink-900/50 p-3 text-xs leading-5 text-ink-300">{explanation.state==='loading'?'Explaining this lesson…':<TrainingExplanation text={explanation.text}/>}{explanation.state==='ready'&&<span className="mt-2 block text-ink-500">AI explanation · saved training unchanged</span>}</div>:null;}}
       onApply={ids=>void applyVisualDrafts(ids)} onEdit={id=>{const source=sources.find(source=>source.decisions.some(decision=>decision.recordId===id));const decision=source?.decisions.find(decision=>decision.recordId===id);if(source&&decision)void reviewDecision(source,decision);}}/>}
@@ -1979,6 +1987,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       </section>
       {installationId&&<h3>Preference wording — confirm or edit</h3>}
       <TrainingDetails title={wordingOpened?'Review prepared teaching':'Advanced manual teaching'} open={Boolean(installationId)||wordingOpened}>
+      {directionScopeControls()}
       {!installationId&&![chosen,why,process,behavior].every(value=>value.trim())&&<p>Use your annotation and the suggestion above to prepare the teaching wording. Keep the judgment, its scope and example details separate. These fields are available if you prefer to draft it manually.</p>}
       {([['Example details', chosen, setChosen], ['Judgment', why, setWhy], [copiedTeachingWording?'Original context or approach':'When it applies', process, setProcess], ['How to adapt', behavior, setBehavior]] as const).map(([label, value, set]) => <label className="block" key={label}>{label}<textarea className="block w-full rounded bg-ink-900 border p-2" maxLength={400} value={value} onChange={(event) => { set(event.target.value); setDecisionKey(crypto.randomUUID()); }} /></label>)}<button disabled={!previewIsCurrent || !priorityIsValid || stages.length === 0 || (Boolean(installationId)&&!demoAnnotationIsCurrent) || ![chosen, why, process, behavior].every((value) => value.trim())} onClick={()=>void annotate()}>Save decision draft</button></TrainingDetails></fieldset><p className="text-sm">Review and accept each saved decision separately. Acceptance records immutable, stage-scoped evidence; the active agent version must independently declare matching Manager coverage before a run can use it.</p></section>}
     </div>

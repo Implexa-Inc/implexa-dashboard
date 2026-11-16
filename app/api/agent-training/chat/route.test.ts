@@ -31,3 +31,11 @@ test('ambiguous forwarding failures are typed and never automatically retried',a
  const p=proxy(true,true);const r=await p.POST(new Request(`https://dashboard.test/api/agent-training/chat?sessionId=${SESSION}`,{method:'POST',body:'{}'}));
  assert.equal(r.status,503);assert.equal(r.value.reason,'training_chat_response_unconfirmed');assert.equal(p.calls.length,1);assert.doesNotMatch(JSON.stringify(r),/private upstream/);
 });
+
+
+test('direction-aware discovery reaches the existing backend unchanged and rejects ambiguous pins',async()=>{
+ const p=proxy();await p.GET(new Request(`https://dashboard.test/api/agent-training/chat?sessionId=${SESSION}&sourceId=${SOURCE}&directionScopeContract=training-direction-scope.v1`));
+ assert.match(p.calls[0].url,/sourceId=.*&directionScopeContract=training-direction-scope.v1$/);
+ for(const suffix of ['directionScopeContract=unknown','directionScopeContract=training-direction-scope.v1&directionScopeContract=training-direction-scope.v1']){const bad=proxy();assert.equal((await bad.GET(new Request(`https://dashboard.test/api/agent-training/chat?sessionId=${SESSION}&${suffix}`))).status,400);assert.equal(bad.calls.length,0);}
+ const body={directionScopeContract:'training-direction-scope.v1',message:'For the cinematic direction only.'};await p.POST(new Request(`https://dashboard.test/api/agent-training/chat?sessionId=${SESSION}`,{method:'POST',body:JSON.stringify(body)}));assert.deepEqual(JSON.parse(p.calls[1].init.body),body);
+});

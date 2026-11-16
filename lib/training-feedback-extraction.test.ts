@@ -7,15 +7,15 @@ const sha='a'.repeat(64),source={sourceId:id,token:'native-token',metadata:{sha2
 const image='data:image/png;base64,'+Buffer.alloc(40,1).toString('base64');
 const hash=(text:string)=>createHash('sha256').update(text).digest('hex');
 const fields={chosen:'In this example, the route is a wall of text.',why:'Prefer a spatial explanation when geography matters.',process:'Applies when location explains the comparison.',desiredBehavior:'Explain the relationship visually, with a map when useful.'};
-function setup({nullScope=false,linkFails=false,wrongBinding=false,insufficient=false,rawAnnotation='Show the location on a map, rather than listing names.',timeMs=1000,modelRelation='rejected',writeFails=false}={}){
+function setup({nullScope=false,linkFails=false,wrongBinding=false,insufficient=false,rawAnnotation='Show the location on a map, rather than listing names.',timeMs=1000,modelRelation='rejected',writeFails=false,directionScoped=false,creativeDirections=[] as string[]|null,legacyDirectionReply=false}={}){
  const calls:any[]=[],progress:FeedbackExtractionProgress={key:id};let links=0,writes=0;
- const run=(recovered=progress,checkpoint=()=>{},newDraftRequest?:FeedbackDraftRequest,reviewBeforeSave=false,relationChoice?:Parameters<typeof extractFeedbackTeaching>[0]['relationChoice'])=>extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress:recovered,checkpoint,newDraftRequest,reviewBeforeSave,relationChoice,
+ const run=(recovered=progress,checkpoint=()=>{},newDraftRequest?:FeedbackDraftRequest,reviewBeforeSave=false,relationChoice?:Parameters<typeof extractFeedbackTeaching>[0]['relationChoice'])=>extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress:recovered,checkpoint,directionScope:directionScoped,newDraftRequest,reviewBeforeSave,relationChoice,
   check:async()=>{calls.push(['check']);},call:async(op,args:any)=>{calls.push([op,args]);if(op==='preview')return {ok:true,image};if(op==='annotate'){if(writeFails&&++writes===1)throw Error('unknown native save');return {ok:true,recordId:record,recordDigest:sha};}throw Error('Unexpected writer');},
   send:async(op,body:any,key)=>{calls.push([op,body,key]);
    if(op==='annotation'&&body.action==='save'){const {action,expectedActiveVersionId,...annotation}=body;return {ok:true,contractVersion:'training-demo-annotation.v1',annotationId:id,annotationDigest:sha,annotation:{...annotation,contractVersion:'training-demo-annotation.v1',targetVersionId:expectedActiveVersionId}};}
    if(op==='annotation'){if(linkFails&&++links===1)throw Error('lost link response');return {ok:true,contractVersion:'training-demo-link.v1',annotationId:id,annotationDigest:sha,recordId:record,recordDigest:sha,linkReceiptId:id};}
-   const {mode,includeScope,image,consent,...binding}=body;
-   return {ok:true,requestId:id,contractVersion:'training-teaching-suggestion.v6',model:'claude-haiku-5-5',status:insufficient?'insufficient':'suggested',fields:insufficient?null:fields,reason:insufficient?'Please explain what you prefer.':'',scopeSuggestion:nullScope||insufficient?null:{property:'narrative_visual_alignment',relation:modelRelation},binding:{...binding,sourceId:wrongBinding?record:binding.sourceId,feedbackSha256:hash(rawAnnotation)},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}};
+   const {mode,includeScope,image,consent,directionScopeContract,...binding}=body;
+   return {ok:true,requestId:id,contractVersion:directionScopeContract&&!legacyDirectionReply?'training-teaching-suggestion.v8':'training-teaching-suggestion.v6',...(directionScopeContract&&!legacyDirectionReply?{creativeDirections}:{}),model:'claude-haiku-5-5',status:insufficient?'insufficient':'suggested',fields:insufficient?null:fields,reason:insufficient?'Please explain what you prefer.':'',scopeSuggestion:nullScope||insufficient?null:{property:'narrative_visual_alignment',relation:modelRelation},binding:{...binding,sourceId:wrongBinding?record:binding.sourceId,feedbackSha256:hash(rawAnnotation)},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}};
   }});
  return {run,calls,progress};
 }
@@ -247,4 +247,23 @@ test('retention checkpoint failure cannot send an unpersisted writer body on the
  failRetention=false;await run(progress,checkpoint,undefined,true,'rejected');
  const saved=calls.find(c=>c[0]==='annotate')[1];assert.equal(durable.retentionUntil,saved.content.governance.retentionUntil);
  assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);assert.equal(progress.linked,true);
+});
+
+
+test('direction-aware extraction writes the reviewed applicability fact and never admits automatically',async()=>{
+ const {run,calls}=setup({directionScoped:true,creativeDirections:['Cinematic B-roll-heavy']});
+ const result=await run();assert.equal(result.status,'drafted');
+ assert.equal(calls.find(c=>c[0]==='suggestion')[1].directionScopeContract,'training-direction-scope.v1');
+ assert.deepEqual(calls.find(c=>c[0]==='annotate')[1].content.applicability.taskFacts,['creative_direction:Cinematic B-roll-heavy']);
+ assert.equal(calls.some(c=>['accept','activate','revise_workflow'].includes(c[0])),false);
+});
+test('unresolved and downgraded direction results never enter the native writer as general teaching',async()=>{
+ const held=setup({directionScoped:true,creativeDirections:null});assert.equal((await held.run()).status,'held');assert.equal(held.calls.some(c=>c[0]==='annotate'),false);
+ const old=setup({directionScoped:true,legacyDirectionReply:true});await assert.rejects(old.run(),/did not preserve creative direction/);assert.equal(old.calls.some(c=>c[0]==='annotate'),false);
+});
+test('an uncertain direction-aware native save retries the same scope, key and body without another model call',async()=>{
+ const {run,calls}=setup({directionScoped:true,creativeDirections:['Cinematic B-roll-heavy'],writeFails:true});
+ await assert.rejects(run(),/unknown native save/);await run();
+ const writes=calls.filter(c=>c[0]==='annotate');assert.equal(writes.length,2);assert.deepEqual(writes[0][1],writes[1][1]);
+ assert.equal(calls.filter(c=>c[0]==='suggestion').length,1);
 });

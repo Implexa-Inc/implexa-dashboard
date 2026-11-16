@@ -7,6 +7,14 @@ import {useEffect,useLayoutEffect,useId,useRef,useState,type ComponentProps,type
 import {parsePreviewUrl,requestPreview,revokePreview,previewKind} from '@/lib/review-preview';
 import {teachingFrame,teachingDigest} from '@/lib/training-teaching-draft';
 import type {ReviewArtifact} from '@/lib/review';
+import type {TrainingDirectionScope} from '@/lib/training-local-ingress';
+
+export function TrainingDirectionLabel({scope}:{scope:TrainingDirectionScope|undefined}) {
+ if (scope === undefined) return null;
+ return <p className={`mt-2 text-xs ${scope === null ? 'text-amber-300' : 'text-brand-400'}`}>
+  {scope === null ? 'Creative direction needs review' : scope.length === 0 ? 'All directions' : `Only for ${scope[0]}`}
+ </p>;
+}
 
 export type TrainingView='start'|'teach'|'history'|'settings';
 export type TrainingRun={id:string;date:string;status:string;artifact:ReviewArtifact|null};

@@ -198,3 +198,21 @@ test('guided mode moves supported admission to Step3 without removing legacy adv
  const v=value(),first={...v.records[0],state:'suggested',included:false,admissionOrigin:'none'};v.records=[first as any,{...first,recordId:id(6),sourceKind:'legacy_evidence',sourceEventId:null,sourceEventDigest:null} as any,{...first,recordId:id(7),category:null} as any];const calls:any[]=[],props={value:v,onPolicy:()=>{},onForce:()=>{},onEdit:()=>{},onRecord:(record:any,action:any)=>calls.push([record.recordId,action]),onTest:()=>{},onPublish:()=>{},applyContainer:null};const r=await render('../training/[slug]/training-changes.tsx',props);t.after(()=>r.cleanup());
  const cards=[...r.document.querySelectorAll('[aria-label="Saved teaching"]')];assert.ok([...cards[0].querySelectorAll('button')].every(button=>button.textContent!=='Include in private update'));assert.ok([...cards[1].querySelectorAll('button')].some(button=>button.textContent==='Include in private update'));assert.ok([...cards[2].querySelectorAll('button')].some(button=>button.textContent==='Include in private update'));await r.rerender({...props,applyContainer:undefined});assert.equal([...r.document.querySelectorAll('button')].filter(button=>button.textContent==='Include in private update').length,3);assert.equal(calls.length,0);
 });
+
+
+test('direction-scoped teachings show their scope before Apply and unresolved scope cannot be included',async t=>{
+ const v=value();v.records=[{...v.records[0],state:'suggested',included:false,admissionOrigin:'none',creativeDirections:['Cinematic B-roll-heavy']}];
+ assert.equal(guidedTrainingChanges(v,expected),true);
+ const applied:any[]=[],props={value:v,onPolicy:()=>{},onForce:()=>{},onEdit:()=>{},onRecord:()=>{},onTest:()=>{},onPublish:()=>{},onApplySelected:(records:any[])=>applied.push(records)};
+ const r=await render('../training/[slug]/training-changes.tsx',props);t.after(()=>r.cleanup());
+ await r.rerender({...props,value:{...v,records:[{...v.records[0],creativeDirections:[]}]}});assert.ok(r.getByText('All directions'));await r.rerender(props);
+ assert.ok(r.getByText('Only for Cinematic B-roll-heavy'));
+ await r.click(r.getByText('Apply selected'));assert.deepEqual(applied[0][0].creativeDirections,['Cinematic B-roll-heavy']);
+ const unresolved={...v,records:[{...v.records[0],creativeDirections:null}]};await r.rerender({...props,value:unresolved});
+ assert.ok(r.getByText('Creative direction needs review'));
+ assert.equal(r.document.querySelectorAll('input[aria-label^="Select teaching:"]').length,0);
+ assert.equal((r.getByText('Include in private update') as HTMLButtonElement).disabled,true);
+ for(const scope of [['Other'],['Balanced','No B-rolls'],'Balanced',undefined]){
+  const invalid={...v,records:[{...v.records[0],creativeDirections:scope}]};assert.equal(guidedTrainingChanges(invalid,expected),false);
+ }
+});

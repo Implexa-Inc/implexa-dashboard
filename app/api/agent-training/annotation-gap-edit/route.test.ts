@@ -36,3 +36,10 @@ test('malformed scopes/cursors and oversized bodies are rejected before forwardi
  const large=proxy();assert.equal((await large.POST(req('x'.repeat(10001)))).status,413);assert.equal(large.calls.length,0);
  const offline=proxy({offline:true});const r=await offline.POST(req());assert.equal(r.status,503);assert.equal(offline.calls.length,1);assert.doesNotMatch(JSON.stringify(r),/private-provider-detail/);
 });
+
+
+test('analysis discovery preserves its direction contract without changing cursor semantics',async()=>{
+ const p=proxy();await p.GET(new Request(`https://dashboard.test/api/agent-training/annotation-gap-edit?sessionId=${SESSION}&requestEventId=${SESSION}&directionScopeContract=training-direction-scope.v1`));
+ assert.match(p.calls[0].url,/requestEventId=.*&directionScopeContract=training-direction-scope.v1$/);
+ const bad=proxy();assert.equal((await bad.GET(new Request(`https://dashboard.test/api/agent-training/annotation-gap-edit?sessionId=${SESSION}&directionScopeContract=bad`))).status,400);assert.equal(bad.calls.length,0);
+});

@@ -21,6 +21,30 @@ export function isTrainingEvidenceStorage(value: unknown, recordId: string, reco
 }
 export const TRAINING_STAGE_ROUTING_VERSION = 'manager-training-applicability.v1';
 
+// Direction applicability stays in the existing task-fact vocabulary. This is
+// a wire decoder, not a second training or variant store.
+export const TRAINING_CREATIVE_DIRECTIONS = ['Animation-heavy', 'Cinematic B-roll-heavy', 'Balanced', 'No B-rolls'] as const;
+export type TrainingCreativeDirection = typeof TRAINING_CREATIVE_DIRECTIONS[number];
+export type TrainingDirectionScope = [] | [TrainingCreativeDirection] | null;
+export function isTrainingDirectionScope(value: unknown): value is TrainingDirectionScope {
+  return value === null || Array.isArray(value) && (value.length === 0
+    || value.length === 1 && TRAINING_CREATIVE_DIRECTIONS.includes(value[0] as TrainingCreativeDirection));
+}
+export function trainingDirectionsFromTaskFacts(facts: unknown): TrainingDirectionScope | undefined {
+  if (facts === undefined) return undefined; // historical projection, not a scope claim
+  if (!Array.isArray(facts) || facts.some(fact => typeof fact !== 'string')) return null;
+  const scoped = facts.filter(fact => /^\s*creative[\s_-]*direction/i.test(fact));
+  if (!scoped.length) return [];
+  const direction = scoped[0].slice('creative_direction:'.length);
+  return scoped.length === 1 && scoped[0].startsWith('creative_direction:')
+    && TRAINING_CREATIVE_DIRECTIONS.includes(direction as TrainingCreativeDirection)
+    ? [direction as TrainingCreativeDirection] : null;
+}
+export function trainingDirectionFacts(scope: Exclude<TrainingDirectionScope, null>): string[] {
+  if (!isTrainingDirectionScope(scope) || scope === null) throw Error('Review which creative direction this teaching applies to.');
+  return scope.length ? [`creative_direction:${scope[0]}`] : [];
+}
+
 export type TrainingEligiblePredecessor = {
   sessionId: string;
   baseVersionId: string;

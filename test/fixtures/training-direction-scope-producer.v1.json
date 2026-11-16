@@ -1,0 +1,205 @@
+{
+  "provenance": {
+    "synthetic": true,
+    "producer": "actual0608 annotation ledger and training-local service; controlled model reply",
+    "sourceFiles": {
+      "src/services/training-local.service.js": "420ed0a6f56daf838daa87234733f3cdbed04a5d7fd63ce4c74e30e3e2e8e5f2",
+      "src/lib/training-teaching-draft.js": "57a20ca5c41bd393ac5ed20f21950b564ebc333912c87d01ce462187673e505d",
+      "supabase/migrations/0608_training_creative_direction_scope.sql": "180c816c2ffd641f14c7f203bef74988ecfe487fcf5048aea3611ccae3dfa635"
+    },
+    "producerBaseCommit": "6976796dad7ca849b6be2950e847673823c9fad6",
+    "verifiedBackendCommit": "93356a9f167d73c918dbcf7f64475dd2483e7f52"
+  },
+  "demonstration": {
+    "ok": true,
+    "contractVersion": "training-teaching-suggestion.v8",
+    "model": "claude-haiku-5-5",
+    "binding": {
+      "sourceId": "70000000-0000-4000-8000-000000000005",
+      "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "timeMs": 0,
+      "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426",
+      "annotationId": "17deecba-bde8-4047-ae73-b2f952cdb643",
+      "annotationDigest": "6b8809052817e71b019aca187a23e462dd32757fa52d50cd5fcc3709b897d142",
+      "expectedActiveVersionId": "70000000-0000-4000-8000-000000000003",
+      "feedbackSha256": "275e8252a0ab03eb449ba64a34dc253dad9b175c8cc391367b6c8aa8bbfc96a9"
+    },
+    "status": "suggested",
+    "fields": {
+      "why": "Use the image to support this narration.",
+      "chosen": "Relevant illustrative image.",
+      "process": "Animate the image with a detailed prompt.",
+      "desiredBehavior": "Prefer relevant animated images when Cinematic B-roll-heavy is selected."
+    },
+    "reason": "",
+    "scopeSuggestion": null,
+    "creativeDirections": [
+      "Cinematic B-roll-heavy"
+    ],
+    "sources": {
+      "chosen": "observed_frame",
+      "why": "trainer_preference",
+      "process": "transferable_guidance",
+      "desiredBehavior": "transferable_guidance"
+    },
+    "requestId": "adad4fa7-b641-4281-ae57-708d33796d71"
+  },
+  "annotation": {
+    "ok": true,
+    "contractVersion": "training-teaching-suggestion.v9",
+    "model": "claude-haiku-5-5",
+    "binding": {
+      "sourceId": "70000000-0000-4000-8000-000000000005",
+      "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "timeMs": 0,
+      "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426",
+      "annotationId": "17deecba-bde8-4047-ae73-b2f952cdb643",
+      "annotationDigest": "6b8809052817e71b019aca187a23e462dd32757fa52d50cd5fcc3709b897d142",
+      "expectedActiveVersionId": "70000000-0000-4000-8000-000000000003",
+      "feedbackSha256": "275e8252a0ab03eb449ba64a34dc253dad9b175c8cc391367b6c8aa8bbfc96a9"
+    },
+    "fields": {
+      "why": "Use the image to support this narration.",
+      "chosen": "Relevant illustrative image.",
+      "process": "Animate the image with a detailed prompt.",
+      "desiredBehavior": "Prefer relevant animated images when Cinematic B-roll-heavy is selected."
+    },
+    "reason": "",
+    "status": "suggested",
+    "operatingGap": null,
+    "scopeSuggestion": null,
+    "creativeDirections": [
+      "Cinematic B-roll-heavy"
+    ],
+    "sources": {
+      "chosen": "observed_frame",
+      "why": "trainer_preference",
+      "process": "transferable_guidance",
+      "desiredBehavior": "transferable_guidance"
+    },
+    "requestId": "bf214b68-bd67-4e55-ab44-04d80f3a571d",
+    "analysisReceipt": {
+      "requestEventId": "52dd5af3-4f7a-4354-9519-dde0fea30a9d",
+      "requestDigest": "747a431e6b37e488784fbff43b21e50e21776b7f5deba9f639b5c125f01ac38a",
+      "attemptOrdinal": 1,
+      "resultEventId": "bf214b68-bd67-4e55-ab44-04d80f3a571d",
+      "resultDigest": "eebc288a84f4cbea6a22781a4af628aa2ea4f2f5feb02bdbb7523e8ab2d58c23",
+      "setupDigest": "701f88855d9b3ace987e7ed919596e75ec064ec0e50de0c9c027f288991519e0",
+      "setupState": "complete",
+      "target": null,
+      "usage": {
+        "status": "unknown",
+        "inputTokens": null,
+        "outputTokens": null
+      }
+    }
+  },
+  "list": {
+    "ok": true,
+    "contractVersion": "training-annotation-gap-list.v1",
+    "analyses": [
+      {
+        "directionScopeContract": "training-direction-scope.v1",
+        "analysisRequest": {
+          "requestEventId": "52dd5af3-4f7a-4354-9519-dde0fea30a9d",
+          "requestDigest": "747a431e6b37e488784fbff43b21e50e21776b7f5deba9f639b5c125f01ac38a",
+          "attemptOrdinal": 1
+        },
+        "annotation": {
+          "annotationId": "17deecba-bde8-4047-ae73-b2f952cdb643",
+          "annotationDigest": "6b8809052817e71b019aca187a23e462dd32757fa52d50cd5fcc3709b897d142"
+        },
+        "retry": {
+          "state": "none",
+          "availableAt": null
+        },
+        "outcome": "answered",
+        "reason": null,
+        "result": {
+          "ok": true,
+          "contractVersion": "training-teaching-suggestion.v9",
+          "model": "claude-haiku-5-5",
+          "binding": {
+            "sourceId": "70000000-0000-4000-8000-000000000005",
+            "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "timeMs": 0,
+            "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426",
+            "annotationId": "17deecba-bde8-4047-ae73-b2f952cdb643",
+            "annotationDigest": "6b8809052817e71b019aca187a23e462dd32757fa52d50cd5fcc3709b897d142",
+            "expectedActiveVersionId": "70000000-0000-4000-8000-000000000003",
+            "feedbackSha256": "275e8252a0ab03eb449ba64a34dc253dad9b175c8cc391367b6c8aa8bbfc96a9"
+          },
+          "fields": {
+            "why": "Use the image to support this narration.",
+            "chosen": "Relevant illustrative image.",
+            "process": "Animate the image with a detailed prompt.",
+            "desiredBehavior": "Prefer relevant animated images when Cinematic B-roll-heavy is selected."
+          },
+          "reason": "",
+          "status": "suggested",
+          "operatingGap": null,
+          "scopeSuggestion": null,
+          "creativeDirections": [
+            "Cinematic B-roll-heavy"
+          ],
+          "sources": {
+            "chosen": "observed_frame",
+            "why": "trainer_preference",
+            "process": "transferable_guidance",
+            "desiredBehavior": "transferable_guidance"
+          },
+          "requestId": "bf214b68-bd67-4e55-ab44-04d80f3a571d",
+          "analysisReceipt": {
+            "requestEventId": "52dd5af3-4f7a-4354-9519-dde0fea30a9d",
+            "requestDigest": "747a431e6b37e488784fbff43b21e50e21776b7f5deba9f639b5c125f01ac38a",
+            "attemptOrdinal": 1,
+            "resultEventId": "bf214b68-bd67-4e55-ab44-04d80f3a571d",
+            "resultDigest": "eebc288a84f4cbea6a22781a4af628aa2ea4f2f5feb02bdbb7523e8ab2d58c23",
+            "setupDigest": "701f88855d9b3ace987e7ed919596e75ec064ec0e50de0c9c027f288991519e0",
+            "setupState": "complete",
+            "target": null,
+            "usage": {
+              "status": "unknown",
+              "inputTokens": null,
+              "outputTokens": null
+            }
+          }
+        },
+        "edit": {
+          "state": "not_applicable",
+          "requestId": null,
+          "requestStatus": null,
+          "reviewedNote": null,
+          "review": null
+        }
+      }
+    ],
+    "nextCursor": null
+  },
+  "pending": {
+    "directionScopeContract": "training-direction-scope.v1",
+    "analysisRequest": {
+      "requestEventId": "3122c9fe-21dc-477f-95ec-0395a5ae87b1",
+      "requestDigest": "ae79cf96cca7668e275cbaf07d670650fa5daa2fb404d9d3bfc69d002932e3f1",
+      "attemptOrdinal": 1
+    },
+    "annotation": {
+      "annotationId": "61bd7ab1-3c95-4fd0-8fea-76e0d49433a1",
+      "annotationDigest": "e80780be2bd1e87d9c6b089e5c1906767140355289b13c9b07e1fea92171d2f5"
+    },
+    "retry": {
+      "state": "none",
+      "availableAt": "2026-11-16T00:34:13.329207-08:00"
+    },
+    "outcome": "pending",
+    "reason": null,
+    "result": null,
+    "edit": {
+      "state": "not_applicable",
+      "requestId": null,
+      "requestStatus": null,
+      "reviewedNote": null,
+      "review": null
+    }
+  }
+}
