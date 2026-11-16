@@ -112,3 +112,24 @@ test('automatic tool location must name a supported capability before the exact 
  assert.deepEqual(recordingLocatorCapability({status:'insufficient',capability:'higgsfield_image_to_video'},'auto'),{ok:false});
  assert.deepEqual(recordingLocatorCapability({status:'located',capability:'presenter_background_removal'},'higgsfield_image_to_video'),{ok:false});
 });
+
+test('actual Higgsfield producer supports automatic discovery, both method paths and annotation recovery',()=>{
+ const f=JSON.parse(readFileSync(new URL('../test/fixtures/training-higgsfield-producer.v1.json',import.meta.url),'utf8'));
+ assert.equal(f.provenance.synthetic,true);assert.equal(f.provenance.model,false);
+ const annotation=f.results.find((r:any)=>r.gate==='training-higgsfield-annotation-producer');
+ assert.equal(annotationAnalysis(annotation.result,annotation.result.binding),true);
+ assert.equal(annotationGapPage(annotation.list,annotation.result.binding.expectedActiveVersionId),true);
+ assert.equal(annotation.list.analyses[0].edit.state,'available');
+ const recording=f.results.find((r:any)=>r.gate==='training-higgsfield-actual-producer');
+ assert.deepEqual(recordingLocatorCapability(recording.located,'auto'),{ok:true,capability:'higgsfield_image_to_video'});
+ assert.deepEqual(recordingLocatorCapability(recording.explicit,'higgsfield_image_to_video'),{ok:true,capability:'higgsfield_image_to_video'});
+ assert.equal(recordingAgentSuggestion(recording.proposal,recording.proposal.binding,'higgsfield_image_to_video'),true);
+ assert.equal(recording.proposal.methodSelection,'agent_change_required');
+ const existing=f.results.find((r:any)=>r.gate==='training-higgsfield-existing-step-producer');
+ assert.equal(recordingAgentSuggestion(existing.proposal,existing.proposal.binding,'higgsfield_image_to_video'),true);
+ assert.equal(existing.proposal.methodSelection,'pending_existing_binder');
+ for(const entry of [recording,existing]){
+  const changed=structuredClone(entry.proposal);changed.binding.targetVersionId='wrong-version';
+  assert.equal(recordingAgentSuggestion(changed,entry.proposal.binding,'higgsfield_image_to_video'),false);
+ }
+});

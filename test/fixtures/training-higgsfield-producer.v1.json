@@ -1,0 +1,360 @@
+{
+  "contractVersion": "training-higgsfield-producer-fixture.v1",
+  "provenance": {
+    "producerBaseCommit": "3ca8db39bfb6e6070ebc39fc5460d7960b965c3f",
+    "synthetic": true,
+    "model": false,
+    "logSha256": "6f811825b3cb0fac0cfe5cdfbb34de10adb0511cbd23255a4108922875792d17",
+    "sourceFiles": {
+      "src/lib/training-teaching-draft.js": "fb535b889da67a7bec81ac52fcc6bc4c1f93fcf9fc6dd0520558d77de7df3a3f",
+      "src/services/training-local.service.js": "b1709a1f7642878f41056a65733f473bb3364f12c40263fda6056a44e607f874",
+      "src/services/capability-model.service.js": "99d6ba44515a5f6940cd162981bda83c054a4089c29326e5f698bd4522a436c7",
+      "src/services/activation.service.js": "ef6ff5af43cf94f7a44307dbecea78757b8a77c3ed09451725e0a30d0c3c252e",
+      "supabase/migrations/0609_training_higgsfield_tool.sql": "db0b0684d4dfceeb84fba197754236191718d6d74cdebc81d720bb78b1883908"
+    }
+  },
+  "results": [
+    {
+      "gate": "training-higgsfield-annotation-producer",
+      "synthetic": true,
+      "model": false,
+      "result": {
+        "ok": true,
+        "contractVersion": "training-teaching-suggestion.v7",
+        "model": "claude-haiku-5-5",
+        "binding": {
+          "sourceId": "70000000-0000-4000-8000-000000000005",
+          "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "timeMs": 0,
+          "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426",
+          "annotationId": "61216d58-308f-4718-b280-0734eb04f86c",
+          "annotationDigest": "458c97f7ff4d0ba07ceb8ad03e27ca66e915c54d2558326c59074ee5b3bbb1df",
+          "expectedActiveVersionId": "70000000-0000-4000-8000-000000000003",
+          "feedbackSha256": "85e7f7e6f5305190014f080651f3781a6ef1353d82d4e0ca94e07b7ccaa41f47"
+        },
+        "fields": null,
+        "reason": "This is an operating instruction, not a visual preference.",
+        "status": "insufficient",
+        "operatingGap": {
+          "kind": "tool",
+          "status": "suggested",
+          "stepOrder": 2,
+          "capability": "higgsfield_image_to_video",
+          "genericDelta": "Add an optional Higgsfield local CLI media step before Build while preserving existing methods and technical checks.",
+          "evidenceExcerpt": "add Higgsfield image-to-video support",
+          "privateRationale": "A supported tool route needs an owner-reviewed setup change."
+        },
+        "scopeSuggestion": null,
+        "sources": {
+          "chosen": "observed_frame",
+          "why": "trainer_preference",
+          "process": "transferable_guidance",
+          "desiredBehavior": "transferable_guidance"
+        },
+        "requestId": "fd0247a7-e56c-491c-8e37-27885b05d245",
+        "analysisReceipt": {
+          "requestEventId": "b9a88237-c87c-408c-8331-cbcdc973ed1a",
+          "requestDigest": "4c0623119d05e2a5042459e488a8d5ebcb08ad3705f91fd6619ae4dd4b7ce4b6",
+          "attemptOrdinal": 1,
+          "resultEventId": "fd0247a7-e56c-491c-8e37-27885b05d245",
+          "resultDigest": "42faa5bdac6904daab59017bd012cbde2a2f48147a79eef3b7f19107fba80911",
+          "setupDigest": "701f88855d9b3ace987e7ed919596e75ec064ec0e50de0c9c027f288991519e0",
+          "setupState": "complete",
+          "target": {
+            "methods": [],
+            "stepOrder": 2,
+            "stepDigest": "856a8f646347d7c8bb8cfbe82abe2bdbf2346ea4086f06f4c9e42499179fc27f"
+          },
+          "usage": {
+            "status": "observed",
+            "inputTokens": 40,
+            "outputTokens": 30
+          }
+        }
+      },
+      "list": {
+        "ok": true,
+        "contractVersion": "training-annotation-gap-list.v1",
+        "analyses": [
+          {
+            "analysisRequest": {
+              "requestEventId": "b9a88237-c87c-408c-8331-cbcdc973ed1a",
+              "requestDigest": "4c0623119d05e2a5042459e488a8d5ebcb08ad3705f91fd6619ae4dd4b7ce4b6",
+              "attemptOrdinal": 1
+            },
+            "annotation": {
+              "annotationId": "61216d58-308f-4718-b280-0734eb04f86c",
+              "annotationDigest": "458c97f7ff4d0ba07ceb8ad03e27ca66e915c54d2558326c59074ee5b3bbb1df"
+            },
+            "retry": {
+              "state": "none",
+              "availableAt": null
+            },
+            "outcome": "answered",
+            "reason": null,
+            "result": {
+              "ok": true,
+              "contractVersion": "training-teaching-suggestion.v7",
+              "model": "claude-haiku-5-5",
+              "binding": {
+                "sourceId": "70000000-0000-4000-8000-000000000005",
+                "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "timeMs": 0,
+                "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426",
+                "annotationId": "61216d58-308f-4718-b280-0734eb04f86c",
+                "annotationDigest": "458c97f7ff4d0ba07ceb8ad03e27ca66e915c54d2558326c59074ee5b3bbb1df",
+                "expectedActiveVersionId": "70000000-0000-4000-8000-000000000003",
+                "feedbackSha256": "85e7f7e6f5305190014f080651f3781a6ef1353d82d4e0ca94e07b7ccaa41f47"
+              },
+              "fields": null,
+              "reason": "This is an operating instruction, not a visual preference.",
+              "status": "insufficient",
+              "operatingGap": {
+                "kind": "tool",
+                "status": "suggested",
+                "stepOrder": 2,
+                "capability": "higgsfield_image_to_video",
+                "genericDelta": "Add an optional Higgsfield local CLI media step before Build while preserving existing methods and technical checks.",
+                "evidenceExcerpt": "add Higgsfield image-to-video support",
+                "privateRationale": "A supported tool route needs an owner-reviewed setup change."
+              },
+              "scopeSuggestion": null,
+              "sources": {
+                "chosen": "observed_frame",
+                "why": "trainer_preference",
+                "process": "transferable_guidance",
+                "desiredBehavior": "transferable_guidance"
+              },
+              "requestId": "fd0247a7-e56c-491c-8e37-27885b05d245",
+              "analysisReceipt": {
+                "requestEventId": "b9a88237-c87c-408c-8331-cbcdc973ed1a",
+                "requestDigest": "4c0623119d05e2a5042459e488a8d5ebcb08ad3705f91fd6619ae4dd4b7ce4b6",
+                "attemptOrdinal": 1,
+                "resultEventId": "fd0247a7-e56c-491c-8e37-27885b05d245",
+                "resultDigest": "42faa5bdac6904daab59017bd012cbde2a2f48147a79eef3b7f19107fba80911",
+                "setupDigest": "701f88855d9b3ace987e7ed919596e75ec064ec0e50de0c9c027f288991519e0",
+                "setupState": "complete",
+                "target": {
+                  "methods": [],
+                  "stepOrder": 2,
+                  "stepDigest": "856a8f646347d7c8bb8cfbe82abe2bdbf2346ea4086f06f4c9e42499179fc27f"
+                },
+                "usage": {
+                  "status": "observed",
+                  "inputTokens": 40,
+                  "outputTokens": 30
+                }
+              }
+            },
+            "edit": {
+              "state": "available",
+              "requestId": null,
+              "requestStatus": null,
+              "reviewedNote": null,
+              "review": null
+            }
+          }
+        ],
+        "nextCursor": null
+      },
+      "queued": {
+        "ok": true,
+        "requestId": "42afc8e8-fbc7-5499-b3be-e42233354aaa",
+        "status": "pending",
+        "application": "edit_queued",
+        "idempotent": false
+      }
+    },
+    {
+      "gate": "training-higgsfield-actual-producer",
+      "synthetic": true,
+      "model": false,
+      "located": {
+        "ok": true,
+        "status": "located",
+        "model": "claude-haiku-5-5",
+        "excerptId": "c185f0da-7a59-43fa-b78b-f54a8117e137",
+        "excerptDigest": "dc5703dc1234381b81415691607c92022ee5a1f7d47c0852872198b5042f4c5f",
+        "excerpt": {
+          "text": "Synthetic demonstration: select the input image in Higgsfield. The video job appears. PRIVATE EXAMPLE NOT PUBLIC INSTRUCTION.",
+          "endMs": 5000,
+          "startMs": 0,
+          "endIndex": 1,
+          "parentId": "c71c1cff-2380-4c60-9080-f2d35d7e9549",
+          "segments": [
+            {
+              "text": "Synthetic demonstration: select the input image in Higgsfield.",
+              "endMs": 2000,
+              "index": 0,
+              "startMs": 0
+            },
+            {
+              "text": "The video job appears. PRIVATE EXAMPLE NOT PUBLIC INSTRUCTION.",
+              "endMs": 5000,
+              "index": 1,
+              "startMs": 2000
+            }
+          ],
+          "sourceId": "70000000-0000-4000-8000-000000000803",
+          "startIndex": 0,
+          "parentDigest": "e07343b3ba79ec85c93ba3943ed32eb35ece2477a5079df7562d38f5394f4ed6",
+          "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "idempotencyKey": "recording-range:auto:c71c1cff-2380-4c60-9080-f2d35d7e9549:0:1",
+          "contractVersion": "training-recording-excerpt.v1",
+          "targetVersionId": "70000000-0000-4000-8000-000000000801"
+        },
+        "capability": "higgsfield_image_to_video",
+        "requestId": "1b5d666a-58b8-4123-9ab6-8f572e898110"
+      },
+      "explicit": {
+        "ok": true,
+        "status": "located",
+        "model": "claude-haiku-5-5",
+        "excerptId": "5df76c60-b0b5-4eda-86dc-e41b618fab8e",
+        "excerptDigest": "a163147c6cfaa5127e7fe817569b4dc7f9c606bb45ccf49c80e55b51777a4c05",
+        "excerpt": {
+          "text": "Synthetic demonstration: select the input image in Higgsfield. The video job appears. PRIVATE EXAMPLE NOT PUBLIC INSTRUCTION.",
+          "endMs": 5000,
+          "startMs": 0,
+          "endIndex": 1,
+          "parentId": "c71c1cff-2380-4c60-9080-f2d35d7e9549",
+          "segments": [
+            {
+              "text": "Synthetic demonstration: select the input image in Higgsfield.",
+              "endMs": 2000,
+              "index": 0,
+              "startMs": 0
+            },
+            {
+              "text": "The video job appears. PRIVATE EXAMPLE NOT PUBLIC INSTRUCTION.",
+              "endMs": 5000,
+              "index": 1,
+              "startMs": 2000
+            }
+          ],
+          "sourceId": "70000000-0000-4000-8000-000000000803",
+          "startIndex": 0,
+          "parentDigest": "e07343b3ba79ec85c93ba3943ed32eb35ece2477a5079df7562d38f5394f4ed6",
+          "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "idempotencyKey": "recording-range:c71c1cff-2380-4c60-9080-f2d35d7e9549:0:1",
+          "contractVersion": "training-recording-excerpt.v1",
+          "targetVersionId": "70000000-0000-4000-8000-000000000801"
+        },
+        "requestId": "a9048e1f-76bb-41cd-9b30-78d26987906b"
+      },
+      "proposal": {
+        "ok": true,
+        "contractVersion": "training-recording-agent-suggestion.v1",
+        "model": "claude-haiku-5-5",
+        "status": "suggested",
+        "capability": "higgsfield_image_to_video",
+        "frameIndex": 1,
+        "reason": "",
+        "limitations": [
+          "Synthetic controlled assessment; access and future output unverified."
+        ],
+        "suggestionId": "f2b1342a-fc72-49d5-b0bb-1f700f7656c9",
+        "suggestionDigest": "4932339bf5ec88cf4bf2c74619a932d90ce2017b8e6644aa6ff1febe9d4b2bd7",
+        "binding": {
+          "sourceId": "70000000-0000-4000-8000-000000000803",
+          "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "targetVersionId": "70000000-0000-4000-8000-000000000801",
+          "excerptId": "c185f0da-7a59-43fa-b78b-f54a8117e137",
+          "excerptDigest": "dc5703dc1234381b81415691607c92022ee5a1f7d47c0852872198b5042f4c5f",
+          "frames": [
+            {
+              "timeMs": 0,
+              "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426"
+            },
+            {
+              "timeMs": 2500,
+              "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426"
+            },
+            {
+              "timeMs": 4999,
+              "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426"
+            }
+          ]
+        },
+        "proposedChange": "Insert one genuine optional image-to-video media preparation tool step immediately before the existing Build step. Declare executionTool Higgsfield, executionAccess local_tool and executionToolRequiredness optional with an actionable no-generation fallback. Do not put the declaration on Preflight or replace VEED. The new step has no Manager policy of its own: open the existing Build Manager context and retrieve relevant guidance before any image selection, prompt or generation; the later Build reuses it. Keep all private taste in Training. Honor the current job choice, including no generation for No B-rolls. Use the existing authorized CLI and current account only within the owner-approved remaining allowance; verify costs before any submission, count all retries and reconcile unknown job outcomes first. Always record the media outcome and asset/job/cost provenance, including an empty outcome with a reason when unused. Preserve every existing required method, permission, policy, input, output and technical check through the normal explicit order remap; retain VEED as optional on Build. Do not add a broker, paid-action stamp, new grant or version-level budget.",
+        "application": "not_applied",
+        "methodSelection": "agent_change_required",
+        "requestId": "76f3a6a3-8f19-4146-8e3d-885727ab0047"
+      },
+      "queued": {
+        "ok": true,
+        "requestId": "9faf1aa1-a788-5673-bf92-1376edb609c9",
+        "status": "pending",
+        "application": "edit_queued",
+        "idempotent": false,
+        "sourceLinkRecorded": true
+      }
+    },
+    {
+      "gate": "training-higgsfield-existing-step-producer",
+      "synthetic": true,
+      "model": false,
+      "proposal": {
+        "ok": true,
+        "contractVersion": "training-recording-agent-suggestion.v1",
+        "model": "claude-haiku-5-5",
+        "status": "suggested",
+        "capability": "higgsfield_image_to_video",
+        "frameIndex": 1,
+        "reason": "",
+        "limitations": [],
+        "suggestionId": "3fce6b1e-1603-4395-85f4-05c3f00f6e6a",
+        "suggestionDigest": "6427ec0a992f384cb008eab5e78056b2beec3f22379a77843d8bca958d2927de",
+        "binding": {
+          "sourceId": "70000000-0000-4000-8000-000000000812",
+          "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "targetVersionId": "70000000-0000-4000-8000-000000000810",
+          "excerptId": "c66cd63b-e53c-4f57-8544-2a651f8f488c",
+          "excerptDigest": "719e7fd747fd4b6e7666e9ea519c4d298d41d110b4d292a59fc6dc6b488cc3b9",
+          "frames": [
+            {
+              "timeMs": 0,
+              "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426"
+            },
+            {
+              "timeMs": 2500,
+              "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426"
+            },
+            {
+              "timeMs": 4999,
+              "frameSha256": "d8aeb7b31114535bbf9035568464d5eb3dadfabaa70525a487d2c04571203426"
+            }
+          ]
+        },
+        "proposedChange": "Assess image-to-video opportunities through the existing optional Higgsfield local CLI step before Build. Open and materialize the existing Build Manager context and ask for relevant guidance before selecting images or writing prompts; Build reuses that same context. Keep taste private in Training. Honor the current job choice, including zero generation for No B-rolls. Use only owner-authorized input images and the signed-in Higgsfield CLI, obtain the current cost before submitting, account for every job and retry against the remaining owner allowance, reconcile unknown jobs before resubmitting, verify downloaded video bytes and record asset and job provenance. Missing access, an unavailable quote or allowance, or no useful opportunity uses the declared fallback without generation. Preserve VEED and all other required methods, Manager policies, technical checks and existing inputs and outputs. Use only existing Setup and owner authorization; generated media stays optional.",
+        "application": "not_applied",
+        "methodSelection": "pending_existing_binder",
+        "requestId": "ce0aa0bc-9ad8-4619-acf2-ac10ff3e5af6"
+      },
+      "method": {
+        "ok": true,
+        "method": {
+          "id": "70000000-0000-4000-8000-000000000813",
+          "source": "org",
+          "slug": "fixture-higgsfield",
+          "name": "Synthetic reviewed method",
+          "content": "Assess image-to-video opportunities through the existing optional Higgsfield local CLI step before Build. Open and materialize the existing Build Manager context and ask for relevant guidance before selecting images or writing prompts; Build reuses that same context. Keep taste private in Training. Honor the current job choice, including zero generation for No B-rolls. Use only owner-authorized input images and the signed-in Higgsfield CLI, obtain the current cost before submitting, account for every job and retry against the remaining owner allowance, reconcile unknown jobs before resubmitting, verify downloaded video bytes and record asset and job provenance. Missing access, an unavailable quote or allowance, or no useful opportunity uses the declared fallback without generation. Preserve VEED and all other required methods, Manager policies, technical checks and existing inputs and outputs. Use only existing Setup and owner authorization; generated media stays optional. This is a generic operator-authored baseline, not a transcript or evidence that a tool was used. Do not copy trainer media into the output, invent rights or connection evidence, reveal credentials, install tools, create accounts or purchase additional credits. Readiness is checked at use. Preserve original media and record actual input and output hashes. Keep prompts grounded in the current narration and accepted plan; no fixed visual taste is encoded here.",
+          "contentDigest": "68f514b17f9b032445fc00a1c53647e46830b523dae3c8a0e2f8328f6c60334e",
+          "status": "active",
+          "scope": "private",
+          "model": null,
+          "inputDigest": "5f2286bbd1fd1c407f64abda0de64557783957bda50a7c4c120925e2ed461654",
+          "origin": "existing_generic_method_candidate",
+          "activation": "not_changed"
+        }
+      },
+      "bound": {
+        "ok": true,
+        "requestId": "f1e34913-6264-5c87-946b-a9793462d7bb",
+        "status": "pending",
+        "application": "edit_queued",
+        "sourceLinkRecorded": true
+      }
+    }
+  ]
+}
