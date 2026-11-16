@@ -78,3 +78,18 @@ test('unsupported or uncertain procedure findings remain visible without enablin
   assert.match(r.text(),/needs a capability or method review/);assert.ok(r.queryByText('Why this needs review'));assert.equal(r.queryByText('Review agent update'),null);
  }
 });
+
+
+test('a supported Higgsfield tool suggestion opens normal owner review without enabling or queuing it',async t=>{
+ const calls:any[]=[];
+ const note='Add optional Higgsfield image-to-video before Build while retaining the VEED method.';
+ const r=await render('../training/[slug]/training-operating-changes.tsx',props,{fetch:(async(url:string,init:any={})=>{
+  calls.push(init);const p:any=page();Object.assign(p.analyses[0].result.operatingGap,{kind:'tool',capability:'higgsfield_image_to_video',genericDelta:note});
+  return {ok:true,json:async()=>p};
+ }) as typeof fetch});t.after(()=>r.cleanup());await r.act(async()=>{});
+ assert.match(r.text(),/Review this proposed setup change/);
+ assert.doesNotMatch(r.text(),/This needs a tool and method review/);
+ await r.click(r.getByText('Review agent update'));
+ assert.equal(r.document.querySelector('textarea')!.value,note);
+ assert.equal(calls.some(c=>c.method==='POST'),false,'review alone neither changes the agent nor grants tool access');
+});

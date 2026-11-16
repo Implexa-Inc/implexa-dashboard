@@ -17,6 +17,10 @@ test('recording capability suggestion stays separate from teaching and requires 
  assert.equal(recordingAgentSuggestion(proposal,expected),true);
  const background={...proposal,capability:'presenter_background_removal'};
  assert.equal(recordingAgentSuggestion(background,expected,'presenter_background_removal'),true);
+ const imageVideo={...proposal,capability:'higgsfield_image_to_video'};
+ assert.equal(recordingAgentSuggestion(imageVideo,expected,'higgsfield_image_to_video'),true);
+ assert.equal(recordingAgentSuggestion(imageVideo,expected,'presenter_background_removal'),false,'Higgsfield does not replace the selected VEED method');
+ assert.equal(recordingAgentSuggestion(background,expected,'higgsfield_image_to_video'),false,'VEED is not evidence for an image-to-video demonstration');
  assert.equal(recordingAgentSuggestion(background,expected),false,'another capability cannot replace the selected research proposal');
  assert.equal(recordingAgentSuggestion(proposal,expected,'presenter_background_removal'),false,'research cannot masquerade as the selected VEED proposal');
  for(const patch of [{capability:'higgsfield'},{application:'applied'},{methodSelection:'ranked_top'},{fields:value.fields},

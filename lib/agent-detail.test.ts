@@ -293,3 +293,20 @@ test('author panel fact accepts only literal booleans and unreadable ownership s
   assert.equal(out.status, 'ready');
   if (out.status === 'ready') assert.equal(out.detail.canInspectOwnLearningInfluence, null);
 });
+
+
+test('a version-bound optional CLI declaration stays visible without implying account readiness', () => {
+  const plan = { contractVersion: 'agent-tool-execution.v1', tools: [
+    { stepOrder: 4, tool: 'Higgsfield', access: 'local_tool', requiredness: 'optional', fallbacks: ['Continue with available media.'] },
+    { stepOrder: 5, tool: 'Veed', access: 'browser_login', requiredness: 'optional', fallbacks: ['Keep the original background.'] },
+  ] };
+  const base = { ok: true, workflowVersionId: 'selected-version', executionToolPlan: plan };
+  const c = mapActivationChecklist(base, 'video')!;
+  assert.deepEqual(c.localToolDeclarations, [{ id: 'declared-step-4', kind: 'declared_local_tool', label: 'Higgsfield', required: false }]);
+  assert.equal(c.machineTools, null);
+  assert.equal(c.readyToRun, undefined);
+  assert.deepEqual(mapActivationChecklist({ ...base, workflowVersionId: undefined }, 'video')?.localToolDeclarations, []);
+  for (const patch of [{ access: 'mcp' }, { requiredness: 'optional', fallbacks: [] }, { tool: '' }]) {
+    assert.deepEqual(mapActivationChecklist({ ...base, executionToolPlan: { ...plan, tools: [{ ...plan.tools[0], ...patch }] } }, 'video')?.localToolDeclarations, []);
+  }
+});

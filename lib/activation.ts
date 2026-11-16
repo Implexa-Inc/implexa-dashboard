@@ -171,6 +171,8 @@ export type ActivationChecklist = {
   /** Signed, secret-free marketplace authority disclosure. */
   executionRequirements?: MarketplaceExecutionRequirements | null;
   machineTools?: AgentMachineTools | null;
+  /** Display-only local-tool declarations from the same selected version. */
+  localToolDeclarations?: AgentMachineTools['requirements'];
   /** Catalog source, threaded to the setup card / run command. */
   source?: string;
   canActivate: boolean;

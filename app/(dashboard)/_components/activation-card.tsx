@@ -958,8 +958,8 @@ export function ActivationCard({
       <div className="mt-4">
         <ActivationRequirements req={checklist.requirements} slug={checklist.slug} target={setupTarget} onChanged={() => router.refresh()} />
       </div>
-      {!!checklist.machineTools?.requirements.length && <div className="mt-4">
-        <DeclaredMachineTools tools={checklist.machineTools} />
+      {(!!checklist.machineTools?.requirements.length || !!checklist.localToolDeclarations?.length) && <div className="mt-4">
+        <DeclaredMachineTools tools={checklist.machineTools} declarations={checklist.localToolDeclarations} />
       </div>}
 
       {/* Capabilities with NO viable tool (server-derived from capability_setup).
