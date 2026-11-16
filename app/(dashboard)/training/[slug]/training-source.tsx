@@ -7,6 +7,7 @@ import {useRouter} from 'next/navigation';
 import PublisherTeachingRelease,{GuidedPublicationReview} from './publisher-teaching-release';
 import TrainingChat,{type TrainingChatRequest} from './training-chat';
 import TrainingOpportunities from './training-opportunities';
+import TrainingOperatingChanges from './training-operating-changes';
 import CustomerTrainingInbox from './customer-training-inbox';
 import TrainingChanges,{TrainingRunPanel,trainingTextSelectable} from './training-changes';
 import AgentActions from '../../_components/agent-actions';
@@ -259,6 +260,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
   const [selected, setSelected] = useState<Source | null>(null);
   const [busy, setBusy] = useState('');
+  const [operatingRefresh,setOperatingRefresh]=useState(0);
   const [changes,setChanges]=useState<GuidedTrainingChanges|null>(null),[changesError,setChangesError]=useState('');
   const [changesBusy,setChangesBusy]=useState(false),[chatRequest,setChatRequest]=useState<TrainingChatRequest|null>(null);
   const [publicationReviewOpen,setPublicationReviewOpen]=useState(false);
@@ -899,13 +901,13 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       let progress=extractionProgress.current.get(fingerprint);if(!progress){progress=extractionProgressFor(window.localStorage,`${ownerId}:${id}:${version}`,fingerprint);extractionProgress.current.set(fingerprint,progress);}
       if(newDraftRequest&&(newDraftRequest.fingerprint!==fingerprint||!directDraftRetryIsCurrent))throw Error('The note changed. Review the current example before retrying.');
       let result;
-      try{result=await extractFeedbackTeaching({source,timeMs:frameTime,rawAnnotation,versionId:version,retentionUntil:retention,progress,newDraftRequest,checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress!),
+      try{result=await extractFeedbackTeaching({source,timeMs:frameTime,rawAnnotation,versionId:version,retentionUntil:retention,progress,newDraftRequest,analyzeSetup:true,checkpoint:()=>checkpointExtraction(window.localStorage,`${ownerId}:${id}:${version}`,progress!),
         call:async(operation,args)=>await call(operation,args),check:async()=>{const scoped=await requireCurrentScope(id);if(scoped.agent.currentVersionId!==version)throw Error('The agent changed. Your draft is preserved.');},
         send:async(operation,body,key)=>{const response=await fetch(`/api/agent-training/teaching-suggestion?${new URLSearchParams({sessionId:id,...(operation==='annotation'?{operation:'annotation'}:{})})}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(body)});const value=await response.json();return value;}});
       }catch(error){
         if(progress.suggestionStarted&&progress.annotation&&!progress.suggestion&&!progress.record&&!progress.linked)setDirectDraftRetry({fingerprint,sessionId:id,versionId:version,sourceId:source.sourceId,timeMs:frameTime,rawAnnotation,request:retryFeedbackDraft(progress,fingerprint)});
         throw error;
-      }
+      }finally{setOperatingRefresh(value=>value+1);}
       setDirectDraftRetry(null);
       if(result.status==='held'){setHeldExtractions(previous=>[...previous.filter(item=>item.key!==fingerprint),{key:fingerprint,text:directNote,reason:result.reason}]);setExtractionNote('This lesson needs clarification. Your original feedback is saved.');}
       else{setHeldExtractions(previous=>previous.filter(item=>item.key!==fingerprint));setDemoText('');setDirectNote('');setReopenedFeedback(null);setExtractionNote('Your proposed lesson is ready to review. Nothing is live yet.');selectTrainingStep(2);}
@@ -1582,6 +1584,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&trainingStep===3&&applyNote&&<p role="status" className="text-sm text-ink-300">{applyNote}</p>}
     {!installationId&&changesError&&trainingStep!==2&&<p role="alert" className="text-sm text-amber-300">{changesError.replaceAll('_',' ')}</p>}
     {!installationId&&extractionNote&&<div role="status" className="flex flex-wrap items-center gap-3 text-sm text-ink-300"><p>{extractionNote}</p>{busy==='Finding the lessons in your feedback'?<button type="button" className="text-xs underline" onClick={()=>{extractionCancel.current=true;}}>Pause after this step</button>:lastFeedbackBatch&&<button type="button" className="text-xs underline" onClick={()=>void extractRecordingFeedback(lastFeedbackBatch)}>Resume extraction</button>}</div>}
+    {!installationId&&session&&sessionVersion===currentVersion&&currentVersion&&<TrainingOperatingChanges key={`${ownerId}:${session}:${currentVersion}`} sessionId={session} versionId={currentVersion} slug={slug} refreshKey={operatingRefresh} disabled={!!busy||changesBusy||versionChanged||runContext?.revisePending===true||!runContext||runContext.statusUnavailable===true}/>}
     <div hidden={!installationId&&trainingStep!==1} className="space-y-7">
     {!installationId&&<><h2 className="text-xl font-medium tracking-tight">Ways to train</h2>{questionsError&&<div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-ink-400"><p>Training suggestions couldn’t load.</p><button type="button" disabled={questionsBusy||!!busy} onClick={()=>void loadQuestions()} className="underline">Retry training suggestions</button></div>}<CustomerTrainingInbox slug={slug} ownerId={ownerId||''} sessionId={sessionVersion===currentVersion?session:null} versionId={currentVersion} disabled={!!busy||changesBusy||versionChanged} onStart={()=>startPrivateTraining(false)} onSaved={()=>{void loadChanges();selectTrainingStep(2);}} onOwnExample={()=>{selectTrainingStep(1);setView('teach');}}/><TrainingOpportunities key={`${ownerId}:${slug}`} runs={recentRuns} pendingCount={unappliedCount} onReview={()=>selectTrainingStep(2)} questions={questions} sessionId={sessionVersion===currentVersion?session:null} versionId={currentVersion} disabled={!!busy||changesBusy||versionChanged} onStart={()=>startPrivateTraining(false)} onSaved={()=>{void loadChanges();void loadQuestions();selectTrainingStep(2);}}/>
     <section className="space-y-2 border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Chat with Implexa</h3><p className="text-sm text-ink-400">Teach a preference, ask a question or change how your agent works.</p><button id="training-chat-toggle" type="button" aria-expanded={chatExpanded} aria-controls="training-companion" disabled={!!busy} onClick={()=>chatExpanded?setChatExpanded(false):focusChat()} className="rounded-lg border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-ink-500">✦ {chatExpanded?'Close chat':'Chat with Implexa'}</button></section></>}
@@ -1592,7 +1595,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <TrainingImagePlayer key={`${selected.sourceId}:${time}:${reopenedFeedbackIsCurrent?reopenedFeedback?.fingerprint:'new'}`} initialSpatial={reopenedFeedbackIsCurrent?reopenedFeedback?.spatial||null:null} ownerId={ownerId||''} sourceId={selected.sourceId} image={preview.image} timeMs={time} text={directNote} onVoiceDirtyChange={setDirectVoiceDirty} disabled={!!busy||changesBusy||versionChanged}
         onChange={(text,spatial)=>{setDirectNote(text);setDemoText(text.trim()||spatial?JSON.stringify({role:'trainer_commentary',sourceKind:'upload',sourceId:selected.sourceId,timeMs:time,spatial,feedback:text}):'');}}
         onDone={()=>setDirectExtractionRequested(true)}/>
-      {directDraftRetryIsCurrent&&<button type="button" className="text-sm text-orange-400 underline" disabled={!!busy||suggesting||changesBusy||versionChanged} onClick={()=>setFeedbackRetry('direct')}>Request another draft</button>}
+      {directDraftRetryIsCurrent&&<button type="button" className="text-sm text-orange-400 underline" disabled={!!busy||suggesting||changesBusy||versionChanged} onClick={()=>setFeedbackRetry('direct')}>Review or retry analysis</button>}
       {playbackFallback&&<p role="status" className="text-xs text-ink-400">{playbackFallback}</p>}
       {selected.metadata.durationMs>0&&<details className="text-xs text-ink-400"><summary className="cursor-pointer">Choose a different frame</summary><input aria-label="Training video frame" className="mt-3 w-full" type="range" min="0" max={selected.metadata.durationMs-1} value={time} disabled={!!busy||directVoiceDirty||!!directNote.trim()} onChange={event=>changeTime(Number(event.target.value))}/><button type="button" disabled={!!busy||directVoiceDirty||!!directNote.trim()} onClick={()=>void showPreview()}>Open this frame</button></details>}
     </>}
@@ -1643,15 +1646,15 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <button type="button" disabled={!!busy||suggesting||!!pendingDemoLink} onClick={discardFeedbackSuggestion}>Discard this suggestion</button>
       {pendingDemoLink&&<button type="button" disabled={!!busy} onClick={()=>work('Linking your feedback',()=>linkDemoAnnotation(pendingDemoLink))}>Retry feedback link</button>}
     </section>}
-    <Modal open={feedbackRetry!==null} onClose={()=>setFeedbackRetry(null)} title={feedbackRetry==='direct'?'Request another draft?':'Retry this teaching suggestion?'}>
-      <p>{feedbackRetry==='direct'?'The previous analysis did not return a confirmed draft. It may have reached the AI. This sends the same saved note and frame again to request a new suggestion; it does not apply training.':'The selected frame and your saved feedback will be sent again to Anthropic Claude Haiku 5.5.'}</p>
+    <Modal open={feedbackRetry!==null} onClose={()=>setFeedbackRetry(null)} title={feedbackRetry==='direct'?'Review or retry analysis?':'Retry this teaching suggestion?'}>
+      <p>{feedbackRetry==='direct'?'Implexa first checks the saved analysis. Only a confirmed failed attempt can start a new analysis. Your note, frame and agent setup may be sent to Claude again; nothing is applied.':'The selected frame and your saved feedback will be sent again to Anthropic Claude Haiku 5.5.'}</p>
       <button type="button" disabled={!!busy||suggesting||versionChanged||(feedbackRetry==='direct'?!directDraftRetryIsCurrent:!demoAnnotationIsCurrent)} onClick={()=>{
         setFeedbackRetry(null);
         if(feedbackRetry==='direct'){if(directDraftRetry&&directDraftRetryIsCurrent)void extractDirectFeedback(directDraftRetry.request);}
         else{setDraftConsent(true);void suggestTeaching(true);}
-      }}>{feedbackRetry==='direct'?'Request another draft':'Retry suggestion'}</button>
+      }}>{feedbackRetry==='direct'?'Review or retry analysis':'Retry suggestion'}</button>
     </Modal>
-    <Modal open={directExtractionRequested} onClose={()=>setDirectExtractionRequested(false)} title="Find the lesson in this example?"><p className="text-sm leading-6 text-ink-300">Implexa will use your note and this frame to suggest reusable training. You can edit or skip it before applying.</p><TrainingInfo label="What this analysis shares">{OWNER_SOURCE_CONSENT} Your note, region and this frame go to Claude Haiku 5.5. The video's narration is not used as your instruction.</TrainingInfo><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void extractDirectFeedback()}>Extract training</button></Modal>
+    <Modal open={directExtractionRequested} onClose={()=>setDirectExtractionRequested(false)} title="Find training and agent improvements?"><p className="text-sm leading-6 text-ink-300">Implexa will use your feedback to suggest training and identify any needed step or tool changes. Review each before applying.</p><TrainingInfo label="What this analysis shares">{OWNER_SOURCE_CONSENT} Your note, region, this frame and the agent’s current steps and attached methods go to Claude Haiku 5.5 in one analysis. Your training examples remain separate from proposed setup changes. The video's narration is not used as your instruction.</TrainingInfo><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void extractDirectFeedback()}>Extract training</button></Modal>
     <Modal open={!!batchFeedbackRequest} onClose={()=>setBatchFeedbackRequest(null)} title="Find the lessons in your feedback?">
       <p className="text-sm leading-6 text-ink-300">Implexa will turn your {batchFeedbackRequest?.moments.length||0} saved note{batchFeedbackRequest?.moments.length===1?'':'s'} and their frames into proposed training. You can edit or skip each lesson.</p>
       <TrainingInfo label="What analysis shares">{OWNER_SOURCE_CONSENT} Only your notes and the frame for each note go to Claude Haiku 5.5. The source video’s narration is not used as your instruction. Drafting does not make training live.</TrainingInfo>

@@ -1,9 +1,9 @@
 import {buildSpatialAnchor,anchorError,INTENT_CHANGE} from './review-anchor.ts';
 import type {DraftSpatial} from './review-timestamp-feedback.ts';
-import {demoAnnotationReceipt,scopedTeachingSuggestion,teachingDigest,teachingFrame,type DemoAnnotation,type ScopedTeachingSuggestion} from './training-teaching-draft.ts';
+import {demoAnnotationReceipt,scopedTeachingSuggestion,teachingDigest,teachingFrame,type DemoAnnotation,type ScopedTeachingSuggestion,annotationAnalysis,analysisRequestReceipt,type AnnotationAnalysis,type AnalysisRequestReceipt} from './training-teaching-draft.ts';
 import {deriveTrainingStages,TRAINING_PROPERTY_CODES,TRAINING_RELATIONS,type TrainingPropertyCode} from './training-local-ingress.ts';
 
-export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion;record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string};
+export type FeedbackExtractionProgress={key:string;fingerprint?:string;annotation?:DemoAnnotation;suggestion?:ScopedTeachingSuggestion|AnnotationAnalysis;analysisRequest?:AnalysisRequestReceipt;analysisOutcome?:'pending'|'failed';record?:{recordId:string;recordDigest:string};linked?:boolean;suggestionStarted?:boolean;draftingRetries?:number;priorDraftOutcome?:'unconfirmed';retentionUntil?:string};
 type Source={sourceId:string;token:string;metadata:{sha256:string;durationMs:number}};
 type Reply={ok:boolean;[key:string]:any};
 type Send=(operation:'annotation'|'suggestion',body:unknown,key?:string)=>Promise<Reply>;
@@ -78,9 +78,9 @@ export function extractionFailure(value:Reply):string{
 /** Compose existing annotation, suggestion, native draft and link writers in order.
  * No acceptance occurs here. Progress survives a failed link so retry reuses its draft.
  */
-export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId,retentionUntil,progress,call,send,check,newDraftRequest,checkpoint=()=>{}}:{
+export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versionId,retentionUntil,progress,call,send,check,newDraftRequest,analyzeSetup=false,checkpoint=()=>{}}:{
   source:Source;timeMs:number;rawAnnotation:string;versionId:string;retentionUntil:string;progress:FeedbackExtractionProgress;
-  call:(operation:string,args:unknown)=>Promise<Reply>;send:Send;check:()=>Promise<void>;newDraftRequest?:FeedbackDraftRequest;checkpoint?:()=>void;
+  call:(operation:string,args:unknown)=>Promise<Reply>;send:Send;check:()=>Promise<void>;newDraftRequest?:FeedbackDraftRequest;analyzeSetup?:boolean;checkpoint?:()=>void;
 }){
   if(!rawAnnotation.trim()||rawAnnotation.length>2000)throw Error('This note is too long for one teaching. Split it into shorter notes; the original stays saved.');
   await check();
@@ -101,7 +101,7 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
   const binding={sourceId:source.sourceId,sourceSha256:source.metadata.sha256,timeMs:frameTime,frameSha256,annotationId:annotation.annotationId,annotationDigest:annotation.annotationDigest,expectedActiveVersionId:versionId,feedbackSha256:await teachingDigest(new TextEncoder().encode(rawAnnotation))};
   if(!progress.suggestion){
     const interrupted=progress.suggestionStarted===true;
-    if(interrupted&&(!newDraftRequest||newDraftRequest.key!==progress.key||newDraftRequest.fingerprint!==progress.fingerprint
+    if(!analyzeSetup&&interrupted&&(!newDraftRequest||newDraftRequest.key!==progress.key||newDraftRequest.fingerprint!==progress.fingerprint
       ||newDraftRequest.annotationId!==annotation.annotationId||newDraftRequest.annotationDigest!==annotation.annotationDigest
       ||progress.record||progress.linked))
       throw Error('This extraction was interrupted while drafting. Your note is saved. Review any existing draft before requesting another suggestion.');
@@ -110,13 +110,19 @@ export async function extractFeedbackTeaching({source,timeMs,rawAnnotation,versi
     progress.suggestionStarted=true;
     if(interrupted){progress.draftingRetries=(progress.draftingRetries||0)+1;progress.priorDraftOutcome='unconfirmed';}
     try{checkpoint();}catch(error){Object.assign(progress,previous);throw error;}
-    const value=await send('suggestion',{...wire,mode:'demonstration',includeScope:true,image:preview.image,consent:true});
+    const retryOf=analyzeSetup&&newDraftRequest&&progress.analysisOutcome==='failed'&&progress.analysisRequest
+      ?{requestEventId:progress.analysisRequest.requestEventId,requestDigest:progress.analysisRequest.requestDigest}:null;
+    const value=await send('suggestion',{...wire,mode:'demonstration',includeScope:true,image:preview.image,consent:true,
+      ...(analyzeSetup?{analysis:{contractVersion:'training-annotation-analysis-request.v1',consentVersion:'training-annotation-taste-and-setup.v1',retryOf}}:{})});
+    if(analyzeSetup&&analysisRequestReceipt(value.analysisRequest)){progress.analysisRequest=value.analysisRequest;progress.analysisOutcome=value.reason==='annotation_analysis_pending'?'pending':'failed';checkpoint();}
     if(!value.ok){if(value.reason==='teaching_suggestion_rate_limited'){progress.suggestionStarted=false;checkpoint();}throw Error(extractionFailure(value));}
-    if(!scopedTeachingSuggestion(value,binding))throw Error('The proposed teaching did not match this note and frame.');
-    progress.suggestion=value;progress.suggestionStarted=false;checkpoint();
+    if(analyzeSetup){if(!annotationAnalysis(value,binding))throw Error('The proposed teaching did not match this note and frame.');}
+    else if(!scopedTeachingSuggestion(value,binding))throw Error('The proposed teaching did not match this note and frame.');
+    progress.suggestion=value as ScopedTeachingSuggestion|AnnotationAnalysis;progress.suggestionStarted=false;checkpoint();
   }
   const suggestion=progress.suggestion;
-  if(!scopedTeachingSuggestion(suggestion,binding))throw Error('The saved suggestion no longer matches this note and frame.');
+  if(!suggestion)throw Error('The saved suggestion is missing.');
+  if(!(suggestion.contractVersion==='training-teaching-suggestion.v7'?annotationAnalysis(suggestion,binding):scopedTeachingSuggestion(suggestion,binding)))throw Error('The saved suggestion no longer matches this note and frame.');
   if(suggestion.status==='insufficient'||!suggestion.fields||!suggestion.scopeSuggestion)return {status:'held' as const,reason:suggestion.reason||'Review the category and example type before saving this teaching.',suggestion,image:preview.image};
   const scope=suggestion.scopeSuggestion;
   if(!TRAINING_PROPERTY_CODES.includes(scope.property as any)||!TRAINING_RELATIONS.includes(scope.relation as any))throw Error('The proposed teaching scope is unsupported.');

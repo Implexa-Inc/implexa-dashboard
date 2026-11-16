@@ -16,13 +16,14 @@
  * self-contained collapsed/expand card (kept for any other embedding).
  */
 
+import {teachingDigest} from '@/lib/training-teaching-draft';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { canSubmitAgentRevision, confirmedAgentRevisionRequestId } from '@/lib/run-request-receipt';
 
 type State = 'idle' | 'sending' | 'queued' | 'error';
 
-export default function ImproveAgent({ slug, bare = false, statusUnavailable = false, revisePending = false, initialNote='', trainingChatBinding }: { slug: string; bare?: boolean; statusUnavailable?: boolean; revisePending?: boolean;initialNote?:string;trainingChatBinding?:{sessionId:string;turnId:string;expectedActiveVersionId:string} }) {
+export default function ImproveAgent({ slug, bare = false, statusUnavailable = false, revisePending = false, initialNote='', trainingChatBinding, annotationBinding, onQueued }: { slug: string; bare?: boolean; statusUnavailable?: boolean; revisePending?: boolean;initialNote?:string;trainingChatBinding?:{sessionId:string;turnId:string;expectedActiveVersionId:string};annotationBinding?:{sessionId:string;analysisResultEventId:string;analysisResultDigest:string;expectedActiveVersionId:string;stepOrder:number;stepDigest:string};onQueued?:()=>void }) {
   const router = useRouter();
   const [open, setOpen] = useState(bare);
   const [note, setNote] = useState(initialNote);
@@ -32,22 +33,24 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
 
   async function submit() {
     const text = note.trim();
+    if(annotationBinding&&(trainingChatBinding||text.length>2000||new TextEncoder().encode(text).length>8000)){setState('error');setError('Keep the reviewed change under 2,000 characters.');return;}
     if (!canSubmitAgentRevision({ statusUnavailable, revisionPending: revisePending, busy: state === 'sending', note: text })) return;
     setState('sending'); setError(null);
     try {
-      const res = await fetch(trainingChatBinding?`/api/agent-training/chat-edit?sessionId=${encodeURIComponent(trainingChatBinding.sessionId)}`:'/api/agents/revise', {
+      const {sessionId:annotationSession,...annotationWire}=annotationBinding||{};
+      const res = await fetch(annotationBinding?`/api/agent-training/annotation-gap-edit?sessionId=${encodeURIComponent(annotationSession!)}`:trainingChatBinding?`/api/agent-training/chat-edit?sessionId=${encodeURIComponent(trainingChatBinding.sessionId)}`:'/api/agents/revise', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(trainingChatBinding?{turnId:trainingChatBinding.turnId,expectedActiveVersionId:trainingChatBinding.expectedActiveVersionId,note:text}:{ slug, note: text }),
+        body: JSON.stringify(annotationBinding?{action:'queue',...annotationWire,note:text,noteDigest:await teachingDigest(new TextEncoder().encode(text))}:trainingChatBinding?{turnId:trainingChatBinding.turnId,expectedActiveVersionId:trainingChatBinding.expectedActiveVersionId,note:text}:{ slug, note: text }),
       });
       const data = await res.json().catch(() => null);
-      const requestId = trainingChatBinding&&res.ok&&data?.ok===true&&data.application==='edit_queued'&&typeof data.requestId==='string'&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(data.requestId)?data.requestId:!trainingChatBinding?confirmedAgentRevisionRequestId(res.ok, data):null;
+      const requestId = (trainingChatBinding||annotationBinding)&&res.ok&&data?.ok===true&&data.application==='edit_queued'&&typeof data.requestId==='string'&&/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(data.requestId)?data.requestId:!trainingChatBinding&&!annotationBinding?confirmedAgentRevisionRequestId(res.ok, data):null;
       if (!requestId) throw new Error(data?.error || 'Could not confirm the queued change.');
       setQueuedRequestId(requestId);
       setState('queued');
       // Re-render the agent page behind the modal so the "Rewrite in progress"
       // indicator shows and Run now disables immediately — without a manual reload.
-      router.refresh();
+      router.refresh();onQueued?.();
     } catch (e) {
       setState('error');
       setError(e instanceof Error ? e.message : 'Could not queue the change.');
@@ -79,7 +82,7 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
           <div>
             <h2 className="text-base font-semibold text-ink-50">Edit this agent</h2>
             <p className="text-xs text-ink-400 mt-0.5 leading-snug">
-              Tell it what to change — in plain words. It rewrites the steps into a new version (the original is kept).
+              {annotationBinding?'Review the proposed setup change. Only this text will be used to update the agent.':'Tell it what to change — in plain words. It rewrites the steps into a new version (the original is kept).'}
             </p>
           </div>
           {!open && (
@@ -89,7 +92,7 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
       )}
       {bare && (
         <p className="text-xs text-ink-400 leading-snug mb-3">
-          Tell it what to change — in plain words. It rewrites the steps into a new version (the original is kept).
+          {annotationBinding?'Review the proposed setup change. Only this text will be used to update the agent.':'Tell it what to change — in plain words. It rewrites the steps into a new version (the original is kept).'}
         </p>
       )}
 
@@ -100,6 +103,7 @@ export default function ImproveAgent({ slug, bare = false, statusUnavailable = f
             onChange={(e) => setNote(e.target.value)}
             onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submit(); }}
             rows={3}
+            maxLength={annotationBinding?2000:undefined}
             autoFocus
             placeholder="e.g. add a final step that posts the result to Instagram · make the research cover the last 30 days · also email me a summary"
             disabled={statusUnavailable || revisePending}

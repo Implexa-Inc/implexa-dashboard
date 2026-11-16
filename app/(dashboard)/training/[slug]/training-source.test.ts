@@ -2803,7 +2803,7 @@ test('delayed Apply and saved-change reads cannot overwrite a newer session or v
  }
 });
 
-test('an interrupted uploaded-note analysis offers an explicit new draft without silently repeating it',async()=>{
+test('an interrupted uploaded-note analysis reconciles the durable result and retries only its confirmed failure',async()=>{
  const h=harness({previewImage:VALID_FRAME}),requests:any[]=[],r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
  Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
  const prior=r.window.fetch;let raw='',drafts=0;
@@ -2813,8 +2813,11 @@ test('an interrupted uploaded-note analysis offers an explicit new draft without
   if(b.action==='save'){raw=b.rawAnnotation;const {action,expectedActiveVersionId,...annotation}=b;return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-annotation.v1',annotationId:QUESTION,annotationDigest:DIGEST,annotation:{contractVersion:'training-demo-annotation.v1',...annotation,targetVersionId:expectedActiveVersionId}})};}
   if(b.action==='link')return {ok:true,json:async()=>({ok:true,contractVersion:'training-demo-link.v1',annotationId:b.annotationId,annotationDigest:b.annotationDigest,recordId:b.recordId,recordDigest:b.expectedRecordDigest,linkReceiptId:QUESTION})};
   if(++drafts===1)throw Error('response lost');
-  const {mode,image,consent,includeScope,...binding}=b;
-  return {ok:true,json:async()=>({ok:true,contractVersion:'training-teaching-suggestion.v6',requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',scopeSuggestion:{property:'layout_variety',relation:'accepted'},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
+  const {mode,image,consent,includeScope,analysis,...binding}=b;
+  assert.equal(analysis.consentVersion,'training-annotation-taste-and-setup.v1');
+  if(drafts===2){assert.equal(analysis.retryOf,null);return {ok:false,json:async()=>({ok:false,unavailable:true,reason:'provider_timeout',analysisRequest:{requestEventId:QUESTION,requestDigest:DIGEST,attemptOrdinal:1}})};}
+  assert.deepEqual(analysis.retryOf,{requestEventId:QUESTION,requestDigest:DIGEST});
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-teaching-suggestion.v7',operatingGap:null,analysisReceipt:{requestEventId:QUESTION,requestDigest:DIGEST,resultEventId:QUESTION,resultDigest:DIGEST,attemptOrdinal:2,setupDigest:DIGEST,setupState:'complete',target:null,usage:{status:'unknown',inputTokens:null,outputTokens:null}},requestId:QUESTION,model:'claude-haiku-5-5',binding:{...binding,feedbackSha256:createHash('sha256').update(raw).digest('hex')},status:'suggested',fields:SUGGESTION_FIELDS,reason:'',scopeSuggestion:{property:'layout_variety',relation:'accepted'},sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'}})};
  }) as typeof fetch;
  const flush=async()=>r.act(async()=>{await new Promise(resolve=>setTimeout(resolve,30));});
  try{
@@ -2829,16 +2832,16 @@ test('an interrupted uploaded-note analysis offers an explicit new draft without
   assert.equal((note as HTMLTextAreaElement).value,'Let the image explain the actual relationship.');
   assert.equal(drafts,1);assert.equal(requests.filter(b=>b.action==='save').length,1,'reopening restores the original note without another annotation writer');
 
-  const retry=()=>Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Request another draft')!;
+  const retry=()=>Array.from(r.document.querySelectorAll('button')).find(b=>b.textContent==='Review or retry analysis')!;
   assert.ok(retry());assert.equal(retry().closest('[hidden]'),null);
-  await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await flush();assert.equal(drafts,1,'ordinary extraction cannot repeat an unknown request');
-  await r.click(retry());const dialog=r.document.querySelector('[role="dialog"][aria-label="Request another draft?"]')!;
-  assert.ok(dialog);assert.equal(dialog.closest('[hidden]'),null);assert.match(dialog.textContent||'',/may have reached the AI/);assert.equal(drafts,1,'opening confirmation sends nothing');
-  const confirm=Array.from(dialog.querySelectorAll('button')).find(b=>b.textContent==='Request another draft')!;
+  await r.click(r.getByText('Done teaching'));await r.click(r.getByText('Extract training'));await flush();assert.equal(drafts,2,'ordinary extraction reconciles the same durable request without a retry predecessor');
+  await r.click(retry());const dialog=r.document.querySelector('[role="dialog"][aria-label="Review or retry analysis?"]')!;
+  assert.ok(dialog);assert.equal(dialog.closest('[hidden]'),null);assert.match(dialog.textContent||'',/first checks the saved analysis/);assert.equal(drafts,2,'opening confirmation sends nothing');
+  const confirm=Array.from(dialog.querySelectorAll('button')).find(b=>b.textContent==='Review or retry analysis')!;
   await setTextarea(r,note,'A different note must not reuse confirmation.');assert.equal((confirm as HTMLButtonElement).disabled,true);
   await setTextarea(r,note,'Let the image explain the actual relationship.');assert.equal((confirm as HTMLButtonElement).disabled,false);
   await r.act(()=>{(confirm as HTMLButtonElement).click();(confirm as HTMLButtonElement).click();});await flush();
-  assert.equal(drafts,2);assert.equal(requests.filter(b=>b.action==='save').length,1,'reuse original annotation');
+  assert.equal(drafts,3);assert.equal(requests.filter(b=>b.action==='save').length,1,'reuse original annotation');
   assert.equal(h.calls.filter(c=>c.operation==='annotate').length,1);assert.equal(h.calls.some(c=>c.operation==='accept'),false);
  }finally{r.cleanup();}
 });

@@ -132,3 +132,19 @@ test('reload discovery uses the real producer journal and exact upload scope wit
  const originalKey=[...values.keys()][0];values.set(originalKey,'not-json');
  const broken=await savedDirectFeedback(storage,{ownerId,sessionId,versionId,sources:[source]});assert.deepEqual(broken.notes,[]);assert.equal(broken.unreadableCount,1);assert.equal(values.get(originalKey),'not-json');
 });
+
+test('ordinary annotation opts into one combined analysis; a procedure-only result survives insufficient taste and replay',async()=>{
+ const progress:FeedbackExtractionProgress={key:id};const calls:any[]=[];
+ const run=()=>extractFeedbackTeaching({source,timeMs:0,rawAnnotation:'Keep the media prompt self-contained in the agent.',versionId:id,retentionUntil:'2027-11-11T00:00:00.000Z',progress,analyzeSetup:true,check:async()=>{},
+  call:async(op)=>{calls.push(op);if(op==='preview')return {ok:true,image};throw Error('No taste draft should be created');},
+  send:async(op,body:any)=>{calls.push({op,body});if(op==='annotation'){const {action,expectedActiveVersionId,...annotation}=body;return {ok:true,contractVersion:'training-demo-annotation.v1',annotationId:id,annotationDigest:sha,annotation:{...annotation,contractVersion:'training-demo-annotation.v1',targetVersionId:expectedActiveVersionId}};}
+   const {mode,includeScope,image,consent,analysis,...binding}=body;
+   assert.deepEqual(analysis,{contractVersion:'training-annotation-analysis-request.v1',consentVersion:'training-annotation-taste-and-setup.v1',retryOf:null});
+   return {ok:true,requestId:id,contractVersion:'training-teaching-suggestion.v7',model:'claude-haiku-5-5',status:'insufficient',fields:null,reason:'A procedure change, rather than a visual preference.',scopeSuggestion:null,binding:{...binding,feedbackSha256:hash('Keep the media prompt self-contained in the agent.')},
+    sources:{chosen:'observed_frame',why:'trainer_preference',process:'transferable_guidance',desiredBehavior:'transferable_guidance'},
+    operatingGap:{status:'suggested',kind:'procedure',stepOrder:4,capability:null,evidenceExcerpt:'Keep the media prompt self-contained',privateRationale:'The step needs prompt authoring.',genericDelta:'Author and review media prompts within the Build step.'},
+    analysisReceipt:{requestEventId:id,requestDigest:sha,resultEventId:record,resultDigest:sha,attemptOrdinal:1,setupDigest:sha,setupState:'complete',target:{stepOrder:4,stepDigest:sha,methods:[]},usage:{status:'observed',inputTokens:500,outputTokens:100}}};}});
+ const result=await run();assert.equal(result.status,'held');assert.equal(result.suggestion.contractVersion,'training-teaching-suggestion.v7');
+ assert.ok('operatingGap' in result.suggestion&&result.suggestion.operatingGap?.genericDelta);await run();
+ assert.equal(calls.filter(c=>c.op==='suggestion').length,1);assert.equal(calls.includes('annotate'),false);assert.equal(progress.linked,undefined);
+});
