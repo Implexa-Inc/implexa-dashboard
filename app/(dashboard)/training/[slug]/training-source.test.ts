@@ -694,7 +694,7 @@ test('an adopted ready active version does not ask the coach to recreate immutab
   });
   try {
     assert.match(rendered.text(), /Earlier training carried forward/);
-    assert.match(rendered.text(), /1 compatible lesson is available to this version/);
+    assert.match(rendered.text(), /1 compatible lesson from an earlier version is available to this version/);
     assert.match(rendered.text(), /You do not need to upload or approve it again/);
     assert.doesNotMatch(rendered.text(), /active version is 22222222 and cannot select those records/i);
     assert.equal(rendered.queryByText('Start successor training session'), null);
