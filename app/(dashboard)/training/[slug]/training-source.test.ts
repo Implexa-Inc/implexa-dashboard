@@ -2842,7 +2842,14 @@ test('an interrupted uploaded-note analysis reconciles the durable result and re
   await setTextarea(r,note,'Let the image explain the actual relationship.');assert.equal((confirm as HTMLButtonElement).disabled,false);
   await r.act(()=>{(confirm as HTMLButtonElement).click();(confirm as HTMLButtonElement).click();});await flush();
   assert.equal(drafts,3);assert.equal(requests.filter(b=>b.action==='save').length,1,'reuse original annotation');
-  assert.equal(h.calls.filter(c=>c.operation==='annotate').length,1);assert.equal(h.calls.some(c=>c.operation==='accept'),false);
+  assert.equal(h.calls.filter(c=>c.operation==='annotate').length,0,'model output remains editable before the immutable save');
+  const review=r.document.querySelector('[aria-label="Review example type"]')!;assert.ok(review);assert.equal(review.closest('[hidden]'),null);
+  const choice=review.querySelector('select')!;assert.equal(choice.value,'accepted');
+  await r.act(()=>{choice.value='rejected';choice.dispatchEvent(new r.window.Event('change',{bubbles:true}));});
+  await r.click(r.getByText('Save teaching draft'));await flush();
+  assert.equal(drafts,3,'owner review reuses the saved analysis without another inference');
+  const writes=h.calls.filter(c=>c.operation==='annotate');assert.equal(writes.length,1);assert.equal(writes[0].args.content.relation,'rejected');
+  assert.equal(h.calls.some(c=>c.operation==='accept'),false);assert.equal(requests.filter(b=>b.action==='link').length,1);
  }finally{r.cleanup();}
 });
 
