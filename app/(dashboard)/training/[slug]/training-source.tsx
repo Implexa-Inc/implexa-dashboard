@@ -31,7 +31,7 @@ import {TrainingEntry,TrainingAttention,TrainingInfo,TrainingImage,TrainingDetai
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MarketplaceSubmission from './marketplace-submission';
 import { answerReceipt, questionGroups, questionOutcomeLabel, questionExcerpt, questionsPage, type QuestionAnswer, type QuestionsPage } from '@/lib/trainer-questions';
-import { teachingDigest, teachingFrame, toolSuggestionFrame, TOOL_FRAME_RECIPE_DIGEST, type ToolFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type AnnotationGapAnalysis, type DemoAnnotation, recordingSuggestion, recordingAgentSuggestion, type RecordingAgentSuggestion, type RecordingAgentCapability, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
+import { teachingDigest, teachingFrame, toolSuggestionFrame, TOOL_FRAME_RECIPE_DIGEST, type ToolFrame, teachingSuggestion, teachingFailure, demoAnnotationReceipt, TEACHING_FIELDS, type TeachingSuggestion, type AnnotationGapAnalysis, type DemoAnnotation, recordingSuggestion, recordingAgentSuggestion, recordingLocatorCapability, type RecordingAgentSuggestion, type RecordingAgentCapability, type RecordingSuggestion, type RecordingFrame, type RecordingExcerpt } from '@/lib/training-teaching-draft';
 
 const TEACHING_SECTION_LABELS = {chosen:'Example-specific details',why:'Judgment',process:'Applies when',desiredBehavior:'Application to new work'} as const;
 import {
@@ -489,7 +489,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [pendingDemoLink, setPendingDemoLink] = useState<{ annotation: DemoAnnotation; sessionId: string; recordId: string; recordDigest: string } | null>(null);
   const [recordingConsent,setRecordingConsent] = useState(false);
   const [agentAnalysisConsent,setAgentAnalysisConsent] = useState(false);
-  const [agentCapability,setAgentCapability] = useState<RecordingAgentCapability>('web_reference_research');
+  const [agentCapability,setAgentCapability] = useState<RecordingAgentCapability|'auto'>('auto');
   const [agentProposal,setAgentProposal] = useState<RecordingAgentSuggestion|null>(null);
   const [agentChangeConfirmed,setAgentChangeConfirmed] = useState(false);
   const [agentChange,setAgentChange] = useState<{requestId:string;status:string;sourceLinkRecorded?:boolean;warning?:string}|null>(null);
@@ -1178,6 +1178,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         segments:local.segments,storyboard:local.storyboard,consent:true,...(agent?{capability:agentCapability}:{})})});
       const value=await response.json();
       if(latestDraft.current!==snapshot)throw Error('The draft changed. The located excerpt was not applied.');
+      const detected=agent?recordingLocatorCapability(value,agentCapability):null;
+      if(agent&&!detected?.ok)throw Error('The demonstrated tool could not be identified. Your recording is saved.');
       if(response.ok && value?.ok===true && value.status==='insufficient' && typeof value.reason==='string' && value.reason.length<=300){setSuggestionNote(value.reason);return;}
       if(!response.ok || value?.ok!==true || value.status!=='located' || typeof value.excerptId!=='string' || !/^[a-f0-9]{64}$/.test(value.excerptDigest||''))throw Error(teachingFailure(value,response.status));
       const e=value.excerpt as RecordingExcerpt,segments=local.segments.slice(e.startIndex,e.endIndex+1);
@@ -1192,7 +1194,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         bytes+=data.length;if(bytes>2*1024*1024)throw Error('The three exact frames exceed the suggestion budget. No draft call was sent.');
         frames.push({timeMs,image,frameSha256:await teachingDigest(data)});
       }
-      const prepared={excerptId:value.excerptId,excerptDigest:value.excerptDigest,excerpt:e,frames,suggestion:null,purpose:agent?'agent' as const:'taste' as const,...(agent?{capability:agentCapability,frameRecipeDigest:TOOL_FRAME_RECIPE_DIGEST}:{})};setRecording(prepared);
+      const prepared={excerptId:value.excerptId,excerptDigest:value.excerptDigest,excerpt:e,frames,suggestion:null,purpose:agent?'agent' as const:'taste' as const,...(agent&&detected?.ok&&detected.capability?{capability:detected.capability,frameRecipeDigest:TOOL_FRAME_RECIPE_DIGEST}:{})};setRecording(prepared);
       await requestRecordingDraft(prepared,snapshot);
     });
   }
@@ -1201,13 +1203,14 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     await work('Drafting from the retained excerpt and frames',async()=>{await requireCurrentScope();await requestRecordingDraft(recording,draftSnapshot);});
   }
   async function queueAgentChange() {
-    if(!agentProposal||!method||method.status!=='active'||!agentChangeConfirmed||agentChange||versionChanged||agentProposal.binding.targetVersionId!==currentVersion)return;
+    const handoff=agentProposal?.methodSelection==='agent_change_required';
+    if(!agentProposal||!handoff&&(!method||method.status!=='active')||!agentChangeConfirmed||agentChange||versionChanged||agentProposal.binding.targetVersionId!==currentVersion)return;
     const proposal=agentProposal;
     await work('Queuing the reviewed agent update',async()=>{
       await requireCurrentScope();
       const response=await fetch(`/api/agent-training/teaching-suggestion?operation=agent-change&sessionId=${encodeURIComponent(session)}`,{
         method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({suggestionId:proposal.suggestionId,
-          suggestionDigest:proposal.suggestionDigest,expectedActiveVersionId:proposal.binding.targetVersionId,consent:true,methodId:method.id,methodDigest:method.contentDigest})});
+          suggestionDigest:proposal.suggestionDigest,expectedActiveVersionId:proposal.binding.targetVersionId,consent:true,methodId:handoff?null:method!.id,methodDigest:handoff?null:method!.contentDigest})});
       const value=await response.json();
       if(!response.ok||value?.ok!==true||!/^[-a-f0-9]{36}$/.test(value.requestId||'')||typeof value.status!=='string')
         throw Error(value?.reason==='recording_method_public_compatibility_required'
@@ -1217,7 +1220,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     });
   }
   async function draftMethod() {
-    if(!agentProposal||agentChange)return;
+    if(!agentProposal||agentChange||agentProposal.methodSelection!=='pending_existing_binder')return;
     const proposal=agentProposal;
     await work('Preparing the baseline operating method',async()=>{
       await requireCurrentScope();
@@ -1644,6 +1647,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
           {agentProposal.limitations.length>0&&<ul>{agentProposal.limitations.map((item,index)=><li key={index}>{item}</li>)}</ul>}
           <p>Private taste is saved and accepted separately above. If you want that teaching on this version, finish its admission before requesting the edit. After the edit lands, use the existing compatible-training adoption action; merely opening a successor session does not activate old teaching.</p>
           <p>Only the generic capability instruction goes to Edit Agent. Your recording, transcript, example identities and taste wording stay out of that request. Normal Edit Agent automatically applies the generated revision after you approve this instruction; it does not show a separate generated-diff approval screen. Review the resulting definition before testing. A queued request is not a new version or proof that the tool was used.</p>
+          {agentProposal.methodSelection==='agent_change_required'?<p>Review this capability update to add the missing Higgsfield step. Your existing VEED method stays in place.</p>:<>
           <p>Prepare a generic operating method for review. Only platform-written capability instructions go to the model; your recording and taste stay separate. The result is a private draft.</p>
           {!agentChange&&<button disabled={!!busy||versionChanged} onClick={draftMethod}>{method?'Refresh reviewed operating method':'Draft baseline operating method'}</button>}
           {method&&<section className="space-y-2"><h4>{method.name} · {method.status} · {method.scope}</h4>
@@ -1651,8 +1655,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
             <details><summary>Review the exact operating method</summary><pre className="whitespace-pre-wrap break-words text-sm">{method.content}</pre></details>
             <Link href={`/skills/${method.slug}`}>Review and activate this operating method</Link>
             <p>After using the existing activation action, refresh here. A public agent also requires the generic method to be publicly available; its private teachings are never included.</p></section>}
-          {!agentChange&&<><label className="flex gap-2"><input type="checkbox" checked={agentChangeConfirmed} onChange={event=>setAgentChangeConfirmed(event.target.checked)} />Request this capability and operating-method update through normal Edit Agent. Preserve the remaining contracts and permissions.</label>
-            <button disabled={!!busy||versionChanged||!agentChangeConfirmed||method?.status!=='active'} onClick={queueAgentChange}>Request this agent update</button>
+          </>}
+          {!agentChange&&<><label className="flex gap-2"><input type="checkbox" checked={agentChangeConfirmed} onChange={event=>setAgentChangeConfirmed(event.target.checked)} />{agentProposal.methodSelection==='agent_change_required'?'Request this capability update through normal Edit Agent. Preserve the existing methods.':'Request this capability and operating-method update through normal Edit Agent. Preserve the remaining contracts and permissions.'}</label>
+            <button disabled={!!busy||versionChanged||!agentChangeConfirmed||agentProposal.methodSelection!=='agent_change_required'&&method?.status!=='active'} onClick={queueAgentChange}>Request this agent update</button>
             <button disabled={!!busy||versionChanged} onClick={()=>{setAgentProposal(null);setRecording(null);setMethod(null);setAgentChangeConfirmed(false);setSuggestionNote('The local proposal was discarded. Its saved evidence and any operating-method draft remain in Training history and the method library.');}}>Discard this tool proposal</button></>}
           {agentChange&&<div role="status"><p>Edit request {shortId(agentChange.requestId)} · {agentChange.status}. The agent update is not yet verified.</p>
             {agentChange.warning&&<p>{agentChange.warning}</p>}<Link href={`/workflows/${slug}?source=generated`}>Review the agent’s edit status</Link></div>}
@@ -1757,7 +1762,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {!installationId&&session&&currentVersion&&<SavedReviewTeaching sessionId={session} versionId={currentVersion} target={savedReviewTarget} onClose={()=>setSavedReviewTarget(null)} onChanged={async()=>{await loadChanges();}} slug={slug}/>}
 
     <Modal open={!!feedbackRequest} onClose={()=>setFeedbackRequest(null)} title="Turn this feedback into a learning?"><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Your exact saved mark, including earlier notes and its region, is kept as the private feedback source. This frame and the complete saved mark, including earlier notes and region coordinates, are sent to Anthropic Claude Haiku 5.5 to suggest a learning. You review it before admission.</p><button type="button" className="btn-primary mt-5" disabled={!!busy||suggesting||versionChanged} onClick={()=>void beginFeedbackLearning()}>Suggest learning</button></Modal>
-    <Modal open={!!narrationRequest} onClose={()=>setNarrationRequest(null)} title={narrationRequest?.purpose==='agent'?"Teach a tool from this recording?":"Find learnings in this recording?"}><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Implexa transcribes on this Mac, then sends the transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5. Typed feedback is not included in narration analysis. The selected excerpt and three frames are used to {narrationRequest?.purpose==='agent'?'suggest a tool and method update':'suggest a learning'}. The selected excerpt and lineage are kept in your private append-only Training history. You review the suggestion before saving or accepting it.</p>{narrationRequest?.purpose==='agent'&&<label className="mt-4 block text-sm">Tool method<select className="mt-2 block w-full rounded border border-ink-700 bg-ink-900 p-2" value={agentCapability} disabled={!!busy||suggesting||!!agentChange} onChange={event=>setAgentCapability(event.target.value as typeof agentCapability)}><option value="web_reference_research">Web reference research</option><option value="presenter_background_removal">VEED presenter background</option><option value="higgsfield_image_to_video">Higgsfield image to video</option></select><span className="mt-2 block text-xs text-ink-400">You'll review the proposal before requesting an agent update. Tool access is connected separately.</span></label>}{narrationRequest?.purpose==='agent'&&!toolFramesSupported&&<p role="status" className="mt-3 text-sm">Update Desktop to analyze demonstrated tools. Taste analysis is still available.</p>}<button type="button" className="btn-primary mt-5" disabled={!!busy||versionChanged||!recordingSupported||!!agentChange||(narrationRequest?.purpose==='agent'&&!toolFramesSupported)} onClick={()=>void beginNarrationAnalysis()}>{narrationRequest?.purpose==='agent'?'Suggest tool update':'Analyze narration'}</button></Modal>
+    <Modal open={!!narrationRequest} onClose={()=>setNarrationRequest(null)} title={narrationRequest?.purpose==='agent'?"Teach a tool from this recording?":"Find learnings in this recording?"}><p className="text-sm leading-6 text-ink-300">{OWNER_SOURCE_CONSENT}</p><p className="mt-4 text-sm leading-6 text-ink-300">Implexa transcribes on this Mac, then sends the transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5. Typed feedback is not included in narration analysis. The selected excerpt and three frames are used to {narrationRequest?.purpose==='agent'?'suggest a tool and method update':'suggest a learning'}. The selected excerpt and lineage are kept in your private append-only Training history. You review the suggestion before saving or accepting it.</p>{narrationRequest?.purpose==='agent'&&<label className="mt-4 block text-sm">Tool method<select className="mt-2 block w-full rounded border border-ink-700 bg-ink-900 p-2" value={agentCapability} disabled={!!busy||suggesting||!!agentChange} onChange={event=>setAgentCapability(event.target.value as typeof agentCapability)}><option value="auto">Detect from this recording</option><option value="web_reference_research">Web reference research</option><option value="presenter_background_removal">VEED presenter background</option><option value="higgsfield_image_to_video">Higgsfield image to video</option></select><span className="mt-2 block text-xs text-ink-400">You'll review the proposal before requesting an agent update. Tool access is connected separately.</span></label>}{narrationRequest?.purpose==='agent'&&!toolFramesSupported&&<p role="status" className="mt-3 text-sm">Update Desktop to analyze demonstrated tools. Taste analysis is still available.</p>}<button type="button" className="btn-primary mt-5" disabled={!!busy||versionChanged||!recordingSupported||!!agentChange||(narrationRequest?.purpose==='agent'&&!toolFramesSupported)} onClick={()=>void beginNarrationAnalysis()}>{narrationRequest?.purpose==='agent'?'Suggest tool update':'Analyze narration'}</button></Modal>
     <Modal open={replaceRecordingOpen} onClose={()=>setReplaceRecordingOpen(false)} title="Leave without saving feedback?"><p>Your unsaved marks stay here if you keep editing.</p><div className="mt-5 flex gap-4"><button type="button" onClick={()=>setReplaceRecordingOpen(false)}>Keep editing</button><button type="button" onClick={()=>{setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(closingRecording?null:pendingRecordingId);setActiveRecordingDetail(null);setRecordingDirty(false);if(!closingRecording)setPendingRecordingId(null);setClosingRecording(false);setReplaceRecordingOpen(false);}}>Discard unsaved changes</button></div></Modal>
     {!installationId&&(historyBusy||historyError)&&<p role="status" className="text-sm text-ink-400">{historyBusy?'Loading earlier training…':historyError}</p>}
     {!installationId&&history&&<section aria-label="Earlier training" className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 className="text-xl font-medium">Learnings</h2>{versionPicker}</header><p className="text-xs text-ink-500">Earlier version · read-only</p>{history.sources.flatMap(source=>source.decisions.map(d=><details key={d.recordId} className="border-b border-ink-800 py-4"><summary className="cursor-pointer text-sm">{['draft','accepted'].includes(d.state)?d.decision.desiredBehavior||d.content.summary:'This teaching is no longer available for use.'}</summary><div className="space-y-3 pt-4 text-sm leading-6 text-ink-400">{source.token&&d.content.derivatives?.[0]?.sha256&&['draft','accepted'].includes(d.state)&&<TrainingImage token={source.token} recordId={d.recordId} recordDigest={d.recordDigest} frameSha256={d.content.derivatives[0].sha256} enabled={!busy} context={`${history.sessionId}:${history.versionId}`} alt="Earlier teaching example"/>}{['draft','accepted'].includes(d.state)&&<p>{d.content.summary}</p>}<p>{d.state} · {relationLabel(d.content.relation)}</p></div></details>))}{!history.sources.length&&<p className="text-sm text-ink-500">No examples were returned for this version.</p>}</section>}
@@ -1943,7 +1948,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         <label className="flex gap-2"><input type="checkbox" checked={agentAnalysisConsent} onChange={event=>setAgentAnalysisConsent(event.target.checked)} />Separately analyze tool use: send this recording’s recognized transcript and 12 storyboard frames to Anthropic Claude Haiku 5.5, then the selected excerpt and three frames, to suggest a capability change. Keep the suggestion and private source link in Training. This does not grant tool access, apply an agent change, or admit a teaching.</label>
         <label className="flex items-center gap-2">Tool method
           <select value={agentCapability} disabled={!!busy||suggesting||!!agentChange} onChange={event=>{setAgentCapability(event.target.value as typeof agentCapability);setAgentProposal(null);setMethod(null);setRecording(null);setAgentChangeConfirmed(false);}}>
-            <option value="web_reference_research">Web reference research</option>
+            <option value="auto">Detect from this recording</option><option value="web_reference_research">Web reference research</option>
             <option value="presenter_background_removal">VEED presenter background</option><option value="higgsfield_image_to_video">Higgsfield image to video</option>
           </select>
         </label>

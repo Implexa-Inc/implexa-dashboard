@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
-import { teachingSuggestion, teachingDigest, teachingFrame, teachingFailure, recordingAgentSuggestion, annotationGapPage, annotationAnalysis, scopedTeachingSuggestion } from './training-teaching-draft.ts';
+import { teachingSuggestion, teachingDigest, teachingFrame, teachingFailure, recordingAgentSuggestion, annotationGapPage, annotationAnalysis, scopedTeachingSuggestion, recordingLocatorCapability } from './training-teaching-draft.ts';
 const binding = { sourceId:'source',sourceSha256:'a'.repeat(64),timeMs:0,frameSha256:'b'.repeat(64),questionReceiptId:'question',
   questionReceiptDigest:'c'.repeat(64),expectedActiveVersionId:'version',feedbackSha256:'d'.repeat(64) };
 const value = { requestId:'11111111-1111-4111-8111-111111111111',ok:true,contractVersion:'training-teaching-suggestion.v2',model:'claude-haiku-5-5',binding,
@@ -19,6 +19,8 @@ test('recording capability suggestion stays separate from teaching and requires 
  assert.equal(recordingAgentSuggestion(background,expected,'presenter_background_removal'),true);
  const imageVideo={...proposal,capability:'higgsfield_image_to_video'};
  assert.equal(recordingAgentSuggestion(imageVideo,expected,'higgsfield_image_to_video'),true);
+ assert.equal(recordingAgentSuggestion({...imageVideo,methodSelection:'agent_change_required'},expected,'higgsfield_image_to_video'),true);
+ assert.equal(recordingAgentSuggestion({...background,methodSelection:'agent_change_required'},expected,'presenter_background_removal'),false,'new-step handoff cannot replace an existing VEED method');
  assert.equal(recordingAgentSuggestion(imageVideo,expected,'presenter_background_removal'),false,'Higgsfield does not replace the selected VEED method');
  assert.equal(recordingAgentSuggestion(background,expected,'higgsfield_image_to_video'),false,'VEED is not evidence for an image-to-video demonstration');
  assert.equal(recordingAgentSuggestion(background,expected),false,'another capability cannot replace the selected research proposal');
@@ -99,4 +101,14 @@ test('actual backend direction producer responses pass the unchanged exact Dashb
  assert.equal(annotationAnalysis({...a,binding:{...a.binding,directionScopeContract:'training-direction-scope.v1'}},a.binding),false,'a producer must not inflate the legacy exact frame binding');
  const downgraded=structuredClone(l);delete downgraded.analyses[0].directionScopeContract;
  assert.equal(annotationGapPage(downgraded,a.binding.expectedActiveVersionId),false,'a scoped result cannot appear as an unqualified general analysis');
+});
+
+
+test('automatic tool location must name a supported capability before the exact draft assessment',()=>{
+ assert.deepEqual(recordingLocatorCapability({status:'located',capability:'higgsfield_image_to_video'},'auto'),{ok:true,capability:'higgsfield_image_to_video'});
+ assert.deepEqual(recordingLocatorCapability({status:'located'},'web_reference_research'),{ok:true,capability:'web_reference_research'},'existing explicit locator keeps its shape');
+ assert.deepEqual(recordingLocatorCapability({status:'insufficient',capability:null},'auto'),{ok:true,capability:null});
+ for(const capability of [undefined,null,'higgsfield','unknown','auto'])assert.deepEqual(recordingLocatorCapability({status:'located',capability},'auto'),{ok:false});
+ assert.deepEqual(recordingLocatorCapability({status:'insufficient',capability:'higgsfield_image_to_video'},'auto'),{ok:false});
+ assert.deepEqual(recordingLocatorCapability({status:'located',capability:'presenter_background_removal'},'higgsfield_image_to_video'),{ok:false});
 });
