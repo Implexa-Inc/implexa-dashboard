@@ -71,3 +71,10 @@ test('incomplete setup remains visible even without a proposed edit and never im
  const calls:any[]=[];const r=await render('../training/[slug]/training-operating-changes.tsx',props,{fetch:(async(url:string,init:any={})=>{calls.push(init);const p:any=page();p.analyses[0].result.operatingGap=null;p.analyses[0].result.analysisReceipt.setupState='incomplete';p.analyses[0].result.analysisReceipt.target=null;p.analyses[0].edit.state='not_applicable';return {ok:true,json:async()=>p};}) as typeof fetch});t.after(()=>r.cleanup());await r.act(async()=>{});
  assert.match(r.text(),/Agent setup couldn’t be checked/);assert.match(r.text(),/No step or tool assessment was possible/);assert.equal(r.queryByText('Review agent update'),null);assert.equal(calls.some(c=>c.method==='POST'),false);
 });
+
+test('unsupported or uncertain procedure findings remain visible without enabling an edit',async t=>{
+ for(const status of ['unsupported','incomplete']){
+  const r=await render('../training/[slug]/training-operating-changes.tsx',props,{fetch:(async()=>{const p:any=page();p.analyses[0].result.operatingGap.status=status;p.analyses[0].result.operatingGap.genericDelta='';p.analyses[0].edit.state='not_applicable';return {ok:true,json:async()=>p};}) as typeof fetch});t.after(()=>r.cleanup());await r.act(async()=>{});
+  assert.match(r.text(),/needs a capability or method review/);assert.ok(r.queryByText('Why this needs review'));assert.equal(r.queryByText('Review agent update'),null);
+ }
+});
