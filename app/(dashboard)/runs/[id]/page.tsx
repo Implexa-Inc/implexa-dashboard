@@ -894,15 +894,15 @@ export default async function RunDetailPage({
   // A submitted/uncertain subscription shot is consequential work, so the
   // no-action retry is inappropriate. Reuse the existing managed Continue CTA;
   // request birth still validates the exact frozen inputs and lineage budget.
-  let hasRetainedCreditOperation = false;
+  let hasRetainedCreditOperation: boolean | null = false;
   if (controlPlaneRetryRequestId && runWorkflowVersionId && !run?.cancel_requested_at) {
     try {
       const { data, error } = await supabase.from('higgsfield_credit_operations')
         .select('id').eq('owner_id', session.user.id)
         .eq('root_request_id', controlPlaneRetryRequestId)
         .in('state', ['submitting', 'uncertain', 'submitted']).limit(1);
-      hasRetainedCreditOperation = !error && !!data?.length;
-    } catch { /* Missing/unreadable evidence never becomes a recovery claim. */ }
+      hasRetainedCreditOperation = error ? null : !!data?.length;
+    } catch { hasRetainedCreditOperation = null; }
   }
   const productionLineage = await loadProductionLineage(r.id, session.access_token);
   // A completed related run must never leave the user with a primary "this run
@@ -1372,8 +1372,10 @@ export default async function RunDetailPage({
             {/* Distinct from "Run again" below: same request, frozen inputs,
                 new fenced generation — and only when the backend proves no work
                 started. The component hides itself for every other failure. */}
-            {controlPlaneRetryRequestId && !supersededByRelated && (
-              hasRetainedCreditOperation
+            {controlPlaneRetryRequestId && !supersededByRelated && !(recovered.recoverable && !recovered.looksComplete) && (
+              hasRetainedCreditOperation === null
+                ? <p role="alert" className="mt-3 text-sm text-ink-400">Saved media could not be checked. <a href={`/runs/${r.id}`} className="underline">Check again</a></p>
+                : hasRetainedCreditOperation
                 ? <PreservedWorkContinuation runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
                 : <ControlPlaneRetry requestId={controlPlaneRetryRequestId} runId={params.id} />
             )}
