@@ -302,6 +302,7 @@ export default async function RunDetailPage({
     if (!frozenError && frozen && typeof frozen.workflow_version_id === 'string') runWorkflowVersionId = frozen.workflow_version_id;
   } catch { /* the backend card still names the version */ }
   let verifiedArtifacts: VerifiedArtifact[] = [];
+  let finalReviewArtifactSha256: string | null = null;
   // The recovery derivation needs identity + integrity (id, sha256, status),
   // which the display list does not carry — ONE projection serves both.
   let recoveryArtifacts: RecoveryArtifactView[] = [];
@@ -310,11 +311,13 @@ export default async function RunDetailPage({
       .select(RUN_ARTIFACT_COLUMNS)
       .eq('run_id', r.id)
       .eq('status', 'validated')
-      .order('validated_at', { ascending: true });
+      .order('validated_at', { ascending: true }).order('id', { ascending: true });
     if (!error && Array.isArray(data)) {
       const projected = projectRunArtifacts(data, artifactRolePriority);
       verifiedArtifacts = projected.verified;
       recoveryArtifacts = projected.recovery;
+      const latestFinal = data.filter(artifact => artifact.role === 'final_output').at(-1);
+      finalReviewArtifactSha256 = typeof latestFinal?.sha256 === 'string' ? latestFinal.sha256 : null;
     }
   } catch { /* Layer 2 is additive; an unavailable table must never break the run page. */ }
 
@@ -692,18 +695,22 @@ export default async function RunDetailPage({
   let judgeRequestStatus: 'pending' | 'consumed' | 'cancelled' | null = null;
   let judgeRequestCreatedAt: string | null = null;
   let failedJudgeRetry: { requestId: string; runId: string } | null = null;
-  if (!judgment && !judgmentReadUnavailable) {
+  if ((!judgment || judgment.verdict === 'uncertain') && !judgmentReadUnavailable) {
     try {
       // Preserve the bounded polling deadline, measuring a recovered review
       // from its successful requeue rather than this request's old birth.
-      const { data: jq, error: requestError } = await supabase.from('run_requests')
+      let activeReviewQuery = supabase.from('run_requests')
         .select('id, status, created_at, bootstrap_retry_epoch').eq('judge_target_run_id', params.id)
-        .in('status', ['pending', 'consumed', 'cancelled']).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        .in('status', ['pending', 'consumed', 'cancelled'])
+        .order('created_at', { ascending: false });
+      if (judgment) activeReviewQuery = activeReviewQuery.neq('status', 'cancelled');
+      if (judgment?.created_at) activeReviewQuery = activeReviewQuery.gt('created_at', judgment.created_at);
+      const { data: jq, error: requestError } = await activeReviewQuery.limit(1).maybeSingle();
       if (requestError) throw new Error('judge_request_unavailable');
       judgmentPending = !!jq;
       judgeRequestStatus = (jq && jq.status) || null;
       judgeRequestCreatedAt = jq && jq.status !== 'cancelled' ? await readJudgeReviewAge(supabase, session.user.id, jq) : (jq?.created_at || null);
-      if (!judgmentPending) {
+      if (!judgmentPending && !judgment) {
         // Preserve the unfiltered active-review read above, including Manager QA.
         // Only an ordinary Judge can expose this retained prelaunch recovery.
         const { data: ordinary, error: ordinaryError } = await supabase.from('run_requests')
@@ -1027,7 +1034,8 @@ export default async function RunDetailPage({
         </section>
 
         {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-amber-300">{creativeGradeNotice}</p>}
-        <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id} />
+        <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
+          finalOutputSha256={finalReviewArtifactSha256} reviewPending={judgmentPending} />
         {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
         {judgmentReadUnavailable && <p className="text-sm text-amber-300">Final review status is unavailable. Refresh to check it again.</p>}
         {failedJudgeRetry && (

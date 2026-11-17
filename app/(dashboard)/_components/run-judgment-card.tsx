@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { JudgeReviewRetry } from './judge-review-retry';
 import { judgeRepairState } from '@/lib/judge-repair-state';
 import JudgeFeedbackControls from './judge-feedback-controls';
 import { ManagerRepairCheckpointRetry } from './manager-repair-checkpoint-retry';
@@ -45,11 +46,13 @@ const STYLE: Record<RunJudgment['verdict'], { label: string; border: string; tex
 };
 
 export function RunJudgmentCard({
-  judgment, repairRequest = null, currentRunId,
+  judgment, repairRequest = null, currentRunId, finalOutputSha256, reviewPending = false,
 }: {
   judgment: RunJudgment | null;
   repairRequest?: JudgeRepairRequest | null;
   currentRunId?: string;
+  finalOutputSha256?: string | null;
+  reviewPending?: boolean;
 }) {
   if (!judgment) return null;
   const scored = judgment.creative_grade?.contractVersion === 'creative-grade.v2';
@@ -85,6 +88,10 @@ export function RunJudgmentCard({
         </div>
         <span className="flex-none text-[10px] uppercase tracking-wide text-ink-500">AI review</span>
       </div>
+
+      {judgment.verdict === 'uncertain' && judgment.id && currentRunId && finalOutputSha256 &&
+        <JudgeReviewRetry key={judgment.id} runId={currentRunId} judgmentId={judgment.id}
+          finalOutputSha256={finalOutputSha256} pending={reviewPending} />}
 
       {judgment.creative_grade && <section aria-label={scored ? 'Quality score' : 'Creative grade'} className="mt-4 rounded-lg border border-ink-700 p-3 space-y-2">
         <h3 className="text-sm font-semibold text-ink-100">{scored
