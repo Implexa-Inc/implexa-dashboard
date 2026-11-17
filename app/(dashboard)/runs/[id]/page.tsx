@@ -692,7 +692,7 @@ export default async function RunDetailPage({
   let judgeRequestStatus: 'pending' | 'consumed' | 'cancelled' | null = null;
   let judgeRequestCreatedAt: string | null = null;
   let failedJudgeRetry: { requestId: string; runId: string } | null = null;
-  if (!judgment && !judgmentReadUnavailable) {
+  if ((!judgment || judgment.verdict === 'uncertain') && !judgmentReadUnavailable) {
     try {
       // Preserve the bounded polling deadline, measuring a recovered review
       // from its successful requeue rather than this request's old birth.
@@ -703,7 +703,7 @@ export default async function RunDetailPage({
       judgmentPending = !!jq;
       judgeRequestStatus = (jq && jq.status) || null;
       judgeRequestCreatedAt = jq && jq.status !== 'cancelled' ? await readJudgeReviewAge(supabase, session.user.id, jq) : (jq?.created_at || null);
-      if (!judgmentPending) {
+      if (!judgmentPending && !judgment) {
         // Preserve the unfiltered active-review read above, including Manager QA.
         // Only an ordinary Judge can expose this retained prelaunch recovery.
         const { data: ordinary, error: ordinaryError } = await supabase.from('run_requests')
@@ -1027,7 +1027,8 @@ export default async function RunDetailPage({
         </section>
 
         {creativeGradeNotice && <p role="status" className="mb-4 text-sm text-amber-300">{creativeGradeNotice}</p>}
-        <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id} />
+        <RunJudgmentCard judgment={judgment} repairRequest={repairRequest} currentRunId={r.id}
+          finalOutputSha256={recoveryArtifacts.find(artifact => artifact.role === 'final_output' && artifact.relative_path === recoveredFinalArtifact?.relativePath)?.sha256} reviewPending={judgmentPending} />
         {judgmentPending && <RunJudgmentPending requestStatus={judgeRequestStatus} createdAt={judgeRequestCreatedAt} />}
         {judgmentReadUnavailable && <p className="text-sm text-amber-300">Final review status is unavailable. Refresh to check it again.</p>}
         {failedJudgeRetry && (
