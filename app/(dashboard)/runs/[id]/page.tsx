@@ -891,6 +891,19 @@ export default async function RunDetailPage({
     requiredTrainingHold = surfaced?.lifecycle_state === 'fallback_blocked'
       && surfaced.needs_attention_reason === 'manager_required_reference_training_missing';
   } catch { /* pre-migration schema or unreadable → no control */ }
+  // A submitted/uncertain subscription shot is consequential work, so the
+  // no-action retry is inappropriate. Reuse the existing managed Continue CTA;
+  // request birth still validates the exact frozen inputs and lineage budget.
+  let hasRetainedCreditOperation: boolean | null = false;
+  if (controlPlaneRetryRequestId && runWorkflowVersionId && !run?.cancel_requested_at) {
+    try {
+      const { data, error } = await supabase.from('higgsfield_credit_operations')
+        .select('id').eq('owner_id', session.user.id)
+        .eq('root_request_id', controlPlaneRetryRequestId)
+        .in('state', ['submitting', 'uncertain', 'submitted']).limit(1);
+      hasRetainedCreditOperation = error ? null : !!data?.length;
+    } catch { hasRetainedCreditOperation = null; }
+  }
   const productionLineage = await loadProductionLineage(r.id, session.access_token);
   // A completed related run must never leave the user with a primary "this run
   // stalled" conclusion. When another run is the authority for this production
@@ -1359,8 +1372,12 @@ export default async function RunDetailPage({
             {/* Distinct from "Run again" below: same request, frozen inputs,
                 new fenced generation — and only when the backend proves no work
                 started. The component hides itself for every other failure. */}
-            {controlPlaneRetryRequestId && !supersededByRelated && (
-              <ControlPlaneRetry requestId={controlPlaneRetryRequestId} runId={params.id} />
+            {controlPlaneRetryRequestId && !supersededByRelated && !(recovered.recoverable && !recovered.looksComplete) && (
+              hasRetainedCreditOperation === null
+                ? <p role="alert" className="mt-3 text-sm text-ink-400">Saved media could not be checked. <a href={`/runs/${r.id}`} className="underline">Check again</a></p>
+                : hasRetainedCreditOperation
+                ? <PreservedWorkContinuation runId={r.id} slug={r.skill_slug} workflowVersionId={runWorkflowVersionId} />
+                : <ControlPlaneRetry requestId={controlPlaneRetryRequestId} runId={params.id} />
             )}
             <div className="mt-4 flex flex-wrap gap-3">
               {/* Restarting a superseded attempt would race the run that is
