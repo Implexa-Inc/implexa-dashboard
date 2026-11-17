@@ -23,3 +23,8 @@ test('old cancelled reviews cannot disable an uncertain result retry',()=>{
  assert.match(page,/if \(judgment\) activeReviewQuery = activeReviewQuery.neq\('status', 'cancelled'\)/);
  assert.match(page,/activeReviewQuery.gt\('created_at', judgment.created_at\)/);
 });
+
+test('a retry which ends before pending is observed releases the local queued state',()=>{
+ assert.match(ui,/setTimeout\(\(\) => \{ setQueued\(false\); router.refresh\(\); \}, 3000\)/);
+ assert.match(ui,/clearTimeout\(timer\)/);
+});

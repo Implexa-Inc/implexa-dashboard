@@ -13,7 +13,14 @@ export function JudgeReviewRetry({ runId, judgmentId, finalOutputSha256, pending
   const [busy, setBusy] = useState(false);
   const [queued, setQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { if (pending) setQueued(false); }, [pending]);
+  useEffect(() => {
+    if (pending) { setQueued(false); return; }
+    if (!queued) return;
+    // A very fast terminal refusal can finish before the refreshed page ever
+    // observes a pending request. Do not leave the button saying queued forever.
+    const timer = setTimeout(() => { setQueued(false); router.refresh(); }, 3000);
+    return () => clearTimeout(timer);
+  }, [pending, queued, router]);
   async function retry() {
     if (busy || pending || queued) return;
     setBusy(true);
