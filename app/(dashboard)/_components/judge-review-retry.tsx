@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { callBackend } from '@/lib/api';
 import { createClient } from '@/lib/supabase/client';
@@ -13,6 +13,7 @@ export function JudgeReviewRetry({ runId, judgmentId, finalOutputSha256, pending
   const [busy, setBusy] = useState(false);
   const [queued, setQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => { if (pending) setQueued(false); }, [pending]);
   async function retry() {
     if (busy || pending || queued) return;
     setBusy(true);
