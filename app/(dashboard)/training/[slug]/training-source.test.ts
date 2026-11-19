@@ -1962,23 +1962,25 @@ test('a confirmed source replacement clears its old draft but preserves the reco
 });
 
 
-const continuityPath=`/api/v2/agent-training/agents/video-craft?scope=run&versionId=${VERSION_A}`;
-function runContinuity(successorAdoption:unknown=null){
- return {ok:true,home:{agent:{currentVersionId:VERSION_A},successorProjection:{contractVersion:'agent-training-successor-projection.v1',activeVersionId:VERSION_A,eligiblePredecessor:null},
-  managerTrainingRequirements:requirements(VERSION_A),...(successorAdoption?{successorAdoption}:{})}};
-}
+const noEarlierTraining={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:null,targetWorkflowVersionId:VERSION_A,
+ eligibleRecordCount:0,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0,readiness:'not_compatible',reason:'training_successor_no_eligible_records'};
 
 test('same-page pending test shows progress, skips duplicate reads and reuses its held preparation',async()=>{
- const h=harness(),posts:any[]=[],changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
+ const h=harness({successorAdoption:noEarlierTraining}),posts:any[]=[],changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
  const preparation=Promise.withResolvers<void>();let reads=0;
  const runContext={slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null};
- const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext},{bridge:h.bridge,backend:path=>path===continuityPath?runContinuity():{ok:true},fetch:(async(url:any,init:any={})=>{
+ const verifiedRead=Promise.withResolvers<void>();
+ let holdNextRead=false;
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
   if(init.method==='POST'){
    posts.push(JSON.parse(init.body));
    if(posts.length===1)await preparation.promise;
    return {ok:true,json:async()=>({ok:true,testPreparationId:SOURCE_ID,preparationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:DIGEST,scope:'private_candidate'})};
   }
-  if(String(url).includes('/changes?'))reads++;
+  if(String(url).includes('/changes?')){
+   reads++;
+   if(holdNextRead){holdNextRead=false;await verifiedRead.promise;}
+  }
   return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
  }) as typeof fetch});
  try{
@@ -1986,14 +1988,19 @@ test('same-page pending test shows progress, skips duplicate reads and reuses it
   assert.equal(r.getByText('Run with new training (pending)').closest('[hidden]'),null,'a reopened workspace can reach the included update');
   assert.equal(posts.length,0,'opening Apply & Test is navigation only');
   const readsBeforeClick=reads;
-  await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,1);assert.equal(r.calls.push.length,0);
+  holdNextRead=true;
+  await r.click(r.getByText('Run with new training (pending)'));
+  assert.equal(posts.length,0,'no preparation writes until the current candidate is confirmed');
+  assert.equal(h.calls.filter(c=>c.operation==='home').length,2,'the native read starts while the candidate refresh is pending');
+  await r.act(async()=>{verifiedRead.resolve();});
+  assert.equal(posts.length,1);assert.equal(r.calls.push.length,0);
   assert.match(r.document.querySelector('[aria-label="Test this update"] [role="status"]')?.textContent||'',/Preparing your test/);
   assert.equal(r.document.querySelector('[role=dialog]'),null);
   await r.act(async()=>{preparation.resolve();});
   const close=r.document.querySelector('[role=dialog] [aria-label=Close]');assert.ok(close);await r.click(close);
   assert.equal(reads-readsBeforeClick,1,'one current snapshot read when carry-forward needs no writes');
-  assert.equal(h.calls.filter(c=>c.operation==='home').length,1,'only the workspace boot reads full history');
   await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,1,'held preparation is reused');
+  assert.equal(h.calls.filter(c=>c.operation==='home').length,2,'the held preparation needs no new continuity read');
   await r.click(r.document.querySelector('[role=dialog] [aria-label=Close]')!);
   Object.assign(changes.test,{status:'failed',scope:'private_candidate',snapshotDigest:DIGEST,requestId:RECORD});
   await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,2,'a failed spent preparation permits a fresh test');
@@ -2001,7 +2008,7 @@ test('same-page pending test shows progress, skips duplicate reads and reuses it
   Object.assign(changes.test,{status:'running'});
   await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,2,'running test never prepares again');assert.match(r.text(),/already queued or running/);
   assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);
- }finally{preparation.resolve();r.cleanup();}
+ }finally{verifiedRead.resolve();preparation.resolve();r.cleanup();}
 });
 
 test('a new Training test carries compatible taste before freezing its fresh snapshot',async()=>{
@@ -2013,7 +2020,7 @@ test('a new Training test carries compatible taste before freezing its fresh sna
   activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
  const runContext={slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null};
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext},{bridge:h.bridge,
-  backend:(path:string)=>{if(path===continuityPath)return runContinuity(proof);if(!path.endsWith('/adopt-successor'))return {ok:true};events.push('carry');changes.binding.snapshotDigest=nextDigest;
+  backend:(path:string)=>{if(!path.endsWith('/adopt-successor'))return {ok:true};events.push('carry');changes.binding.snapshotDigest=nextDigest;
    Object.assign(proof,{readiness:'already_adopted',alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0});
    return {ok:true,contractVersion:'manager-training-successor-adoption.v1',created:true,agentSlug:'video-craft',sourceWorkflowVersionId:VERSION_B,targetWorkflowVersionId:VERSION_A,
     adoptedRecordCount:1,adoptionReceiptIds:[SOURCE_ID],eligibleRouteCount:1,adoptionSetDigest:DIGEST,managerTrainingRequirements:requirements(VERSION_A)};},
@@ -2035,20 +2042,28 @@ test('a new Training test accepts freshly carried optional taste without an adop
   const proof:any={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_B,targetWorkflowVersionId:VERSION_A,
    eligibleRecordCount:1,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:1,eligibleRouteCount:1,readiness:'adoption_available',reason:null};
   const h=harness({successorAdoption:proof}),events:string[]=[];
+  const desktop=h.bridge.trainingLocal;
+  let refresh=false;
   const current=mode==='adopted'?{...proof,readiness:'already_adopted',alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0}
     :{...proof,readiness:'not_compatible',reason:'task_identity_changed',eligibleRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0};
+  h.bridge.trainingLocal=async(op,args)=>{
+   const result=await desktop(op,args);
+   if(op!=='home'||!refresh)return result;
+   if(mode==='unavailable')return {ok:false,reason:'training_unavailable'};
+   return {...result,home:{...result.home,successorAdoption:current}};
+  };
   const changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
-  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext:{slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null}},{bridge:h.bridge,backend:(path:string)=>{if(path===continuityPath)return mode==='unavailable'?{ok:false,reason:'training_unavailable'}:runContinuity(current);if(!path.endsWith('/adopt-successor'))return {ok:true};events.push('carry');throw Error('must not carry');},fetch:(async(url:any,init:any={})=>{
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext:{slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null}},{bridge:h.bridge,backend:(path:string)=>{if(!path.endsWith('/adopt-successor'))return {ok:true};events.push('carry');throw Error('must not carry');},fetch:(async(url:any,init:any={})=>{
    if(init.method==='POST'){events.push('prepare');return {ok:true,json:async()=>({ok:true,testPreparationId:SOURCE_ID,preparationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:DIGEST,scope:'private_candidate'})};}
    return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
   }) as typeof fetch});
-  try{await r.click(r.getByText('Run with new training (pending)'));assert.deepEqual(events,mode==='unavailable'?[]:['prepare']);assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);}finally{r.cleanup();}
+  try{refresh=true;await r.click(r.getByText('Run with new training (pending)'));assert.deepEqual(events,mode==='unavailable'?[]:['prepare']);assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);}finally{r.cleanup();}
  }
 });
 
 test('a lost test-preparation response retries the same intent key rather than creating a new test',async()=>{
  const h=harness({successorAdoption:{contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:null,targetWorkflowVersionId:VERSION_A,eligibleRecordCount:0,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0,readiness:'not_compatible',reason:'training_successor_no_eligible_records'}}),keys:string[]=[],changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null as string|null,snapshotDigest:null as string|null,requestId:null,runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
- const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext:{slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null}},{bridge:h.bridge,backend:path=>path===continuityPath?runContinuity():{ok:true},fetch:(async(url:any,init:any={})=>{
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext:{slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null}},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
   if(init.method==='POST'){keys.push(init.headers['Idempotency-Key']);Object.assign(changes.test,{status:'prepared',scope:'private_candidate',snapshotDigest:DIGEST});if(keys.length===1)throw Error('Response lost after preparation');return {ok:true,json:async()=>({ok:true,testPreparationId:SOURCE_ID,preparationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:DIGEST,scope:'private_candidate'})};}
   return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
  }) as typeof fetch});
