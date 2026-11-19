@@ -1982,6 +1982,9 @@ test('same-page pending test shows progress, skips duplicate reads and reuses it
   return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
  }) as typeof fetch});
  try{
+  await r.click(r.getByText('Open Apply & Test'));
+  assert.equal(r.getByText('Run with new training (pending)').closest('[hidden]'),null,'a reopened workspace can reach the included update');
+  assert.equal(posts.length,0,'opening Apply & Test is navigation only');
   const readsBeforeClick=reads;
   await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,1);assert.equal(r.calls.push.length,0);
   assert.match(r.document.querySelector('[aria-label="Test this update"] [role="status"]')?.textContent||'',/Preparing your test/);
