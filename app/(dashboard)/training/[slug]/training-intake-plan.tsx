@@ -4,6 +4,7 @@ import {useId,useState} from 'react';
 import {UUID} from '@/lib/trainer-questions';
 
 export const INTAKE_CONTRACT = 'training-intake-plan.v1';
+export const METHOD_CONTRACT = 'training-recorded-method.v1';
 const METHOD_LABELS={browser:'Browser',computer_use:'Computer use',desktop_app:'Desktop app',command_line:'Command line',api:'API'};
 type RecordedMethod={access:keyof typeof METHOD_LABELS;website:string|null;tool:string|null;actions:string[]};
 type Change = {kind:'step_change'|'tool_addition';stepOrder:number;instruction:string;toolName:string|null;toolId:string|null;accessModes:string[];method?:RecordedMethod};

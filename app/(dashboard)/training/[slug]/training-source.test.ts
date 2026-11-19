@@ -2570,6 +2570,7 @@ test('upload analysis shows progress, falls back to screenshots, and keeps learn
    const panel=r.document.querySelector('[aria-label="Suggested learning from your recording"]')!;
    assert.match(panel.textContent||'',spoken?/From your narration/:/Inferred from screenshots/);
    assert.deepEqual(requests.map(body=>body.mode),spoken?['recording-locate','recording-draft']:['recording-frames-only']);
+   assert.equal(requests[0].methodContract,'training-recorded-method.v1');
    if(spoken){
     assert.equal(requests[0].intakeContract,'training-intake-plan.v1');
     const plan=r.document.querySelector('[aria-label="Suggested agent changes"]');
