@@ -32,7 +32,7 @@ const pct = (n: number) => `${Math.round(n / (COORD_MAX / 100))}%`;
 const regionLabel = (r: Region) => `${pct(r.width)} × ${pct(r.height)} at (${pct(r.x)}, ${pct(r.y)})`;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 
-export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embedded=false,onAnalyzeNarration,onAnalyzeTool,onUseFeedback,onDoneTeaching,onTrainerNarrationChange,trainerNarration=false,narrationUnavailable,onDirtyChange,onClose,onRecordingLoaded }: { recordingId: string; ownerId:string;trainingSlug?:string;embedded?:boolean;onAnalyzeNarration?:(recordingId:string,momentId:string|null)=>void;onAnalyzeTool?:(recordingId:string,momentId:string|null)=>void;onUseFeedback?:(recordingId:string,moment:Moment)=>void;onDoneTeaching?:(recordingId:string,moments:Moment[])=>void;trainerNarration?:boolean;onTrainerNarrationChange?:(enabled:boolean)=>void;narrationUnavailable?:string;onDirtyChange?:(dirty:boolean)=>void;onClose?:()=>void;onRecordingLoaded?:(detail:RecordingDetail)=>void }) {
+export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embedded=false,onAnalyzeNarration,onAnalyzeTool,onUseFeedback,onDoneTeaching,onTrainerNarrationChange,trainerNarration=false,narrationUnavailable,onDirtyChange,onClose,onRecordingLoaded,trainingReview,trainingFrames }: { recordingId: string; ownerId:string;trainingSlug?:string;embedded?:boolean;onAnalyzeNarration?:(recordingId:string,momentId:string|null)=>void;onAnalyzeTool?:(recordingId:string,momentId:string|null)=>void;onUseFeedback?:(recordingId:string,moment:Moment)=>void;onDoneTeaching?:(recordingId:string,moments:Moment[])=>void;trainerNarration?:boolean;onTrainerNarrationChange?:(enabled:boolean)=>void;narrationUnavailable?:string;onDirtyChange?:(dirty:boolean)=>void;onClose?:()=>void;onRecordingLoaded?:(detail:RecordingDetail)=>void;trainingReview?:ReactNode;trainingFrames?:Array<{timeMs:number;image:string}> }) {
   const router = useRouter();
   const client = useMemo(() => createReviewRecorderClient(undefined,ownerId), [ownerId]);
   const [availability, setAvailability] = useState<RecorderAvailability | null>(null);
@@ -241,6 +241,13 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
     requestAnimationFrame(()=>document.getElementById(`${momentId}-feedback`)?.focus());
   }, [durationMs, samples]);
 
+  function addTrainingMoment(timeMs:number){
+    if(durationMs===null)return;
+    const frameMs=Math.min(timeMs,durationMs-1);
+    seek(frameMs);
+    createMoment({startMs:frameMs,endMs:frameMs},{x:0,y:0,width:COORD_MAX,height:COORD_MAX});
+  }
+
   useEffect(() => {
     if (durationMs === null) return;
     const onKey = (e: KeyboardEvent) => {
@@ -425,6 +432,7 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
       {error && <p role="alert" className="mb-3 rounded border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p>}
 
       {embedded&&onClose&&<button type="button" className="text-xs text-ink-400 underline" onClick={onClose}>Close recording</button>}
+      {embedded&&trainingReview}
       <div className="relative">
         {previewError && <p role="status" className="rounded border border-ink-800 bg-ink-950 p-6 text-center text-sm text-ink-200">{previewError}</p>}
         {!preview && !previewError && <div className="h-64 animate-pulse rounded bg-ink-800/50" aria-label="Loading video" />}
@@ -589,7 +597,19 @@ export default function RecordingPlayer({ recordingId,ownerId,trainingSlug,embed
         </ol>
       </section>
 
+      {embedded&&trainingFrames&&durationMs!==null&&<section aria-label="Screenshots from your recording" className="my-4 space-y-3">
+        <h3 className="font-medium">Add feedback to a screenshot</h3>
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">{trainingFrames.map(frame=><li key={frame.timeMs}>
+          <button type="button" disabled={busy!==null||voiceDirty.size>0} className="space-y-1 text-left text-xs text-ink-300" onClick={()=>addTrainingMoment(frame.timeMs)}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={frame.image} alt="" className="w-full rounded-lg"/>
+            Add feedback at {formatMs(frame.timeMs)}
+          </button>
+        </li>)}</ul>
+      </section>}
       <section className="my-4 flex flex-wrap items-center gap-3 text-sm">
+        {embedded&&trainingReview&&durationMs!==null&&<button type="button" className="btn-secondary" disabled={busy!==null||voiceDirty.size>0}
+          onClick={()=>addTrainingMoment(playheadMs)}>Add a learning</button>}
         {onDoneTeaching&&<button type="button" className="btn-primary" disabled={busy!==null||voiceDirty.size>0||(!moments.some(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()))&&(!onAnalyzeNarration||!!narrationUnavailable))} onClick={async()=>{
           if(dirty&&!(await save()))return;
           const notes=momentsRef.current.filter(moment=>CARD_FIELDS.some(field=>moment.card[field].trim()));

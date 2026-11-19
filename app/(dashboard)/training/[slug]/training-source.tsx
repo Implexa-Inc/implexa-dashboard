@@ -22,6 +22,7 @@ import RunMarkTraining from './run-mark-training';
 import SavedReviewTeaching from './saved-review-teaching';
 import TrainingImagePlayer from './training-image-player';
 import TrainingDraftBundle,{visualTeachingSelectable} from './training-draft-bundle';
+import RecordingLearningReview from './recording-learning-review';
 import {extractFeedbackTeaching,savedDirectFeedback,savedFeedbackMatches,type SavedDirectFeedback,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
 import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import type {Moment,RecordingDetail} from '@/lib/review-recorder';
@@ -133,6 +134,14 @@ type Result = {
   managerTrainingRequirements?: ManagerTrainingRequirements;
 };
 type TrainingHomeRead = Promise<{value:Result}|{error:unknown}>;
+type RecordingLesson = Pick<RecordingSuggestion,'fields'|'frameIndex'>;
+type AutomaticRecordingReview = {
+  recordingId:string;
+  phase:'queued'|'narration'|'screenshots'|'review'|'failed';
+  frames?:RecordingFrame[];
+  lesson?:RecordingLesson;
+  message?:string;
+};
 type Bridge = {
   trainingLocalContractVersion?: string;
   trainingRecordingContractVersion?: string;
@@ -186,6 +195,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const activeRecordingRef=useRef(activeRecordingId);activeRecordingRef.current=activeRecordingId;
   const [activeRecordingDetail,setActiveRecordingDetail]=useState<RecordingDetail|null>(null);
   const [trainerNarration,setTrainerNarration]=useState(false);
+  const [automaticReview,setAutomaticReview]=useState<AutomaticRecordingReview|null>(null);
   function openRecording(id:string){
     if(runDirty){setError('Save or cancel your current note before opening another example.');return;}
     if(recordingDraftBlocked()){setPendingRecordingId(id);setError('Finish your current teaching draft first. Your recording is saved and ready.');return;}
@@ -1016,6 +1026,25 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[pendingFeedback,busy,suggesting,activeRecordingId,selected?.sourceId,session,currentVersion,time,versionChanged,demoAnnotationIsCurrent]);
   useEffect(()=>{
+    if(automaticReview?.phase!=='queued'||busy||versionChanged||!currentVersion||!selected?.token
+      ||activeRecordingDetail?.state!=='ready'||activeRecordingDetail.recordingId!==automaticReview.recordingId
+      ||activeRecordingId!==automaticReview.recordingId)return;
+    const registered=recordingSources.current.get(`${session}:${currentVersion}:${automaticReview.recordingId}`);
+    if(registered?.sourceId!==selected.sourceId||registered.token!==selected.token)return;
+    const recordingId=automaticReview.recordingId;
+    if(recordingSupported&&activeRecordingDetail.hasMicrophone&&(activeRecordingDetail.durationMs||0)<=600000){
+      setRecordingConsent(true);
+      void findRecordingTeaching(false,true,recordingId);
+    }else{
+      const source=selected,version=currentVersion,snapshot=draftSnapshot;
+      const message=activeRecordingDetail.hasMicrophone?'Narration analysis is unavailable for this recording.':'No microphone audio was found.';
+      setAutomaticReview({recordingId,phase:'screenshots'});
+      void work('Finding useful screenshots',()=>reviewRecordingScreenshots(recordingId,source,version,snapshot,message));
+    }
+    // The upload explicitly opted into one analysis of this exact library copy.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[automaticReview,busy,versionChanged,currentVersion,selected,activeRecordingDetail,activeRecordingId,session,recordingSupported]);
+  useEffect(()=>{
     if(!pendingNarration||busy)return;
     if(pendingNarration.recordingId!==activeRecordingId||pendingNarration.sourceId!==selected?.sourceId||pendingNarration.sessionId!==session||pendingNarration.version!==currentVersion||versionChanged||pendingNarration.capability!==agentCapability){setPendingNarration(null);return;}
     const agent=pendingNarration.purpose==='agent';setPendingNarration(null);
@@ -1031,7 +1060,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[pendingNarrationReview,busy,sources,pendingRecordingLink,pendingDemoLink,pendingAnswerLinks]);
 
-  async function add(directUpload=false) {
+  async function add(directUpload=false,analyzeVideo=false) {
     if(!consent)return;
     const fromSavedRecording=Boolean(recordingSelection&&!directUpload&&!questionAnswer);
     const desktop=bridge();
@@ -1086,6 +1115,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
           setDirectSource(true);setReopenedFeedback(null);setConsent(false);setDirectNote('');setPlaybackFallback('');
           if(added.recordingId&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(added.recordingId)&&source.metadata.mediaType==='video/mp4'){
             recordingSources.current.set(`${id}:${currentVersion}:${added.recordingId}`,{sourceId:source.sourceId,token:source.token,version:currentVersion!,sessionId:id});
+            setAutomaticReview(analyzeVideo?{recordingId:added.recordingId,phase:'queued'}:null);
             setActiveRecordingId(added.recordingId);setActiveRecordingDetail(null);setTrainerNarration(false);setRunSource(null);
           }else{
             if(added.playback?.available===false)setPlaybackFallback('This video is available as still frames. Your original is preserved; full playback is unavailable for this import.');
@@ -1216,51 +1246,109 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     });
   }
 
-  async function requestRecordingDraft(prepared:NonNullable<typeof recording>,snapshot:string,agent=prepared.purpose==='agent') {
+  async function requestRecordingDraft(prepared:NonNullable<typeof recording>,snapshot:string,agent=prepared.purpose==='agent',recordingId?:string) {
     if(!agent&&prepared.frameRecipeDigest)throw Error('Tool-analysis frames cannot become taste training. Start a separate taste analysis.');
     const source=selected;
-    if(!source || !currentVersion || latestDraft.current!==snapshot) throw Error('The source or draft changed. No recording suggestion was requested.');
+    if(!source || !currentVersion || latestDraft.current!==snapshot || recordingId&&activeRecordingRef.current!==recordingId) throw Error('The source or draft changed. No recording suggestion was requested.');
     const binding={sourceId:source.sourceId,sourceSha256:source.metadata.sha256,targetVersionId:currentVersion,
       excerptId:prepared.excerptId,excerptDigest:prepared.excerptDigest,frames:prepared.frames.map(({timeMs,frameSha256})=>({timeMs,frameSha256}))};
     const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({mode:agent?'recording-agent-draft':'recording-draft',sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:currentVersion,
         excerptId:prepared.excerptId,excerptDigest:prepared.excerptDigest,frames:prepared.frames,consent:true,...(agent?{capability:prepared.capability||'web_reference_research'}:{})})});
     const value=await response.json();
-    if(latestDraft.current!==snapshot) throw Error('The source or draft changed. The previous recording suggestion was not applied.');
+    if(latestDraft.current!==snapshot || recordingId&&activeRecordingRef.current!==recordingId) throw Error('The source or draft changed. The previous recording suggestion was not applied.');
     if(response.ok && value?.ok===true && value.status==='insufficient' && typeof value.reason==='string' && value.reason.length<=300) {
-      setSuggestionNote(value.reason);return;
+      setSuggestionNote(value.reason);return false;
     }
     if(agent){
       if(!response.ok||!recordingAgentSuggestion(value,binding,prepared.capability||'web_reference_research'))throw Error(teachingFailure(value,response.status));
       setRecording(prepared);setAgentProposal(value);setAgentChangeConfirmed(false);setAgentChange(null);
-      setSuggestionNote('Capability suggestion only. Review it separately from private taste training. No agent version or operating method has been changed.');return;
+      setSuggestionNote('Capability suggestion only. Review it separately from private taste training. No agent version or operating method has been changed.');return true;
     }
     if(!response.ok || !recordingSuggestion(value,binding))throw Error(teachingFailure(value,response.status));
     const selectedFrame=prepared.frames[value.frameIndex];
     setRecording({...prepared,suggestion:value});setTime(selectedFrame.timeMs);setPreview({token:source.token!,timeMs:selectedFrame.timeMs,image:selectedFrame.image});
     setSuggested(null);appliedSuggestion.current=null;setDemoText('');setDemoAnnotation(null);setQuestionAnswer(null);
     setSuggestionNote('Review the recognized narration and all three frames. The marked frame is the model’s choice. Nothing has been saved as a teaching or admitted.');
+    return true;
   }
-  async function findRecordingTeaching(agent=false,explicitNarrationConsent=false) {
+  async function reviewRecordingScreenshots(recordingId:string,source:Source,version:string,snapshot:string,message:string){
+    const current=()=>activeRecordingRef.current===recordingId&&latestDraft.current===snapshot;
+    if(!current()||!source.token)return;
+    setAutomaticReview({recordingId,phase:'screenshots'});
+    const times=[...new Set([.2,.5,.8].map(fraction=>Math.floor(source.metadata.durationMs*fraction)))];
+    const frames:RecordingFrame[]=[];
+    let bytes=0;
+    try{
+      for(const timeMs of times){
+        if(!current())return;
+        const frame=await call('preview',{token:source.token,timeMs}),image=frame.image||'';
+        const data=teachingFrame(image);bytes+=data.length;
+        frames.push({timeMs,image,frameSha256:await teachingDigest(data)});
+      }
+      if(!current())return;
+    }catch{
+      if(current())setAutomaticReview({recordingId,phase:'failed',message:'Could not load screenshots. You can still add feedback at any moment.'});
+      return;
+    }
+    let lesson:RecordingLesson|undefined;
+    let note=`${message} Choose a screenshot to add a note or voice note.`;
+    if(bytes<=2*1024*1024){
+      try{
+        const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({mode:'recording-frames-only',sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:version,frames,consent:true})});
+        const value=await response.json(),binding=value?.binding;
+        if(!current())return;
+        if(!response.ok||value?.ok!==true||value.contractVersion!=='training-recording-frames-suggestion.v1'
+          ||binding?.sourceId!==source.sourceId||binding.sourceSha256!==source.metadata.sha256||binding.targetVersionId!==version
+          ||!Array.isArray(binding.frames)||binding.frames.length!==frames.length
+          ||!frames.every((frame,i)=>binding.frames[i]?.timeMs===frame.timeMs&&binding.frames[i]?.frameSha256===frame.frameSha256))
+          throw Error('Screenshot suggestion unavailable');
+        if(value.status==='suggested'&&Number.isInteger(value.frameIndex)&&frames[value.frameIndex]&&value.fields
+          &&Object.keys(value.fields).length===TEACHING_FIELDS.length&&TEACHING_FIELDS.every(key=>typeof value.fields[key]==='string'
+            &&value.fields[key].trim()&&value.fields[key].length<=400)){
+          lesson={frameIndex:value.frameIndex,fields:value.fields};
+          const frame=frames[lesson.frameIndex];
+          setTime(frame.timeMs);
+          setPreview({token:source.token,timeMs:frame.timeMs,image:frame.image});
+          note=`${message} Review the suggested learning from these screenshots.`;
+        }
+      }catch{
+        note=`${message} You can add feedback directly to the screenshots.`;
+      }
+    }
+    if(current())setAutomaticReview({recordingId,phase:'review',message:note,frames,lesson});
+  }
+  async function findRecordingTeaching(agent=false,explicitNarrationConsent=false,recordingId?:string) {
     if(agent&&bridge()?.trainingToolFrameContractVersion!=='1'){setError('Update Desktop to analyze demonstrated tools. Taste analysis is still available.');return;}
     if(!selected?.token || !currentVersion || !((agent?agentAnalysisConsent:recordingConsent)||explicitNarrationConsent) || !recordingSupported)return;
     const source=selected,version=currentVersion,snapshot=draftSnapshot;
+    const sameRecording=()=>!recordingId||activeRecordingRef.current===recordingId;
+    if(recordingId)setAutomaticReview({recordingId,phase:'narration'});
     await work(agent?'Finding a demonstrated tool or method':'Transcribing recording and locating one taste example',async()=>{
+      try{
       await requireCurrentScope();
-      if(latestDraft.current!==snapshot)throw Error('The draft changed. Start again from the selected recording.');
+      if(!sameRecording()||latestDraft.current!==snapshot)throw Error('The draft changed. Start again from the selected recording.');
       const local=await resolveBridge().trainingLocal('recording',{token:source.token}) as Result & {manifest:any;segments:any[];storyboard:RecordingFrame[];manifestId:string;manifestDigest:string};
-      if(!local.ok)throw Error(local.reason||'Recording analysis unavailable.');
-      if(latestDraft.current!==snapshot)throw Error('The draft changed. No narration was sent to the model.');
+      if(!sameRecording()||latestDraft.current!==snapshot)throw Error('The draft changed. No narration was sent to the model.');
+      if(!local.ok){
+        if(recordingId&&local.reason==='training_recording_no_speech')return reviewRecordingScreenshots(recordingId,source,version,snapshot,'No usable narration was found.');
+        throw new TrainingError(local.reason||'training_recording_unavailable',
+          local.reason==='training_recording_transcript_invalid'?'The narration timing could not be verified.':undefined);
+      }
       if(local.manifest?.sourceId!==source.sourceId || local.manifest.sourceSha256!==source.metadata.sha256 || local.manifest.targetVersionId!==version)throw Error('The recording scope changed.');
       const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:agent?'recording-agent-locate':'recording-locate',
         sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:version,manifestId:local.manifestId,manifestDigest:local.manifestDigest,
         segments:local.segments,storyboard:local.storyboard,consent:true,...(agent?{capability:agentCapability}:{})})});
       const value=await response.json();
-      if(latestDraft.current!==snapshot)throw Error('The draft changed. The located excerpt was not applied.');
+      if(!sameRecording()||latestDraft.current!==snapshot)throw Error('The draft changed. The located excerpt was not applied.');
       if(!response.ok || value?.ok!==true)throw Error(teachingFailure(value,response.status));
       const detected=agent?recordingLocatorCapability(value,agentCapability):null;
       if(agent&&!detected?.ok)throw Error('The demonstrated tool could not be identified. Your recording is saved.');
-      if(response.ok && value?.ok===true && value.status==='insufficient' && typeof value.reason==='string' && value.reason.length<=300){setSuggestionNote(value.reason);return;}
+      if(response.ok && value?.ok===true && value.status==='insufficient' && typeof value.reason==='string' && value.reason.length<=300){
+        if(recordingId)return reviewRecordingScreenshots(recordingId,source,version,snapshot,'The narration did not yield a clear learning.');
+        setSuggestionNote(value.reason);return;
+      }
       if(!response.ok || value?.ok!==true || value.status!=='located' || typeof value.excerptId!=='string' || !/^[a-f0-9]{64}$/.test(value.excerptDigest||''))throw Error(teachingFailure(value,response.status));
       const e=value.excerpt as RecordingExcerpt,segments=local.segments.slice(e.startIndex,e.endIndex+1);
       if(e.sourceId!==source.sourceId || e.sourceSha256!==source.metadata.sha256 || e.targetVersionId!==version
@@ -1268,14 +1356,26 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         || !Array.isArray(e.segments) || e.segments.length!==segments.length || e.segments.some((s,i)=>['index','startMs','endMs','text'].some(k=>s[k as keyof typeof s]!==segments[i][k])) || e.text!==segments.map(s=>s.text).join(' ')
         || e.startMs!==segments[0].startMs || e.endMs!==Math.max(...segments.map(s=>s.endMs)) || e.endMs-e.startMs>120000)throw Error('The located narration did not match this recording.');
       const frames:RecordingFrame[]=[];let bytes=0;
+      if(recordingId)await requireCurrentScope();
       for(const timeMs of [e.startMs,Math.floor((e.startMs+e.endMs)/2),e.endMs-1]) {
-        await requireCurrentScope();if(latestDraft.current!==snapshot)throw Error('The draft changed. Evidence extraction stopped.');
+        if(!recordingId)await requireCurrentScope();
+        if(!sameRecording()||latestDraft.current!==snapshot)throw Error('The draft changed. Evidence extraction stopped.');
         const frame=await call('preview',{token:source.token,timeMs,...(agent?{purpose:'tool_suggestion'}:{})});const image=frame.image||'',data=agent?toolSuggestionFrame(image,frame.toolFrame,source.sourceId,timeMs):teachingFrame(image);
         bytes+=data.length;if(bytes>2*1024*1024)throw Error('The three exact frames exceed the suggestion budget. No draft call was sent.');
         frames.push({timeMs,image,frameSha256:await teachingDigest(data)});
       }
       const prepared={excerptId:value.excerptId,excerptDigest:value.excerptDigest,excerpt:e,frames,suggestion:null,purpose:agent?'agent' as const:'taste' as const,...(agent&&detected?.ok&&detected.capability?{capability:detected.capability,frameRecipeDigest:TOOL_FRAME_RECIPE_DIGEST}:{})};setRecording(prepared);
-      await requestRecordingDraft(prepared,snapshot);
+      const drafted=await requestRecordingDraft(prepared,snapshot,agent,recordingId);
+      if(recordingId){
+        if(!drafted)return reviewRecordingScreenshots(recordingId,source,version,snapshot,'The narration did not yield a clear learning.');
+        setAutomaticReview({recordingId,phase:'review'});
+      }
+      }catch(error){
+        if(!recordingId)throw error;
+        if(!sameRecording())return;
+        if(latestDraft.current!==snapshot){setAutomaticReview({recordingId,phase:'failed',message:'Your recording changed during analysis. You can still mark a moment and add feedback.'});return;}
+        return reviewRecordingScreenshots(recordingId,source,version,snapshot,'Narration analysis could not finish.');
+      }
     });
   }
   async function retryRecordingDraft() {
@@ -1691,6 +1791,24 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         <p>{!session?'Add an example to start a training session first.':!sources.some(source=>source.decisions.some(d=>['draft','accepted'].includes(d.state)))?'No saved lessons are available in this training session yet.':''}</p><p>Linking preserves the existing teaching; it does not edit its text or evidence. This also resumes a draft saved before an interrupted answer link.</p>
         <button disabled={!!busy || !linkRecordId || sessionVersion !== questionAnswer.expectedActiveVersionId} onClick={linkExistingTeaching}>Link answer to selected teaching</button></TrainingDetails>
       </div>:null;
+  const activeAnalysis=!versionChanged&&automaticReview?.recordingId===activeRecordingId?automaticReview:null;
+  const analysisInProgress=activeAnalysis&&['queued','narration','screenshots'].includes(activeAnalysis.phase);
+  const narratedLesson=activeAnalysis?.phase==='review'&&!activeAnalysis.frames&&recording?.purpose==='taste'?recording.suggestion:null;
+  const analysisLesson=activeAnalysis?.lesson||narratedLesson;
+  const lessonFrame=analysisLesson&&(activeAnalysis?.frames||recording?.frames)?.[analysisLesson.frameIndex];
+  const recordingReviewPanel=activeAnalysis&&<div aria-label="Recording analysis" className="space-y-3">
+    {analysisInProgress&&<div role="status" className="rounded-xl border border-ink-800 p-4 text-sm">
+      <p className="font-medium">{activeAnalysis.phase==='screenshots'?'Reviewing screenshots…':activeAnalysis.phase==='narration'?'Analyzing narration…':'Preparing your video for analysis…'}</p>
+      <p className="mt-1 text-ink-400">Allow 2–3 minutes for longer videos. You can still play the recording.</p>
+    </div>}
+    {activeAnalysis.message&&<p role="status" className="text-sm text-ink-300">{activeAnalysis.message}</p>}
+    {analysisLesson&&lessonFrame&&<RecordingLearningReview key={`${activeRecordingId}:${lessonFrame.frameSha256}`} fields={analysisLesson.fields} frame={lessonFrame}
+      origin={activeAnalysis.frames?'screenshots':'narration'} scope={learningScopeControls()}
+      disabled={!!busy||versionChanged||recordingDirty||!!pendingRecordingLink||!previewIsCurrent||preview?.image!==lessonFrame.image||!stages.length}
+      onReview={fields=>void annotate(fields)}/>}
+    {narratedLesson&&recording&&<details className="text-xs text-ink-400"><summary>What Implexa heard</summary><p className="mt-2 whitespace-pre-wrap">{recording.excerpt.text}</p></details>}
+    {pendingRecordingLink&&<button type="button" disabled={!!busy} onClick={()=>work('Linking the saved recording teaching',()=>linkRecording(pendingRecordingLink))}>Retry saving the recording link</button>}
+  </div>;
   return <main id="main-content" tabIndex={-1} className={`mx-auto px-6 py-10 space-y-6 ${installationId?'max-w-3xl':'max-w-7xl lg:px-10'}`}>
     <Link className="text-xs text-ink-400 hover:text-ink-100" href={installationId?`/workflows/${encodeURIComponent(slug)}`:"/training"}>{installationId?"← Agent":"← Your agents"}</Link>
     <header className="flex flex-wrap items-start justify-between gap-4 border-b border-ink-800 pb-7"><div className="space-y-3">{installationId&&<p className="text-xs text-ink-500">Your private preferences</p>}<h1 className="max-w-3xl text-2xl font-medium tracking-tight sm:text-3xl">{installationId?`Private preferences for ${agentName}`:'Train your agent or edit its steps'}</h1>{!installationId&&<><Link href={`/workflows/${encodeURIComponent(slug)}?source=generated`} className="inline-block pt-2 text-lg text-ink-200 hover:text-brand-400">{agentName} ↗</Link></>}{installationId&&<p className="text-xs text-ink-500">Active version: {shortId(currentVersion)}{sessionVersion?` · Session version: ${shortId(sessionVersion)}`:''}</p>}</div>
@@ -1702,11 +1820,11 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     <div id="training-workspace" className={installationId?'':'overflow-hidden rounded-2xl border border-ink-700'}>
     {!installationId&&trainingStep!==1&&<div className="flex items-center justify-between gap-4 border-b border-ink-800 p-5"><button type="button" onClick={()=>selectTrainingStep(1)} className="text-sm text-ink-400">← Ways to train</button><span className="text-sm font-medium">{trainingStep===2?'Review training':'Apply & test'}</span></div>}
     <div className={installationId?'':'space-y-6 p-5 sm:p-8'}>
-    {!installationId&&busy&&<p role="status" className="text-sm text-ink-400">{busy}…</p>}{!installationId&&error&&<p role="alert" className="text-sm text-amber-300">{reasonLabel(error)}</p>}
+    {!installationId&&busy&&!analysisInProgress&&<p role="status" className="text-sm text-ink-400">{busy}…</p>}{!installationId&&error&&<p role="alert" className="text-sm text-amber-300">{reasonLabel(error)}</p>}
     {!installationId&&trainingStep!==1&&evidenceLoading&&<p role="status" className="text-xs text-ink-400">Loading saved examples…</p>}
-    {!installationId&&evidenceError&&<p role="status" className="text-xs text-amber-300">{reasonLabel(evidenceError)} <button type="button" className="underline" disabled={!!busy||evidenceLoading} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry saved examples</button></p>}
+    {!installationId&&evidenceError&&!analysisInProgress&&<p role="status" className="text-xs text-amber-300">Saved examples couldn’t load. <button type="button" className="underline" disabled={!!busy||evidenceLoading} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry saved examples</button></p>}
     {!installationId&&trainingStep===3&&applyNote&&<p role="status" className="text-sm text-ink-300">{applyNote}</p>}
-    {!installationId&&changesError&&trainingStep!==2&&<p role="alert" className="text-sm text-amber-300">{changesError.replaceAll('_',' ')} {!changes&&<button type="button" className="underline" disabled={changesBusy} onClick={()=>void loadChanges()}>Refresh training</button>}</p>}
+    {!installationId&&changesError&&trainingStep!==2&&!analysisInProgress&&<p role="alert" className="text-sm text-amber-300">{changesError==='training_local_unavailable'?'Saved lessons couldn’t load.':changesError.replaceAll('_',' ')} {!changes&&<button type="button" className="underline" disabled={changesBusy} onClick={()=>void loadChanges()}>Refresh training</button>}</p>}
     {!installationId&&extractionNote&&<div role="status" className="flex flex-wrap items-center gap-3 text-sm text-ink-300"><p>{extractionNote}</p>{busy==='Finding the lessons in your feedback'?<button type="button" className="text-xs underline" onClick={()=>{extractionCancel.current=true;}}>Pause after this step</button>:lastFeedbackBatch&&<button type="button" className="text-xs underline" onClick={()=>void extractRecordingFeedback(lastFeedbackBatch)}>Resume extraction</button>}</div>}
     {!installationId&&session&&sessionVersion===currentVersion&&currentVersion&&<TrainingOperatingChanges key={`${ownerId}:${session}:${currentVersion}`} sessionId={session} versionId={currentVersion} slug={slug} refreshKey={operatingRefresh} onResume={analysis=>void resumeOperatingAnalysis(analysis).catch(()=>setExtractionNote('Your saved feedback could not be reopened. The original note is preserved.'))} disabled={!!busy||changesBusy||versionChanged||runContext?.revisePending===true||!runContext||runContext.statusUnavailable===true}/>}
     <div hidden={!installationId&&trainingStep!==1} className="space-y-7">
@@ -1724,7 +1842,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       {selected.metadata.durationMs>0&&<details className="text-xs text-ink-400"><summary className="cursor-pointer">Choose a different frame</summary><input aria-label="Training video frame" className="mt-3 w-full" type="range" min="0" max={selected.metadata.durationMs-1} value={time} disabled={!!busy||directVoiceDirty||!!directNote.trim()} onChange={event=>changeTime(Number(event.target.value))}/><button type="button" disabled={!!busy||directVoiceDirty||!!directNote.trim()} onClick={()=>void showPreview()}>Open this frame</button></details>}
     </>}
     {!installationId&&activeRunId&&<TrainingRunPlayer key={activeRunId} slug={slug} runId={activeRunId} ownerId={ownerId} onTeach={(issue,artifact)=>void prepareRunTeaching([{issue,artifact}])} onDoneTeaching={notes=>void prepareRunTeaching(notes)} onDirtyChange={setRunDirty}/>}
-    {!installationId&&activeRecordingId&&<RecordingPlayer key={activeRecordingId} recordingId={activeRecordingId} ownerId={ownerId||''} trainingSlug={slug} embedded trainerNarration={trainerNarration} onTrainerNarrationChange={setTrainerNarration} onDirtyChange={setRecordingDirty} onRecordingLoaded={setActiveRecordingDetail} onUseFeedback={(recordingId,moment)=>setFeedbackRequest({recordingId,moment})} onDoneTeaching={(recordingId,moments)=>setBatchFeedbackRequest({recordingId,moments})} onAnalyzeNarration={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'taste'})} onAnalyzeTool={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'agent'})} narrationUnavailable={pendingRecordingLink||pendingDemoLink||suggesting?"Finish the current teaching or pending link first.":!activeRecordingDetail?"Loading your recording…":!trainerNarration&&activeRecordingDetail.origin==='imported'?"Add voice notes, or mark this video as your narrated demonstration in More options.":!activeRecordingDetail.hasMicrophone?"This recording has no microphone narration. You can still leave feedback on the video.":!recordingSupported?"Update Desktop to find learnings in your narration.":(activeRecordingDetail.durationMs||0)>600000?"Narration analysis supports recordings up to 10 minutes. Your visual feedback is still available.":undefined} onClose={()=>{if(recordingDirty){setClosingRecording(true);setReplaceRecordingOpen(true);}else{setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(null);setActiveRecordingDetail(null);}}}/>}
+    {!installationId&&activeRecordingId&&<RecordingPlayer key={activeRecordingId} recordingId={activeRecordingId} ownerId={ownerId||''} trainingSlug={slug} embedded trainingReview={recordingReviewPanel} trainingFrames={activeAnalysis?.frames} trainerNarration={trainerNarration} onTrainerNarrationChange={setTrainerNarration} onDirtyChange={setRecordingDirty} onRecordingLoaded={setActiveRecordingDetail} onUseFeedback={(recordingId,moment)=>setFeedbackRequest({recordingId,moment})} onDoneTeaching={(recordingId,moments)=>setBatchFeedbackRequest({recordingId,moments})} onAnalyzeNarration={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'taste'})} onAnalyzeTool={(recordingId,momentId)=>setNarrationRequest({recordingId,momentId,purpose:'agent'})} narrationUnavailable={pendingRecordingLink||pendingDemoLink||suggesting?"Finish the current teaching or pending link first.":!activeRecordingDetail?"Loading your recording…":!trainerNarration&&activeRecordingDetail.origin==='imported'?"Add voice notes, or mark this video as your narrated demonstration in More options.":!activeRecordingDetail.hasMicrophone?"This recording has no microphone narration. You can still leave feedback on the video.":!recordingSupported?"Update Desktop to find learnings in your narration.":(activeRecordingDetail.durationMs||0)>600000?"Narration analysis supports recordings up to 10 minutes. Your visual feedback is still available.":undefined} onClose={()=>{if(recordingDirty){setClosingRecording(true);setReplaceRecordingOpen(true);}else{activeRecordingRef.current=null;setAutomaticReview(null);setPendingNarration(null);setPendingFeedback(null);setActiveRecordingId(null);setActiveRecordingDetail(null);}}}/>}
         {agentProposal && <section id="recording-tool-proposal" aria-label="Proposed tool update" className="rounded border border-brand-500 p-3 space-y-3">
           <h4>Proposed agent update — not applied</h4>
           <p className="text-xs text-ink-400">Source: {sources.find(source=>source.sourceId===agentProposal.binding.sourceId)?.localName||'Saved recording'} · {shortId(agentProposal.binding.sourceSha256)}{activeRecordingId&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId!==agentProposal.binding.sourceId?' · From a previously selected recording':''}</p>
@@ -1756,7 +1874,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>void retryRecordingDraft()}>Retry tool draft</button>
       <button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>{setRecording(null);setSuggestionNote('');}}>Discard tool draft</button>
     </section>}
-    {!installationId&&activeRecordingId&&recording&&recording.purpose!=='agent'&&selected&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===recording.excerpt.sourceId&&<section className="space-y-4 rounded-xl border border-ink-800 p-5" aria-label="Learning from your narration">
+    {!installationId&&activeRecordingId&&!activeAnalysis&&recording&&recording.purpose!=='agent'&&selected&&recordingSources.current.get(`${session}:${currentVersion}:${activeRecordingId}`)?.sourceId===recording.excerpt.sourceId&&<section className="space-y-4 rounded-xl border border-ink-800 p-5" aria-label="Learning from your narration">
       <h2 className="text-lg font-medium">Learning from your narration</h2><details className="text-sm text-ink-400"><summary>What Implexa heard</summary><blockquote className="mt-3 whitespace-pre-wrap">{recording.excerpt.text}</blockquote><p className="mt-2 text-xs">Speech recognition can make mistakes. Check the wording before saving.</p></details>
       {!recording.suggestion&&<button type="button" disabled={!!busy||suggesting||versionChanged} onClick={()=>void retryRecordingDraft()}>Retry draft from this excerpt</button>}{recording.suggestion&&<><div className="flex flex-wrap gap-5"><img src={recording.frames[recording.suggestion.frameIndex].image} alt="Frame supporting the suggested learning" className="w-64 rounded-lg object-contain"/><div className="min-w-0 flex-1 space-y-2">{TEACHING_FIELDS.map(key=><p key={key} className="text-sm text-ink-400"><strong>{TEACHING_SECTION_LABELS[key]}{key==='why'?' (inferred from narration)':''}:</strong> {recording.suggestion!.fields[key]}</p>)}</div></div>
       <p className="text-xs text-ink-400">{relationLabel(relation)} · {property.replaceAll('_',' ')} · {stages.map(trainingStageLabel).join(', ')}</p>{learningScopeControls()}
@@ -2051,7 +2169,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
               if(recording.suggestion?.frameIndex!==index){setChosen('');setWhy('');setProcess('');setBehavior('');setSuggestionNote('Different offered frame selected. Draft manually for this frame; the model fields have been cleared.');}}}>Use this frame</button>
           </figure>)}</div>
           {!recording.suggestion && !(recording.purpose==='agent'&&agentProposal) && <button disabled={!!busy||!(recording.purpose==='agent'?agentAnalysisConsent:recordingConsent)} onClick={retryRecordingDraft}>Request draft from this excerpt only</button>}
-          {recording.purpose==='agent'&&!recording.frameRecipeDigest&&!recording.suggestion&&<button disabled={!!busy||!recordingConsent} onClick={()=>work('Drafting private taste separately',()=>requestRecordingDraft(recording,draftSnapshot,false))}>Draft a separate taste teaching from this excerpt</button>}
+          {recording.purpose==='agent'&&!recording.frameRecipeDigest&&!recording.suggestion&&<button disabled={!!busy||!recordingConsent} onClick={()=>work('Drafting private taste separately',async()=>{await requestRecordingDraft(recording,draftSnapshot,false);})}>Draft a separate taste teaching from this excerpt</button>}
           {recording.suggestion && <><dl>{TEACHING_FIELDS.map(key=><div key={key}><dt>{key}</dt><dd>{recording.suggestion!.fields[key]}</dd></div>)}</dl>
             <p>Preference inferred from recognized narration; review for ASR mistakes. Stills do not establish motion or a tool procedure.</p>
             <button disabled={!!busy || !previewIsCurrent || preview?.image!==recording.frames[recording.suggestion.frameIndex].image} onClick={useRecordingSuggestion}>Use recording suggestion in editable fields</button></>}
@@ -2098,7 +2216,13 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       <label className="flex items-start gap-3 text-sm leading-6 text-ink-300"><input type="checkbox" className="mt-1" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>{OWNER_SOURCE_CONSENT}</span></label>
       {[demoText,chosen,why,process,behavior].some(s=>s.trim())&&<label className="mt-4 flex items-start gap-3 text-sm leading-6 text-ink-300"><input type="checkbox" className="mt-1" checked={discardDraftConfirmed} onChange={e=>setDiscardDraftConfirmed(e.target.checked)}/><span>Discard my unsaved annotation and wording before opening a new source. Saved feedback and the recorded question stay available.</span></label>}
       <p className="mt-4 text-xs text-ink-400">MP4, {uploadOpen&&ownerId&&bridge()?.trainingUploadPickerContractVersion==='1'?'MOV, ':''}PNG, JPEG or WebP.</p>
-      <button type="button" className="btn-primary mt-5" disabled={!!busy||!consent||([demoText,chosen,why,process,behavior].some(s=>s.trim())&&!discardDraftConfirmed)} onClick={()=>{setUploadOpen(false);void add(!questionAnswer);}}>Choose video or image</button>
+      {!questionAnswer&&<p className="mt-3 text-sm text-ink-400">To find learnings, Implexa checks for narration on this Mac and sends the transcript and selected screenshots to Anthropic Claude for suggestions. Choose “Open as reference” to keep the upload for manual feedback.</p>}
+      <div className="mt-5 flex flex-wrap gap-3">
+        {!questionAnswer&&<button type="button" className="btn-primary" disabled={!!busy||!consent||([demoText,chosen,why,process,behavior].some(s=>s.trim())&&!discardDraftConfirmed)}
+          onClick={()=>{setUploadOpen(false);void add(true,true);}}>Choose file &amp; find learnings</button>}
+        <button type="button" className={questionAnswer?'btn-primary':'btn-secondary'} disabled={!!busy||!consent||([demoText,chosen,why,process,behavior].some(s=>s.trim())&&!discardDraftConfirmed)}
+          onClick={()=>{setUploadOpen(false);void add(!questionAnswer);}}>{questionAnswer?'Choose video or image':'Open as reference'}</button>
+      </div>
     </Modal>}
     {!installationId&&changes&&<GuidedPublicationReview open={publicationReviewOpen} value={changes} busy={!!busy||changesBusy||versionChanged} error={changesError}
       onClose={()=>setPublicationReviewOpen(false)} onPrepare={preparePublication} onPublish={publishPreparedSnapshot} onReviewExample={reviewPublicationExample}

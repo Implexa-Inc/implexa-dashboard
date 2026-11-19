@@ -1743,7 +1743,7 @@ test('owner workspace is one page with closed chat, direct teaching actions and 
   await r.click(r.getByText('↑ Upload'));
   const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;assert.ok(dialog);
   assert.equal((dialog.querySelector('input') as HTMLInputElement).checked,false);
-  assert.equal((r.getByText('Choose video or image') as HTMLButtonElement).disabled,true,'source attestation remains explicit');
+  assert.equal((r.getByText('Choose file & find learnings') as HTMLButtonElement).disabled,true,'source attestation remains explicit');
   await r.click(dialog.querySelector('[aria-label="Close"]')!);
   await r.click(r.getByText('Questions & history'));
   await r.click(r.getByText('Questions from your agent →'));
@@ -1865,7 +1865,7 @@ test('adopted examples use the already-preserved predecessor only by exact diges
 async function chooseDirectUpload(r:Rendered){
  await r.click(r.getByText('↑ Upload'));
  const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;
- await r.click(dialog.querySelector('input[type=checkbox]')!);await r.click(r.getByText('Choose video or image'));
+ await r.click(dialog.querySelector('input[type=checkbox]')!);await r.click(r.getByText('Open as reference'));
 }
 test('Upload opens and registers a source while saved examples are still loading', async () => {
   const history = Promise.withResolvers<void>();
@@ -1916,7 +1916,7 @@ test('cancelled or rejected upload preserves a draft even after confirming disca
    await r.click(r.getByText('↑ Upload'));
    const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;
    for(const checkbox of Array.from(dialog.querySelectorAll('input[type=checkbox]')))await r.click(checkbox);
-   await r.click(r.getByText('Choose video or image'));
+   await r.click(r.getByText('Open as reference'));
    assert.equal(annotation.value,'Keep this unfinished annotation.');
    assert.equal((r.getByText('Example details').closest('label')!.querySelector('textarea') as HTMLTextAreaElement).value,'Spatial illustration');
    assert.equal(r.calls.push.length,0);assert.equal(h.calls.some(c=>c.operation==='preview'),false);
@@ -2501,11 +2501,78 @@ test('cancelling the new picker avoids the training check and creates no session
   await r.click(r.getByText('↑ Upload'));
   assert.match(r.document.querySelector('[role="dialog"]')?.textContent||'',/MP4, MOV, PNG/);
   await r.click(r.document.querySelector('[role="dialog"] input')!);
-  await r.click(r.getByText('Choose video or image'));
+  await r.click(r.getByText('Choose file & find learnings'));
   assert.equal(h.calls.filter(c=>c.operation==='pickUpload').length,1);
   assert.equal(h.calls.some(c=>['scope','select','create'].includes(c.operation)),false);
   assert.ok(r.getByText('↑ Upload'));
  }finally{r.cleanup();}
+});
+
+test('upload analysis shows progress, falls back to screenshots, and keeps learning review explicit',async()=>{
+ for(const spoken of [true,false]){
+  const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
+  const localAnalysis=Promise.withResolvers<void>(),requests:any[]=[];
+  const summary={recordingId:QUESTION,title:'Uploaded example',origin:'imported',state:'ready',failureReason:null,
+   createdAt:'2026-11-11T12:00:00Z',durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:0};
+  Object.assign(h.bridge,{reviewRecorderContractVersion:'2',trainingUploadPlaybackContractVersion:'1',
+   reviewRecorder:async(op:string)=>op==='get'?{ok:true,recording:{...summary,pointerTrack:null,moments:[]}}:op==='list'?{ok:true,recordings:[summary],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true},
+   revokeArtifactPreview:async()=>({ok:true})});
+  const segments=[{index:0,startMs:0,endMs:5000,text:'Use a visual to explain the relationship.'}];
+  h.bridge.trainingLocal=async(op,args)=>{
+   const result=await original(op,args);
+   if(op==='select')return {...result,recordingId:QUESTION,playback:{available:true}};
+   if(op==='recording'){
+    await localAnalysis.promise;
+    return spoken?{ok:true,manifest:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A},
+     segments,storyboard:[],manifestId:QUESTION,manifestDigest:DIGEST}:{ok:false,reason:'training_recording_no_speech'};
+   }
+   return result;
+  };
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
+  Object.defineProperty(r.window,'crypto',{value:globalThis.crypto,configurable:true});Object.assign(r.window,{TextEncoder});
+  const previous=r.window.fetch;
+  r.window.fetch=(async(url:string,init:RequestInit={})=>{
+   if(!String(url).includes('/teaching-suggestion?'))return previous(url,init);
+   const b=JSON.parse(String(init.body));requests.push(b);
+   const common={sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A};
+   if(b.mode==='recording-locate')return {ok:true,json:async()=>({ok:true,status:'located',excerptId:QUESTION,excerptDigest:DIGEST,
+    excerpt:{...common,startIndex:0,endIndex:0,startMs:0,endMs:5000,text:segments[0].text,segments}})};
+   if(b.action==='link')return {ok:true,json:async()=>({ok:true,event:'recording_teaching_linked',detail:{recordId:b.recordId,
+    recordDigest:b.expectedRecordDigest,parentId:b.suggestionId,parentDigest:b.suggestionDigest}})};
+   const frames=b.frames.map(({timeMs,frameSha256}:any)=>({timeMs,frameSha256}));
+   const result={ok:true,status:'suggested',fields:SUGGESTION_FIELDS,reason:'',frameIndex:1};
+   if(b.mode==='recording-frames-only')return {ok:true,json:async()=>({...result,contractVersion:'training-recording-frames-suggestion.v1',binding:{...common,frames}})};
+   return {ok:true,json:async()=>({...result,contractVersion:'training-teaching-suggestion.v4',requestId:QUESTION,model:'claude-haiku-5-5',
+    suggestionId:QUESTION,suggestionDigest:DIGEST,sources:{chosen:'observed_frame',why:'inferred_from_recognized_narration',process:'transferable_guidance',desiredBehavior:'transferable_guidance'},
+    binding:{...common,excerptId:QUESTION,excerptDigest:DIGEST,frames}})};
+  }) as typeof fetch;
+  try{
+   await r.click(r.getByText('↑ Upload'));
+   assert.equal(requests.length,0);
+   await r.click(r.document.querySelector('[role="dialog"] input')!);
+   await r.click(r.getByText('Choose file & find learnings'));
+   assert.match(r.text(),/Analyzing narration/);
+   assert.equal(requests.length,0);
+   await r.act(async()=>{localAnalysis.resolve();await new Promise(resolve=>setTimeout(resolve,45));});
+   const panel=r.document.querySelector('[aria-label="Suggested learning from your recording"]')!;
+   assert.match(panel.textContent||'',spoken?/From your narration/:/Inferred from screenshots/);
+   assert.deepEqual(requests.map(body=>body.mode),spoken?['recording-locate','recording-draft']:['recording-frames-only']);
+   assert.equal(h.calls.some(call=>call.operation==='annotate'||call.operation==='accept'),false);
+   await r.click(r.getByText('Edit learning'));
+   const wording=Array.from(panel.querySelectorAll('label')).find(label=>label.textContent?.includes('What your agent should do'))!.querySelector('textarea')!;
+   await setTextarea(r,wording,'Use a concise visual cue.');
+   await r.click(r.getByText('Review & accept'));
+   assert.equal((h.calls.find(call=>call.operation==='annotate')!.args.decision as any).desiredBehavior,'Use a concise visual cue.');
+   assert.equal(h.calls.some(call=>call.operation==='accept'),false);
+   if(!spoken){
+    await r.click(r.getByText('← Ways to train'));
+    const media=r.document.querySelector('[aria-label="Screenshots from your recording"]')!;
+    assert.equal(media.querySelectorAll('img').length,3);
+    await r.click(media.querySelector('button')!);
+    assert.ok(r.document.querySelector('[id$="-feedback"]'));
+   }
+  }finally{localAnalysis.resolve();r.cleanup();}
+ }
 });
 
 test('contextual review preserves draft selection and requires final Apply confirmation',async()=>{
