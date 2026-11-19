@@ -22,7 +22,7 @@
  * pop-up (./run-attachments, task_4efaa026's pickFile bridge).
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { callBackend, BackendError } from '@/lib/api';
 import { runRequestRefusalCopy, classifyRunRequestRefusal, type RunRequestRefusal } from '@/lib/run-request-refusal';
@@ -32,6 +32,7 @@ import CapabilityCard, { type CapabilityCardData } from './capability-card';
 import { SetupRequiredModal } from './setup-required-gate';
 import { parseSetupRequired, type SetupRequiredCard as SetupRequiredCardData } from '@/lib/setup-required';
 import Modal from './modal';
+import { localInputRecoveryMessage, verifyContinuationSource } from '@/lib/continuation-local-input';
 
 export default function RunContinueBox({
   runId, agentName, pending = false, initialNote = '', slug = null, workflowVersionId = null,
@@ -51,6 +52,8 @@ export default function RunContinueBox({
   const [completePointClaims, setCompletePointClaims] = useState(false);
   const [claimScope, setClaimScope] = useState('');
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
+  const [sourcePhase, setSourcePhase] = useState<'checking' | 'reconnecting' | null>(null);
   const [done, setDone] = useState(false);
   const [msg, setMsg] = useState('');
   // The pre-run capability ask — a continue runs the agent just like a Run does, so
@@ -69,7 +72,8 @@ export default function RunContinueBox({
   const canSubmit = !!note.trim() || files.length > 0;
 
   async function submit(opts?: { force?: boolean; executionMachineId?: string | null }) {
-    if (busy || !canSubmit) return;
+    if (submitting.current || !canSubmit) return;
+    submitting.current = true;
     setBusy(true);
     setMsg('');
     setCapCard(null);
@@ -83,6 +87,12 @@ export default function RunContinueBox({
       if (preservePlannerIdentity && completePointClaims) {
         try { revisionClaimScope = JSON.parse(claimScope); }
         catch { setMsg('Enter the named point IDs and refused-review binding as valid JSON.'); return; }
+      }
+      const source = await verifyContinuationSource(runId, setSourcePhase);
+      setSourcePhase(null);
+      if (!source.ok) {
+        if (!source.canceled) setMsg(localInputRecoveryMessage(source.error));
+        return;
       }
       const { data: { session } } = await supabase.auth.getSession();
       await callBackend('/api/v2/me/run-requests', {
@@ -115,7 +125,9 @@ export default function RunContinueBox({
       if (classified?.recoverable) { setRefusal(classified); setMsg(''); return; }
       setMsg(runRequestRefusalCopy(e, 'Could not queue the continue. Try again.'));
     } finally {
+      setSourcePhase(null);
       setBusy(false);
+      submitting.current = false;
     }
   }
 
@@ -177,7 +189,9 @@ export default function RunContinueBox({
           disabled={busy || !canSubmit}
           className="btn-success text-xs px-3 py-1.5 disabled:opacity-50"
         >
-          {busy ? 'Queuing…' : 'Continue & re-run'}
+          {sourcePhase === 'checking' ? 'Checking original source…'
+            : sourcePhase === 'reconnecting' ? 'Reconnect the original source…'
+            : busy ? 'Queuing…' : 'Continue & re-run'}
         </button>
         {msg && <span className="text-xs text-rose-600 dark:text-rose-400">{msg}</span>}
       </div>

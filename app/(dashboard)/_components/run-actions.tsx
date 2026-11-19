@@ -35,18 +35,9 @@ import { useSetupRequiredGate } from './setup-required-gate';
 import type { RunStep } from '@/lib/run-state';
 import type { ReviewAmendmentTarget } from '@/lib/review-amendment-target';
 import { confirmedAgentRevisionRequestId } from '@/lib/run-request-receipt';
+import { localInputBridge, localInputRecoveryMessage, verifyContinuationSource } from '@/lib/continuation-local-input';
 
 const CLAUDE_CODE_MAX = 13000;
-type LocalInputRecoveryBridge = {
-  localInputReauthorizationState?: (runId: string) => Promise<{ ok: boolean; applicable?: boolean; required?: boolean; label?: string }>;
-  reauthorizeRunInputs?: (runId: string) => Promise<{ ok: boolean; recovered?: number; canceled?: boolean; error?: string }>;
-  onRunInputProgress?: (cb: (progress: { bytesRead?: number; totalBytes?: number }) => void) => (() => void);
-};
-
-function localInputBridge(): LocalInputRecoveryBridge | null {
-  if (typeof window === 'undefined') return null;
-  return (window as Window & { implexaDesktop?: LocalInputRecoveryBridge }).implexaDesktop || null;
-}
 
 export default function RunActions({
   runId,
@@ -204,6 +195,11 @@ export default function RunActions({
     if (busy || (!note.trim() && files.length === 0)) return;
     setBusy('changes'); setErr(null); setRefusal(null);
     try {
+      const source = await verifyContinuationSource(runId);
+      if (!source.ok) {
+        if (!source.canceled) setErr(localInputRecoveryMessage(source.error));
+        setBusy(null); return;
+      }
       const gated = await setupGate.guard(async ({ machineId }) => callBackend('/api/v2/me/run-requests', {
         jwt: await jwt(), method: 'POST',
         body: { kind: 'continue', runId, note: composed, source: 'dashboard', ...(machineId ? { executionMachineId: machineId } : {}) },
@@ -258,11 +254,7 @@ export default function RunActions({
       if (localRecovery !== 'verified') {
         const recovered = await bridge.reauthorizeRunInputs(runId);
         if (!recovered.ok) {
-          if (!recovered.canceled) setErr(recovered.error === 'input_digest_mismatch'
-            ? 'That is not the original file—the bytes do not match the approved run.'
-            : recovered.error === 'local_input_wrong_machine'
-              ? 'Reconnect this file on the Mac that created the run.'
-              : 'Could not verify the original local file. Try again.');
+          if (!recovered.canceled) setErr(localInputRecoveryMessage(recovered.error));
           setBusy(null); return;
         }
         // A transient queue refusal must not make an 8GB source hash again.
