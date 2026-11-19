@@ -16,6 +16,55 @@ const props = {
   skillSlug: 'raw-recording-clean-cut',
 };
 
+test('a finished-run continuation restores the exact source before submitting its unmodified feedback', async () => {
+  const note = 'Add quiet crossing effects around 8:55.';
+  let completeReconnect!: (value: { ok: boolean; recovered: number }) => void;
+  const reconnect = new Promise<{ ok: boolean; recovered: number }>(resolve => { completeReconnect = resolve; });
+  const calls: string[] = [];
+  const rendered = await render('run-continue-box.tsx', { runId: props.runId, agentName: props.agentName, initialNote: note }, {
+    bridge: {
+      localInputReauthorizationState: async (runId: string) => {
+        calls.push(`verify:${runId}`);
+        return { ok: true, applicable: true, required: true };
+      },
+      reauthorizeRunInputs: (runId: string) => { calls.push(`restore:${runId}`); return reconnect; },
+    },
+    backend: () => { calls.push('queue'); return { ok: true }; },
+  });
+  try {
+    await rendered.click(rendered.getByText('Continue & re-run'));
+    assert.deepEqual(calls, [`verify:${props.runId}`, `restore:${props.runId}`]);
+    assert.ok(rendered.getByText('Reconnect the original source…'));
+    assert.equal(rendered.calls.backend.length, 0);
+    await rendered.act(async () => { completeReconnect({ ok: true, recovered: 1 }); });
+    assert.deepEqual(calls, [`verify:${props.runId}`, `restore:${props.runId}`, 'queue']);
+    assert.deepEqual(JSON.parse(JSON.stringify((rendered.calls.backend[0].init as { body: unknown }).body)),
+      { kind: 'continue', runId: props.runId, source: 'dashboard', note });
+    assert.match(rendered.text(), /Queued — continuing this run/);
+  } finally { rendered.cleanup(); }
+});
+
+test('a cancelled or mismatched continuation source keeps the feedback and queues nothing', async t => {
+  for (const refusal of [{ ok: false, canceled: true }, { ok: false, error: 'input_digest_mismatch' }]) {
+    await t.test(refusal.canceled ? 'cancelled' : 'mismatch', async () => {
+      const note = 'Add quiet crossing effects around 8:55.';
+      const rendered = await render('run-continue-box.tsx', { runId: props.runId, agentName: props.agentName, initialNote: note }, {
+        bridge: {
+          localInputReauthorizationState: async () => ({ ok: true, applicable: true, required: true }),
+          reauthorizeRunInputs: async () => refusal,
+        },
+      });
+      try {
+        await rendered.click(rendered.getByText('Continue & re-run'));
+        assert.equal(rendered.calls.backend.length, 0);
+        assert.ok(rendered.getByText('Continue & re-run'));
+        assert.equal(rendered.document.querySelector('textarea')?.value, note);
+        if (!refusal.canceled) assert.match(rendered.text(), /not the original file/i);
+      } finally { rendered.cleanup(); }
+    });
+  }
+});
+
 test('a lost local capability gets one exact reconnect action instead of generic attachments', async () => {
   let reauthorizations = 0;
   const rendered = await render('run-actions.tsx', props, {
