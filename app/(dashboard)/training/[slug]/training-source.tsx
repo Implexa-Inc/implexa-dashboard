@@ -23,7 +23,7 @@ import SavedReviewTeaching from './saved-review-teaching';
 import TrainingImagePlayer from './training-image-player';
 import TrainingDraftBundle,{visualTeachingSelectable} from './training-draft-bundle';
 import RecordingLearningReview from './recording-learning-review';
-import TrainingIntakePlan,{INTAKE_CONTRACT,readIntakePlan,type IntakePlan} from './training-intake-plan';
+import TrainingIntakePlan,{INTAKE_CONTRACT,METHOD_CONTRACT,readIntakePlan,type IntakePlan} from './training-intake-plan';
 import {extractFeedbackTeaching,savedDirectFeedback,savedFeedbackMatches,type SavedDirectFeedback,extractionProgressFor,checkpointExtraction,retryFeedbackDraft,type FeedbackExtractionProgress,type FeedbackDraftRequest} from '@/lib/training-feedback-extraction';
 import type {ReviewArtifact,ReviewIssue} from '@/lib/review';
 import type {Moment,RecordingDetail} from '@/lib/review-recorder';
@@ -1343,7 +1343,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(bytes<=2*1024*1024){
       try{
         const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({mode:'recording-frames-only',sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:version,frames,consent:true,intakeContract:INTAKE_CONTRACT})});
+          body:JSON.stringify({mode:'recording-frames-only',sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:version,frames,consent:true,intakeContract:INTAKE_CONTRACT,methodContract:METHOD_CONTRACT})});
         const value=await response.json(),binding=value?.binding;
         if(!current())return;
         if(!response.ok||value?.ok!==true||value.contractVersion!=='training-recording-frames-suggestion.v1'
@@ -1393,7 +1393,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       const response=await fetch(`/api/agent-training/teaching-suggestion?sessionId=${encodeURIComponent(session)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:agent?'recording-agent-locate':'recording-locate',
         sourceId:source.sourceId,sourceSha256:source.metadata.sha256,expectedActiveVersionId:version,manifestId:local.manifestId,manifestDigest:local.manifestDigest,
         segments:local.segments,storyboard:local.storyboard,consent:true,
-        ...(agent?{capability:agentCapability}:recordingId?{intakeContract:INTAKE_CONTRACT}:{})})});
+        ...(agent?{capability:agentCapability}:recordingId?{intakeContract:INTAKE_CONTRACT,methodContract:METHOD_CONTRACT}:{})})});
       const value=await response.json();
       if(!sameRecording()||latestDraft.current!==snapshot)throw Error('The draft changed. The located excerpt was not applied.');
       if(!response.ok || value?.ok!==true)throw Error(teachingFailure(value,response.status));
@@ -1902,7 +1902,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     const version=currentVersion,identity=changesIdentity.current;
     setIntakeStatus('Loading saved agent changes…');
     try{
-      const result=await sendIntakeRequest({mode:'intake-list',expectedActiveVersionId:version,consent:true});
+      const result=await sendIntakeRequest({mode:'intake-list',expectedActiveVersionId:version,consent:true,methodContract:METHOD_CONTRACT});
       const plans=Array.isArray(result.plans)?result.plans.flatMap((value:unknown)=>{const plan=readIntakePlan(value,version);return plan?[plan]:[];}):[];
       setSavedIntakes({identity,plans});
       setIntakeStatus('');
@@ -1911,7 +1911,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const intakePanel=reviewedIntake&&<TrainingIntakePlan key={reviewedIntake.plan.planId} plan={reviewedIntake.plan}
     disabled={!!busy||runContext?.revisePending===true||!runContext||runContext.statusUnavailable===true}
     onClose={()=>setIntakeReview(null)} onQueue={async selected=>{
-      const result=await sendIntakeRequest({mode:'intake-queue',expectedActiveVersionId:reviewedIntake.plan.versionId,consent:true,
+      const result=await sendIntakeRequest({mode:'intake-queue',expectedActiveVersionId:reviewedIntake.plan.versionId,consent:true,methodContract:METHOD_CONTRACT,
         planId:reviewedIntake.plan.planId,planDigest:reviewedIntake.plan.planDigest,selected});
       if(result.application!=='edit_queued'||!UUID.test(result.requestId))throw Error('Implexa couldn’t confirm the queued change.');
     }}/>;
