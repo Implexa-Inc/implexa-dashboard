@@ -115,6 +115,8 @@ type Result = {
   token?: string;
   baseVersionId?: string;
   parentSessionId?: string | null;
+  sourceReferenceDigest?: string;
+  metadata?: Source['metadata'];
   selectionToken?: string;
   home?: Home;
   scope?: Scope;
@@ -130,6 +132,7 @@ type Result = {
   cleanup?: 'deleted' | 'pending';
   failedDrafts?: LocalDraft[];
   pendingDecisions?: LocalDraft[];
+  savedDecision?: Decision;
   managerCoverage?: ManagerTrainingCoverage;
   managerTrainingRequirements?: ManagerTrainingRequirements;
 };
@@ -144,6 +147,7 @@ type AutomaticRecordingReview = {
 };
 type Bridge = {
   trainingLocalContractVersion?: string;
+  trainingIntakeScopeContractVersion?: string;
   trainingRecordingContractVersion?: string;
   trainingToolFrameContractVersion?: string;
   trainingRecordingLibraryContractVersion?: string;
@@ -242,6 +246,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [activeTraining, setActiveTraining] = useState<{requirements:ManagerTrainingRequirements;adoption:unknown}|null>(null);
   const [trainingStatusRefresh,setTrainingStatusRefresh] = useState(0);
   const trainingAuthorityEpoch=useRef(0);
+  const intakeReadEpoch=useRef(0);
+  const [homeError,setHomeError]=useState(false);
   function invalidateTrainingContinuity(){trainingAuthorityEpoch.current++;setActiveTraining(null);}
   const [publication,setPublication]=useState<{versionId:string;shared:boolean;publicUrl:string}|null>(null);
   const [publishConfirmed,setPublishConfirmed]=useState(false);
@@ -725,6 +731,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   }
 
   async function requireCurrentScope(id = session) {
+    intakeReadEpoch.current++;
     const result = await call('scope', { slug, ...(id ? { sessionId: id } : {}) });
     if (!result.scope?.agent.currentVersionId) throw new TrainingError('no_immutable_version', 'Activate an immutable agent version before adding training evidence.');
     rememberScope(result.scope);
@@ -741,6 +748,9 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
 
   useEffect(() => {
     let live = true;
+    const intakeEpoch=intakeReadEpoch.current;
+    const isolated=!installationId&&bridge()?.trainingIntakeScopeContractVersion==='1';
+    const currentHome=()=>live&&(!isolated||intakeReadEpoch.current===intakeEpoch);
     async function loadSavedEvidence(id: string, activeVersionId: string, predecessor: TrainingSuccessorProjection['eligiblePredecessor']) {
       const read = ++evidenceRead.current;
       const authorityEpoch = trainingAuthorityEpoch.current;
@@ -773,7 +783,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       }
     }
 
-    void work('Checking agent training', async () => {
+    async function checkTrainingHome() {
       if(installationId){
         const result=await call('scope',{slug});
         if(!live||!result.scope)return;
@@ -783,7 +793,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       }
       const authorityEpoch=trainingAuthorityEpoch.current;
       const result = await call('home', { slug });
-      if (!live || !result.home) return;
+      if (!currentHome() || !result.home) return;
       const home = result.home;
       setRecentSessions(home.recentSessions);
       if (!isTrainingSuccessorProjection(home.successorProjection, home.agent.currentVersionId)) {
@@ -810,15 +820,20 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         void loadSavedEvidence(active.sessionId, projection.activeVersionId, predecessor);
       } else if (predecessor) {
         const scoped = await call('scope', { slug, sessionId: predecessor.sessionId });
-        if (!live || !scoped.scope?.session || scoped.scope.session.sessionId !== predecessor.sessionId
+        if (!currentHome()) return;
+        if (!scoped.scope?.session || scoped.scope.session.sessionId !== predecessor.sessionId
           || scoped.scope.session.baseVersionId !== predecessor.baseVersionId
           || scoped.scope.agent.currentVersionId !== projection.activeVersionId) throw new TrainingError('training_successor_projection_unavailable');
         const prior = await call('list', { sessionId: predecessor.sessionId });
-        if (!live) return;
+        if (!currentHome()) return;
         if (acceptedCount(prior) !== predecessor.acceptedLocalRecordCount) throw new TrainingError('training_successor_projection_unavailable');
         setSession(predecessor.sessionId); rememberScope(scoped.scope); rememberList(prior); setVersionChanged(true);
       }
-    });
+    }
+    if(isolated){
+      setHomeError(false);
+      void checkTrainingHome().catch(()=>{if(currentHome())setHomeError(true);});
+    }else void work('Checking agent training',checkTrainingHome);
     return () => { live = false; };
     // The slug is the route identity. A new slug remounts the authoritative scope.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -831,12 +846,16 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(session||installationId||versionChanged)return;
     await work('Opening private Training',async()=>{
       const before=await requireCurrentScope('');
-      if(!currentVersion||before.agent.currentVersionId!==currentVersion)throw new TrainingError('training_version_changed');
-      const created=await call('create',{slug,key:sessionKey});
-      if(!created.sessionId)throw new TrainingError('training_session_unavailable');
-      const after=await requireCurrentScope(created.sessionId);
-      if(after.agent.currentVersionId!==currentVersion||after.session?.baseVersionId!==currentVersion)throw new TrainingError('training_version_changed');
-      setSession(created.sessionId);rememberScope(after);await load(created.sessionId);
+      const isolated=bridge()?.trainingIntakeScopeContractVersion==='1';
+      const version=isolated&&currentVersion===null?before.agent.currentVersionId:currentVersion;
+      if(!version||before.agent.currentVersionId!==version)throw new TrainingError('training_version_changed');
+      const open=isolated&&before.session?.baseVersionId===version&&!before.session.terminal?before.session.sessionId:null;
+      const id=open||(await call('create',{slug,key:sessionKey})).sessionId;
+      if(!id)throw new TrainingError('training_session_unavailable');
+      const after=await requireCurrentScope(id);
+      if(after.agent.currentVersionId!==version||after.session?.baseVersionId!==version)throw new TrainingError('training_version_changed');
+      setSession(id);rememberScope(after);
+      if(!isolated)await load(id);
       if(openChat)focusChat();
     });
   }
@@ -851,6 +870,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(!id){const before=await requireCurrentScope('');const created=await call('create',{slug,key:sessionKey});if(!created.sessionId)throw new TrainingError('training_session_unavailable');id=created.sessionId;setSession(id);const after=await requireCurrentScope(id);if(after.agent.currentVersionId!==before.agent.currentVersionId)throw new TrainingError('training_version_changed');}
     await requireCurrentScope(id);
     const key=`${id}:${version}:${recordingId}`;let registered=recordingSources.current.get(key);
+    if(registered&&selected?.sourceId===registered.sourceId&&selected.token===registered.token
+      &&selected.metadata.mediaType==='video/mp4')return {id,source:selected};
     let refreshed:Result|undefined;
     if(!registered){
       try{
@@ -1075,14 +1096,22 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         setBusy(UPLOAD_CHECKING);
       }
       let id = session;
+      let version = currentVersion;
+      const isolated=!installationId&&desktop?.trainingIntakeScopeContractVersion==='1';
       if (!id) {
         const before = await requireCurrentScope('');
-        const created = await call('create', { slug, key: sessionKey,...(installationId?{expectedVersionId:before.agent.currentVersionId}:{}) });
-        if (!created.sessionId) throw new TrainingError('training_session_unavailable');
-        id = created.sessionId; setSession(id);
+        const open=isolated&&before.session&&!before.session.terminal&&before.session.baseVersionId===before.agent.currentVersionId?before.session:null;
+        if(open)id=open.sessionId;
+        else{
+          const created = await call('create', { slug, key: sessionKey,...(installationId?{expectedVersionId:before.agent.currentVersionId}:{}) });
+          if (!created.sessionId) throw new TrainingError('training_session_unavailable');
+          id=created.sessionId;
+        }
+        setSession(id);
         const after = await requireCurrentScope(id);
         if (after.agent.currentVersionId !== before.agent.currentVersionId) throw new TrainingError('training_version_changed');
-      } else await requireCurrentScope(id);
+        version=after.agent.currentVersionId;
+      } else version=(await requireCurrentScope(id)).agent.currentVersionId;
       const consents={localCustody:true,boundedEvidence:true,futureSelection:true};
       if(recordingSelection&&!directUpload&&!questionAnswer){
         if(bridge()?.trainingRecordingLibraryContractVersion!=='1'||!ownerId)throw new TrainingError('training_desktop_update_required','Update Desktop to use this saved recording.');
@@ -1103,9 +1132,20 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
           if(error instanceof TrainingError&&Object.hasOwn(UPLOAD_MESSAGES,error.reason))throw new TrainingError(error.reason,UPLOAD_MESSAGES[error.reason]);
           throw error;
         });
-        await requireCurrentScope(id);const listed=await load(id);
-        const source=listed.sources?.find(s=>s.sourceId===added.sourceId&&s.token===added.token);
+        const active=await requireCurrentScope(id);
+        if(active.agent.currentVersionId!==version)throw new TrainingError('training_version_changed');
+        const verified=isolated&&directUpload&&!questionAnswer&&added.sessionId===id&&added.baseVersionId===version
+          &&added.sourceId&&UUID.test(added.sourceId)&&added.token&&UUID.test(added.token)
+          &&added.sourceReferenceDigest&&/^[a-f0-9]{64}$/.test(added.sourceReferenceDigest)
+          &&added.metadata&&/^[a-f0-9]{64}$/.test(added.metadata.sha256);
+        const source:Source|undefined=verified
+          ? {sourceId:added.sourceId!,sourceReferenceDigest:added.sourceReferenceDigest!,token:added.token!,metadata:added.metadata!,decisions:[]}
+          : (await load(id)).sources?.find(s=>s.sourceId===added.sourceId&&s.token===added.token);
         if(!source)throw new TrainingError('training_source_scope_mismatch','The source is saved but could not be opened for annotation. Find it in Saved sources & original decisions.');
+        if(verified){
+          evidenceRead.current++;
+          setSources(previous=>previous.some(item=>item.sourceId===source.sourceId)?previous:[...previous,source]);
+        }
         if(!chooseSource(source,!!(directUpload||questionAnswer)&&discardDraftConfirmed))return;
         if((directUpload||questionAnswer)&&discardDraftConfirmed){setDemoText('');setChosen('');setWhy('');setProcess('');setBehavior('');}
         if(questionAnswer&&source.token){
@@ -1114,7 +1154,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         }else if(directUpload&&source.token){
           setDirectSource(true);setReopenedFeedback(null);setConsent(false);setDirectNote('');setPlaybackFallback('');
           if(added.recordingId&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(added.recordingId)&&source.metadata.mediaType==='video/mp4'){
-            recordingSources.current.set(`${id}:${currentVersion}:${added.recordingId}`,{sourceId:source.sourceId,token:source.token,version:currentVersion!,sessionId:id});
+            recordingSources.current.set(`${id}:${version}:${added.recordingId}`,{sourceId:source.sourceId,token:source.token,version:version!,sessionId:id});
             setAutomaticReview(analyzeVideo?{recordingId:added.recordingId,phase:'queued'}:null);
             setActiveRecordingId(added.recordingId);setActiveRecordingDetail(null);setTrainerNarration(false);setRunSource(null);
           }else{
@@ -1539,9 +1579,20 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         suggestionDigest:recordingDraft.suggestionDigest,recordId:drafted.recordId,expectedRecordDigest:drafted.recordDigest}} : null;
       if(recordingLink)setPendingRecordingLink(recordingLink);
       setDecisionKey(crypto.randomUUID()); setPreview(null); setChosen(''); setWhy(''); setProcess(''); setBehavior(''); setCopiedTeachingWording(false); setWordingOpened(false); setSelectionPriority('50');setSelectionConditions({taskFacts:[],exceptions:[]}); setStages(deriveTrainingStages(property)); setSuccessorStageExpansion(null);
-      const saved = await load(session);
+      const acknowledged=drafted.savedDecision;
+      const localReview=narrationFields&&bridge()?.trainingIntakeScopeContractVersion==='1'
+        &&acknowledged?.state==='draft'&&acknowledged.recordId===drafted.recordId&&UUID.test(acknowledged.recordId)
+        &&acknowledged.recordDigest===drafted.recordDigest&&/^[a-f0-9]{64}$/.test(acknowledged.recordDigest)
+        &&acknowledged.content?.anchor?.startMs===requestedTime;
+      const saved=localReview?undefined:await load(session);
+      if(localReview){
+        evidenceRead.current++;
+        const append=(s:Source)=>s.sourceId!==source.sourceId?s:{...s,decisions:[...s.decisions.filter(d=>d.recordId!==acknowledged.recordId),acknowledged]};
+        setSources(previous=>previous.map(append));
+        setSelected(previous=>previous?append(previous):previous);
+      }
       if (appliedSuggestion.current) {
-        const record = saved.sources?.flatMap(s => s.decisions).find(d => d.recordId === drafted.recordId);
+        const record = localReview?acknowledged:saved?.sources?.flatMap(s => s.decisions).find(d => d.recordId === drafted.recordId);
         setSuggestionNote(record?.content.derivatives?.[0]?.sha256 === appliedSuggestion.current.binding.frameSha256
           ? 'Saved teaching evidence matches the suggestion frame. The saved text remains your reviewed draft; model authorship is not durably recorded.'
           : 'The draft was saved, but its evidence could not be matched to the suggestion frame. Do not treat the suggestion as describing this saved evidence.');
@@ -1587,12 +1638,24 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       // Acceptance changes the candidate material, so an earlier test must not
       // remain visible while its canonical training snapshot is being reread.
       changesRead.current++;setChanges(null);setChangesError('');
+      const isolated=bridge()?.trainingIntakeScopeContractVersion==='1';
       try {
-        await call('accept', { token: reviewed.source.token, recordId: reviewed.decision.recordId, expectedDigest: reviewed.decision.recordDigest });
+        const result=await call('accept', { token: reviewed.source.token, recordId: reviewed.decision.recordId, expectedDigest: reviewed.decision.recordDigest });
+        if(isolated){
+          if(result.state!=='accepted'||result.recordId!==reviewed.decision.recordId
+            ||result.recordDigest!==reviewed.decision.recordDigest||!/^[a-f0-9]{64}$/.test(result.receiptDigest||''))
+            throw new TrainingError('training_accept_unconfirmed','The acceptance could not be confirmed. Refresh saved training to check its status.');
+          evidenceRead.current++;
+          const mark=(source:Source):Source=>source.sourceId!==reviewed.source.sourceId?source:{...source,
+            decisions:source.decisions.map(decision=>decision.recordId===result.recordId&&decision.recordDigest===result.recordDigest
+              ? {...decision,state:'accepted'}:decision)};
+          setSources(previous=>previous.map(mark));
+          setSelected(previous=>previous?mark(previous):previous);
+        }
         setReviewed(null);
-        await load(session);
-        if (questions) await loadQuestions();
-      } finally { await loadChanges(); }
+        if(!isolated)await load(session);
+        if(questions){if(isolated)void loadQuestions();else await loadQuestions();}
+      } finally { if(isolated)void loadChanges();else await loadChanges(); }
     });
   }
   const [applyNote,setApplyNote]=useState('');
@@ -1791,6 +1854,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         <p>{!session?'Add an example to start a training session first.':!sources.some(source=>source.decisions.some(d=>['draft','accepted'].includes(d.state)))?'No saved lessons are available in this training session yet.':''}</p><p>Linking preserves the existing teaching; it does not edit its text or evidence. This also resumes a draft saved before an interrupted answer link.</p>
         <button disabled={!!busy || !linkRecordId || sessionVersion !== questionAnswer.expectedActiveVersionId} onClick={linkExistingTeaching}>Link answer to selected teaching</button></TrainingDetails>
       </div>:null;
+  const separateIntake=bridge()?.trainingIntakeScopeContractVersion==='1';
   const activeAnalysis=!versionChanged&&automaticReview?.recordingId===activeRecordingId?automaticReview:null;
   const analysisInProgress=activeAnalysis&&['queued','narration','screenshots'].includes(activeAnalysis.phase);
   const narratedLesson=activeAnalysis?.phase==='review'&&!activeAnalysis.frames&&recording?.purpose==='taste'?recording.suggestion:null;
@@ -1822,15 +1886,15 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     <div className={installationId?'':'space-y-6 p-5 sm:p-8'}>
     {!installationId&&busy&&!analysisInProgress&&<p role="status" className="text-sm text-ink-400">{busy}…</p>}{!installationId&&error&&<p role="alert" className="text-sm text-amber-300">{reasonLabel(error)}</p>}
     {!installationId&&trainingStep!==1&&evidenceLoading&&<p role="status" className="text-xs text-ink-400">Loading saved examples…</p>}
-    {!installationId&&evidenceError&&!analysisInProgress&&<p role="status" className="text-xs text-amber-300">Saved examples couldn’t load. <button type="button" className="underline" disabled={!!busy||evidenceLoading} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry saved examples</button></p>}
+    {!installationId&&!separateIntake&&evidenceError&&!analysisInProgress&&<p role="status" className="text-xs text-amber-300">Saved examples couldn’t load. <button type="button" className="underline" disabled={!!busy||evidenceLoading} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry saved examples</button></p>}
     {!installationId&&trainingStep===3&&applyNote&&<p role="status" className="text-sm text-ink-300">{applyNote}</p>}
-    {!installationId&&changesError&&trainingStep!==2&&!analysisInProgress&&<p role="alert" className="text-sm text-amber-300">{changesError==='training_local_unavailable'?'Saved lessons couldn’t load.':changesError.replaceAll('_',' ')} {!changes&&<button type="button" className="underline" disabled={changesBusy} onClick={()=>void loadChanges()}>Refresh training</button>}</p>}
+    {!installationId&&changesError&&trainingStep!==2&&!analysisInProgress&&(!separateIntake||trainingStep===3)&&<p role="alert" className="text-sm text-amber-300">{changesError==='training_local_unavailable'?'Saved lessons couldn’t load.':changesError.replaceAll('_',' ')} {!changes&&<button type="button" className="underline" disabled={changesBusy} onClick={()=>void loadChanges()}>Refresh training</button>}</p>}
     {!installationId&&extractionNote&&<div role="status" className="flex flex-wrap items-center gap-3 text-sm text-ink-300"><p>{extractionNote}</p>{busy==='Finding the lessons in your feedback'?<button type="button" className="text-xs underline" onClick={()=>{extractionCancel.current=true;}}>Pause after this step</button>:lastFeedbackBatch&&<button type="button" className="text-xs underline" onClick={()=>void extractRecordingFeedback(lastFeedbackBatch)}>Resume extraction</button>}</div>}
     {!installationId&&session&&sessionVersion===currentVersion&&currentVersion&&<TrainingOperatingChanges key={`${ownerId}:${session}:${currentVersion}`} sessionId={session} versionId={currentVersion} slug={slug} refreshKey={operatingRefresh} onResume={analysis=>void resumeOperatingAnalysis(analysis).catch(()=>setExtractionNote('Your saved feedback could not be reopened. The original note is preserved.'))} disabled={!!busy||changesBusy||versionChanged||runContext?.revisePending===true||!runContext||runContext.statusUnavailable===true}/>}
     <div hidden={!installationId&&trainingStep!==1} className="space-y-7">
     {!installationId&&<><h2 className="text-xl font-medium tracking-tight">Ways to train</h2>{questionsError&&<div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-ink-400"><p>Training suggestions couldn’t load.</p><button type="button" disabled={questionsBusy||!!busy} onClick={()=>void loadQuestions()} className="underline">Retry training suggestions</button></div>}<CustomerTrainingInbox slug={slug} ownerId={ownerId||''} sessionId={sessionVersion===currentVersion?session:null} versionId={currentVersion} disabled={!!busy||changesBusy||versionChanged} onStart={()=>startPrivateTraining(false)} onSaved={()=>{void loadChanges();selectTrainingStep(2);}} onOwnExample={()=>{selectTrainingStep(1);setView('teach');}}/><TrainingOpportunities key={`${ownerId}:${slug}`} runs={recentRuns} pendingCount={unappliedCount} onReview={()=>selectTrainingStep(2)} questions={questions} sessionId={sessionVersion===currentVersion?session:null} versionId={currentVersion} disabled={!!busy||changesBusy||versionChanged} onStart={()=>startPrivateTraining(false)} onSaved={()=>{void loadChanges();void loadQuestions();selectTrainingStep(2);}}/>
     <section className="space-y-2 border-t border-ink-800 pt-6"><h3 className="text-lg font-medium">Chat with Implexa</h3><p className="text-sm text-ink-400">Teach a preference, ask a question or change how your agent works.</p><button id="training-chat-toggle" type="button" aria-expanded={chatExpanded} aria-controls="training-companion" disabled={!!busy} onClick={()=>chatExpanded?setChatExpanded(false):focusChat()} className="rounded-lg border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-ink-500">✦ {chatExpanded?'Close chat':'Chat with Implexa'}</button></section></>}
-    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onSelectRun={openRun} selectedRunId={activeRunId} sourceActive={!!activeRunId||!!activeRecordingId||directSource} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={requestTrainingUpload} uploadDisabled={!!busy||changesBusy||versionChanged||!currentVersion} uploadStatus={[UPLOAD_PICKING,UPLOAD_CHECKING,UPLOAD_IMPORTING,UPLOAD_LEGACY].includes(busy)?busy:undefined}/>}/>}
+    {!installationId&&<TrainingEntry slug={slug} lastRunId={lastRunId} runs={recentRuns} runsUnavailable={runsUnavailable} onSelectRun={openRun} selectedRunId={activeRunId} sourceActive={!!activeRunId||!!activeRecordingId||directSource} actions={<NewReview presentation="training" ownerId={ownerId||''} trainingSlug={slug} onRecordingReady={openRecording} onTrainingUpload={requestTrainingUpload} uploadDisabled={!!busy||changesBusy||versionChanged||(!currentVersion&&bridge()?.trainingIntakeScopeContractVersion!=='1')} uploadStatus={[UPLOAD_PICKING,UPLOAD_CHECKING,UPLOAD_IMPORTING,UPLOAD_LEGACY].includes(busy)?busy:undefined}/>}/>}
     {!installationId&&!directSource&&!activeRecordingId&&!activeRunId&&(savedFeedback.length>0||savedFeedbackUnreadable>0)&&<section aria-label="Saved feedback to finish" className="space-y-3 rounded-xl border border-ink-800 p-4"><h3 className="text-lg font-medium">Continue your saved feedback</h3>{savedFeedbackUnreadable>0&&<p role="status" className="text-sm text-amber-300">Some saved feedback could not be reopened. Your saved notes have not been changed.</p>}{savedFeedback.map(note=><div key={note.fingerprint} className="space-y-2"><p className="line-clamp-2 text-sm text-ink-400">{note.feedback}</p><button type="button" className="text-sm text-orange-400 underline" disabled={!!busy||changesBusy||versionChanged||directVoiceDirty||runDirty||recordingDirty||!!runFeedbackRequest} onClick={()=>void reopenSavedFeedback(note)}>Continue saved feedback</button></div>)}</section>}
     {!installationId&&pendingRecordingId&&<div role="status" className="text-sm text-ink-300">Another recording is ready. Your current feedback is preserved. <button type="button" className="underline" onClick={()=>{if(recordingDirty){setClosingRecording(false);setReplaceRecordingOpen(true);}else if(pendingRecordingId)openRecording(pendingRecordingId);}}>Annotate new recording</button></div>}
     {!installationId&&directSource&&!activeRunId&&!activeRecordingId&&selected?.token&&previewIsCurrent&&preview?.image&&<>
@@ -2040,6 +2104,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </div>
     {installationId&&busy && <p role="status" aria-live="polite">{busy}… Large files can take several minutes.</p>}{installationId&&error && <p role="alert">{reasonLabel(error)}</p>}
     <div><TrainingDetails title="Training readiness & version details"><span id="training-readiness"/>
+    {homeError&&<p role="status">Version details couldn’t load. <button type="button" className="underline" onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry version details</button></p>}
+    {separateIntake&&changesError&&<p role="status">Saved lessons couldn’t load. <button type="button" className="underline" disabled={changesBusy} onClick={()=>void loadChanges()}>Refresh saved lessons</button></p>}
     {readinessNeedsAttention&&versionTransition?.sources.some(source=>source.decisions.some(decision=>decision.state==='accepted'))&&<button type="button" onClick={()=>openTrainingHistory('training-earlier')}>Review training from earlier versions</button>}
     {acceptedEvidenceCount > 0 && <p role="status" className="rounded border border-emerald-600 p-3">Evidence accepted: {acceptedEvidenceCount} immutable decision{acceptedEvidenceCount === 1 ? '' : 's'} in this session. Acceptance preserves the teaching; Agent readiness is verified separately below.</p>}
     {currentVersion && !requirementsAreCurrent && !activeVersionTrainingIsReady && <section role="alert" className="rounded border border-amber-500 p-4 space-y-2"><h2 className="font-semibold">Manager reference training readiness unavailable</h2><p>Implexa cannot verify the required stage and quality-reference pairs for this exact active version. Accepted evidence remains preserved. Decision, procedure, criterion, and machine-custody requirements are verified separately at run prelaunch.</p></section>}
@@ -2081,6 +2147,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     {pending.map(draft=><section key={`${draft.token}:${draft.key}`} className="rounded-lg border border-ink-800 p-4 space-y-2" aria-label="Preserved decision draft"><p className="font-medium">A teaching did not finish saving</p><p className="text-sm text-ink-400">Your draft is preserved.</p>{draft.retryable?<button disabled={!!busy} onClick={()=>work('Retrying saved decision',async()=>{await requireCurrentScope();await call('retryDraft',{token:draft.token,key:draft.key});await load(session);})}>Retry saving</button>:<><p className="text-sm text-ink-400">This draft cannot be saved again as it is. Review it before starting a new teaching.</p><button disabled={!!busy} onClick={()=>discardDraft(draft)}>Remove unfinished draft</button></>}<TrainingDetails title="Technical details"><p>{reasonLabel(draft.reason)}</p></TrainingDetails></section>)}
     </div>
     <TrainingDetails title="Saved sources & original decisions" open={Boolean(installationId)}>
+      {separateIntake&&evidenceError&&<p role="status">Saved examples couldn’t load. <button type="button" className="underline" disabled={evidenceLoading} onClick={()=>setTrainingStatusRefresh(value=>value+1)}>Retry saved examples</button></p>}
       <p className="text-ink-400">Your original examples and teaching history. Open a lesson to review its example or change how it is used.</p>
       {sources.map((source,index)=><section key={source.sourceId} className="rounded-lg border border-ink-800 p-4 space-y-3">
         <h2 className="font-medium">{source.localName||`Training example ${index+1}`}</h2><p className="text-xs text-ink-400">{source.metadata.mediaType.startsWith('video/')?'Video':'Image'}{source.metadata.durationMs>0?` · ${formatTrainingTime(source.metadata.durationMs)}`:''}</p>
