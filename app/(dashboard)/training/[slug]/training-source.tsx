@@ -14,7 +14,7 @@ import AgentActions from '../../_components/agent-actions';
 import type {AgentActionContext} from '@/lib/agent-detail';
 import {trainingContinuityStatus,trainingCarryCoversSession,prepareTrainingRun,type PreparedTrainingTest} from '@/lib/manager-training-run-preflight';
 import {createClient} from '@/lib/supabase/client';
-import {BackendError,callBackend} from '@/lib/api';
+import {callBackend} from '@/lib/api';
 import NewReview from '../../review/new/new-review';
 import RecordingPlayer from '../../review/recordings/[recordingId]/recording-player';
 import TrainingRunPlayer from './training-run-player';
@@ -132,6 +132,7 @@ type Result = {
   managerCoverage?: ManagerTrainingCoverage;
   managerTrainingRequirements?: ManagerTrainingRequirements;
 };
+type TrainingHomeRead = Promise<{value:Result}|{error:unknown}>;
 type Bridge = {
   trainingLocalContractVersion?: string;
   trainingRecordingContractVersion?: string;
@@ -344,13 +345,16 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     preparingTest.current=true;
     setTestProgress('Checking your saved training…');
     setChangesError('');
+    let preparationKey=`${session}:${currentVersion}:${scope}:${resultSnapshotDigest}:${publicationPreview?.publicationPreparationId||''}`;
+    const testAlreadyStarted=changes.test.snapshotDigest===resultSnapshotDigest&&['queued','running','delivered'].includes(changes.test.status);
+    const homeRead=scope==='private_candidate'&&!testAlreadyStarted&&!preparedRuns.current.has(preparationKey)
+      ?call('home',{slug}).then(value=>({value}),error=>({error})):undefined;
     try{
     let fresh=await loadChanges(AbortSignal.timeout(60000));if(changesIdentity.current!==identity)return;
     if(!fresh){setChangesError('Could not check saved training. Try again to open run setup.');return;}
     if(fresh.binding.snapshotDigest!==snapshotDigest){setChangesError('Your training changed. Review the current update and try again.');return;}
     if(fresh.test.snapshotDigest===resultSnapshotDigest&&['queued','running'].includes(fresh.test.status)){setChangesError('This training test is already queued or running. Open its result instead of starting it again.');return;}
     if(scope==='private_candidate'&&fresh.test.status==='delivered'&&fresh.test.snapshotDigest===snapshotDigest){revealTrainingElement('training-activation');return;}
-    let preparationKey=`${session}:${currentVersion}:${scope}:${resultSnapshotDigest}:${publicationPreview?.publicationPreparationId||''}`;
     if(fresh.test.requestId&&fresh.test.snapshotDigest===resultSnapshotDigest&&fresh.test.scope===scope)preparedRuns.current.delete(preparationKey);
     const held=preparedRuns.current.get(preparationKey);
     if(held){setPublicationReviewOpen(false);setRunRequest({nonce:crypto.randomUUID(),binding:held});return;}
@@ -358,7 +362,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(scope==='private_candidate'){
       try{
         setTestProgress('Checking which earlier lessons carry forward…');
-        const continuity=await preserveCompatibleTraining();
+        const continuity=await preserveCompatibleTraining(false,homeRead);
         if(changesIdentity.current!==identity)return;
         if(continuity.carried){
           fresh=await loadChanges(AbortSignal.timeout(60000));if(changesIdentity.current!==identity)return;
@@ -1124,24 +1128,21 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     setSelectionConditions({taskFacts:[...(decision.content.applicability?.taskFacts||[])],exceptions:[...(decision.content.applicability?.exceptions||[])]});
     setStages(deriveTrainingStages(nextProperty)); setDecisionKey(crypto.randomUUID());
   }
-  async function preserveCompatibleTraining(historical=false){
+  async function preserveCompatibleTraining(historical=false,homeRead?:TrainingHomeRead){
     if(!currentVersion)throw new TrainingError('training_version_changed','Choose the current agent version before continuing.');
     invalidateTrainingContinuity();
     const {data:{session:auth}}=await createClient().auth.getSession();
     if(!auth?.access_token)throw new TrainingError('training_sign_in_required','Sign in before continuing Training.');
     const endpoint=`/api/v2/agent-training/agents/${encodeURIComponent(slug)}`;
-    let freshHome:any;
+    let freshHome:Result|undefined;
     const result=await prepareTrainingRun({slug,workflowVersionId:currentVersion,
       read:async()=>{
-        if(!historical){
-          try{
-            return freshHome=await callBackend(`${endpoint}?scope=run&versionId=${encodeURIComponent(currentVersion)}`,{
-              jwt:auth.access_token,signal:AbortSignal.timeout(45000)});
-          }catch(error){
-            if(!(error instanceof BackendError)||error.body?.reason!=='training_served_snapshot_version_mismatch')throw error;
-          }
-        }
-        return freshHome=await call('home',{slug});
+        const pending=homeRead;
+        homeRead=undefined;
+        if(!pending)return freshHome=await call('home',{slug});
+        const result=await pending;
+        if('error' in result)throw result.error;
+        return freshHome=result.value;
       },
       adopt:(body,key)=>callBackend(`${endpoint}/adopt-successor`,{
         jwt:auth.access_token,method:'POST',body,idempotencyKey:key,...(!historical?{signal:AbortSignal.timeout(45000)}:{})})});
@@ -1150,7 +1151,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
       return result;
     }
     const proof=freshHome?.ok===true&&freshHome.home?.agent?.currentVersionId===currentVersion
-      ?trainingContinuityStatus(freshHome.home.successorAdoption,freshHome.home.managerTrainingRequirements,currentVersion):null;
+      ?trainingContinuityStatus(freshHome.home.successorAdoption,freshHome.home.managerTrainingRequirements||null,currentVersion):null;
     const coversHistorical=trainingCarryCoversSession(freshHome?.home?.successorAdoption,freshHome?.home?.managerTrainingRequirements||null,currentVersion,sessionVersion);
     if(result.carryError||result.preflight.state!=='ready'||!coversHistorical||(!result.carried&&proof?.state!=='carried'))throw new TrainingError('training_continuity_unconfirmed',result.carryError||'Check the current training before continuing.');
     return result;
