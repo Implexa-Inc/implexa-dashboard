@@ -2511,16 +2511,24 @@ test('cancelling the new picker avoids the training check and creates no session
 test('upload analysis shows progress, falls back to screenshots, and keeps learning review explicit',async()=>{
  for(const spoken of [true,false]){
   const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
-  const localAnalysis=Promise.withResolvers<void>(),requests:any[]=[];
+  const localAnalysis=Promise.withResolvers<void>(),home=Promise.withResolvers<any>(),requests:any[]=[];
   const summary={recordingId:QUESTION,title:'Uploaded example',origin:'imported',state:'ready',failureReason:null,
    createdAt:'2026-11-11T12:00:00Z',durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:0};
-  Object.assign(h.bridge,{reviewRecorderContractVersion:'2',trainingUploadPlaybackContractVersion:'1',
+  Object.assign(h.bridge,{reviewRecorderContractVersion:'2',trainingUploadPlaybackContractVersion:'1',trainingIntakeScopeContractVersion:'1',
    reviewRecorder:async(op:string)=>op==='get'?{ok:true,recording:{...summary,pointerTrack:null,moments:[]}}:op==='list'?{ok:true,recordings:[summary],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true},
    revokeArtifactPreview:async()=>({ok:true})});
   const segments=[{index:0,startMs:0,endMs:5000,text:'Use a visual to explain the relationship.'}];
   h.bridge.trainingLocal=async(op,args)=>{
+   if(op==='home')return home.promise;
+   if(op==='scope'&&!args.sessionId)return {ok:true,scope:{agent:{name:'Video craft',currentVersionId:VERSION_A},
+     session:{sessionId:SESSION,baseVersionId:VERSION_A,terminal:false}}};
+   if(op==='list')return {ok:false,reason:'training_local_unavailable'};
    const result=await original(op,args);
-   if(op==='select')return {...result,recordingId:QUESTION,playback:{available:true}};
+   if(op==='select')return {...result,recordingId:QUESTION,playback:{available:true},sessionId:SESSION,baseVersionId:VERSION_A,
+     sourceReferenceDigest:DIGEST,metadata:{sha256:SOURCE_DIGEST,mediaType:'video/mp4',durationMs:5000,width:1600,height:900}};
+   if(op==='annotate')return {...result,savedDecision:{...decision('draft'),decision:args.decision,
+     content:{...decision('draft').content,anchor:{startMs:args.timeMs}}}};
+   if(op==='accept')return {...result,receiptDigest:DIGEST};
    if(op==='recording'){
     await localAnalysis.promise;
     return spoken?{ok:true,manifest:{sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A},
@@ -2553,6 +2561,8 @@ test('upload analysis shows progress, falls back to screenshots, and keeps learn
    await r.click(r.getByText('Choose file & find learnings'));
    assert.match(r.text(),/Analyzing narration/);
    assert.equal(requests.length,0);
+   assert.equal(h.calls.some(c=>c.operation==='create'||c.operation==='list'),false);
+   await r.act(async()=>{home.resolve({ok:false,reason:'training_unavailable'});});
    await r.act(async()=>{localAnalysis.resolve();await new Promise(resolve=>setTimeout(resolve,45));});
    const panel=r.document.querySelector('[aria-label="Suggested learning from your recording"]')!;
    assert.match(panel.textContent||'',spoken?/From your narration/:/Inferred from screenshots/);
@@ -2564,7 +2574,13 @@ test('upload analysis shows progress, falls back to screenshots, and keeps learn
    await r.click(r.getByText('Review & accept'));
    assert.equal((h.calls.find(call=>call.operation==='annotate')!.args.decision as any).desiredBehavior,'Use a concise visual cue.');
    assert.equal(h.calls.some(call=>call.operation==='accept'),false);
-   if(!spoken){
+   assert.equal(h.calls.some(call=>call.operation==='list'),false);
+   if(spoken){
+    await r.click(r.getByText(/I reviewed this exact frame and decision/).querySelector('input')!);
+    await r.click(r.getByText('Accept this exact decision'));
+    assert.equal(h.calls.filter(call=>call.operation==='accept').length,1);
+    assert.equal(h.calls.some(call=>call.operation==='list'),false);
+   }else{
     await r.click(r.getByText('← Ways to train'));
     const media=r.document.querySelector('[aria-label="Screenshots from your recording"]')!;
     assert.equal(media.querySelectorAll('img').length,3);
