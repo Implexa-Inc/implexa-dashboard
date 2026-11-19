@@ -2544,7 +2544,9 @@ test('upload analysis shows progress, falls back to screenshots, and keeps learn
    const b=JSON.parse(String(init.body));requests.push(b);
    const common={sourceId:SOURCE_ID,sourceSha256:SOURCE_DIGEST,targetVersionId:VERSION_A};
    if(b.mode==='recording-locate')return {ok:true,json:async()=>({ok:true,status:'located',excerptId:QUESTION,excerptDigest:DIGEST,
-    excerpt:{...common,startIndex:0,endIndex:0,startMs:0,endMs:5000,text:segments[0].text,segments}})};
+    excerpt:{...common,startIndex:0,endIndex:0,startMs:0,endMs:5000,text:segments[0].text,segments},
+    intakePlan:{contractVersion:'training-intake-plan.v1',versionId:VERSION_A,planId:QUESTION,planDigest:DIGEST,
+     changes:[{kind:'step_change',stepOrder:2,instruction:'Add a sound effects pass before rendering.',toolName:null,toolId:null,accessModes:[]}]}})};
    if(b.action==='link')return {ok:true,json:async()=>({ok:true,event:'recording_teaching_linked',detail:{recordId:b.recordId,
     recordDigest:b.expectedRecordDigest,parentId:b.suggestionId,parentDigest:b.suggestionDigest}})};
    const frames=b.frames.map(({timeMs,frameSha256}:any)=>({timeMs,frameSha256}));
@@ -2567,6 +2569,12 @@ test('upload analysis shows progress, falls back to screenshots, and keeps learn
    const panel=r.document.querySelector('[aria-label="Suggested learning from your recording"]')!;
    assert.match(panel.textContent||'',spoken?/From your narration/:/Inferred from screenshots/);
    assert.deepEqual(requests.map(body=>body.mode),spoken?['recording-locate','recording-draft']:['recording-frames-only']);
+   if(spoken){
+    assert.equal(requests[0].intakeContract,'training-intake-plan.v1');
+    const plan=r.document.querySelector('[aria-label="Suggested agent changes"]');
+    assert.match(plan?.textContent||'',/Add a sound effects pass before rendering/);
+    assert.ok(Array.from(plan!.querySelectorAll('button')).find(b=>b.textContent==='Request selected changes')?.disabled);
+   }
    assert.equal(h.calls.some(call=>call.operation==='annotate'||call.operation==='accept'),false);
    await r.click(r.getByText('Edit learning'));
    const wording=Array.from(panel.querySelectorAll('label')).find(label=>label.textContent?.includes('What your agent should do'))!.querySelector('textarea')!;
