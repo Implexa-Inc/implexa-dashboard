@@ -43,7 +43,7 @@ import {
 } from '@/lib/workflow-input-contract';
 import { advanceInputRevision, inputRevisionIsCurrent, readInputRevision } from '@/lib/run-input-verification-order';
 import {
-  bindSavedArtifact, displayedInputValue, inputOrigin, savedInputLabel,
+  bindSavedArtifact, brollBudgetEstimate, displayedInputValue, inputOrigin, savedInputLabel,
   readSavedRunInputs, resolveEffectiveInputs, resolveSavedBindResult,
   type RunInputOverrides,
 } from '@/lib/run-input-defaults';
@@ -228,6 +228,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const trainingCheckingRef = useRef(false);
   const [adoptionError, setAdoptionError] = useState('');
   const typedFields = orderedInputFields(inputContract);
+  const higgsfieldBudgetField = typedFields.find(field => field.key === 'higgsfield_credit_limit'
+    && field.kind === 'choice' && field.cardinality === 'one' && !field.required && field.options?.includes('0'));
   // TWO LAYERS, kept apart on purpose (see lib/run-input-defaults).
   //   inputDefaults  — what the user SAVED in Setup. Reused on every run.
   //   inputOverrides — what they changed in THIS pop-up. This run only, and
@@ -238,6 +240,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   const [inputDefaults, setInputDefaults] = useState<RunInputBindings>({});
   const [inputOverrides, setInputOverrides] = useState<RunInputOverrides>({});
   const [deferredSelections, setDeferredSelections] = useState<Record<string, DeferredRunInputSelection>>({});
+  const [presenterMinutes, setPresenterMinutes] = useState<{ fileId: string; value: string } | null>(null);
   /** The saved answers as text, for naming the source a file field starts from. */
   const [savedInputValues, setSavedInputValues] = useState<Record<string, string>>({});
   /** File keys whose saved path this machine is still verifying. */
@@ -259,6 +262,15 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
   // promise continuation can tell whether it is stale before touching UI state.
   const inputRevisionRef = useRef<Record<string, number>>({});
   const inputBindings = resolveEffectiveInputs(inputContract, inputDefaults, inputOverrides);
+  const brollHeavy = !!higgsfieldBudgetField && inputBindings.creative_direction === 'Cinematic B-roll-heavy';
+  const presenter = inputBindings.presenter_video;
+  const presenterFile = presenter && typeof presenter === 'object' && !Array.isArray(presenter) ? presenter : null;
+  const presenterFileId = deferredSelections.presenter_video?.selectionId ?? presenterFile?.artifactId;
+  const durationHintMs = deferredSelections.presenter_video?.durationHintMs ?? presenterFile?.durationHintMs;
+  const enteredMinutes = presenterMinutes?.fileId === presenterFileId ? presenterMinutes?.value ?? '' : '';
+  const brollEstimate = brollHeavy ? brollBudgetEstimate(durationHintMs ?? Math.round(Number(enteredMinutes) * 60_000),
+    higgsfieldBudgetField?.options ?? []) : null;
+  const awaitingBrollBudget = brollHeavy && !inputBindings.higgsfield_credit_limit;
   const revisionIssue = revisionAuthorityIssue(
     inputContract,
     inputBindings,
@@ -369,6 +381,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     const current = inputBindings[field.key];
     const replaced = field.cardinality === 'one' && current && typeof current === 'object' && !Array.isArray(current)
       ? current as ArtifactBinding : null;
+    const durationHint = higgsfieldBudgetField && field.key === 'presenter_video' ? { includeDurationHint: true } : {};
     try {
       // The v1 background receipt carries one retained selection per semantic
       // field. Cardinality-many keeps the existing append/register path until
@@ -376,6 +389,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       // replace prior files or submit a scalar the backend must reject.
       if (!betaTrial && selection === 'file' && field.key !== 'project_bundle' && field.cardinality === 'one' && bridge.pickDeferredRunInput) {
         const raw: ({ ok: boolean; canceled?: boolean; error?: string } & Partial<DeferredRunInputSelection>) = await bridge.pickDeferredRunInput({ inputKey: field.key, inputSessionId: sessionId,
+          ...durationHint,
           ...(field.accept ? { accept: field.accept } : {}) })
           .catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
         if (!inputRevisionIsCurrent(inputRevisionRef.current, field.key, manualRevision)) return;
@@ -396,6 +410,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         inputKey: field.key,
         inputSessionId: sessionId,
         selection,
+        ...durationHint,
         ...(replaced ? { replacesArtifactId: replaced.artifactId } : {}),
         ...(field.accept ? { accept: field.accept } : {}),
       }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
@@ -459,6 +474,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       const result = await bridge.bindSavedRunInput({
         slug, source, inputKey: field.key,
         inputSessionId: sessionId,
+        ...(higgsfieldBudgetField && field.key === 'presenter_video' ? { includeDurationHint: true } : {}),
         ...(field.accept ? { accept: field.accept } : {}),
       }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'bridge_unavailable' }));
       setVerifyingInputs((previous) => previous.filter((key) => key !== field.key));
@@ -736,6 +752,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     // click, which silently undid the whole tier split one surface later.
     if ((pendingUpdate && !runInstalledVersionConfirmed)
         || blankRequired.length || missingRequiredForRun().length
+        || awaitingBrollBudget
         || revisionIssue
         || betaTrial && (Object.keys(deferredSelections).length > 0 || !betaTrialExpiry || preRunMode !== 'queue')
         || Object.keys(preparingInputRef.current).length) return;
@@ -1669,6 +1686,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                 return next;
               });
             };
+            const brollBudget = brollHeavy && field === higgsfieldBudgetField;
             return (
               <div key={field.key} className="rounded-md border border-ink-800 p-4">
                 <div className="min-w-0">
@@ -1688,7 +1706,29 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                   {origin === 'cleared' && savedPath && (
                     <span className="ml-2 text-[11px] text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">cleared for this run</span>
                   )}
-                  <p className="text-xs text-ink-400 mt-1 leading-relaxed">{field.description}</p>
+                  <p className="text-xs text-ink-400 mt-1 leading-relaxed">{brollBudget
+                    ? brollEstimate
+                      ? `Aim for ${brollEstimate.minClips === brollEstimate.maxClips ? brollEstimate.minClips : `${brollEstimate.minClips}–${brollEstimate.maxClips}`} B-roll clips at 2–3 per minute. Budget roughly ${brollEstimate.estimatedCredits} credits if generating them all. Actual costs vary by model and clip length.`
+                      : presenterFileId ? 'Aim for 2–3 B-roll clips per minute. Enter the video length for a credit estimate.'
+                      : 'Aim for 2–3 B-roll clips per minute. Choose a presenter video to estimate a credit cap.'
+                    : field.description}</p>
+                  {brollBudget && presenterFileId && !durationHintMs && (
+                    <label className="mt-2 flex items-center gap-2 text-xs text-ink-400">
+                      Video length (minutes)
+                      <input type="number" min="0.1" max="1440" step="any" value={enteredMinutes}
+                        onChange={event => setPresenterMinutes({ fileId: presenterFileId, value: event.target.value })}
+                        className="w-24 rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-ink-100" />
+                    </label>
+                  )}
+                  {brollBudget && brollEstimate?.recommendedCap && (
+                    <button type="button" className="btn-outline text-xs mt-2 px-3 py-1.5"
+                      onClick={() => override(String(brollEstimate.recommendedCap))}>
+                      {`Use ${brollEstimate.recommendedCap} credits${brollEstimate.recommendedCap < brollEstimate.estimatedCredits ? ' · agent maximum' : ' · suggested cap'}`}
+                    </button>
+                  )}
+                  {brollBudget && brollEstimate?.recommendedCap && brollEstimate.recommendedCap < brollEstimate.estimatedCredits && (
+                    <p className="mt-1 text-xs text-ink-400">Use available footage for clips beyond the credit limit.</p>
+                  )}
                   {field.kind === 'file' && <div className="mt-3 flex flex-wrap items-center gap-2">
                     <button
                       type="button"
@@ -1725,6 +1765,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                   />
                 ) : field.kind === 'choice' ? (
                   <select
+                    aria-label={field.label}
                     value={field.cardinality === 'many' ? scalarMany : scalar}
                     multiple={field.cardinality === 'many'}
                     onChange={(event) => override(field.cardinality === 'many'
@@ -1732,8 +1773,10 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
                       : event.target.value)}
                     className="mt-2 w-full bg-ink-900 border border-ink-700 rounded-md text-sm px-3 py-2 text-ink-100 focus:border-brand-500/60 focus:outline-none"
                   >
-                    <option value="">Select…</option>
-                    {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
+                    <option value="">{brollBudget ? 'Choose a credit limit' : 'Select…'}</option>
+                    {(field.options || []).map((option) => <option key={option} value={option}>{brollBudget && /^\d+$/.test(option)
+                      ? option === '0' ? '0 credits · Use available footage' : `Optimize for B-roll within ${option} credits`
+                      : option}</option>)}
                   </select>
                 ) : deferred ? (
                   <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-300">
@@ -1909,7 +1952,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
         <button
           type="button"
           onClick={submitPreRun}
-          disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || !!revisionIssue || (!!pendingUpdate && !runInstalledVersionConfirmed) || (betaTrial && (!betaTrialExpiry || Object.keys(deferredSelections).length > 0))}
+          disabled={setupSaving || Object.keys(preparingInputs).length > 0 || blankRequired.length > 0 || missingRequiredForRun().length > 0 || awaitingBrollBudget || !!revisionIssue || (!!pendingUpdate && !runInstalledVersionConfirmed) || (betaTrial && (!betaTrialExpiry || Object.keys(deferredSelections).length > 0))}
           className="btn-success text-sm px-5 py-2 disabled:opacity-50"
         >
           {setupSaving ? 'Saving…' : betaTrial ? 'Review beta trial' : preRunMode === 'watch' ? 'Open in Claude →' : pendingUpdate ? 'Run installed version' : setupFields.length ? 'Save & run' : '▶ Run now'}
