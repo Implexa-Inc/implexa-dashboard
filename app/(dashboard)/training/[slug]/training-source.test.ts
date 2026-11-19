@@ -2546,7 +2546,8 @@ test('upload analysis shows progress, falls back to screenshots, and keeps learn
    if(b.mode==='recording-locate')return {ok:true,json:async()=>({ok:true,status:'located',excerptId:QUESTION,excerptDigest:DIGEST,
     excerpt:{...common,startIndex:0,endIndex:0,startMs:0,endMs:5000,text:segments[0].text,segments},
     intakePlan:{contractVersion:'training-intake-plan.v1',versionId:VERSION_A,planId:QUESTION,planDigest:DIGEST,
-     changes:[{kind:'step_change',stepOrder:2,instruction:'Add a sound effects pass before rendering.',toolName:null,toolId:null,accessModes:[]}]}})};
+     changes:[{kind:'step_change',stepOrder:2,instruction:'Add a sound effects pass before rendering.',toolName:null,toolId:null,accessModes:[],
+      method:{access:'browser',website:'pixabay.com',tool:'Pixabay',actions:['Choose Music or Sound Effects.','Search for the required sound.','Preview and download a match.']}}]}})};
    if(b.action==='link')return {ok:true,json:async()=>({ok:true,event:'recording_teaching_linked',detail:{recordId:b.recordId,
     recordDigest:b.expectedRecordDigest,parentId:b.suggestionId,parentDigest:b.suggestionDigest}})};
    const frames=b.frames.map(({timeMs,frameSha256}:any)=>({timeMs,frameSha256}));
@@ -2573,6 +2574,9 @@ test('upload analysis shows progress, falls back to screenshots, and keeps learn
     assert.equal(requests[0].intakeContract,'training-intake-plan.v1');
     const plan=r.document.querySelector('[aria-label="Suggested agent changes"]');
     assert.match(plan?.textContent||'',/Add a sound effects pass before rendering/);
+    assert.match(plan?.textContent||'',/Browser · Pixabay · pixabay\.com or an equivalent/);
+    assert.deepEqual(Array.from(plan!.querySelectorAll('ol li')).map(item=>item.textContent),
+     ['Choose Music or Sound Effects.','Search for the required sound.','Preview and download a match.']);
     assert.ok(Array.from(plan!.querySelectorAll('button')).find(b=>b.textContent==='Request selected changes')?.disabled);
    }
    assert.equal(h.calls.some(call=>call.operation==='annotate'||call.operation==='accept'),false);
