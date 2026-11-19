@@ -36,6 +36,20 @@ export type RunInputOverrides = Record<string, RunInputValue>;
 /** Where the value in one control came from — the thing the form has to SAY. */
 export type InputOrigin = 'saved' | 'override' | 'cleared' | 'empty';
 
+export function brollBudgetEstimate(durationMs: number | undefined, caps: readonly string[]) {
+  if (typeof durationMs !== 'number' || !Number.isSafeInteger(durationMs) || durationMs < 1 || durationMs > 86_400_000) return null;
+  const minutes = durationMs / 60_000;
+  const minClips = Math.max(1, Math.round(minutes * 2));
+  const maxClips = Math.max(minClips, Math.round(minutes * 3));
+  // An editable planning assumption for short clips. The provider quotes each
+  // generation at execution time before the existing credit ledger reserves it.
+  const estimatedCreditsPerClip = 10;
+  const estimatedCredits = maxClips * estimatedCreditsPerClip;
+  const allowed = caps.filter(cap => /^[1-9]\d*$/.test(cap)).map(Number).sort((a, b) => a - b);
+  const recommendedCap = allowed.find(cap => cap >= estimatedCredits) ?? allowed.at(-1);
+  return { minClips, maxClips, estimatedCredits, recommendedCap };
+}
+
 export function isBlankInputValue(value: RunInputValue | null | undefined): boolean {
   if (value === null || value === undefined) return true;
   if (typeof value === 'string') return value.trim() === '';

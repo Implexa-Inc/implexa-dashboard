@@ -44,6 +44,62 @@ function backend(setup: Record<string, unknown> = { schema: [], answers: {}, not
   } } : setup;
 }
 
+test('B-roll-heavy recommends a duration-based cap and lets the user change it', async () => {
+  const props = runProps();
+  const fields = [
+    { key: 'presenter_video', label: 'Presenter video', kind: 'file', cardinality: 'one',
+      description: 'Choose a video.', required: true, order: 1, accept: { extensions: ['.mp4'], mediaTypes: ['video/mp4'] } },
+    { key: 'creative_direction', label: 'Creative direction', kind: 'choice', cardinality: 'one',
+      description: 'Choose a direction.', required: false, order: 1, options: ['Balanced', 'Cinematic B-roll-heavy'] },
+    { key: 'higgsfield_credit_limit', label: 'Higgsfield budget (credits)', kind: 'choice', cardinality: 'one',
+      description: 'Optional allowance.', required: false, order: 2, options: ['0', '25', '50', '100'] },
+  ];
+  let picks = 0;
+  const r = await render('agent-actions.tsx', { ...props, inputContract: { ...props.inputContract, fields } }, {
+    backend: backend(), bridge: {
+      pickRunInput: async () => ({ ok: false, canceled: true }),
+      pickDeferredRunInput: async (options: Record<string, unknown>) => {
+        assert.equal(options.includeDurationHint, true);
+        const pick = picks++;
+        return { ok: true, ...options, selectionId: pick < 2 ? firstArtifact : secondArtifact,
+          displayName: 'presenter.mp4', sizeBytes: 1024, mediaType: 'video/mp4', fileExtension: '.mp4',
+          requiredMachineId: 'fixture-machine', durationHintMs: [42_733, 600_000][pick] };
+      },
+    },
+  });
+  try {
+    await r.click(r.getByText('▶ Run now'));
+    const direction = r.document.querySelector<HTMLSelectElement>('select[aria-label="Creative direction"]')!;
+    const budget = r.document.querySelector<HTMLSelectElement>('select[aria-label="Higgsfield budget (credits)"]')!;
+    const change = (field: HTMLSelectElement, value: string) => r.act(() => {
+      field.value = value;
+      field.dispatchEvent(new r.window.Event('change', { bubbles: true }));
+    });
+    assert.equal(budget.selectedOptions[0].text, 'Select…');
+    await change(direction, 'Cinematic B-roll-heavy');
+    assert.equal(budget.value, '');
+    assert.equal(budget.selectedOptions[0].text, 'Choose a credit limit');
+    await r.click(r.getByText('Choose file'));
+    assert.match(r.text(), /Aim for 1–2 B-roll clips/);
+    await r.click(r.getByText('Use 25 credits · suggested cap'));
+    assert.equal(budget.value, '25');
+    await r.click(r.getByText('Replace file'));
+    assert.match(r.text(), /Aim for 20–30 B-roll clips/);
+    assert.ok(r.getByText('Use 100 credits · agent maximum'));
+    assert.equal(budget.value, '25', 'replacing the source updates guidance without increasing the selected cap');
+    await change(budget, '50');
+    assert.equal(budget.selectedOptions[0].text, 'Optimize for B-roll within 50 credits');
+    await change(direction, 'Balanced');
+    assert.equal(budget.value, '50', 'changing direction keeps an explicitly chosen cap');
+    assert.equal(budget.selectedOptions[0].text, '50');
+    await change(direction, 'Cinematic B-roll-heavy');
+    await change(budget, '0');
+    assert.equal(budget.selectedOptions[0].text, '0 credits · Use available footage');
+    await r.click(r.getByText('Replace file'));
+    assert.ok(r.document.querySelector('input[type="number"]'), 'older Desktop can estimate from a manually entered length');
+  } finally { r.cleanup(); }
+});
+
 test('Run now renders folder selection only for a declared directory snapshot capability', async () => {
   const rendered = await render('agent-actions.tsx', runProps(true), {
     backend: backend(),

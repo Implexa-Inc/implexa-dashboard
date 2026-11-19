@@ -38,6 +38,7 @@ export type DeferredRunInputSelection = {
   mediaType: string;
   fileExtension: string | null;
   requiredMachineId: string;
+  durationHintMs?: number;
 };
 
 // Label for the per-run attachment line baked into the note. The hands-off run is
@@ -91,6 +92,7 @@ export type DesktopBridge = TrialRuntimeBridge & {
     inputKey: string;
     inputSessionId?: string;
     selection?: 'file' | 'directory';
+    includeDurationHint?: boolean;
     accept?: { mediaTypes?: string[]; extensions?: string[]; directorySnapshot?: boolean };
     /** The one prior binding this same open form is replacing. Desktop releases
      * it only after the new registration succeeds and only if session + key
@@ -107,11 +109,13 @@ export type DesktopBridge = TrialRuntimeBridge & {
     sha256?: string;
     displayName?: string;
     mediaType?: string;
+    durationHintMs?: number;
     storageMode?: LocalInputStorageMode;
   }>;
   pickDeferredRunInput?: (opts: {
     inputKey: string;
     inputSessionId?: string;
+    includeDurationHint?: boolean;
     accept?: { mediaTypes?: string[]; extensions?: string[]; directorySnapshot?: boolean };
   }) => Promise<{ ok: boolean; canceled?: boolean; error?: string } & Partial<DeferredRunInputSelection>>;
   startRunInputPreparation?: (opts: { preparationId: string; selectionIds: string[] }) => Promise<{
@@ -140,6 +144,7 @@ export type DesktopBridge = TrialRuntimeBridge & {
   }>;
   bindSavedRunInput?: (opts: {
     slug: string;
+    includeDurationHint?: boolean;
     source?: string;
     inputKey: string;
     inputSessionId?: string;
@@ -152,6 +157,7 @@ export type DesktopBridge = TrialRuntimeBridge & {
     sha256?: string;
     displayName?: string;
     mediaType?: string;
+    durationHintMs?: number;
     storageMode?: LocalInputStorageMode;
   }>;
 };

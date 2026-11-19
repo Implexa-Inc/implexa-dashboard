@@ -38,6 +38,7 @@ export type ArtifactBinding = {
   sha256: string;
   displayName: string;
   mediaType?: string;
+  durationHintMs?: number;
   /** Local display metadata — never serialized to the backend. */
   origin?: 'file' | 'directory-snapshot';
   /** Desktop's canonical local storage posture. `local_range_capability`
@@ -244,6 +245,7 @@ export type PickRunInputResult = {
   sha256?: string;
   displayName?: string;
   mediaType?: string;
+  durationHintMs?: number;
   /**
    * Where this artifact came from, as Desktop reports it. Local metadata: it
    * never reaches the backend (`serializeArtifactBindings` sends identity
@@ -307,6 +309,7 @@ export function resolvePickerResult(
       sha256: result.sha256,
       displayName: result.displayName,
       ...(result.mediaType ? { mediaType: result.mediaType } : {}),
+      ...(typeof result.durationHintMs === 'number' ? { durationHintMs: result.durationHintMs } : {}),
       ...(result.origin ? { origin: result.origin } : {}),
       ...(result.storageMode === 'local_range_capability' || result.storageMode === 'managed_copy'
         ? { storageMode: result.storageMode }
