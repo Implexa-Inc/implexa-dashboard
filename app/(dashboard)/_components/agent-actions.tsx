@@ -654,7 +654,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       const runScope = workflowVersionId ? `?scope=run&versionId=${encodeURIComponent(workflowVersionId)}${requestedTest?`&testPreparationId=${encodeURIComponent(requestedTest.testPreparationId)}&preparationDigest=${encodeURIComponent(requestedTest.preparationDigest)}`:''}` : '';
       const endpoint=`/api/v2/agent-training/agents/${encodeURIComponent(slug)}`;
       const {preflight,carryError}=await prepareTrainingRun({slug,workflowVersionId,trainingTest:requestedTest,skipOptionalCarry,
-        read:()=>callBackend(`${endpoint}${runScope}`,{jwt:session?.access_token}),
+        read:()=>callBackend(`${endpoint}${runScope}`,{jwt:session?.access_token,...(presentation==='training'?{signal:AbortSignal.timeout(45000)}:{})}),
         adopt:(body,key)=>callBackend(`${endpoint}/adopt-successor`,{jwt:session?.access_token,method:'POST',body,idempotencyKey:key})});
       setAdoptionError(carryError||'');
       if (preflight.state !== 'ready'
@@ -729,7 +729,8 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
     const empty = { schema: [], answers: {}, note: '', runInputDefaults: {} };
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`, { jwt: session?.access_token });
+      const setup = await callBackend(`/api/v2/agents/${encodeURIComponent(slug)}/setup?source=${encodeURIComponent(source)}`,
+        {jwt:session?.access_token,...(presentation==='training'?{signal:AbortSignal.timeout(30000)}:{})});
       const schema: SetupField[] = Array.isArray(setup?.schema) ? setup.schema : [];
       const answers: Record<string, string> = (setup?.answers && typeof setup.answers === 'object') ? setup.answers : {};
       const note: string = typeof setup?.note === 'string' ? setup.note : '';
@@ -1244,6 +1245,7 @@ export default function AgentActions({ slug, name, isActive, requiresLocal, sour
       ) : presentation==='training'&&trainingChoices ? (<div className="flex flex-wrap items-center gap-3">
         {trainingChoices.pending===true&&<><button type="button" className="btn-primary disabled:opacity-40" disabled={trainingEntryBusy||trainingChoices.busy||(!trainingChoices.delivered&&!trainingChoices.canTest)} onClick={trainingChoices.onPending}>{trainingChoices.delivered?'Review tested training':'Run with new training (pending)'}</button><TrainingInfo label="About pending training">Until you run your agent on pending new training, it cannot be applied to the live agent. A delivered test can then be activated separately.</TrainingInfo></>}
         <button type="button" className="btn-success disabled:opacity-40" disabled={trainingEntryBusy||trainingChoices.busy||!trainingChoices.savedAvailable} onClick={trainingChoices.onSaved}>Run with latest saved learnings</button>
+        {trainingOpening&&<span role="status" className="basis-full text-xs text-ink-300">Opening run setup…</span>}
         {trainingChoices.pending===null&&trainingChoices.pendingUnknown&&<span className="text-xs text-ink-500">Pending training status unavailable.</span>}
         {!trainingChoices.savedAvailable&&<span className="text-xs text-ink-500">Live training belongs to an earlier agent version. Review the pending update first.</span>}
       </div>) : (

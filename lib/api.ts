@@ -37,6 +37,7 @@ export async function callBackend(path: string, opts: {
   /** Stable operation identity mapped to the one standard header. Callers may
    * not supply arbitrary headers through this helper. */
   idempotencyKey?: string;
+  signal?: AbortSignal;
 } = {}) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (opts.jwt) headers.Authorization = `Bearer ${opts.jwt}`;
@@ -47,6 +48,7 @@ export async function callBackend(path: string, opts: {
     headers,
     body:    opts.body ? JSON.stringify(opts.body) : undefined,
     cache:   'no-store',
+    ...(opts.signal && { signal: opts.signal }),
   });
 
   const text = await res.text();
