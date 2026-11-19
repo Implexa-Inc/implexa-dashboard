@@ -154,6 +154,7 @@ function harness(options: {
   successorCreatedBaseVersion?: string;
   successorParentSessionId?: string | null;
   includeCurrentSession?: boolean;
+  beforeList?: (id: string) => Promise<void>;
   predecessorTerminal?: boolean;
   predecessorCount?: number;
   successorProjection?: unknown;
@@ -189,7 +190,8 @@ function harness(options: {
         return { ok: true, home: {
           agent: { name: 'Video craft', currentVersionId: currentVersion },
           recentSessions: [
-            ...(options.includeCurrentSession ? [{ sessionId: NEW_SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_B } }] : []),
+            ...(options.includeCurrentSession ? [{ sessionId: NEW_SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_B },
+              parentSessionId: options.successorParentSessionId === undefined ? SESSION : options.successorParentSessionId }] : []),
             ...(currentVersion === VERSION_A ? [{ sessionId: SESSION, sourceMode: 'raw_input', terminal: false, agent: { baseVersionId: VERSION_A } }] : []),
           ],
           successorProjection: projection,
@@ -214,6 +216,7 @@ function harness(options: {
       }
       if (operation === 'select') {if(args.sessionId === NEW_SESSION) successorSelected = true;return {ok:true,sourceId:SOURCE_ID,token:TOKEN};}
       if (operation === 'list') {
+        if (options.beforeList) await options.beforeList(String(args.sessionId));
         if (authorityAcknowledged && options.failRefreshAfterAuthority) return { ok: false, reason: 'training_local_unavailable' };
         if (deliveryAttempts && options.failRefreshAfterDelivery) return { ok: false, reason: 'training_local_unavailable' };
         const next = source('draft', options.stages);
@@ -1864,6 +1867,29 @@ async function chooseDirectUpload(r:Rendered){
  const dialog=r.document.querySelector('[role="dialog"][aria-label="Upload and annotate Video/Image"]')!;
  await r.click(dialog.querySelector('input[type=checkbox]')!);await r.click(r.getByText('Choose video or image'));
 }
+test('Upload opens and registers a source while saved examples are still loading', async () => {
+  const history = Promise.withResolvers<void>();
+  let holdHistory = true;
+  const { rendered, calls } = await renderedWith({
+    beforeList: async () => {
+      if (!holdHistory) return;
+      holdHistory = false;
+      await history.promise;
+    },
+  });
+  try {
+    assert.equal(calls.some(call => call.operation === 'list'), true);
+    assert.equal(calls.some(call => call.operation === 'scope'), false);
+    await chooseDirectUpload(rendered);
+    assert.equal(calls.filter(call => call.operation === 'select').length, 1);
+    assert.ok(rendered.document.querySelector('#recording-analysis'));
+    await rendered.act(async () => { history.resolve(); });
+    assert.ok(rendered.document.querySelector('#recording-analysis'));
+  } finally {
+    history.resolve();
+    rendered.cleanup();
+  }
+});
 test('cancelling direct upload stays in Training and never previews or calls analysis',async()=>{
  const h=harness(),original=h.bridge.trainingLocal;
  h.bridge.trainingLocal=async(op,args)=>op==='select'?{ok:false,reason:'selection_cancelled'}:original(op,args);
@@ -1936,16 +1962,34 @@ test('a confirmed source replacement clears its old draft but preserves the reco
 });
 
 
-test('same-page pending test reuses its held preparation after cancellation and never queues from the button',async()=>{
- const h=harness({successorAdoption:{contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:null,targetWorkflowVersionId:VERSION_A,eligibleRecordCount:0,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0,readiness:'not_compatible',reason:'training_successor_no_eligible_records'}}),posts:any[]=[],changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
+const continuityPath=`/api/v2/agent-training/agents/video-craft?scope=run&versionId=${VERSION_A}`;
+function runContinuity(successorAdoption:unknown=null){
+ return {ok:true,home:{agent:{currentVersionId:VERSION_A},successorProjection:{contractVersion:'agent-training-successor-projection.v1',activeVersionId:VERSION_A,eligiblePredecessor:null},
+  managerTrainingRequirements:requirements(VERSION_A),...(successorAdoption?{successorAdoption}:{})}};
+}
+
+test('same-page pending test shows progress, skips duplicate reads and reuses its held preparation',async()=>{
+ const h=harness(),posts:any[]=[],changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
+ const preparation=Promise.withResolvers<void>();let reads=0;
  const runContext={slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null};
- const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
-  if(init.method==='POST'){posts.push(JSON.parse(init.body));return {ok:true,json:async()=>({ok:true,testPreparationId:SOURCE_ID,preparationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:DIGEST,scope:'private_candidate'})};}
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext},{bridge:h.bridge,backend:path=>path===continuityPath?runContinuity():{ok:true},fetch:(async(url:any,init:any={})=>{
+  if(init.method==='POST'){
+   posts.push(JSON.parse(init.body));
+   if(posts.length===1)await preparation.promise;
+   return {ok:true,json:async()=>({ok:true,testPreparationId:SOURCE_ID,preparationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:DIGEST,scope:'private_candidate'})};
+  }
+  if(String(url).includes('/changes?'))reads++;
   return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
  }) as typeof fetch});
  try{
+  const readsBeforeClick=reads;
   await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,1);assert.equal(r.calls.push.length,0);
+  assert.match(r.document.querySelector('[aria-label="Test this update"] [role="status"]')?.textContent||'',/Preparing your test/);
+  assert.equal(r.document.querySelector('[role=dialog]'),null);
+  await r.act(async()=>{preparation.resolve();});
   const close=r.document.querySelector('[role=dialog] [aria-label=Close]');assert.ok(close);await r.click(close);
+  assert.equal(reads-readsBeforeClick,1,'one current snapshot read when carry-forward needs no writes');
+  assert.equal(h.calls.filter(c=>c.operation==='home').length,1,'only the workspace boot reads full history');
   await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,1,'held preparation is reused');
   await r.click(r.document.querySelector('[role=dialog] [aria-label=Close]')!);
   Object.assign(changes.test,{status:'failed',scope:'private_candidate',snapshotDigest:DIGEST,requestId:RECORD});
@@ -1954,7 +1998,7 @@ test('same-page pending test reuses its held preparation after cancellation and 
   Object.assign(changes.test,{status:'running'});
   await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,2,'running test never prepares again');assert.match(r.text(),/already queued or running/);
   assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);
- }finally{r.cleanup();}
+ }finally{preparation.resolve();r.cleanup();}
 });
 
 test('a new Training test carries compatible taste before freezing its fresh snapshot',async()=>{
@@ -1966,7 +2010,7 @@ test('a new Training test carries compatible taste before freezing its fresh sna
   activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
  const runContext={slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null};
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext},{bridge:h.bridge,
-  backend:(path:string)=>{if(!path.endsWith('/adopt-successor'))return {ok:true};events.push('carry');changes.binding.snapshotDigest=nextDigest;
+  backend:(path:string)=>{if(path===continuityPath)return runContinuity(proof);if(!path.endsWith('/adopt-successor'))return {ok:true};events.push('carry');changes.binding.snapshotDigest=nextDigest;
    Object.assign(proof,{readiness:'already_adopted',alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0});
    return {ok:true,contractVersion:'manager-training-successor-adoption.v1',created:true,agentSlug:'video-craft',sourceWorkflowVersionId:VERSION_B,targetWorkflowVersionId:VERSION_A,
     adoptedRecordCount:1,adoptionReceiptIds:[SOURCE_ID],eligibleRouteCount:1,adoptionSetDigest:DIGEST,managerTrainingRequirements:requirements(VERSION_A)};},
@@ -1987,21 +2031,21 @@ test('a new Training test accepts freshly carried optional taste without an adop
  for(const mode of ['adopted','not-compatible','unavailable']){
   const proof:any={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_B,targetWorkflowVersionId:VERSION_A,
    eligibleRecordCount:1,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:1,eligibleRouteCount:1,readiness:'adoption_available',reason:null};
-  const h=harness({successorAdoption:proof}),original=h.bridge.trainingLocal,events:string[]=[];let refresh=false;
-  h.bridge.trainingLocal=async(op,args)=>{if(op==='home'&&refresh){if(mode==='unavailable')return {ok:false,reason:'training_unavailable'} as any;
-   const value:any=await original(op,args);return {...value,home:{...value.home,successorAdoption:mode==='adopted'?{...proof,readiness:'already_adopted',alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0}:{...proof,readiness:'not_compatible',reason:'task_identity_changed',eligibleRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0}}};}return original(op,args);};
+  const h=harness({successorAdoption:proof}),events:string[]=[];
+  const current=mode==='adopted'?{...proof,readiness:'already_adopted',alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0}
+    :{...proof,readiness:'not_compatible',reason:'task_identity_changed',eligibleRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0};
   const changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null,snapshotDigest:null,runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
-  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext:{slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null}},{bridge:h.bridge,backend:(path:string)=>{if(!path.endsWith('/adopt-successor'))return {ok:true};events.push('carry');throw Error('must not carry');},fetch:(async(url:any,init:any={})=>{
+  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext:{slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null}},{bridge:h.bridge,backend:(path:string)=>{if(path===continuityPath)return mode==='unavailable'?{ok:false,reason:'training_unavailable'}:runContinuity(current);if(!path.endsWith('/adopt-successor'))return {ok:true};events.push('carry');throw Error('must not carry');},fetch:(async(url:any,init:any={})=>{
    if(init.method==='POST'){events.push('prepare');return {ok:true,json:async()=>({ok:true,testPreparationId:SOURCE_ID,preparationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:DIGEST,scope:'private_candidate'})};}
    return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
   }) as typeof fetch});
-  try{refresh=true;await r.click(r.getByText('Run with new training (pending)'));assert.deepEqual(events,mode==='unavailable'?[]:['prepare']);assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);}finally{r.cleanup();}
+  try{await r.click(r.getByText('Run with new training (pending)'));assert.deepEqual(events,mode==='unavailable'?[]:['prepare']);assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);}finally{r.cleanup();}
  }
 });
 
 test('a lost test-preparation response retries the same intent key rather than creating a new test',async()=>{
  const h=harness({successorAdoption:{contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:null,targetWorkflowVersionId:VERSION_A,eligibleRecordCount:0,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:0,eligibleRouteCount:0,readiness:'not_compatible',reason:'training_successor_no_eligible_records'}}),keys:string[]=[],changes={ok:true,contractVersion:'guided-training-changes.v1',binding:{sessionId:SESSION,agentFamilyId:RECORD,workflowVersionId:VERSION_A,snapshotDigest:DIGEST},policy:{policyId:null,policyDigest:null,revision:0,enabled:false},feedback:[],records:[],test:{status:'not_run',scope:null as string|null,snapshotDigest:null as string|null,requestId:null,runId:null,qualityScore:null,gaps:[],canTest:true},activation:{canActivate:false,reason:null,servedSnapshotDigest:null,withdrawnSinceTest:0,testRequestId:null,serving:{mode:'legacy_accepted',candidateDiffers:true}},publication:{canPublish:false,reason:null,servedSnapshotDigest:null}};
- const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext:{slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null}},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',runContext:{slug:'video-craft',isActive:true,statusUnavailable:false,revisePending:false,workflowVersionId:VERSION_A,inFlight:null}},{bridge:h.bridge,backend:path=>path===continuityPath?runContinuity():{ok:true},fetch:(async(url:any,init:any={})=>{
   if(init.method==='POST'){keys.push(init.headers['Idempotency-Key']);Object.assign(changes.test,{status:'prepared',scope:'private_candidate',snapshotDigest:DIGEST});if(keys.length===1)throw Error('Response lost after preparation');return {ok:true,json:async()=>({ok:true,testPreparationId:SOURCE_ID,preparationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:DIGEST,scope:'private_candidate'})};}
   return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
  }) as typeof fetch});
@@ -2398,23 +2442,52 @@ test('uploaded reference narration stays context until explicitly marked as my n
 });
 
 test('video upload requests owner-bound playback only with the advertised contract and opens the same recorder player',async()=>{
- for(const contract of [undefined,'2','1']){
+ for(const [contract,pickFirst] of [[undefined,false],['2',false],['1',false],['1',true]] as const){
   const h=harness({recording:true,previewImage:VALID_FRAME}),original=h.bridge.trainingLocal;
-  Object.assign(h.bridge,{reviewRecorderContractVersion:'2',...(contract===undefined?{}:{trainingUploadPlaybackContractVersion:contract}),reviewRecorder:async(op:string)=>{
+  Object.assign(h.bridge,{reviewRecorderContractVersion:'2',...(contract===undefined?{}:{trainingUploadPlaybackContractVersion:contract}),
+   ...(pickFirst?{trainingUploadPickerContractVersion:'1'}:{}),reviewRecorder:async(op:string)=>{
    const uploaded={recordingId:QUESTION,title:'Uploaded example',origin:'imported',state:'ready',failureReason:null,createdAt:'2026-11-11T12:00:00Z',durationMs:5000,sizeBytes:50000,width:1600,height:900,hasMicrophone:true,hasPointerTrack:false,momentCount:0};
    return op==='get'?{ok:true,recording:{...uploaded,pointerTrack:null,moments:[]}}:op==='list'?{ok:true,recordings:[uploaded],library:{usedBytes:50000,limitBytes:10000000000}}:op==='status'?{ok:true,active:null}:op==='preview'?{ok:true,mime:'video/mp4',url:'implexa-artifact://preview/abcdefghijklmnop0123456789',token:'abcdefghijklmnop0123456789'}:{ok:true};
   },revokeArtifactPreview:async()=>({ok:true})});
-  h.bridge.trainingLocal=async(op,args)=>{const result=await original(op,args);return op==='select'&&contract==='1'?{...result,recordingId:QUESTION,playback:{available:true}}:result;};
+  h.bridge.trainingLocal=async(op,args)=>{
+   const result=await original(op,args);
+   if(op==='pickUpload')return {ok:true,selectionToken:TOKEN};
+   return op==='select'&&contract==='1'?{...result,recordingId:QUESTION,playback:{available:true}}:result;
+  };
   const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
   try{
    await chooseDirectUpload(r);const selected=h.calls.find(call=>call.operation==='select')!;
    assert.equal(selected.args.expectedOwnerId,contract==='1'?RECORD:undefined);assert.equal(Object.hasOwn(selected.args,'expectedOwnerId'),contract==='1');
+   assert.equal(selected.args.selectionToken,pickFirst?TOKEN:undefined);
+   if(pickFirst)assert.deepEqual(h.calls.filter(c=>['pickUpload','scope','select'].includes(c.operation)).map(c=>c.operation),
+    ['pickUpload','scope','select','scope'],'start the native picker before the first backend check');
    assert.equal(Boolean(r.document.querySelector('#recording-annotation')),contract==='1','the returned recording opens the existing RecordingPlayer only in playback mode');
    if(contract==='1'){assert.ok(r.document.querySelector('#recording-annotation video'));assert.match(r.text(),/This is my narrated demonstration/);assert.equal(h.calls.some(c=>c.operation==='preview'),false,'no separate still-frame path runs after a verified playback import');}
    else assert.ok(r.document.querySelector('[aria-label="Teach from an image"]'),'older Desktop retains the explicit frame fallback');
    assert.equal(h.calls.some(c=>['recording','annotate','accept','selectRecording'].includes(c.operation)),false);assert.equal(r.calls.push.length,0);
   }finally{r.cleanup();}
  }
+});
+
+test('cancelling the new picker avoids the training check and creates no session',async()=>{
+ const h=harness(),original=h.bridge.trainingLocal;
+ Object.assign(h.bridge,{trainingUploadPickerContractVersion:'1'});
+ h.bridge.trainingLocal=async(op,args)=>{
+  const result=await original(op,args);
+  if(op==='home')result.home!.recentSessions=[];
+  if(op==='pickUpload')return {ok:false,reason:'selection_cancelled'};
+  return result;
+ };
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft',ownerId:RECORD},{bridge:h.bridge});
+ try{
+  await r.click(r.getByText('↑ Upload'));
+  assert.match(r.document.querySelector('[role="dialog"]')?.textContent||'',/MP4, MOV, PNG/);
+  await r.click(r.document.querySelector('[role="dialog"] input')!);
+  await r.click(r.getByText('Choose video or image'));
+  assert.equal(h.calls.filter(c=>c.operation==='pickUpload').length,1);
+  assert.equal(h.calls.some(c=>['scope','select','create'].includes(c.operation)),false);
+  assert.ok(r.getByText('↑ Upload'));
+ }finally{r.cleanup();}
 });
 
 test('contextual review preserves draft selection and requires final Apply confirmation',async()=>{
