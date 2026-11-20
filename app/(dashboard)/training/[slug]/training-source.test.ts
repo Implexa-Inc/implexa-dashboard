@@ -1985,11 +1985,11 @@ test('same-page pending test shows progress, skips duplicate reads and reuses it
  }) as typeof fetch});
  try{
   await r.click(r.getByText('Open Apply & Test'));
-  assert.equal(r.getByText('Run with new training (pending)').closest('[hidden]'),null,'a reopened workspace can reach the included update');
+  assert.equal(r.getByText('Run a sample, then apply').closest('[hidden]'),null,'a reopened workspace can reach the included update');
   assert.equal(posts.length,0,'opening Apply & Test is navigation only');
   const readsBeforeClick=reads;
   holdNextRead=true;
-  await r.click(r.getByText('Run with new training (pending)'));
+  await r.click(r.getByText('Run a sample, then apply'));
   assert.equal(posts.length,0,'no preparation writes until the current candidate is confirmed');
   assert.equal(h.calls.filter(c=>c.operation==='home').length,2,'the native read starts while the candidate refresh is pending');
   await r.act(async()=>{verifiedRead.resolve();});
@@ -1999,14 +1999,14 @@ test('same-page pending test shows progress, skips duplicate reads and reuses it
   await r.act(async()=>{preparation.resolve();});
   const close=r.document.querySelector('[role=dialog] [aria-label=Close]');assert.ok(close);await r.click(close);
   assert.equal(reads-readsBeforeClick,1,'one current snapshot read when carry-forward needs no writes');
-  await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,1,'held preparation is reused');
+  await r.click(r.getByText('Run a sample, then apply'));assert.equal(posts.length,1,'held preparation is reused');
   assert.equal(h.calls.filter(c=>c.operation==='home').length,2,'the held preparation needs no new continuity read');
   await r.click(r.document.querySelector('[role=dialog] [aria-label=Close]')!);
   Object.assign(changes.test,{status:'failed',scope:'private_candidate',snapshotDigest:DIGEST,requestId:RECORD});
-  await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,2,'a failed spent preparation permits a fresh test');
+  await r.click(r.getByText('Run a sample, then apply'));assert.equal(posts.length,2,'a failed spent preparation permits a fresh test');
   await r.click(r.document.querySelector('[role=dialog] [aria-label=Close]')!);
   Object.assign(changes.test,{status:'running'});
-  await r.click(r.getByText('Run with new training (pending)'));assert.equal(posts.length,2,'running test never prepares again');assert.match(r.text(),/already queued or running/);
+  await r.click(r.getByText('Run a sample, then apply'));assert.equal(posts.length,2,'running test never prepares again');assert.equal((r.getByText('Run a sample, then apply') as HTMLButtonElement).disabled,true);
   assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);
  }finally{verifiedRead.resolve();preparation.resolve();r.cleanup();}
 });
@@ -2030,10 +2030,10 @@ test('a new Training test carries compatible taste before freezing its fresh sna
    return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
   }) as typeof fetch});
  try{
-  await r.click(r.getByText('Run with new training (pending)'));assert.deepEqual(events,['carry','prepare']);
+  await r.click(r.getByText('Run a sample, then apply'));assert.deepEqual(events,['carry','prepare']);
   assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);
   await r.click(r.document.querySelector('[role=dialog] [aria-label=Close]')!);
-  await r.click(r.getByText('Run with new training (pending)'));assert.deepEqual(events,['carry','prepare'],'held frozen preparation is reused without another carry');
+  await r.click(r.getByText('Run a sample, then apply'));assert.deepEqual(events,['carry','prepare'],'held frozen preparation is reused without another carry');
  }finally{r.cleanup();}
 });
 
@@ -2057,7 +2057,7 @@ test('a new Training test accepts freshly carried optional taste without an adop
    if(init.method==='POST'){events.push('prepare');return {ok:true,json:async()=>({ok:true,testPreparationId:SOURCE_ID,preparationDigest:DIGEST,sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:DIGEST,scope:'private_candidate'})};}
    return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
   }) as typeof fetch});
-  try{refresh=true;await r.click(r.getByText('Run with new training (pending)'));assert.deepEqual(events,mode==='unavailable'?[]:['prepare']);assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);}finally{r.cleanup();}
+  try{refresh=true;await r.click(r.getByText('Run a sample, then apply'));assert.deepEqual(events,mode==='unavailable'?[]:['prepare']);assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);}finally{r.cleanup();}
  }
 });
 
@@ -2068,8 +2068,8 @@ test('a lost test-preparation response retries the same intent key rather than c
   return {ok:true,json:async()=>String(url).includes('/changes?')?changes:{ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0}};
  }) as typeof fetch});
  try{
-  await r.click(r.getByText('Run with new training (pending)'));assert.match(r.text(),/training change unconfirmed/);
-  await r.click(r.getByText('Run with new training (pending)'));assert.equal(keys.length,2);assert.ok(keys[0]);assert.equal(keys[0],keys[1]);
+  await r.click(r.getByText('Run a sample, then apply'));assert.match(r.text(),/training change unconfirmed/);
+  await r.click(r.getByText('Run a sample, then apply'));assert.equal(keys.length,2);assert.ok(keys[0]);assert.equal(keys[0],keys[1]);
   assert.equal(r.calls.backend.some(c=>c.path==='/api/v2/me/run-requests'),false);assert.equal(r.calls.push.length,0);
  }finally{r.cleanup();}
 });
@@ -2945,10 +2945,10 @@ test('Apply reconciles a lost acknowledgement from fresh exact inclusion without
   }) as typeof fetch});
   try{
    await r.click(r.getByText('Continue to Apply & Test'));const before=reads;
-   await r.click(r.getByText('Apply selected'));
+   await r.click(r.getByText('Save selected lessons'));
    assert.equal(requests.length,1);assert.ok(requests[0].headers['Idempotency-Key']);
    assert.equal(reads-before,2,'one pre-write read and one confirmation read, with no redundant mutation refresh');
-   assert.match(r.text(),/1 lesson saved\. Test this update/);assert.doesNotMatch(r.text(),/could not be confirmed|0 of 1/);
+   assert.match(r.text(),/1 lesson saved\. Apply them now/);assert.doesNotMatch(r.text(),/could not be confirmed|0 of 1/);
    assert.equal(h.calls.some(c=>c.operation==='accept'),false,'uses existing text admission, never the visual authority writer');
   }finally{r.cleanup();}
  }
@@ -2972,15 +2972,15 @@ test('unconfirmed Apply remains unknown until same-session exact-digest inclusio
    return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
   }) as typeof fetch});
   try{
-   await r.click(r.getByText('Continue to Apply & Test'));await r.click(r.getByText('Apply selected'));
+   await r.click(r.getByText('Continue to Apply & Test'));await r.click(r.getByText('Save selected lessons'));
    assert.equal(posts,1);assert.match(r.text(),/0 of 1 selected lessons confirmed saved/);
-   assert.doesNotMatch(r.text(),/1 lesson saved\. Test this update/);
+   assert.doesNotMatch(r.text(),/1 lesson saved\. Apply them now/);
    allowRefresh=true;await r.click(r.getByText('Refresh saved changes'));
    assert.equal(posts,1,'refresh never re-admits or auto-retries a mutation');
    if(refreshed==='included'){
-    assert.match(r.text(),/1 lesson saved\. Test this update/);
+    assert.match(r.text(),/1 lesson saved\. Apply them now/);
     assert.doesNotMatch(r.text(),/could not be confirmed|0 of 1/,'the owned stale Apply error is reconciled');
-   }else assert.doesNotMatch(r.text(),/1 lesson saved\. Test this update/,'other records, contexts and unknown reads cannot confirm this intent');
+   }else assert.doesNotMatch(r.text(),/1 lesson saved\. Apply them now/,'other records, contexts and unknown reads cannot confirm this intent');
   }finally{r.cleanup();}
  }
 });
@@ -3234,4 +3234,39 @@ test('target carry from a newer adoption path does not claim the selected older 
    assert.equal(h.calls.some(c=>['accept','annotate'].includes(c.operation)),false,'starting a current session must not re-admit the selected historical examples');
   }finally{r.cleanup();}
  }
+});
+
+
+test('direct application uses the existing owner activation endpoint and refreshes active training without a sample',async()=>{
+ const h=harness(),posts:any[]=[];let applied=false;
+ const changes=()=>{
+  const value=textApplyProducerProjection();
+  Object.assign(value.records[0],{state:'candidate',included:true,admissionOrigin:'owner_candidate'});
+  value.activation={canActivate:false,canApplyWithoutTest:true,reason:null,servedSnapshotDigest:applied?DIGEST:null,
+   withdrawnSinceTest:0,testRequestId:null,serving:{mode:applied?'activated_snapshot':'legacy_accepted',candidateDiffers:!applied,
+    activeRecordIds:applied?[value.records[0].recordId]:[]}};
+  return value;
+ };
+ const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,fetch:(async(url:any,init:any={})=>{
+  if(String(url).includes('/changes?')){
+   if(init.method==='POST'){
+    posts.push({url:String(url),body:JSON.parse(init.body),key:init.headers['Idempotency-Key']});applied=true;
+    return {ok:true,json:async()=>({ok:true,contractVersion:'training-snapshot-activation.v1',activationId:SOURCE_ID,activationDigest:DIGEST,
+     sessionId:SESSION,workflowVersionId:VERSION_A,snapshotDigest:changes().binding.snapshotDigest,testRequestId:null})};
+   }
+   return {ok:true,json:async()=>changes()};
+  }
+  return {ok:true,json:async()=>({ok:true,contractVersion:'training-chat.v1',canSend:false,turns:[],totalTurns:0})};
+ }) as typeof fetch});
+ try{
+  await r.click(r.getByText('Open Apply & Test'));
+  assert.equal(posts.length,0);
+  await r.click(r.getByText('Apply training without a sample run'));
+  assert.equal(posts.length,1);assert.ok(posts[0].url.includes('operation=activate'));
+  assert.deepEqual(posts[0].body,{expectedActiveVersionId:VERSION_A,expectedSnapshotDigest:changes().binding.snapshotDigest,
+   testRequestId:null,applicationMode:'without_sample'});
+  assert.ok(posts[0].key);assert.match(r.text(),/Your training is active on future runs/);
+  assert.equal(r.document.querySelector('[role=dialog]'),null);
+  assert.equal(r.calls.backend.some(call=>call.path==='/api/v2/me/run-requests'),false);
+ }finally{r.cleanup();}
 });
