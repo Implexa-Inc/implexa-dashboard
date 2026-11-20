@@ -1879,8 +1879,8 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const unappliedCount=visualDraftItems.filter(({decision})=>visualTeachingSelectable({relation:decision.content.relation,category:decision.content.properties.join(', ')})).length+textPending+(runPending.identity===`${session}:${currentVersion}`?runPending.count:0);
   const attentionCards=[
 
-    ...(trainingStep===1&&!unappliedCount&&!versionChanged&&changes?.activation?.serving?.candidateDiffers===true?[{
-      key:'pending-training-test',title:'Training update ready',description:'Test the included lessons before making them live.',
+    ...(trainingStep===1&&!unappliedCount&&!versionChanged&&changes&&(changes.activation?.serving?.candidateDiffers===true||continuity.state==='available')?[{
+      key:'pending-training-test',title:'Training update ready',description:'Apply saved lessons directly or try them in a sample first.',
       label:'Open Apply & Test',optional:false,action:()=>selectTrainingStep(3),
     }]:[]),
     ...(preservedWorkCount>0?[{key:`recovery:${preservedWorkCount}`,title:'Finish saved work',description:'An upload or teaching on this Mac needs another look.',label:'Review saved work',optional:true,action:()=>openTrainingHistory('training-recovery')}]:[]),
