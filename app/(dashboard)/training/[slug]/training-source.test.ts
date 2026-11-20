@@ -3275,14 +3275,14 @@ test('direct application uses the existing owner activation endpoint and refresh
 test('direct application carries compatible lessons before asking to apply the refreshed exact candidate',async()=>{
  const proof={contractVersion:'manager-training-successor-adoption-preview.v1',sourceWorkflowVersionId:VERSION_B,targetWorkflowVersionId:VERSION_A,
   eligibleRecordCount:1,alreadyAdoptedRecordCount:0,newlyAdoptableRecordCount:1,eligibleRouteCount:1,readiness:'adoption_available',reason:null};
- const h=harness({successorAdoption:proof}),events:string[]=[],nextDigest='c'.repeat(64);let carried=false,applied=false;
+ const h=harness({successorAdoption:proof}),events:string[]=[],nextDigest='c'.repeat(64);let carried=false,applied=false,failCarry=true;const carryKeys:string[]=[];
  const changes=()=>{const value=textApplyProducerProjection();value.binding.snapshotDigest=carried?nextDigest:DIGEST;
   Object.assign(value.records[0],{state:'candidate',included:true,admissionOrigin:'owner_candidate'});
   value.activation={canActivate:false,canApplyWithoutTest:true,reason:null,servedSnapshotDigest:applied?nextDigest:null,
    withdrawnSinceTest:0,testRequestId:null,serving:{mode:applied?'activated_snapshot':'legacy_accepted',candidateDiffers:carried&&!applied,
     activeRecordIds:applied?[value.records[0].recordId]:[]}};return value;};
  const r=await render('../training/[slug]/training-source.tsx',{slug:'video-craft'},{bridge:h.bridge,
-  backend:(path:string)=>{if(!path.endsWith('/adopt-successor'))return {ok:true};events.push('carry');carried=true;
+  backend:(path:string,init:any)=>{if(!path.endsWith('/adopt-successor'))return {ok:true};events.push('carry');carryKeys.push(init.idempotencyKey);if(failCarry)return {ok:false,reason:'temporary_carry_failure'};carried=true;
    Object.assign(proof,{readiness:'already_adopted',alreadyAdoptedRecordCount:1,newlyAdoptableRecordCount:0});
    return {ok:true,contractVersion:'manager-training-successor-adoption.v1',created:true,agentSlug:'video-craft',sourceWorkflowVersionId:VERSION_B,targetWorkflowVersionId:VERSION_A,
     adoptedRecordCount:1,adoptionReceiptIds:[SOURCE_ID],eligibleRouteCount:1,adoptionSetDigest:DIGEST,managerTrainingRequirements:requirements(VERSION_A)};},
@@ -3300,11 +3300,15 @@ test('direct application carries compatible lessons before asking to apply the r
   const open=r.getByText('Open Apply & Test');assert.equal(open.closest('[hidden]'),null,'a current empty candidate with pending carry has a visible entry point');
   await r.click(open);
   await r.click(r.getByText('Apply training without a sample run'));
-  assert.deepEqual(events,['carry'],'carry never silently activates a different candidate');
+  assert.deepEqual(events,['carry']);
+  const retry=r.getByText('Apply training without a sample run') as HTMLButtonElement;assert.equal(retry.disabled,false,'failed carry keeps a usable retry action');
+  failCarry=false;await r.click(retry);
+  assert.deepEqual(events,['carry','carry'],'carry never silently activates a different candidate');
+  assert.ok(carryKeys[0]);assert.equal(carryKeys[0],carryKeys[1],'retry keeps the same target-bound carry intent');
   assert.match(r.text(),/Earlier lessons carried forward. Review them/);
   await r.click(r.getByText('Continue to Apply & Test'));
   await r.click(r.getByText('Apply training without a sample run'));
-  assert.deepEqual(events,['carry','activate']);assert.match(r.text(),/Your training is active on future runs/);
+  assert.deepEqual(events,['carry','carry','activate']);assert.match(r.text(),/Your training is active on future runs/);
   assert.equal(r.calls.backend.some(call=>call.path==='/api/v2/me/run-requests'),false);
  }finally{r.cleanup();}
 });

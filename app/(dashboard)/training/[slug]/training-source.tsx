@@ -303,6 +303,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const [changes,setChanges]=useState<GuidedTrainingChanges|null>(null),[changesError,setChangesError]=useState('');
   const [changesMutationBusy,setChangesBusy]=useState(false),[chatRequest,setChatRequest]=useState<TrainingChatRequest|null>(null);
   const [testProgress,setTestProgress]=useState('');
+  const [directCarryPending,setDirectCarryPending]=useState('');
   const changesBusy=changesMutationBusy||!!testProgress;
   const [publicationReviewOpen,setPublicationReviewOpen]=useState(false);
   const directApplyInFlight=useRef(false);
@@ -417,11 +418,12 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     if(testRequestId===null?!changes.activation?.canApplyWithoutTest:!changes.activation?.canActivate||testRequestId!==changes.activation.testRequestId)return;
     const direct=testRequestId===null,identity=changesIdentity.current;
     if(direct&&(directApplyInFlight.current||changesInFlight.current||preparingTest.current))return;
-    if(direct){directApplyInFlight.current=true;setChangesBusy(true);setChangesError('');}
+    if(direct){directApplyInFlight.current=true;setDirectCarryPending(identity);setChangesBusy(true);setChangesError('');}
     try{
       if(direct){
         const continuity=await preserveCompatibleTraining();
         if(changesIdentity.current!==identity)return;
+        setDirectCarryPending('');
         if(continuity.carried){
           const fresh=await loadChanges(AbortSignal.timeout(60000));
           if(changesIdentity.current!==identity)return;
@@ -1244,7 +1246,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
         return freshHome=result.value;
       },
       adopt:(body,key)=>callBackend(`${endpoint}/adopt-successor`,{
-        jwt:auth.access_token,method:'POST',body,idempotencyKey:key,...(!historical?{signal:AbortSignal.timeout(45000)}:{})})});
+        jwt:auth.access_token,method:'POST',body,idempotencyKey:key,...(!historical?{signal:AbortSignal.timeout(85000)}:{})})});
     if(!historical){
       if(result.carryError||result.preflight.state==='unavailable')throw new TrainingError('training_continuity_unconfirmed',result.carryError||'Check the current training before continuing.');
       return result;
@@ -1879,7 +1881,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
   const unappliedCount=visualDraftItems.filter(({decision})=>visualTeachingSelectable({relation:decision.content.relation,category:decision.content.properties.join(', ')})).length+textPending+(runPending.identity===`${session}:${currentVersion}`?runPending.count:0);
   const attentionCards=[
 
-    ...(trainingStep===1&&!unappliedCount&&!versionChanged&&changes&&(changes.activation?.serving?.candidateDiffers===true||continuity.state==='available')?[{
+    ...(trainingStep===1&&!unappliedCount&&!versionChanged&&changes&&(changes.activation?.serving?.candidateDiffers===true||continuity.state==='available'||directCarryPending===changesIdentity.current)?[{
       key:'pending-training-test',title:'Training update ready',description:'Apply saved lessons directly or try them in a sample first.',
       label:'Open Apply & Test',optional:false,action:()=>selectTrainingStep(3),
     }]:[]),
@@ -2144,7 +2146,7 @@ export default function TrainingSource({ slug, installationId, forkPermission,ow
     </div>
     <section hidden={!installationId&&trainingStep!==3} aria-label="Apply and test training" className="space-y-6">
     <div className="flex items-center justify-between gap-3"><h2 className="text-2xl font-medium tracking-tight">Apply &amp; Test</h2><button type="button" className="text-sm text-brand-400 underline underline-offset-4" onClick={()=>selectTrainingStep(2)}>Review selection</button></div><div ref={setApplyContainer} aria-label="Selected training to apply" className="space-y-4"/>
-    {!installationId&&<TrainingRunPanel value={changes} compatibleTrainingPending={continuity.state==='available'} progress={testProgress} busy={!!busy||changesBusy||versionChanged} onTest={digest=>prepareCandidateTest(digest)} onPublish={()=>setPublicationReviewOpen(true)} onActivate={activateCandidate} onApplyWithoutTest={digest=>activateCandidate(digest,null)}
+    {!installationId&&<TrainingRunPanel value={changes} compatibleTrainingPending={continuity.state==='available'||directCarryPending===changesIdentity.current} progress={testProgress} busy={!!busy||changesBusy||versionChanged} onTest={digest=>prepareCandidateTest(digest)} onPublish={()=>setPublicationReviewOpen(true)} onActivate={activateCandidate} onApplyWithoutTest={digest=>activateCandidate(digest,null)}
       actions={runContext?<AgentActions {...runContext} workflowVersionId={runContext.workflowVersionId} inputContract={runContext.inputContract} inputContractDigest={runContext.inputContractDigest} slug={slug} name={agentName} align="start" presentation="training" statusUnavailable={runContext.statusUnavailable||runContext.workflowVersionId!==currentVersion} runRequest={runRequest} onQueued={()=>void loadChanges()}
         trainingChoices={{pendingUnknown:!!changesError,pending:false,canTest:!versionChanged&&!!changes?.test.canTest,delivered:!versionChanged&&changes?.test.status==='delivered'&&changes.test.snapshotDigest===changes.binding.snapshotDigest,savedAvailable:changes?.activation?.serving?.mode!=='snapshot_other_version',busy:!!busy||changesBusy,
          onPending:()=>{if(changes)void prepareCandidateTest(changes.binding.snapshotDigest);},onSaved:()=>setRunRequest({nonce:crypto.randomUUID(),binding:null})}}/>:<p className="mt-3 text-sm text-ink-500">Run setup is unavailable. Refresh this page to try again.</p>}/>}
