@@ -36,6 +36,7 @@ import { localInputRecoveryMessage, verifyContinuationSource } from '@/lib/conti
 
 export default function RunContinueBox({
   runId, agentName, pending = false, initialNote = '', slug = null, workflowVersionId = null,
+  audioEdits = false, higgsfieldCreditChoices = [],
 }: {
   runId: string;
   agentName: string;
@@ -46,11 +47,17 @@ export default function RunContinueBox({
   pending?: boolean;
   /** Optional evidence-grounded repair prompt from Implexa Judge. User reviews it before queueing. */
   initialNote?: string;
+  audioEdits?: boolean;
+  higgsfieldCreditChoices?: number[];
 }) {
   const [note, setNote] = useState(initialNote);
   const [preservePlannerIdentity, setPreservePlannerIdentity] = useState(false);
   const [completePointClaims, setCompletePointClaims] = useState(false);
   const [claimScope, setClaimScope] = useState('');
+  const [mixSoundEffects, setMixSoundEffects] = useState(false);
+  const [trimStart, setTrimStart] = useState('');
+  const [trimEnd, setTrimEnd] = useState('');
+  const [higgsfieldCredits, setHiggsfieldCredits] = useState('');
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   const [sourcePhase, setSourcePhase] = useState<'checking' | 'reconnecting' | null>(null);
@@ -70,6 +77,7 @@ export default function RunContinueBox({
   const supabase = createClient();
 
   const canSubmit = !!note.trim() || files.length > 0;
+  const showMedia = !pending && !preservePlannerIdentity && (audioEdits || higgsfieldCreditChoices.length > 0);
 
   async function submit(opts?: { force?: boolean; executionMachineId?: string | null }) {
     if (submitting.current || !canSubmit) return;
@@ -88,6 +96,25 @@ export default function RunContinueBox({
         try { revisionClaimScope = JSON.parse(claimScope); }
         catch { setMsg('Enter the named point IDs and refused-review binding as valid JSON.'); return; }
       }
+      let videoEdit: { mixSoundEffects: boolean; trimStartMs: number | null; trimEndMs: number | null } | null = null;
+      if (showMedia && audioEdits && (mixSoundEffects || trimStart || trimEnd)) {
+        let trimStartMs = null;
+        let trimEndMs = null;
+        if (trimStart || trimEnd) {
+          const validSeconds = /^\d{1,4}(?:\.\d{1,3})?$/;
+          if (!validSeconds.test(trimStart) || !validSeconds.test(trimEnd)) {
+            setMsg('Enter both trim times in seconds.');
+            return;
+          }
+          trimStartMs = Math.round(Number(trimStart) * 1000);
+          trimEndMs = Math.round(Number(trimEnd) * 1000);
+          if (trimEndMs <= trimStartMs || trimEndMs - trimStartMs > 30000 || trimEndMs > 2700000) {
+            setMsg('Choose a trim of up to 30 seconds within the first 45 minutes.');
+            return;
+          }
+        }
+        videoEdit = { mixSoundEffects, trimStartMs, trimEndMs };
+      }
       const source = await verifyContinuationSource(runId, setSourcePhase);
       setSourcePhase(null);
       if (!source.ok) {
@@ -103,6 +130,8 @@ export default function RunContinueBox({
           ...(preservePlannerIdentity ? { revisionPreservation: completePointClaims
             ? 'planner-bundle-point-claim-revision.v1' : 'planner-bundle-identity-preservation.v1' } : {}),
           ...(preservePlannerIdentity && completePointClaims ? { revisionClaimScope } : {}),
+          ...(showMedia ? { continuationMedia: { videoEdit,
+            higgsfieldCredits: higgsfieldCredits === '' ? null : Number(higgsfieldCredits) } } : {}),
           ...(opts?.force ? { force: true } : {}),
           // On a Recheck-admitted retry: the machine the admission was proven on.
           ...(opts?.executionMachineId ? { executionMachineId: opts.executionMachineId } : {}),
@@ -161,6 +190,38 @@ export default function RunContinueBox({
         error={attachError}
         hint="A screenshot, the captured footage, a doc — the run reads it as input."
       />
+      {showMedia && <details className="mt-3 rounded-md border border-ink-800 px-3 py-2 text-xs text-ink-300">
+        <summary className="cursor-pointer font-medium text-ink-200">Media for this revision</summary>
+        {audioEdits && <div className="mt-3 space-y-2">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={mixSoundEffects} onChange={event => setMixSoundEffects(event.target.checked)} />
+            Mix sound effects under the narration
+          </label>
+          <div className="flex flex-wrap gap-3">
+            <label>Trim from (seconds)
+              <input className="ml-2 w-24 rounded border border-ink-700 bg-ink-900 px-2 py-1"
+                type="number" min="0" step="0.001" value={trimStart} onChange={event => setTrimStart(event.target.value)} />
+            </label>
+            <label>To (seconds)
+              <input className="ml-2 w-24 rounded border border-ink-700 bg-ink-900 px-2 py-1"
+                type="number" min="0" step="0.001" value={trimEnd} onChange={event => setTrimEnd(event.target.value)} />
+            </label>
+          </div>
+          <p className="text-ink-400">Optional. Use timestamps from the source recording.</p>
+        </div>}
+        {higgsfieldCreditChoices.length > 0 && <div className="mt-3">
+          <label className="flex flex-wrap items-center gap-2">Higgsfield credits
+            <select className="rounded border border-ink-700 bg-ink-900 px-2 py-1"
+              value={higgsfieldCredits} onChange={event => setHiggsfieldCredits(event.target.value)}>
+              <option value="">Choose if needed</option>
+              {higgsfieldCreditChoices.map(credits => <option key={credits} value={credits}>
+                {credits === 0 ? 'No paid generation (0 credits)' : `${credits} credits`}
+              </option>)}
+            </select>
+          </label>
+          <p className="mt-1 text-ink-400">Set a limit for this revision. Without a selection, the agent can source free footage.</p>
+        </div>}
+      </details>}
       {!pending && <label className="mt-3 flex items-start gap-2 text-xs text-ink-400">
         <input type="checkbox" checked={preservePlannerIdentity}
           onChange={(e) => setPreservePlannerIdentity(e.target.checked)} />

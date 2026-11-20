@@ -732,12 +732,23 @@ export default async function RunDetailPage({
   }
 
   let creativeGradeNotice: string | null = null;
-  if (runWorkflowVersionId && !judgment?.creative_grade) {
+  let supportsAudioRevision = false;
+  let revisionCreditChoices: number[] = [];
+  if (runWorkflowVersionId && (!judgment?.creative_grade || (!held && r.output_markdown))) {
     try {
-      const {data: version} = await supabase.from('workflow_versions').select('steps').eq('id', runWorkflowVersionId).maybeSingle();
-      const required = (Array.isArray(version?.steps) ? version.steps : []).some((step: any) =>
-        (Array.isArray(step.outputs) ? step.outputs : []).some((output: any) => output.review?.required === true));
-      if (required) {
+      const {data: version} = await supabase.from('workflow_versions').select('steps,input_contract').eq('id', runWorkflowVersionId).maybeSingle();
+      const steps = Array.isArray(version?.steps) ? version.steps : [];
+      const declaredReviews = steps.flatMap(step => Array.isArray(step.outputs) ? step.outputs : [])
+        .map(output => output.review).filter(review => review?.required === true);
+      supportsAudioRevision = declaredReviews.some(review => review.kind === 'graded_creative' && review.refinement?.sourceVideoInput);
+      if (steps.some(step => step.executionAccess === 'local_tool' && typeof step.executionTool === 'string'
+          && step.executionTool.toLowerCase() === 'higgsfield') && Array.isArray(version?.input_contract?.fields)) {
+        const fields = version.input_contract.fields as import('@/lib/workflow-input-contract').WorkflowInputField[];
+        const field = fields.find(field => field.key === 'higgsfield_credit_limit' && field.kind === 'choice');
+        const options = field?.options;
+        revisionCreditChoices = Array.isArray(options) ? [0, 25, 50, 100, 250].filter(credits => options.includes(String(credits))) : [];
+      }
+      if (declaredReviews.length && !judgment?.creative_grade) {
         const {data: policy, error: policyError} = await supabase.from('user_agent_judge_policies').select('mode')
           .eq('skill_slug', r.skill_slug).maybeSingle();
         creativeGradeNotice = policyError
@@ -1452,6 +1463,8 @@ export default async function RunDetailPage({
               slug={r.skill_slug}
               workflowVersionId={runWorkflowVersionId}
               pending={false}
+              audioEdits={supportsAudioRevision}
+              higgsfieldCreditChoices={revisionCreditChoices}
               initialNote={judgment?.verdict === 'repair' ? (judgment.repair_prompt || judgment.next_action || '') : ''}
             />
           </div>
