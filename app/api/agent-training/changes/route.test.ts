@@ -32,8 +32,8 @@ test('a slow Training read survives the former deadline and remains bounded',asy
  p.advance(55000);const result=await response;assert.equal(result.status,503);assert.equal(p.calls.length,1);
  assert.equal(result.value.reason,'training_changes_unavailable');assert.doesNotMatch(JSON.stringify(result),/private upstream/);
 });
-test('public preparation, publication and test preparation retain their sixty-second budget',async()=>{
- for(const operation of ['publication/prepare','publication/publish','tests/prepare']){
+test('full-set preparation, publication and activation have a sixty-second budget',async()=>{
+ for(const operation of ['publication/prepare','publication/publish','tests/prepare','activate']){
   const p=proxy();let settled=false;const response=p.POST(request(operation)).then((value:any)=>{settled=true;return value;});await tick();
   assert.equal(p.calls.length,1);p.advance(35000);await tick();assert.equal(settled,false,operation);
   assert.equal(p.calls[0].url,`https://core.implexa.ai/api/v2/agent-training/sessions/${SESSION}/changes/${operation}`);
@@ -48,7 +48,7 @@ test('public preparation, publication and test preparation retain their sixty-se
  }
 });
 test('ordinary writes retain their existing deadline and never retry after an uncertain response',async()=>{
- for(const operation of ['policy','withdraw','creation-import','activate']){
+ for(const operation of ['policy','withdraw','creation-import']){
   const p=proxy();let ended=false;const response=p.POST(request(operation)).then((value:any)=>{ended=true;return value;});await tick();assert.equal(p.calls.length,1);
   p.advance(9999);await tick();assert.equal(ended,false,operation);
   p.advance(10000);assert.equal((await response).status,503,operation);assert.equal(p.calls.length,1);
