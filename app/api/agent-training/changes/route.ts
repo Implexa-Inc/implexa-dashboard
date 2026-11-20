@@ -1,9 +1,9 @@
 import {NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase/server';
 import {UUID} from '@/lib/trainer-questions';
-// Publication preparation includes sequential validated reads and a guarded write.
+// Preparation, publication and activation validate the complete immutable set.
 // Records use one RPC with a 30s database ceiling, plus response margin here.
-// Other ordinary writes stay 10s; preparation/publication keep their existing budget.
+// Other ordinary writes stay 10s; full-set operations get response margin.
 export const maxDuration=65;
 const BACKEND=(process.env.NEXT_PUBLIC_IMPLEXA_API_URL||'https://core.implexa.ai').replace(/\/$/,'');
 async function forward(request:Request,write:boolean){
@@ -15,7 +15,7 @@ async function forward(request:Request,write:boolean){
   if(!UUID.test(id||'')||[...q.keys()].some(k=>k!=='sessionId'&&(!write||k!=='operation'))
    ||write&&!['policy','records','withdraw','creation-import','tests/prepare','activate','publication/prepare','publication/publish'].includes(operation||''))return NextResponse.json({ok:false,reason:'invalid_request'},{status:400});
   operationLabel=write?operation!:'read';
-  const timeoutMs=write?(['publication/prepare','publication/publish','tests/prepare'].includes(operation||'')?60000:operation==='records'?35000:10000):55000;
+  const timeoutMs=write?(['publication/prepare','publication/publish','tests/prepare','activate'].includes(operation||'')?60000:operation==='records'?35000:10000):55000;
   const headers:Record<string,string>={authorization:`Bearer ${session.access_token}`,'content-type':'application/json'};
   let body;
   if(write){const key=request.headers.get('Idempotency-Key');
