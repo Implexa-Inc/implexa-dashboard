@@ -308,14 +308,14 @@ export function managerTrainingRunPreflight(
     const requirements=root.managerTrainingRequirements;
     return requirements.readiness==='coach_reference_training_required'?{state:'training_required',requirements,hasEligiblePredecessor:false,successorAdoption:null}:{state:'ready',requirements};
   }
-  if (root.contractVersion === 'installed-agent-training-preflight.v1') {
+  if (root.contractVersion === 'installed-agent-training-preflight.v1'||root.contractVersion === 'owner-agent-training-preflight.v1') {
     if (!exact(root, ['ok', 'contractVersion', 'agentFamilyId', 'workflowVersionId', 'managerTrainingRequirements'])
       || root.ok !== true || typeof root.agentFamilyId !== 'string' || !UUID.test(root.agentFamilyId)
       || root.workflowVersionId !== workflowVersionId
       || !isManagerTrainingRequirements(root.managerTrainingRequirements, workflowVersionId)) return { state: 'unavailable' };
     const requirements = root.managerTrainingRequirements;
     return requirements.readiness === 'coach_reference_training_required'
-      ? { state: 'training_required', requirements, installedCustomer: true,
+      ? { state: 'training_required', requirements, ...(root.contractVersion==='installed-agent-training-preflight.v1'?{installedCustomer:true as const}:{}),
         hasEligiblePredecessor: false, successorAdoption: null }
       : { state: 'ready', requirements };
   }

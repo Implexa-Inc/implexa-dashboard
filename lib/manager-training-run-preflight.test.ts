@@ -367,3 +367,15 @@ test('active carry status is independent of the historical session while skip-re
   assert.equal(trainingCarryCoversSession(bad,req,TARGET,SOURCE),false);
  }
 });
+
+
+test('owner applied-training aggregate stays version-bound and cannot admit missing required teaching',()=>{
+ const ready={ok:true,contractVersion:'owner-agent-training-preflight.v1',agentFamilyId:SOURCE,workflowVersionId:TARGET,
+  managerTrainingRequirements:home('reference_training_ready').home.managerTrainingRequirements};
+ assert.equal(managerTrainingRunPreflight(ready,TARGET).state,'ready');
+ assert.equal(managerTrainingRunPreflight({...ready,workflowVersionId:SOURCE},TARGET).state,'unavailable');
+ assert.equal(managerTrainingRunPreflight({...ready,extra:true},TARGET).state,'unavailable');
+ const required=managerTrainingRunPreflight({...ready,managerTrainingRequirements:home('coach_reference_training_required').home.managerTrainingRequirements},TARGET);
+ assert.equal(required.state,'training_required');
+ if(required.state==='training_required'){assert.equal(required.installedCustomer,undefined);assert.equal(required.successorAdoption,null);}
+});
